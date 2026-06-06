@@ -878,6 +878,40 @@ each) and small cannot-find clusters. New patterns from this stretch:
 - **COMMIT GOTCHA:** no backticks in `git commit -m` -- they trigger shell
   command-substitution and silently eat text (parens in double quotes are fine).
 
+### Track B Contacts/QoS/notify + witness pass (2026-06, ~97.3%, 10.8k)
+
+- **A shim FIELD's TYPE matters, not just its existence.** The recurring
+  "type Int has no member userDefault" (50, across files) was
+  CNContactFetchRequest.sortOrder typed `Int` in the shim instead of the
+  CNContactSortOrder enum (which has `.userDefault`). One-line type change
+  cleared the whole category. When a category is "type X has no member Y",
+  suspect a shim property declared with too-loose a type.
+- **A shim TYPE is only as good as the import PATH to its consumer.** NSHashTable
+  was added to QuillFoundation but never resolved in MessagePipelineSupervisor,
+  which imports ONLY Foundation (no UIKit/QuillFoundation). Fix: add such
+  QuillFoundation-only symbols (NSHashTable, NSEC_*) to the inject-foundation
+  QuillFoundation rule so consumers get `import QuillFoundation`. Don't assume a
+  re-exporter (UIKit) covers a file -- check its actual imports.
+- **CNError-style bridged-error pattern.** `catch CNError.communicationError` /
+  `case CNError.communicationError` need a static value + an expression-pattern
+  `static func ~= (pattern:error:)` (and the code Equatable) so both type-check
+  (the inert store never throws it -- compile-only).
+- **Darwin C subsystems = top-level QuillDarwin port decls (unqualified) OR a
+  named module shim (qualified import).** Mach (task_info), sysctlbyname, Dispatch
+  QoS (qos_class_t + QOS_CLASS_* at real values so rawValue ranges hold) are used
+  unqualified -> top-level in QuillDarwin. notify(3) is `import notify` -> fill
+  the `notify` shim MODULE. All inert (no real bus/telemetry on Linux).
+- **A SendableMessage-style protocol requirement whose witness lives in an
+  excluded .m** shows up as Swift's "different argument labels ... required by
+  protocol" near-miss diagnostic. The conformer is just MISSING the method -- add
+  it to the port class body (update(withHasSyncedTranscript:) on TSOutgoingMessage).
+- **Pattern recap (shim members):** CGImage decode-inits/width/height/cropping,
+  UIFont metrics, RSScreen.nativeBounds (= bounds*scale) -- all UIKit/CG, not
+  Foundation; Linux-gate, approximate/inert. Still-OPEN hard nut: the genuine
+  swift-corelibs CF-bridging gaps (URL->CFURL, [String:CFBoolean?]->CFDictionary
+  where kCFBoolean* is real-corelibs optional) in BadgeAssets -- need a real
+  workaround (a helper that builds the CFDictionary/CFURL), not a type shim.
+
 ---
 
 ## Pointers
