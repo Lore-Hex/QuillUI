@@ -802,6 +802,46 @@ each) and small cannot-find clusters. New patterns from this stretch:
   (225 in TSInteraction+SDS). Likely a GRDB index-subscript overload-resolution /
   version-skew issue; needs a prepare-pass type annotation or a GRDB-pin probe.
 
+### Track B GRDB/sqlite + drawing-shim pass (2026-06, ~96.2%, 14.2k)
+
+- **GRDB 7.10 Row index subscript has NO generic-optional overload.** It vends
+  `subscript(_:Int) -> (any DatabaseValueConvertible)?` (non-generic) and
+  `subscript<Value>(_:Int) -> Value` (non-optional generic). So
+  `row[N].flatMap { Enum(rawValue: $0) }` (needs an Optional to flatMap, and the
+  closure to pick the element type) falls to the existential overload ->
+  "cannot convert any DatabaseValueConvertible to Int/UInt/...". Signal builds
+  against a GRDB fork that has the optional generic subscript. RESOLVED by a
+  prepare-pass (quill-signal-fix-sds-rowsubscript.sh) rewriting to the idiomatic
+  typed cast `(row[N] as Enum.RawValue?).flatMap { ... }` -- the `.RawValue`
+  avoids needing each enum's concrete underlying type, and `as T?` selects the
+  generic subscript with Value=Optional<...> (Optional conforms to
+  DatabaseValueConvertible when Wrapped does). Adding an extension subscript
+  instead would make `row[N] as T?` ambiguous, so prefer the prepare-pass. -389.
+- **Raw sqlite3 C API -> GRDB's GRDBSQLite product.** ~12 SSK files use SQLITE_OK
+  / sqlite3_errmsg / sqlite3_step etc. On Apple these come via the bridging
+  header; GRDB already ships `GRDBSQLite` as a `.library` product whose module
+  map is `link "sqlite3"` (real libsqlite3, faithful). Add it to the SSK target
+  deps + an inject-foundation rule (SQLITE_TYPES -> import GRDBSQLite). -606. Lesson:
+  before shimming a C API, check whether a dep already vends it as a product.
+- **swift-corelibs renamed APIs are hard errors.** decodeTopLevelObject(of:forKey:)
+  -> decodeObject(of:forKey:) (same signature). Fix via a fetch-upstream
+  patch_signal_ios python replace (the `try` on the now-non-throwing call is a
+  harmless warning). Place such patches BEFORE blocks that have early-returns.
+- **@objc optional protocol after the @objc-strip.** The lowering pass turns
+  `@objc protocol` into plain `public protocol`, leaving `optional func` invalid.
+  Model optionality the Swift-native way: drop `optional`, add a default no-op
+  extension, and drop the `?` optional-chaining at call sites. Verify which
+  members conformers actually skip (those defaults are load-bearing).
+- **Font/text shims: UIKit, not Foundation; Linux-gate to avoid AppKit clash.**
+  RSFont needed withSize / init?(name:size:) (failable, named font absent) /
+  lineHeight / capHeight (approx ~1.2x / 0.7x point size). String drawing
+  (NSStringDrawingOptions, NSStringDrawingContext, String.boundingRect/draw) is a
+  UIKit extension, absent from swift-corelibs -- added to the UIKit shim under
+  `#if os(Linux)` so AppKit's own String.boundingRect doesn't collide on macOS.
+  boundingRect returns a rough estimate from the `.font` attribute; draw is inert.
+  UIFont -296, NSString-drawing -425 (the String ext cascades widely; expect a
+  few files to tick UP as masked downstream errors surface -- net strongly down).
+
 ---
 
 ## Pointers
