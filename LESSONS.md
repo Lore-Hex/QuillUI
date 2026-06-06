@@ -757,6 +757,51 @@ each) and small cannot-find clusters. New patterns from this stretch:
   changed. Symptom of forgetting: your new rule's symbol stays "cannot find in
   scope" and the target file's `head` shows no injected import.
 
+### Track B per-file-cap targeting + shim/type fixes (2026-06, ~95.6%, 16.2k)
+
+- **TOPFILES is the lever now.** The Swift per-file diagnostic cap (~50/kind)
+  means each "50"-count category is really ONE-FEW broken files. Add a TOPFILES
+  line to the build (`grep -oE "(\.upstream|Sources)/[^:]+\.swift:[0-9]+:[0-9]+:
+  error:" | sed 's/:line:col://' | sort | uniq -c | sort -rn`) and root-cause the
+  FILE, not the diagnostic. To see one file's WHAT: `grep "FILE.swift:.*error:" |
+  sed 's/^.*error: //' | sort | uniq -c | sort -rn`.
+- **swift-corelibs HAS more than you think — verify before shimming.** A 1-file
+  `swiftc` compile test proved Foundation 6.2 vends `NSAttributedString` +
+  `.Key`; the only fix was adding it to inject-foundation's FOUNDATION_TYPES so
+  the one Foundation-less consumer got `import Foundation` (−100). Test, don't
+  assume absence.
+- **vDSP / Accelerate is PURE-MATH -> faithful, not inert.** AudioWaveformSampler
+  needed vDSP_Length/Stride + vflt16/vabs/vdbcon/vclip/meanv; wrote numerically
+  faithful loops (honor stride). −650 (vDSP_Length was used beyond that file).
+- **QuillKit CF* typealiases vs swift-corelibs CoreFoundation = ambiguity.**
+  QuillKit defines `CFDictionary=[String:Any]`, `CFArray=[Any]`,
+  `CFTypeRef=AnyObject`, `CFString=String`, `CFData=Data` and is `@_exported` by
+  Security/UIKit/etc. A file importing BOTH a re-exporter AND swift-corelibs
+  `CoreFoundation` sees two `CFDictionary` -> "CFDictionary is ambiguous for type
+  lookup". Fix: inject-foundation now STRIPS (and skips) the CoreFoundation
+  injection for files that use Security, **iff they reference only CF *types* and
+  no real CF *functions*** (CFArrayCreate etc) — verified by grep before
+  stripping. −425 (SSKKeychainStorage 144->0, Certificates->0). Generalizes to
+  any QuillKit-re-exporter; widen the guard only after the no-CF-function check.
+- **Extending an existing compatibility shim: grep what it ALREADY has.** The
+  Security shim was huge but missing `errSecInteractionNotAllowed`, `SecPolicy`/
+  `SecPolicyCreateSSL`, `SecTrustResultType`, `SecTrustGetTrustResult`,
+  `SecTrustSetPolicies`. Read the consumer's exact call to get the signature, add
+  only the gaps. TLS trust shims should accept (.unspecified / true) + carry a
+  "needs native backend before production" note (these are not real TLS).
+- **[Key: Any] vs [Key: AnyObject] is a real wall on Linux** (no NSDictionary
+  bridge; Dictionary is invariant in Value). `AnyObject->Any` upcasts implicitly
+  (so [K:AnyObject] args satisfy a [K:Any] param) but NOT the reverse. When a
+  stored prop is [K:Any] and the SDS passes the prop value into subclass inits,
+  make EVERY init in the class hierarchy take [K:Any] (the deserialize-side
+  [K:AnyObject] locals still pass via upcast). Unify the whole hierarchy, not one
+  class. (infoMessageUserInfo across TSInfoMessage + 3 subclass ports, −361.)
+- **OPEN (still): GRDB `row[N].flatMap { Enum(rawValue: $0) }` infers
+  `any DatabaseValueConvertible`** not the enum's RawValue on Linux Swift 6.2
+  (works on Apple) -> "cannot convert any DatabaseValueConvertible to Int/UInt/..."
+  (225 in TSInteraction+SDS). Likely a GRDB index-subscript overload-resolution /
+  version-skew issue; needs a prepare-pass type annotation or a GRDB-pin probe.
+
 ---
 
 ## Pointers
