@@ -507,6 +507,61 @@ print("patched PacketTunnelSettingsGenerator.swift os-gate")
 PY
     fi
 
+    # WireGuardKit/WireGuardAdapter: now compiled on Linux (un-excluded) over the
+    # WireGuardKitGo stub shim. Three Linux ports: (1) add `import Network` — it uses
+    # NWPathMonitor / Network.NWPath but only `import NetworkExtension` (which re-exports
+    # Network on Apple, not in our shim); (2) Linux-stub the tunnelFileDescriptor computed
+    # property — its utun discovery uses Darwin kernel-control sockets (AF_SYSTEM / ctl_info
+    # / sockaddr_ctl / CTLIOCGINFO) that don't exist on Linux (the adapter never runs here);
+    # (3) widen the didReceivePathUpdate `#if os(macOS)` (wgBumpSockets) to include Linux,
+    # else `#error("Unsupported")`.
+    local wgadapter="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardKit/WireGuardAdapter.swift"
+    if [[ -f "$wgadapter" ]] && ! grep -q 'no utun kernel-control sockets on Linux' "$wgadapter"; then
+        echo "==> patching WireGuardAdapter.swift for Linux (import Network + tunnelFileDescriptor stub + os-gate)"
+        python3 - "$wgadapter" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('import Foundation\nimport NetworkExtension\n',
+                  'import Foundation\nimport NetworkExtension\nimport Network\n', 1)
+src = src.replace(
+'''    private var tunnelFileDescriptor: Int32? {
+        var ctlInfo = ctl_info()''',
+'''    private var tunnelFileDescriptor: Int32? {
+        #if os(Linux)
+        return nil // no utun kernel-control sockets on Linux (AF_SYSTEM/ctl_info are Darwin); the adapter never runs here
+        #else
+        var ctlInfo = ctl_info()''', 1)
+src = src.replace(
+'''            if addr.sc_id == ctlInfo.ctl_id {
+                return fd
+            }
+        }
+        return nil
+    }''',
+'''            if addr.sc_id == ctlInfo.ctl_id {
+                return fd
+            }
+        }
+        return nil
+        #endif
+    }''', 1)
+src = src.replace(
+'''        #if os(macOS)
+        if case .started(let handle, _) = self.state {
+            wgBumpSockets(handle)
+        }
+        #elseif os(iOS)''',
+'''        #if os(macOS) || os(Linux)
+        if case .started(let handle, _) = self.state {
+            wgBumpSockets(handle)
+        }
+        #elseif os(iOS)''', 1)
+open(path, "w").write(src)
+print("patched WireGuardAdapter.swift for Linux")
+PY
+    fi
+
     # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
     # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
     # protocol, like LogViewCell).

@@ -520,14 +520,12 @@ func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target
 
 // WireGuardKit deps + Linux-specific excludes.
 #if os(Linux)
-let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC", "Network", "NetworkExtension"]
-let wireGuardKitExcludes: [String] = [
-    // Only WireGuardAdapter remains excluded — it needs the WireGuardKitGo Go-engine
-    // bridge. DNSResolver + IPAddress+AddrInfo + PacketTunnelSettingsGenerator all port to
-    // Linux now (getaddrinfo + the Network/NetworkExtension shims; their lone `#error`
-    // os-gates widened to Linux + Glibc-vs-Darwin C-type casts via fetch-upstream patches).
-    "WireGuardAdapter.swift"
-]
+let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC", "WireGuardKitGo", "Network", "NetworkExtension"]
+// All WireGuardKit Swift files now compile on Linux: DNSResolver / IPAddress+AddrInfo /
+// PacketTunnelSettingsGenerator (engine networking, via the Network/NetworkExtension shims
+// + os-gate/C-type patches) and WireGuardAdapter (the Go-engine bridge, over the
+// WireGuardKitGo Linux stub shim). Nothing left to exclude.
+let wireGuardKitExcludes: [String] = []
 #else
 let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC"]
 let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
@@ -1573,6 +1571,9 @@ targets.append(contentsOf: [
     // PrivateDataConfirmation (key-reveal gate) recompiles; no auth backend on Linux.
     .target(name: "LocalAuthentication", dependencies: [], path: "Sources/LocalAuthenticationShim"),
     .testTarget(name: "LocalAuthenticationTests", dependencies: ["LocalAuthentication"], path: "Tests/LocalAuthenticationTests"),
+    // WireGuardKitGo Linux stub — the wireguard-go cgo bridge (Go engine not built here);
+    // lets WireGuardKit's WireGuardAdapter recompile. Compile-faithful, never runs on Linux.
+    .target(name: "WireGuardKitGo", dependencies: [], path: "Sources/WireGuardKitGoShim"),
     // os shim — covers the two os_log overloads (Apple message-first + the
     // xctest type-first) coexisting unambiguously; see Sources/osShim.
     .testTarget(name: "osTests", dependencies: ["os"], path: "Tests/osTests"),
