@@ -458,6 +458,37 @@ print("patched Application.swift assumeIsolated")
 PY
     fi
 
+    # WireGuardKit/DNSResolver: now compiled on Linux (un-excluded in Package.swift). Two
+    # Linux ports — (1) widen the lone `#error("Unimplemented")` os-gate in withReresolvedIP
+    # to Linux (return self, like macOS); (2) Glibc-vs-Darwin C types: SOCK_DGRAM is
+    # `__socket_type` and IPPROTO_UDP is `Int` on Linux, but addrinfo's fields are Int32, so
+    # cast (Linux only). WireGuardKit isn't run through the lowering CLI, hence this patch.
+    local dnsres="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardKit/DNSResolver.swift"
+    if [[ -f "$dnsres" ]] && ! grep -q 'Int32(SOCK_DGRAM.rawValue)' "$dnsres"; then
+        echo "==> patching DNSResolver.swift for Linux (os-gate widen + addrinfo C-type casts)"
+        python3 - "$dnsres" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+src = src.replace('        #elseif os(macOS)\n        return self',
+                  '        #elseif os(macOS) || os(Linux)\n        return self', 1)
+src = src.replace(
+'''        hints.ai_family = AF_UNSPEC
+        hints.ai_socktype = SOCK_DGRAM
+        hints.ai_protocol = IPPROTO_UDP''',
+'''        hints.ai_family = AF_UNSPEC
+        #if os(Linux)
+        hints.ai_socktype = Int32(SOCK_DGRAM.rawValue)
+        hints.ai_protocol = Int32(IPPROTO_UDP)
+        #else
+        hints.ai_socktype = SOCK_DGRAM
+        hints.ai_protocol = IPPROTO_UDP
+        #endif''', 1)
+open(path, "w").write(src)
+print("patched DNSResolver.swift for Linux")
+PY
+    fi
+
     # TunnelListRow is dequeued by TunnelsListTableViewController, so it must conform
     # to QuillReusableView (init() requirement) with a `required init()` (the B-wall
     # protocol, like LogViewCell).

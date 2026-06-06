@@ -522,13 +522,13 @@ func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target
 #if os(Linux)
 let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC", "Network", "NetworkExtension"]
 let wireGuardKitExcludes: [String] = [
+    // WireGuardAdapter needs the Go bridge (WireGuardKitGo); PacketTunnelSettingsGenerator
+    // needs NEPacketTunnelNetworkSettings + NE routes — both still pending. DNSResolver +
+    // IPAddress+AddrInfo DO port to Linux (getaddrinfo is cross-platform; IPv4/IPv6Address
+    // via the Network shim), so they now compile unmodified (DNSResolver's lone
+    // `#error` os-gate is widened to Linux by a fetch-upstream patch → `return self`).
     "WireGuardAdapter.swift",
-    // Upstream emits `#error("Unimplemented")` for these on non-iOS/
-    // non-macOS — skipping them keeps the rest of WireGuardKit
-    // compiling on Linux.
-    "DNSResolver.swift",
-    "PacketTunnelSettingsGenerator.swift",
-    "IPAddress+AddrInfo.swift"
+    "PacketTunnelSettingsGenerator.swift"
 ]
 #else
 let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC"]
