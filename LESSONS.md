@@ -674,6 +674,32 @@ or, better, remove the need for module `X`.
   `.build-linux` after a Swift-shim->systemLibrary switch, so `import zlib` resolves but exposes
   ZERO symbols. Delete the stale artifacts (`.build-linux/**/Modules/zlib.swiftmodule` +
   `**/zlib.build`) and rebuild -- then the systemLibrary takes and the symbols appear.
+- **THE OVERRIDE-IN-EXTENSION WALL (-2,686, the single biggest lever): relocate
+  extension members into the port class body.** Upstream declares overridable
+  members (contentHint, shouldRecordSendLog, relatedUniqueIds, anyUpdateOutgoingMessage,
+  updateWithSendSuccess, updateWithAllSendingRecipientsMarkedAsFailed, isStorySend,
+  envelopeGroupIdWithTransaction, encryptionStyle) in `extension TSOutgoingMessage`,
+  and subclasses do `override var contentHint { ... }`. On Apple this works because
+  TSOutgoingMessage is @objc (dynamic dispatch allows overriding extension members);
+  on Linux (no @objc) it's "X is declared in extension of 'TSOutgoingMessage' and
+  cannot be overridden" -- 2,532 errors from 9 members x many subclasses. FIX:
+  (1) re-declare the members in the PORT class body (QuillTSOutgoingMessage.swift);
+  (2) an idempotent prepare-pipeline script (quill-signal-relocate-extension-members.sh,
+  python regex, non-greedy to the first 4-space `^    }`) STRIPS the now-duplicate
+  base decls from the upstream extensions. ACCESS LEVEL: declare them `internal`
+  (no modifier), NOT `public`/`open` -- the upstream overrides are a MIX of internal
+  and public, an override must be >= the base, internal is the minimum so internal
+  overrides match and public overrides legally widen (a public base rejects the
+  internal overrides: "override must be as accessible as the declaration it
+  overrides"; an open base adds "as accessible as its enclosing type"). The port +
+  subclasses are the same SSK module so no `open` is needed. Relocated-member BODIES
+  call other extension methods (anyUpdate is itself a TSInteraction-extension method)
+  -- fine, the class body can CALL extension methods, it just can't be overridden as
+  one. Validate on a small batch first (the 7 one-liners before the 2 long ones).
+- **GRDB `enum Columns must be declared public` (~208, next):** the generated
+  *+SDS.swift `enum Columns: String, CodingKey, ColumnExpression` matches a public
+  `TableRecord` requirement -> needs `public`. Same flavor of fix (a prepare-pass
+  `public`-prefix, or relocate) -- separate sub-pass.
 
 ---
 
