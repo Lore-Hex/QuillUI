@@ -111,7 +111,22 @@ while IFS= read -r f; do
     if inject_if_needed "$f" "Foundation" "$FOUNDATION_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "UIKit" "$UIKIT_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "ImageIO" "$IMAGEIO_TYPES"; then touched=1; fi
-    if inject_if_needed "$f" "CoreFoundation" "$COREFOUNDATION_TYPES"; then touched=1; fi
+    # CoreFoundation: SKIP (and strip any prior injection) for files that use
+    # Security. Security @_exported-imports QuillKit, whose lightweight CF*
+    # typealiases (CFDictionary=[String:Any], CFArray=[Any], CFTypeRef=AnyObject,
+    # CFString=String, CFData=Data) would otherwise be AMBIGUOUS with
+    # swift-corelibs CoreFoundation's opaque CF types ("CFDictionary is ambiguous
+    # for type lookup"). Verified: the Security-using SSK files reference only CF
+    # *types*, never real CF *functions* (CFArrayCreate/etc), so the QuillKit
+    # typealiases fully suffice. The strip is needed because inject is add-only.
+    if grep -qE "^import Security\b" "$f" || grep -qE "$SECURITY_TYPES" "$f"; then
+        if grep -qE "^import CoreFoundation\b" "$f"; then
+            grep -vE "^import CoreFoundation\b" "$f" > "$f.qfcf.tmp" && mv "$f.qfcf.tmp" "$f"
+            touched=1
+        fi
+    else
+        if inject_if_needed "$f" "CoreFoundation" "$COREFOUNDATION_TYPES"; then touched=1; fi
+    fi
     if inject_if_needed "$f" "QuartzCore" "$QUARTZCORE_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "Security" "$SECURITY_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "CFNetwork" "$CFNETWORK_TYPES"; then touched=1; fi
