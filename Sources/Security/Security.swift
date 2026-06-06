@@ -13,6 +13,27 @@ public final class SecTrust: @unchecked Sendable {
     public init() {}
 }
 
+public final class SecPolicy: @unchecked Sendable {
+    public let isServer: Bool
+    public let hostname: String?
+    public init(isServer: Bool = true, hostname: String? = nil) {
+        self.isServer = isServer
+        self.hostname = hostname
+    }
+}
+
+// SecTrust.h's SecTrustResultType (UInt32-backed; cases match the kSecTrustResult* values).
+public enum SecTrustResultType: UInt32, Sendable {
+    case invalid = 0
+    case proceed = 1
+    case confirm = 2  // deprecated by Apple
+    case deny = 3
+    case unspecified = 4
+    case recoverableTrustFailure = 5
+    case fatalTrustFailure = 6
+    case otherError = 7
+}
+
 public final class SecRandom: @unchecked Sendable {
     public init() {}
 }
@@ -95,6 +116,7 @@ public let errSecAllocate: OSStatus = -108
 public let errSecNotAvailable: OSStatus = -25291
 public let errSecDuplicateItem: OSStatus = -25299
 public let errSecItemNotFound: OSStatus = -25300
+public let errSecInteractionNotAllowed: OSStatus = -25308
 
 public let kSecClass: CFString = "class" as CFString
 public let kSecClassGenericPassword: CFString = "genp" as CFString
@@ -453,6 +475,25 @@ public func SecTrustEvaluateWithError(_ trust: SecTrust, _ error: UnsafeMutableP
         message: "Trust evaluation is accepted by the compatibility shim; attach a native TLS trust backend before production use."
     )
     return true
+}
+
+public func SecPolicyCreateSSL(_ server: Bool, _ hostname: CFString?) -> SecPolicy {
+    SecPolicy(isServer: server, hostname: hostname as String?)
+}
+
+public func SecTrustSetPolicies(_ trust: SecTrust, _ policies: CFTypeRef) -> OSStatus {
+    errSecSuccess
+}
+
+public func SecTrustGetTrustResult(
+    _ trust: SecTrust,
+    _ result: UnsafeMutablePointer<SecTrustResultType>
+) -> OSStatus {
+    // The compatibility shim accepts the chain (mirrors SecTrustEvaluateWithError);
+    // .unspecified == "trusted, no explicit user setting". Attach a native TLS
+    // trust backend before production use.
+    result.pointee = .unspecified
+    return errSecSuccess
 }
 
 private func secKeySupportsECDSA(_ attributes: [String: Any], operation: SecKeyOperationType) -> Bool {
