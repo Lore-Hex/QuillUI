@@ -33,7 +33,7 @@ open class TSIncomingMessage: TSMessage, OWSReadTracking {
     }
 
     /// OWSReadTracking (ObjC property `read`, getter `wasRead`).
-    public var wasRead: Bool { read }
+    public var wasRead: Bool { get { read } set { read = newValue } }
     /// ObjC property `viewed`, getter `wasViewed`.
     public var wasViewed: Bool { viewed }
 

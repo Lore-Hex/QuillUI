@@ -21,7 +21,7 @@ open class TSErrorMessage: TSMessage, OWSReadTracking, OWSPreviewText {
     public internal(set) var wasIdentityVerified: Bool
 
     /// OWSReadTracking (ObjC property `read`, getter `wasRead`).
-    public var wasRead: Bool { read }
+    public var wasRead: Bool { get { read } set { read = newValue } }
 
     // MARK: Initializers
 

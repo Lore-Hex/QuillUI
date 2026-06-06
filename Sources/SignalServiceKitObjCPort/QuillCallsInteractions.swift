@@ -24,7 +24,7 @@ open class TSCall: TSInteraction, OWSPreviewText {
     public internal(set) var offerType: TSRecentCallOfferType
     public internal(set) var read: Bool
 
-    public var wasRead: Bool { read }
+    public var wasRead: Bool { get { read } set { read = newValue } }
 
     @available(*, unavailable, message: "Use a designated initializer.")
     public required init() {
@@ -81,7 +81,7 @@ open class OWSGroupCallMessage: TSInteraction {
     public internal(set) var read: Bool
     public internal(set) var eraId: String?
 
-    public var wasRead: Bool { read }
+    public var wasRead: Bool { get { read } set { read = newValue } }
 
     /// Computed from creatorUuid / joinedMemberUuids on Apple. Parsing the ACI
     /// strings is deferred on Linux (returns nil / empty).

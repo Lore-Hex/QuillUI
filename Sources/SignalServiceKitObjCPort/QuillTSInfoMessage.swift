@@ -54,7 +54,7 @@ open class TSInfoMessage: TSMessage, OWSReadTracking {
     public var infoMessageUserInfo: [InfoMessageUserInfoKey: Any]?
 
     /// OWSReadTracking (ObjC property `read`, getter `wasRead`).
-    public var wasRead: Bool { read }
+    public var wasRead: Bool { get { read } set { read = newValue } }
 
     public class func infoMessageUserInfoObjectClasses() -> [AnyClass] {
         // PASS 1: the secure-unarchive allow-list is deferred (runtime concern).
