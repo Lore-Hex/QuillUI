@@ -1400,6 +1400,13 @@ if wireguardUpstreamPresent {
                 // Application: the NSApplication subclass that owns the AppDelegate (set as
                 // .delegate before NSApplicationMain). THE LAST FILE of the WireGuard macOS app.
                 "Sources/WireGuardApp/UI/macOS/Application.swift",
+                // The NE EXTENSION (the macOS product's other half): PacketTunnelProvider
+                // (NEPacketTunnelProvider subclass — startTunnel/stopTunnel/handleAppMessage
+                // driving the now-complete WireGuardKit WireGuardAdapter) + ErrorNotifier.
+                // Compiled alongside the app in this target (it already deps NetworkExtension
+                // + WireGuardKit + os). Imports WireGuardKit via a fetch-upstream patch.
+                "Sources/WireGuardNetworkExtension/PacketTunnelProvider.swift",
+                "Sources/WireGuardNetworkExtension/ErrorNotifier.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",
