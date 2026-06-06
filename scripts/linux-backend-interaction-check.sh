@@ -517,6 +517,25 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-123456789012345}"
         sleep 1
         ;;
+      settings-default-model-selected)
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+          model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-650}"
+          model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-763}"
+        else
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+          model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-$((window_x + 120))}"
+          model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-$((window_y + 210))}"
+        fi
+        click_at "$settings_x" "$settings_y"
+        sleep 1
+        click_at "$model_x" "$model_y"
+        sleep 0.5
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Down Return
+        sleep "$post_click_sleep"
+        ;;
       settings-delete-confirmation)
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"

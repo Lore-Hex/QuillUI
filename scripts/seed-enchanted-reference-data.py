@@ -39,11 +39,14 @@ def insert_payload(connection: sqlite3.Connection, table: str, record_id: str, p
     )
 
 
-def generated_model_payload() -> dict[str, object]:
+def generated_model_payload(
+    name: str = "llava:latest",
+    image_support: bool = True,
+) -> dict[str, object]:
     return {
-        "name": "llava:latest",
+        "name": name,
         "isAvailable": False,
-        "imageSupport": True,
+        "imageSupport": image_support,
         "modelProvider": {"ollama": {}},
         "conversations": [],
     }
@@ -209,6 +212,15 @@ def seed_database_file(database_path: Path) -> None:
             GENERATED_MODEL_TABLE,
             "name:llava:latest",
             generated_model_payload(),
+        )
+        insert_payload(
+            connection,
+            GENERATED_MODEL_TABLE,
+            "name:mistral-7b-reference-linux-picker:latest",
+            generated_model_payload(
+                name="mistral-7b-reference-linux-picker:latest",
+                image_support=False,
+            ),
         )
 
         for conversation in conversations:

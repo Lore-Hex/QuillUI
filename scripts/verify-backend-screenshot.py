@@ -1154,6 +1154,7 @@ def validate_quill_chat_mac_reference_settings_panel(
     require_typed_endpoint: bool = False,
     require_typed_bearer_token: bool = False,
     require_typed_ping_interval: bool = False,
+    require_selected_default_model: bool = False,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1302,6 +1303,20 @@ def validate_quill_chat_mac_reference_settings_panel(
             f"Mac-reference typed settings ping interval was not detected: pixels={ping_text_pixels}",
         )
         typed_summary += f", ping_text_pixels={ping_text_pixels}"
+
+    if require_selected_default_model:
+        model_text_pixels = dark_pixel_count(
+            image,
+            panel_segment.start + 310,
+            panel_y + 272,
+            min(panel_segment.end, panel_segment.start + 640),
+            panel_y + 346,
+        )
+        require(
+            model_text_pixels >= 260,
+            f"Mac-reference selected default model was not detected: pixels={model_text_pixels}",
+        )
+        typed_summary += f", selected_model_pixels={model_text_pixels}"
 
     return (
         "Quill Chat Mac-reference settings panel: "
@@ -3186,6 +3201,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_bearer_token=True))
     elif product == "quill-chat-linux-mac-reference-settings-ping-interval-typed":
         print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_ping_interval=True))
+    elif product == "quill-chat-linux-mac-reference-settings-default-model-selected":
+        print(validate_quill_chat_mac_reference_settings_panel(image, require_selected_default_model=True))
     elif product == "quill-chat-linux-mac-reference-settings-delete-confirmation":
         print(validate_quill_chat_mac_reference_settings_delete_confirmation(image))
     elif product == "quill-chat-linux-mac-reference-completions-panel":

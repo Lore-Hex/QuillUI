@@ -125,6 +125,8 @@ Recently cleared:
   `settings-bearer-token-typed` row.
 - Settings ping-interval editing is covered by the same verifier via the
   `settings-ping-interval-typed` row.
+- Settings default-model picker selection is covered by the same verifier via
+  the `settings-default-model-selected` row.
 - Settings delete-all confirmation is covered by the same verifier via the
   `settings-delete-confirmation` row.
 

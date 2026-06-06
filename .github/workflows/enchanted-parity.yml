@@ -124,6 +124,7 @@ jobs:
             settings-endpoint-typed \
             settings-bearer-token-typed \
             settings-ping-interval-typed \
+            settings-default-model-selected \
             settings-delete-confirmation \
             completions-panel \
             history-selection \
