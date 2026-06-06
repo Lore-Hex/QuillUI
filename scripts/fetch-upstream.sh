@@ -283,7 +283,11 @@ patched = src.replace(
     "#if canImport(Darwin)\n"
     "internal import os.lock\n"
     "#else\n"
-    "internal import COSUnfairLock\n"
+    // `public` (not `internal`): TSMutex's `withLock`/`lock` are `@inlinable`, and
+    // an @inlinable function may only reference public/usableFromInline symbols.
+    // An `internal import` makes the COSUnfairLock C functions internal -> the
+    // @inlinable methods can't call os_unfair_lock_lock. `public import` exposes them.
+    "public import COSUnfairLock\n"
     "#endif",
     1,
 )
