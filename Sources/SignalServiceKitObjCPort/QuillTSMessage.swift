@@ -336,4 +336,31 @@ open class TSMessage: TSInteraction {
             && objectsEqual(storyTimestamp, other.storyTimestamp)
             && wasRemotelyDeleted == other.wasRemotelyDeleted
     }
+
+    // MARK: Attachment-update overloads (TSMessage.m, called during outgoing
+    // prep + edit-revision attachment swaps)
+    //
+    // Upstream each anyUpdate-wraps the matching setter; on Linux these run at
+    // message-prep time (pre-insert), so we set the stored prop directly. The
+    // three `update(with:transaction:)` overloads resolve by argument type.
+
+    open func update(with linkPreview: OWSLinkPreview, transaction: DBWriteTransaction) {
+        self.linkPreview = linkPreview
+    }
+
+    open func update(with quotedMessage: TSQuotedMessage, transaction: DBWriteTransaction) {
+        self.quotedMessage = quotedMessage
+    }
+
+    open func update(with messageSticker: MessageSticker, transaction: DBWriteTransaction) {
+        self.messageSticker = messageSticker
+    }
+
+    open func update(withContactShare contactShare: OWSContact, transaction: DBWriteTransaction) {
+        self.contactShare = contactShare
+    }
+
+    open func update(withIsPoll isPoll: Bool, transaction: DBWriteTransaction) {
+        self.isPoll = isPoll
+    }
 }
