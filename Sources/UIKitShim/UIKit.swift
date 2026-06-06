@@ -289,6 +289,57 @@ public struct UIInterfaceOrientationMask: OptionSet, Sendable {
 // (no `init()`), so this block must not compile there -- keeps the package green
 // for local `swift build` / `swift test` on macOS.
 #if os(Linux)
+
+// MARK: - NSString/String drawing (UIKit text rendering; Linux shim)
+//
+// AvatarBuilder + String+SSK measure and draw strings. swift-corelibs has no
+// glyph layout, so boundingRect returns a rough estimate (from the .font
+// attribute when present) and draw(...) is inert -- enough to compile and lay
+// out roughly. Real rasterization is deferred to a Cairo/Pango paint layer.
+
+public struct NSStringDrawingOptions: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let usesLineFragmentOrigin = NSStringDrawingOptions(rawValue: 1 << 0)
+    public static let usesFontLeading = NSStringDrawingOptions(rawValue: 1 << 1)
+    public static let usesDeviceMetrics = NSStringDrawingOptions(rawValue: 1 << 3)
+    public static let truncatesLastVisibleLine = NSStringDrawingOptions(rawValue: 1 << 5)
+}
+
+public final class NSStringDrawingContext {
+    public init() {}
+    public var minimumScaleFactor: CGFloat = 0
+    public var actualScaleFactor: CGFloat = 1
+    public var totalBounds: CGRect = .zero
+}
+
+private func quillEstimatedTextRect(_ s: String, proposed: CGSize, attributes: [NSAttributedString.Key: Any]?) -> CGRect {
+    let fontSize = (attributes?[.font] as? UIFont)?.pointSize ?? 13
+    let charWidth = fontSize * 0.6
+    let lineHeight = fontSize * 1.2
+    let singleLineWidth = CGFloat(s.count) * charWidth
+    let width = min(proposed.width, max(singleLineWidth, charWidth))
+    let lines = width > 0 ? (singleLineWidth / width).rounded(.up) : 1
+    let height = min(proposed.height, max(lines, 1) * lineHeight)
+    return CGRect(x: 0, y: 0, width: width, height: max(height, lineHeight))
+}
+
+public extension String {
+    func boundingRect(with size: CGSize,
+                      options: NSStringDrawingOptions = [],
+                      attributes: [NSAttributedString.Key: Any]? = nil,
+                      context: NSStringDrawingContext? = nil) -> CGRect {
+        _ = (options, context)
+        return quillEstimatedTextRect(self, proposed: size, attributes: attributes)
+    }
+    func draw(at point: CGPoint, withAttributes attributes: [NSAttributedString.Key: Any]? = nil) {
+        _ = (point, attributes) // inert: glyph rasterization deferred on Linux
+    }
+    func draw(in rect: CGRect, withAttributes attributes: [NSAttributedString.Key: Any]? = nil) {
+        _ = (rect, attributes)
+    }
+}
+
 public final class UIGraphicsImageRendererFormat {
     public var scale: CGFloat = 1
     public var opaque: Bool = false
