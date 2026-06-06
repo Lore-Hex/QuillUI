@@ -59,6 +59,12 @@ COREFOUNDATION_TYPES='\bCFData\b|\bCFString\b|\bCFDictionary\b|\bCFArray\b|\bCFN
 # via UIKit, so the upstream files do not import QuartzCore explicitly.
 QUARTZCORE_TYPES='\bCACurrentMediaTime\b|\bCADisplayLink\b|\bCAGradientLayer\b|\bCALayer\b|\bCAShapeLayer\b|\bCAMediaTimingFunction\b|\bCATransaction\b|\bCAAnimation\b'
 
+# Security: the Keychain / SecTrust / SecKey / SecRandom API (the Security shim on
+# Linux). On Apple these arrive via the bridging umbrella; on Linux each file that
+# uses them must `import Security`. Matches Sec<Uppercase> (SecKey/SecTrust/SecItem*
+# /SecCertificate/...), errSec* status codes, and kSec* dictionary keys.
+SECURITY_TYPES='\bSec[A-Z][A-Za-z]+|\berrSec[A-Za-z]+|\bkSec[A-Za-z]+'
+
 injected=0
 scanned=0
 
@@ -95,6 +101,7 @@ while IFS= read -r f; do
     if inject_if_needed "$f" "ImageIO" "$IMAGEIO_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "CoreFoundation" "$COREFOUNDATION_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "QuartzCore" "$QUARTZCORE_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "Security" "$SECURITY_TYPES"; then touched=1; fi
     if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
