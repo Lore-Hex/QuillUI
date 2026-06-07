@@ -211,26 +211,6 @@ public struct Material: Sendable {
     public static let ultraThickMaterial = Material()
 }
 
-@propertyWrapper
-public struct Namespace: Sendable {
-    public struct ID: Hashable, Sendable {
-        private let rawValue = UUID()
-
-        public init() {}
-    }
-
-    private var id: ID
-
-    public init() {
-        self.id = ID()
-    }
-
-    public var wrappedValue: ID {
-        get { id }
-        set { id = newValue }
-    }
-}
-
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -920,17 +900,8 @@ public struct ScrollIndicatorsView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ScrollContentBackgroundView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-
-    public init(content: Content, visibility: Visibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
+// ScrollContentBackgroundView moved to SwiftOpenUI (Views/IceCubesUICompat.swift)
+// so vendored source (which imports SwiftOpenUI, not QuillUI) can use it.
 
 // ContentShapeView / AllowsHitTestingView moved to SwiftOpenUI
 // (Modifiers/QuillUICompatModifiers.swift) so vendored source can use them.
@@ -1299,9 +1270,8 @@ public extension View {
         foregroundColor(style.gradient.quillAverageColor)
     }
 
-    func foregroundStyle(_ primary: Color, _ secondary: Color) -> some View {
-        foregroundColor(primary)
-    }
+    // foregroundStyle(_:_:) 2-arg moved to SwiftOpenUI (Views/IceCubesUICompat.swift)
+    // so vendored source can use it; a copy here too would make it ambiguous.
 
     func symbolRenderingMode(_ mode: Image.SymbolRenderingMode?) -> SymbolRenderingModeView<Self> {
         recordQuillUIFallback(
@@ -1317,14 +1287,6 @@ public extension View {
             message: "scrollIndicators is preserved as scroll view chrome metadata on Linux."
         )
         return ScrollIndicatorsView(content: self, visibility: visibility)
-    }
-
-    func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
-        recordQuillUIFallback(
-            "scrollContentBackground",
-            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
-        )
-        return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
     func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {

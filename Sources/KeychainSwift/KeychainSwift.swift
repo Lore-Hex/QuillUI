@@ -130,7 +130,7 @@ open class KeychainSwift: @unchecked Sendable {
     }
 
     @discardableResult
-    open func set(_ value: String, forKey key: String, withAccess: Any? = nil) -> Bool {
+    open func set(_ value: String, forKey key: String, withAccess: KeychainSwiftAccessOptions? = nil) -> Bool {
         guard let data = value.data(using: .utf8) else {
             lastResultCode = keychainSwiftParamStatus
             return false
@@ -139,14 +139,14 @@ open class KeychainSwift: @unchecked Sendable {
     }
 
     @discardableResult
-    open func set(_ value: Data, forKey key: String, withAccess: Any? = nil) -> Bool {
+    open func set(_ value: Data, forKey key: String, withAccess: KeychainSwiftAccessOptions? = nil) -> Bool {
         Self.storage.set(value, access: accessValue(from: withAccess), forKey: storageKey(key))
         lastResultCode = keychainSwiftSuccessStatus
         return true
     }
 
     @discardableResult
-    open func set(_ value: Bool, forKey key: String, withAccess: Any? = nil) -> Bool {
+    open func set(_ value: Bool, forKey key: String, withAccess: KeychainSwiftAccessOptions? = nil) -> Bool {
         set(Data([value ? 1 : 0]), forKey: key, withAccess: withAccess)
     }
 

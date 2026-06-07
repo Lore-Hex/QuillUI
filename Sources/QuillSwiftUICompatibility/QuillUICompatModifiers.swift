@@ -66,8 +66,15 @@ public struct ListRowSeparatorView<Content: View>: View {
     public var body: some View { content }
 }
 
-// (scrollContentBackground stays in QuillUI on this branch; AppAccount's #441
-//  moves it here alongside the others.)
+public struct ScrollContentBackgroundView<Content: View>: View {
+    public let content: Content
+    public let visibility: Visibility
+    public init(content: Content, visibility: Visibility) {
+        self.content = content
+        self.visibility = visibility
+    }
+    public var body: some View { content }
+}
 
 extension View {
     public func contentShape<S: Shape>(_ shape: S) -> ContentShapeView<Self, S> {
@@ -100,6 +107,14 @@ extension View {
             message: "listRowSeparator is preserved as list row separator metadata on Linux."
         )
         return ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
+    }
+
+    public func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
+        recordQuillUICompatFallback(
+            "scrollContentBackground",
+            message: "scrollContentBackground is preserved as scroll background metadata on Linux."
+        )
+        return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
     public func symbolEffect<Value: Equatable>(

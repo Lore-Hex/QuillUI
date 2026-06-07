@@ -27,3 +27,16 @@ public protocol CustomEmoji {
 extension RemoteEmoji: CustomEmoji {}
 
 #endif
+
+import SwiftOpenUI
+
+// EmojiText library Text.emojiText.size(_:).baselineOffset(_:) chain (sizes inline
+// custom emoji to the surrounding font). No-op on Linux; returns Text to chain.
+public struct EmojiTextConfiguration<Content: View> {
+    let content: Content
+    public func size(_ size: CGFloat) -> Content { content }
+    public func baselineOffset(_ offset: CGFloat) -> Content { content }
+}
+public extension View {
+    var emojiText: EmojiTextConfiguration<Self> { EmojiTextConfiguration(content: self) }
+}
