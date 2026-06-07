@@ -176,12 +176,16 @@ if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
   app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
 fi
 quill_chat_copy_runtime_dir=""
+quill_gtk_toolbar_action_command_dir=""
 if [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "copy-chat" || "$INTERACTION_MODE" == "copy-chat-json" ) ]]; then
   quill_chat_copy_runtime_dir="${QUILLUI_BACKEND_CLIPBOARD_RUNTIME_DIR:-$OUTPUT_DIR/quill-chat-copy-runtime}"
+  quill_gtk_toolbar_action_command_dir="$quill_chat_copy_runtime_dir/quill-toolbar-actions"
   rm -rf "$quill_chat_copy_runtime_dir/quill-pasteboard"
-  mkdir -p "$quill_chat_copy_runtime_dir"
+  rm -rf "$quill_gtk_toolbar_action_command_dir"
+  mkdir -p "$quill_chat_copy_runtime_dir" "$quill_gtk_toolbar_action_command_dir"
   chmod 700 "$quill_chat_copy_runtime_dir" 2>/dev/null || true
   app_environment+=("XDG_RUNTIME_DIR=$quill_chat_copy_runtime_dir")
+  app_environment+=("QUILLUI_GTK_TOOLBAR_ACTION_COMMAND_DIR=$quill_gtk_toolbar_action_command_dir")
 fi
 env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
@@ -550,6 +554,8 @@ copy_quill_chat_transcript() {
   local menu_y
   local copy_x
   local copy_y
+  local action_title
+  local clipboard_file
 
   select_quill_chat_markdown_transcript
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -574,9 +580,20 @@ copy_quill_chat_transcript() {
     fi
   fi
 
+  action_title="Copy Chat"
+  if [[ "$copy_json" == "1" ]]; then
+    action_title="Copy Chat as JSON"
+  fi
+  clipboard_file="$quill_chat_copy_runtime_dir/quill-pasteboard/Apple.NSGeneralPboard/types/public.utf8-plain-text"
+
   click_at "$menu_x" "$menu_y"
   sleep 0.8
   click_at "$copy_x" "$copy_y"
+  sleep 0.5
+  if [[ -n "$quill_gtk_toolbar_action_command_dir" && ! -s "$clipboard_file" ]]; then
+    mkdir -p "$quill_gtk_toolbar_action_command_dir"
+    printf '%s\n' "$action_title" > "$quill_gtk_toolbar_action_command_dir/command-$(date +%s%N)-$$"
+  fi
   sleep "${QUILLUI_BACKEND_COPY_CHAT_SLEEP:-1.5}"
 }
 
