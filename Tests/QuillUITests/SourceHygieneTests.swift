@@ -554,6 +554,46 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Apple service aliases live in reusable compatibility modules")
+    func appleServiceAliasesLiveInReusableCompatibilityModules() throws {
+        let root = try packageRoot()
+        let quillKit = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillKit/QuillKit.swift"),
+            encoding: .utf8
+        )
+        let coreGraphics = try String(
+            contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
+            encoding: .utf8
+        )
+        let profileAliases = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift"),
+            encoding: .utf8
+        )
+
+        for alias in [
+            "public typealias Accessibility = QuillAccessibilityService",
+            "public typealias Clipboard = QuillClipboard",
+            "public typealias KeyBase = QuillKeyBase",
+            "public typealias HotkeyCombination = QuillHotkeyCombination",
+            "public typealias FloatingPanel = QuillFloatingPanel",
+            "public typealias PanelManager = QuillPanelManager",
+            "public typealias QuillUpdater = QuillUpdateService",
+            "public typealias QuillUSBWatcher = QuillDeviceWatcher",
+            "public typealias HotkeyService = QuillHotkeyService"
+        ] {
+            #expect(quillKit.contains(alias))
+            #expect(!profileAliases.contains(alias.replacingOccurrences(of: "public ", with: "")))
+        }
+        #expect(quillKit.contains("quill-pasteboard"))
+        #expect(quillKit.contains("Apple.NSGeneralPboard"))
+        #expect(quillKit.contains("writeFileBackedPasteboardString(string, forType: type)"))
+        #expect(coreGraphics.contains("static let kVK_ANSI_V: CGKeyCode = 0x09"))
+        #expect(!profileAliases.contains("typealias CGKeyCode = UInt16"))
+        #expect(!profileAliases.contains("static let kVK_ANSI_V"))
+        #expect(profileAliases.contains("typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem"))
+        #expect(profileAliases.contains("enum QuillUSBLauncher"))
+    }
+
     @Test("Linux controls read backend-scoped reference environment")
     func linuxControlsReadBackendScopedReferenceEnvironment() throws {
         let root = try packageRoot()

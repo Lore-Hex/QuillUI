@@ -170,6 +170,10 @@ public final class QuillClipboard: @unchecked Sendable {
             return
         }
 
+        #if os(Linux)
+        Self.writeFileBackedPasteboardString(string, forType: type)
+        #endif
+
         let clipboardString = string ?? ""
         if backend?.setString(clipboardString) == true {
             return
@@ -191,6 +195,9 @@ public final class QuillClipboard: @unchecked Sendable {
             #if os(Linux)
             if let bridgeString = QuillLinuxClipboardBridge.string() {
                 return bridgeString
+            }
+            if let fileBackedString = Self.fileBackedPasteboardString(forType: type) {
+                return fileBackedString
             }
             #endif
         }
@@ -215,6 +222,10 @@ public final class QuillClipboard: @unchecked Sendable {
             return nativeStringBackend
         }
 
+        #if os(Linux)
+        Self.clearFileBackedPasteboard()
+        #endif
+
         if backend?.setString("") == true {
             return
         }
@@ -232,6 +243,54 @@ public final class QuillClipboard: @unchecked Sendable {
             return false
         }
     }
+
+    #if os(Linux)
+    private static func fileBackedPasteboardRoot() -> URL {
+        let base: URL
+        if let runtimeDirectory = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"] {
+            base = URL(fileURLWithPath: runtimeDirectory)
+        } else {
+            base = URL(fileURLWithPath: NSTemporaryDirectory())
+        }
+        return base
+            .appendingPathComponent("quill-pasteboard")
+            .appendingPathComponent("Apple.NSGeneralPboard")
+    }
+
+    private static func fileBackedPasteboardTypeURL(forType type: String) -> URL {
+        let safeType = type.replacingOccurrences(of: "/", with: "_")
+        return fileBackedPasteboardRoot()
+            .appendingPathComponent("types")
+            .appendingPathComponent(safeType)
+    }
+
+    private static func writeFileBackedPasteboardString(_ string: String?, forType type: String) {
+        let typeURL = fileBackedPasteboardTypeURL(forType: type)
+        let typeDirectory = typeURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(
+            at: typeDirectory,
+            withIntermediateDirectories: true
+        )
+
+        if let string {
+            try? Data(string.utf8).write(to: typeURL, options: .atomic)
+        } else {
+            try? FileManager.default.removeItem(at: typeURL)
+        }
+    }
+
+    private static func fileBackedPasteboardString(forType type: String) -> String? {
+        let typeURL = fileBackedPasteboardTypeURL(forType: type)
+        return (try? Data(contentsOf: typeURL)).flatMap { data in
+            String(data: data, encoding: .utf8)
+        }
+    }
+
+    private static func clearFileBackedPasteboard() {
+        let typeDirectory = fileBackedPasteboardRoot().appendingPathComponent("types")
+        try? FileManager.default.removeItem(at: typeDirectory)
+    }
+    #endif
 }
 
 #if os(Linux)
@@ -616,6 +675,18 @@ public final class QuillHotkeyService: @unchecked Sendable {
         return handler()
     }
 }
+
+// Source-level compatibility names used by Apple app ports whose originals
+// wrapped AppKit, Sparkle, or hotkey platform services.
+public typealias Accessibility = QuillAccessibilityService
+public typealias Clipboard = QuillClipboard
+public typealias KeyBase = QuillKeyBase
+public typealias HotkeyCombination = QuillHotkeyCombination
+public typealias FloatingPanel = QuillFloatingPanel
+public typealias PanelManager = QuillPanelManager
+public typealias QuillUpdater = QuillUpdateService
+public typealias QuillUSBWatcher = QuillDeviceWatcher
+public typealias HotkeyService = QuillHotkeyService
 
 public final class QuillDeviceWatcher: @unchecked Sendable {
     public static let shared = QuillDeviceWatcher()
