@@ -500,6 +500,31 @@ final class QuillEntryMacroTests: XCTestCase {
 #endif
 
 #if !os(macOS) && !os(iOS)
+// Shared SwiftUI View-modifier / type surface used by vendored real source:
+// no-op modifiers (tint/accessibilityHidden), Color.resolve, Font.weight.
+final class QuillSwiftUIViewModifierShimTests: XCTestCase {
+    func testColorResolve() {
+        let color: SwiftUI.Color = .red
+        let resolved = color.resolve(in: .init())
+        XCTAssertEqual(resolved.red, 1.0, accuracy: 0.01)
+    }
+
+    func testFontWeightReturnsSelf() {
+        let font: SwiftUI.Font = .body
+        XCTAssertEqual(font.weight(.bold), font)
+    }
+
+    @MainActor func testModifiersCompileAndReturnView() {
+        // No-op modifiers chain and return some View (compile-level check).
+        let color: SwiftUI.Color = .red
+        let _ = color
+            .tint(.blue)
+            .accessibilityHidden(true)
+            .listRowBackground(SwiftUI.Color?.none)
+            .previewLayout(.sizeThatFits)
+    }
+}
+
 // Shared SwiftUI compat additions used by vendored real source (DesignSystem):
 // `Color: Sendable` and the SwiftUI-style nesting `Font.Weight`/`.Design`/`.TextStyle`.
 final class QuillSwiftUIColorFontShimTests: XCTestCase {
