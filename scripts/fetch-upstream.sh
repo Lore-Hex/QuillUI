@@ -930,7 +930,13 @@ for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
     out = []
     inserted_uikit = False
     for line in lines:
-        if line.strip() == "import Foundation" and not fn_done:
+        stripped = line.strip()
+        if stripped == "import OSLog":
+            # No OSLog module on Linux; the repo `os` shim provides Logger.
+            # (An `@_exported import os` OSLog shim retains os_log symbols that
+            # break swift-syntax's link — see #305 — so rewrite, don't shim.)
+            out.append("import os")
+        elif stripped == "import Foundation" and not fn_done:
             out.append(fn_block)
             fn_done = True
             if needs_uikit:
