@@ -10,6 +10,12 @@ import QuillFoundation
 @attached(accessor)
 @attached(peer, names: prefixed(`__Key_`))
 public macro Entry() = #externalMacro(module: "QuillDataMacros", type: "QuillEntryMacro")
+
+/// SwiftUI's iOS-17 `#Preview { … }` macro. No-op on Linux (previews are never
+/// rendered) — expands to nothing, so vendored real source that declares
+/// previews compiles. Backed by `QuillDataMacros.QuillPreviewMacro`.
+@freestanding(declaration)
+public macro Preview<Content>(_ name: String? = nil, @ViewBuilder body: () -> Content) = #externalMacro(module: "QuillDataMacros", type: "QuillPreviewMacro")
 #endif
 
 #if os(Linux)
