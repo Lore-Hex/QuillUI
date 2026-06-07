@@ -1878,6 +1878,11 @@ if quillUILinuxBuildBackend == .qt {
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
         ),
+        // `import Cocoa` umbrella (re-exports the AppKit shadow + Foundation) so
+        // unmodified macOS app source that `import Cocoa` recompiles in the qt
+        // graph — needed for the literal WireGuard VC render conformance below.
+        // Mirrors the default/GTK-graph Cocoa target.
+        .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),
         .target(
             name: "CKiwi",
             path: "Sources/CKiwi",
@@ -1986,19 +1991,44 @@ if quillUILinuxBuildBackend == .qt {
             .executable(name: "quill-qt-generic-smoke", targets: ["QuillQtGenericSmoke"])
         )
     }
+
+    // --- Literal WireGuard VC render conformance (purist render path) ---
+    // Compile the VERBATIM upstream ButtonedDetailViewController.swift into the qt
+    // graph (its only import is `Cocoa`, added above) so QuillAppKitQtTests can
+    // render the REAL upstream file — not a hand-written twin — through
+    // QuillAppKit→Qt. Path-scoped to the single file; gated on the upstream
+    // checkout so a fresh clone still resolves the manifest.
+    if wireguardUpstreamPresent {
+        targets.append(
+            .target(
+                name: "QuillButtonedDetailConformance",
+                dependencies: ["Cocoa"],
+                path: ".upstream/wireguard-apple",
+                sources: [
+                    "Sources/WireGuardApp/UI/macOS/ViewController/ButtonedDetailViewController.swift"
+                ],
+                swiftSettings: [.swiftLanguageMode(.v5)]
+            )
+        )
+    }
 }
 #endif
 
 let packageTestTargets: [Target] = {
     #if os(Linux)
     if quillUILinuxBuildBackend == .qt {
+        // The qt AppKit test target also renders the LITERAL upstream WireGuard
+        // VC (ButtonedDetailViewController) when the upstream checkout is present.
+        let akqtTestDeps: [Target.Dependency] = wireguardUpstreamPresent
+            ? ["QuillAppKitQt", "AppKit", "QuillButtonedDetailConformance"]
+            : ["QuillAppKitQt", "AppKit"]
         return [
             // Runs inside the stripped Qt graph itself. This keeps
             // `QUILLUI_LINUX_BACKEND=qt swift test` useful without
             // reintroducing the GTK/SwiftOpenUI dependency graph.
             .testTarget(
                 name: "QuillAppKitQtTests",
-                dependencies: ["QuillAppKitQt", "AppKit"],
+                dependencies: akqtTestDeps,
                 swiftSettings: appSwiftSettings
             ),
             // Pure model-layer tests for the reimplemented AppKit

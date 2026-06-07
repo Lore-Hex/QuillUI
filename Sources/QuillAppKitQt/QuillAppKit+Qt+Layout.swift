@@ -72,6 +72,12 @@ extension NSView {
             items[ObjectIdentifier(v)] = engine.makeItem(v.identifier?.rawValue ?? "view")
         }
 
+        // Views that already carry an explicit width / height constraint as the
+        // constraint's FIRST item. The intrinsic-size fallback below fires only
+        // for views with no size constraint of their own on that axis.
+        var explicitWidth = Set<ObjectIdentifier>()
+        var explicitHeight = Set<ObjectIdentifier>()
+
         // Translate each active constraint that lives entirely within the subtree.
         for c in NSLayoutConstraint.quillActive {
             guard let firstAnchor = c.quillFirstAnchor,
@@ -80,6 +86,12 @@ extension NSView {
                   let attr1 = mapAttribute(firstAnchor.quillAttribute),
                   let firstItem = items[ObjectIdentifier(firstView)]
             else { continue }
+
+            switch attr1 {
+            case .width: explicitWidth.insert(ObjectIdentifier(firstView))
+            case .height: explicitHeight.insert(ObjectIdentifier(firstView))
+            default: break
+            }
 
             var secondItem: LayoutItem?
             var attr2: LayoutAttribute?
@@ -100,6 +112,30 @@ extension NSView {
                 constant: Double(c.quillConstant),
                 priority: mapPriority(c.priority)
             )
+        }
+
+        // Intrinsic-size fallback (AppKit lays content out via content
+        // hugging/compression around `intrinsicContentSize`). A view with an
+        // intrinsic size but NO explicit width/height constraint — e.g. a button
+        // pinned only by its center, exactly like WireGuard's
+        // ButtonedDetailViewController — would otherwise solve to 0 on that axis
+        // and render invisibly. Inject a medium-strength size suggestion: it sets
+        // the natural size when unopposed, but yields to any required size/edge
+        // constraints (which are mapped to `.required`).
+        for v in subtree {
+            guard let item = items[ObjectIdentifier(v)] else { continue }
+            let vid = ObjectIdentifier(v)
+            let intrinsic = v.intrinsicContentSize
+            if !explicitWidth.contains(vid), intrinsic.width != NSView.noIntrinsicMetric {
+                engine.addConstraint(item, .width, .equal, nil, nil,
+                                     multiplier: 1, constant: Double(intrinsic.width),
+                                     priority: .medium)
+            }
+            if !explicitHeight.contains(vid), intrinsic.height != NSView.noIntrinsicMetric {
+                engine.addConstraint(item, .height, .equal, nil, nil,
+                                     multiplier: 1, constant: Double(intrinsic.height),
+                                     priority: .medium)
+            }
         }
 
         guard let rootItem = items[ObjectIdentifier(self)] else { return }
