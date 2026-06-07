@@ -32,29 +32,18 @@ struct ChatView: View {
     @FocusState private var isFocusedInput: Bool
 
     private var modelMenuActions: [QuillMenuAction] {
-        QuillMenuAction.selectableItems(
+        QuillMenuAction.selectableModels(
             modelsList,
             selectedID: selectedModel?.name,
-            emptyTitle: "No models available",
             id: { $0.name },
-            title: { model in
-                model.prettyVersion.isEmpty ? model.prettyName : "\(model.prettyName) \(model.prettyVersion)"
-            },
-            onSelect: { model in
-                onSelectModel(model)
-            }
+            name: { $0.prettyName },
+            version: { $0.prettyVersion },
+            onSelect: onSelectModel
         )
     }
 
     private var optionsMenuActions: [QuillMenuAction] {
-        [
-            QuillMenuAction(title: "Copy Chat", systemImage: "doc.on.doc") {
-                copyChat(false)
-            },
-            QuillMenuAction(title: "Copy Chat as JSON", systemImage: "curlybraces") {
-                copyChat(true)
-            }
-        ]
+        QuillMenuAction.copyChatActions(copy: copyChat)
     }
 
     var body: some View {

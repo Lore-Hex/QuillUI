@@ -138,6 +138,37 @@ struct QuillUITests {
         #expect(unselect.systemImage == "pencil")
         unselect.perform()
         #expect(didUnselect)
+
+        var copiedJSONValues: [Bool] = []
+        let copyChatActions = QuillMenuAction.copyChatActions { copiedJSONValues.append($0) }
+        #expect(copyChatActions.map(\.title) == ["Copy Chat", "Copy Chat as JSON"])
+        #expect(copyChatActions.map(\.systemImage) == ["doc.on.doc", "curlybraces"])
+        copyChatActions.forEach { $0.perform() }
+        #expect(copiedJSONValues == [false, true])
+
+        struct Model {
+            var id: String
+            var name: String
+            var version: String
+        }
+
+        var selectedModelID: String?
+        let modelActions = QuillMenuAction.selectableModels(
+            [
+                Model(id: "fast", name: "Fast", version: ""),
+                Model(id: "smart", name: "Smart", version: "v2")
+            ],
+            selectedID: "smart",
+            id: { $0.id },
+            name: { $0.name },
+            version: { $0.version },
+            onSelect: { selectedModelID = $0.id }
+        )
+
+        #expect(modelActions.map(\.title) == ["Fast", "Smart v2"])
+        #expect(modelActions.map(\.systemImage) == [nil, "checkmark"])
+        modelActions[0].perform()
+        #expect(selectedModelID == "fast")
     }
 
     @Test("QuillSheetStatusBanner exposes reusable sheet-backed status state")

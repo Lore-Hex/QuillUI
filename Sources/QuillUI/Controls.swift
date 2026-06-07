@@ -2048,6 +2048,41 @@ public struct QuillMenuAction: Identifiable {
         QuillMenuAction(title: title, systemImage: systemImage, action: action)
     }
 
+    public static func copyChatActions(copy: @escaping (_ json: Bool) -> Void) -> [QuillMenuAction] {
+        [
+            QuillMenuAction(title: "Copy Chat", systemImage: "doc.on.doc") {
+                copy(false)
+            },
+            QuillMenuAction(title: "Copy Chat as JSON", systemImage: "curlybraces") {
+                copy(true)
+            }
+        ]
+    }
+
+    public static func selectableModels<Item, SelectionID: Hashable>(
+        _ models: [Item],
+        selectedID: SelectionID?,
+        emptyTitle: String = "No models available",
+        selectedSystemImage: String = "checkmark",
+        id: @escaping (Item) -> SelectionID,
+        name: @escaping (Item) -> String,
+        version: @escaping (Item) -> String = { _ in "" },
+        onSelect: @escaping (Item) -> Void
+    ) -> [QuillMenuAction] {
+        selectableItems(
+            models,
+            selectedID: selectedID,
+            emptyTitle: emptyTitle,
+            selectedSystemImage: selectedSystemImage,
+            id: id,
+            title: { model in
+                let version = version(model)
+                return version.isEmpty ? name(model) : "\(name(model)) \(version)"
+            },
+            onSelect: onSelect
+        )
+    }
+
     public static func selectableItems<Item, SelectionID: Hashable>(
         _ items: [Item],
         selectedID: SelectionID?,
