@@ -1079,6 +1079,35 @@ Patterns that closed them:
 
 ---
 
+### Track B sub-7.6k: empty-module shims + the OMITTED-builder-init pattern (2026-06, ~98.5%, 7.57k)
+
+- **An empty placeholder shim module just needs its consumed surface filled.**
+  `import blurhash` resolved to an empty stub, so `image.blurHash(numberOfComponents:)`
+  + `UIImage(blurHash:size:)` were "no member"/"extra argument 'size'". Filled the
+  blurhash shim with a `public` UIImage extension: encoder -> nil, failable
+  `init?(blurHash:size:punch:)` -> nil (both inert; callers treat nil as
+  "couldn't compute"). `public` (cross-module); UIImage/CGSize via the shim's
+  QuillFoundation dep. A failable convenience init may `return nil` immediately
+  without calling self.init().
+- **"argument passed to call that takes no arguments" at a port-class call site =
+  the port OMITTED a builder init.** Several ports kept only the SDS (grdbId)
+  init; their `.m` builder inits were dropped as "no callers" -- but callers DID
+  surface (OWSRecoverableDecryptionPlaceholder, OWSIncoming/OutgoingPaymentMessage,
+  OWSIncomingArchivedPaymentMessage). The call then binds to the unavailable
+  `init()` -> "takes no arguments". Fix per class: port the `.m` builder init as a
+  **designated** `init` (NOT convenience -- the subclass already declares its own
+  designated init, so it does NOT inherit the superclass inits, and `self.init`
+  can't reach them) that (1) sets the subclass's stored props, (2) calls
+  `super.init(<base builder init>)` -- TSErrorMessage(errorMessageWithBuilder:),
+  TSIncomingMessage(incomingMessageWithBuilder:), TSOutgoingMessage(outgoingMessageWith:
+  additionalRecipients:explicitRecipients:skippedRecipients:transaction:). A
+  failable one (placeholder) may `return nil` before super.init since the subclass
+  has no stored props to leave uninitialized. Read the `.m` for the exact super
+  call + simplify deferred branches (placeholder: contact-thread only, no
+  TSGroupThread.fetchWithGroupId). Cleared 4 files + the whole category.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
