@@ -1047,7 +1047,7 @@ public struct QuillSidebarNavigationButton: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 sidebarIcon
-                    .frame(width: 24, height: 20, alignment: .leading)
+                    .frame(width: 24, height: 24, alignment: .leading)
 
                 Text(title)
                     .lineLimit(1)
@@ -1076,13 +1076,13 @@ public struct QuillSidebarNavigationButton: View {
         if systemImage == "textformat.abc" {
             Text("Abc")
                 .font(.system(size: 13, weight: .regular))
-                .frame(width: 24, height: 20, alignment: .leading)
+                .frame(width: 24, height: 22, alignment: .leading)
         } else if systemImage == "keyboard" || systemImage == "keyboard.fill" {
             QuillSidebarKeyboardGlyph(color: Color(hex: "#3A3A3C"))
-                .frame(width: 24, height: 20, alignment: .leading)
+                .frame(width: 24, height: 22, alignment: .leading)
         } else if systemImage == "gearshape" || systemImage == "gearshape.fill" || systemImage == "gear" {
             QuillSidebarGearGlyph(color: Color(hex: "#3A3A3C"))
-                .frame(width: 24, height: 20, alignment: .leading)
+                .frame(width: 24, height: 24, alignment: .leading)
         } else {
             Image(systemName: sidebarSystemImageName)
                 .renderingMode(.template)
@@ -1122,7 +1122,7 @@ private struct QuillSidebarKeyboardGlyph: View {
         ZStack {
             RoundedRectangle(cornerRadius: 2)
                 .stroke(color, lineWidth: 1.3)
-                .frame(width: 17, height: 11)
+                .frame(width: 19, height: 12.4)
 
             VStack(spacing: 1.5) {
                 HStack(spacing: 1.5) {
@@ -1136,19 +1136,19 @@ private struct QuillSidebarKeyboardGlyph: View {
                     key
                     Rectangle()
                         .fill(color)
-                        .frame(width: 5.6, height: 1.4)
+                        .frame(width: 6.2, height: 1.4)
                     key
                 }
             }
             .padding(.top, 1)
         }
-        .frame(width: 17, height: 13, alignment: .center)
+        .frame(width: 21, height: 16, alignment: .center)
     }
 
     private var key: some View {
         Rectangle()
             .fill(color)
-            .frame(width: 1.8, height: 1.4)
+            .frame(width: 2, height: 1.4)
     }
 }
 
@@ -1157,23 +1157,28 @@ private struct QuillSidebarGearGlyph: View {
 
     var body: some View {
         ZStack {
-            Rectangle()
+            ForEach(0..<8, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 1.1)
+                    .fill(color)
+                    .frame(width: 3.3, height: 7.2)
+                    .offset(y: -7.1)
+                    .rotationEffect(Angle.degrees(Double(index) * 45))
+            }
+
+            Circle()
                 .fill(color)
-                .frame(width: 3.2, height: 17)
-            Rectangle()
-                .fill(color)
-                .frame(width: 17, height: 3.2)
+                .frame(width: 16.5, height: 16.5)
             Circle()
                 .fill(QuillDesktopChromeStyle.sidebarBackground)
-                .frame(width: 11.2, height: 11.2)
+                .frame(width: 9.4, height: 9.4)
             Circle()
-                .stroke(color, lineWidth: 1.6)
-                .frame(width: 10, height: 10)
+                .stroke(color, lineWidth: 1.7)
+                .frame(width: 12.2, height: 12.2)
             Circle()
                 .fill(color)
-                .frame(width: 3.3, height: 3.3)
+                .frame(width: 3.4, height: 3.4)
         }
-        .frame(width: 17, height: 17, alignment: .center)
+        .frame(width: 22, height: 22, alignment: .center)
     }
 }
 

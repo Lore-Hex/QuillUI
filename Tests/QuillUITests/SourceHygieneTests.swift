@@ -2708,6 +2708,7 @@ struct SourceHygieneTests {
 
         let sidebarButton = String(controls[buttonStart.lowerBound..<nextSection.lowerBound])
         #expect(sidebarButton.contains("Image(systemName: sidebarSystemImageName)"))
+        #expect(sidebarButton.contains(".frame(width: 24, height: 24, alignment: .leading)"))
         #expect(sidebarButton.contains("if systemImage == \"textformat.abc\""))
         #expect(sidebarButton.contains("Text(\"Abc\")"))
         #expect(sidebarButton.contains("QuillSidebarKeyboardGlyph(color: Color(hex: \"#3A3A3C\"))"))
@@ -2715,7 +2716,9 @@ struct SourceHygieneTests {
         #expect(sidebarButton.contains("private struct QuillSidebarKeyboardGlyph: View"))
         #expect(sidebarButton.contains("private struct QuillSidebarGearGlyph: View"))
         #expect(sidebarButton.contains(".stroke(color, lineWidth: 1.3)"))
-        #expect(sidebarButton.contains(".stroke(color, lineWidth: 1.6)"))
+        #expect(sidebarButton.contains("ForEach(0..<8, id: \\.self)"))
+        #expect(sidebarButton.contains(".rotationEffect(Angle.degrees(Double(index) * 45))"))
+        #expect(sidebarButton.contains(".stroke(color, lineWidth: 1.7)"))
         #expect(sidebarButton.contains("\"textformat\", \"textformat.abc\""))
         #expect(sidebarButton.contains("\"keyboard\", \"keyboard.fill\""))
         #expect(sidebarButton.contains("\"gearshape\", \"gearshape.fill\", \"gear\""))
