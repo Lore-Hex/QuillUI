@@ -44,3 +44,11 @@ public enum Font: Equatable {
         .custom(size: size, weight: weight, design: design)
     }
 }
+
+// SwiftUI nests these on `Font` (`Font.Weight` / `Font.Design` / `Font.TextStyle`);
+// upstream source references them that way. Map to the top-level enums.
+extension Font {
+    public typealias Weight = FontWeight
+    public typealias Design = FontDesign
+    public typealias TextStyle = Font
+}

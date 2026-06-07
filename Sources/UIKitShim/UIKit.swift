@@ -26,6 +26,52 @@ public typealias UIImage = NSImage
 public typealias UIColor = NSColor
 public typealias UIFont = NSFont
 public typealias UIScreen = NSScreen
+#else
+// Linux: no AppKit/UIKit fonts. Provide the UIFont surface upstream UI uses
+// (scaled system fonts, the `.rounded` design). Metrics are identity on Linux.
+public final class UIFont {
+    public let pointSize: CGFloat
+    public let fontName: String
+    public let fontDescriptor: UIFontDescriptor
+    public init(descriptor: UIFontDescriptor, size: CGFloat) {
+        self.pointSize = size; self.fontName = descriptor.name; self.fontDescriptor = descriptor
+    }
+    init(pointSize: CGFloat, fontName: String) {
+        self.pointSize = pointSize; self.fontName = fontName
+        self.fontDescriptor = UIFontDescriptor(name: fontName)
+    }
+    public static func systemFont(ofSize size: CGFloat) -> UIFont {
+        UIFont(pointSize: size, fontName: ".AppleSystemUIFont")
+    }
+    public static func systemFont(ofSize size: CGFloat, weight: Weight) -> UIFont {
+        UIFont(pointSize: size, fontName: ".AppleSystemUIFont")
+    }
+    public struct Weight: Equatable, Sendable {
+        public let rawValue: CGFloat
+        public init(rawValue: CGFloat) { self.rawValue = rawValue }
+        public static let ultraLight = Weight(rawValue: -0.8)
+        public static let thin = Weight(rawValue: -0.6)
+        public static let light = Weight(rawValue: -0.4)
+        public static let regular = Weight(rawValue: 0)
+        public static let medium = Weight(rawValue: 0.23)
+        public static let semibold = Weight(rawValue: 0.3)
+        public static let bold = Weight(rawValue: 0.4)
+        public static let heavy = Weight(rawValue: 0.56)
+        public static let black = Weight(rawValue: 0.62)
+    }
+}
+public final class UIFontDescriptor {
+    public let name: String
+    public init(name: String = ".AppleSystemUIFont") { self.name = name }
+    public enum SystemDesign: Equatable, Sendable { case `default`, rounded, serif, monospaced }
+    public func withDesign(_ design: SystemDesign) -> UIFontDescriptor? {
+        UIFontDescriptor(name: design == .rounded ? ".AppleSystemUIFontRounded-Regular" : name)
+    }
+}
+public final class UIFontMetrics {
+    public static let `default` = UIFontMetrics()
+    public func scaledValue(for value: CGFloat) -> CGFloat { value }
+}
 #endif
 
 // MARK: - UIApplication (macOS-shape)
