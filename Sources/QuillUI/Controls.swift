@@ -2396,6 +2396,7 @@ public struct QuillEditableDesktopChatScaffold<
 public struct QuillModelConversationChatScaffold<
     Conversation,
     Model,
+    ModelID: Hashable,
     PromptItem,
     EditMessage: Equatable,
     SettingsContent: View,
@@ -2409,7 +2410,7 @@ public struct QuillModelConversationChatScaffold<
     public var conversations: [Conversation]
     public var selectedConversationID: String?
     public var models: [Model]
-    public var selectedModelID: String?
+    public var selectedModelID: ModelID?
     public var promptSource: [PromptItem]
     public var reachable: Bool
     public var statusMaxWidth: CGFloat
@@ -2425,7 +2426,7 @@ public struct QuillModelConversationChatScaffold<
     private var onSelectConversation: (Conversation) -> Void
     private var onDeleteConversation: ((Conversation) -> Void)?
     private var onDeleteDailyConversations: ((Date) -> Void)?
-    private var modelID: (Model) -> String
+    private var modelID: (Model) -> ModelID
     private var modelName: (Model) -> String
     private var modelVersion: (Model) -> String
     private var onSelectModel: (Model) -> Void
@@ -2446,7 +2447,7 @@ public struct QuillModelConversationChatScaffold<
         conversations: [Conversation],
         selectedConversationID: String?,
         models: [Model],
-        selectedModelID: String?,
+        selectedModelID: ModelID?,
         promptSource: [PromptItem],
         reachable: Bool,
         statusMaxWidth: CGFloat = 1524,
@@ -2462,7 +2463,7 @@ public struct QuillModelConversationChatScaffold<
         onSelectConversation: @escaping (Conversation) -> Void,
         onDeleteConversation: ((Conversation) -> Void)? = nil,
         onDeleteDailyConversations: ((Date) -> Void)? = nil,
-        modelID: @escaping (Model) -> String,
+        modelID: @escaping (Model) -> ModelID,
         modelName: @escaping (Model) -> String,
         modelVersion: @escaping (Model) -> String = { _ in "" },
         onSelectModel: @escaping (Model) -> Void,

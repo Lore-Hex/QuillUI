@@ -2509,6 +2509,7 @@ struct SourceHygieneTests {
         #expect(controls.contains("composer: { composerContent($draft, $editMessage) }"))
         #expect(controls.contains(".quillSyncEditableMessage($editMessage, draft: $draft, isFocused: $isFocusedInput, content: editContent)"))
         #expect(controls.contains("public struct QuillModelConversationChatScaffold<"))
+        #expect(controls.contains("ModelID: Hashable"))
         #expect(controls.contains("public var selectedConversationID: String?"))
         #expect(controls.contains("public var statusMaxWidth: CGFloat"))
         #expect(controls.contains("hasSelection: hasSelection"))
