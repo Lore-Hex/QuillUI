@@ -276,6 +276,23 @@ open(path, "w").write(src.replace("decodeTopLevelObject(", "decodeObject("))
 PY
     fi
 
+    # ReachabilityManager builds an OWSURLSession with a background
+    # URLSessionConfiguration. swift-corelibs-foundation marks
+    # URLSessionConfiguration.background(withIdentifier:) @available(unavailable)
+    # on non-Darwin (background transfers need the OS daemon). Linux-only build,
+    # so use .default -- a reachability probe needs no background semantics, and
+    # no background-only properties are set on this config, so the swap is total.
+    local reach="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Network/ReachabilityManager.swift"
+    if [[ -f "$reach" ]] && grep -q 'background(withIdentifier: "SSKReachabilityManagerImpl")' "$reach"; then
+        echo "==> patching signal-ios ReachabilityManager.swift background(withIdentifier:) -> .default"
+        python3 - "$reach" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+open(path, "w").write(s.replace('.background(withIdentifier: "SSKReachabilityManagerImpl")', '.default'))
+PY
+    fi
+
     # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
     # members on Apple. The lowering pass strips `@objc` (-> plain `public
     # protocol`), which makes `optional` invalid ("'optional' can only be applied
