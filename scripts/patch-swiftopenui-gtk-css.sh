@@ -1340,7 +1340,39 @@ if "let transientRoot: gpointer?" not in text:
     }
 }
 '''
-    new_sheet_info = '''private func gtkSheetDataKey(_ suffix: String, modifierType: Any.Type) -> String {
+    new_sheet_info = '''private final class GTKSheetLifecycleScope {
+    private var disappearActions: [() -> Void] = []
+    private var didRunDisappearActions = false
+
+    func registerOnDisappear(_ action: @escaping () -> Void) {
+        disappearActions.append(action)
+    }
+
+    func runDisappearActions() {
+        guard !didRunDisappearActions else { return }
+        didRunDisappearActions = true
+        for action in disappearActions {
+            action()
+        }
+    }
+}
+
+private var gtkSheetLifecycleScopes: [GTKSheetLifecycleScope] = []
+
+private func gtkCurrentSheetLifecycleScope() -> GTKSheetLifecycleScope? {
+    gtkSheetLifecycleScopes.last
+}
+
+private func gtkWithSheetLifecycleScope<T>(
+    _ scope: GTKSheetLifecycleScope,
+    perform body: () -> T
+) -> T {
+    gtkSheetLifecycleScopes.append(scope)
+    defer { _ = gtkSheetLifecycleScopes.popLast() }
+    return body()
+}
+
+private func gtkSheetDataKey(_ suffix: String, modifierType: Any.Type) -> String {
     return "swift-sheet-\\(String(reflecting: modifierType))-\\(suffix)"
 }
 
@@ -1350,6 +1382,7 @@ private class SheetInfo {
     let windowKey: String
     let itemIDKey: String
     let transientRoot: gpointer?
+    let lifecycleScope: GTKSheetLifecycleScope
     let render: () -> OpaquePointer
     let onDismiss: () -> Void
     /// Dismissal config from sheet content, used to present confirmation dialog on intercept.
@@ -1360,6 +1393,7 @@ private class SheetInfo {
          windowKey: String,
          itemIDKey: String = "",
          transientRoot: gpointer?,
+         lifecycleScope: GTKSheetLifecycleScope,
          render: @escaping () -> OpaquePointer,
          onDismiss: @escaping () -> Void,
          dismissalConfig: DismissalConfirmationConfiguration? = nil) {
@@ -1368,6 +1402,7 @@ private class SheetInfo {
         self.windowKey = windowKey
         self.itemIDKey = itemIDKey
         self.transientRoot = transientRoot
+        self.lifecycleScope = lifecycleScope
         self.render = render
         self.onDismiss = onDismiss
         self.dismissalConfig = dismissalConfig
@@ -1440,11 +1475,13 @@ private func gtkSheetDefaultHeight() -> gint {
             g_object_ref(transientRoot)
         }
 
+        let lifecycleScope = GTKSheetLifecycleScope()
         let info = Unmanaged.passRetained(SheetInfo(
             anchor: anchor,
             activeKey: activeKey,
             windowKey: windowKey,
             transientRoot: transientRoot,
+            lifecycleScope: lifecycleScope,
             render: { gtkRenderView(sheetView) },
 '''
     if old_bool_info not in text:
@@ -1459,12 +1496,14 @@ private func gtkSheetDefaultHeight() -> gint {
         if let transientRoot {
             g_object_ref(transientRoot)
         }
+        let lifecycleScope = GTKSheetLifecycleScope()
         let info = Unmanaged.passRetained(SheetInfo(
             anchor: anchor,
             activeKey: activeKey,
             windowKey: windowKey,
             itemIDKey: itemIDKey,
             transientRoot: transientRoot,
+            lifecycleScope: lifecycleScope,
             render: { gtkRenderView(sheetBuilder(currentItem)) },
 '''
     if old_item_info not in text:
@@ -1527,6 +1566,31 @@ private func gtkSheetDefaultHeight() -> gint {
     text = text.replace('g_object_set_data(obj, "swift-sheet-item-id", nil)', 'g_object_set_data(obj, itemIDKey, nil)')
     text = text.replace('g_object_set_data(anchorObj, "swift-sheet-window", gpointer(dialogWin))', 'g_object_set_data(anchorObj, info.windowKey, gpointer(dialogWin))')
     text = text.replace('g_object_set_data(anchorObj, "swift-sheet-item-id", gpointer(bitPattern: currentIdHash))', 'g_object_set_data(anchorObj, info.itemIDKey, gpointer(bitPattern: currentIdHash))')
+    text = text.replace(
+        "            let sheetWidget = widgetFromOpaque(info.render())\n",
+        "            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(info.lifecycleScope) { info.render() })\n",
+        2,
+    )
+    text = text.replace(
+        """                binding.wrappedValue = false
+                userOnDismiss?()
+""",
+        """                binding.wrappedValue = false
+                lifecycleScope.runDisappearActions()
+                userOnDismiss?()
+""",
+        1,
+    )
+    text = text.replace(
+        """                itemBinding.wrappedValue = nil
+                userOnDismiss?()
+""",
+        """                itemBinding.wrappedValue = nil
+                lifecycleScope.runDisappearActions()
+                userOnDismiss?()
+""",
+        1,
+    )
 
     bool_overlay_dismiss = '''        if !isPresented.wrappedValue {
             gtkRemoveSheetRootOverlay(
@@ -1740,6 +1804,7 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let binding = isPresented
             let userOnDismiss = onDismiss
             let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
             if let config = dismissalConfig {
@@ -1749,11 +1814,12 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             } else {
                 env.dismiss = DismissAction {
                     binding.wrappedValue = false
+                    lifecycleScope.runDisappearActions()
                     userOnDismiss?()
                 }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetView))
+            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) })
             setCurrentEnvironment(previous)
             return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
         }
@@ -1770,6 +1836,7 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let binding = isPresented
             let userOnDismiss = onDismiss
             let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
             if let config = dismissalConfig {
@@ -1780,11 +1847,12 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 env.dismiss = DismissAction {
                     gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)
                     binding.wrappedValue = false
+                    lifecycleScope.runDisappearActions()
                     userOnDismiss?()
                 }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetView))
+            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) })
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
@@ -1799,11 +1867,12 @@ if "gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)" not 
         raise SystemExit("SwiftOpenUI bool sheet overlay insertion shape was not recognized")
     text = text.replace(bool_marker, bool_sheet_overlay + bool_marker, 1)
 
-item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
+item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() || gtkShouldRenderSheetInRootOverlay() {
             let sheetBuilder = sheetContent
             let itemBinding = item
             let userOnDismiss = onDismiss
             let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+            let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
             if let config = itemDismissalConfig {
@@ -1813,11 +1882,12 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             } else {
                 env.dismiss = DismissAction {
                     itemBinding.wrappedValue = nil
+                    lifecycleScope.runDisappearActions()
                     userOnDismiss?()
                 }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetBuilder(currentItem)))
+            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) })
             setCurrentEnvironment(previous)
             return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
         }
@@ -2784,6 +2854,109 @@ new_on_appear_rebuild = '''        let boundAction = bindActionToCurrentEnvironm
 '''
 if "gtkScheduleOnAppear(boundAction, on: widget)" not in text and old_on_appear_rebuild in text:
     text = text.replace(old_on_appear_rebuild, new_on_appear_rebuild, 1)
+
+mapped_on_disappear_marker = "GTK OnDisappear requires a prior map before firing"
+if mapped_on_disappear_marker not in text:
+    old_on_disappear = '''/// Holds the disappear callback and a reference to the host container
+/// for distinguishing rebuild unmaps from real disappears.
+private class DisappearBox {
+    let action: () -> Void
+    let hostContainer: UnsafeMutablePointer<GtkWidget>?
+    init(action: @escaping () -> Void, hostContainer: UnsafeMutablePointer<GtkWidget>?) {
+        self.action = action
+        self.hostContainer = hostContainer
+    }
+}
+
+extension OnDisappearView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+
+        let hostContainer: UnsafeMutablePointer<GtkWidget>?
+        if let host = GTKViewHost.getCurrentRebuilding() {
+            hostContainer = host.container
+        } else {
+            hostContainer = nil
+        }
+
+        let boundAction = bindActionToCurrentEnvironment(action)
+        let box = Unmanaged.passRetained(
+            DisappearBox(action: boundAction, hostContainer: hostContainer)
+        ).toOpaque()
+        g_signal_connect_data(
+            gpointer(widget),
+            "unmap",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<DisappearBox>.fromOpaque(userData!).takeUnretainedValue()
+                // If the host container is still mapped, this is a rebuild — suppress.
+                if let container = box.hostContainer,
+                   gtk_widget_get_mapped(container) != 0 {
+                    return
+                }
+                box.action()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            box,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<DisappearBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+
+        return opaqueFromWidget(widget)
+    }
+}
+'''
+    new_on_disappear = old_on_disappear.replace(
+        "private class DisappearBox {\n    let action: () -> Void\n    let hostContainer: UnsafeMutablePointer<GtkWidget>?\n",
+        "private class DisappearBox {\n    let action: () -> Void\n    let hostContainer: UnsafeMutablePointer<GtkWidget>?\n    // GTK OnDisappear requires a prior map before firing. Sheet content can\n    // be temporarily unrealized while it is being attached to a window; SwiftUI\n    // does not treat that construction churn as a disappearance.\n    var hasMapped: Bool = false\n",
+        1,
+    ).replace(
+        '''        g_signal_connect_data(
+            gpointer(widget),
+            "unmap",
+''',
+        '''        g_signal_connect_data(
+            gpointer(widget),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<DisappearBox>.fromOpaque(userData!).takeUnretainedValue()
+                box.hasMapped = true
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            box,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(widget),
+            "unmap",
+''',
+        1,
+    ).replace(
+        '''        let boundAction = bindActionToCurrentEnvironment(action)
+        let box = Unmanaged.passRetained(
+''',
+        '''        let boundAction = bindActionToCurrentEnvironment(action)
+        if let sheetLifecycleScope = gtkCurrentSheetLifecycleScope() {
+            sheetLifecycleScope.registerOnDisappear(boundAction)
+            return opaqueFromWidget(widget)
+        }
+
+        let box = Unmanaged.passRetained(
+''',
+        1,
+    ).replace(
+        '''                let box = Unmanaged<DisappearBox>.fromOpaque(userData!).takeUnretainedValue()
+                // If the host container is still mapped, this is a rebuild — suppress.
+''',
+        '''                let box = Unmanaged<DisappearBox>.fromOpaque(userData!).takeUnretainedValue()
+                guard box.hasMapped else { return }
+                // If the host container is still mapped, this is a rebuild — suppress.
+''',
+        1,
+    )
+    if old_on_disappear not in text:
+        raise SystemExit("SwiftOpenUI OnDisappear lifecycle shape was not recognized")
+    text = text.replace(old_on_disappear, new_on_disappear, 1)
 
 layout_marker_helper = r'''
 private func gtkHasLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: String) -> Bool {

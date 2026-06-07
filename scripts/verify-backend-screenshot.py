@@ -1609,6 +1609,95 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
     )
 
 
+def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -> str:
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    cancel_roi = (
+        left + int(app_width * 0.27),
+        top + int(app_height * 0.275),
+        left + int(app_width * 0.34),
+        top + int(app_height * 0.325),
+    )
+    save_roi = (
+        left + int(app_width * 0.65),
+        top + int(app_height * 0.275),
+        left + int(app_width * 0.72),
+        top + int(app_height * 0.325),
+    )
+    panel_roi = (
+        left + int(app_width * 0.26),
+        top + int(app_height * 0.27),
+        left + int(app_width * 0.74),
+        top + int(app_height * 0.75),
+    )
+    name_field_roi = (
+        left + int(app_width * 0.29),
+        top + int(app_height * 0.325),
+        left + int(app_width * 0.71),
+        top + int(app_height * 0.36),
+    )
+    instruction_field_roi = (
+        left + int(app_width * 0.29),
+        top + int(app_height * 0.38),
+        left + int(app_width * 0.71),
+        top + int(app_height * 0.44),
+    )
+    preview_roi = (
+        left + int(app_width * 0.43),
+        top + int(app_height * 0.68),
+        left + int(app_width * 0.58),
+        top + int(app_height * 0.73),
+    )
+
+    cancel_pixels = pixel_count(image, *cancel_roi, mac_reference_completion_action_pixel)
+    save_pixels = pixel_count(image, *save_roi, mac_reference_completion_action_pixel)
+    panel_surface_pixels = pixel_count(image, *panel_roi, settings_panel_background_pixel)
+    name_field_pixels = pixel_count(image, *name_field_roi, form_field_pixel)
+    instruction_field_pixels = pixel_count(image, *instruction_field_roi, form_field_pixel)
+    preview_pixels = pixel_count(image, *preview_roi, form_field_pixel)
+
+    require(
+        cancel_pixels >= 90,
+        f"Completions Upsert Cancel action was not detected: pixels={cancel_pixels}, roi={cancel_roi}",
+    )
+    require(
+        save_pixels >= 90,
+        f"Completions Upsert Save action was not detected: pixels={save_pixels}, roi={save_roi}",
+    )
+    require(
+        panel_surface_pixels >= 45_000,
+        "Completions Upsert sheet surface was not detected: "
+        f"pixels={panel_surface_pixels}, roi={panel_roi}",
+    )
+    require(
+        name_field_pixels >= 30_000,
+        f"Completions Upsert name field was not detected: pixels={name_field_pixels}, roi={name_field_roi}",
+    )
+    require(
+        instruction_field_pixels >= 50_000,
+        "Completions Upsert instruction editor was not detected: "
+        f"pixels={instruction_field_pixels}, roi={instruction_field_roi}",
+    )
+    require(
+        preview_pixels >= 14_000,
+        f"Completions Upsert preview chip was not detected: pixels={preview_pixels}, roi={preview_roi}",
+    )
+
+    return (
+        "Quill Chat Mac-reference completions new sheet: "
+        f"cancel_pixels={cancel_pixels}, "
+        f"save_pixels={save_pixels}, "
+        f"panel_surface_pixels={panel_surface_pixels}, "
+        f"name_field_pixels={name_field_pixels}, "
+        f"instruction_field_pixels={instruction_field_pixels}, "
+        f"preview_pixels={preview_pixels}; "
+        f"{panel_summary}"
+    )
+
+
 def validate_quill_chat_mac_reference_history_selection(
     image: Screenshot,
     require_transcript: bool = False,
@@ -3654,6 +3743,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_settings_delete_confirmation(image))
     elif product == "quill-chat-linux-mac-reference-completions-panel":
         print(validate_quill_chat_mac_reference_completions_panel(image))
+    elif product == "quill-chat-linux-mac-reference-completions-new-sheet":
+        print(validate_quill_chat_mac_reference_completions_new_sheet(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":
         print(validate_quill_chat_mac_reference_history_selection(image))
     elif product == "quill-chat-linux-mac-reference-transcript-selection":

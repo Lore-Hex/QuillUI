@@ -402,6 +402,39 @@ refresh_capture_window_for_sheet_interaction() {
   refresh_capture_window_for_active_child_window
 }
 
+open_quill_chat_completions_panel() {
+  local click_x
+  local click_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    click_x="${QUILLUI_BACKEND_CLICK_X:-90}"
+    click_y="${QUILLUI_BACKEND_CLICK_Y:-1244}"
+  else
+    click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
+    click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
+  fi
+  click_at "$click_x" "$click_y"
+  sleep "$post_click_sleep"
+}
+
+open_quill_chat_new_completion_sheet() {
+  local new_x
+  local new_y
+
+  open_quill_chat_completions_panel
+  sleep "${QUILLUI_BACKEND_NEW_COMPLETION_PRE_CLICK_SLEEP:-1.5}"
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-1518}"
+    new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-498}"
+  else
+    new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + window_width - 210))}"
+    new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 270))}"
+  fi
+  click_at "$new_x" "$new_y"
+  sleep "$post_click_sleep"
+  refresh_capture_window_for_active_child_window
+}
+
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
 if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   focus_x="${QUILLUI_BACKEND_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
@@ -555,15 +588,10 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         refresh_capture_window_for_active_child_window
         ;;
       completions-panel)
-        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          click_x="${QUILLUI_BACKEND_CLICK_X:-90}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-1244}"
-        else
-          click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
-        fi
-        click_at "$click_x" "$click_y"
-        sleep "$post_click_sleep"
+        open_quill_chat_completions_panel
+        ;;
+      completions-new-sheet)
+        open_quill_chat_new_completion_sheet
         ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
