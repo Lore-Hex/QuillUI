@@ -498,3 +498,22 @@ final class QuillEntryMacroTests: XCTestCase {
     }
 }
 #endif
+
+#if !os(macOS) && !os(iOS)
+// Shared SwiftUI compat additions used by vendored real source (DesignSystem):
+// `Color: Sendable` and the SwiftUI-style nesting `Font.Weight`/`.Design`/`.TextStyle`.
+final class QuillSwiftUIColorFontShimTests: XCTestCase {
+    func testColorIsSendable() {
+        // Compiles only if Color conforms to Sendable.
+        let c: any Sendable = SwiftUI.Color.red
+        XCTAssertTrue(c is SwiftUI.Color)
+    }
+
+    func testFontTypeNesting() {
+        XCTAssertEqual(SwiftUI.Font.Weight.semibold, SwiftUI.FontWeight.semibold)
+        XCTAssertEqual(SwiftUI.Font.Design.rounded, SwiftUI.FontDesign.rounded)
+        let style: SwiftUI.Font.TextStyle = .body
+        XCTAssertEqual(style, SwiftUI.Font.body)
+    }
+}
+#endif
