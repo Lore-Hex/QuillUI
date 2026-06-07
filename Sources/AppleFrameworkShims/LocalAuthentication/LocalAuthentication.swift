@@ -52,14 +52,29 @@ public struct LAError: Error {
 /// Mirrors `LAContext`. On Linux local device authentication is unavailable, so
 /// policy evaluation always reports "cannot evaluate" / failure. A real backend
 /// would bridge to a platform authenticator (deferred).
+public enum LABiometryType: Int, Sendable {
+    case none = 0
+    case touchID = 1
+    case faceID = 2
+    case opticID = 4
+}
+
 public class LAContext {
     public init() {}
 
     public var interactionNotAllowed: Bool = false
     public var localizedFallbackTitle: String?
+    public var touchIDAuthenticationAllowableReuseDuration: TimeInterval = 0
+    /// No biometrics on Linux -> none.
+    public var biometryType: LABiometryType { .none }
 
-    public func canEvaluatePolicy(_ policy: LAPolicy, error: inout NSError?) -> Bool {
-        error = nil
+    // error is NSErrorPointer-shaped (UnsafeMutablePointer<NSError?>?) so callers can
+    // pass BOTH &authError and a literal nil (DeviceOwnerAuthenticationType does the
+    // latter). inout NSError? would reject the nil. Inert: no biometrics on Linux.
+    @discardableResult
+    public func canEvaluatePolicy(_ policy: LAPolicy, error: UnsafeMutablePointer<NSError?>?) -> Bool {
+        _ = policy
+        error?.pointee = nil
         return false
     }
 
