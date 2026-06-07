@@ -916,14 +916,30 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     /// `presentingViewController?.dismiss(self)`). Compile stub: nil unless set.
     public weak var presentingViewController: NSViewController?
     private var quillView: NSView = NSView()
+    /// True once the view has been loaded (loadView has run). AppKit-faithful:
+    /// accessing `.view` lazily loads it. Needed for rendering — a VC that builds
+    /// its tree in `loadView()` (e.g. WireGuard's ButtonedDetailViewController)
+    /// must have loadView run before its view can be laid out + drawn.
+    public private(set) var isViewLoaded: Bool = false
+    /// Load the view if it hasn't been yet: run `loadView()` then `viewDidLoad()`,
+    /// matching AppKit's lazy `.view`. `isViewLoaded` is set BEFORE `loadView()`
+    /// so a loadView body that assigns `self.view` (the setter) doesn't recurse.
+    public func loadViewIfNeeded() {
+        guard !isViewLoaded else { return }
+        isViewLoaded = true
+        loadView()
+        viewDidLoad()
+    }
     public var view: NSView {
         get {
+            loadViewIfNeeded()
             if quillView.quillExplicitNextResponder == nil {
                 quillView.nextResponder = self
             }
             return quillView
         }
         set {
+            isViewLoaded = true
             if quillView.nextResponder === self {
                 quillView.nextResponder = nil
             }

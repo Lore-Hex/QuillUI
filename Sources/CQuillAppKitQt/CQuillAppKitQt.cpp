@@ -8,6 +8,7 @@
 #include <QRect>
 #include <QPushButton>
 #include <QLabel>
+#include <QPixmap>
 
 #include <string>
 
@@ -67,6 +68,19 @@ void quill_appkit_qt_window_close(void *window) {
     if (window) {
         asWidget(window)->close();
     }
+}
+
+int quill_appkit_qt_window_grab_png(void *window, const char *path) {
+    if (window == nullptr || path == nullptr) {
+        return 0;
+    }
+    QWidget *w = asWidget(window);
+    // Ensure the widget tree is sized + polished so children paint when grabbed
+    // (grab() works offscreen without show()). ensurePolished triggers style
+    // resolution; grab() then renders the widget and all descendants.
+    w->ensurePolished();
+    QPixmap pixmap = w->grab();
+    return pixmap.save(QString::fromUtf8(path), "PNG") ? 1 : 0;
 }
 
 const char *quill_appkit_qt_window_title(void *window) {
