@@ -1167,6 +1167,30 @@ Patterns that closed them:
 
 ---
 
+### Track B sub-5.1k: the medium-file long tail -- UIColor/UIDevice/Intents/Locale (2026-06, ~99.2%, 5.09k)
+
+Below ~6k the top files are a steady 72-150-error tail; each is usually 2-3
+concentrated causes. Pattern: build, grep the file's distinct WHAT, fix the
+cleanest, repeat. Recent clears:
+
+- **UIColor math accessors.** RSColor (= UIColor) needed getRed(_:green:blue:alpha:)
+  (write stored RGBA into out-pointers, return true), getHue(...) (real RGB->HSB),
+  and init(hue:saturation:brightness:alpha:) (HSB->RGB convenience init delegating
+  to the RGBA designated init). Cleared UIColor+OWS + UIColor+SSK (UIColor.components()
+  builds on getRed). All in QuillFoundation (visible via UIKit's @_exported).
+- **More UIDevice inert members** (same shim, same nonisolated rule as battery/
+  proximity): systemVersion/model (AppVersion), proximityState/isProximityMonitoringEnabled
+  + the two *DidChangeNotification names.
+- **Intents donation metadata.** INInteraction needed groupIdentifier + direction
+  vars (the enum already had .outgoing) -- inert; the interaction is never
+  registered on Linux. (ThreadUtil.donateSendMessageIntent.)
+- **swift-corelibs makes some Apple-public members `internal`.** (locale as
+  NSLocale).countryCode -> "inaccessible due to internal protection level". Use the
+  public Swift API instead (Locale.regionCode) via a fetch-patch -- don't try to
+  widen corelibs' access.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
