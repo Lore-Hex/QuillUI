@@ -114,6 +114,9 @@ Recently cleared:
 - The packaged `run` launcher has passed the Mac-reference visual smoke and the
   `new-chat` semantic interaction row via `QUILLUI_BACKEND_APP_EXECUTABLE`, so
   QA can now target release artifacts instead of only generated build products.
+- Enchanted Parity CI now exports the packaged launcher through
+  `QUILLUI_BACKEND_APP_EXECUTABLE` after packaging, so the downstream
+  interaction and functional rows exercise the same release artifact path.
 - Typed composer focus/input is covered by the real-source GTK mac-reference
   interaction verifier.
 - Composer-send UI transition is covered by the real-source GTK mac-reference

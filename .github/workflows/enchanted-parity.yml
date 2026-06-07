@@ -94,21 +94,18 @@ jobs:
             --artifact-dir .build/releases/quill-chat-linux-gtk \
             --tarball .qa/quill-chat-linux-gtk-release.tar.gz \
             --display-name "Quill Chat"
+          echo "QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run" >> "$GITHUB_ENV"
 
       - name: Run packaged release artifact verifier
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
         run: |
-          release_launcher="$PWD/.build/releases/quill-chat-linux-gtk/run"
-
-          QUILLUI_BACKEND_APP_EXECUTABLE="$release_launcher" \
           QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quill-chat-linux-release-artifact-visual.log \
             scripts/linux-backend-visual-check.sh \
               .qa/quill-chat-linux-release-artifact-gtk.png \
               quill-chat-linux \
               gtk
 
-          QUILLUI_BACKEND_APP_EXECUTABLE="$release_launcher" \
           QUILLUI_BACKEND_INTERACTION_MODE=new-chat \
           QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-release-artifact-new-chat.log \
             scripts/linux-backend-interaction-check.sh \
