@@ -210,4 +210,28 @@ open class TSInteraction: BaseModel, NSSecureCoding {
     public func replaceSortId(_ sortId: UInt64) {
         self.sortId = sortId
     }
+
+    // Relocated from upstream `extension TSInteraction` (TSInteraction.swift):
+    // these override TSYapDatabaseObject.anyDidInsert/anyDidUpdate, which Swift
+    // forbids from an extension on Linux (no @objc dynamic dispatch). Bodies are
+    // copied verbatim; the strip pass removes the upstream extension duplicates.
+    open override func anyDidInsert(with tx: DBWriteTransaction) {
+        super.anyDidInsert(with: tx)
+
+        if let thread = thread(tx: tx) {
+            thread.updateWithInsertedInteraction(self, tx: tx)
+        }
+    }
+
+    open override func anyDidUpdate(with tx: DBWriteTransaction) {
+        let interactionReadCache = SSKEnvironment.shared.modelReadCachesRef.interactionReadCache
+
+        super.anyDidUpdate(with: tx)
+
+        if let thread = thread(tx: tx) {
+            thread.updateWithUpdatedInteraction(self, tx: tx)
+        }
+
+        interactionReadCache.didUpdate(interaction: self, transaction: tx)
+    }
 }

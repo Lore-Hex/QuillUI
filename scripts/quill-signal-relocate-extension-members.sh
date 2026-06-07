@@ -48,6 +48,13 @@ TARGETS = {
     "Messages/Interactions/TSOutgoingMessage+SDS.swift": [
         r'(?ms)^    func anyUpdateOutgoingMessage\(transaction: DBWriteTransaction, block: \(TSOutgoingMessage\) -> Void\) \{\n.*?\n    \}\n',
     ],
+    # TSInteraction overrides TSYapDatabaseObject.anyDidInsert/anyDidUpdate in an
+    # `extension TSInteraction` -- illegal on Linux. Relocated into the
+    # QuillTSInteraction port class body; strip the extension duplicates.
+    "Messages/Interactions/TSInteraction.swift": [
+        r'(?ms)^    override public func anyDidInsert\(with tx: DBWriteTransaction\) \{\n.*?\n    \}\n',
+        r'(?ms)^    override public func anyDidUpdate\(with tx: DBWriteTransaction\) \{\n.*?\n    \}\n',
+    ],
 }
 
 total = 0
