@@ -3611,7 +3611,9 @@ def validate_quill_wireguard_gtk_native(
     require(860 <= app_width <= 1100, f"WireGuard GTK window width is unexpected: {app_width}px")
     require(560 <= app_height <= 760, f"WireGuard GTK window height is unexpected: {app_height}px")
 
-    divider_search = range(left + 240, min(right + 1, left + 340))
+    divider_min_x = left + int(app_width * 0.24)
+    divider_max_x = left + int(app_width * 0.58)
+    divider_search = range(divider_min_x, min(right + 1, divider_max_x))
     divider_x = max(
         divider_search,
         key=lambda x: line_column_score(image, x, top + 20, bottom - 20),
