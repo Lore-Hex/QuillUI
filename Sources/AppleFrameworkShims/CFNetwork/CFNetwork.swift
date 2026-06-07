@@ -40,3 +40,52 @@ public func CFNetworkCopyProxiesForURL(_ url: CFURL, _ proxySettings: CFDictiona
     // (empty) CFArray via the C constructor.
     Unmanaged.passRetained(CFArrayCreate(nil, nil, 0, nil))
 }
+
+// MARK: - CFHost (DNS resolution; OutageDetection probes uptime.signal.org)
+//
+// No CFHost on Linux. INERT: resolution reports failure / no addresses, so the
+// outage probe degrades to indeterminate (it does NOT falsely report an outage).
+// HONEST STATUS: the outage check does not actually resolve DNS here.
+
+public struct DarwinBoolean: ExpressibleByBooleanLiteral, Equatable, Sendable {
+    public var boolValue: Bool
+    public init(_ value: Bool) { self.boolValue = value }
+    public init(booleanLiteral value: Bool) { self.boolValue = value }
+}
+
+public final class CFHost {}
+
+public struct CFHostInfoType: RawRepresentable, Equatable, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let addresses = CFHostInfoType(rawValue: 0)
+    public static let names = CFHostInfoType(rawValue: 1)
+    public static let reachability = CFHostInfoType(rawValue: 2)
+}
+
+public struct CFStreamError {
+    public var domain: Int
+    public var error: Int32
+    public init(domain: Int = 0, error: Int32 = 0) {
+        self.domain = domain
+        self.error = error
+    }
+}
+
+public func CFHostCreateWithName(_ allocator: CFAllocator?, _ hostname: CFString) -> Unmanaged<CFHost> {
+    _ = (allocator, hostname)
+    return Unmanaged.passRetained(CFHost())
+}
+
+@discardableResult
+public func CFHostStartInfoResolution(_ host: CFHost, _ info: CFHostInfoType, _ error: UnsafeMutablePointer<CFStreamError>?) -> Bool {
+    _ = (host, info)
+    error?.pointee = CFStreamError()
+    return false
+}
+
+public func CFHostGetAddressing(_ host: CFHost, _ hasBeenResolved: UnsafeMutablePointer<DarwinBoolean>?) -> Unmanaged<NSArray>? {
+    _ = host
+    hasBeenResolved?.pointee = false
+    return nil
+}

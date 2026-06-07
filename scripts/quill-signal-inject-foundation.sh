@@ -69,7 +69,7 @@ SECURITY_TYPES='\bSec[A-Z][A-Za-z]+|\berrSec[A-Za-z]+|\bkSec[A-Za-z]+'
 # reads kCFProxy* + CFNetworkCopySystemProxySettings/CFNetworkCopyProxiesForURL but
 # imports only CoreFoundation/Foundation on Apple (CFNetwork arrives via the
 # umbrella). On Linux it needs an explicit `import CFNetwork`.
-CFNETWORK_TYPES='\bkCFProxy[A-Za-z]+|\bCFNetworkCopy[A-Za-z]+'
+CFNETWORK_TYPES='\bkCFProxy[A-Za-z]+|\bCFNetworkCopy[A-Za-z]+|\bCFHost[A-Za-z]*|\bCFStreamError\b|\bDarwinBoolean\b'
 
 # Symbols QuillFoundation provides (Linux-gated) but swift-corelibs does NOT,
 # used by files importing only Foundation -> they need an explicit
