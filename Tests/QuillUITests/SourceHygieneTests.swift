@@ -3354,6 +3354,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/package-swiftui-linux-app.sh"),
             encoding: .utf8
         )
+        let metadataCheckSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/check-linux-app-metadata.sh"),
+            encoding: .utf8
+        )
         let legacyQuillChatBuildSource = try String(
             contentsOf: root.appendingPathComponent("scripts/build-quill-chat-linux.sh"),
             encoding: .utf8
@@ -3420,16 +3424,32 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
         #expect(packageSource.contains("scripts/build-swiftui-linux-app.sh"))
         #expect(packageSource.contains("QUILLUI_APP_BACKEND_FACADE:-gtk"))
+        #expect(packageSource.contains("QUILLUI_APP_ID"))
+        #expect(packageSource.contains("validate_app_id \"$APP_ID\""))
+        #expect(packageSource.contains("xml_escape()"))
         #expect(packageSource.contains("--artifact-path-file \"$ARTIFACT_PATH_FILE\""))
-        #expect(packageSource.contains("mkdir -p \"$ARTIFACT_DIR/bin\" \"$ARTIFACT_DIR/metadata\""))
+        #expect(packageSource.contains("\"$ARTIFACT_DIR/share/applications\""))
+        #expect(packageSource.contains("\"$ARTIFACT_DIR/share/metainfo\""))
         #expect(packageSource.contains("cp \"$ARTIFACT_PATH\" \"$ARTIFACT_DIR/bin/$PRODUCT_NAME\""))
         #expect(packageSource.contains("ARTIFACT_BIN_DIR=\"$(dirname \"$ARTIFACT_PATH\")\""))
         #expect(packageSource.contains("find \"$ARTIFACT_BIN_DIR\" -maxdepth 1 -type d \\( -name '*.resources' -o -name '*.bundle' \\) -print0"))
         #expect(packageSource.contains("cp -R \"$resource_dir\" \"$ARTIFACT_DIR/bin/\""))
+        #expect(packageSource.contains("cat > \"$ARTIFACT_DIR/share/applications/$APP_ID.desktop\""))
+        #expect(packageSource.contains("Exec=$DESKTOP_EXEC"))
+        #expect(packageSource.contains("Icon=$ICON_NAME"))
+        #expect(packageSource.contains("cat > \"$ARTIFACT_DIR/share/metainfo/$APP_ID.metainfo.xml\""))
+        #expect(packageSource.contains("<launchable type=\"desktop-id\">$APP_ID.desktop</launchable>"))
         #expect(packageSource.contains("export GTK_A11Y=\"\\${GTK_A11Y:-none}\""))
         #expect(packageSource.contains("export QUILLUI_BACKEND=\"\\${QUILLUI_BACKEND:-$NORMALIZED_BACKEND_FACADE}\""))
+        #expect(packageSource.contains("printf 'app_id=%s\\n' \"$APP_ID\""))
         #expect(packageSource.contains("metadata/quillui-release.env"))
         #expect(packageSource.contains("tar -C \"$(dirname \"$ARTIFACT_DIR\")\" -czf \"$TARBALL_PATH\""))
+        #expect(metadataCheckSource.contains("Usage: $(basename \"$0\") ARTIFACT_DIR APP_ID PRODUCT_NAME [DISPLAY_NAME]"))
+        #expect(metadataCheckSource.contains("share/applications/$APP_ID.desktop"))
+        #expect(metadataCheckSource.contains("share/metainfo/$APP_ID.metainfo.xml"))
+        #expect(metadataCheckSource.contains("grep -Fx \"Exec=$PRODUCT_NAME\""))
+        #expect(metadataCheckSource.contains("ET.parse(metainfo_path).getroot()"))
+        #expect(metadataCheckSource.contains("Linux app metadata ok: %s"))
         #expect(legacyQuillChatBuildSource.contains("scripts/build-enchanted-linux.sh"))
         #expect(enchantedBuildSource.contains("--backend-facade"))
         #expect(enchantedBuildSource.contains("QUILLUI_ENCHANTED_BACKEND_FACADE"))

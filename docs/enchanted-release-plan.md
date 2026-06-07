@@ -91,7 +91,7 @@ Required click-through flows:
   with a `run` launcher.
 - Provide a reproducible release build path. The same generic packager accepts
   any lowered SwiftUI app source, app type, product name, backend facade, output
-  directory, and optional tarball path.
+  directory, app id, desktop metadata, optional icon, and optional tarball path.
 - Prefer Flatpak for the first public installable artifact.
 - Capture screenshots from the release artifact, not a special test-only binary.
 - Document required local services, especially Ollama endpoint configuration.
@@ -117,6 +117,9 @@ Recently cleared:
 - Enchanted Parity CI now exports the packaged launcher through
   `QUILLUI_BACKEND_APP_EXECUTABLE` after packaging, so the downstream
   interaction and functional rows exercise the same release artifact path.
+- The generic package output now includes `.desktop` and AppStream metainfo
+  files plus a metadata checker, and Enchanted CI validates Quill Chat's
+  `io.lorehex.QuillChat` desktop metadata before running the packaged app.
 - Typed composer focus/input is covered by the real-source GTK mac-reference
   interaction verifier.
 - Composer-send UI transition is covered by the real-source GTK mac-reference

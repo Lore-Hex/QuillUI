@@ -93,7 +93,15 @@ jobs:
             --backend-facade gtk \
             --artifact-dir .build/releases/quill-chat-linux-gtk \
             --tarball .qa/quill-chat-linux-gtk-release.tar.gz \
-            --display-name "Quill Chat"
+            --display-name "Quill Chat" \
+            --app-id io.lorehex.QuillChat \
+            --summary "Quill Chat is an Apple Swift chat app packaged for Linux through QuillUI." \
+            --categories "Utility;Network;"
+          scripts/check-linux-app-metadata.sh \
+            .build/releases/quill-chat-linux-gtk \
+            io.lorehex.QuillChat \
+            quill-chat-linux \
+            "Quill Chat"
           echo "QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run" >> "$GITHUB_ENV"
 
       - name: Run packaged release artifact verifier
