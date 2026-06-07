@@ -1390,6 +1390,46 @@ public struct QuillSheetStatusBanner<SheetContent: View>: View {
     #endif
 }
 
+public struct QuillChatUnreachableBanner<SettingsContent: View>: View {
+    public var message: String
+    public var actionTitle: String
+    public var showsActivity: Bool
+    public var horizontalPadding: CGFloat
+    public var topPadding: CGFloat
+    public var bottomPadding: CGFloat
+    private var settingsContent: () -> SettingsContent
+
+    public init(
+        message: String = "Quill is unreachable. Plug Quill back in if it's unplugged, or go to Settings and\nupdate your Quill API endpoint.",
+        actionTitle: String = "Settings",
+        showsActivity: Bool = true,
+        horizontalPadding: CGFloat = 28,
+        topPadding: CGFloat = 10,
+        bottomPadding: CGFloat = 74,
+        @ViewBuilder settings: @escaping () -> SettingsContent
+    ) {
+        self.message = message
+        self.actionTitle = actionTitle
+        self.showsActivity = showsActivity
+        self.horizontalPadding = horizontalPadding
+        self.topPadding = topPadding
+        self.bottomPadding = bottomPadding
+        self.settingsContent = settings
+    }
+
+    public var body: some View {
+        QuillSheetStatusBanner(
+            message: message,
+            actionTitle: actionTitle,
+            showsActivity: showsActivity,
+            horizontalPadding: horizontalPadding,
+            topPadding: topPadding,
+            bottomPadding: bottomPadding,
+            sheet: settingsContent
+        )
+    }
+}
+
 public struct QuillMacWindowControls: View {
     public init() {}
 

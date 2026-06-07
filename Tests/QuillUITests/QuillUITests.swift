@@ -301,6 +301,17 @@ struct QuillUITests {
         #expect(banner.horizontalPadding == 28)
         #expect(banner.topPadding == 10)
         #expect(banner.bottomPadding == 74)
+
+        let unreachableBanner = QuillChatUnreachableBanner {
+            QuillStatusBanner(message: "Settings")
+        }
+        #expect(unreachableBanner.message.contains("Quill is unreachable"))
+        #expect(unreachableBanner.message.contains("update your Quill API endpoint"))
+        #expect(unreachableBanner.actionTitle == "Settings")
+        #expect(unreachableBanner.showsActivity == true)
+        #expect(unreachableBanner.horizontalPadding == 28)
+        #expect(unreachableBanner.topPadding == 10)
+        #expect(unreachableBanner.bottomPadding == 74)
     }
 
     @Test("QuillDesktopChatScaffold builds standard toolbar shells")

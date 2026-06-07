@@ -2711,6 +2711,9 @@ struct SourceHygieneTests {
         #expect(controls.contains("@State private var isPresented = false"))
         #expect(controls.contains(".sheet(isPresented: $isPresented)"))
         #expect(controls.contains("private var resolvedHorizontalPadding: Int { Int(horizontalPadding.rounded()) }"))
+        #expect(controls.contains("public struct QuillChatUnreachableBanner<SettingsContent: View>: View"))
+        #expect(controls.contains("Quill is unreachable. Plug Quill back in if it's unplugged"))
+        #expect(controls.contains("QuillSheetStatusBanner(\n            message: message"))
 
         guard let buttonStart = controls.range(of: "public struct QuillSidebarNavigationButton: View"),
               let nextSection = controls.range(of: "public struct QuillStatusBanner: View") else {

@@ -1102,9 +1102,10 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/UnreachableAPIView.swift"),
             encoding: .utf8
         )
-        #expect(unreachableTemplate.contains("QuillSheetStatusBanner("))
-        #expect(unreachableTemplate.contains("horizontalPadding: 28"))
-        #expect(unreachableTemplate.contains("bottomPadding: 74"))
+        #expect(unreachableTemplate.contains("QuillChatUnreachableBanner {"))
+        #expect(!unreachableTemplate.contains("QuillSheetStatusBanner("))
+        #expect(!unreachableTemplate.contains("horizontalPadding: 28"))
+        #expect(!unreachableTemplate.contains("bottomPadding: 74"))
         #expect(!unreachableTemplate.contains("@State var showSettings"))
         #expect(!unreachableTemplate.contains(".sheet(isPresented: $showSettings)"))
 
