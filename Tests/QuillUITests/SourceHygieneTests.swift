@@ -1574,6 +1574,8 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("native backend button click"))
         #expect(sharedView.contains("private struct SmokeSheetContent"))
         #expect(sharedView.contains("SmokeSheetContent("))
+        #expect(sharedView.contains("QuillSheetStatusBanner("))
+        #expect(sharedView.contains("A Quill sheet status banner presented this sheet."))
         #expect(backendCore.contains("static var status: QuillBackendRuntimeStatus"))
         #expect(backendCore.contains("QuillBackendRegistry.runtimeStatus(preferred: identifier)"))
         #expect(backendCore.contains("public static func runtimeStatus("))
@@ -2628,6 +2630,10 @@ struct SourceHygieneTests {
         #expect(controls.contains(".padding(.horizontal, 18)"))
         #expect(controls.contains(".padding(.top, 88)"))
         #expect(controls.contains(".padding(.bottom, 18)"))
+        #expect(controls.contains("public struct QuillSheetStatusBanner<SheetContent: View>: View"))
+        #expect(controls.contains("@State private var isPresented = false"))
+        #expect(controls.contains(".sheet(isPresented: $isPresented)"))
+        #expect(controls.contains("private var resolvedHorizontalPadding: Int { Int(horizontalPadding.rounded()) }"))
 
         guard let buttonStart = controls.range(of: "public struct QuillSidebarNavigationButton: View"),
               let nextSection = controls.range(of: "public struct QuillStatusBanner: View") else {

@@ -1054,6 +1054,62 @@ public struct QuillStatusBanner: View {
     #endif
 }
 
+public struct QuillSheetStatusBanner<SheetContent: View>: View {
+    public var message: String
+    public var actionTitle: String
+    public var showsActivity: Bool
+    public var horizontalPadding: CGFloat
+    public var topPadding: CGFloat
+    public var bottomPadding: CGFloat
+    private var sheetContent: () -> SheetContent
+
+    @State private var isPresented = false
+
+    public init(
+        message: String,
+        actionTitle: String,
+        showsActivity: Bool = false,
+        horizontalPadding: CGFloat = 0,
+        topPadding: CGFloat = 0,
+        bottomPadding: CGFloat = 0,
+        @ViewBuilder sheet: @escaping () -> SheetContent
+    ) {
+        self.message = message
+        self.actionTitle = actionTitle
+        self.showsActivity = showsActivity
+        self.horizontalPadding = horizontalPadding
+        self.topPadding = topPadding
+        self.bottomPadding = bottomPadding
+        self.sheetContent = sheet
+    }
+
+    public var body: some View {
+        QuillStatusBanner(
+            message: message,
+            actionTitle: actionTitle,
+            showsActivity: showsActivity
+        ) {
+            isPresented.toggle()
+        }
+        .padding(.horizontal, resolvedHorizontalPadding)
+        .padding(.top, resolvedTopPadding)
+        .padding(.bottom, resolvedBottomPadding)
+        .sheet(isPresented: $isPresented) {
+            sheetContent()
+        }
+    }
+
+    #if os(macOS) || os(iOS) || os(visionOS)
+    private var resolvedHorizontalPadding: CGFloat { horizontalPadding }
+    private var resolvedTopPadding: CGFloat { topPadding }
+    private var resolvedBottomPadding: CGFloat { bottomPadding }
+    #else
+    private var resolvedHorizontalPadding: Int { Int(horizontalPadding.rounded()) }
+    private var resolvedTopPadding: Int { Int(topPadding.rounded()) }
+    private var resolvedBottomPadding: Int { Int(bottomPadding.rounded()) }
+    #endif
+}
+
 public struct QuillMacWindowControls: View {
     public init() {}
 

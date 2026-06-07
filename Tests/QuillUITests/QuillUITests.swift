@@ -118,6 +118,27 @@ struct QuillUITests {
         #expect(selectedTitle == nil)
     }
 
+    @Test("QuillSheetStatusBanner exposes reusable sheet-backed status state")
+    func quillSheetStatusBannerStoresConfiguration() {
+        let banner = QuillSheetStatusBanner(
+            message: "Offline",
+            actionTitle: "Settings",
+            showsActivity: true,
+            horizontalPadding: 28,
+            topPadding: 10,
+            bottomPadding: 74
+        ) {
+            QuillStatusBanner(message: "Settings")
+        }
+
+        #expect(banner.message == "Offline")
+        #expect(banner.actionTitle == "Settings")
+        #expect(banner.showsActivity == true)
+        #expect(banner.horizontalPadding == 28)
+        #expect(banner.topPadding == 10)
+        #expect(banner.bottomPadding == 74)
+    }
+
     // MARK: - Backend registry
 
     @Test("Backend registry exposes SwiftUI GTK and Qt")
