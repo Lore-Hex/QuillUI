@@ -1068,6 +1068,7 @@ struct QuillDataSourceLoweringTests {
         #expect(messageListTemplate.contains("let readAloudAction: (() -> Void)? = { onReadAloud(message.content) }"))
         #expect(messageListTemplate.contains("selectText: selectTextAction"))
         #expect(messageListTemplate.contains("readAloud: readAloudAction"))
+        #expect(!messageListTemplate.contains("isEditing: editMessage?.id == message.id,\n#if"))
         #expect(!messageListTemplate.contains("additionalActions: platformContextMenuActions(for: message)"))
         #expect(!messageListTemplate.contains("private func platformContextMenuActions(for message: MessageSD) -> [QuillMenuAction]"))
         #expect(!messageListTemplate.contains("QuillMenuAction.copyText(message.content)"))
