@@ -530,12 +530,20 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Rendering/ImageRenderer.swift"),
             encoding: .utf8
         )
+        let compatibilitySource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/Compatibility.swift"),
+            encoding: .utf8
+        )
         let gtkSource = try String(
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4ImageRenderer.swift"),
             encoding: .utf8
         )
 
         #expect(rendererSource.contains("ImageRendererBackend.installViewRenderer"))
+        #expect(compatibilitySource.contains("let renderer = SwiftOpenUI.ImageRenderer(content: self)"))
+        #expect(compatibilitySource.contains("if let data = renderer.platformImage?.data"))
+        #expect(compatibilitySource.contains("let image = PlatformImage(data: data)"))
+        #expect(!compatibilitySource.contains("if let image = renderer.platformImage {\n            return image"))
         #expect(gtkSource.contains("gtk_widget_snapshot_child"))
         #expect(gtkSource.contains("cairo_surface_write_to_png_stream"))
         #expect(!rendererSource.contains("not yet wired up; see the TODO on `ImageRenderer`"))
@@ -561,6 +569,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillKit/QuillKit.swift"),
             encoding: .utf8
         )
+        let quillUIProfileCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/ProfileCompatibility.swift"),
+            encoding: .utf8
+        )
         let quillShims = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillShims/QuillShims.swift"),
             encoding: .utf8
@@ -573,10 +585,8 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
             encoding: .utf8
         )
-        let profileAliases = try String(
-            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift"),
-            encoding: .utf8
-        )
+        let profileAliasesPath = root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift")
+        let profileAliases = (try? String(contentsOf: profileAliasesPath, encoding: .utf8)) ?? ""
 
         for alias in [
             "public typealias Accessibility = QuillAccessibilityService",
@@ -601,8 +611,12 @@ struct SourceHygieneTests {
         #expect(coreGraphics.contains("static let kVK_ANSI_V: CGKeyCode = 0x09"))
         #expect(!profileAliases.contains("typealias CGKeyCode = UInt16"))
         #expect(!profileAliases.contains("static let kVK_ANSI_V"))
-        #expect(profileAliases.contains("typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem"))
-        #expect(profileAliases.contains("enum QuillUSBLauncher"))
+        #expect(quillUIProfileCompatibility.contains("public typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem"))
+        #expect(quillKit.contains("public enum QuillUSBLauncher"))
+        #expect(quillKit.contains("QuillDeviceLauncher.install(label: label, subsystem: subsystem)"))
+        #expect(!FileManager.default.fileExists(atPath: profileAliasesPath.path))
+        #expect(!profileAliases.contains("typealias CheckForUpdatesMenuItem"))
+        #expect(!profileAliases.contains("enum QuillUSBLauncher"))
     }
 
     @Test("Linux controls read backend-scoped reference environment")
@@ -2462,6 +2476,12 @@ struct SourceHygieneTests {
         #expect(controls.contains("public struct QuillMessageList<"))
         #expect(controls.contains("public struct QuillEditableMessageList<"))
         #expect(controls.contains("@Binding public var editingMessage: Message?"))
+        #expect(controls.contains("public var interactionAvailability: QuillMessageInteractionAvailability"))
+        #expect(controls.contains("interactionAvailability: QuillMessageInteractionAvailability = .all"))
+        #expect(controls.contains("interactionAvailability.contains(.selectText)"))
+        #expect(controls.contains("interactionAvailability.contains(.readAloud)"))
+        #expect(controls.contains("public struct QuillMessageInteractionAvailability: OptionSet"))
+        #expect(controls.contains("public static var platformDefaults: QuillMessageInteractionAvailability"))
         #expect(controls.contains("public func contextMenuActions(for message: Message) -> [QuillMenuAction]"))
         #expect(controls.contains("messages.quillMessageListScrollToken(content: content)"))
         #expect(controls.contains("actions: contextMenuActions(for:)"))

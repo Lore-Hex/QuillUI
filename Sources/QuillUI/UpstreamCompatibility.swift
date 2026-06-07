@@ -443,17 +443,29 @@ public extension Animation {
     func repeatForever(autoreverses: Bool = true) -> Animation {
         recordQuillUIFallback(
             "Animation.repeatForever",
-            message: "Animation.repeatForever is currently a source-compatibility no-op on Linux; the animation will run once instead of looping."
+            message: "Animation.repeatForever metadata is preserved on Linux; GTK transition repeat loops are not yet implemented."
         )
-        return self
+        return Animation(
+            curve: curve,
+            duration: duration,
+            delay: delay,
+            repeatsForever: true,
+            autoreverses: autoreverses
+        )
     }
 
     func delay(_ delay: Double) -> Animation {
         recordQuillUIFallback(
             "Animation.delay",
-            message: "Animation.delay is currently a source-compatibility no-op on Linux; the requested delay will not be applied."
+            message: "Animation.delay metadata is preserved on Linux and GTK transitions apply it as CSS transition delay."
         )
-        return self
+        return Animation(
+            curve: curve,
+            duration: duration,
+            delay: self.delay + max(0, delay),
+            repeatsForever: repeatsForever,
+            autoreverses: autoreverses
+        )
     }
 }
 

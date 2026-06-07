@@ -2964,7 +2964,10 @@ extension AnimatedView: GTKRenderable, GTKDescribable {
         if let anim = animation {
             props = .animated(GTK4AnimatedDescriptor(
                 curve: String(describing: anim.curve),
-                duration: anim.duration))
+                duration: anim.duration,
+                delay: anim.delay,
+                repeatsForever: anim.repeatsForever,
+                autoreverses: anim.autoreverses))
         } else {
             props = .none
         }
@@ -2986,7 +2989,8 @@ extension AnimatedView: GTKRenderable, GTKDescribable {
             case .spring:    timing = "cubic-bezier(0.5, 1.8, 0.3, 0.8)"
             }
             let duration = String(format: "%.2f", animation.duration)
-            applyCSSToWidget(widget, properties: "transition: all \(duration)s \(timing);")
+            let delay = String(format: "%.2f", animation.delay)
+            applyCSSToWidget(widget, properties: "transition: all \(duration)s \(timing) \(delay)s;")
         }
         return opaqueFromWidget(widget)
     }

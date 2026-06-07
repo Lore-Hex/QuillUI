@@ -465,7 +465,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 case .spring:    timing = "cubic-bezier(0.5, 1.8, 0.3, 0.8)"
                 }
                 let duration = String(format: "%.2f", animation.duration)
-                applyCSSToWidget(newChild, properties: "transition: all \(duration)s \(timing);")
+                let delay = String(format: "%.2f", animation.delay)
+                applyCSSToWidget(newChild, properties: "transition: all \(duration)s \(timing) \(delay)s;")
 
                 // Set old values on the new widget
                 if opacityChanged, let oldOp = oldOpacity {

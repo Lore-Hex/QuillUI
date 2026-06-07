@@ -379,7 +379,7 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 200"))
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 165"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
@@ -1046,8 +1046,9 @@ struct QuillDataSourceLoweringTests {
         #expect(messageListTemplate.contains("editingMessage: $editMessage"))
         #expect(messageListTemplate.contains("content: \\.content"))
         #expect(messageListTemplate.contains("isUserMessage: { $0.role == \"user\" }"))
-        #expect(messageListTemplate.contains("selectText: selectTextAction"))
-        #expect(messageListTemplate.contains("readAloud: readAloudAction"))
+        #expect(messageListTemplate.contains("interactionAvailability: .platformDefaults"))
+        #expect(messageListTemplate.contains("selectText: { messageSelected = $0 }"))
+        #expect(messageListTemplate.contains("readAloud: { onReadAloud($0.content) }"))
         #expect(!messageListTemplate.contains("QuillMessageList("))
         #expect(!messageListTemplate.contains("scrollToken: messages.quillMessageListScrollToken(content: \\.content)"))
         #expect(!messageListTemplate.contains("actions: contextMenuActions"))
@@ -1059,10 +1060,10 @@ struct QuillDataSourceLoweringTests {
         #expect(!messageListTemplate.contains("content: message.content"))
         #expect(!messageListTemplate.contains("isUserMessage: message.role == \"user\""))
         #expect(!messageListTemplate.contains("isEditing: editMessage?.id == message.id"))
-        #expect(messageListTemplate.contains("private var selectTextAction: ((MessageSD) -> Void)?"))
-        #expect(messageListTemplate.contains("{ messageSelected = $0 }"))
-        #expect(messageListTemplate.contains("private var readAloudAction: ((MessageSD) -> Void)?"))
-        #expect(messageListTemplate.contains("{ onReadAloud($0.content) }"))
+        #expect(!messageListTemplate.contains("private var selectTextAction: ((MessageSD) -> Void)?"))
+        #expect(!messageListTemplate.contains("selectTextAction"))
+        #expect(!messageListTemplate.contains("private var readAloudAction: ((MessageSD) -> Void)?"))
+        #expect(!messageListTemplate.contains("readAloudAction"))
         #expect(!messageListTemplate.contains("isEditing: editMessage?.id == message.id,\n#if"))
         #expect(!messageListTemplate.contains("additionalActions: platformContextMenuActions(for: message)"))
         #expect(!messageListTemplate.contains("private func platformContextMenuActions(for message: MessageSD) -> [QuillMenuAction]"))
@@ -1431,6 +1432,12 @@ struct QuillDataSourceLoweringTests {
                     gtkPixelSize(layout.containerSize.width),
                     gtkPixelSize(layout.containerSize.height)
                 )
+                if let xw = maxWidth, xw == .infinity {
+                    gtk_widget_set_hexpand(wrapper, 1)
+                }
+                if let xh = maxHeight, xh == .infinity {
+                    gtk_widget_set_vexpand(wrapper, 1)
+                }
                 return opaqueFromWidget(wrapper)
             }
 
@@ -2185,6 +2192,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if gtk_widget_get_hexpand(childWidget) != 0"))
         #expect(patchedRenderer.contains("gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)"))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)"))
+        #expect(patchedRenderer.contains("if maxWidth != nil {"))
+        #expect(patchedRenderer.contains("if maxHeight != nil {"))
+        #expect(!patchedRenderer.contains("if let xw = maxWidth, xw != nil"))
+        #expect(!patchedRenderer.contains("if let xh = maxHeight, xh != nil"))
         #expect(patchedRenderer.contains("expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity)"))
         #expect(patchedRenderer.contains("expandsToFillHeight: childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
         #expect(patchedRenderer.contains("expandsToFillHeight: gtk_widget_get_vexpand(child) != 0 || (height == nil && maxHeight != nil && maxHeight != .infinity)"))

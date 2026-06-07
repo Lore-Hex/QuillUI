@@ -22,8 +22,9 @@ struct MessageListView: View {
             editingMessage: $editMessage,
             content: \.content,
             isUserMessage: { $0.role == "user" },
-            selectText: selectTextAction,
-            readAloud: readAloudAction
+            interactionAvailability: .platformDefaults,
+            selectText: { messageSelected = $0 },
+            readAloud: { onReadAloud($0.content) }
         ) { message in
             ChatMessageView(
                 message: message,
@@ -45,22 +46,6 @@ struct MessageListView: View {
         .sheet(item: $messageSelected) { message in
             SelectTextSheet(message: message)
         }
-#endif
-    }
-
-    private var selectTextAction: ((MessageSD) -> Void)? {
-#if os(iOS) || os(visionOS)
-        { messageSelected = $0 }
-#else
-        nil
-#endif
-    }
-
-    private var readAloudAction: ((MessageSD) -> Void)? {
-#if os(iOS) || os(visionOS)
-        { onReadAloud($0.content) }
-#else
-        nil
 #endif
     }
 }

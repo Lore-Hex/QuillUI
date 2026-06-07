@@ -743,6 +743,15 @@ public enum QuillDeviceLauncher {
     }
 }
 
+public enum QuillUSBLauncher {
+    public static func install(
+        label: String = "co.lorehex.quillchat.usb-launcher",
+        subsystem: String = "co.lorehex.quillchat"
+    ) {
+        QuillDeviceLauncher.install(label: label, subsystem: subsystem)
+    }
+}
+
 #if os(Linux)
 public typealias CFAllocator = AnyObject
 public typealias CFData = Data

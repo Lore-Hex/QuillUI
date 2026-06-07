@@ -28,4 +28,6 @@ public struct QuillCheckForUpdatesMenuItem: View {
         .disabled(!QuillUpdateService.shared.canCheckForUpdates)
     }
 }
+
+public typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem
 #endif

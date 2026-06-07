@@ -10,10 +10,22 @@ public struct Animation: Equatable {
 
     public let curve: Curve
     public let duration: Double
+    public let delay: Double
+    public let repeatsForever: Bool
+    public let autoreverses: Bool
 
-    public init(curve: Curve = .easeInOut, duration: Double = 0.35) {
+    public init(
+        curve: Curve = .easeInOut,
+        duration: Double = 0.35,
+        delay: Double = 0,
+        repeatsForever: Bool = false,
+        autoreverses: Bool = true
+    ) {
         self.curve = curve
         self.duration = duration
+        self.delay = delay
+        self.repeatsForever = repeatsForever
+        self.autoreverses = autoreverses
     }
 
     public static let `default` = Animation()

@@ -571,6 +571,8 @@ struct QuillUITests {
         }
 
         #expect(list.scrollToken == AnyHashable("u1|a1|World"))
+        #expect(list.interactionAvailability.contains(.selectText))
+        #expect(list.interactionAvailability.contains(.readAloud))
 
         let userActions = list.contextMenuActions(for: messages[0])
         #expect(userActions.map(\.title) == ["Copy", "Select Text", "Read Aloud", "Extra", "Edit"])
@@ -588,6 +590,47 @@ struct QuillUITests {
 
         let assistantActions = list.contextMenuActions(for: messages[1])
         #expect(!assistantActions.map(\.title).contains("Edit"))
+
+        let platformDefaultList = QuillEditableMessageList(
+            messages: messages,
+            editingMessage: editBinding,
+            content: \.content,
+            isUserMessage: { $0.role == "user" },
+            interactionAvailability: .platformDefaults,
+            selectText: { selectedText = $0.content },
+            readAloud: { spokenText = $0.content }
+        ) { message in
+            Text(message.content)
+        } overlay: {
+            EmptyView()
+        }
+
+        let platformDefaultTitles = platformDefaultList.contextMenuActions(for: messages[0]).map(\.title)
+        #if os(iOS) || os(visionOS)
+        #expect(platformDefaultTitles.contains("Select Text"))
+        #expect(platformDefaultTitles.contains("Read Aloud"))
+        #else
+        #expect(!platformDefaultTitles.contains("Select Text"))
+        #expect(!platformDefaultTitles.contains("Read Aloud"))
+        #endif
+
+        let noInteractionList = QuillEditableMessageList(
+            messages: messages,
+            editingMessage: editBinding,
+            content: \.content,
+            isUserMessage: { $0.role == "user" },
+            interactionAvailability: [],
+            selectText: { selectedText = $0.content },
+            readAloud: { spokenText = $0.content }
+        ) { message in
+            Text(message.content)
+        } overlay: {
+            EmptyView()
+        }
+        let noInteractionTitles = noInteractionList.contextMenuActions(for: messages[0]).map(\.title)
+        #expect(!noInteractionTitles.contains("Select Text"))
+        #expect(!noInteractionTitles.contains("Read Aloud"))
+        #expect(noInteractionTitles.contains("Edit"))
     }
 
     // MARK: - Backend registry

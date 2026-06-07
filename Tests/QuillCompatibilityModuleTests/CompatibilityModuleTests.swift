@@ -1217,8 +1217,14 @@ struct CompatibilityModuleTests {
         // Animation chain methods: previously returned self with no diagnostic.
         _ = Animation.snappy()
         _ = Animation.snappy(duration: 0.5)
-        _ = Animation.easeOut(duration: 0.2).repeatForever(autoreverses: true)
-        _ = Animation.easeOut(duration: 0.2).delay(0.4)
+        let repeatedAnimation = Animation.easeOut(duration: 0.2)
+            .delay(0.4)
+            .repeatForever(autoreverses: false)
+        #expect(repeatedAnimation.curve == .easeOut)
+        #expect(repeatedAnimation.duration == 0.2)
+        #expect(repeatedAnimation.delay == 0.4)
+        #expect(repeatedAnimation.repeatsForever)
+        #expect(repeatedAnimation.autoreverses == false)
 
         // ImageRenderer: Color content now produces real bytes without
         // requiring the GTK display path. Non-Color content returns nil until
