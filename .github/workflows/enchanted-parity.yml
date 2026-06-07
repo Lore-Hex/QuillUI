@@ -121,6 +121,7 @@ jobs:
           # behavior.
           for mode in \
             settings-panel \
+            alert-settings-panel \
             settings-endpoint-typed \
             settings-bearer-token-typed \
             settings-ping-interval-typed \
@@ -132,6 +133,7 @@ jobs:
             completions-edit-save \
             completions-delete \
             new-chat \
+            prompt-send \
             history-selection \
             transcript-selection \
             markdown-transcript-selection \

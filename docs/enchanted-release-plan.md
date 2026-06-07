@@ -108,6 +108,9 @@ Recently cleared:
 - Composer-send UI transition is covered by the real-source GTK mac-reference
   interaction verifier: typed text submits with Return and becomes a trailing
   user message while the unreachable banner and composer remain stable.
+- Prompt-card send is covered by the same verifier via the `prompt-send` row:
+  clicking a starter card leaves the empty state and renders a trailing user
+  message while the unreachable banner and composer remain stable.
 - Live composer-send behavior is covered by `scripts/quill-chat-functional-check.sh`:
   the real composer submits exactly one typed user prompt to mock Ollama, renders
   the streamed assistant reply, and persists user plus assistant rows through
@@ -119,6 +122,8 @@ Recently cleared:
   relaunched transcript screenshot.
 - Settings and Completions sheet presentation are covered by the real-source GTK
   mac-reference interaction verifier.
+- Settings from the unreachable-state banner is covered by the same verifier via
+  the `alert-settings-panel` row.
 - Settings endpoint editing is covered by the same verifier via the
   `settings-endpoint-typed` row.
 - Settings bearer-token editing is covered by the same verifier via the
