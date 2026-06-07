@@ -313,6 +313,24 @@ open(path, "w").write(s)
 PY
     fi
 
+    # GRDBDatabaseStorageAdapter sets two GRDB Configuration knobs that the GRDB
+    # version vendored here has removed/auto-managed: `.defaultTransactionKind`
+    # ("now automatically managed") and `.automaticMemoryManagement` (no member).
+    # Drop both assignments (GRDB uses its managed defaults). Linux-only build;
+    # behaviour is GRDB's current default, which is fine for the single-process DB.
+    local gdsa="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Storage/Database/GRDBDatabaseStorageAdapter.swift"
+    if [[ -f "$gdsa" ]] && grep -q 'configuration.automaticMemoryManagement' "$gdsa"; then
+        echo "==> patching signal-ios GRDBDatabaseStorageAdapter.swift GRDB Configuration drift"
+        python3 - "$gdsa" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+s = s.replace("        configuration.defaultTransactionKind = .immediate\n", "")
+s = s.replace("        configuration.automaticMemoryManagement = false\n", "")
+open(path, "w").write(s)
+PY
+    fi
+
     # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
     # members on Apple. The lowering pass strips `@objc` (-> plain `public
     # protocol`), which makes `optional` invalid ("'optional' can only be applied
