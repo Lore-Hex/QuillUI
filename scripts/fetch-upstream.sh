@@ -361,6 +361,21 @@ for dp, _dirs, files in os.walk(root):
 print(f"  rewrote NS(Mutable)AttributedString() in {n} files")
 PY
 
+    # AppVersion logs the locale's country via (locale as NSLocale).countryCode,
+    # but swift-corelibs marks NSLocale.countryCode `internal` (Apple's is public)
+    # -> "inaccessible due to internal protection level". Use the public Swift
+    # Locale.regionCode (the file already uses locale.languageCode). Linux-only.
+    local appver="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Util/AppVersion.swift"
+    if [[ -f "$appver" ]] && grep -q '(locale as NSLocale).countryCode' "$appver"; then
+        echo "==> patching signal-ios AppVersion.swift NSLocale.countryCode -> Locale.regionCode"
+        python3 - "$appver" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+open(path, "w").write(s.replace("(locale as NSLocale).countryCode", "locale.regionCode"))
+PY
+    fi
+
     # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
     # members on Apple. The lowering pass strips `@objc` (-> plain `public
     # protocol`), which makes `optional` invalid ("'optional' can only be applied
