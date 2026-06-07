@@ -1114,6 +1114,15 @@ subs = [
     # has no [Any?]<->CFArray bridge, and our CGGradient init already takes `colors: Any?`,
     # so drop the coercion and let the array pass through directly. (Unique occurrence.)
     ("] as CFArray", "]"),
+    # CGImageSourceCreateWithData now takes Data (not CFData) -- swift-corelibs has no
+    # Data<->CFData bridge. Drop `as CFData` at its call sites (QuotedReplyManager sticker
+    # parsing, OWSImageSource). The Security SecCertificateCreateWithData(... as CFData)
+    # site is intentionally left untouched.
+    ("stickerData as CFData", "stickerData"),
+    ("CGImageSourceCreateWithData(self.rawValue as CFData", "CGImageSourceCreateWithData(self.rawValue"),
+    # QuotedReplyManager sticker options: [String: Bool] doesn't coerce to CFDictionary on
+    # swift-corelibs; the inert CGImageSourceCreateWithData ignores options, so nil suffices.
+    ("[kCGImageSourceShouldCache: false] as CFDictionary", "nil as CFDictionary?"),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
