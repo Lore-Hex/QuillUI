@@ -376,6 +376,23 @@ open(path, "w").write(s.replace("(locale as NSLocale).countryCode", "locale.regi
 PY
     fi
 
+    # EditableMessageBodyTextStorage: NSTextStorage calls super.init() in its
+    # init(db:). swift-corelibs has no parameterless NSTextStorage/NSMutableAttributedString
+    # init (the chain's designated init is init(string:)) -> "missing argument
+    # 'string'". Rewrite that one super.init() to super.init(string: "") (unique
+    # by the preceding `self.db = db`). Linux-only build.
+    local emb="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Messages/BodyRanges/EditableMessageBody.swift"
+    if [[ -f "$emb" ]] && grep -q 'self.db = db' "$emb"; then
+        echo "==> patching signal-ios EditableMessageBody.swift super.init() -> super.init(string:)"
+        python3 - "$emb" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+s = s.replace("self.db = db\n        super.init()", 'self.db = db\n        super.init(string: "")')
+open(path, "w").write(s)
+PY
+    fi
+
     # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
     # members on Apple. The lowering pass strips `@objc` (-> plain `public
     # protocol`), which makes `optional` invalid ("'optional' can only be applied
