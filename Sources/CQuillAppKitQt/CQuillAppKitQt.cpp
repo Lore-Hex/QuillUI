@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QPixmap>
+#include <QFont>
 
 #include <string>
 
@@ -29,6 +30,20 @@ extern "C" {
 int quill_appkit_qt_app_init(void) {
     if (QApplication::instance() == nullptr) {
         g_app = new QApplication(g_argc, g_argv);
+        // Give the whole AppKit-on-Qt process a macOS-class system font so
+        // recompiled AppKit UI renders in a clean sans face instead of Qt's
+        // serif fallback. Inter is the repo's declared SF substitute and matches
+        // PaintTypography's MacFonts.controlLabel (SF Pro Text, 13pt, regular).
+        // The SansSerif style hint guarantees a sans face even where Inter isn't
+        // installed; the substitution chain maps the macOS family names that
+        // unmodified source asks for (e.g. NSFont.systemFont) onto what's present.
+        QFont systemFont("Inter");
+        systemFont.setPointSize(13);
+        systemFont.setStyleHint(QFont::SansSerif);
+        QApplication::setFont(systemFont);
+        QFont::insertSubstitutions("SF Pro Text", {"Inter", "Helvetica Neue", "Nimbus Sans", "DejaVu Sans"});
+        QFont::insertSubstitutions("SF Pro", {"Inter", "Helvetica Neue", "Nimbus Sans", "DejaVu Sans"});
+        QFont::insertSubstitutions(".AppleSystemUIFont", {"Inter", "Helvetica Neue", "Nimbus Sans", "DejaVu Sans"});
     }
     return QApplication::instance() != nullptr ? 1 : 0;
 }
