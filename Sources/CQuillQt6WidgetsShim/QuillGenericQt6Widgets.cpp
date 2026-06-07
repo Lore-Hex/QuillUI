@@ -31,6 +31,7 @@
 #include <QStyle>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -1122,6 +1123,14 @@ QString activeNavigationIdentifier(const QJsonObject &payload) {
     return QString::fromUtf8(environmentNavigation).trimmed().toLower();
 }
 
+QString automationNavigationClickIdentifier() {
+    const char *environmentNavigation = std::getenv("QUILLUI_GENERIC_QT_AUTOMATION_CLICK_NAVIGATION");
+    if (environmentNavigation == nullptr) {
+        return QString();
+    }
+    return QString::fromUtf8(environmentNavigation).trimmed().toLower();
+}
+
 QString settingsValue(
     const QJsonObject &payload,
     const char *key,
@@ -1546,5 +1555,16 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     }
 
     root.show();
+    const QString automatedNavigationClick = automationNavigationClickIdentifier();
+    if (!automatedNavigationClick.isEmpty()) {
+        QTimer::singleShot(250, &root, [&]() {
+            for (QPushButton *button : sidebar->findChildren<QPushButton *>()) {
+                if (button->property("navigationAction").toString() == automatedNavigationClick) {
+                    button->click();
+                    return;
+                }
+            }
+        });
+    }
     return app.exec();
 }

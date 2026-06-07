@@ -9,6 +9,7 @@ SETTLE_SECONDS="${QUILLUI_GENERIC_QT_HARNESS_SETTLE_SECONDS:-3}"
 HARNESS_MODE="${QUILLUI_GENERIC_QT_HARNESS_MODE:-home}"
 VERIFY_PRODUCT="quill-enchanted-linux-qt"
 ACTIVE_NAVIGATION="${QUILLUI_GENERIC_QT_ACTIVE_NAVIGATION:-}"
+CLICK_NAVIGATION="${QUILLUI_GENERIC_QT_AUTOMATION_CLICK_NAVIGATION:-}"
 
 case "$HARNESS_MODE" in
   home)
@@ -20,6 +21,10 @@ case "$HARNESS_MODE" in
   settings)
     VERIFY_PRODUCT="quill-enchanted-linux-qt-settings"
     ACTIVE_NAVIGATION="settings"
+    ;;
+  settings-click)
+    VERIFY_PRODUCT="quill-enchanted-linux-qt-settings"
+    CLICK_NAVIGATION="settings"
     ;;
   *)
     echo "Unsupported generic Qt Enchanted harness mode: $HARNESS_MODE" >&2
@@ -213,10 +218,12 @@ settle_seconds="$5"
 verify_product="$6"
 harness_mode="$7"
 active_navigation="$8"
+click_navigation="$9"
 app_log="${summary_path%.txt}.log"
 
 QUILLUI_GENERIC_QT_HARNESS_MODE="$harness_mode" \
 QUILLUI_GENERIC_QT_ACTIVE_NAVIGATION="$active_navigation" \
+QUILLUI_GENERIC_QT_AUTOMATION_CLICK_NAVIGATION="$click_navigation" \
 "$app" >"$app_log" 2>&1 &
 app_pid=$!
 cleanup_app() {
@@ -228,4 +235,4 @@ trap cleanup_app EXIT
 sleep "$settle_seconds"
 import -window root "$output_path"
 python3 "$root_dir/scripts/verify-backend-screenshot.py" "$output_path" "$verify_product" | tee "$summary_path"
-' bash "$HARNESS_BIN" "$OUTPUT_PATH" "$ROOT_DIR" "$SUMMARY_PATH" "$SETTLE_SECONDS" "$VERIFY_PRODUCT" "$HARNESS_MODE" "$ACTIVE_NAVIGATION"
+' bash "$HARNESS_BIN" "$OUTPUT_PATH" "$ROOT_DIR" "$SUMMARY_PATH" "$SETTLE_SECONDS" "$VERIFY_PRODUCT" "$HARNESS_MODE" "$ACTIVE_NAVIGATION" "$CLICK_NAVIGATION"
