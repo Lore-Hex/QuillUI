@@ -76,6 +76,12 @@ CFNETWORK_TYPES='\bkCFProxy[A-Za-z]+|\bCFNetworkCopy[A-Za-z]+|\bCFHost[A-Za-z]*|
 # file imports only UIKit/Foundation -> needs an explicit `import AVFoundation`.
 AVFOUNDATION_TYPES='\bAVSpeechUtterance\b|\bAVSpeechSynthesizer\b|\bAVSpeechSynthesisVoice\b'
 
+# CoreImage: CIFilter/CIContext/CIImage (the CoreImage shim on Linux). Signal's
+# CombinedFingerprints builds the safety-number QR via CIFilter("CIQRCodeGenerator")
+# but imports only UIKit/Foundation (on Apple CoreImage leaks through UIKit); on Linux
+# it needs an explicit `import CoreImage`.
+COREIMAGE_TYPES='\bCIFilter\b|\bCIContext\b|\bCIImage\b'
+
 # Symbols QuillFoundation provides (Linux-gated) but swift-corelibs does NOT,
 # used by files importing only Foundation -> they need an explicit
 # `import QuillFoundation`: the Darwin time-scale constants (NSEC_PER_SEC etc,
@@ -144,6 +150,7 @@ while IFS= read -r f; do
     if inject_if_needed "$f" "QuillFoundation" "$TIMECONST_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "GRDBSQLite" "$SQLITE_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "AVFoundation" "$AVFOUNDATION_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "CoreImage" "$COREIMAGE_TYPES"; then touched=1; fi
     if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
