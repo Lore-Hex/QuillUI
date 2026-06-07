@@ -459,7 +459,8 @@ public extension Image {
         }
 
         let renderer = SwiftOpenUI.ImageRenderer(content: self)
-        if let image = renderer.platformImage {
+        if let data = renderer.platformImage?.data,
+           let image = PlatformImage(data: data) {
             return image
         }
 

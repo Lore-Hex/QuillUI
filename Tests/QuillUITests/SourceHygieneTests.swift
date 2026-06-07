@@ -530,12 +530,20 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Rendering/ImageRenderer.swift"),
             encoding: .utf8
         )
+        let compatibilitySource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/Compatibility.swift"),
+            encoding: .utf8
+        )
         let gtkSource = try String(
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4ImageRenderer.swift"),
             encoding: .utf8
         )
 
         #expect(rendererSource.contains("ImageRendererBackend.installViewRenderer"))
+        #expect(compatibilitySource.contains("let renderer = SwiftOpenUI.ImageRenderer(content: self)"))
+        #expect(compatibilitySource.contains("if let data = renderer.platformImage?.data"))
+        #expect(compatibilitySource.contains("let image = PlatformImage(data: data)"))
+        #expect(!compatibilitySource.contains("if let image = renderer.platformImage {\n            return image"))
         #expect(gtkSource.contains("gtk_widget_snapshot_child"))
         #expect(gtkSource.contains("cairo_surface_write_to_png_stream"))
         #expect(!rendererSource.contains("not yet wired up; see the TODO on `ImageRenderer`"))
