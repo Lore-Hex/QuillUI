@@ -2548,6 +2548,69 @@ def validate_quill_enchanted_linux_qt_settings(image: Screenshot) -> str:
     )
 
 
+def validate_quill_enchanted_linux_qt_utility(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(960 <= app_width <= 1220, f"Generated Enchanted Qt utility window width is unexpected: {app_width}px")
+    require(660 <= app_height <= 820, f"Generated Enchanted Qt utility window height is unexpected: {app_height}px")
+
+    sidebar_width = min(360, max(300, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
+    panel_pixels = pixel_count(
+        image,
+        detail_left + 80,
+        top + 130,
+        right - 80,
+        bottom - 170,
+        settings_panel_background_pixel,
+    )
+    utility_text_pixels = dark_pixel_count(
+        image,
+        detail_left + 110,
+        top + 150,
+        right - 110,
+        bottom - 190,
+    )
+    field_pixels = pixel_count(
+        image,
+        detail_left + 110,
+        top + 170,
+        right - 110,
+        bottom - 180,
+        form_field_pixel,
+    )
+    bottom_nav_pixels = dark_pixel_count(image, left + 20, bottom - 130, detail_left - 20, bottom - 20)
+    prompt_card_row = best_prompt_card_row(
+        image,
+        top + 180,
+        min(bottom - 120, top + 470),
+        detail_left + 20,
+        right - 20,
+        min_width=110,
+        predicate=generic_qt_card_pixel,
+    )
+
+    require(panel_pixels >= 35_000, f"Generated Enchanted Qt utility panel was not detected: pixels={panel_pixels}")
+    require(
+        utility_text_pixels >= 500,
+        f"Generated Enchanted Qt utility panel text was not detected: pixels={utility_text_pixels}",
+    )
+    require(field_pixels <= 15_000, f"Generated Enchanted Qt utility panel unexpectedly shows settings fields: {field_pixels}")
+    require(bottom_nav_pixels >= 300, f"Generated Enchanted Qt utility bottom nav was not detected: pixels={bottom_nav_pixels}")
+    require(prompt_card_row is None, f"Generated Enchanted Qt utility state still shows prompt cards: {prompt_card_row}")
+
+    return (
+        "Quill Enchanted generated Qt utility snapshot: "
+        f"app={app_width}x{app_height}, "
+        f"panel_pixels={panel_pixels}, "
+        f"utility_text_pixels={utility_text_pixels}, "
+        f"field_pixels={field_pixels}, "
+        f"bottom_nav_pixels={bottom_nav_pixels}, "
+        "prompt_card_row=absent"
+    )
+
+
 def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -2617,6 +2680,7 @@ ENCHANTED_LINUX_SNAPSHOT_VALIDATORS: dict[str, Callable[[Screenshot], str]] = {
     "quill-enchanted-linux-qt": validate_quill_enchanted_linux_qt_snapshot,
     "quill-enchanted-linux-qt-selected-chat": validate_quill_enchanted_linux_qt_selected_chat,
     "quill-enchanted-linux-qt-settings": validate_quill_enchanted_linux_qt_settings,
+    "quill-enchanted-linux-qt-utility": validate_quill_enchanted_linux_qt_utility,
     "quill-enchanted-linux-gtk": validate_quill_enchanted_linux_gtk_snapshot,
 }
 

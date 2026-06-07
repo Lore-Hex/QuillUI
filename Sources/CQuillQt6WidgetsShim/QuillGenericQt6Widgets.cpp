@@ -1270,6 +1270,68 @@ QFrame *settingsPaneWidget(const QJsonObject &payload, const QJsonObject &style)
     return panel;
 }
 
+QString defaultNavigationTitle(const QString &navigationAction) {
+    if (navigationAction == QStringLiteral("completions")) {
+        return QStringLiteral("Completions");
+    }
+    if (navigationAction == QStringLiteral("shortcuts")) {
+        return QStringLiteral("Shortcuts");
+    }
+    if (navigationAction == QStringLiteral("settings")) {
+        return QStringLiteral("Settings");
+    }
+    return QStringLiteral("Panel");
+}
+
+QString defaultNavigationSubtitle(const QString &navigationAction) {
+    if (navigationAction == QStringLiteral("completions")) {
+        return QStringLiteral("Prompt completions use the shared Enchanted profile.");
+    }
+    if (navigationAction == QStringLiteral("shortcuts")) {
+        return QStringLiteral("Keyboard shortcuts use the shared QuillKit shortcut surface.");
+    }
+    return QStringLiteral("This panel is rendered by the generic Qt navigation host.");
+}
+
+QFrame *utilityPaneWidget(
+    const QString &navigationAction,
+    const QString &titleText,
+    const QString &subtitleText,
+    const QJsonObject &style
+) {
+    QFrame *panel = QuillQtWidgets::frame(QStringLiteral("settingsPanel"));
+    panel->setMaximumWidth(intValue(style, "settingsPanelMaxWidth", 640));
+    panel->setMinimumWidth(intValue(style, "settingsPanelMinWidth", 560));
+    const QString effectiveTitle = titleText.isEmpty() ? defaultNavigationTitle(navigationAction) : titleText;
+    const QString effectiveSubtitle = subtitleText.isEmpty() ? defaultNavigationSubtitle(navigationAction) : subtitleText;
+    applyAccessibleText(panel, effectiveTitle, accessibilitySummary(effectiveTitle, effectiveSubtitle));
+
+    QVBoxLayout *layout = new QVBoxLayout(panel);
+    const int padding = intValue(style, "settingsPanelPadding", 20);
+    layout->setContentsMargins(padding, padding, padding, padding);
+    layout->setSpacing(intValue(style, "settingsPanelSpacing", 8));
+
+    QLabel *title = label(effectiveTitle, QStringLiteral("settingsTitle"));
+    applyAccessibleText(title, effectiveTitle, effectiveTitle);
+    layout->addWidget(title);
+
+    QLabel *subtitle = label(effectiveSubtitle, QStringLiteral("caption"));
+    subtitle->setWordWrap(true);
+    applyAccessibleText(subtitle, effectiveSubtitle, effectiveSubtitle);
+    layout->addWidget(subtitle);
+
+    QLabel *body = label(
+        navigationAction == QStringLiteral("shortcuts")
+            ? QStringLiteral("No shortcuts yet.")
+            : QStringLiteral("No completions yet."),
+        QStringLiteral("bodyText")
+    );
+    body->setWordWrap(true);
+    applyAccessibleText(body, body->text(), body->text());
+    layout->addWidget(body);
+    return panel;
+}
+
 void populateSettingsContent(
     QVBoxLayout *layout,
     const QJsonObject &payload,
@@ -1279,6 +1341,36 @@ void populateSettingsContent(
     layout->addStretch(1);
     layout->addWidget(settingsPaneWidget(payload, style), 0, Qt::AlignCenter);
     layout->addStretch(1);
+}
+
+void populateUtilityContent(
+    QVBoxLayout *layout,
+    const QString &navigationAction,
+    const QString &titleText,
+    const QString &subtitleText,
+    const QJsonObject &style
+) {
+    clearLayout(layout);
+    layout->addStretch(1);
+    layout->addWidget(utilityPaneWidget(navigationAction, titleText, subtitleText, style), 0, Qt::AlignCenter);
+    layout->addStretch(1);
+}
+
+void populateNavigationContent(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    const QString &navigationAction,
+    const QString &titleText = QString(),
+    const QString &subtitleText = QString()
+) {
+    if (navigationAction == QStringLiteral("settings")) {
+        populateSettingsContent(layout, payload, style);
+        return;
+    }
+    if (!navigationAction.isEmpty()) {
+        populateUtilityContent(layout, navigationAction, titleText, subtitleText, style);
+    }
 }
 
 void populateDetailContent(
@@ -1336,8 +1428,9 @@ void applySelection(
         applyAccessibleText(detailPane.titleLabel, selection.detailTitle, detailSummary);
     }
     applyAccessibleText(detailPane.subtitleLabel, selection.detailSubtitle, selection.detailSubtitle);
-    if (chatMode && activeNavigationIdentifier(payload) == QStringLiteral("settings")) {
-        populateSettingsContent(detailPane.contentLayout, payload, style);
+    const QString activeNavigation = activeNavigationIdentifier(payload);
+    if (chatMode && !activeNavigation.isEmpty()) {
+        populateNavigationContent(detailPane.contentLayout, payload, style, activeNavigation);
     } else if (chatMode && !selection.hasSelection) {
         populateEmptyStateContent(detailPane.contentLayout, payload, style);
     } else {
@@ -1414,8 +1507,9 @@ GenericDetailPane chatDetailWidget(
     QVBoxLayout *conversationLayout = new QVBoxLayout(conversationHost);
     conversationLayout->setContentsMargins(0, 0, 0, 0);
     conversationLayout->setSpacing(intValue(style, "detailContentSpacing", 14));
-    if (activeNavigationIdentifier(payload) == QStringLiteral("settings")) {
-        populateSettingsContent(conversationLayout, payload, style);
+    const QString activeNavigation = activeNavigationIdentifier(payload);
+    if (!activeNavigation.isEmpty()) {
+        populateNavigationContent(conversationLayout, payload, style, activeNavigation);
     } else if (selectedIndex >= 0) {
         populateDetailContent(conversationLayout, selection, style, true);
     } else {
@@ -1543,13 +1637,20 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
 
     for (QPushButton *button : sidebar->findChildren<QPushButton *>()) {
         const QString navigationAction = button->property("navigationAction").toString();
-        if (navigationAction == QStringLiteral("settings")) {
-            QObject::connect(button, &QPushButton::clicked, [&]() {
+        if (!navigationAction.isEmpty()) {
+            QObject::connect(button, &QPushButton::clicked, [&, button, navigationAction]() {
                 const bool blocked = itemList->blockSignals(true);
                 itemList->setCurrentRow(-1);
                 itemList->blockSignals(blocked);
                 updateChatSelectionDots(itemList);
-                populateSettingsContent(detailPane.contentLayout, payload, style);
+                populateNavigationContent(
+                    detailPane.contentLayout,
+                    payload,
+                    style,
+                    navigationAction,
+                    button->property("navigationTitle").toString(),
+                    button->property("navigationSubtitle").toString()
+                );
             });
         }
     }
