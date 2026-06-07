@@ -1670,6 +1670,14 @@ private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable {
     var proxy: ScrollViewProxy
 }
 
+public extension Array where Element: Identifiable, Element.ID: Hashable {
+    func quillMessageListScrollToken(content: (Element) -> String) -> AnyHashable {
+        let itemIDs = map { String(describing: $0.id) }.joined(separator: "|")
+        let lastContent = last.map(content) ?? ""
+        return AnyHashable(itemIDs + "|" + lastContent)
+    }
+}
+
 public struct QuillDesktopChatScaffold<
     Sidebar: View,
     ToolbarContent: View,

@@ -186,6 +186,22 @@ struct QuillUITests {
         #endif
     }
 
+    @Test("Message arrays build streaming scroll tokens from ids and last content")
+    func messageArrayBuildsStreamingScrollToken() {
+        struct Message: Identifiable {
+            var id: String
+            var content: String
+        }
+
+        let messages = [
+            Message(id: "one", content: "hello"),
+            Message(id: "two", content: "partial")
+        ]
+
+        #expect(messages.quillMessageListScrollToken(content: \.content) == AnyHashable("one|two|partial"))
+        #expect([Message]().quillMessageListScrollToken(content: \.content) == AnyHashable("|"))
+    }
+
     // MARK: - Backend registry
 
     @Test("Backend registry exposes SwiftUI GTK and Qt")

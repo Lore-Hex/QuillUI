@@ -28,7 +28,7 @@ struct MessageListView: View {
     var body: some View {
         QuillMessageList(
             messages: messages,
-            scrollToken: scrollToken,
+            scrollToken: messages.quillMessageListScrollToken(content: \.content),
             actions: contextMenuActions
         ) { message in
             ChatMessageView(
@@ -52,10 +52,6 @@ struct MessageListView: View {
             SelectTextSheet(message: message)
         }
 #endif
-    }
-
-    private var scrollToken: AnyHashable {
-        AnyHashable(messages.map(\.id).map(\.uuidString).joined(separator: "|") + "|" + (messages.last?.content ?? ""))
     }
 
     private func contextMenuActions(for message: MessageSD) -> [QuillMenuAction] {
