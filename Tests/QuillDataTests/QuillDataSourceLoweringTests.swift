@@ -812,6 +812,7 @@ struct QuillDataSourceLoweringTests {
         #expect(parityWorkflow.contains("--app-id io.lorehex.QuillChat"))
         #expect(parityWorkflow.contains("--summary \"Quill Chat is an Apple Swift chat app packaged for Linux through QuillUI.\""))
         #expect(parityWorkflow.contains("--categories \"Utility;Network;\""))
+        #expect(parityWorkflow.contains("--bundle-swift-runtime"))
         #expect(parityWorkflow.contains("scripts/check-linux-app-metadata.sh"))
         #expect(parityWorkflow.contains("io.lorehex.QuillChat"))
         #expect(parityWorkflow.contains("scripts/generate-flatpak-manifest.sh"))

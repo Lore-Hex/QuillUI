@@ -96,7 +96,8 @@ jobs:
             --display-name "Quill Chat" \
             --app-id io.lorehex.QuillChat \
             --summary "Quill Chat is an Apple Swift chat app packaged for Linux through QuillUI." \
-            --categories "Utility;Network;"
+            --categories "Utility;Network;" \
+            --bundle-swift-runtime
           scripts/check-linux-app-metadata.sh \
             .build/releases/quill-chat-linux-gtk \
             io.lorehex.QuillChat \

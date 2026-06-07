@@ -205,6 +205,7 @@ manifest = {
             "build-commands": [
                 "mkdir -p /app/lib/quillui-app /app/bin /app/share/applications /app/share/metainfo /app/share/icons",
                 "cp -a bin metadata run share /app/lib/quillui-app/",
+                "if [ -d lib ]; then cp -a lib /app/lib/quillui-app/; fi",
                 f"install -Dm644 share/applications/{app_id}.desktop /app/share/applications/{app_id}.desktop",
                 f"install -Dm644 share/metainfo/{app_id}.metainfo.xml /app/share/metainfo/{app_id}.metainfo.xml",
                 "if [ -d share/icons ]; then cp -a share/icons/* /app/share/icons/; fi",

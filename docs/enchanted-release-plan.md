@@ -105,7 +105,7 @@ Required click-through flows:
 2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
 3. Wire QuillPaint into the controls that currently fail visual parity.
 4. Turn the first Flatpak manifest scaffold into a full Flatpak build by
-   closing the Swift/GTK/runtime dependency bundle.
+   closing the remaining GTK/system dependency bundle.
 5. Only then resume NetNewsWire as the next public app.
 
 Recently cleared:
@@ -129,6 +129,9 @@ Recently cleared:
   `.qa/quill-chat-linux-runtime-deps.tsv` with Swift runtime, system, loader,
   virtual, and artifact-bundled dependency classifications, failing early if
   the release binary has unresolved dynamic libraries.
+- The Enchanted release artifact now passes `--bundle-swift-runtime`, so Swift
+  toolchain libraries are copied into `lib/swift/linux`, exposed through the
+  artifact launcher, and classified as artifact-bundled by the dependency audit.
 - Typed composer focus/input is covered by the real-source GTK mac-reference
   interaction verifier.
 - Composer-send UI transition is covered by the real-source GTK mac-reference

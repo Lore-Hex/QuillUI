@@ -156,16 +156,20 @@ scripts/package-swiftui-linux-app.sh \
   --product-name quill-chat-linux \
   --artifact-dir .build/releases/quill-chat-linux-gtk \
   --display-name "Quill Chat" \
-  --app-id io.lorehex.QuillChat
+  --app-id io.lorehex.QuillChat \
+  --bundle-swift-runtime
 ```
 
 `scripts/check-linux-app-metadata.sh` validates that packaged desktop metadata
 matches the executable and release metadata. `scripts/check-linux-app-runtime-deps.sh`
 audits `ldd` output for the packaged binary, fails on unresolved libraries, and
 writes a TSV that classifies Swift toolchain, system, loader, virtual, and
-artifact-bundled dependencies. `scripts/generate-flatpak-manifest.sh`
-then consumes the same artifact directory and writes a first Flatpak manifest
-scaffold:
+artifact-bundled dependencies. When `--bundle-swift-runtime` is set, the
+packager copies Swift toolchain libraries from the build host into
+`lib/swift/linux`, records the count in `metadata/quillui-release.env`, and the
+generated `run` launcher prepends that artifact-local directory to
+`LD_LIBRARY_PATH`. `scripts/generate-flatpak-manifest.sh` then consumes the same
+artifact directory and writes a first Flatpak manifest scaffold:
 
 ```bash
 scripts/generate-flatpak-manifest.sh \

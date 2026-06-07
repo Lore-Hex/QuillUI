@@ -18,6 +18,7 @@ APP_SUMMARY="${QUILLUI_APP_SUMMARY:-Apple Swift app running on Linux through Qui
 APP_CATEGORIES="${QUILLUI_APP_CATEGORIES:-Utility;Development;}"
 APP_ICON_PATH="${QUILLUI_APP_ICON_PATH:-}"
 DESKTOP_EXEC="${QUILLUI_APP_DESKTOP_EXEC:-}"
+BUNDLE_SWIFT_RUNTIME="${QUILLUI_APP_BUNDLE_SWIFT_RUNTIME:-0}"
 NORMALIZED_BACKEND_FACADE=""
 
 usage() {
@@ -44,6 +45,8 @@ Options:
   --categories VALUE    Desktop file categories. Defaults to Utility;Development;.
   --icon PATH           Optional SVG or PNG icon to copy into hicolor theme dirs.
   --desktop-exec VALUE  Exec value for the .desktop file. Defaults to product name.
+  --bundle-swift-runtime
+                        Copy Swift toolchain runtime libraries into the artifact.
   -h, --help            Show this help.
 
 Environment aliases:
@@ -61,6 +64,7 @@ Environment aliases:
   QUILLUI_APP_CATEGORIES
   QUILLUI_APP_ICON_PATH
   QUILLUI_APP_DESKTOP_EXEC
+  QUILLUI_APP_BUNDLE_SWIFT_RUNTIME
 MSG
 }
 
@@ -102,6 +106,20 @@ validate_app_id() {
     echo "--app-id must be a reverse-DNS id with at least three dot-separated parts, got: $value" >&2
     exit 64
   fi
+}
+
+validate_boolean_flag() {
+  local value="$1"
+  local label="$2"
+
+  case "$value" in
+    0|1)
+      ;;
+    *)
+      echo "$label must be 0 or 1, got: $value" >&2
+      exit 64
+      ;;
+  esac
 }
 
 xml_escape() {
@@ -184,6 +202,10 @@ while [[ $# -gt 0 ]]; do
       DESKTOP_EXEC="${2:-}"
       shift 2
       ;;
+    --bundle-swift-runtime)
+      BUNDLE_SWIFT_RUNTIME=1
+      shift
+      ;;
     --help|-h)
       usage
       exit 0
@@ -238,6 +260,7 @@ if [[ -z "$APP_ID" ]]; then
   APP_ID="io.lorehex.$(app_id_component "$PRODUCT_NAME")"
 fi
 validate_app_id "$APP_ID"
+validate_boolean_flag "$BUNDLE_SWIFT_RUNTIME" "QUILLUI_APP_BUNDLE_SWIFT_RUNTIME"
 
 if [[ -z "$DESKTOP_EXEC" ]]; then
   DESKTOP_EXEC="$PRODUCT_NAME"
@@ -289,6 +312,29 @@ chmod 755 "$ARTIFACT_DIR/bin/$PRODUCT_NAME"
 while IFS= read -r -d '' resource_dir; do
   cp -R "$resource_dir" "$ARTIFACT_DIR/bin/"
 done < <(find "$ARTIFACT_BIN_DIR" -maxdepth 1 -type d \( -name '*.resources' -o -name '*.bundle' \) -print0)
+
+SWIFT_RUNTIME_LIBRARY_COUNT=0
+SWIFT_RUNTIME_DIR="$ARTIFACT_DIR/lib/swift/linux"
+if [[ "$BUNDLE_SWIFT_RUNTIME" == "1" ]]; then
+  if ! command -v ldd >/dev/null 2>&1; then
+    echo "ldd is required for --bundle-swift-runtime" >&2
+    exit 69
+  fi
+
+  mkdir -p "$SWIFT_RUNTIME_DIR"
+  while IFS= read -r runtime_library; do
+    [[ -z "$runtime_library" ]] && continue
+    cp -L "$runtime_library" "$SWIFT_RUNTIME_DIR/$(basename "$runtime_library")"
+    SWIFT_RUNTIME_LIBRARY_COUNT=$((SWIFT_RUNTIME_LIBRARY_COUNT + 1))
+  done < <(
+    ldd "$ARTIFACT_PATH" \
+      | awk '
+          /=>/ && $3 ~ /\/swift\/linux\// { print $3; next }
+          $1 ~ /^\/.*\/swift\/linux\// { print $1; next }
+        ' \
+      | sort -u
+  )
+fi
 
 ICON_NAME="$APP_ID"
 if [[ -n "$APP_ICON_PATH" ]]; then
@@ -344,6 +390,9 @@ set -euo pipefail
 DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 export GTK_A11Y="\${GTK_A11Y:-none}"
 export QUILLUI_BACKEND="\${QUILLUI_BACKEND:-$NORMALIZED_BACKEND_FACADE}"
+if [[ -d "\$DIR/lib/swift/linux" ]]; then
+  export LD_LIBRARY_PATH="\$DIR/lib/swift/linux\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+fi
 exec "\$DIR/bin/$PRODUCT_NAME" "\$@"
 MSG
 chmod 755 "$ARTIFACT_DIR/run"
@@ -353,6 +402,9 @@ chmod 755 "$ARTIFACT_DIR/run"
   printf 'display_name=%s\n' "$APP_DISPLAY_NAME"
   printf 'app_id=%s\n' "$APP_ID"
   printf 'summary=%s\n' "$APP_SUMMARY"
+  printf 'swift_runtime_bundled=%s\n' "$BUNDLE_SWIFT_RUNTIME"
+  printf 'swift_runtime_dir=%s\n' "$SWIFT_RUNTIME_DIR"
+  printf 'swift_runtime_library_count=%s\n' "$SWIFT_RUNTIME_LIBRARY_COUNT"
   printf 'desktop_file=%s\n' "$ARTIFACT_DIR/share/applications/$APP_ID.desktop"
   printf 'metainfo=%s\n' "$ARTIFACT_DIR/share/metainfo/$APP_ID.metainfo.xml"
   printf 'profile=%s\n' "$PROFILE"

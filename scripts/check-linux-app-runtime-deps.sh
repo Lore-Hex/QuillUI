@@ -63,7 +63,21 @@ mkdir -p "$(dirname "$REPORT_PATH")"
 
 LDD_OUTPUT="$(mktemp)"
 trap 'rm -f "$LDD_OUTPUT"' EXIT
-ldd "$BINARY_PATH" > "$LDD_OUTPUT"
+
+LDD_LIBRARY_PATHS=()
+if [[ -d "$ARTIFACT_DIR/lib/swift/linux" ]]; then
+  LDD_LIBRARY_PATHS+=("$ARTIFACT_DIR/lib/swift/linux")
+fi
+if [[ -d "$ARTIFACT_DIR/lib" ]]; then
+  LDD_LIBRARY_PATHS+=("$ARTIFACT_DIR/lib")
+fi
+
+if ((${#LDD_LIBRARY_PATHS[@]} > 0)); then
+  LDD_LIBRARY_PATH="$(IFS=:; printf '%s' "${LDD_LIBRARY_PATHS[*]}")"
+  LD_LIBRARY_PATH="$LDD_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$BINARY_PATH" > "$LDD_OUTPUT"
+else
+  ldd "$BINARY_PATH" > "$LDD_OUTPUT"
+fi
 
 python3 - "$LDD_OUTPUT" "$REPORT_PATH" "$ARTIFACT_DIR" <<'PY'
 import os
