@@ -1011,6 +1011,37 @@ Patterns that closed them:
 
 ---
 
+### Track B sub-8.3k: module-qualified shims, unavailable-API patches, partial-corelibs converters (2026-06, ~97.9%, 8.25k)
+
+- **Shim a module-QUALIFIED type by adding it to that module's shim.** SSK wraps
+  `SignalRingRTC.CallLinkState` (reads name/restrictions/revoked/expiration/rootKey)
+  and maps its `.Restrictions` to an Int enum; the RingRTC shim only had
+  CallLinkRootKey, so every reference was "no type named 'CallLinkState' in module
+  'SignalRingRTC'" (~100+). Add the struct + nested enum to SignalRingRTCShim with
+  EXACTLY the enum cases SSK's mapping switches over (none/adminApproval/unknown --
+  exhaustive, no default). The real value is FFI-produced on the deferred calling
+  paths; the non-calling paths only read fields, so a faithful shape suffices.
+- **Unavailable swift-corelibs API -> fetch-upstream patch (+ apply once to
+  .upstream).** `URLSessionConfiguration.background(withIdentifier:)` is
+  `@available(unavailable)` on non-Darwin. One call site (ReachabilityManager) ->
+  rewrite to `.default` in a patch_signal_ios() block. fetch-upstream patches run
+  at FETCH only, so ALSO apply the same replacement to the live .upstream once
+  (python3 inline before the build) -- else the persistent tree stays unpatched.
+  Cleared the category even though the file kept SEPARATE errors (SCNetworkReachability)
+  -- judge by category, not whole-file.
+- **swift-corelibs has SOME of a convenience family but not all -- verify each.**
+  NSKeyedUnarchiver HAS `unarchivedObject(ofClass:/ofClasses:from:)` and
+  NSKeyedArchiver HAS `archivedData(...requiringSecureCoding:)`, but it LACKS the
+  typed-collection converters `unarchivedArrayOfObjects(ofClass:from:)` /
+  `unarchivedDictionary(ofKeyClass:objectClass:from:)` (1-file swiftc confirmed
+  exactly which). Implement the missing two over the multi-class
+  `unarchivedObject(ofClasses:from:)` that DOES exist, then bridge-cast to the
+  typed Swift collection -- in a same-module port (QuillNSCoder), no import
+  needed. Cleared SDSDeserialization entirely and KeyValueStore 75->25. Don't
+  assume a whole API family is present or absent; probe member by member.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
