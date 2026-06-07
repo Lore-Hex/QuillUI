@@ -149,6 +149,8 @@ public final class QuillClipboard: @unchecked Sendable {
 
     private let lock = NSLock()
     private var stringValues: [String: String] = [:]
+    private var locallyManagedStringTypes: Set<String> = []
+    private var stringsWereCleared = false
     private var dataValues: [String: Data] = [:]
     private var nativeStringBackend: NativeStringBackend?
 
@@ -162,7 +164,12 @@ public final class QuillClipboard: @unchecked Sendable {
 
     public func setString(_ string: String?, forType type: String = "public.utf8-plain-text") {
         let backend = lock.withLock {
-            stringValues[type] = string
+            if let string {
+                stringValues[type] = string
+            } else {
+                stringValues.removeValue(forKey: type)
+            }
+            locallyManagedStringTypes.insert(type)
             return nativeStringBackend
         }
 
@@ -185,15 +192,32 @@ public final class QuillClipboard: @unchecked Sendable {
     }
 
     public func string(forType type: String = "public.utf8-plain-text") -> String? {
-        let backend = lock.withLock { nativeStringBackend }
+        let state = lock.withLock {
+            (
+                value: stringValues[type],
+                isLocallyManaged: locallyManagedStringTypes.contains(type),
+                stringsWereCleared: stringsWereCleared,
+                backend: nativeStringBackend
+            )
+        }
 
         if Self.usesNativeClipboard(forType: type) {
-            if let nativeString = backend?.string() {
+            if let nativeString = state.backend?.string(), !nativeString.isEmpty {
                 return nativeString
             }
+        }
 
+        if state.isLocallyManaged {
+            return state.value
+        }
+
+        if state.stringsWereCleared {
+            return nil
+        }
+
+        if Self.usesNativeClipboard(forType: type) {
             #if os(Linux)
-            if let bridgeString = QuillLinuxClipboardBridge.string() {
+            if let bridgeString = QuillLinuxClipboardBridge.string(), !bridgeString.isEmpty {
                 return bridgeString
             }
             if let fileBackedString = Self.fileBackedPasteboardString(forType: type) {
@@ -218,6 +242,8 @@ public final class QuillClipboard: @unchecked Sendable {
     public func clear() {
         let backend = lock.withLock {
             stringValues.removeAll()
+            locallyManagedStringTypes.removeAll()
+            stringsWereCleared = true
             dataValues.removeAll()
             return nativeStringBackend
         }

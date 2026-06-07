@@ -20,6 +20,22 @@ struct QuillKitTests {
         #expect(clipboard.data(forType: "public.png") == nil)
     }
 
+    @Test("clipboard instance values are isolated from later native plain-text writes")
+    func clipboardInstanceValuesAreIsolatedFromNativePlainTextWrites() {
+        let first = QuillClipboard()
+        let second = QuillClipboard()
+
+        first.setString("first", forType: "public.utf8-plain-text")
+        second.setString("second", forType: "public.utf8-plain-text")
+
+        #expect(first.string(forType: "public.utf8-plain-text") == "first")
+        #expect(second.string(forType: "public.utf8-plain-text") == "second")
+
+        first.setString(nil, forType: "public.utf8-plain-text")
+        #expect(first.string(forType: "public.utf8-plain-text") == nil)
+        #expect(second.string(forType: "public.utf8-plain-text") == "second")
+    }
+
     @Test("clipboard removes nil values without clearing other types")
     func clipboardNilRemovalIsScopedToType() {
         let clipboard = QuillClipboard()
