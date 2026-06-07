@@ -14,7 +14,15 @@ public enum PreviewLayout: Sendable {
     case fixed(width: CGFloat, height: CGFloat)
 }
 
+public struct HoverEffect: Equatable, Sendable {
+    private let id: String
+    public static let automatic = HoverEffect(id: "automatic")
+    public static let highlight = HoverEffect(id: "highlight")
+    public static let lift = HoverEffect(id: "lift")
+}
+
 extension View {
+    public func hoverEffect(_ effect: HoverEffect = .automatic) -> some View { self }
     public func accessibilityHidden(_ hidden: Bool) -> some View { self }
     public func listRowBackground<V: View>(_ view: V?) -> some View { self }
     public func tint(_ tint: Color?) -> some View { self }
