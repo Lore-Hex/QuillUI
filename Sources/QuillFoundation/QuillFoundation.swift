@@ -13,6 +13,7 @@
 @_exported import FoundationNetworking
 #endif
 #if os(Linux)
+import Glibc
 import QuillKit
 #endif
 
@@ -396,6 +397,115 @@ public final class CGContext {
 
 // `open` (not just `public`) so framework shims can subclass it — e.g.
 // SDWebImage's SDAnimatedImage: UIImage. On Apple, UIImage/NSImage are open too.
+public enum QuillResourceLookup {
+    public static let commonImageExtensions: [String] = [
+        "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "svg"
+    ]
+
+    public static func path(
+        forResource name: String,
+        candidateExtensions: [String] = [],
+        subdirectories: [String] = []
+    ) -> String? {
+        guard !name.isEmpty else { return nil }
+
+        let roots = resourceRoots()
+        let searchSubdirectories = [""] + subdirectories.filter { !$0.isEmpty }
+        for root in roots {
+            for subdirectory in searchSubdirectories {
+                let directory = subdirectory.isEmpty
+                    ? root
+                    : root.appendingPathComponent(subdirectory, isDirectory: true)
+                for candidate in candidateNames(for: name, extensions: candidateExtensions) {
+                    let url = directory.appendingPathComponent(candidate)
+                    var isDirectory: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                       !isDirectory.boolValue {
+                        return url.path
+                    }
+                }
+            }
+        }
+
+        return nil
+    }
+
+    public static func data(
+        forResource name: String,
+        candidateExtensions: [String] = []
+    ) -> Data? {
+        guard let path = path(forResource: name, candidateExtensions: candidateExtensions) else {
+            return nil
+        }
+        return FileManager.default.contents(atPath: path)
+    }
+
+    private static func candidateNames(for name: String, extensions: [String]) -> [String] {
+        let url = URL(fileURLWithPath: name)
+        guard url.pathExtension.isEmpty else { return [name] }
+
+        var candidates = [name]
+        for ext in extensions where !ext.isEmpty {
+            candidates.append("\(name).\(ext)")
+        }
+        return candidates
+    }
+
+    private static func resourceRoots() -> [URL] {
+        var roots: [URL] = []
+        var seen: Set<String> = []
+
+        func append(_ url: URL) {
+            let standardized = url.standardizedFileURL
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: standardized.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                return
+            }
+            guard seen.insert(standardized.path).inserted else { return }
+            roots.append(standardized)
+        }
+
+        if let raw = ProcessInfo.processInfo.environment["QUILLUI_RESOURCE_DIRS"] {
+            for part in raw.split(separator: ":", omittingEmptySubsequences: true) {
+                append(URL(fileURLWithPath: String(part), isDirectory: true))
+            }
+        }
+
+        if let executableDirectory = executableDirectory() {
+            append(executableDirectory)
+            append(executableDirectory.appendingPathComponent("Resources", isDirectory: true))
+
+            if let entries = try? FileManager.default.contentsOfDirectory(
+                at: executableDirectory,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                for entry in entries where entry.pathExtension == "resources" || entry.pathExtension == "bundle" {
+                    append(entry)
+                    append(entry.appendingPathComponent("Resources", isDirectory: true))
+                    append(entry
+                        .appendingPathComponent("Contents", isDirectory: true)
+                        .appendingPathComponent("Resources", isDirectory: true))
+                }
+            }
+        }
+
+        append(URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+            .appendingPathComponent("Resources", isDirectory: true))
+
+        return roots
+    }
+
+    private static func executableDirectory() -> URL? {
+        var buffer = [CChar](repeating: 0, count: 4096)
+        let count = readlink("/proc/self/exe", &buffer, buffer.count - 1)
+        guard count > 0 else { return nil }
+        let path = String(decoding: buffer.prefix(Int(count)).map(UInt8.init(bitPattern:)), as: UTF8.self)
+        return URL(fileURLWithPath: path).deletingLastPathComponent()
+    }
+}
+
 open class RSImage: NSObject, @unchecked Sendable {
     public override init() {}
     public init?(data: Data) {
@@ -404,13 +514,20 @@ open class RSImage: NSObject, @unchecked Sendable {
     }
     public init?(named name: String) {
         super.init()
-        self.size = CGSize(width: 32, height: 32)
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "QuillFoundation",
-            operation: "NSImage(named:)",
-            severity: .warning,
-            message: "NSImage(named:) returns a 32x32 placeholder image for '\(name)' on Linux; app assets are not loaded through AppKit yet."
-        )
+        if let data = QuillResourceLookup.data(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ) {
+            self.data = data
+        } else {
+            self.size = CGSize(width: 32, height: 32)
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage(named:)",
+                severity: .warning,
+                message: "NSImage(named:) could not find '\(name)' in QUILLUI_RESOURCE_DIRS, SwiftPM .resources directories, or bundled Resources; returning a 32x32 placeholder image."
+            )
+        }
     }
     public init?(systemName: String, withConfiguration: Any? = nil) {
         super.init()

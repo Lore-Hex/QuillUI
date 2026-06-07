@@ -2128,10 +2128,10 @@ def validate_quill_chat_mac_reference_message_hover_actions(image: Screenshot) -
 
     action_pixels = dark_pixel_count(
         image,
-        detail_left + int(detail_width * 0.74),
-        top + int(app_height * 0.14),
+        detail_left + int(detail_width * 0.78),
+        top + int(app_height * 0.11),
         right - int(detail_width * 0.02),
-        top + int(app_height * 0.25),
+        top + int(app_height * 0.16),
     )
     require(
         action_pixels >= 35,

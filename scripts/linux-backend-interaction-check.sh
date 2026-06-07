@@ -574,8 +574,8 @@ hover_quill_chat_message_actions() {
 
   select_quill_chat_markdown_transcript
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    hover_x="${QUILLUI_BACKEND_MESSAGE_HOVER_X:-1810}"
-    hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-192}"
+    hover_x="${QUILLUI_BACKEND_MESSAGE_HOVER_X:-1900}"
+    hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-124}"
   else
     hover_x="${QUILLUI_BACKEND_MESSAGE_HOVER_X:-$((window_x + (window_width * 88 / 100)))}"
     hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-$((window_y + (window_height * 14 / 100)))}"

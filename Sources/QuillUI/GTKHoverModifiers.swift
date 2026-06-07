@@ -22,6 +22,7 @@ extension OnHoverView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = quillGTKHoverWidgetPointer(gtkRenderView(content))
         let controller = gtk_event_controller_motion_new()
+        gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)
         let box = QuillGTKHoverActionBox(action)
         let retainedBox = Unmanaged.passRetained(box).toOpaque()
         let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)

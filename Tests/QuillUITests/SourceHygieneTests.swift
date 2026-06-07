@@ -146,6 +146,7 @@ struct SourceHygieneTests {
         #expect(gtkAccessibility.contains("gtk_swift_accessible_update_description"))
         #expect(gtkHover.contains("extension OnHoverView: GTKRenderable"))
         #expect(gtkHover.contains("gtk_event_controller_motion_new"))
+        #expect(gtkHover.contains("gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)"))
         #expect(gtkHover.contains("\"enter\""))
         #expect(gtkHover.contains("\"leave\""))
         #expect(gtkHover.contains("gtk_widget_add_controller(widget, controller)"))
@@ -2318,6 +2319,10 @@ struct SourceHygieneTests {
         #expect(source.contains("backend_launch_statement=\"${backend_runner}.run(${APP_ENTRY_TYPE}.self)\""))
         #expect(source.contains("copy_source_files=0"))
         #expect(source.contains("if [[ \"$copy_source_files\" == \"1\" ]]"))
+        #expect(source.contains("RESOURCE_DIR=\"$TARGET_DIR/Resources\""))
+        #expect(source.contains("scripts/copy-swiftui-linux-resources.py"))
+        #expect(source.contains("target_resources='            resources: [.copy(\"Resources\")],"))
+        #expect(source.contains("$target_resources"))
         #expect(source.contains("source_target_dependencies="))
         #expect(source.contains("target_dependencies=\"$(printf '%s,\\n"))
         #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")' \"$source_target_dependencies\")\""))
@@ -2422,6 +2427,63 @@ struct SourceHygieneTests {
         #expect(!generatedEnchantedSource.contains("QUILLUI_GENERATED_INCLUDE_GTK_BACKEND"))
         #expect(!source.contains("package(url: \"https://github.com/codelynx/SwiftOpenUI\""))
         #expect(!source.contains(".product(name: \"BackendGTK4\", package: \"SwiftOpenUI\")"))
+    }
+
+    @Test("Generated resource copier flattens asset catalog images")
+    func generatedResourceCopierFlattensAssetCatalogImages() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillGeneratedResources-\(UUID().uuidString)", isDirectory: true)
+        let source = temporaryDirectory.appendingPathComponent("Source", isDirectory: true)
+        let output = temporaryDirectory.appendingPathComponent("Output", isDirectory: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let imageset = source
+            .appendingPathComponent("Assets.xcassets", isDirectory: true)
+            .appendingPathComponent("logo-nobg.imageset", isDirectory: true)
+        try fileManager.createDirectory(at: imageset, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: source.appendingPathComponent("Shared", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        try Data("one-x".utf8).write(to: imageset.appendingPathComponent("logo-1x.png"))
+        try Data("two-x".utf8).write(to: imageset.appendingPathComponent("logo-2x.png"))
+        try """
+        {
+          "images": [
+            { "filename": "logo-1x.png", "idiom": "universal", "scale": "1x" },
+            { "filename": "logo-2x.png", "idiom": "universal", "scale": "2x" }
+          ],
+          "info": { "author": "xcode", "version": 1 }
+        }
+        """.write(to: imageset.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+        try Data("{\"ok\":true}".utf8).write(to: source.appendingPathComponent("Shared/info.json"))
+        try "struct Ignored {}".write(
+            to: source.appendingPathComponent("Ignored.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/copy-swiftui-linux-resources.py").path,
+                "--source-dir",
+                source.path,
+                "--output-dir",
+                output.path
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("1 plain, 1 asset-catalog images"))
+        #expect(try Data(contentsOf: output.appendingPathComponent("logo-nobg.png")) == Data("two-x".utf8))
+        #expect(fileManager.fileExists(atPath: output.appendingPathComponent("Shared/info.json").path))
+        #expect(!fileManager.fileExists(atPath: output.appendingPathComponent("Ignored.swift").path))
+        #expect(!fileManager.fileExists(atPath: output.appendingPathComponent("Assets.xcassets").path))
     }
 
     @Test("QuillPromptGrid uses backend-stable prompt accessories on Linux")

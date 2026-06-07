@@ -318,9 +318,16 @@ public extension RSImage {
     /// Convenience initializer matching the old `NSImage(named:)`
     /// shim's warning-and-placeholder behavior.
     static func quillNSImageNamed(_ name: String) -> RSImage {
+        if let data = QuillResourceLookup.data(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ), let image = RSImage(data: data) {
+            return image
+        }
+
         recordCompatibilityWarning(
             "NSImage(named:)",
-            message: "NSImage(named:) returns a 32x32 placeholder image for '\(name)' on Linux; app assets are not loaded through AppKit yet."
+            message: "NSImage(named:) could not find '\(name)' in QUILLUI_RESOURCE_DIRS, SwiftPM .resources directories, or bundled Resources; returning a 32x32 placeholder image."
         )
         return RSImage(size: CGSize(width: 32, height: 32))
     }
@@ -563,7 +570,14 @@ private final class QuillImageDataCache: @unchecked Sendable {
 
 public extension Image {
     init(_ name: String) {
-        self.init(resource: name)
+        if let path = QuillResourceLookup.path(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ) {
+            self.init(filePath: path)
+        } else {
+            self.init(resource: name)
+        }
     }
 
     init(data: Data) {

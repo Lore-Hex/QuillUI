@@ -2,11 +2,16 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if os(Linux)
+import Glibc
+#endif
 import Testing
 import SwiftUI
 import SwiftData
 import Combine
+import UIKit
 import QuillKit
+import QuillFoundation
 import ActivityIndicatorView
 import MarkdownUI
 import Splash
@@ -1318,6 +1323,45 @@ struct CompatibilityModuleTests {
         let addedSecond = Set(afterSecond).subtracting(Set(before))
         #expect(addedSecond.count == 2, "Image(data:) with new bytes should add a second PNG; saw \(addedSecond.count) total new files")
     }
+
+    #if os(Linux)
+    @Test("Named images resolve from Linux resource directories")
+    func namedImagesResolveFromLinuxResourceDirectories() throws {
+        let fileManager = FileManager.default
+        let directory = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillNamedImageResources-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: directory) }
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let imageData = Data("quill named image".utf8)
+        let imageURL = directory.appendingPathComponent("logo-nobg.png")
+        try imageData.write(to: imageURL)
+
+        let previous = getenv("QUILLUI_RESOURCE_DIRS").map { String(cString: $0) }
+        setenv("QUILLUI_RESOURCE_DIRS", directory.path, 1)
+        defer {
+            if let previous {
+                setenv("QUILLUI_RESOURCE_DIRS", previous, 1)
+            } else {
+                unsetenv("QUILLUI_RESOURCE_DIRS")
+            }
+        }
+
+        let image = Image("logo-nobg")
+        if case .filePath(let path) = image.source {
+            #expect(path == imageURL.path)
+        } else {
+            Issue.record("Image(\"logo-nobg\") should resolve to a file-backed SwiftOpenUI image")
+        }
+
+        #expect(NSImage(named: "logo-nobg")?.data == imageData)
+        #expect(UIImage(named: "logo-nobg")?.data == imageData)
+        #expect(QuillResourceLookup.path(
+            forResource: "logo-nobg",
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ) == imageURL.path)
+    }
+    #endif
 
     // MARK: - Symbol name compatibility
 

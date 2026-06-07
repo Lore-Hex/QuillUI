@@ -467,7 +467,7 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "OllamaKit", "Sparkle", "IOKit", "KeychainSwift"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
-    "QuillUI", "QuillKit", "SwiftData", "AppKit", "UIKit", "os"
+    "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
 ] + quillLinuxShimTestDependencies
 #endif
 #if os(Linux)

@@ -113,11 +113,13 @@ fi
 "$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
 
 TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
+RESOURCE_DIR="$TARGET_DIR/Resources"
 backend_import="QuillUI"
 backend_runner="QuillApp"
 backend_launch_statement=""
 copy_source_files=1
 target_dependencies=""
+target_resources=""
 
 rm -rf "$PACKAGE_DIR"
 mkdir -p "$TARGET_DIR"
@@ -169,6 +171,14 @@ if [[ "$copy_source_files" == "1" ]]; then
     mkdir -p "$(dirname "$destination_file")"
     cp "$source_file" "$destination_file"
   done < <(find "$SOURCE_DIR" -name '*.swift' -print0)
+
+  python3 "$ROOT_DIR/scripts/copy-swiftui-linux-resources.py" \
+    --source-dir "$SOURCE_DIR" \
+    --output-dir "$RESOURCE_DIR"
+  if [[ -d "$RESOURCE_DIR" ]]; then
+    target_resources='            resources: [.copy("Resources")],
+'
+  fi
 fi
 
 source_target_dependencies='                .product(name: "SwiftUI", package: "QuillUI"),
@@ -240,6 +250,7 @@ let package = Package(
             dependencies: [
 $target_dependencies
             ],
+$target_resources
             swiftSettings: [
                 .swiftLanguageMode(.v5)
             ]
