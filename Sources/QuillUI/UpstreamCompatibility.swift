@@ -231,18 +231,6 @@ public struct Namespace: Sendable {
     }
 }
 
-public struct SymbolEffect: Sendable {
-    public init() {}
-    public static let variableColor = SymbolEffect()
-    public var iterative: SymbolEffect { self }
-}
-
-public struct SymbolEffectOptions: Sendable {
-    public init() {}
-    public static let `default` = SymbolEffectOptions()
-    public static func `repeat`(_ count: Int) -> SymbolEffectOptions { SymbolEffectOptions() }
-}
-
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -1418,18 +1406,6 @@ public extension View {
             message: "transition is preserved as transition metadata on Linux."
         )
         return TransitionView(content: self, transition: transition)
-    }
-
-    func symbolEffect<Value: Equatable>(
-        _ effect: SymbolEffect,
-        options: SymbolEffectOptions = .default,
-        value: Value
-    ) -> AnimatedView<Self> {
-        recordQuillUIFallback(
-            "symbolEffect",
-            message: "symbolEffect is approximated with value-driven animation on Linux."
-        )
-        return animation(.easeInOut(duration: 0.2), value: value)
     }
 
     func matchedGeometryEffect<ID: Hashable>(
