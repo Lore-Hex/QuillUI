@@ -33,13 +33,11 @@ public struct ListStyleType: Sendable {
     public static let bordered = ListStyleType(id: "bordered")
 }
 
-public struct AccessibilityChildBehavior: Hashable, Sendable {
-    private let rawValue: String
-    private init(_ rawValue: String) { self.rawValue = rawValue }
-    public static let ignore = AccessibilityChildBehavior("ignore")
-    public static let combine = AccessibilityChildBehavior("combine")
-    public static let contain = AccessibilityChildBehavior("contain")
-}
+// AccessibilityChildBehavior + accessibilityLabel/accessibilityValue/
+// accessibilityElement live in QuillUI/UpstreamCompatibility (they render real
+// GTK accessibility metadata via GTKAccessibilityModifiers, and SourceHygieneTests
+// pins them there). No compiled vendored source uses them — the only callers
+// (DesignSystem AccountPopoverView / StatusEditorToolbarItem) are target-excluded.
 
 extension View {
     // Typed-view modifiers MOVED from QuillUI/UpstreamCompatibility (struct + func)
@@ -54,15 +52,12 @@ extension View {
     public func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
         OnHoverView(content: self, action: action)
     }
-    public func accessibilityElement(children: AccessibilityChildBehavior = .ignore) -> some View { self }
     public func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
         AllowsHitTestingView(content: self, enabled: enabled)
     }
     public func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> ListRowSeparatorView<Self> {
         ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
     }
-    public func accessibilityLabel<S>(_ label: S) -> some View { self }
-    public func accessibilityValue<S>(_ value: S) -> some View { self }
     public func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
         ListRowInsetsView(content: self, insets: insets)
     }

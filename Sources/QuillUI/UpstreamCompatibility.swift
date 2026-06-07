@@ -830,6 +830,18 @@ public enum ScrollIndicatorVisibility: Sendable {
     case never
 }
 
+public struct AccessibilityChildBehavior: Hashable, Sendable {
+    private let rawValue: String
+
+    private init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let ignore = AccessibilityChildBehavior("ignore")
+    public static let combine = AccessibilityChildBehavior("combine")
+    public static let contain = AccessibilityChildBehavior("contain")
+}
+
 public struct AccessibilityLabelView<Content: View>: View {
     public typealias Body = Never
 
@@ -1195,6 +1207,30 @@ public extension View {
             message: "minimumScaleFactor is preserved as layout metadata on Linux."
         )
         return MinimumScaleFactorView(content: self, factor: factor)
+    }
+
+    func accessibilityLabel(_ label: String) -> AccessibilityLabelView<Self> {
+        recordQuillUIFallback(
+            "accessibilityLabel",
+            message: "View accessibility labels are propagated to GTK accessibility metadata on Linux."
+        )
+        return AccessibilityLabelView(content: self, label: label)
+    }
+
+    func accessibilityValue(_ value: String) -> AccessibilityValueView<Self> {
+        recordQuillUIFallback(
+            "accessibilityValue",
+            message: "View accessibility values are propagated to GTK accessibility metadata on Linux."
+        )
+        return AccessibilityValueView(content: self, value: value)
+    }
+
+    func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self> {
+        recordQuillUIFallback(
+            "accessibilityElement(children:)",
+            message: "View accessibility child behavior is preserved for GTK accessibility rendering on Linux."
+        )
+        return AccessibilityElementView(content: self, children: children)
     }
 
     func lineLimit(_ number: Int?, reservesSpace: Bool) -> some View {
