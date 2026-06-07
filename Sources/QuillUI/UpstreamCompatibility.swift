@@ -900,17 +900,8 @@ public struct ScrollIndicatorsView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ScrollContentBackgroundView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-
-    public init(content: Content, visibility: Visibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
+// ScrollContentBackgroundView moved to SwiftOpenUI (Views/IceCubesUICompat.swift)
+// so vendored source (which imports SwiftOpenUI, not QuillUI) can use it.
 
 // ContentShapeView / AllowsHitTestingView moved to SwiftOpenUI
 // (Modifiers/QuillUICompatModifiers.swift) so vendored source can use them.
@@ -1279,9 +1270,8 @@ public extension View {
         foregroundColor(style.gradient.quillAverageColor)
     }
 
-    func foregroundStyle(_ primary: Color, _ secondary: Color) -> some View {
-        foregroundColor(primary)
-    }
+    // foregroundStyle(_:_:) 2-arg moved to SwiftOpenUI (Views/IceCubesUICompat.swift)
+    // so vendored source can use it; a copy here too would make it ambiguous.
 
     func symbolRenderingMode(_ mode: Image.SymbolRenderingMode?) -> SymbolRenderingModeView<Self> {
         recordQuillUIFallback(
