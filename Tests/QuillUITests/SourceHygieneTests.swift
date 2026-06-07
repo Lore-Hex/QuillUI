@@ -2444,6 +2444,8 @@ struct SourceHygieneTests {
         #expect(controls.contains("ScrollViewReader { scrollViewProxy in"))
         #expect(controls.contains("ForEach(actions(message))"))
         #expect(controls.contains("contextMenuItem(for: action)"))
+        #expect(controls.contains("QuillUncheckedSendableScrollViewProxy(proxy: scrollViewProxy)"))
+        #expect(controls.contains("private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable"))
         #expect(controls.contains("DispatchQueue.main.async"))
         #expect(controls.contains("public var composerMaxWidth: CGFloat"))
         #expect(controls.contains("public var composerHorizontalPadding: CGFloat"))

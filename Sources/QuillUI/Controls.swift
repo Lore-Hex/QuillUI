@@ -1454,8 +1454,9 @@ where Message.ID: Hashable {
     private func scrollToBottom(_ scrollViewProxy: ScrollViewProxy) {
         #if os(Linux)
         scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        let deferredProxy = QuillUncheckedSendableScrollViewProxy(proxy: scrollViewProxy)
         DispatchQueue.main.async {
-            scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+            deferredProxy.proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
         }
         #else
         if let last = messages.last {
@@ -1465,6 +1466,10 @@ where Message.ID: Hashable {
         }
         #endif
     }
+}
+
+private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable {
+    var proxy: ScrollViewProxy
 }
 
 public struct QuillDesktopChatScaffold<
