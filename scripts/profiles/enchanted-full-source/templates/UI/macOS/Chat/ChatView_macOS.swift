@@ -27,10 +27,6 @@ struct ChatView: View {
     var userInitials: String
     var copyChat: (_ json: Bool) -> Void
 
-    @State private var message = ""
-    @State private var editMessage: MessageSD?
-    @FocusState private var isFocusedInput: Bool
-
     private var modelMenuActions: [QuillMenuAction] {
         QuillMenuAction.selectableModels(
             modelsList,
@@ -47,13 +43,14 @@ struct ChatView: View {
     }
 
     var body: some View {
-        QuillDesktopChatScaffold(
+        QuillEditableDesktopChatScaffold(
             title: "Enchanted",
             hasSelection: selectedConversation != nil,
             showsStatus: !reachable,
             modelActions: modelMenuActions,
             optionsActions: optionsMenuActions,
-            onNewConversation: onNewConversationTap
+            onNewConversation: onNewConversationTap,
+            editContent: { (message: MessageSD) in message.content }
         ) {
             SidebarView(
                 selectedConversation: selectedConversation,
@@ -62,12 +59,12 @@ struct ChatView: View {
                 onConversationDelete: onConversationDelete,
                 onDeleteDailyConversations: onDeleteDailyConversations
             )
-        } selectedContent: {
+        } selectedContent: { editMessage in
             MessageListView(
                 messages: messages,
                 conversationState: conversationState,
                 userInitials: userInitials,
-                editMessage: $editMessage
+                editMessage: editMessage
             )
         } emptyContent: {
             EmptyConversaitonView(sendPrompt: QuillPrompt.selectedModelSender(
@@ -76,17 +73,16 @@ struct ChatView: View {
             ))
         } statusContent: {
             UnreachableAPIView()
-        } composer: {
+        } composer: { message, editMessage in
             InputFieldsView(
-                message: $message,
+                message: message,
                 conversationState: conversationState,
                 onStopGenerateTap: onStopGenerateTap,
                 selectedModel: selectedModel,
                 onSendMessageTap: onSendMessageTap,
-                editMessage: $editMessage
+                editMessage: editMessage
             )
         }
-        .quillSyncEditableMessage($editMessage, draft: $message, isFocused: $isFocusedInput, content: \.content)
     }
 }
 #endif

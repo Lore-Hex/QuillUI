@@ -2188,6 +2188,97 @@ public extension QuillDesktopChatScaffold where ToolbarContent == QuillDesktopCh
     }
 }
 
+public struct QuillEditableDesktopChatScaffold<
+    EditMessage: Equatable,
+    Sidebar: View,
+    SelectedContent: View,
+    EmptyContent: View,
+    StatusContent: View,
+    ComposerContent: View
+>: View {
+    public var title: String
+    public var sidebarWidth: CGFloat
+    public var composerMaxWidth: CGFloat
+    public var composerHorizontalPadding: CGFloat
+    public var composerVerticalPadding: CGFloat
+    public var hasSelection: Bool
+    public var showsStatus: Bool
+    public var modelActions: [QuillMenuAction]
+    public var optionsActions: [QuillMenuAction]
+    private var editContent: (EditMessage) -> String
+    private var onNewConversation: () -> Void
+    private var sidebar: () -> Sidebar
+    private var selectedContent: (Binding<EditMessage?>) -> SelectedContent
+    private var emptyContent: () -> EmptyContent
+    private var statusContent: () -> StatusContent
+    private var composerContent: (Binding<String>, Binding<EditMessage?>) -> ComposerContent
+
+    @State private var draft: String
+    @State private var editMessage: EditMessage?
+    @FocusState private var isFocusedInput: Bool
+
+    public init(
+        title: String,
+        sidebarWidth: CGFloat = 320,
+        composerMaxWidth: CGFloat = .infinity,
+        composerHorizontalPadding: CGFloat = 40,
+        composerVerticalPadding: CGFloat = 16,
+        hasSelection: Bool,
+        showsStatus: Bool,
+        modelActions: [QuillMenuAction],
+        optionsActions: [QuillMenuAction],
+        onNewConversation: @escaping () -> Void,
+        initialDraft: String = "",
+        initialEditMessage: EditMessage? = nil,
+        editContent: @escaping (EditMessage) -> String,
+        @ViewBuilder sidebar: @escaping () -> Sidebar,
+        @ViewBuilder selectedContent: @escaping (Binding<EditMessage?>) -> SelectedContent,
+        @ViewBuilder emptyContent: @escaping () -> EmptyContent,
+        @ViewBuilder statusContent: @escaping () -> StatusContent,
+        @ViewBuilder composer: @escaping (Binding<String>, Binding<EditMessage?>) -> ComposerContent
+    ) {
+        self.title = title
+        self.sidebarWidth = sidebarWidth
+        self.composerMaxWidth = composerMaxWidth
+        self.composerHorizontalPadding = composerHorizontalPadding
+        self.composerVerticalPadding = composerVerticalPadding
+        self.hasSelection = hasSelection
+        self.showsStatus = showsStatus
+        self.modelActions = modelActions
+        self.optionsActions = optionsActions
+        self.onNewConversation = onNewConversation
+        self.editContent = editContent
+        self.sidebar = sidebar
+        self.selectedContent = selectedContent
+        self.emptyContent = emptyContent
+        self.statusContent = statusContent
+        self.composerContent = composer
+        self._draft = State(initialValue: initialDraft)
+        self._editMessage = State(initialValue: initialEditMessage)
+    }
+
+    public var body: some View {
+        QuillDesktopChatScaffold(
+            title: title,
+            sidebarWidth: sidebarWidth,
+            composerMaxWidth: composerMaxWidth,
+            composerHorizontalPadding: composerHorizontalPadding,
+            composerVerticalPadding: composerVerticalPadding,
+            hasSelection: hasSelection,
+            showsStatus: showsStatus,
+            modelActions: modelActions,
+            optionsActions: optionsActions,
+            onNewConversation: onNewConversation,
+            sidebar: sidebar,
+            selectedContent: { selectedContent($editMessage) },
+            emptyContent: emptyContent,
+            statusContent: statusContent,
+            composer: { composerContent($draft, $editMessage) }
+        )
+        .quillSyncEditableMessage($editMessage, draft: $draft, isFocused: $isFocusedInput, content: editContent)
+    }
+}
+
 public struct QuillDesktopChatToolbar: View {
     public var modelActions: [QuillMenuAction]
     public var optionsActions: [QuillMenuAction]

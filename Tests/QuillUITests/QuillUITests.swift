@@ -361,6 +361,37 @@ struct QuillUITests {
         #expect(scaffold.sidebarWidth == 280)
         #expect(scaffold.hasSelection == false)
         #expect(scaffold.showsStatus == true)
+
+        struct Message: Equatable {
+            var content: String
+        }
+        let editableScaffold = QuillEditableDesktopChatScaffold(
+            title: "Editable Chat",
+            sidebarWidth: 300,
+            hasSelection: true,
+            showsStatus: false,
+            modelActions: [],
+            optionsActions: [],
+            onNewConversation: {},
+            initialDraft: "Draft",
+            initialEditMessage: Optional<Message>.none,
+            editContent: { (message: Message) in message.content }
+        ) {
+            Text("Sidebar")
+        } selectedContent: { editMessage in
+            Text(editMessage.wrappedValue?.content ?? "Selected")
+        } emptyContent: {
+            Text("Empty")
+        } statusContent: {
+            Text("Status")
+        } composer: { draft, _ in
+            Text(draft.wrappedValue)
+        }
+
+        #expect(editableScaffold.title == "Editable Chat")
+        #expect(editableScaffold.sidebarWidth == 300)
+        #expect(editableScaffold.hasSelection == true)
+        #expect(editableScaffold.showsStatus == false)
     }
 
     @Test("Editable message sync modifier accepts optional edit bindings")
