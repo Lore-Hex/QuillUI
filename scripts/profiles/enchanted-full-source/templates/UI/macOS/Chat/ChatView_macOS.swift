@@ -79,7 +79,10 @@ struct ChatView: View {
                 )
             )
         } statusContent: {
-            UnreachableAPIView()
+            QuillChatUnreachableBanner {
+                Settings()
+            }
+            .frame(maxWidth: 1524)
         } composer: { message, editMessage in
             InputFieldsView(
                 message: message,

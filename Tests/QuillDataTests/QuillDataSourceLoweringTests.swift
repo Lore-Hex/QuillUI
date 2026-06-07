@@ -379,7 +379,7 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 250"))
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 225"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
@@ -981,6 +981,9 @@ struct QuillDataSourceLoweringTests {
         #expect(chatViewTemplate.contains("selectedModel: selectedModel"))
         #expect(chatViewTemplate.contains("onSend: onSendMessageTap"))
         #expect(!chatViewTemplate.contains("EmptyConversaitonView("))
+        #expect(chatViewTemplate.contains("QuillChatUnreachableBanner {"))
+        #expect(chatViewTemplate.contains(".frame(maxWidth: 1524)"))
+        #expect(!chatViewTemplate.contains("UnreachableAPIView()"))
         #expect(!chatViewTemplate.contains("private func sendPrompt(_ selectedMessage: String)"))
         #expect(!chatViewTemplate.contains("QuillMenuAction.selectableItems("))
         #expect(!chatViewTemplate.contains("emptyTitle: \"No models available\""))
@@ -1099,23 +1102,25 @@ struct QuillDataSourceLoweringTests {
         #expect(!messageListTemplate.contains("DispatchQueue.main.async"))
         #expect(!messageListTemplate.contains(".onChange(of: messages.map(\\.id))"))
 
-        let unreachableRule = try String(
-            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/UnreachableAPIView.swift.pl"),
+        let fullSourceCheck = try String(
+            contentsOf: root.appendingPathComponent("scripts/generated-enchanted-full-source-check.sh"),
             encoding: .utf8
         )
-        #expect(unreachableRule.contains("Quill is unreachable"))
-        #expect(unreachableRule.contains("update your Quill API endpoint"))
+        #expect(fullSourceCheck.contains("import QuillUI"))
+        #expect(fullSourceCheck.contains("_ = QuillChatUnreachableBanner {"))
+        #expect(fullSourceCheck.contains("Settings()\n        }"))
 
-        let unreachableTemplate = try String(
-            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/UnreachableAPIView.swift"),
+        let unreachableEmptyFiles = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
             encoding: .utf8
         )
-        #expect(unreachableTemplate.contains("QuillChatUnreachableBanner {"))
-        #expect(!unreachableTemplate.contains("QuillSheetStatusBanner("))
-        #expect(!unreachableTemplate.contains("horizontalPadding: 28"))
-        #expect(!unreachableTemplate.contains("bottomPadding: 74"))
-        #expect(!unreachableTemplate.contains("@State var showSettings"))
-        #expect(!unreachableTemplate.contains(".sheet(isPresented: $showSettings)"))
+        #expect(unreachableEmptyFiles.contains("UI/Shared/Chat/Components/UnreachableAPIView.swift"))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/UnreachableAPIView.swift").path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/UnreachableAPIView.swift.pl").path
+        ))
 
         let conversationStoreRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/ConversationStore.swift.pl"),

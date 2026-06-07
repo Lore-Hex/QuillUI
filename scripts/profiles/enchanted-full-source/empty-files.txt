@@ -4,6 +4,7 @@ Services/HotkeyService.swift
 UI/macOS/PromptPanel/FloatingPanel.swift
 UI/macOS/PromptPanel/PanelManager.swift
 UI/Shared/Chat/Components/EmptyConversaitonView.swift
+UI/Shared/Chat/Components/UnreachableAPIView.swift
 UI/Shared/Sidebar/Components/ConversationHistoryListView.swift
 Application/QuillUpdater.swift
 Application/QuillUSBWatcher.swift

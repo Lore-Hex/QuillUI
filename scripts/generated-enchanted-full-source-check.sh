@@ -76,6 +76,7 @@ cp -R "$UPSTREAM_DIR"/. "$SOURCE_COPY"/
 if [[ "$MODE" != "app" ]]; then
   cat > "$LOWERED_COPY/GeneratedMain.swift" <<'SWIFT'
 import Foundation
+import QuillUI
 import SwiftData
 import SwiftUI
 
@@ -168,7 +169,9 @@ struct GeneratedEnchantedFullSourceCheck {
         )
         _ = RecordingView(isRecording: .constant(false))
         _ = DragAndDrop(cornerRadius: 10)
-        _ = UnreachableAPIView()
+        _ = QuillChatUnreachableBanner {
+            Settings()
+        }
         _ = RemovableImage(image: image, onClick: {})
         _ = PromptPanelView(onSubmit: { _, _ in }, onLayoutUpdate: {}, imageSupport: true)
         _ = CompletionsEditor()
