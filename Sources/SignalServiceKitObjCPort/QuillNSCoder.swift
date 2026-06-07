@@ -61,6 +61,18 @@ extension NSCoder {
         lengthp?.pointee = count
         return UnsafePointer(buffer)
     }
+
+    // swift-corelibs NSCoder has no decodeArrayOfObjects(ofClass:forKey:) (used by
+    // ~9 NSSecureCoding decoders, e.g. OutgoingBlockedSyncMessage). Apple's is
+    // generic -> [DecodedObjectType]?, so `ofClass: NSData.self` yields [NSData]?
+    // and callers bridge `as [Data]?`. Decode the stored array and cast; the class
+    // is the NSSecureCoding allow-list (enforcement deferred, as elsewhere).
+    func decodeArrayOfObjects<DecodedObjectType>(
+        ofClass cls: DecodedObjectType.Type,
+        forKey key: String
+    ) -> [DecodedObjectType]? where DecodedObjectType: NSObject, DecodedObjectType: NSCoding {
+        return decodeObject(forKey: key) as? [DecodedObjectType]
+    }
 }
 
 // swift-corelibs NSKeyedUnarchiver has unarchivedObject(ofClass:from:) and
