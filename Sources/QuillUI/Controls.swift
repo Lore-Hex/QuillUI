@@ -2067,6 +2067,7 @@ where Message.ID: Hashable {
     public var scrollToken: AnyHashable
     public var rowVerticalPadding: CGFloat
     public var rowHorizontalPadding: CGFloat
+    public var interactionAvailability: QuillMessageInteractionAvailability
     public var clipboard: QuillClipboard
     private var content: (Message) -> String
     private var isUserMessage: (Message) -> Bool
@@ -2084,6 +2085,7 @@ where Message.ID: Hashable {
         rowHorizontalPadding: CGFloat = 10,
         content: @escaping (Message) -> String,
         isUserMessage: @escaping (Message) -> Bool,
+        interactionAvailability: QuillMessageInteractionAvailability = .all,
         selectText: ((Message) -> Void)? = nil,
         readAloud: ((Message) -> Void)? = nil,
         additionalActions: @escaping (Message) -> [QuillMenuAction] = { _ in [] },
@@ -2096,6 +2098,7 @@ where Message.ID: Hashable {
         self.scrollToken = scrollToken ?? messages.quillMessageListScrollToken(content: content)
         self.rowVerticalPadding = rowVerticalPadding
         self.rowHorizontalPadding = rowHorizontalPadding
+        self.interactionAvailability = interactionAvailability
         self.content = content
         self.isUserMessage = isUserMessage
         self.selectText = selectText
@@ -2119,12 +2122,12 @@ where Message.ID: Hashable {
     }
 
     public func contextMenuActions(for message: Message) -> [QuillMenuAction] {
-        let selectTextAction = selectText.map { selectText in
+        let selectTextAction = interactionAvailability.contains(.selectText) ? selectText.map { selectText in
             { selectText(message) }
-        }
-        let readAloudAction = readAloud.map { readAloud in
+        } : nil
+        let readAloudAction = interactionAvailability.contains(.readAloud) ? readAloud.map { readAloud in
             { readAloud(message) }
-        }
+        } : nil
 
         return QuillMenuAction.chatMessageActions(
             content: content(message),
@@ -2146,6 +2149,26 @@ where Message.ID: Hashable {
 
 private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable {
     var proxy: ScrollViewProxy
+}
+
+public struct QuillMessageInteractionAvailability: OptionSet, Sendable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let selectText = QuillMessageInteractionAvailability(rawValue: 1 << 0)
+    public static let readAloud = QuillMessageInteractionAvailability(rawValue: 1 << 1)
+    public static let all: QuillMessageInteractionAvailability = [.selectText, .readAloud]
+
+    public static var platformDefaults: QuillMessageInteractionAvailability {
+        #if os(iOS) || os(visionOS)
+        return .all
+        #else
+        return []
+        #endif
+    }
 }
 
 public extension Array where Element: Identifiable, Element.ID: Hashable {
