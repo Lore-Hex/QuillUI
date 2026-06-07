@@ -298,6 +298,26 @@ struct QuillUITests {
         #expect(scaffold.showsStatus == true)
     }
 
+    @Test("Editable message sync modifier accepts optional edit bindings")
+    func quillSyncEditableMessageModifierCompiles() {
+        struct Message: Equatable {
+            var content: String
+        }
+
+        struct Probe: View {
+            @State var editMessage: Message?
+            @State var draft = ""
+            @FocusState var isFocused: Bool
+
+            var body: some View {
+                Text(draft)
+                    .quillSyncEditableMessage($editMessage, draft: $draft, isFocused: $isFocused, content: \.content)
+            }
+        }
+
+        _ = Probe()
+    }
+
     @Test("QuillSidebarNavigationAction exposes standard desktop chat utilities")
     func quillSidebarNavigationActionDesktopChatUtilities() {
         var opened: [String] = []

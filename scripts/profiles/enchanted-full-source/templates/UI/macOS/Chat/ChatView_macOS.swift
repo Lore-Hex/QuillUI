@@ -85,12 +85,7 @@ struct ChatView: View {
                 editMessage: $editMessage
             )
         }
-        .onChange(of: editMessage, initial: false) { _, newMessage in
-            if let newMessage = newMessage {
-                message = newMessage.content
-                isFocusedInput = true
-            }
-        }
+        .quillSyncEditableMessage($editMessage, draft: $message, isFocused: $isFocusedInput, content: \.content)
     }
 
     private func sendPrompt(_ selectedMessage: String) {

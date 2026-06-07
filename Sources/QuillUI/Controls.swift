@@ -979,6 +979,20 @@ public extension View {
             }
         #endif
     }
+
+    func quillSyncEditableMessage<Message: Equatable>(
+        _ editMessage: Binding<Message?>,
+        draft: Binding<String>,
+        isFocused: FocusState<Bool>.Binding,
+        content: @escaping (Message) -> String
+    ) -> some View {
+        onChange(of: editMessage.wrappedValue, initial: false) { _, newMessage in
+            if let newMessage {
+                draft.wrappedValue = content(newMessage)
+                isFocused.wrappedValue = true
+            }
+        }
+    }
 }
 
 public struct QuillSidebarNavigationButton: View {
