@@ -65,6 +65,15 @@ extension NSView {
         collect(self)
         let memberIDs = Set(subtree.map { ObjectIdentifier($0) })
 
+        // Let every NSStackView in the subtree emit its child-positioning
+        // constraints into quillActive before we collect them — the shadow's
+        // addArrangedSubview only records views, so a stack lays out purely via
+        // these synthesized constraints. Idempotent per call (it deactivates +
+        // rebuilds its own constraints), so re-layout never duplicates them.
+        for v in subtree {
+            (v as? NSStackView)?.quillSynthesizeStackConstraints()
+        }
+
         // One LayoutItem per view.
         let engine = LayoutEngine()
         var items: [ObjectIdentifier: LayoutItem] = [:]
