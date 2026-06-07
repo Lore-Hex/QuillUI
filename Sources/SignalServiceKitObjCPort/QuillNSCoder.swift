@@ -57,3 +57,32 @@ extension NSCoder {
         return UnsafePointer(buffer)
     }
 }
+
+// swift-corelibs NSKeyedUnarchiver has unarchivedObject(ofClass:from:) and
+// unarchivedObject(ofClasses:from:), but NOT the typed collection conventers
+// unarchivedArrayOfObjects(ofClass:from:) / unarchivedDictionary(ofKeyClass:
+// objectClass:from:) (verified via 1-file swiftc). SDSDeserialization and
+// KeyValueStore (the SDS storage layer) use both. Implement them over the
+// allow-list multi-class unarchivedObject(ofClasses:from:) that does exist, then
+// bridge-cast to the typed Swift collection. Same-module as SSK (linked via
+// quill-signal-link-ports), so callers resolve them without an import.
+extension NSKeyedUnarchiver {
+    class func unarchivedArrayOfObjects<DecodedObjectType>(
+        ofClass cls: DecodedObjectType.Type,
+        from data: Data
+    ) throws -> [DecodedObjectType]? where DecodedObjectType: NSObject, DecodedObjectType: NSCoding {
+        let decoded = try unarchivedObject(ofClasses: [NSArray.self, cls], from: data)
+        return decoded as? [DecodedObjectType]
+    }
+
+    class func unarchivedDictionary<DecodedKeyType, DecodedObjectType>(
+        ofKeyClass keyCls: DecodedKeyType.Type,
+        objectClass valueCls: DecodedObjectType.Type,
+        from data: Data
+    ) throws -> [DecodedKeyType: DecodedObjectType]?
+    where DecodedKeyType: NSObject, DecodedKeyType: NSCoding,
+          DecodedObjectType: NSObject, DecodedObjectType: NSCoding {
+        let decoded = try unarchivedObject(ofClasses: [NSDictionary.self, keyCls, valueCls], from: data)
+        return decoded as? [DecodedKeyType: DecodedObjectType]
+    }
+}
