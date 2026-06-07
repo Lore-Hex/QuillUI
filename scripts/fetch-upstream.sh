@@ -293,6 +293,26 @@ open(path, "w").write(s.replace('.background(withIdentifier: "SSKReachabilityMan
 PY
     fi
 
+    # ProxiedContentDownloader writes a downloaded asset via
+    #   assetData.write(to: NSURL.fileURL(withPath: filePath), options: .atomicWrite)
+    # swift-corelibs-foundation has no NSURL.fileURL(withPath:) (only the
+    # withPathComponents: [String] form, which also returns URL?), and
+    # Data.WritingOptions has no .atomicWrite (the modern spelling is .atomic).
+    # Rewrite to URL(fileURLWithPath:) (non-optional, present on corelibs) + .atomic
+    # -- same semantics, Linux-only build.
+    local proxied="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Network/ProxiedContentDownloader.swift"
+    if [[ -f "$proxied" ]] && grep -q 'NSURL.fileURL(withPath:' "$proxied"; then
+        echo "==> patching signal-ios ProxiedContentDownloader.swift NSURL.fileURL/atomicWrite"
+        python3 - "$proxied" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+s = s.replace("NSURL.fileURL(withPath: filePath)", "URL(fileURLWithPath: filePath)")
+s = s.replace(", options: .atomicWrite)", ", options: .atomic)")
+open(path, "w").write(s)
+PY
+    fi
+
     # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
     # members on Apple. The lowering pass strips `@objc` (-> plain `public
     # protocol`), which makes `optional` invalid ("'optional' can only be applied
