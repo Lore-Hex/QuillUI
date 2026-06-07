@@ -980,6 +980,37 @@ Patterns that closed them:
 
 ---
 
+### Track B sub-8.8k: raw-pointer overloads + import-path statics (2026-06, ~97.8%, 8.76k)
+
+- **Raw->typed pointer mismatches at Foundation method calls -> a raw-pointer
+  overload in a same-module port.** swift-corelibs imports several Foundation
+  methods with typed `UnsafePointer<UInt8>` params where SSK passes a
+  `withUnsafeBytes`/`withUnsafeMutableBytes` `baseAddress` (an
+  `UnsafeRawPointer`). Two instances closed the same way: `NSCoder.encodeBytes`
+  (ECKeyPair) and `OutputStream.write`/`InputStream.read` (OWSMultipart,
+  InputStream+SSK, OutputStreamable). Fix = add an overload taking the raw
+  pointer and forward via `assumingMemoryBound(to: UInt8.self)`. Three notes:
+  (1) one raw overload ALSO catches an `UnsafePointer<Int8>` call site, since
+  `UnsafePointer<Int8>` converts to `UnsafeRawPointer`; (2) no recursion -- the
+  forwarded `UnsafePointer<UInt8>` exact-matches the base method, not the
+  overload; (3) host it in a same-module PORT file (QuillStream/QuillNSCoder),
+  visible to every SSK file with no import. A NEW port file is auto-picked-up
+  (link-ports globs `*.swift`); touch the linked copy before building.
+- **Absent Notification.Name/static -> host it where the consumer already
+  imports, and mind actor isolation.** DeviceBatteryLevelManager aliases
+  `UIDevice.batteryLevelDidChangeNotification` + `.NSProcessInfoPowerStateDidChange`
+  (both absent). It does `public import UIKit`, so both inert names went into the
+  UIKit shim (import-path-via-existing-import again -- even though the
+  ProcessInfo one is conceptually Foundation; its sole consumer imports UIKit).
+  WRINKLE: a `static let` on a `@MainActor` class (UIDevice) is MainActor-
+  isolated, so a file-scope `extension Notification.Name` aliasing it fails
+  ("main actor-isolated ... from a non-isolated context") -- mark the static
+  `nonisolated` (Notification.Name is Sendable). Linux-gate names macOS
+  Foundation already defines (NSProcessInfoPowerStateDidChange); the UIKitShim
+  compiles on macOS too.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
