@@ -77,4 +77,13 @@ extension NSWindow {
         showAsQtWindow()
         attachContentViewToQt()
     }
+
+    /// Render this window (+ its content view tree) to a PNG via Qt's offscreen
+    /// grab. The foundation for AppKit-vs-macOS visual parity: lay out a real
+    /// AppKit view controller, render it here, diff against a macOS screenshot.
+    @discardableResult
+    public func grabQtWindowPNG(to path: String) -> Bool {
+        guard let handle = qtWindowHandle else { return false }
+        return path.withCString { quill_appkit_qt_window_grab_png(handle, $0) != 0 }
+    }
 }

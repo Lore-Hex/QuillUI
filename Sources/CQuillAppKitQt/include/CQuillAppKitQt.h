@@ -62,6 +62,14 @@ void *quill_appkit_qt_label_new(const char *text);
 void quill_appkit_qt_label_set_text(void *label, const char *text);
 const char *quill_appkit_qt_label_text(void *label);
 
+// --- Render-to-PNG (visual parity) ---
+// Render `window` (and its child widgets) to a PNG via QWidget::grab(). Works
+// headless under QT_QPA_PLATFORM=offscreen — the foundation for comparing an
+// AppKit view rendered on Qt against a macOS reference screenshot. The widget
+// is resized to its stored size + laid out before grabbing. Returns 1 on
+// success, 0 on failure.
+int quill_appkit_qt_window_grab_png(void *window, const char *path);
+
 #ifdef __cplusplus
 }
 #endif

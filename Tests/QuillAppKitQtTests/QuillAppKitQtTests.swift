@@ -342,4 +342,51 @@ struct QuillAppKitQtTests {
         button.sendAction(Selector("unknownAction"), to: target)
         #expect(target.fired == ["save", "cancel"])
     }
+
+    // M-render slice (issue #231): the first END-TO-END proof that unmodified
+    // AppKit code RENDERS on Qt — build an NSWindow with a content view, a label
+    // and a button, solve Auto Layout, and grab the live QWidget tree to a PNG.
+    // This is the foundation for AppKit↔macOS visual parity (diff this PNG vs a
+    // macOS screenshot). Headless via QT_QPA_PLATFORM=offscreen.
+    @Test("A real AppKit window (label + button, Auto-Layout'd) renders to a non-empty PNG via Qt")
+    func rendersRealAppKitWindowToPNG() throws {
+        guard QuillQt.ensureInitialized() else { return }
+
+        // Built exactly as unmodified AppKit source would — no Qt symbols here.
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 140),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 140))
+        let label = NSTextField(labelWithString: "Add an empty tunnel or import one")
+        let button = NSButton(title: "Import Tunnels", target: nil, action: nil)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        button.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubviewQt(label)
+        content.addSubviewQt(button)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            label.topAnchor.constraint(equalTo: content.topAnchor, constant: 28),
+            label.widthAnchor.constraint(equalToConstant: 240),
+            label.heightAnchor.constraint(equalToConstant: 20),
+            button.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            button.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 18),
+            button.widthAnchor.constraint(equalToConstant: 160),
+            button.heightAnchor.constraint(equalToConstant: 30),
+        ])
+
+        window.contentView = content
+        content.layoutQtSubtree(width: 360, height: 140)
+        window.showAsQtWindowWithContent()
+
+        let out = "/tmp/quillappkitqt-wireguard-render.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        // A real rendered 360×140 window is several KB of PNG, not an empty file.
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 500)
+
+        window.closeQtWindow()
+    }
 }
