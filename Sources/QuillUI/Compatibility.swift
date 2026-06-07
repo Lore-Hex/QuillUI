@@ -452,9 +452,20 @@ public enum QuillImageFormatDetector {
 
 public extension Image {
     func render() -> PlatformImage? {
+        if case .filePath(let path) = source,
+           let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+           !data.isEmpty {
+            return PlatformImage(data: data)
+        }
+
+        let renderer = ImageRenderer(content: self)
+        if let image = renderer.platformImage {
+            return image
+        }
+
         recordCompatibilityWarning(
             "Image.render",
-            message: "Image.render returned nil on Linux; rendering SwiftUI images to bitmap data is not yet supported."
+            message: "Image.render returned nil on Linux; only file-backed images and renderer-backend-supported views can currently produce bitmap data."
         )
         return nil
     }

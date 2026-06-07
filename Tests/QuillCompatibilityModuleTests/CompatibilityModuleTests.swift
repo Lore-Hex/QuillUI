@@ -1233,6 +1233,8 @@ struct CompatibilityModuleTests {
         #expect(renderedNSImage?.data?.isEmpty == false)
         #expect(colorRenderer.cgImage?.data?.isEmpty == false)
         #expect(Image(systemName: "photo").render() == nil)
+        let fileBackedImageData = "quill-render-\(UUID().uuidString)".data(using: .utf8)!
+        #expect(Image(data: fileBackedImageData).render()?.data == fileBackedImageData)
         guard let platformImage = PlatformImage(data: Data([1, 2, 3])) else {
             Issue.record("PlatformImage(data:) should construct the RSImage-backed image container")
             return
