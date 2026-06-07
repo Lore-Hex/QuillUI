@@ -1,7 +1,6 @@
 import SwiftUI
 
 #if (os(macOS) || os(Linux))
-import AppKit
 import QuillUI
 #endif
 
