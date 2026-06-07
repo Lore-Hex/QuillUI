@@ -389,4 +389,55 @@ struct QuillAppKitQtTests {
 
         window.closeQtWindow()
     }
+
+    // M-render: render a real NSViewController whose view is built in loadView()
+    // (the shape of WireGuard's ButtonedDetailViewController empty state — a
+    // centered button). Exercises the new NSViewController lazy `.view` →
+    // loadView() path + realizeQtSubtree() (realizing a plain-addSubview tree
+    // into Qt). The literal conformance VC is the identical shape; rendering it
+    // verbatim needs the WireGuard conformance + a Qt backend in one graph (the
+    // next rung — they're currently in separate build graphs).
+    @Test("A loadView()-built NSViewController (empty-state shape) renders via Qt")
+    func rendersViewControllerToPNG() throws {
+        guard QuillQt.ensureInitialized() else { return }
+
+        final class EmptyStateVC: NSViewController {
+            let button = NSButton()
+            override func loadView() {
+                let v = NSView()
+                button.title = "Import tunnels"
+                v.addSubview(button) // plain addSubview, exactly like the real VC
+                button.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    button.centerXAnchor.constraint(equalTo: v.centerXAnchor),
+                    button.centerYAnchor.constraint(equalTo: v.centerYAnchor),
+                    button.widthAnchor.constraint(equalToConstant: 150),
+                    button.heightAnchor.constraint(equalToConstant: 30),
+                ])
+                self.view = v
+            }
+        }
+
+        let vc = EmptyStateVC()
+        #expect(!vc.isViewLoaded)
+        let content = vc.view          // triggers loadView() (the new lazy path)
+        #expect(vc.isViewLoaded)
+        #expect(content.subviews.count == 1) // the button is in the loaded tree
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 160),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+        window.contentView = content
+        content.realizeQtSubtree()              // realize the loadView-built tree into Qt
+        content.layoutQtSubtree(width: 360, height: 160)
+        window.showAsQtWindowWithContent()
+
+        let out = "/tmp/quillappkitqt-vc-render.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 500)
+        window.closeQtWindow()
+    }
 }

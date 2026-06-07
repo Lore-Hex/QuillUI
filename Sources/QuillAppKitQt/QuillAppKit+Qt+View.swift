@@ -41,6 +41,23 @@ extension NSView {
         quill_appkit_qt_view_add_subview(parent, childWidget)
     }
 
+    /// Realize an ALREADY-BUILT AppKit view tree into Qt. Unmodified source (and
+    /// view controllers' `loadView`) builds hierarchies with plain `addSubview`,
+    /// so no backing QWidgets exist yet; this walks the tree, ensures a backing
+    /// widget for every view, and reparents each child's widget under its
+    /// superview's. Call once on a view controller's loaded view, then
+    /// `layoutQtSubtree` + grab. Idempotent-ish: re-running just re-parents.
+    public func realizeQtSubtree() {
+        ensureQtWidget()
+        for child in subviews {
+            child.realizeQtSubtree()
+            if let parentWidget = qtWidgetHandle,
+               let childWidget = child.qtWidgetHandle {
+                quill_appkit_qt_view_add_subview(parentWidget, childWidget)
+            }
+        }
+    }
+
     /// Number of direct child QWidgets (test verification).
     public var qtChildCount: Int {
         guard let handle = qtWidgetHandle else { return 0 }
