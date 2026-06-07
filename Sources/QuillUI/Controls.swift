@@ -1811,6 +1811,35 @@ public struct QuillMenuAction: Identifiable {
         return action
     }
 
+    public static func disabled(id: String? = nil, title: String) -> QuillMenuAction {
+        QuillMenuAction(id: id, title: title, isDisabled: true) {}
+    }
+
+    public static func selectableItems<Item, SelectionID: Hashable>(
+        _ items: [Item],
+        selectedID: SelectionID?,
+        emptyTitle: String? = nil,
+        selectedSystemImage: String = "checkmark",
+        id: @escaping (Item) -> SelectionID,
+        title: @escaping (Item) -> String,
+        onSelect: @escaping (Item) -> Void
+    ) -> [QuillMenuAction] {
+        guard !items.isEmpty else {
+            return emptyTitle.map { [QuillMenuAction.disabled(title: $0)] } ?? []
+        }
+
+        return items.map { item in
+            let itemID = id(item)
+            return QuillMenuAction(
+                id: String(describing: itemID),
+                title: title(item),
+                systemImage: selectedID == itemID ? selectedSystemImage : nil
+            ) {
+                onSelect(item)
+            }
+        }
+    }
+
     public func perform() {
         guard !isDisabled else { return }
         action()

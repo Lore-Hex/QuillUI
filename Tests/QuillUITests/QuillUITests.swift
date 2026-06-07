@@ -53,6 +53,54 @@ struct QuillUITests {
         _ = QuillAppWindow.self
     }
 
+    // MARK: - QuillMenuAction helpers
+
+    @Test("QuillMenuAction builds disabled and selectable menu rows")
+    func quillMenuActionSelectableItems() {
+        struct MenuItem {
+            var id: String
+            var title: String
+        }
+
+        var selectedTitle: String?
+        let items = [
+            MenuItem(id: "a", title: "Alpha"),
+            MenuItem(id: "b", title: "Beta")
+        ]
+        let actions = QuillMenuAction.selectableItems(
+            items,
+            selectedID: "b",
+            emptyTitle: "No items",
+            id: { $0.id },
+            title: { $0.title },
+            onSelect: { selectedTitle = $0.title }
+        )
+
+        #expect(actions.map(\.id) == ["a", "b"])
+        #expect(actions.map(\.title) == ["Alpha", "Beta"])
+        #expect(actions.map(\.systemImage) == [nil, "checkmark"])
+        #expect(actions.allSatisfy { !$0.isDisabled })
+
+        actions[0].perform()
+        #expect(selectedTitle == "Alpha")
+
+        selectedTitle = nil
+        let emptyActions = QuillMenuAction.selectableItems(
+            [MenuItem](),
+            selectedID: Optional<String>.none,
+            emptyTitle: "No items",
+            id: { $0.id },
+            title: { $0.title },
+            onSelect: { selectedTitle = $0.title }
+        )
+
+        #expect(emptyActions.count == 1)
+        #expect(emptyActions.first?.title == "No items")
+        #expect(emptyActions.first?.isDisabled == true)
+        emptyActions.first?.perform()
+        #expect(selectedTitle == nil)
+    }
+
     // MARK: - Backend registry
 
     @Test("Backend registry exposes SwiftUI GTK and Qt")
