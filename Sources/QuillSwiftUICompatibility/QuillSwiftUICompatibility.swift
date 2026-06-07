@@ -2,6 +2,17 @@
 import QuillFoundation
 
 #if os(Linux)
+/// SwiftUI's iOS-18 `@Entry` macro for `EnvironmentValues` entries, backed by
+/// `QuillDataMacros.QuillEntryMacro`. Expands `@Entry var name: T = default`
+/// into a computed get/set plus a private `EnvironmentKey` peer that carries
+/// the default value. Surfaced to real source through the SwiftUI shim, which
+/// re-exports this canonical compatibility module.
+@attached(accessor)
+@attached(peer, names: prefixed(`__Key_`))
+public macro Entry() = #externalMacro(module: "QuillDataMacros", type: "QuillEntryMacro")
+#endif
+
+#if os(Linux)
 /// Canonical Linux image type exposed through the SwiftUI shim.
 ///
 /// SwiftOpenUI keeps its renderer image as a byte-backed value type, but the
