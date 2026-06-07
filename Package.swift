@@ -903,6 +903,21 @@ var targets: [Target] = [
         path: "Sources/QuillRSTree",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire FeedFinder module
+    // (Sources/FeedFinder → Sources/QuillFeedFinder). Brings up the
+    // network-free part of FeedFinder: HTMLFeedFinder (detects feeds in
+    // already-fetched HTML via QuillRSParser) + FeedSpecifier (candidate-feed
+    // model + scoring/merging). Named QuillFeedFinder to avoid the dead
+    // upstream `FeedFinder` target name; consuming code rewrites
+    // `import FeedFinder` → `import QuillFeedFinder` like the other vendored
+    // modules. `FeedFinder.find()` (live download) is deferred until RSWeb's
+    // Downloader + RSCore's Data.isProbablyHTML are brought up.
+    .target(
+        name: "QuillFeedFinder",
+        dependencies: ["QuillRSCoreShim", "QuillRSParser", "RSWeb"],
+        path: "Sources/QuillFeedFinder",
+        swiftSettings: appSwiftSettings
+    ),
     .executableTarget(
         name: "QuillNetNewsWire",
         dependencies: ["QuillNetNewsWireCore", "QuillUI"],
@@ -2174,6 +2189,14 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillRSTreeTests",
             dependencies: ["QuillRSTree"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Pins the vendored FeedFinder HTML feed-detection: HTMLFeedFinder
+        // surfaces <head> feed links + body links that look like feeds, and
+        // FeedSpecifier scoring/merging picks the best candidate.
+        .testTarget(
+            name: "QuillFeedFinderTests",
+            dependencies: ["QuillFeedFinder", "QuillRSParser"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillCodeEditCore: the `ProjectFile.extension`
