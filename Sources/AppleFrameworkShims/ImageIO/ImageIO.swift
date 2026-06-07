@@ -124,3 +124,35 @@ extension CGDataProvider {
         self.init()
     }
 }
+
+// MARK: - CGImageDestination (image writing)
+//
+// SignalServiceKit's BadgeAssets writes a sprite-sheet PNG via CGImageDestination.
+// ImageIO has no encoder on Linux, so this is INERT: creation returns nil and the
+// add/finalize calls are no-ops, so the upstream guard on the nil destination
+// short-circuits and no file is written. HONEST STATUS: badge sprite sheets are not
+// generated on Linux yet (a real PNG encoder would be needed). Like
+// CGImageSourceCreateWithURL, the create takes URL (not CFURL): swift-corelibs has no
+// URL<->CFURL bridge, so the fetch-patch drops `as CFURL` at the call site.
+
+public class CGImageDestination {}
+
+// `type` is the UTI string (e.g. "public.png"). Apple's signature is CFString, but
+// swift-corelibs has no String<->CFString bridge so the upstream `UTType.png.identifier
+// as CFString` cast can't compile; the shim takes String and the fetch-patch drops the
+// cast. Inert anyway (nil destination), so the value is unused.
+public func CGImageDestinationCreateWithURL(
+    _ url: URL,
+    _ type: String,
+    _ count: Int,
+    _ options: CFDictionary?
+) -> CGImageDestination? { nil }
+
+public func CGImageDestinationAddImage(
+    _ idst: CGImageDestination,
+    _ image: CGImage,
+    _ properties: CFDictionary?
+) {}
+
+@discardableResult
+public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool { false }

@@ -1090,8 +1090,8 @@ PY
     # swift-corelibs has no URL<->CFURL bridge, so `someURL as CFURL` ("URL is not
     # convertible to CFURL") fails. The receivers are our own shims now changed to
     # take URL (CGImageSourceCreateWithURL / CFNetworkCopyProxiesForURL /
-    # AudioServicesCreateSystemSoundID); drop the casts at their call sites.
-    # (CGImageDestinationCreateWithURL is left -- that shim isn't provided yet.)
+    # AudioServicesCreateSystemSoundID / CGImageDestinationCreateWithURL); drop the
+    # casts at their call sites.
     echo "==> patching signal-ios drop `as CFURL` at URL-shim call sites"
     python3 - "$UPSTREAM_DIR/signal-ios/SignalServiceKit" <<'PY'
 import sys, os
@@ -1101,6 +1101,15 @@ subs = [
     ("CGImageSourceCreateWithURL(fileUrlForSpritesheet() as CFURL", "CGImageSourceCreateWithURL(fileUrlForSpritesheet()"),
     ("CFNetworkCopyProxiesForURL(chatURL as CFURL", "CFNetworkCopyProxiesForURL(chatURL"),
     ("AudioServicesCreateSystemSoundID(url as CFURL", "AudioServicesCreateSystemSoundID(url"),
+    ("CGImageDestinationCreateWithURL(destinationUrl as CFURL", "CGImageDestinationCreateWithURL(destinationUrl"),
+    # The CGImageDestination type-id arg: swift-corelibs has no String<->CFString bridge,
+    # so `UTType.png.identifier as CFString` fails; the ImageIO shim takes String -> drop it.
+    ("UTType.png.identifier as CFString", "UTType.png.identifier"),
+    # BadgeAssets: `[kCGImageSourceShouldCache: kCFBooleanFalse]` is [String: CFBoolean?]
+    # which doesn't coerce to CFDictionary on swift-corelibs. The dict is only passed to
+    # the inert CGImageSourceCreateImageAtIndex (returns nil on Linux), so nil is
+    # equivalent. (Two identical occurrences.)
+    ("[kCGImageSourceShouldCache: kCFBooleanFalse] as CFDictionary", "nil as CFDictionary?"),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
