@@ -893,31 +893,8 @@ public struct SymbolRenderingModeView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ListRowInsetsView<Content: View>: View {
-    public let content: Content
-    public let insets: EdgeInsets?
-
-    public init(content: Content, insets: EdgeInsets?) {
-        self.content = content
-        self.insets = insets
-    }
-
-    public var body: some View { content }
-}
-
-public struct ListRowSeparatorView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-    public let edges: Edge.Set
-
-    public init(content: Content, visibility: Visibility, edges: Edge.Set) {
-        self.content = content
-        self.visibility = visibility
-        self.edges = edges
-    }
-
-    public var body: some View { content }
-}
+// ListRowInsetsView / ListRowSeparatorView moved to SwiftOpenUI
+// (Modifiers/QuillUICompatModifiers.swift) so vendored source can use them.
 
 public struct ScrollIndicatorsView<Content: View>: View {
     public let content: Content
@@ -943,29 +920,8 @@ public struct ScrollContentBackgroundView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
-    public let content: Content
-    public let shape: ShapeValue
-
-    public init(content: Content, shape: ShapeValue) {
-        self.content = content
-        self.shape = shape
-    }
-
-    public var body: some View { content }
-}
-
-public struct AllowsHitTestingView<Content: View>: View {
-    public let content: Content
-    public let enabled: Bool
-
-    public init(content: Content, enabled: Bool) {
-        self.content = content
-        self.enabled = enabled
-    }
-
-    public var body: some View { content }
-}
+// ContentShapeView / AllowsHitTestingView moved to SwiftOpenUI
+// (Modifiers/QuillUICompatModifiers.swift) so vendored source can use them.
 
 public struct GestureView<Content: View, GestureValue>: View {
     public let content: Content
@@ -1003,17 +959,7 @@ public struct ViewMaskView<Content: View, MaskContent: View>: View {
     public var body: some View { content }
 }
 
-public struct OnHoverView<Content: View>: View {
-    public let content: Content
-    public let action: (Bool) -> Void
-
-    public init(content: Content, action: @escaping (Bool) -> Void) {
-        self.content = content
-        self.action = action
-    }
-
-    public var body: some View { content }
-}
+// OnHoverView moved to SwiftOpenUI (Modifiers/QuillUICompatModifiers.swift).
 
 public struct FocusEffectDisabledView<Content: View>: View {
     public let content: Content
