@@ -52,3 +52,15 @@ extension Font {
     public typealias Design = FontDesign
     public typealias TextStyle = Font
 }
+
+// SwiftUI `Font.custom(_:size:relativeTo:)` / `Font.custom(_:size:)` (DesignSystem
+// chosen-font). SwiftOpenUI has no custom-font-name plumbing yet; approximate with
+// the system font at that size (name/relativeTo accepted for source compatibility).
+extension Font {
+    public static func custom(_ name: String, size: Double, relativeTo textStyle: Font.TextStyle) -> Font {
+        .custom(size: size, weight: .regular, design: .default)
+    }
+    public static func custom(_ name: String, size: Double) -> Font {
+        .custom(size: size, weight: .regular, design: .default)
+    }
+}

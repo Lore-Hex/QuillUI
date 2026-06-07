@@ -17,6 +17,11 @@ import SwiftOpenUI
 
 /// SwiftUI's localized-string key. Upstream uses it only as a return type
 /// built from string literals / interpolation.
+// SwiftUI `Text(_:)` over a LocalizedStringKey (DesignSystem `Text(title)`).
+public extension Text {
+    init(_ key: LocalizedStringKey) { self.init(key.key) }
+}
+
 public struct LocalizedStringKey: Equatable, ExpressibleByStringLiteral, ExpressibleByStringInterpolation {
     public let key: String
     public init(stringLiteral value: String) { self.key = value }
@@ -134,6 +139,20 @@ public struct AppStorage<Value>: AnyStateStorageProvider {
     public var anyStorage: AnyStateStorage { storage }
 }
 
+extension Data: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Data? { UserDefaults.standard.data(forKey: key) }
+    public static func writeAppStorageValue(_ value: Data, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension AppStorage where Value == Data? {
+    // `@AppStorage("k") var x: Data?` (optional, no default — DesignSystem chosen_font).
+    public init(_ key: String) {
+        writeValue = { (v: Data?) in
+            if let v { UserDefaults.standard.set(v, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+        storage = StateStorage(UserDefaults.standard.data(forKey: key))
+    }
+}
+
 // Stub for the Models SwiftData `TagGroup` (excluded on Linux — SwiftData is
 // Apple-only). Env references it only as a navigation payload type, so a plain
 // class with the same surface suffices.
@@ -149,4 +168,31 @@ public final class TagGroup: Equatable {
         l.title == r.title && l.symbolName == r.symbolName && l.tags == r.tags && l.creationDate == r.creationDate
     }
 }
+
+// MARK: - DesignSystem Linux stubs
+public let NSEC_PER_SEC: UInt64 = 1_000_000_000
+public struct GifView: View {
+    public typealias Body = Never
+    public let data: Data
+    public init(data: Data) { self.data = data }
+    public var body: Never { fatalError("GifView is a Linux primitive stub") }
+}
+public struct TagChartView<Tag>: View {
+    public typealias Body = Never
+    public let tag: Tag
+    public init(tag: Tag) { self.tag = tag }
+    public var body: Never { fatalError("TagChartView is a Linux primitive stub") }
+}
+public struct ContentUnavailableView: View {
+    public let title: LocalizedStringKey
+    public let systemImage: String
+    public let descriptionText: Text?
+    public init(_ title: LocalizedStringKey, systemImage: String, description: Text? = nil) {
+        self.title = title; self.systemImage = systemImage; self.descriptionText = description
+    }
+    public var body: some View {
+        VStack(spacing: 8) { Image(systemName: systemImage); Text(title.key); if let descriptionText { descriptionText } }
+    }
+}
+
 #endif

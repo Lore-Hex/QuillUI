@@ -47,6 +47,16 @@ extension View {
     ) -> OnChangeTwoArgView<Self, V> {
         OnChangeTwoArgView(content: self, value: value, action: action)
     }
+    // iOS-17 convenience onChange forms moved from QuillUI (initial:, zero-arg, single-value).
+    public func onChange<V: Equatable>(of value: V, initial: Bool, _ action: @escaping (V, V) -> Void) -> OnChangeTwoArgView<Self, V> {
+        onChange(of: value, action)
+    }
+    public func onChange<V: Equatable>(of value: V, _ action: @escaping () -> Void) -> OnChangeTwoArgView<Self, V> {
+        onChange(of: value) { _, _ in action() }
+    }
+    public func onChange<V: Equatable>(of value: V, _ action: @escaping (V) -> Void) -> OnChangeTwoArgView<Self, V> {
+        onChange(of: value) { _, newValue in action(newValue) }
+    }
 }
 
 // MARK: - onChange value tracking

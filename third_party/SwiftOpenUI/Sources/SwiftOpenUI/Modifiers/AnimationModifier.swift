@@ -27,6 +27,10 @@ public struct Animation: Equatable {
     public static func easeIn(duration: Double) -> Animation { Animation(curve: .easeIn, duration: duration) }
     public static func easeOut(duration: Double) -> Animation { Animation(curve: .easeOut, duration: duration) }
     public static func easeInOut(duration: Double) -> Animation { Animation(curve: .easeInOut, duration: duration) }
+    /// SwiftUI iOS-17 spring preset. SwiftOpenUI has no spring solver; approximate
+    /// with an ease-in-out curve so vendored source type-checks and animates.
+    public static func bouncy(duration: Double = 0.4, extraBounce: Double = 0) -> Animation { Animation(curve: .easeInOut, duration: duration) }
+    public static var bouncy: Animation { bouncy() }
 }
 
 /// A view with an opacity applied.

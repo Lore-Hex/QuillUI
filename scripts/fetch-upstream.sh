@@ -950,6 +950,50 @@ for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
         print("patched", os.path.basename(path))
 PY
     fi
+
+    # DesignSystem: Font.swift / Theme.swift use UIFont / UIFontMetrics (and other
+    # UIKit types) but import only Env + SwiftUI. On iOS `import SwiftUI` re-exports
+    # UIKit, so UIFont is in scope; the Linux SwiftUI shim does not re-export it, and
+    # an upstream refactor dropped Font.swift's explicit `import UIKit`. Inject a
+    # canImport(UIKit) block after the first `import SwiftUI` for any non-excluded
+    # file that references a UIKit type and doesn't already import it. canImport
+    # gates keep the Apple build unaffected. Idempotent.
+    local dsdir="$UPSTREAM_DIR/icecubes/Packages/DesignSystem/Sources/DesignSystem"
+    if [[ -d "$dsdir" ]]; then
+        echo "==> patching IceCubes DesignSystem for the Linux UIKit imports"
+        python3 - "$dsdir" <<'PY'
+import sys, os, glob
+
+directory = sys.argv[1]
+uikit_block = (
+    "#if canImport(UIKit)\n"
+    "import UIKit\n"
+    "#endif"
+)
+SYMS = ("UIFont", "UIFontMetrics", "UIFontDescriptor", "UIScreen",
+        "UIApplication", "UIImage", "UIColor", "UIDevice")
+for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
+    src = open(path).read()
+    if "import UIKit" in src:
+        continue
+    if not any(s in src for s in SYMS):
+        continue
+    lines = src.split("\n")
+    out = []
+    inserted = False
+    for line in lines:
+        out.append(line)
+        if line.strip() == "import SwiftUI" and not inserted:
+            out.append(uikit_block)
+            inserted = True
+    if not inserted:
+        out = [uikit_block] + lines
+    new = "\n".join(out)
+    if new != src:
+        open(path, "w").write(new)
+        print("patched", os.path.basename(path))
+PY
+    fi
 }
 
 patch_signal_ios() {

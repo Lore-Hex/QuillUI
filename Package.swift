@@ -1906,7 +1906,7 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: ["QuillFoundation", "QuillDataMacros", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: ["QuillKit", "QuillFoundation", "QuillDataMacros", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
         path: "Sources/QuillSwiftUICompatibility"
     ),
     .target(
@@ -2728,6 +2728,22 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
             ],
             swiftSettings: [
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        .target(name: "Nuke", dependencies: ["SwiftUI"], path: "Sources/NukeShim"),
+        .target(name: "NukeUI", dependencies: ["Nuke", "SwiftUI", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")], path: "Sources/NukeUIShim"),
+        .target(name: "EmojiText", dependencies: ["SwiftUI"], path: "Sources/EmojiTextShim"),
+        // Real Dimillian/IceCubesApp DesignSystem. Vendored on Linux/GTK; theme/
+        // color/font system + reusable views. `-default-isolation MainActor` makes
+        // the module @MainActor (as all SwiftUI is) — clears the concurrency tail.
+        .target(
+            name: "DesignSystem",
+            dependencies: ["Models", "Env", "SwiftUI", "UIKit", "IceCubesShims", "Nuke", "NukeUI", "EmojiText", "Combine"],
+            path: ".upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem",
+            exclude: ["Views/GifView.swift", "Views/TagChartView.swift", "Views/AccountPopoverView.swift", "Views/ToastOverlayView.swift", "CardBackgroundModifier.swift", "Views/LazyResizableImage.swift", "Views/ErrorView.swift", "Views/ThemePreviewView.swift", "SFSymbols.swift", "FontPicker.swift", "SceneDelegate.swift", "ThemeApplier.swift", "Views/StatusEditorToolbarItem.swift", "ToolbarItem/CancelToolbarItem.swift", "ToolbarItem/CloseToolbarItem.swift"],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims", "-default-isolation", "MainActor"]),
+                .swiftLanguageMode(.v5)
             ]
         ),
     ]

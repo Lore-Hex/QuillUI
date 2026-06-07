@@ -231,18 +231,6 @@ public struct Namespace: Sendable {
     }
 }
 
-public struct SymbolEffect: Sendable {
-    public init() {}
-    public static let variableColor = SymbolEffect()
-    public var iterative: SymbolEffect { self }
-}
-
-public struct SymbolEffectOptions: Sendable {
-    public init() {}
-    public static let `default` = SymbolEffectOptions()
-    public static func `repeat`(_ count: Int) -> SymbolEffectOptions { SymbolEffectOptions() }
-}
-
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -849,7 +837,9 @@ public struct AccessibilityChildBehavior: Hashable, Sendable {
         self.rawValue = rawValue
     }
 
+    public static let ignore = AccessibilityChildBehavior("ignore")
     public static let combine = AccessibilityChildBehavior("combine")
+    public static let contain = AccessibilityChildBehavior("contain")
 }
 
 public struct AccessibilityLabelView<Content: View>: View {
@@ -915,31 +905,8 @@ public struct SymbolRenderingModeView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ListRowInsetsView<Content: View>: View {
-    public let content: Content
-    public let insets: EdgeInsets?
-
-    public init(content: Content, insets: EdgeInsets?) {
-        self.content = content
-        self.insets = insets
-    }
-
-    public var body: some View { content }
-}
-
-public struct ListRowSeparatorView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-    public let edges: Edge.Set
-
-    public init(content: Content, visibility: Visibility, edges: Edge.Set) {
-        self.content = content
-        self.visibility = visibility
-        self.edges = edges
-    }
-
-    public var body: some View { content }
-}
+// ListRowInsetsView / ListRowSeparatorView moved to SwiftOpenUI
+// (Modifiers/QuillUICompatModifiers.swift) so vendored source can use them.
 
 public struct ScrollIndicatorsView<Content: View>: View {
     public let content: Content
@@ -965,29 +932,8 @@ public struct ScrollContentBackgroundView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
-    public let content: Content
-    public let shape: ShapeValue
-
-    public init(content: Content, shape: ShapeValue) {
-        self.content = content
-        self.shape = shape
-    }
-
-    public var body: some View { content }
-}
-
-public struct AllowsHitTestingView<Content: View>: View {
-    public let content: Content
-    public let enabled: Bool
-
-    public init(content: Content, enabled: Bool) {
-        self.content = content
-        self.enabled = enabled
-    }
-
-    public var body: some View { content }
-}
+// ContentShapeView / AllowsHitTestingView moved to SwiftOpenUI
+// (Modifiers/QuillUICompatModifiers.swift) so vendored source can use them.
 
 public struct GestureView<Content: View, GestureValue>: View {
     public let content: Content
@@ -996,6 +942,23 @@ public struct GestureView<Content: View, GestureValue>: View {
     public init(content: Content, gesture: GestureValue) {
         self.content = content
         self.gesture = gesture
+    }
+
+    public var body: some View { content }
+}
+
+// OnHoverView lives here (not a lower layer) because Sources/QuillUI/
+// GTKHoverModifiers.swift renders it via `extension OnHoverView: GTKRenderable`,
+// and onHover records a QuillKit diagnostic. The only vendored caller
+// (DesignSystem AccountPopoverView) is target-excluded, so it need not be visible
+// to vendored source.
+public struct OnHoverView<Content: View>: View {
+    public let content: Content
+    public let action: (Bool) -> Void
+
+    public init(content: Content, action: @escaping (Bool) -> Void) {
+        self.content = content
+        self.action = action
     }
 
     public var body: some View { content }
@@ -1025,17 +988,7 @@ public struct ViewMaskView<Content: View, MaskContent: View>: View {
     public var body: some View { content }
 }
 
-public struct OnHoverView<Content: View>: View {
-    public let content: Content
-    public let action: (Bool) -> Void
-
-    public init(content: Content, action: @escaping (Bool) -> Void) {
-        self.content = content
-        self.action = action
-    }
-
-    public var body: some View { content }
-}
+// OnHoverView moved to SwiftOpenUI (Modifiers/QuillUICompatModifiers.swift).
 
 public struct FocusEffectDisabledView<Content: View>: View {
     public let content: Content
@@ -1216,30 +1169,6 @@ public extension Shape {
 }
 
 public extension View {
-    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
-        recordQuillUIFallback(
-            "allowsHitTesting",
-            message: "allowsHitTesting is preserved as hit-testing metadata on Linux."
-        )
-        return AllowsHitTestingView(content: self, enabled: enabled)
-    }
-
-    func contentShape<S: Shape>(_ shape: S) -> ContentShapeView<Self, S> {
-        recordQuillUIFallback(
-            "contentShape",
-            message: "contentShape is preserved as hit-testing shape metadata on Linux."
-        )
-        return ContentShapeView(content: self, shape: shape)
-    }
-
-    func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
-        recordQuillUIFallback(
-            "onHover",
-            message: "onHover is preserved as hover handler metadata on Linux."
-        )
-        return OnHoverView(content: self, action: action)
-    }
-
     func offset(_ size: CGSize) -> OffsetView<Self> {
         offset(x: size.width, y: size.height)
     }
@@ -1263,22 +1192,6 @@ public extension View {
 
     func padding(_ edges: Edge.Set, _ amount: CGFloat) -> PaddedView<Self> {
         padding(edges, Int(amount))
-    }
-
-    func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
-        recordQuillUIFallback(
-            "listRowInsets",
-            message: "listRowInsets is preserved as list row layout metadata on Linux."
-        )
-        return ListRowInsetsView(content: self, insets: insets)
-    }
-
-    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> ListRowSeparatorView<Self> {
-        recordQuillUIFallback(
-            "listRowSeparator",
-            message: "listRowSeparator is preserved as list row separator metadata on Linux."
-        )
-        return ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
     }
 
     func focused<Value>(_ binding: Binding<Value>) -> FocusBindingView<Self, Value> {
@@ -1305,6 +1218,14 @@ public extension View {
         return TextSelectionView(content: self, selection: selection)
     }
 
+    func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
+        recordQuillUIFallback(
+            "minimumScaleFactor",
+            message: "minimumScaleFactor is preserved as layout metadata on Linux."
+        )
+        return MinimumScaleFactorView(content: self, factor: factor)
+    }
+
     func accessibilityLabel(_ label: String) -> AccessibilityLabelView<Self> {
         recordQuillUIFallback(
             "accessibilityLabel",
@@ -1329,12 +1250,12 @@ public extension View {
         return AccessibilityElementView(content: self, children: children)
     }
 
-    func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
+    func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
         recordQuillUIFallback(
-            "minimumScaleFactor",
-            message: "minimumScaleFactor is preserved as layout metadata on Linux."
+            "onHover",
+            message: "onHover is preserved as hover handler metadata on Linux."
         )
-        return MinimumScaleFactorView(content: self, factor: factor)
+        return OnHoverView(content: self, action: action)
     }
 
     func lineLimit(_ number: Int?, reservesSpace: Bool) -> some View {
@@ -1494,18 +1415,6 @@ public extension View {
         return TransitionView(content: self, transition: transition)
     }
 
-    func symbolEffect<Value: Equatable>(
-        _ effect: SymbolEffect,
-        options: SymbolEffectOptions = .default,
-        value: Value
-    ) -> AnimatedView<Self> {
-        recordQuillUIFallback(
-            "symbolEffect",
-            message: "symbolEffect is approximated with value-driven animation on Linux."
-        )
-        return animation(.easeInOut(duration: 0.2), value: value)
-    }
-
     func matchedGeometryEffect<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -1600,28 +1509,6 @@ public extension View {
             message: "autocapitalization is preserved as text-input metadata on Linux."
         )
         return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping (V, V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value, action)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        _ action: @escaping () -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value) { _, _ in action() }
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        _ action: @escaping (V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value) { _, newValue in action(newValue) }
     }
 
     func confirmationDialog<Actions: View, Message: View>(
