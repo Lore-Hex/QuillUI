@@ -14,6 +14,28 @@
 //
 import Foundation
 
+// MARK: - DateFormatter.formatterBehavior (Linux)
+//
+// LogFormatter sets formatter.formatterBehavior = .behavior10_4 (copied from
+// CocoaLumberjack's DDLogFileFormatterDefault). swift-corelibs DateFormatter has
+// no formatterBehavior/Behavior. LogFormatter imports CocoaLumberjack, so the
+// inert Linux-gated shim lives here (set is a no-op; the output format is fixed
+// by .dateFormat anyway). Linux-only so it cannot collide with Apple's real
+// member on macOS.
+#if os(Linux)
+public extension DateFormatter {
+    enum Behavior: UInt, Sendable {
+        case `default` = 0
+        case behavior10_0 = 1000
+        case behavior10_4 = 1040
+    }
+    var formatterBehavior: Behavior {
+        get { .default }
+        set { _ = newValue }
+    }
+}
+#endif
+
 // MARK: - DDLogFlag / DDLogLevel
 
 public struct DDLogFlag: OptionSet, Sendable {
