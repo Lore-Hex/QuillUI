@@ -67,10 +67,17 @@ struct ChatView: View {
                 editMessage: editMessage
             )
         } emptyContent: {
-            EmptyConversaitonView(sendPrompt: QuillPrompt.selectedModelSender(
-                selectedModel: selectedModel,
-                onSend: onSendMessageTap
-            ))
+            QuillSelectedPromptEmptyState(
+                brandTitle: "Quill",
+                source: SamplePrompts.samples,
+                id: { $0.id },
+                title: { $0.prompt },
+                systemImage: { $0.type.icon },
+                sendPrompt: QuillPrompt.selectedModelSender(
+                    selectedModel: selectedModel,
+                    onSend: onSendMessageTap
+                )
+            )
         } statusContent: {
             UnreachableAPIView()
         } composer: { message, editMessage in

@@ -375,6 +375,12 @@ struct QuillDataSourceLoweringTests {
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
         #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
 
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
+            encoding: .utf8
+        )
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 250"))
+
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
         #expect(failing.output.contains("profile budget failed"))
@@ -965,9 +971,16 @@ struct QuillDataSourceLoweringTests {
         #expect(!chatViewTemplate.contains("@State private var editMessage"))
         #expect(!chatViewTemplate.contains("@FocusState private var isFocusedInput"))
         #expect(!chatViewTemplate.contains(".quillSyncEditableMessage($editMessage, draft: $message, isFocused: $isFocusedInput, content: \\.content)"))
-        #expect(chatViewTemplate.contains("EmptyConversaitonView(sendPrompt: QuillPrompt.selectedModelSender("))
+        #expect(chatViewTemplate.contains("QuillSelectedPromptEmptyState("))
+        #expect(chatViewTemplate.contains("brandTitle: \"Quill\""))
+        #expect(chatViewTemplate.contains("source: SamplePrompts.samples"))
+        #expect(chatViewTemplate.contains("id: { $0.id }"))
+        #expect(chatViewTemplate.contains("title: { $0.prompt }"))
+        #expect(chatViewTemplate.contains("systemImage: { $0.type.icon }"))
+        #expect(chatViewTemplate.contains("sendPrompt: QuillPrompt.selectedModelSender("))
         #expect(chatViewTemplate.contains("selectedModel: selectedModel"))
         #expect(chatViewTemplate.contains("onSend: onSendMessageTap"))
+        #expect(!chatViewTemplate.contains("EmptyConversaitonView("))
         #expect(!chatViewTemplate.contains("private func sendPrompt(_ selectedMessage: String)"))
         #expect(!chatViewTemplate.contains("QuillMenuAction.selectableItems("))
         #expect(!chatViewTemplate.contains("emptyTitle: \"No models available\""))
@@ -984,32 +997,17 @@ struct QuillDataSourceLoweringTests {
         #expect(!chatViewTemplate.contains(".frame(width: 800)"))
         #expect(!chatViewTemplate.contains("composerWidth:"))
 
-        let emptyConversationRule = try String(
-            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/EmptyConversaitonView.swift.pl"),
+        let emptyFiles = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
             encoding: .utf8
         )
-        #expect(emptyConversationRule.contains("Text(\"Quill\")"))
-        #expect(emptyConversationRule.contains("brandTitle: \"Quill\""))
-
-        let emptyConversationTemplate = try String(
-            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/EmptyConversaitonView.swift"),
-            encoding: .utf8
-        )
-        #expect(emptyConversationTemplate.contains("QuillSelectedPromptEmptyState("))
-        #expect(emptyConversationTemplate.contains("source: SamplePrompts.samples"))
-        #expect(emptyConversationTemplate.contains("id: { $0.id }"))
-        #expect(emptyConversationTemplate.contains("title: { $0.prompt }"))
-        #expect(emptyConversationTemplate.contains("systemImage: { $0.type.icon }"))
-        #expect(emptyConversationTemplate.contains("sendPrompt: sendPrompt"))
-        #expect(!emptyConversationTemplate.contains("private let macReferencePromptTitles = ["))
-        #expect(!emptyConversationTemplate.contains("QuillPrompt.selectedPrompts("))
-        #expect(!emptyConversationTemplate.contains("preferredTitles: macReferencePromptTitles"))
-        #expect(!emptyConversationTemplate.contains("layout: .wideDesktopCards"))
-        #expect(!emptyConversationTemplate.contains("SamplePrompts.samples.first { $0.prompt == title }"))
-        #expect(!emptyConversationTemplate.contains(": Array(SamplePrompts.samples.prefix(4))"))
-        #expect(!emptyConversationTemplate.contains("return selectedSamples.map"))
-        #expect(!emptyConversationTemplate.contains("cardWidth: 302"))
-        #expect(!emptyConversationTemplate.contains("Genuine macOS Enchanted shows"))
+        #expect(emptyFiles.contains("UI/Shared/Chat/Components/EmptyConversaitonView.swift"))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/EmptyConversaitonView.swift").path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/EmptyConversaitonView.swift.pl").path
+        ))
 
         let sidebarTemplate = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift"),
@@ -1054,11 +1052,11 @@ struct QuillDataSourceLoweringTests {
         #expect(!sidebarTemplate.contains("Text(\"New chat\")"))
         #expect(!sidebarTemplate.contains("Color(red: 0.259, green: 0.522, blue: 0.957)"))
 
-        let emptyFiles = try String(
+        let optionalEmptyFiles = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
             encoding: .utf8
         )
-        #expect(emptyFiles.contains("UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"))
+        #expect(optionalEmptyFiles.contains("UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"))
         #expect(!FileManager.default.fileExists(
             atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/Components/ConversationHistoryListView.swift").path
         ))
