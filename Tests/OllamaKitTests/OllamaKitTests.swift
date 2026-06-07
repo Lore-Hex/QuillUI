@@ -8,7 +8,7 @@ import Testing
 
 @Suite("OllamaKit compatibility")
 struct OllamaKitTests {
-    @Test("chat publisher starts the HTTP request and publishes decoded stream values")
+    @Test("chat publisher starts the HTTP request and publishes decoded stream values", .timeLimit(.minutes(1)))
     func chatPublisherStartsHTTPRequest() async throws {
         let transport = FakeOllamaTransport(routes: [
             "/api/chat": (
@@ -33,39 +33,44 @@ struct OllamaKitTests {
         )
         request.options = OKCompletionOptions(temperature: 0)
 
+        // Await the publisher's completion deterministically rather than racing a
+        // fixed wall-clock deadline. Under the full parallel `swift test` suite on
+        // a few-core CI runner, the unstructured Task that runs `performChat` can
+        // be scheduled later than a 2-second poll would tolerate, which made this
+        // test fail in CI even though the publisher itself is correct (it passes
+        // in isolation and under load). Awaiting the real completion is robust to
+        // scheduler pressure; the `.timeLimit` trait is a safety net so a genuine
+        // stall fails cleanly instead of hanging the job.
         let lock = NSLock()
         var values: [OKChatResponse] = []
-        var finished = false
-        var failure: Error?
-        let cancellable = kit.chat(data: request)
-            .sink { completion in
-                lock.withLock {
-                    switch completion {
-                    case .finished:
-                        finished = true
-                    case .failure(let error):
-                        failure = error
+        var cancellables = Set<AnyCancellable>()
+        let outcome: Result<Void, Error> = await withCheckedContinuation { continuation in
+            var resumed = false
+            kit.chat(data: request)
+                .sink(receiveCompletion: { completion in
+                    let result: Result<Void, Error>? = lock.withLock {
+                        guard !resumed else { return nil }
+                        resumed = true
+                        switch completion {
+                        case .finished: return .success(())
+                        case .failure(let error): return .failure(error)
+                        }
                     }
-                }
-            } receiveValue: { response in
-                lock.withLock {
-                    values.append(response)
-                }
-            }
-
-        let deadline = Date().addingTimeInterval(2)
-        while Date() < deadline {
-            let complete = lock.withLock { finished || failure != nil }
-            if complete { break }
-            try await Task.sleep(nanoseconds: 10_000_000)
+                    if let result { continuation.resume(returning: result) }
+                }, receiveValue: { response in
+                    lock.withLock { values.append(response) }
+                })
+                .store(in: &cancellables)
         }
-        cancellable.cancel()
+
+        // `withExtendedLifetime` keeps the subscription alive across the await.
+        withExtendedLifetime(cancellables) {
+            if case .failure(let error) = outcome {
+                Issue.record("chat publisher completed with failure: \(error)")
+            }
+        }
 
         let capturedValues = lock.withLock { values }
-        let capturedFinished = lock.withLock { finished }
-        let capturedFailure = lock.withLock { failure }
-        #expect(capturedFailure == nil)
-        #expect(capturedFinished)
         #expect(capturedValues.map { $0.message?.content ?? "" }.joined() == "Publisher")
         #expect(transport.requests.contains { $0.path == "/api/chat" })
         #expect(transport.chatBody?.contains(#""stream":true"#) == true)
