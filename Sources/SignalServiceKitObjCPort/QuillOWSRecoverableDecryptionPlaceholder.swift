@@ -31,6 +31,36 @@ open class OWSRecoverableDecryptionPlaceholder: TSErrorMessage {
         fatalError("init?(coder:) is unavailable for OWSRecoverableDecryptionPlaceholder.")
     }
 
+    // Builder initializer (OWSRecoverableDecryptionPlaceholder.m
+    // initWithFailedEnvelopeTimestamp:sourceAci:untrustedGroupId:transaction:):
+    // OWSMessageDecrypter inserts a placeholder for a resendable decryption
+    // failure. A designated init? (this subclass declares its own designated init,
+    // so it cannot delegate via self.init) that forwards to TSErrorMessage's
+    // designated builder init.
+    //
+    // Divergence (Linux): the original prefers the GROUP thread when the sender is
+    // a confirmed full member of untrustedGroupId, else falls back to the contact
+    // thread. TSGroupThread.fetchWithGroupId has no Swift surface here yet, so this
+    // port uses the contact-thread fallback unconditionally -- the placeholder is
+    // still inserted (and is replaced by the recovered message later); group-thread
+    // routing of the placeholder is deferred.
+    public init?(
+        failedEnvelopeTimestamp timestamp: UInt64,
+        sourceAci: AciObjC,
+        untrustedGroupId: Data?,
+        transaction writeTx: DBWriteTransaction
+    ) {
+        _ = untrustedGroupId
+        let sender = SignalServiceAddress(serviceIdObjC: sourceAci)
+        guard let thread = TSContactThread.getWithContactAddress(sender, transaction: writeTx) else {
+            return nil
+        }
+        let builder = TSErrorMessageBuilder(thread: thread, errorType: .decryptionFailure)
+        builder.timestamp = timestamp
+        builder.senderAddress = sender
+        super.init(errorMessageWithBuilder: builder)
+    }
+
     // Identical signature to TSErrorMessage's SDS initializer, so it overrides.
     public override init(grdbId: Int64,
                 uniqueId: String,
