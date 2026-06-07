@@ -8,6 +8,8 @@ PRODUCT="${2:-quill-gtk-interaction-smoke}"
 REQUESTED_BACKEND="${3:-${QUILLUI_BACKEND:-}}"
 APP_EXECUTABLE=""
 APP_LOG_PATH="${QUILLUI_BACKEND_INTERACTION_APP_LOG:-/tmp/quillui-backend-interaction-app.log}"
+INTERACTION_ATTEMPT="${QUILLUI_BACKEND_INTERACTION_ATTEMPT:-1}"
+INTERACTION_MAX_ATTEMPTS="${QUILLUI_BACKEND_INTERACTION_MAX_ATTEMPTS:-2}"
 
 "$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
 
@@ -140,6 +142,24 @@ cleanup() {
   quillui_stop_process_if_running "$xvfb_pid"
 }
 trap cleanup EXIT
+
+retry_backend_interaction_if_transient() {
+  local status="$1"
+  if (( INTERACTION_ATTEMPT >= INTERACTION_MAX_ATTEMPTS )); then
+    return 1
+  fi
+
+  if kill -0 "${app_pid:-}" 2>/dev/null; then
+    return 1
+  fi
+
+  echo "quillui: backend interaction app exited before verification (status $status, attempt $INTERACTION_ATTEMPT/$INTERACTION_MAX_ATTEMPTS); retrying once" >&2
+  rm -f "$SCREENSHOT_PATH" "$APP_LOG_PATH"
+  export QUILLUI_BACKEND_INTERACTION_ATTEMPT="$((INTERACTION_ATTEMPT + 1))"
+  trap - EXIT
+  cleanup
+  exec "$0" "$SCREENSHOT_PATH" "$PRODUCT" "$REQUESTED_BACKEND"
+}
 
 app_environment=()
 quillui_append_backend_runtime_environment \
@@ -1307,6 +1327,7 @@ if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_
   }
 else
   verify_status=$?
+  retry_backend_interaction_if_transient "$verify_status" || true
   quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
   exit "$verify_status"
 fi
