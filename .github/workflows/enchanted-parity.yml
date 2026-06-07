@@ -129,6 +129,7 @@ jobs:
             completions-panel \
             completions-new-sheet \
             completions-save \
+            completions-edit-save \
             history-selection \
             transcript-selection \
             markdown-transcript-selection \

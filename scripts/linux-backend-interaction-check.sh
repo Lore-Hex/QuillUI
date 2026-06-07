@@ -464,6 +464,44 @@ save_quill_chat_new_completion() {
   sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
 }
 
+edit_quill_chat_existing_completion() {
+  local edit_x
+  local edit_y
+  local name_x
+  local name_y
+  local save_x
+  local save_y
+
+  open_quill_chat_completions_panel
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-1510}"
+    edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-536}"
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-720}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-468}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-1450}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-408}"
+  else
+    edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + window_width - 170))}"
+    edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 320))}"
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + window_width / 2))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 260))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + window_width - 130))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 46))}"
+  fi
+
+  click_at "$edit_x" "$edit_y"
+  sleep "$post_click_sleep"
+  refresh_capture_window_for_active_child_window
+  click_at "$name_x" "$name_y"
+  sleep 0.5
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+  sleep 0.2
+  type_text "${QUILLUI_BACKEND_COMPLETION_EDITED_NAME_TEXT:-Linux Edited Completion}"
+  sleep 0.5
+  click_at "$save_x" "$save_y"
+  sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
+}
+
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
 if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   focus_x="${QUILLUI_BACKEND_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
@@ -624,6 +662,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       completions-save)
         save_quill_chat_new_completion
+        ;;
+      completions-edit-save)
+        edit_quill_chat_existing_completion
         ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"

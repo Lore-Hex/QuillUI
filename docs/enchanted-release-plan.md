@@ -129,9 +129,10 @@ Recently cleared:
   the `settings-default-model-selected` row.
 - Settings delete-all confirmation is covered by the same verifier via the
   `settings-delete-confirmation` row.
-- Completions sheet presentation, nested New Completion editing, and saving a
-  renamed completion back into the list are covered by the same verifier via the
-  `completions-panel`, `completions-new-sheet`, and `completions-save` rows.
+- Completions sheet presentation, nested New Completion editing, saving a
+  renamed completion back into the list, and editing an existing completion are
+  covered by the same verifier via the `completions-panel`,
+  `completions-new-sheet`, `completions-save`, and `completions-edit-save` rows.
 
 ## Non-Goals For The First Release
 

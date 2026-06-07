@@ -1760,6 +1760,51 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
     )
 
 
+def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> str:
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    dismissed_save_roi = (
+        left + int(app_width * 0.65),
+        top + int(app_height * 0.275),
+        left + int(app_width * 0.72),
+        top + int(app_height * 0.325),
+    )
+    edited_row_name_roi = (
+        left + int(app_width * 0.235),
+        top + int(app_height * 0.36),
+        left + int(app_width * 0.40),
+        top + int(app_height * 0.405),
+    )
+
+    dismissed_save_pixels = pixel_count(
+        image,
+        *dismissed_save_roi,
+        mac_reference_completion_action_pixel,
+    )
+    edited_row_name_pixels = dark_pixel_count(image, *edited_row_name_roi)
+
+    require(
+        dismissed_save_pixels <= 35,
+        "Completions edit sheet still appears to be visible after Save: "
+        f"pixels={dismissed_save_pixels}, roi={dismissed_save_roi}",
+    )
+    require(
+        edited_row_name_pixels >= 400,
+        "Edited completion row name was not detected above the stock row baseline: "
+        f"pixels={edited_row_name_pixels}, roi={edited_row_name_roi}",
+    )
+
+    return (
+        "Quill Chat Mac-reference completions edited: "
+        f"dismissed_save_pixels={dismissed_save_pixels}, "
+        f"edited_row_name_pixels={edited_row_name_pixels}; "
+        f"{panel_summary}"
+    )
+
+
 def validate_quill_chat_mac_reference_history_selection(
     image: Screenshot,
     require_transcript: bool = False,
@@ -3809,6 +3854,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_completions_new_sheet(image))
     elif product == "quill-chat-linux-mac-reference-completions-saved":
         print(validate_quill_chat_mac_reference_completions_saved(image))
+    elif product == "quill-chat-linux-mac-reference-completions-edited":
+        print(validate_quill_chat_mac_reference_completions_edited(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":
         print(validate_quill_chat_mac_reference_history_selection(image))
     elif product == "quill-chat-linux-mac-reference-transcript-selection":
