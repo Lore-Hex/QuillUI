@@ -580,34 +580,10 @@ public extension Binding {
     }
 }
 
-public struct OpenURLAction: Sendable {
-    private let handler: @Sendable (URL) -> Bool
-
-    public init(handler: @escaping @Sendable (URL) -> Bool = OpenURLAction.defaultHandler) {
-        self.handler = handler
-    }
-
-    @discardableResult
-    public func callAsFunction(_ url: URL) -> Bool {
-        handler(url)
-    }
-
-    public static func defaultHandler(_ url: URL) -> Bool {
-        #if os(Linux)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
-        process.arguments = [url.absoluteString]
-        do {
-            try process.run()
-            return true
-        } catch {
-            return false
-        }
-        #else
-        return false
-        #endif
-    }
-}
+// `OpenURLAction` moved to QuillSwiftUICompatibility/OpenURLActionCompat.swift
+// (so the SwiftUI shim can surface it — with its nested `Result` — to vendored
+// real source). QuillUI still sees it via its `@_exported import
+// QuillSwiftUICompatibility`.
 
 private struct OpenURLKey: EnvironmentKey {
     static let defaultValue = OpenURLAction()

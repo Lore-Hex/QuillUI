@@ -898,6 +898,52 @@ for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
         open(path, "w").write(new)
         print("patched", os.path.basename(path))
 PY
+
+    # Env: StreamWatcher uses URLSessionWebSocketTask (FoundationNetworking on
+    # Linux); Router uses UIImage/UIApplication (UIKit — on iOS these arrive
+    # transitively via SwiftUI, but the Linux SwiftUI shim does not re-export
+    # UIKit). Inject the missing imports after the first `import Foundation`.
+    # canImport gates keep the Apple build unaffected. Idempotent.
+    local envdir="$UPSTREAM_DIR/icecubes/Packages/Env/Sources/Env"
+    if [[ -d "$envdir" ]]; then
+        echo "==> patching IceCubes Env for the Linux FoundationNetworking / UIKit imports"
+        python3 - "$envdir" <<'PY'
+import sys, os, glob
+
+directory = sys.argv[1]
+fn_block = (
+    "import Foundation\n"
+    "#if canImport(FoundationNetworking)\n"
+    "import FoundationNetworking\n"
+    "#endif"
+)
+uikit_block = (
+    "#if canImport(UIKit)\n"
+    "import UIKit\n"
+    "#endif"
+)
+for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
+    src = open(path).read()
+    needs_uikit = ("UIImage" in src or "UIApplication" in src) and "import UIKit" not in src
+    fn_done = "FoundationNetworking" in src
+    lines = src.split("\n")
+    out = []
+    inserted_uikit = False
+    for line in lines:
+        if line.strip() == "import Foundation" and not fn_done:
+            out.append(fn_block)
+            fn_done = True
+            if needs_uikit:
+                out.append(uikit_block)
+                inserted_uikit = True
+        else:
+            out.append(line)
+    new = "\n".join(out)
+    if new != src:
+        open(path, "w").write(new)
+        print("patched", os.path.basename(path))
+PY
+    fi
 }
 
 want=("$@")
