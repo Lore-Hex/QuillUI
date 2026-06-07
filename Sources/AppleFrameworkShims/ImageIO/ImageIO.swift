@@ -41,7 +41,10 @@ public enum CGImagePropertyOrientation: UInt32, Sendable {
 // Inert: no image is ever decoded on Linux. Signatures match Core Graphics'
 // C functions (unlabeled positional arguments).
 
-public func CGImageSourceCreateWithData(_ data: CFData, _ options: CFDictionary?) -> CGImageSource? { nil }
+// Takes `Data` (not `CFData`): swift-corelibs has no Data<->CFData bridge, so
+// `someData as CFData` fails at call sites. Inert (returns nil on Linux). The
+// fetch-patch drops the `as CFData` casts at the SSK call sites.
+public func CGImageSourceCreateWithData(_ data: Data, _ options: CFDictionary?) -> CGImageSource? { nil }
 
 public func CGImageSourceCreateWithDataProvider(_ provider: CGDataProvider, _ options: CFDictionary?) -> CGImageSource? { nil }
 
