@@ -980,16 +980,36 @@ public extension View {
         #endif
     }
 
+    #if os(macOS) || os(iOS) || os(visionOS)
     func quillSyncEditableMessage<Message: Equatable>(
         _ editMessage: Binding<Message?>,
         draft: Binding<String>,
         isFocused: FocusState<Bool>.Binding,
         content: @escaping (Message) -> String
     ) -> some View {
+        quillSyncEditableMessageBody(editMessage, draft: draft, setFocused: { isFocused.wrappedValue = true }, content: content)
+    }
+    #else
+    func quillSyncEditableMessage<Message: Equatable>(
+        _ editMessage: Binding<Message?>,
+        draft: Binding<String>,
+        isFocused: FocusState<Bool>,
+        content: @escaping (Message) -> String
+    ) -> some View {
+        quillSyncEditableMessageBody(editMessage, draft: draft, setFocused: { isFocused.wrappedValue = true }, content: content)
+    }
+    #endif
+
+    private func quillSyncEditableMessageBody<Message: Equatable>(
+        _ editMessage: Binding<Message?>,
+        draft: Binding<String>,
+        setFocused: @escaping () -> Void,
+        content: @escaping (Message) -> String
+    ) -> some View {
         onChange(of: editMessage.wrappedValue, initial: false) { _, newMessage in
             if let newMessage {
                 draft.wrappedValue = content(newMessage)
-                isFocused.wrappedValue = true
+                setFocused()
             }
         }
     }
