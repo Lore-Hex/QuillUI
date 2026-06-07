@@ -498,6 +498,49 @@ public class RSColor: NSObject, @unchecked Sendable {
     public var cgColor: Any? { [_red, _green, _blue, _alpha] }
     public var components: [CGFloat]? { [_red, _green, _blue, _alpha] }
     public var numberOfComponents: Int { 4 }
+
+    /// Apple's UIColor.getRed(_:green:blue:alpha:) -- write the stored RGBA into
+    /// the out-pointers. SSK's UIColor.components() builds on it. Always succeeds.
+    @discardableResult
+    public func getRed(
+        _ red: UnsafeMutablePointer<CGFloat>,
+        green: UnsafeMutablePointer<CGFloat>,
+        blue: UnsafeMutablePointer<CGFloat>,
+        alpha: UnsafeMutablePointer<CGFloat>
+    ) -> Bool {
+        red.pointee = _red
+        green.pointee = _green
+        blue.pointee = _blue
+        alpha.pointee = _alpha
+        return true
+    }
+
+    /// Apple's UIColor.getHue(_:saturation:brightness:alpha:) -- standard RGB->HSB
+    /// conversion over the stored components. Always succeeds.
+    @discardableResult
+    public func getHue(
+        _ hue: UnsafeMutablePointer<CGFloat>,
+        saturation: UnsafeMutablePointer<CGFloat>,
+        brightness: UnsafeMutablePointer<CGFloat>,
+        alpha: UnsafeMutablePointer<CGFloat>
+    ) -> Bool {
+        let r = _red, g = _green, b = _blue
+        let maxV = max(r, max(g, b))
+        let minV = min(r, min(g, b))
+        let delta = maxV - minV
+        var h: CGFloat = 0
+        if delta != 0 {
+            if maxV == r { h = (g - b) / delta; if h < 0 { h += 6 } }
+            else if maxV == g { h = (b - r) / delta + 2 }
+            else { h = (r - g) / delta + 4 }
+            h /= 6
+        }
+        hue.pointee = h
+        saturation.pointee = maxV == 0 ? 0 : delta / maxV
+        brightness.pointee = maxV
+        alpha.pointee = _alpha
+        return true
+    }
 }
 public typealias UIColor = RSColor
 
