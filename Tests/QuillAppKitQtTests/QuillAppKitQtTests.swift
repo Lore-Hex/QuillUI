@@ -488,4 +488,68 @@ struct QuillAppKitQtTests {
         window.closeQtWindow()
         #endif
     }
+
+    // Rung A (toward rendering the literal UnusableTunnelDetailViewController and
+    // most remaining stacked VCs): NSTextField must size to its text so labels in
+    // an NSStackView don't collapse to 0×0 in the Qt layout pass.
+    @Test("NSTextField sizes to its text: single-line + wrapping intrinsicContentSize")
+    func textFieldIntrinsicContentSize() {
+        let label = NSTextField(labelWithString: "Public key:")
+        #expect(label.intrinsicContentSize.width > 0)
+        #expect(label.intrinsicContentSize.height == 17)
+
+        // A wrapping label with a long string + a bounded width grows to multiple
+        // lines (height > one line) and stays within the bound.
+        let wrap = NSTextField(wrappingLabelWithString: String(repeating: "wide ", count: 40))
+        wrap.preferredMaxLayoutWidth = 100
+        #expect(wrap.intrinsicContentSize.width <= 100)
+        #expect(wrap.intrinsicContentSize.height > 17)
+    }
+
+    // Rung A: NSStackView must emit real child-positioning constraints so its
+    // arranged subviews solve to separated, non-zero frames via the Qt Auto
+    // Layout pass — the shadow's addArrangedSubview only records the views.
+    @Test("NSStackView synthesizes child constraints: arranged subviews solve to separated, non-zero frames")
+    func stackViewLaysOutArrangedSubviews() {
+        guard QuillQt.ensureInitialized() else { return }
+
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 200))
+        let title = NSTextField(labelWithString: "Title")
+        let subtitle = NSTextField(labelWithString: "Subtitle goes here")
+        let action = NSButton(title: "Action", target: nil, action: nil)
+        let stack = NSStackView(views: [title, subtitle, action])
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+        root.addSubviewQt(stack)
+
+        // Pin the stack's position + cross size; leave its main-axis (vertical)
+        // size to derive from the synthesized child chain — the stack has no
+        // intrinsic size of its own.
+        let pins = [
+            stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 20),
+            stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+        ]
+        NSLayoutConstraint.activate(pins)
+        defer { NSLayoutConstraint.deactivate(pins) }
+
+        root.realizeQtSubtree()
+        root.layoutQtSubtree(width: 300, height: 200)
+
+        let children = stack.arrangedSubviews
+        #expect(children.count == 3)
+        // Every arranged subview got a real, non-zero size from the synthesized
+        // constraints (cross-axis fill) + intrinsic-size fallback (heights).
+        for c in children {
+            #expect(c.frame.width > 0)
+            #expect(c.frame.height > 0)
+        }
+        // Cross-axis fill: children span the stack width (300 − 12 − 12 = 276),
+        // NOT just their ~intrinsic text width — proves the stack pinned them.
+        #expect(children[0].frame.width > 200)
+        // Stacked vertically with strictly increasing y — not overlapping at 0,0.
+        #expect(children[1].frame.minY > children[0].frame.minY)
+        #expect(children[2].frame.minY > children[1].frame.minY)
+    }
 }
