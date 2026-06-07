@@ -211,26 +211,6 @@ public struct Material: Sendable {
     public static let ultraThickMaterial = Material()
 }
 
-@propertyWrapper
-public struct Namespace: Sendable {
-    public struct ID: Hashable, Sendable {
-        private let rawValue = UUID()
-
-        public init() {}
-    }
-
-    private var id: ID
-
-    public init() {
-        self.id = ID()
-    }
-
-    public var wrappedValue: ID {
-        get { id }
-        set { id = newValue }
-    }
-}
-
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -1317,14 +1297,6 @@ public extension View {
             message: "scrollIndicators is preserved as scroll view chrome metadata on Linux."
         )
         return ScrollIndicatorsView(content: self, visibility: visibility)
-    }
-
-    func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
-        recordQuillUIFallback(
-            "scrollContentBackground",
-            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
-        )
-        return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
     func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {

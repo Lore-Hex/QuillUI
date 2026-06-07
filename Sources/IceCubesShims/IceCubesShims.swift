@@ -121,6 +121,11 @@ extension Double: IceCubesAppStorageValue {
 public struct AppStorage<Value>: AnyStateStorageProvider {
     private let writeValue: (Value) -> Void
     public let storage: StateStorage<Value>
+    public init(wrappedValue d: Value, _ key: String, store: UserDefaults?) where Value: IceCubesAppStorageValue {
+        let ud = store ?? .standard
+        writeValue = { ud.set($0 as Any, forKey: key) }
+        storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? d)
+    }
     public init(wrappedValue d: Value, _ key: String) where Value: IceCubesAppStorageValue {
         writeValue = { Value.writeAppStorageValue($0, forKey: key) }
         storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? d)

@@ -994,6 +994,93 @@ for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
         print("patched", os.path.basename(path))
 PY
     fi
+
+    # Env HapticManager (excluded on Linux until AppAccount needed it): CoreHaptics
+    # has no swift-corelibs module; rewrite its import to Foundation and stub
+    # supportsHaptics to false (no haptics hardware on the QuillOS target). Idempotent.
+    local haptic="$UPSTREAM_DIR/icecubes/Packages/Env/Sources/Env/HapticManager.swift"
+    if [[ -f "$haptic" ]]; then
+        echo "==> patching IceCubes Env/HapticManager for the Linux CoreHaptics gap"
+        python3 - "$haptic" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+new = src.replace("import CoreHaptics", "import Foundation")
+new = new.replace(
+    "CHHapticEngine.capabilitiesForHardware().supportsHaptics",
+    "false",
+)
+if new != src:
+    open(path, "w").write(new)
+    print("patched HapticManager.swift")
+PY
+    fi
+
+    # AppAccount: AppAccount.swift `import CryptoKit` (unused on our build, no
+    # swift-corelibs module) -> Foundation. AppAccountViewModel.swift uses UIImage
+    # but imports only SwiftUI (which re-exports UIKit on iOS, not on the Linux
+    # shim) -> inject a canImport(UIKit) block after `import SwiftUI`. Idempotent.
+    local aadir="$UPSTREAM_DIR/icecubes/Packages/AppAccount/Sources/AppAccount"
+    if [[ -d "$aadir" ]]; then
+        echo "==> patching IceCubes AppAccount for the Linux CryptoKit / UIKit gaps"
+        python3 - "$aadir" <<'PY'
+import sys, os, glob
+
+directory = sys.argv[1]
+uikit_block = (
+    "#if canImport(UIKit)\n"
+    "import UIKit\n"
+    "#endif"
+)
+for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
+    src = open(path).read()
+    needs_uikit = ("UIImage" in src or "UIApplication" in src) and "import UIKit" not in src
+    lines = src.split("\n")
+    out = []
+    inserted_uikit = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "import CryptoKit":
+            out.append("import Foundation")
+        elif stripped == "import SwiftUI":
+            out.append(line)
+            if needs_uikit and not inserted_uikit:
+                out.append(uikit_block)
+                inserted_uikit = True
+        else:
+            out.append(line)
+    new = "\n".join(out)
+    if new != src:
+        open(path, "w").write(new)
+        print("patched", os.path.basename(path))
+PY
+
+        # PushAccount lives in Env's PushNotificationsService.swift, which is
+        # excluded on Linux (311 lines of UserNotifications deps). AppAccount's
+        # AppAccountsManager.pushAccounts needs only the value type, so drop in
+        # an in-target shim that imports Models for OauthToken. Idempotent.
+        shim="$aadir/QuillPushAccountShim.swift"
+        if [[ ! -f "$shim" ]]; then
+            cat > "$shim" <<'SWIFT'
+#if os(Linux)
+import Models
+
+// PushAccount is defined in Env/PushNotificationsService.swift, excluded on Linux
+// (311 lines of UserNotifications/push deps). AppAccountsManager.pushAccounts needs
+// only this value type; define it here in-target (imports Models for OauthToken).
+public struct PushAccount: Equatable {
+    public let server: String
+    public let token: OauthToken
+    public let accountName: String?
+    public init(server: String, token: OauthToken, accountName: String?) {
+        self.server = server; self.token = token; self.accountName = accountName
+    }
+}
+#endif
+SWIFT
+            echo "created QuillPushAccountShim.swift"
+        fi
+    fi
 }
 
 patch_signal_ios() {

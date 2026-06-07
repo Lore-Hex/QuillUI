@@ -23,3 +23,8 @@ extension EnvironmentValues {
         set { self[RedactionReasonsKey.self] = newValue }
     }
 }
+
+extension View {
+    public func redacted(reason: RedactionReasons) -> some View { self }
+    public func unredacted() -> some View { self }
+}

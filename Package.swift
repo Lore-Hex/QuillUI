@@ -2719,7 +2719,6 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
             ],
             path: ".upstream/icecubes/Packages/Env/Sources/Env",
             exclude: [
-                "HapticManager.swift",
                 "SoundEffectManager.swift",
                 "Telemetry.swift",
                 "PushNotificationsService.swift",
@@ -2741,6 +2740,15 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
             dependencies: ["Models", "Env", "SwiftUI", "UIKit", "IceCubesShims", "Nuke", "NukeUI", "EmojiText", "Combine"],
             path: ".upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem",
             exclude: ["Views/GifView.swift", "Views/TagChartView.swift", "Views/AccountPopoverView.swift", "Views/ToastOverlayView.swift", "CardBackgroundModifier.swift", "Views/LazyResizableImage.swift", "Views/ErrorView.swift", "Views/ThemePreviewView.swift", "SFSymbols.swift", "FontPicker.swift", "SceneDelegate.swift", "ThemeApplier.swift", "Views/StatusEditorToolbarItem.swift", "ToolbarItem/CancelToolbarItem.swift", "ToolbarItem/CloseToolbarItem.swift"],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims", "-default-isolation", "MainActor"]),
+                .swiftLanguageMode(.v5)
+            ]
+        ),
+        .target(
+            name: "AppAccount",
+            dependencies: ["Models", "Env", "NetworkClient", "DesignSystem", "SwiftUI", "UIKit", "IceCubesShims", "Combine", "KeychainSwift", "EmojiText"],
+            path: ".upstream/icecubes/Packages/AppAccount/Sources/AppAccount",
             swiftSettings: [
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims", "-default-isolation", "MainActor"]),
                 .swiftLanguageMode(.v5)
