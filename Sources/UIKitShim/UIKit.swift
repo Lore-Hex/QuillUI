@@ -50,6 +50,16 @@ public final class UIFont: Equatable, @unchecked Sendable {
     public static func systemFont(ofSize size: CGFloat, weight: Weight) -> UIFont {
         UIFont(pointSize: size, fontName: ".AppleSystemUIFont")
     }
+    // UIFont(name:size:) — failable in UIKit; inert here (no font lookup on
+    // Linux), so it never actually returns nil. SSK force-unwraps it
+    // (AvatarBuilder's "Inter" text-avatar font).
+    public convenience init?(name: String, size: CGFloat) {
+        self.init(pointSize: size, fontName: name)
+    }
+    // UIFont.withSize(_:) — same font (name/descriptor) at a new point size.
+    public func withSize(_ size: CGFloat) -> UIFont {
+        UIFont(descriptor: fontDescriptor, size: size)
+    }
     public struct Weight: Equatable, Sendable {
         public let rawValue: CGFloat
         public init(rawValue: CGFloat) { self.rawValue = rawValue }

@@ -1269,6 +1269,19 @@ several CI/packaging lessons worth keeping:
   class UIKit.Y" or "value type does not conform to Equatable" on an SSK struct usually =
   a missing nested type or a single non-Equatable stored-property shim type -- find the
   ONE offending member rather than touching the upstream struct.
+- **AvatarBuilder.swift (175 -> 0, SSK 4402 -> 4066).** Spanned BOTH shim families:
+  on Linux `UIFont` resolves to UIKitShim's own `class UIFont` (it shadows the
+  `@_exported`-re-exported `QuillFoundation.UIFont = RSFont`), but `UIImage`/`UIColor`
+  resolve to QuillFoundation's `RSImage`/`RSColor` (UIKitShim has no own class for
+  those). So `UIFont.withSize`/`init?(name:size:)` went in UIKitShim, while
+  `RSImage.withTintColor`/`CGContext.clip(to:mask:)` went in QuillFoundation. Tricks:
+  (a) `type 'Any' has no member 'white'` on `.withTintColor(.white)` = the shim method
+  takes `Any` so a leading-dot literal can't resolve -> add a typed overload
+  `withTintColor(_ color: RSColor)` (additive, non-breaking; Swift prefers it over the
+  `Any` one for color args, falls back to `Any` otherwise). (b) `[Any?]` -> `CFArray`
+  coercion: swift-corelibs has no bridge; since `CGGradient.init` already takes
+  `colors: Any?`, fetch-patch-drop the explicit `] as CFArray` cast (unique occurrence).
+  (c) `extra argument 'mask'` = add the `clip(to:mask:)` overload (inert).
 
 ---
 
