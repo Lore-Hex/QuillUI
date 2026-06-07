@@ -538,17 +538,24 @@ let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC"]
 let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
 #endif
 
-let quillDataPackageDependencies: [Package.Dependency] = [
+var quillDataPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
-    // Signal's wire format (pod 'SwiftProtobuf' 1.36.1). Used by
-    // SignalServiceKit's generated `*.pb.swift` + 23 hand-written imports.
-    .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1"),
-    // CryptoKit-compatible crypto. Signal imports CryptoKit 26×; the Linux
-    // `CryptoKit` shim re-exports swift-crypto's `Crypto` (Apple's own
-    // API-compatible reimplementation) under that name.
-    .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0")
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
 ]
+// SwiftProtobuf (SSK's *.pb.swift wire format) and swift-crypto (the `CryptoKit`
+// shim re-exports its `Crypto`) are Signal-only. Declare them ONLY when the Signal
+// upstream is present: on a fresh checkout / CI (signal absent) the CryptoKit shim
+// and SignalServiceKit aren't built, so declaring these unconditionally makes
+// non-Signal product builds (e.g. quill-icecubes) warn "dependency X is not used by
+// any target" — and the canonical Qt app products are gated warning-clean.
+if signalUpstreamPresent {
+    quillDataPackageDependencies.append(
+        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1")
+    )
+    quillDataPackageDependencies.append(
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0")
+    )
+}
 
 let cSQLiteTarget: Target = .systemLibrary(
     name: "CSQLite",
@@ -1571,7 +1578,12 @@ if libsignalUpstreamPresent {
 
 // CryptoKit Linux shim → swift-crypto's `Crypto` (API-compatible). Canonical
 // Apple framework name so upstream `import CryptoKit` resolves here on Linux.
+// Gated on signalUpstreamPresent: it depends on the swift-crypto package (also
+// gated) and is consumed only by SignalServiceKit, so on a fresh checkout / CI
+// (signal absent) it is excluded — no dangling swift-crypto dependency and no
+// "unused dependency" warning in non-Signal product builds.
 #if os(Linux)
+if signalUpstreamPresent {
 targets.append(
     .target(
         name: "CryptoKit",
@@ -1579,6 +1591,7 @@ targets.append(
         path: "Sources/CryptoKitShim"
     )
 )
+}
 #endif
 
 // CommonCrypto Linux shim → OpenSSL libcrypto (the AES subset Signal uses in
