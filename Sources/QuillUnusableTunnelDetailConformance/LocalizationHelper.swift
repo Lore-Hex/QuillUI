@@ -1,0 +1,1 @@
+../../.upstream/wireguard-apple/Sources/WireGuardApp/LocalizationHelper.swift

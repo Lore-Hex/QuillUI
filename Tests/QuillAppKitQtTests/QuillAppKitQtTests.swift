@@ -7,6 +7,9 @@ import QuillUIKit
 // .upstream checkout is present (purist render path). Internal type → @testable.
 @testable import QuillButtonedDetailConformance
 #endif
+#if canImport(QuillUnusableTunnelDetailConformance)
+@testable import QuillUnusableTunnelDetailConformance
+#endif
 
 /// M1 slice 1 (issue #231): prove the AppKit shadow's NSApplication/NSWindow are
 /// backed by a real Qt6 widget on Linux — i.e. unmodified `import AppKit` code
@@ -551,5 +554,54 @@ struct QuillAppKitQtTests {
         // Stacked vertically with strictly increasing y — not overlapping at 0,0.
         #expect(children[1].frame.minY > children[0].frame.minY)
         #expect(children[2].frame.minY > children[1].frame.minY)
+    }
+
+    // Rung B: render the LITERAL upstream UnusableTunnelDetailViewController — the
+    // VERBATIM .upstream source (VC + LocalizationHelper, via the symlink-dir
+    // conformance target), NOT a twin — through QuillAppKit→Qt. First literal VC
+    // with a real NSStackView of multiple controls (bold label + wrapping label +
+    // button), exercising Rung A's stack synthesis + label intrinsic sizing on the
+    // real file, including its setCustomSpacing(30, after: infoLabel).
+    @Test("The LITERAL upstream UnusableTunnelDetailViewController renders to a non-empty PNG via Qt")
+    func rendersLiteralUnusableTunnelDetailVCToPNG() throws {
+        #if canImport(QuillUnusableTunnelDetailConformance)
+        guard QuillQt.ensureInitialized() else { return }
+
+        let vc = UnusableTunnelDetailViewController()   // the VERBATIM upstream type
+        #expect(!vc.isViewLoaded)
+        let content = vc.view                            // triggers the real loadView()
+        #expect(vc.isViewLoaded)
+        #expect(content.subviews.count == 1)             // the stackView
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 320), // ≥ the VC's 420×240 min
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+        window.contentView = content
+        content.realizeQtSubtree()
+        content.layoutQtSubtree(width: 460, height: 320)
+
+        // The teeth: the stack's 3 arranged children (bold label, wrapping label,
+        // button) each solved to a real, non-zero size AND are vertically stacked
+        // (not overlapping at the origin) — proving Rung A's NSStackView synthesis +
+        // NSTextField intrinsic size carry a real multi-control VC verbatim.
+        let stack = content.subviews[0]
+        let rows = stack.subviews
+        #expect(rows.count == 3)
+        for r in rows {
+            #expect(r.frame.width > 0)
+            #expect(r.frame.height > 0)
+        }
+        #expect(rows[1].frame.minY > rows[0].frame.minY)
+        #expect(rows[2].frame.minY > rows[1].frame.minY)
+
+        window.showAsQtWindowWithContent()
+        let out = "/tmp/quillappkitqt-unusable-tunnel.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 500)
+        window.closeQtWindow()
+        #endif
     }
 }

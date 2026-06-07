@@ -2039,6 +2039,21 @@ if quillUILinuxBuildBackend == .qt {
                 swiftSettings: [.swiftLanguageMode(.v5)]
             )
         )
+        // Next VC up the ladder: a vertical NSStackView of a bold label + a
+        // wrapping label + a button (tr-localized). It needs TWO verbatim upstream
+        // files from DIFFERENT directories (the VC + LocalizationHelper, for tr()),
+        // which a single narrow `path` can't cover without flagging every sibling
+        // as "unhandled". So compile from a dedicated directory of relative SYMLINKS
+        // to the verbatim files — the dir holds only those two sources, so zero
+        // files are unhandled (keeps the warning-gated Qt product build clean).
+        targets.append(
+            .target(
+                name: "QuillUnusableTunnelDetailConformance",
+                dependencies: ["Cocoa"],
+                path: "Sources/QuillUnusableTunnelDetailConformance",
+                swiftSettings: [.swiftLanguageMode(.v5)]
+            )
+        )
     }
 }
 #endif
@@ -2049,7 +2064,7 @@ let packageTestTargets: [Target] = {
         // The qt AppKit test target also renders the LITERAL upstream WireGuard
         // VC (ButtonedDetailViewController) when the upstream checkout is present.
         let akqtTestDeps: [Target.Dependency] = wireguardUpstreamPresent
-            ? ["QuillAppKitQt", "AppKit", "QuillButtonedDetailConformance"]
+            ? ["QuillAppKitQt", "AppKit", "QuillButtonedDetailConformance", "QuillUnusableTunnelDetailConformance"]
             : ["QuillAppKitQt", "AppKit"]
         return [
             // Runs inside the stripped Qt graph itself. This keeps
