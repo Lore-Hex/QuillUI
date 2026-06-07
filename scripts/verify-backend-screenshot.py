@@ -303,7 +303,7 @@ def generic_gtk_detail_surface_pixel(rgb: tuple[int, int, int]) -> bool:
 
 
 def generic_gtk_card_pixel(rgb: tuple[int, int, int]) -> bool:
-    return generic_qt_card_pixel(rgb)
+    return generic_qt_card_pixel(rgb) or prompt_card_pixel(rgb)
 
 
 def wireguard_qt_focused_title_border_pixel(rgb: tuple[int, int, int]) -> bool:

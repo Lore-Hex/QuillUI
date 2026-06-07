@@ -1089,6 +1089,8 @@ struct QuillDataSourceLoweringTests {
         }
 
         let lowered = try String(contentsOf: source, encoding: .utf8)
+        #expect(lowered.contains("import QuillShims"))
+        #expect(lowered.components(separatedBy: "import QuillShims").count == 2)
         #expect(lowered.contains("#if (os(macOS) || os(Linux)) && canImport(AppKit)"))
         #expect(lowered.contains("#elseif !os(macOS) && canImport(UIKit)"))
         #expect(lowered.contains("#if os(macOS) || os(Linux)"))

@@ -1,3 +1,4 @@
+@_exported import QuillKit
 @_exported import QuillFoundation
 @_exported import QuillWebKit
 @_exported import QuillUIKit

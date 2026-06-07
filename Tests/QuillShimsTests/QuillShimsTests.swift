@@ -113,6 +113,13 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         XCTAssertFalse(AXIsProcessTrustedWithOptions(nil))
     }
 
+    func testQuillShimsReexportsQuillKitAliases() {
+        XCTAssertTrue(Accessibility.shared === QuillAccessibilityService.shared)
+        let hotkey = HotkeyCombination(keyBase: [.command], key: 0x09) {}
+        XCTAssertEqual(hotkey.keyBase, [KeyBase.command])
+        XCTAssertEqual(hotkey.key, 0x09)
+    }
+
     func testServiceManagementShim() {
         _ = SMAppService.self
     }

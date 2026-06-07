@@ -561,6 +561,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillKit/QuillKit.swift"),
             encoding: .utf8
         )
+        let quillShims = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillShims/QuillShims.swift"),
+            encoding: .utf8
+        )
+        let swiftUILowering = try String(
+            contentsOf: root.appendingPathComponent("scripts/lower-swiftui-source-for-linux.sh"),
+            encoding: .utf8
+        )
         let coreGraphics = try String(
             contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
             encoding: .utf8
@@ -584,6 +592,8 @@ struct SourceHygieneTests {
             #expect(quillKit.contains(alias))
             #expect(!profileAliases.contains(alias.replacingOccurrences(of: "public ", with: "")))
         }
+        #expect(quillShims.contains("@_exported import QuillKit"))
+        #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
         #expect(quillKit.contains("quill-pasteboard"))
         #expect(quillKit.contains("Apple.NSGeneralPboard"))
         #expect(quillKit.contains("writeFileBackedPasteboardString(string, forType: type)"))
@@ -2045,6 +2055,8 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
         #expect(screenshotVerifier.contains("product == \"quill-enchanted-qt\""))
         #expect(screenshotVerifier.contains("product == \"quill-enchanted-qt-list-selection\""))
+        #expect(screenshotVerifier.contains("def generic_gtk_card_pixel"))
+        #expect(screenshotVerifier.contains("return generic_qt_card_pixel(rgb) or prompt_card_pixel(rgb)"))
         #expect(screenshotVerifier.contains("ENCHANTED_LINUX_SNAPSHOT_VALIDATORS"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt\": validate_quill_enchanted_linux_qt_snapshot"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt-selected-chat\": validate_quill_enchanted_linux_qt_selected_chat"))
