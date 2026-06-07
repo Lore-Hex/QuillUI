@@ -912,6 +912,44 @@ each) and small cannot-find clusters. New patterns from this stretch:
   where kCFBoolean* is real-corelibs optional) in BadgeAssets -- need a real
   workaround (a helper that builds the CFDictionary/CFURL), not a type shim.
 
+### Track B tail to <10k (2026-06, ~97.5%, 9.6k)
+
+The remaining ~10k were concentrated, harder clusters than the mid-game bands.
+Patterns that closed them:
+
+- **Darwin C subsystems used UNQUALIFIED -> top-level QuillDarwin port decls.**
+  Mach task_info/task_vm_info + malloc-zone (Bench+LocalDevice, -805),
+  sysctlbyname (String+SSK device model), Dispatch QoS (qos_class_t +
+  QOS_CLASS_* at real values for the rawValue-range switches). All inert.
+- **Named-module C subsystems -> fill that module's shim.** notify(3)
+  (DarwinNotificationCenter, inert), System/swift-system (FileDescriptor made
+  FAITHFUL over POSIX open/lseek/read/close -- real file I/O for attachment
+  crypto), CFHost (CFNetwork shim, real-CoreFoundation context: Unmanaged +
+  return Unmanaged<NSArray>? so the `.takeUnretainedValue() as NSArray?` cast
+  works without the absent CFArray<->NSArray bridge).
+- **Shim type exists but the consumer can't see it.** Verify with a 1-file
+  swiftc test FIRST -- often swift-corelibs/an existing shim already HAS the type
+  (NSAttributedString, AVSpeechUtterance, NSHashTable) and the only gap is the
+  import PATH -> add an inject-foundation rule, don't write new shim code.
+- **SHIM-OWN-COMPILE-FAILURE.** A consumer "has no member X" can mean the
+  extension FILE that defines X failed to compile (CGDataProvider+SSK couldn't
+  find CGDataProvider -> needs import ImageIO). Grep the defining file's OWN
+  errors first.
+- **inout vs pointer param.** A shim method taking `error: inout NSError?`
+  rejects a literal `nil` caller; use NSErrorPointer-shaped
+  `UnsafeMutablePointer<NSError?>?` (LAContext.canEvaluatePolicy).
+- **Excluded-.m members keep surfacing** as overrides (relocate to port class +
+  extend the strip script -- TSInteraction.anyDidInsert/anyDidUpdate),
+  protocol witnesses (SendableMessage.update(withHasSyncedTranscript:)),
+  override-bases (TSOutgoingMessage.buildDataMessage), bridged-error patterns
+  (CNError.communicationError -> static value + `~=`), and free enums
+  (OutgoingGroupProtoResult -> match the caller's switch cases exactly).
+- **Still-OPEN hard nuts:** the genuine swift-corelibs CF-bridging gaps
+  (URL->CFURL, [String:CFBoolean?]->CFDictionary where kCFBoolean* is real
+  corelibs-optional) in BadgeAssets need a real helper, not a type shim; the
+  CGDataProvider direct-callbacks struct (@convention(c)) for streaming image
+  decode; PKContact (PassKit needs a Contacts dep).
+
 ---
 
 ## Pointers
