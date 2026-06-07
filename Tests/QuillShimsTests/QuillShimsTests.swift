@@ -467,3 +467,34 @@ private final class AlamofireRequestCapture: @unchecked Sendable {
     }
 }
 #endif
+
+#if !os(macOS) && !os(iOS)
+// Exercises the SwiftUI `@Entry` macro (QuillDataMacros.QuillEntryMacro)
+// surfaced through the SwiftUI shim. The macro must synthesize a computed
+// get/set on each property, backed by a private `EnvironmentKey` peer that
+// carries the declared default value. (SwiftUI is already imported above.)
+extension EnvironmentValues {
+    @Entry var quillEntryTestFlag: Bool = true
+    @Entry var quillEntryTestCount: Int = 7
+    @Entry var quillEntryTestLabel: String = "hello"
+}
+
+final class QuillEntryMacroTests: XCTestCase {
+    func testEntryMacroProvidesDeclaredDefaults() {
+        let env = EnvironmentValues()
+        XCTAssertEqual(env.quillEntryTestFlag, true)
+        XCTAssertEqual(env.quillEntryTestCount, 7)
+        XCTAssertEqual(env.quillEntryTestLabel, "hello")
+    }
+
+    func testEntryMacroSetGetRoundtrip() {
+        var env = EnvironmentValues()
+        env.quillEntryTestFlag = false
+        env.quillEntryTestCount = 42
+        env.quillEntryTestLabel = "world"
+        XCTAssertEqual(env.quillEntryTestFlag, false)
+        XCTAssertEqual(env.quillEntryTestCount, 42)
+        XCTAssertEqual(env.quillEntryTestLabel, "world")
+    }
+}
+#endif
