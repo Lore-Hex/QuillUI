@@ -259,3 +259,42 @@ public final class SFUClient: @unchecked Sendable {
         PeekResponse(errorStatusCode: nil, peekInfo: PeekInfo())
     }
 }
+
+// MARK: - CallLinkState  (RingRTC CallLinks.swift)
+//
+// SSK's Calls/CallLinkState.swift wraps this RingRTC type: it reads
+// name/restrictions/revoked/expiration/rootKey and maps Restrictions to its own
+// Int enum (CallLinkRecord.Restrictions). The real value is produced by the
+// RingRTC FFI on the calling paths (deferred on Linux); SSK's non-calling
+// call-link backup/storage paths only read these fields. Faithful shape so the
+// upstream compiles. Restrictions has EXACTLY the three cases SSK's mapping
+// switches over (none/adminApproval/unknown -- exhaustive, no default), so the
+// set must match. A memberwise init is provided for completeness, though no
+// Linux-compiled path constructs one.
+public struct CallLinkState {
+    public enum Restrictions {
+        case none
+        case adminApproval
+        case unknown
+    }
+
+    public let name: String
+    public let restrictions: Restrictions
+    public let revoked: Bool
+    public let expiration: Date
+    public let rootKey: CallLinkRootKey
+
+    public init(
+        name: String,
+        restrictions: Restrictions,
+        revoked: Bool,
+        expiration: Date,
+        rootKey: CallLinkRootKey
+    ) {
+        self.name = name
+        self.restrictions = restrictions
+        self.revoked = revoked
+        self.expiration = expiration
+        self.rootKey = rootKey
+    }
+}
