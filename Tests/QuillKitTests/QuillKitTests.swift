@@ -249,6 +249,7 @@ struct QuillKitTests {
         watcher.stop()
         watcher.autoConfigureIfNeeded()
         QuillDeviceLauncher.install(label: "test.launcher", subsystem: "Test")
+        QuillUSBLauncher.install(label: "test.usb-launcher", subsystem: "TestUSB")
 
         let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
         #expect(operations.contains("getSelectedTextAX"))

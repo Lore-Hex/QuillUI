@@ -569,6 +569,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillKit/QuillKit.swift"),
             encoding: .utf8
         )
+        let quillUIProfileCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/ProfileCompatibility.swift"),
+            encoding: .utf8
+        )
         let quillShims = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillShims/QuillShims.swift"),
             encoding: .utf8
@@ -581,10 +585,8 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
             encoding: .utf8
         )
-        let profileAliases = try String(
-            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift"),
-            encoding: .utf8
-        )
+        let profileAliasesPath = root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift")
+        let profileAliases = (try? String(contentsOf: profileAliasesPath, encoding: .utf8)) ?? ""
 
         for alias in [
             "public typealias Accessibility = QuillAccessibilityService",
@@ -609,8 +611,12 @@ struct SourceHygieneTests {
         #expect(coreGraphics.contains("static let kVK_ANSI_V: CGKeyCode = 0x09"))
         #expect(!profileAliases.contains("typealias CGKeyCode = UInt16"))
         #expect(!profileAliases.contains("static let kVK_ANSI_V"))
-        #expect(profileAliases.contains("typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem"))
-        #expect(profileAliases.contains("enum QuillUSBLauncher"))
+        #expect(quillUIProfileCompatibility.contains("public typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem"))
+        #expect(quillKit.contains("public enum QuillUSBLauncher"))
+        #expect(quillKit.contains("QuillDeviceLauncher.install(label: label, subsystem: subsystem)"))
+        #expect(!FileManager.default.fileExists(atPath: profileAliasesPath.path))
+        #expect(!profileAliases.contains("typealias CheckForUpdatesMenuItem"))
+        #expect(!profileAliases.contains("enum QuillUSBLauncher"))
     }
 
     @Test("Linux controls read backend-scoped reference environment")

@@ -379,7 +379,7 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 180"))
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 165"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
