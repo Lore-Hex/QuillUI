@@ -300,8 +300,56 @@ public final class CGGradient {
     public init?(colorsSpace space: Any?, colors: Any?, locations: Any?) {}
 }
 
+// Pixel-format flags for a CGContext bitmap context. Raw values match Apple's
+// <CoreGraphics/CGImage.h> so callers that OR them into a UInt32 bitmapInfo (e.g.
+// BlurHash: byteOrder32Big | premultipliedLast) get the right bits. Inert on
+// Linux -- no real bitmap is allocated.
+public struct CGBitmapInfo: OptionSet, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+    public static let alphaInfoMask = CGBitmapInfo(rawValue: 0x1F)
+    public static let floatInfoMask = CGBitmapInfo(rawValue: 0xF00)
+    public static let floatComponents = CGBitmapInfo(rawValue: 1 << 8)
+    public static let byteOrderMask = CGBitmapInfo(rawValue: 0x7000)
+    public static let byteOrderDefault = CGBitmapInfo(rawValue: 0 << 12)
+    public static let byteOrder16Little = CGBitmapInfo(rawValue: 1 << 12)
+    public static let byteOrder32Little = CGBitmapInfo(rawValue: 2 << 12)
+    public static let byteOrder16Big = CGBitmapInfo(rawValue: 3 << 12)
+    public static let byteOrder32Big = CGBitmapInfo(rawValue: 4 << 12)
+}
+
+public enum CGImageAlphaInfo: UInt32, Sendable {
+    case none = 0
+    case premultipliedLast = 1
+    case premultipliedFirst = 2
+    case last = 3
+    case first = 4
+    case noneSkipLast = 5
+    case noneSkipFirst = 6
+    case alphaOnly = 7
+}
+
 public final class CGContext {
     public init() {}
+
+    /// Bitmap-context initializer. Inert on Linux: no pixel buffer is allocated
+    /// and nothing is drawn (the draw/fill methods are no-ops), so makeImage()
+    /// returns nil. Exists so the upstream raster paths (BlurHash) compile. The
+    /// init itself never returns nil.
+    public convenience init?(
+        data: UnsafeMutableRawPointer?,
+        width: Int,
+        height: Int,
+        bitsPerComponent: Int,
+        bytesPerRow: Int,
+        space: CGColorSpace,
+        bitmapInfo: UInt32
+    ) {
+        self.init()
+    }
+
+    /// Inert: there is no backing bitmap on Linux, so no image is produced.
+    public func makeImage() -> CGImage? { nil }
 
     public var interpolationQuality: CGInterpolationQuality = .default
 
