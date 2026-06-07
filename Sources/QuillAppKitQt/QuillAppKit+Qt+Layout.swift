@@ -157,7 +157,20 @@ extension NSView {
             v.frame = NSRect(x: CGFloat(f.x), y: CGFloat(f.y),
                              width: CGFloat(f.width), height: CGFloat(f.height))
             v.ensureQtWidget()
-            v.applyQtGeometry(x: Int32(f.x.rounded()), y: Int32(f.y.rounded()),
+            // The solver produces ABSOLUTE frames (in the layout root's space), but
+            // Qt positions a child widget RELATIVE to its parent widget. For a flat
+            // hierarchy (root → child) absolute == relative, but for nested ones
+            // (root → NSStackView → rows) applying the absolute frame would
+            // double-count every ancestor's origin — pushing rows down and shoving
+            // lower children out of view. Subtract the superview's solved origin so
+            // each widget is placed relative to its Qt parent. The root has no
+            // in-subtree superview and keeps its absolute origin.
+            var ox = f.x, oy = f.y
+            if let parent = v.superview, let parentItem = items[ObjectIdentifier(parent)] {
+                ox -= parentItem.frame.x
+                oy -= parentItem.frame.y
+            }
+            v.applyQtGeometry(x: Int32(ox.rounded()), y: Int32(oy.rounded()),
                               width: Int32(f.width.rounded()), height: Int32(f.height.rounded()))
         }
     }
