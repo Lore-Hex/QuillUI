@@ -824,9 +824,34 @@ quillui_resolve_linux_backend_executable() {
       "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
         --backend "$linux_build_backend" \
         --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
-      QUILLUI_LINUX_BACKEND="$linux_build_backend" \
-        "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-        swift build --disable-index-store --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product"
+      # Retry-on-transient-crash: under high parallelism on a memory-constrained CI
+      # runner, a swift compiler frontend can die mid `-parseable-output`, leaving
+      # SwiftPM to read truncated JSON and abort with "Internal Error: dataCorrupted
+      # ... Corrupted JSON ... unexpected end of file". This is intermittent and
+      # main-wide (it has no connection to the product being built); the incremental
+      # rebuild resumes from where it crashed and succeeds. Retry up to 3x ONLY on
+      # that exact signature so genuine build failures still surface immediately.
+      local _qui_build_attempt=0 _qui_build_rc=0 _qui_build_log
+      _qui_build_log="$(mktemp)"
+      while true; do
+        _qui_build_attempt=$((_qui_build_attempt + 1))
+        _qui_build_rc=0
+        QUILLUI_LINUX_BACKEND="$linux_build_backend" \
+          "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
+          swift build --disable-index-store --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product" \
+          > "$_qui_build_log" 2>&1 || _qui_build_rc=$?
+        cat "$_qui_build_log"
+        if [[ $_qui_build_rc -eq 0 ]]; then
+          break
+        fi
+        if [[ $_qui_build_attempt -lt 3 ]] && grep -q "Corrupted JSON" "$_qui_build_log"; then
+          echo "quillui: transient 'Corrupted JSON' compiler-frontend crash building '$product' (attempt $_qui_build_attempt) — retrying incremental build" >&2
+          continue
+        fi
+        rm -f "$_qui_build_log"
+        return $_qui_build_rc
+      done
+      rm -f "$_qui_build_log"
       quillui_record_backend_product_build \
         "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" \
         "$product" \
