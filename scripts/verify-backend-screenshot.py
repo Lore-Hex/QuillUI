@@ -253,7 +253,7 @@ def generic_qt_detail_surface_pixel(rgb: tuple[int, int, int]) -> bool:
 def generic_qt_card_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
-        (244 <= red <= 255 and 244 <= green <= 255 and 244 <= blue <= 255 and max(rgb) - min(rgb) <= 12)
+        (239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250 and max(rgb) - min(rgb) <= 10 and sum(rgb) < 736)
         or (225 <= red <= 240 and 235 <= green <= 248 and 245 <= blue <= 255 and blue - red >= 8)
     )
 
@@ -2295,6 +2295,14 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
         bottom - 15,
         mac_reference_composer_pixel,
     )
+    detail_width = right - detail_left
+    composer_accessory_pixels = dark_pixel_count(
+        image,
+        detail_left + int(detail_width * 0.62),
+        bottom - 80,
+        right - 45,
+        bottom - 15,
+    )
     bottom_nav_pixels = dark_pixel_count(image, left + 20, bottom - 130, detail_left - 20, bottom - 20)
     detail_text_pixels = dark_pixel_count(image, detail_left + 16, top + 20, right - 20, bottom - 20)
     require(sidebar_pixels >= 150000, f"Generated Enchanted Qt sidebar was not detected: pixels={sidebar_pixels}")
@@ -2318,6 +2326,11 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
     )
     require(notice_pixels >= 15000, f"Generated Enchanted Qt notice banner was not detected: pixels={notice_pixels}")
     require(composer_pixels >= 5000, f"Generated Enchanted Qt composer was not detected: pixels={composer_pixels}")
+    require(
+        composer_accessory_pixels >= 20,
+        "Generated Enchanted Qt composer accessory icon was not detected: "
+        f"pixels={composer_accessory_pixels}",
+    )
     require(bottom_nav_pixels >= 300, f"Generated Enchanted Qt bottom navigation was not detected: pixels={bottom_nav_pixels}")
     require(detail_text_pixels >= 4000, f"Generated Enchanted Qt detail text was not detected: pixels={detail_text_pixels}")
 
@@ -2333,8 +2346,121 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
         f"prompt_text_pixels={prompt_text_pixels}, "
         f"notice_pixels={notice_pixels}, "
         f"composer_pixels={composer_pixels}, "
+        f"composer_accessory_pixels={composer_accessory_pixels}, "
         f"bottom_nav_pixels={bottom_nav_pixels}, "
         f"detail_text_pixels={detail_text_pixels}"
+    )
+
+
+def validate_quill_enchanted_linux_qt_selected_chat(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(960 <= app_width <= 1220, f"Generated Enchanted Qt selected window width is unexpected: {app_width}px")
+    require(660 <= app_height <= 820, f"Generated Enchanted Qt selected window height is unexpected: {app_height}px")
+
+    sidebar_width = min(360, max(300, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
+    selected_marker_pixels = pixel_count(
+        image,
+        left + 4,
+        top + 320,
+        left + 58,
+        min(bottom + 1, top + 540),
+        enchanted_primary_pixel,
+    )
+    user_bubble_pixels = pixel_count(
+        image,
+        detail_left + int((right - detail_left) * 0.50),
+        top + 170,
+        right - 8,
+        bottom - 145,
+        enchanted_user_bubble_pixel,
+    )
+    assistant_message_pixels = dark_pixel_count(
+        image,
+        detail_left + 16,
+        top + 250,
+        detail_left + int((right - detail_left) * 0.55),
+        bottom - 120,
+    )
+    notice_pixels = pixel_count(
+        image,
+        detail_left + 16,
+        bottom - 160,
+        right - 20,
+        bottom - 60,
+        alert_pixel,
+    )
+    composer_pixels = pixel_count(
+        image,
+        detail_left + 100,
+        bottom - 80,
+        right - 100,
+        bottom - 15,
+        mac_reference_composer_pixel,
+    )
+    detail_width = right - detail_left
+    composer_accessory_pixels = dark_pixel_count(
+        image,
+        detail_left + int(detail_width * 0.62),
+        bottom - 80,
+        right - 45,
+        bottom - 15,
+    )
+    bottom_nav_pixels = dark_pixel_count(image, left + 20, bottom - 130, detail_left - 20, bottom - 20)
+    header_icon_pixels = dark_pixel_count(image, right - 190, top + 20, right - 18, top + 60)
+    empty_wordmark_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.25),
+        top + 180,
+        detail_left + int(detail_width * 0.75),
+        min(bottom - 240, top + 430),
+        colorful_wordmark_pixel,
+    )
+
+    require(
+        selected_marker_pixels >= 12,
+        "Generated Enchanted Qt selected chat marker was not detected: "
+        f"pixels={selected_marker_pixels}",
+    )
+    require(
+        user_bubble_pixels >= 500,
+        "Generated Enchanted Qt selected chat user bubble was not detected: "
+        f"pixels={user_bubble_pixels}",
+    )
+    require(
+        assistant_message_pixels >= 450,
+        "Generated Enchanted Qt selected chat assistant response was not detected: "
+        f"pixels={assistant_message_pixels}",
+    )
+    require(notice_pixels >= 15000, f"Generated Enchanted Qt selected notice was not detected: pixels={notice_pixels}")
+    require(composer_pixels >= 5000, f"Generated Enchanted Qt selected composer was not detected: pixels={composer_pixels}")
+    require(
+        composer_accessory_pixels >= 20,
+        "Generated Enchanted Qt selected composer accessory icon was not detected: "
+        f"pixels={composer_accessory_pixels}",
+    )
+    require(bottom_nav_pixels >= 300, f"Generated Enchanted Qt selected bottom nav was not detected: pixels={bottom_nav_pixels}")
+    require(header_icon_pixels >= 20, f"Generated Enchanted Qt selected toolbar icons were not detected: pixels={header_icon_pixels}")
+    require(
+        empty_wordmark_pixels <= 1000,
+        "Generated Enchanted Qt selected chat still shows the empty-state wordmark: "
+        f"pixels={empty_wordmark_pixels}",
+    )
+
+    return (
+        "Quill Enchanted generated Qt selected chat snapshot: "
+        f"app={app_width}x{app_height}, "
+        f"selected_marker_pixels={selected_marker_pixels}, "
+        f"user_bubble_pixels={user_bubble_pixels}, "
+        f"assistant_message_pixels={assistant_message_pixels}, "
+        f"notice_pixels={notice_pixels}, "
+        f"composer_pixels={composer_pixels}, "
+        f"composer_accessory_pixels={composer_accessory_pixels}, "
+        f"bottom_nav_pixels={bottom_nav_pixels}, "
+        f"header_icon_pixels={header_icon_pixels}, "
+        f"empty_wordmark_pixels={empty_wordmark_pixels}"
     )
 
 
@@ -2405,6 +2531,7 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
 
 ENCHANTED_LINUX_SNAPSHOT_VALIDATORS: dict[str, Callable[[Screenshot], str]] = {
     "quill-enchanted-linux-qt": validate_quill_enchanted_linux_qt_snapshot,
+    "quill-enchanted-linux-qt-selected-chat": validate_quill_enchanted_linux_qt_selected_chat,
     "quill-enchanted-linux-gtk": validate_quill_enchanted_linux_gtk_snapshot,
 }
 
