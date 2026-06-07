@@ -170,12 +170,13 @@ jobs:
           # paths that exercise the Enchanted profile's real SwiftData-backed
           # history, relationship fetches, markdown rendering, and long-scroll
           # behavior.
-          mapfile -t quill_chat_modes < <(scripts/quillui-backend-products.sh quill-chat-mac-reference-interaction-modes)
+          quill_chat_modes="$(scripts/quillui-backend-products.sh quill-chat-mac-reference-interaction-modes)"
+          # shellcheck disable=SC2086
           scripts/run-linux-backend-interaction-modes.sh \
             ".qa/quill-chat-linux-mac-reference-{mode}-gtk.png" \
             quill-chat-linux \
             gtk \
-            "${quill_chat_modes[@]}"
+            $quill_chat_modes
 
       - name: Run live composer-send and relaunch functional verifier
         env:
