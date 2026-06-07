@@ -14,18 +14,19 @@ struct SidebarView: View {
     var onDeleteDailyConversations: (_ date: Date) -> ()
 
     var body: some View {
-        QuillDesktopChatUtilitySidebar(
+        QuillDesktopChatConversationSidebar(
+            conversations: conversations,
+            selectedID: selectedConversation?.id.uuidString,
             settingsFocusedValue: \.showSettings,
-            onSettings: { Task { Haptics.shared.mediumTap() } }
+            id: { $0.id.uuidString },
+            title: { $0.name },
+            updatedAt: { $0.updatedAt },
+            dateTitle: { $0.daysAgoString() },
+            onSettings: { Task { Haptics.shared.mediumTap() } },
+            onSelect: onConversationTap,
+            onDelete: onConversationDelete,
+            onDeleteDay: onDeleteDailyConversations
         ) {
-            ConversationHistoryList(
-                selectedConversation: selectedConversation,
-                conversations: conversations,
-                onTap: onConversationTap,
-                onDelete: onConversationDelete,
-                onDeleteDailyConversations: onDeleteDailyConversations
-            )
-        } settings: {
             Settings()
         } completions: {
             CompletionsEditor()

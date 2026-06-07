@@ -1016,6 +1016,97 @@ public struct QuillDesktopChatUtilitySidebar<
     }
 }
 
+public struct QuillDesktopChatConversationSidebar<
+    Conversation,
+    SettingsContent: View,
+    CompletionsContent: View,
+    ShortcutsContent: View
+>: View {
+    public var conversations: [Conversation]
+    public var selectedID: String?
+    public var settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>?
+    private var conversationID: (Conversation) -> String
+    private var conversationTitle: (Conversation) -> String
+    private var conversationUpdatedAt: (Conversation) -> Date
+    private var conversationLastMessage: (Conversation) -> String
+    private var dateTitle: (Date) -> String
+    private var deleteDayTitle: String
+    private var deleteItemTitle: String
+    private var onSettings: () -> Void
+    private var onSelect: (Conversation) -> Void
+    private var onDelete: ((Conversation) -> Void)?
+    private var onDeleteDay: ((Date) -> Void)?
+    private var settingsContent: () -> SettingsContent
+    private var completionsContent: () -> CompletionsContent
+    private var shortcutsContent: () -> ShortcutsContent
+
+    public init(
+        conversations: [Conversation],
+        selectedID: String? = nil,
+        settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>? = nil,
+        id: @escaping (Conversation) -> String,
+        title: @escaping (Conversation) -> String,
+        updatedAt: @escaping (Conversation) -> Date,
+        lastMessage: @escaping (Conversation) -> String = { _ in "" },
+        dateTitle: @escaping (Date) -> String,
+        deleteDayTitle: String = "Delete daily conversations",
+        deleteItemTitle: String = "Delete",
+        onSettings: @escaping () -> Void = {},
+        onSelect: @escaping (Conversation) -> Void,
+        onDelete: ((Conversation) -> Void)? = nil,
+        onDeleteDay: ((Date) -> Void)? = nil,
+        @ViewBuilder settings: @escaping () -> SettingsContent,
+        @ViewBuilder completions: @escaping () -> CompletionsContent,
+        @ViewBuilder shortcuts: @escaping () -> ShortcutsContent
+    ) {
+        self.conversations = conversations
+        self.selectedID = selectedID
+        self.settingsFocusedValue = settingsFocusedValue
+        self.conversationID = id
+        self.conversationTitle = title
+        self.conversationUpdatedAt = updatedAt
+        self.conversationLastMessage = lastMessage
+        self.dateTitle = dateTitle
+        self.deleteDayTitle = deleteDayTitle
+        self.deleteItemTitle = deleteItemTitle
+        self.onSettings = onSettings
+        self.onSelect = onSelect
+        self.onDelete = onDelete
+        self.onDeleteDay = onDeleteDay
+        self.settingsContent = settings
+        self.completionsContent = completions
+        self.shortcutsContent = shortcuts
+    }
+
+    public var body: some View {
+        QuillDesktopChatUtilitySidebar(
+            settingsFocusedValue: settingsFocusedValue,
+            onSettings: onSettings
+        ) {
+            QuillDateGroupedConversationHistoryList(
+                items: conversations,
+                selectedID: selectedID,
+                id: conversationID,
+                title: conversationTitle,
+                updatedAt: conversationUpdatedAt,
+                lastMessage: conversationLastMessage,
+                dateTitle: dateTitle,
+                deleteDayTitle: deleteDayTitle,
+                deleteItemTitle: deleteItemTitle,
+                onSelect: onSelect,
+                onDelete: onDelete,
+                onDeleteDay: onDeleteDay
+            )
+        } settings: {
+            settingsContent()
+        } completions: {
+            completionsContent()
+        } shortcuts: {
+            shortcutsContent()
+        }
+    }
+}
+
 public extension View {
     @ViewBuilder
     func quillDesktopChatUtilitySheets<

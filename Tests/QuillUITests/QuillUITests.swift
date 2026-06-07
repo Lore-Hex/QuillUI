@@ -476,6 +476,40 @@ struct QuillUITests {
         #expect(sidebar.settingsFocusedValue == nil)
     }
 
+    @Test("QuillDesktopChatConversationSidebar adapts model history into utility chrome")
+    func quillDesktopChatConversationSidebarAdaptsModelHistory() {
+        struct Conversation {
+            var id: String
+            var title: String
+            var updatedAt: Date
+        }
+
+        let conversations = [
+            Conversation(id: "one", title: "First", updatedAt: Date(timeIntervalSince1970: 10)),
+            Conversation(id: "two", title: "Second", updatedAt: Date(timeIntervalSince1970: 20))
+        ]
+
+        let sidebar = QuillDesktopChatConversationSidebar(
+            conversations: conversations,
+            selectedID: "two",
+            id: \.id,
+            title: \.title,
+            updatedAt: \.updatedAt,
+            dateTitle: { "\($0.timeIntervalSince1970)" },
+            onSelect: { _ in }
+        ) {
+            Text("Settings")
+        } completions: {
+            Text("Completions")
+        } shortcuts: {
+            Text("Shortcuts")
+        }
+
+        #expect(sidebar.conversations.count == 2)
+        #expect(sidebar.selectedID == "two")
+        #expect(sidebar.settingsFocusedValue == nil)
+    }
+
     @Test("Message arrays build streaming scroll tokens from ids and last content")
     func messageArrayBuildsStreamingScrollToken() {
         struct Message: Identifiable {

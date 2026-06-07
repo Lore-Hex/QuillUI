@@ -1016,13 +1016,22 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(sidebarTemplate.contains("import QuillUI"))
-        #expect(sidebarTemplate.contains("QuillDesktopChatUtilitySidebar("))
+        #expect(sidebarTemplate.contains("QuillDesktopChatConversationSidebar("))
+        #expect(sidebarTemplate.contains("conversations: conversations"))
+        #expect(sidebarTemplate.contains("selectedID: selectedConversation?.id.uuidString"))
         #expect(sidebarTemplate.contains("settingsFocusedValue: \\.showSettings"))
+        #expect(sidebarTemplate.contains("id: { $0.id.uuidString }"))
+        #expect(sidebarTemplate.contains("title: { $0.name }"))
+        #expect(sidebarTemplate.contains("updatedAt: { $0.updatedAt }"))
+        #expect(sidebarTemplate.contains("dateTitle: { $0.daysAgoString() }"))
         #expect(sidebarTemplate.contains("onSettings: { Task { Haptics.shared.mediumTap() } }"))
-        #expect(sidebarTemplate.contains("ConversationHistoryList("))
-        #expect(sidebarTemplate.contains("} settings: {"))
+        #expect(sidebarTemplate.contains("onSelect: onConversationTap"))
+        #expect(sidebarTemplate.contains("onDelete: onConversationDelete"))
+        #expect(sidebarTemplate.contains("onDeleteDay: onDeleteDailyConversations"))
         #expect(sidebarTemplate.contains("} completions: {"))
         #expect(sidebarTemplate.contains("} shortcuts: {"))
+        #expect(!sidebarTemplate.contains("ConversationHistoryList("))
+        #expect(!sidebarTemplate.contains("QuillDesktopChatUtilitySidebar("))
         #expect(!sidebarTemplate.contains("@State var showSettings"))
         #expect(!sidebarTemplate.contains("@State var showCompletions"))
         #expect(!sidebarTemplate.contains("@State var showKeyboardShortcuts"))
@@ -1045,28 +1054,14 @@ struct QuillDataSourceLoweringTests {
         #expect(!sidebarTemplate.contains("Text(\"New chat\")"))
         #expect(!sidebarTemplate.contains("Color(red: 0.259, green: 0.522, blue: 0.957)"))
 
-        let historyTemplate = try String(
-            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"),
+        let emptyFiles = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
             encoding: .utf8
         )
-        #expect(historyTemplate.contains("import QuillUI"))
-        #expect(historyTemplate.contains("QuillDateGroupedConversationHistoryList("))
-        #expect(historyTemplate.contains("items: conversations"))
-        #expect(historyTemplate.contains("selectedID: selectedConversation?.id.uuidString"))
-        #expect(historyTemplate.contains("id: { $0.id.uuidString }"))
-        #expect(historyTemplate.contains("title: { $0.name }"))
-        #expect(historyTemplate.contains("updatedAt: { $0.updatedAt }"))
-        #expect(historyTemplate.contains("dateTitle: { $0.daysAgoString() }"))
-        #expect(historyTemplate.contains("onSelect: onTap"))
-        #expect(historyTemplate.contains("onDelete: onDelete"))
-        #expect(!historyTemplate.contains("private var historyItems: [QuillConversationHistoryItem]"))
-        #expect(!historyTemplate.contains("id: conversation.id.uuidString"))
-        #expect(!historyTemplate.contains("private func conversation(for item: QuillConversationHistoryItem) -> ConversationSD?"))
-        #expect(!historyTemplate.contains("struct ConversationGroup: Hashable"))
-        #expect(!historyTemplate.contains("conversationGroup.date.daysAgoString()"))
-        #expect(!historyTemplate.contains("if selectedConversation == dailyConversation"))
-        #expect(!historyTemplate.contains(".showIf("))
-        #expect(!historyTemplate.contains("QuillConversationHistoryList("))
+        #expect(emptyFiles.contains("UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/Components/ConversationHistoryListView.swift").path
+        ))
 
         let messageListTemplate = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/MessageListVIew.swift"),
