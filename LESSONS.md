@@ -1191,6 +1191,55 @@ cleanest, repeat. Recent clears:
 
 ---
 
+### Landing Track B infra on main: the #424 -> #428 split + CI gauntlet (2026-06-07)
+
+The Track B SSK shim/port/script infrastructure was landed on `main` (gated, so it
+does NOT affect main's build/CI) via PR #428 (merge bb2fd654). The road there taught
+several CI/packaging lessons worth keeping:
+
+- **Split Track B from Track A before merging.** The long-lived `signal/real-backend`
+  branch (254 commits) tangled the SSK infra (the goal) with half-baked Track A
+  QuillSignal chat-UI experiments (QuillSignalKit, QuillChatKit chat features) that
+  violated main's source-hygiene/manifest tests. PR #424 (whole branch) was abandoned;
+  PR #428 brought ONLY the gated infra onto a fresh branch off main. Mechanism: branch
+  off main, `git checkout <oldbranch> -- <track-B paths>` for the additive shim/port/
+  script dirs + the infra modifications to shared files, hand-reconstruct Package.swift
+  (drop the Track-A target/product/dep hunks), DON'T bring the Track-A files.
+- **Gate criteria for a NEW Signal target/package-dep behind `signalUpstreamPresent`:**
+  (a) it has external system deps CI lacks (CommonCrypto -> libssl/openssl), (b) it's a
+  *package dependency* only Signal uses (swift-crypto, swift-protobuf -- an unused
+  package dep makes the warning-clean Qt-product gate FAIL with "dependency X is not
+  used by any target"), or (c) it's signal-only AND not depended-on by an always-built
+  target. Gate its sole consumer too (CryptoKit -> swift-crypto). Do NOT gate the inert
+  AppleFrameworkShims (`#if os(Linux)` only) -- the always-built UIKit shim depends on
+  some (UIKit `@_exported import UserNotifications`); gating them dangles that dep and
+  invalidates the whole manifest (every job fails fast at resolution).
+- **Hygiene tests read Package.swift as TEXT and pin exact substrings.** A deliberate
+  manifest change needs the matching pin updated: UIKit's deps list (+UserNotifications)
+  -> QuillDataSourceLoweringTests; `let`->`var quillDataPackageDependencies` ->
+  SourceHygieneTests + QuillQtBackendManifestTests. `signalUpstreamPresent` is
+  irrelevant to these (they read the file), so verify with grep, no build.
+- **Package.resolved must match main's signal-absent resolution.** Commit main's exact
+  lockfile; signal-present local builds re-add swift-crypto/swift-protobuf pins on the
+  fly -- never commit that churn (treat like the build-generated SwiftOpenUI worktree dirt).
+- **Whole-package `swift build` over-builds Apple-only targets CI skips** (e.g.
+  QuillPaintCoreGraphics needs real CoreGraphics CGContext). To validate signal-absent,
+  reproduce the EXACT CI command (linux-swift-test.sh / `swift build --target QuillUIGtk`),
+  not a bare whole-package build.
+- **OllamaKitTests "chat publisher..." is a known main flake** (a 2s wall-clock poll
+  racing async Combine completion under CI load -- the await-not-poll class). It fails
+  main too; cleared by `gh run rerun <id> --failed`. Don't mistake it for a real failure.
+- **The full "Swift Linux Backends" job is ~45-50min** (swift test + targeted builds +
+  smoke/profile matrices). Early 6-10min results are FAILURES, not fast passes.
+- **Fast-moving-main treadmill:** main advanced mid-PR repeatedly (QuillChatKit's iOS
+  AppKit-guard fix landed after the commit I merged). Re-merge current main, or land a
+  fully-green-but-BEHIND PR with `gh pr merge --admin` (per-case authorized) to break it.
+- **Go-forward:** `signal/real-backend` is OBSOLETE (its infra is on main; its Track-A
+  cruft dropped). Do future SSK error-clearing on FRESH branches off origin/main (with
+  `.upstream` present locally) -> PR/merge promptly, one increment per branch.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
