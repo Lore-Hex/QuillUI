@@ -2027,7 +2027,7 @@ targets.append(contentsOf: [
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
     .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
-    .target(name: "AVFoundation", dependencies: ["QuillKit"], path: "Sources/AVFoundation"),
+    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/AVFoundation"),
     .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
     .target(name: "ApplicationServices", dependencies: ["QuillKit"], path: "Sources/ApplicationServices"),
     .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement"),

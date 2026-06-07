@@ -479,6 +479,10 @@ struct SourceHygieneTests {
     @Test("Linux Apple compatibility shims avoid generated app warnings")
     func linuxAppleCompatibilityShimsAvoidGeneratedAppWarnings() throws {
         let root = try packageRoot()
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
         let appKit = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillAppKit/QuillAppKit.swift"),
             encoding: .utf8
@@ -494,6 +498,7 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\"], path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
     }
 
