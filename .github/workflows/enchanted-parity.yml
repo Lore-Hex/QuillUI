@@ -131,6 +131,7 @@ jobs:
             completions-save \
             completions-edit-save \
             completions-delete \
+            new-chat \
             history-selection \
             transcript-selection \
             markdown-transcript-selection \

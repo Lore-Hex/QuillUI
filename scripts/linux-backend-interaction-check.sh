@@ -519,6 +519,30 @@ delete_quill_chat_completion() {
   sleep "${QUILLUI_BACKEND_COMPLETION_DELETE_SLEEP:-2}"
 }
 
+open_quill_chat_new_chat() {
+  local history_x
+  local history_y
+  local new_chat_x
+  local new_chat_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    history_x="${QUILLUI_BACKEND_HISTORY_CLICK_X:-190}"
+    history_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
+    new_chat_x="${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-2010}"
+    new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-57}"
+  else
+    history_x="${QUILLUI_BACKEND_HISTORY_CLICK_X:-$((window_x + 190))}"
+    history_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$((window_y + 455))}"
+    new_chat_x="${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-$((window_x + window_width - 38))}"
+    new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 54))}"
+  fi
+
+  click_at "$history_x" "$history_y"
+  sleep 1
+  click_at "$new_chat_x" "$new_chat_y"
+  sleep "$post_click_sleep"
+}
+
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
 if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   focus_x="${QUILLUI_BACKEND_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
@@ -557,6 +581,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
         sleep 3
+        ;;
+      new-chat)
+        open_quill_chat_new_chat
         ;;
       settings-panel)
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then

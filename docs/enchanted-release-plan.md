@@ -94,8 +94,8 @@ Required click-through flows:
 
 ## Current Priority Order
 
-1. Finish the remaining Settings and Completions mutation flows: default model
-   picker and completion-create/edit/save.
+1. Finish the remaining toolbar and chat-state mutation flows, starting with
+   New Chat from a selected transcript.
 2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
 3. Wire QuillPaint into the controls that currently fail visual parity.
 4. Produce a release artifact and rerun visual/interaction smoke against it.
@@ -134,6 +134,10 @@ Recently cleared:
   deleting a completion are covered by the same verifier via the
   `completions-panel`, `completions-new-sheet`, `completions-save`,
   `completions-edit-save`, and `completions-delete` rows.
+- New Chat toolbar reset is covered by the same verifier via the `new-chat`
+  row: it selects a seeded transcript first, clicks the compose action, and
+  verifies the empty chat wordmark, prompt cards, unreachable alert, and
+  composer return.
 
 ## Non-Goals For The First Release
 
