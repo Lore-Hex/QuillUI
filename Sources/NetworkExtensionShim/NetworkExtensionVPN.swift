@@ -76,9 +76,20 @@ open class NETunnelProviderProtocol: NEVPNProtocol {
 
 /// Mirrors `NEVPNConnection`: the live status of a configuration. The shadow
 /// holds the status; transitions are driven by the (later) runtime layer.
+/// Notification names NE posts (TunnelsManager observes these via
+/// `NotificationCenter.default.observe(name: .NEVPNStatusDidChange, …)`).
+public extension Notification.Name {
+    static let NEVPNStatusDidChange = Notification.Name("NEVPNStatusDidChange")
+    static let NEVPNConfigurationChange = Notification.Name("NEVPNConfigurationChange")
+}
+
 open class NEVPNConnection: NSObject {
     public internal(set) var status: NEVPNStatus = .invalid
     public internal(set) var connectedDate: Date?
+    /// The manager that owns this connection. TunnelsManager reads
+    /// `session.manager as? NETunnelProviderManager`. Weak to avoid the
+    /// manager<->connection retain cycle.
+    public internal(set) weak var manager: NEVPNManager?
     /// Posted (by the runtime layer) when `status` changes.
     public static let statusDidChangeNotification = Notification.Name("NEVPNStatusDidChange")
 
@@ -153,7 +164,7 @@ open class NEVPNManager: NSObject {
     public var protocolConfiguration: NEVPNProtocol?
     public let connection: NEVPNConnection = NETunnelProviderSession()
 
-    public override init() { super.init() }
+    public override init() { super.init(); connection.manager = self }
 
     open func loadFromPreferences(completionHandler: @escaping (Error?) -> Void) {
         completionHandler(nil)

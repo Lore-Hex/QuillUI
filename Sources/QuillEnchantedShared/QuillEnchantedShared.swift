@@ -2,6 +2,70 @@ import Foundation
 import QuillEnchantedData
 import QuillFoundation
 
+public struct EnchantedConversationCopyPayload: Equatable, Sendable {
+    public struct Message: Codable, Equatable, Hashable, Sendable {
+        private enum CodingKeys: String, CodingKey {
+            case role
+            case content
+        }
+
+        public var role: String
+        public var content: String
+
+        public init(role: String, content: String) {
+            self.role = role
+            self.content = content
+        }
+
+        public init(_ message: ChatMessage) {
+            self.init(role: message.role.rawValue, content: message.content)
+        }
+    }
+
+    public var messages: [Message]
+
+    public init(messages: [Message]) {
+        self.messages = messages
+    }
+
+    public init(chatMessages: [ChatMessage]) {
+        self.init(messages: chatMessages.map(Message.init))
+    }
+
+    public var isEmpty: Bool {
+        messages.isEmpty
+    }
+
+    public func plainTextString() -> String {
+        messages
+            .map { "\($0.role.capitalized): \($0.content)" }
+            .joined(separator: "\n\n")
+    }
+
+    public func jsonString() throws -> String {
+        // JSONEncoder does not preserve key order on Linux corelibs-foundation
+        // (it emitted "content" before "role"), so assemble each object manually
+        // to guarantee genuine Enchanted's role-then-content order. Each value is
+        // still encoded via JSONEncoder for correct string escaping.
+        func encoded(_ value: String) throws -> String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.withoutEscapingSlashes]
+            return String(decoding: try encoder.encode(value), as: UTF8.self)
+        }
+        let objects = try messages.map { message in
+            "{\"role\":\(try encoded(message.role)),\"content\":\(try encoded(message.content))}"
+        }
+        return "[\(objects.joined(separator: ","))]"
+    }
+
+    public func string(json: Bool) throws -> String {
+        if json {
+            return try jsonString()
+        }
+        return plainTextString()
+    }
+}
+
 public struct EnchantedPrompt: Codable, Equatable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case title
@@ -76,17 +140,17 @@ public enum EnchantedPromptCatalog {
     public static let actionIconName = EnchantedPrompt.Kind.action.systemImage
 
     public static let emptyConversationPrompts = [
-        EnchantedPrompt(title: "Give me phrases to learn in a new language", kind: .action),
-        EnchantedPrompt(title: "Act like Mowgli from The Jungle Book and answer questions", kind: .action),
         EnchantedPrompt(title: "How to center div in HTML?", kind: .question),
-        EnchantedPrompt(title: "What's unique about Go programming language?", kind: .question),
-        EnchantedPrompt(title: "Give 10 gift ideas for best friend", kind: .action),
+        EnchantedPrompt(title: "How to do personal taxes in USA?", kind: .question),
+        EnchantedPrompt(title: "Explain supercomputers like I'm five years old", kind: .action),
         EnchantedPrompt(
             title: "Write a text message asking a friend to be my plus-one at a wedding",
             kind: .action
         ),
-        EnchantedPrompt(title: "Explain supercomputers like I'm five years old", kind: .action),
-        EnchantedPrompt(title: "How to do personal taxes in USA?", kind: .question),
+        EnchantedPrompt(title: "Give me phrases to learn in a new language", kind: .action),
+        EnchantedPrompt(title: "Act like Mowgli from The Jungle Book and answer questions", kind: .action),
+        EnchantedPrompt(title: "What's unique about Go programming language?", kind: .question),
+        EnchantedPrompt(title: "Give 10 gift ideas for best friend", kind: .action),
         EnchantedPrompt(
             title: "What are the largest cities in USA in population? Give a table",
             kind: .question
@@ -583,6 +647,7 @@ public enum EnchantedPalette {
     public static let destructiveColor = "#B42318"
     public static let successColor = "#34C759"
     public static let warningColor = "#FF9F0A"
+    public static let noticeColor = "#F7CED4"
     public static let dropTargetColor = "#EAF2FF"
     public static let selectedMutedColor = "#FFFFFF"
     public static let headerColor = EnchantedPalette.canvasColor
@@ -644,7 +709,7 @@ public enum EnchantedVisualMetrics {
     public static let promptGridColumns = 4
     public static let promptGridSpacing = 15
     public static let promptCardWidth = 160
-    public static let promptCardHeight = 128
+    public static let promptCardHeight = 150
     public static let promptGridWidth = promptCardWidth * promptGridColumns + promptGridSpacing * (promptGridColumns - 1)
     public static let promptButtonIconSpacing = 10
     public static let promptButtonTextWidthInset = 80

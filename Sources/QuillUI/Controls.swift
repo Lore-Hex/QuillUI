@@ -262,7 +262,10 @@ public struct QuillPromptGrid: View {
             // Narrow multi-column card: wrapped title top-left, icon bottom-right.
             // Kept for the generated upstream profile's 2-column grid (a single
             // truncated line there is too little text for the visual-smoke budget).
-            VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                    .frame(height: promptCardContentHeight)
+
                 Text(prompt.title.quillPromptGridDisplayTitle)
                     .font(.system(size: promptFontSize))
                     .foregroundColor(Color(hex: "#1D1D1F"))
@@ -272,26 +275,44 @@ public struct QuillPromptGrid: View {
                     // overflowed off the right edge. maxWidth:.infinity lets the card
                     // shrink with its LazyVGrid column.
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Spacer()
-                HStack {
-                    Spacer()
-                    promptAccessory(for: prompt)
+
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    HStack {
+                        Spacer()
+                        promptAccessory(for: prompt)
+                    }
                 }
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: promptCardContentHeight,
+                    maxHeight: promptCardContentHeight,
+                    alignment: .bottomTrailing
+                )
             }
         }
     }
 
-    private var promptFontSize: CGFloat { 15 }
+    private var promptFontSize: CGFloat {
+        #if os(Linux)
+        cardHeight >= 220 ? 24 : 15
+        #else
+        15
+        #endif
+    }
     #if os(macOS) || os(iOS) || os(visionOS)
     private var promptCardPadding: CGFloat { 15 }
     #else
     private var promptCardPadding: Int { 15 }
     #endif
     private var promptCardPaddingWidth: CGFloat { CGFloat(promptCardPadding) }
+    private var promptCardContentHeight: CGFloat {
+        max(1, cardHeight - (promptCardPaddingWidth * 2))
+    }
     private var promptIconSize: CGFloat { 16 }
 
     private var cardBackgroundColor: Color {
-        Color(hex: "#F4F4F6")
+        QuillDesktopChromeStyle.promptCardBackground
     }
 
     @ViewBuilder
@@ -311,17 +332,12 @@ public struct QuillPromptGrid: View {
             .frame(width: promptIconSize, height: promptIconSize)
         } else if prompt.systemImage.lowercased().contains("lightbulb") {
             // Same approach for the action prompts: draw the circle, overlay the
-            // plain (non-.circle) lightbulb glyph, matching the genuine app's
-            // circled bulb without the partial-arc .circle composite.
+            // bulb with primitive shapes, matching the genuine app's circled
+            // bulb without relying on tiny Material Symbol glyph rendering.
             ZStack {
                 Circle()
                     .stroke(Color(hex: "#2E2E31"), lineWidth: 1.3)
-                Image(systemName: QuillSystemSymbol.compatibleName("lightbulb"))
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: promptIconSize * 0.52, height: promptIconSize * 0.52)
-                    .foregroundColor(Color(hex: "#2E2E31"))
+                QuillPromptLightbulbGlyph(color: Color(hex: "#2E2E31"))
             }
             .frame(width: promptIconSize, height: promptIconSize)
         } else {
@@ -332,6 +348,25 @@ public struct QuillPromptGrid: View {
                 .frame(width: promptIconSize, height: promptIconSize)
                 .foregroundColor(Color(hex: "#2E2E31"))
         }
+    }
+}
+
+private struct QuillPromptLightbulbGlyph: View {
+    var color: Color
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Circle()
+                .stroke(color, lineWidth: 1.1)
+                .frame(width: 5.8, height: 5.8)
+            Rectangle()
+                .fill(color)
+                .frame(width: 3.3, height: 2)
+            Rectangle()
+                .fill(color)
+                .frame(width: 5.2, height: 1.2)
+        }
+        .frame(width: 8, height: 10, alignment: .center)
     }
 }
 
@@ -351,15 +386,19 @@ public struct QuillConversationHistoryItem: Identifiable, Hashable, Sendable {
 
 public enum QuillDesktopChromeStyle {
     public static var sidebarBackground: Color {
-        Color(red: 0.93, green: 0.95, blue: 0.92)
+        Color(red: 0.91, green: 0.93, blue: 0.89)
     }
 
     public static var detailBackground: Color {
-        Color(red: 0.97, green: 0.97, blue: 0.96)
+        Color(hex: "#FAFAFA")
     }
 
     public static var cardBackground: Color {
         Color.white
+    }
+
+    public static var promptCardBackground: Color {
+        Color(red: 0.925, green: 0.93, blue: 0.955)
     }
 
     public static var selectedRowBackground: Color {
@@ -503,6 +542,158 @@ public struct QuillConversationHistoryList: View {
     }
 }
 
+private struct QuillConversationHistoryDayGroup: Identifiable {
+    var date: Date
+    var items: [QuillConversationHistoryItem]
+
+    var id: Date { date }
+}
+
+public struct QuillDateGroupedConversationHistoryList: View {
+    public var items: [QuillConversationHistoryItem]
+    public var selectedID: String?
+    public var dateTitle: (Date) -> String
+    public var deleteDayTitle: String
+    public var deleteItemTitle: String
+    public var onSelect: (QuillConversationHistoryItem) -> Void
+    public var onDelete: ((QuillConversationHistoryItem) -> Void)?
+    public var onDeleteDay: ((Date) -> Void)?
+
+    @State private var hoveredItemID: String?
+
+    public init(
+        items: [QuillConversationHistoryItem],
+        selectedID: String? = nil,
+        dateTitle: @escaping (Date) -> String,
+        deleteDayTitle: String = "Delete daily conversations",
+        deleteItemTitle: String = "Delete",
+        onSelect: @escaping (QuillConversationHistoryItem) -> Void,
+        onDelete: ((QuillConversationHistoryItem) -> Void)? = nil,
+        onDeleteDay: ((Date) -> Void)? = nil
+    ) {
+        self.items = items
+        self.selectedID = selectedID
+        self.dateTitle = dateTitle
+        self.deleteDayTitle = deleteDayTitle
+        self.deleteItemTitle = deleteItemTitle
+        self.onSelect = onSelect
+        self.onDelete = onDelete
+        self.onDeleteDay = onDeleteDay
+    }
+
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: groupedListSpacing) {
+                ForEach(dayGroups) { group in
+                    HStack {
+                        Text(dateTitle(group.date))
+                            .font(.system(size: groupedSectionFontSize))
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color(hex: "#8F8F96"))
+                            .padding(.bottom, groupedSectionBottomPadding)
+
+                        Spacer()
+                    }
+                    .contextMenu(menuItems: {
+                        dayContextMenu(for: group.date)
+                    })
+
+                    ForEach(group.items) { item in
+                        groupedRow(for: item)
+                    }
+
+                    Divider()
+                }
+            }
+        }
+        .scrollIndicators(.never)
+    }
+
+    private var dayGroups: [QuillConversationHistoryDayGroup] {
+        Dictionary(grouping: items) { item in
+            Calendar.current.startOfDay(for: item.updatedAt)
+        }
+        .map { date, items in
+            QuillConversationHistoryDayGroup(
+                date: date,
+                items: items.sorted { $0.updatedAt > $1.updatedAt }
+            )
+        }
+        .sorted { $0.date > $1.date }
+    }
+
+    private func groupedRow(for item: QuillConversationHistoryItem) -> some View {
+        let isSelected = selectedID == item.id
+        let isHovered = hoveredItemID == item.id
+        let textState = PaintControlState(isHovered: isHovered, isSelected: false)
+
+        return HStack {
+            if isSelected {
+                Circle()
+                    .frame(width: groupedSelectionDotSize, height: groupedSelectionDotSize)
+                    .transition(.opacity)
+            }
+
+            Text(item.title)
+                .lineLimit(1)
+                .font(.system(size: groupedRowFontSize))
+                .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: textState)))
+                .transition(.opacity)
+
+            Spacer()
+        }
+        .padding(.vertical, groupedRowVerticalPadding)
+        .frame(maxWidth: .infinity, minHeight: groupedRowMinHeight, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(item.title)
+        .help(item.title)
+        .onHover { hovering in
+            hoveredItemID = hovering ? item.id : nil
+        }
+        .onTapGesture { onSelect(item) }
+        .animation(.easeOut(duration: 0.15), value: isSelected)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
+        .contextMenu(menuItems: {
+            itemContextMenu(for: item)
+        })
+    }
+
+    @ViewBuilder
+    private func dayContextMenu(for date: Date) -> some View {
+        if let onDeleteDay {
+            Button(role: .destructive, action: { onDeleteDay(date) }) {
+                Label(deleteDayTitle, systemImage: "trash")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func itemContextMenu(for item: QuillConversationHistoryItem) -> some View {
+        if let onDelete {
+            Button(role: .destructive, action: { onDelete(item) }) {
+                Label(deleteItemTitle, systemImage: "trash")
+            }
+        }
+    }
+
+    #if os(Linux)
+    private var groupedSectionFontSize: CGFloat { 24 }
+    private var groupedRowFontSize: CGFloat { 23 }
+    private var groupedRowMinHeight: CGFloat { 48 }
+    private var groupedRowVerticalPadding: CGFloat { 10 }
+    private var groupedSelectionDotSize: CGFloat { 8 }
+    #else
+    private var groupedSectionFontSize: CGFloat { 14 }
+    private var groupedRowFontSize: CGFloat { 16 }
+    private var groupedRowMinHeight: CGFloat { 32 }
+    private var groupedRowVerticalPadding: CGFloat { 12 }
+    private var groupedSelectionDotSize: CGFloat { 6 }
+    #endif
+    private var groupedListSpacing: CGFloat { 17 }
+    private var groupedSectionBottomPadding: CGFloat { 30 }
+}
+
 private extension Color {
     init(quillPaint color: PaintColor) {
         self.init(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
@@ -552,6 +743,35 @@ public struct QuillSidebarBottomNavigation: View {
     }
 }
 
+public struct QuillDesktopSidebar<Content: View>: View {
+    public var bottomActions: [QuillSidebarNavigationAction]
+    private var content: Content
+
+    public init(
+        bottomActions: [QuillSidebarNavigationAction],
+        @ViewBuilder content: () -> Content
+    ) {
+        self.bottomActions = bottomActions
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            Divider()
+                .padding(.bottom, 24)
+
+            QuillSidebarBottomNavigation(actions: bottomActions)
+                .frame(maxWidth: .infinity, minHeight: 146, alignment: .topLeading)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 88)
+        .padding(.bottom, 18)
+    }
+}
+
 public struct QuillSidebarNavigationButton: View {
     public var title: String
     public var systemImage: String
@@ -592,11 +812,31 @@ public struct QuillSidebarNavigationButton: View {
 
     @ViewBuilder
     private var sidebarIcon: some View {
+        #if os(Linux)
+        if systemImage == "textformat.abc" {
+            Text("Abc")
+                .font(.system(size: 13, weight: .regular))
+                .frame(width: 24, height: 20, alignment: .leading)
+        } else if systemImage == "keyboard" || systemImage == "keyboard.fill" {
+            QuillSidebarKeyboardGlyph(color: Color(hex: "#3A3A3C"))
+                .frame(width: 24, height: 20, alignment: .leading)
+        } else if systemImage == "gearshape" || systemImage == "gearshape.fill" || systemImage == "gear" {
+            QuillSidebarGearGlyph(color: Color(hex: "#3A3A3C"))
+                .frame(width: 24, height: 20, alignment: .leading)
+        } else {
+            Image(systemName: sidebarSystemImageName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 17, height: 17, alignment: .center)
+        }
+        #else
         Image(systemName: sidebarSystemImageName)
             .renderingMode(.template)
             .resizable()
             .scaledToFit()
             .frame(width: 17, height: 17, alignment: .center)
+        #endif
     }
 
     private var sidebarSystemImageName: String {
@@ -612,6 +852,68 @@ public struct QuillSidebarNavigationButton: View {
         #else
         return QuillSystemSymbol.compatibleName(systemImage)
         #endif
+    }
+}
+
+private struct QuillSidebarKeyboardGlyph: View {
+    var color: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(color, lineWidth: 1.3)
+                .frame(width: 17, height: 11)
+
+            VStack(spacing: 1.5) {
+                HStack(spacing: 1.5) {
+                    key
+                    key
+                    key
+                    key
+                    key
+                }
+                HStack(spacing: 1.5) {
+                    key
+                    Rectangle()
+                        .fill(color)
+                        .frame(width: 5.6, height: 1.4)
+                    key
+                }
+            }
+            .padding(.top, 1)
+        }
+        .frame(width: 17, height: 13, alignment: .center)
+    }
+
+    private var key: some View {
+        Rectangle()
+            .fill(color)
+            .frame(width: 1.8, height: 1.4)
+    }
+}
+
+private struct QuillSidebarGearGlyph: View {
+    var color: Color
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(color)
+                .frame(width: 3.2, height: 17)
+            Rectangle()
+                .fill(color)
+                .frame(width: 17, height: 3.2)
+            Circle()
+                .fill(QuillDesktopChromeStyle.sidebarBackground)
+                .frame(width: 11.2, height: 11.2)
+            Circle()
+                .stroke(color, lineWidth: 1.6)
+                .frame(width: 10, height: 10)
+            Circle()
+                .fill(color)
+                .frame(width: 3.3, height: 3.3)
+        }
+        .frame(width: 17, height: 17, alignment: .center)
     }
 }
 
@@ -711,12 +1013,32 @@ public struct QuillMacWindowControls: View {
     public init() {}
 
     public var body: some View {
-        HStack(spacing: 12) {
-            Circle().fill(Color(hex: "#FF605C"))
-            Circle().fill(Color(hex: "#FFBD44"))
-            Circle().fill(Color(hex: "#00CA4E"))
+        HStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Circle().fill(Color(hex: "#FF605C"))
+                Circle().fill(Color(hex: "#FFBD44"))
+                Circle().fill(Color(hex: "#00CA4E"))
+            }
+            .frame(width: 82, height: 14, alignment: .leading)
+
+            Color.clear
+                .frame(width: 48, height: 1)
+
+            sidebarToggleGlyph
         }
-        .frame(width: 82, height: 14, alignment: .leading)
+        .frame(width: 176, height: 24, alignment: .leading)
+    }
+
+    private var sidebarToggleGlyph: some View {
+        RoundedRectangle(cornerRadius: 3)
+            .stroke(Color(hex: "#6F7072"), lineWidth: 1.6)
+            .frame(width: 24, height: 24)
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(Color(hex: "#6F7072"))
+                    .frame(width: 1.4, height: 17)
+                    .padding(.leading, 7)
+            }
     }
 }
 
@@ -924,12 +1246,29 @@ public struct QuillChatEmptyState: View {
                 )
             )
         #else
-        Text(brandTitle)
-            .foregroundColor(Color(hex: "#9B72CB"))
-            .font(Font.system(size: 66, weight: .thin))
-            .multilineTextAlignment(.center)
+        HStack(spacing: 0) {
+            ForEach(Array(brandTitle.enumerated()), id: \.offset) { index, character in
+                Text(String(character))
+                    .foregroundColor(linuxWordmarkColor(at: index))
+                    .font(Font.system(size: 66, weight: .thin))
+            }
+        }
+        .multilineTextAlignment(.center)
         #endif
     }
+
+    #if !(os(macOS) || os(iOS) || os(visionOS))
+    private func linuxWordmarkColor(at index: Int) -> Color {
+        let colors = [
+            Color(hex: "#657BE8"),
+            Color(hex: "#8173DC"),
+            Color(hex: "#A66FBF"),
+            Color(hex: "#C76B8F"),
+            Color(hex: "#D96570"),
+        ]
+        return colors[min(index, colors.count - 1)]
+    }
+    #endif
 }
 
 public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Content: View>: View {
@@ -962,11 +1301,7 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
             HStack(spacing: 0) {
                 sidebar
                     .frame(width: resolvedSidebarWidth, alignment: .leading)
-                    // macOS source-list sidebar color (matches EnchantedPalette.sidebarColor
-                    // and the Enchanted macOS reference screenshot). The previous #E9E9E7 was
-                    // slightly too dark/neutral — it rendered (233,233,231), failing the
-                    // backend visual verifier's sidebar check (needs green >= 235).
-                    .background(Color(hex: "#F5F5F7"))
+                    .background(QuillDesktopChromeStyle.sidebarBackground)
                     .overlay(alignment: .topLeading) {
                         #if os(Linux)
                         if Self.showsMacWindowControls {
@@ -982,8 +1317,7 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
                 VStack(spacing: 0) {
                     HStack(spacing: 16) {
                         Text(title)
-                            .font(.system(size: 16))
-                            .fontWeight(.semibold)
+                            .font(.system(size: 16, weight: .regular))
                             .foregroundColor(Color(hex: "#444446"))
                         Spacer()
                         HStack(spacing: 14) {
@@ -992,16 +1326,16 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
                     }
                     .padding(.horizontal, 16)
                     .frame(height: resolvedToolbarHeight, alignment: .center)
-                    .background(Color(hex: "#FAFAFA"))
+                    .background(QuillDesktopChromeStyle.detailBackground)
 
                     Divider()
 
                     content
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(hex: "#FAFAFA"))
+                        .background(QuillDesktopChromeStyle.detailBackground)
                 }
             }
-            .background(Color(hex: "#FAFAFA"))
+            .background(QuillDesktopChromeStyle.detailBackground)
         }
     }
 
@@ -1026,6 +1360,120 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     #else
     private var resolvedToolbarHeight: CGFloat { toolbarHeight }
     #endif
+}
+
+public struct QuillDesktopChatScaffold<
+    Sidebar: View,
+    ToolbarContent: View,
+    SelectedContent: View,
+    EmptyContent: View,
+    StatusContent: View,
+    ComposerContent: View
+>: View {
+    public var title: String
+    public var sidebarWidth: CGFloat
+    public var composerMaxWidth: CGFloat
+    public var composerHorizontalPadding: CGFloat
+    public var composerVerticalPadding: CGFloat
+    public var hasSelection: Bool
+    public var showsStatus: Bool
+    private var sidebar: Sidebar
+    private var toolbarContent: ToolbarContent
+    private var selectedContent: SelectedContent
+    private var emptyContent: EmptyContent
+    private var statusContent: StatusContent
+    private var composerContent: ComposerContent
+
+    public init(
+        title: String,
+        sidebarWidth: CGFloat = 320,
+        composerMaxWidth: CGFloat = .infinity,
+        composerHorizontalPadding: CGFloat = 40,
+        composerVerticalPadding: CGFloat = 16,
+        hasSelection: Bool,
+        showsStatus: Bool = false,
+        @ViewBuilder sidebar: () -> Sidebar,
+        @ViewBuilder toolbar: () -> ToolbarContent,
+        @ViewBuilder selectedContent: () -> SelectedContent,
+        @ViewBuilder emptyContent: () -> EmptyContent,
+        @ViewBuilder statusContent: () -> StatusContent,
+        @ViewBuilder composer: () -> ComposerContent
+    ) {
+        self.title = title
+        self.sidebarWidth = sidebarWidth
+        self.composerMaxWidth = composerMaxWidth
+        self.composerHorizontalPadding = composerHorizontalPadding
+        self.composerVerticalPadding = composerVerticalPadding
+        self.hasSelection = hasSelection
+        self.showsStatus = showsStatus
+        self.sidebar = sidebar()
+        self.toolbarContent = toolbar()
+        self.selectedContent = selectedContent()
+        self.emptyContent = emptyContent()
+        self.statusContent = statusContent()
+        self.composerContent = composer()
+    }
+
+    public var body: some View {
+        QuillDesktopSplitLayout(title: title, sidebarWidth: sidebarWidth) {
+            sidebar
+        } toolbar: {
+            toolbarContent
+        } content: {
+            VStack(alignment: .center, spacing: 0) {
+                if hasSelection {
+                    selectedContent
+                } else {
+                    emptyContent
+                }
+
+                if showsStatus {
+                    statusContent
+                }
+
+                composerContent
+                    .padding(.horizontal, composerHorizontalPadding)
+                    .padding(.vertical, composerVerticalPadding)
+                    .frame(maxWidth: composerMaxWidth)
+            }
+        }
+    }
+}
+
+public struct QuillDesktopChatToolbar: View {
+    public var modelActions: [QuillMenuAction]
+    public var optionsActions: [QuillMenuAction]
+    private var onNewConversation: () -> Void
+
+    public init(
+        modelActions: [QuillMenuAction],
+        optionsActions: [QuillMenuAction],
+        onNewConversation: @escaping () -> Void
+    ) {
+        self.modelActions = modelActions
+        self.optionsActions = optionsActions
+        self.onNewConversation = onNewConversation
+    }
+
+    public var body: some View {
+        QuillToolbarActionRow {
+            QuillToolbarMenuButton(
+                systemImage: "chevron.down",
+                menuWidth: 220,
+                actions: modelActions
+            )
+
+            QuillToolbarMenuButton(
+                systemImage: "ellipsis",
+                showsChevron: true,
+                width: 42,
+                menuWidth: 180,
+                actions: optionsActions
+            )
+
+            QuillToolbarIconButton(systemImage: "square.and.pencil", action: onNewConversation)
+        }
+    }
 }
 
 public struct QuillToolbarActionRow<Content: View>: View {
@@ -1070,6 +1518,14 @@ public struct QuillToolbarIconButton: View {
     }
 
     public var body: some View {
+        #if os(Linux)
+        QuillGTKToolbarIconButton(
+            systemImage: systemImage,
+            showsChevron: showsChevron,
+            width: width,
+            action: action
+        )
+        #else
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
@@ -1091,6 +1547,7 @@ public struct QuillToolbarIconButton: View {
         .foregroundColor(toolbarIconColor)
         .frame(width: width, height: buttonHeight, alignment: .center)
         .contentShape(Rectangle())
+        #endif
     }
 
     #if os(Linux)

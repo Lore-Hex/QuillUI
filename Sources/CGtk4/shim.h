@@ -64,6 +64,35 @@ static inline unsigned int quill_drop_down_get_selected(gpointer dropdown) {
     return gtk_drop_down_get_selected(GTK_DROP_DOWN(dropdown));
 }
 
+// Decode PNG/JPEG/etc. bytes through GTK's GdkTexture loader and install the
+// resulting paintable into a GtkImage. Returns non-zero on success.
+static inline int quill_gtk_image_set_from_bytes(
+    gpointer image,
+    const unsigned char *bytes,
+    size_t count
+) {
+    if (!image || !bytes || count == 0) {
+        return 0;
+    }
+
+    GBytes *gbytes = g_bytes_new(bytes, count);
+    GError *error = NULL;
+    GdkTexture *texture = gdk_texture_new_from_bytes(gbytes, &error);
+    g_bytes_unref(gbytes);
+
+    if (error) {
+        g_error_free(error);
+        return 0;
+    }
+    if (!texture) {
+        return 0;
+    }
+
+    gtk_image_set_from_paintable(GTK_IMAGE(image), GDK_PAINTABLE(texture));
+    g_object_unref(texture);
+    return 1;
+}
+
 // GtkCheckButton: active state + group membership.
 static inline void quill_check_button_set_active(gpointer cb, int active) {
     gtk_check_button_set_active(GTK_CHECK_BUTTON(cb), (gboolean)active);

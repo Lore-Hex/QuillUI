@@ -175,6 +175,11 @@ def form_field_pixel(rgb: tuple[int, int, int]) -> bool:
     return sum(rgb) >= 735 and max(rgb) - min(rgb) <= 12
 
 
+def confirmation_dialog_surface_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 228 <= red <= 255 and 228 <= green <= 255 and 228 <= blue <= 255 and max(rgb) - min(rgb) <= 24
+
+
 def markdown_code_panel_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -484,6 +489,28 @@ def colorful_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
     return max(rgb) - min(rgb) >= 35 and 180 <= sum(rgb) <= 650
 
 
+def cool_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return blue - red >= 20 and max(rgb) - min(rgb) >= 35 and 180 <= sum(rgb) <= 650
+
+
+def warm_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return red - blue >= 15 and max(rgb) - min(rgb) >= 30 and 180 <= sum(rgb) <= 650
+
+
+def mac_reference_sidebar_tint_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        222 <= red <= 242
+        and 226 <= green <= 248
+        and 216 <= blue <= 242
+        and green >= red + 2
+        and green >= blue + 5
+        and max(rgb) - min(rgb) <= 24
+    )
+
+
 def best_horizontal_segment(
     image: Screenshot,
     y0: int,
@@ -525,6 +552,31 @@ def best_prompt_card_row(
             best = (y, segments)
             best_score = score
     return best
+
+
+def prompt_card_fill_height(
+    image: Screenshot,
+    y0: int,
+    y1: int,
+    segments: list[Segment],
+    predicate: Callable[[tuple[int, int, int]], bool],
+) -> int:
+    rows: list[int] = []
+    for y in range(max(0, y0), min(image.height, y1)):
+        matched_cards = 0
+        for segment in segments:
+            fill_pixels = sum(
+                1
+                for x in range(segment.start, segment.end + 1)
+                if predicate(image.rgb(x, y))
+            )
+            if fill_pixels >= segment.width * 0.42:
+                matched_cards += 1
+        if matched_cards == len(segments):
+            rows.append(y)
+    if not rows:
+        return 0
+    return rows[-1] - rows[0] + 1
 
 
 def validate_quill_enchanted_mac_reference(image: Screenshot) -> str:
@@ -640,6 +692,18 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         sidebar_footer_pixels >= 700,
         f"Mac-reference sidebar footer navigation was not detected: pixels={sidebar_footer_pixels}",
     )
+    sidebar_tint_pixels = pixel_count(
+        image,
+        left + int((divider_x - left) * 0.03),
+        top + int(app_height * 0.08),
+        divider_x - int((divider_x - left) * 0.03),
+        bottom - int(app_height * 0.18),
+        mac_reference_sidebar_tint_pixel,
+    )
+    require(
+        sidebar_tint_pixels >= 120_000,
+        f"Mac-reference sidebar lost its green-tinted source-list material: pixels={sidebar_tint_pixels}",
+    )
     window_control_pixels = pixel_count(
         image,
         left,
@@ -686,6 +750,27 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         wordmark_pixels >= 750,
         f"Mac-reference wordmark was not detected: pixels={wordmark_pixels}",
     )
+    cool_wordmark_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.35),
+        top + int(app_height * 0.20),
+        detail_left + int(detail_width * 0.65),
+        top + int(app_height * 0.45),
+        cool_wordmark_pixel,
+    )
+    warm_wordmark_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.35),
+        top + int(app_height * 0.20),
+        detail_left + int(detail_width * 0.65),
+        top + int(app_height * 0.45),
+        warm_wordmark_pixel,
+    )
+    require(
+        cool_wordmark_pixels >= 250 and warm_wordmark_pixels >= 180,
+        "Mac-reference wordmark lost its blue-to-red color range: "
+        f"cool_pixels={cool_wordmark_pixels}, warm_pixels={warm_wordmark_pixels}",
+    )
 
     card_row = best_prompt_card_row(
         image,
@@ -722,6 +807,21 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         prompt_segments[0].start >= detail_left
         and prompt_segments[-1].end <= right,
         f"Mac-reference prompt cards are outside the detail pane: {prompt_segments}",
+    )
+    prompt_card_height = prompt_card_fill_height(
+        image,
+        top + int(app_height * 0.30),
+        top + int(app_height * 0.66),
+        prompt_segments,
+        mac_reference_or_gtk_prompt_card_pixel,
+    )
+    require(
+        prompt_card_height >= int(app_height * 0.15),
+        f"Mac-reference prompt cards are too short: height={prompt_card_height}px",
+    )
+    require(
+        prompt_card_height <= int(app_height * 0.28),
+        f"Mac-reference prompt cards are too tall: height={prompt_card_height}px",
     )
     prompt_text_pixels = dark_pixel_count(
         image,
@@ -795,10 +895,14 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         f"toolbar_pixels={toolbar_pixels}, "
         f"history_pixels={sidebar_history_pixels}, "
         f"footer_pixels={sidebar_footer_pixels}, "
+        f"sidebar_tint_pixels={sidebar_tint_pixels}, "
         f"window_controls={window_control_pixels}, "
         f"wordmark_pixels={wordmark_pixels}, "
+        f"wordmark_cool={cool_wordmark_pixels}, "
+        f"wordmark_warm={warm_wordmark_pixels}, "
         f"prompt_row={prompt_y}px, "
         f"cards={[f'{segment.start}-{segment.end}' for segment in prompt_segments]}, "
+        f"card_height={prompt_card_height}px, "
         f"prompt_text_pixels={prompt_text_pixels}, "
         f"alert={alert_segment.width}px@{alert_y}/{alert_height}px, "
         f"composer={composer_segment.width}px@{composer_y}"
@@ -1048,6 +1152,9 @@ def validate_quill_chat_mac_reference_composer_typed(image: Screenshot) -> str:
 def validate_quill_chat_mac_reference_settings_panel(
     image: Screenshot,
     require_typed_endpoint: bool = False,
+    require_typed_bearer_token: bool = False,
+    require_typed_ping_interval: bool = False,
+    require_selected_default_model: bool = False,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1055,7 +1162,7 @@ def validate_quill_chat_mac_reference_settings_panel(
     require(app_width >= 1800, f"Settings interaction window is too narrow: {app_width}px")
     require(app_height >= 1200, f"Settings interaction window is too short: {app_height}px")
 
-    panel = best_horizontal_segment(
+    legacy_panel = best_horizontal_segment(
         image,
         top + 36,
         top + 72,
@@ -1064,19 +1171,40 @@ def validate_quill_chat_mac_reference_settings_panel(
         settings_panel_background_pixel,
         min_width=int(app_width * 0.35),
     )
+    panel_kind = "legacy"
+    panel = legacy_panel
+    if panel is None or panel[1].start > left + 4:
+        panel_kind = "root-overlay"
+        panel = best_horizontal_segment(
+            image,
+            top + int(app_height * 0.18),
+            top + int(app_height * 0.72),
+            left + int(app_width * 0.20),
+            right + 1,
+            settings_panel_background_pixel,
+            min_width=int(app_width * 0.35),
+        )
     require(panel is not None, "Mac-reference settings panel background was not detected")
     panel_y, panel_segment = panel
-    require(
-        panel_segment.start <= left + 4 and panel_segment.width >= app_width * 0.39,
-        f"Mac-reference settings panel is misplaced or too narrow: {panel_segment}",
-    )
+    if panel_kind == "legacy":
+        require(
+            panel_segment.start <= left + 4 and panel_segment.width >= app_width * 0.39,
+            f"Mac-reference settings panel is misplaced or too narrow: {panel_segment}",
+        )
+    else:
+        detail_center = (left + right) / 2
+        require(
+            abs(panel_segment.center - detail_center) <= app_width * 0.18
+            and panel_segment.width >= app_width * 0.35,
+            f"Mac-reference root-overlay settings panel is misplaced or too narrow: {panel_segment}",
+        )
 
     header_dark_pixels = dark_pixel_count(
         image,
         panel_segment.start,
-        top,
+        max(top, panel_y - 44),
         panel_segment.end + 1,
-        top + 36,
+        panel_y + 36,
     )
     require(
         header_dark_pixels >= 90,
@@ -1086,9 +1214,9 @@ def validate_quill_chat_mac_reference_settings_panel(
     field_pixels = pixel_count(
         image,
         panel_segment.start + 20,
-        top + 80,
+        panel_y + 50,
         panel_segment.end - 20,
-        top + 430,
+        panel_y + 430,
         form_field_pixel,
     )
     require(
@@ -1099,9 +1227,9 @@ def validate_quill_chat_mac_reference_settings_panel(
     body_dark_pixels = dark_pixel_count(
         image,
         panel_segment.start + 18,
-        top + 80,
+        panel_y + 50,
         panel_segment.end - 18,
-        top + 450,
+        panel_y + 450,
     )
     require(
         body_dark_pixels >= 1_000,
@@ -1126,25 +1254,158 @@ def validate_quill_chat_mac_reference_settings_panel(
         endpoint_text_pixels = dark_pixel_count(
             image,
             panel_segment.start + 30,
-            top + 88,
+            panel_y + 58,
             min(panel_segment.end, panel_segment.start + 560),
-            top + 123,
+            panel_y + 103,
         )
         require(
-            endpoint_text_pixels >= 300,
+            endpoint_text_pixels >= 550,
             f"Mac-reference typed settings endpoint was not detected: pixels={endpoint_text_pixels}",
         )
         typed_summary = f", endpoint_text_pixels={endpoint_text_pixels}"
 
+    if require_typed_bearer_token:
+        if panel_kind == "root-overlay":
+            token_y0 = panel_y + 350
+            token_y1 = panel_y + 398
+        else:
+            token_y0 = panel_y + 174
+            token_y1 = panel_y + 222
+        token_text_pixels = dark_pixel_count(
+            image,
+            panel_segment.start + 30,
+            token_y0,
+            min(panel_segment.end, panel_segment.start + 560),
+            token_y1,
+        )
+        require(
+            token_text_pixels >= 250,
+            f"Mac-reference typed settings bearer token was not detected: pixels={token_text_pixels}",
+        )
+        typed_summary += f", token_text_pixels={token_text_pixels}"
+
+    if require_typed_ping_interval:
+        if panel_kind == "root-overlay":
+            ping_y0 = panel_y + 384
+            ping_y1 = panel_y + 432
+        else:
+            ping_y0 = panel_y + 208
+            ping_y1 = panel_y + 257
+        ping_text_pixels = dark_pixel_count(
+            image,
+            panel_segment.start + 30,
+            ping_y0,
+            min(panel_segment.end, panel_segment.start + 560),
+            ping_y1,
+        )
+        require(
+            ping_text_pixels >= 140,
+            f"Mac-reference typed settings ping interval was not detected: pixels={ping_text_pixels}",
+        )
+        typed_summary += f", ping_text_pixels={ping_text_pixels}"
+
+    if require_selected_default_model:
+        model_text_pixels = dark_pixel_count(
+            image,
+            panel_segment.start + 310,
+            panel_y + 272,
+            min(panel_segment.end, panel_segment.start + 640),
+            panel_y + 346,
+        )
+        require(
+            model_text_pixels >= 200,
+            f"Mac-reference selected default model was not detected: pixels={model_text_pixels}",
+        )
+        typed_summary += f", selected_model_pixels={model_text_pixels}"
+
     return (
         "Quill Chat Mac-reference settings panel: "
         f"app={app_width}x{app_height}, "
-        f"panel={panel_segment.width}px@{panel_y}, "
+        f"panel={panel_segment.width}px@{panel_y} ({panel_kind}), "
         f"header_pixels={header_dark_pixels}, "
         f"field_pixels={field_pixels}, "
         f"body_pixels={body_dark_pixels}, "
         f"wordmark_pixels={wordmark_pixels}"
         f"{typed_summary}"
+    )
+
+
+def validate_quill_chat_mac_reference_settings_delete_confirmation(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(app_width >= 260, f"Settings delete confirmation dialog is too narrow: {app_width}px")
+    require(app_height >= 140, f"Settings delete confirmation dialog is too short: {app_height}px")
+    if app_width <= 720 and app_height <= 520:
+        dialog_left = left
+        dialog_right = right + 1
+        dialog_top = top
+        dialog_bottom = bottom + 1
+        dialog_kind = "child-window"
+    else:
+        dialog_left = left
+        dialog_right = min(right + 1, left + 330)
+        dialog_top = top
+        dialog_bottom = min(bottom + 1, top + 180)
+        dialog_kind = "root-top-left"
+
+    dialog_width = dialog_right - dialog_left
+    dialog_height = dialog_bottom - dialog_top
+    surface_pixels = pixel_count(
+        image,
+        dialog_left,
+        dialog_top,
+        dialog_right,
+        dialog_bottom,
+        confirmation_dialog_surface_pixel,
+    )
+    require(
+        surface_pixels >= dialog_width * dialog_height * 0.45,
+        f"Settings delete confirmation dialog surface is too sparse: pixels={surface_pixels}",
+    )
+
+    title_pixels = dark_pixel_count(
+        image,
+        dialog_left + 14,
+        dialog_top + 12,
+        dialog_right - 14,
+        dialog_top + min(92, dialog_height),
+    )
+    require(
+        title_pixels >= 140,
+        f"Settings delete confirmation title/message was not detected: pixels={title_pixels}",
+    )
+
+    action_pixels = dark_pixel_count(
+        image,
+        dialog_left + 14,
+        dialog_top + max(72, dialog_height - 96),
+        dialog_right - 14,
+        dialog_bottom - 10,
+    )
+    require(
+        action_pixels >= 80,
+        f"Settings delete confirmation actions were not detected: pixels={action_pixels}",
+    )
+
+    separator = best_horizontal_segment(
+        image,
+        dialog_top + min(72, max(0, dialog_height - 80)),
+        dialog_bottom,
+        dialog_left + 10,
+        dialog_right - 10,
+        gray_line_pixel,
+        min_width=max(120, int(dialog_width * 0.55)),
+    )
+    require(separator is not None, "Settings delete confirmation separator was not detected")
+
+    return (
+        "Quill Chat Mac-reference settings delete confirmation: "
+        f"dialog={dialog_width}x{dialog_height} ({dialog_kind}), "
+        f"surface_pixels={surface_pixels}, "
+        f"title_pixels={title_pixels}, "
+        f"action_pixels={action_pixels}, "
+        f"separator={separator[1].width}px@{separator[0]}"
     )
 
 
@@ -1155,7 +1416,7 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
     require(app_width >= 1800, f"Completions interaction window is too narrow: {app_width}px")
     require(app_height >= 1200, f"Completions interaction window is too short: {app_height}px")
 
-    title_pixels = pixel_count(
+    legacy_title_pixels = pixel_count(
         image,
         left,
         top,
@@ -1163,6 +1424,29 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
         top + 54,
         colorful_wordmark_pixel,
     )
+    root_title_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.25),
+        top + int(app_height * 0.25),
+        left + int(app_width * 0.60),
+        top + int(app_height * 0.38),
+        colorful_wordmark_pixel,
+    )
+    panel_kind = "legacy"
+    title_pixels = legacy_title_pixels
+    list_x0 = left
+    list_x1 = left + 820
+    list_y0 = top + 52
+    list_y1 = top + 330
+    divider_threshold = 360
+    if root_title_pixels >= 400:
+        panel_kind = "root-overlay"
+        title_pixels = root_title_pixels
+        list_x0 = left + int(app_width * 0.25)
+        list_x1 = left + int(app_width * 0.74)
+        list_y0 = top + int(app_height * 0.30)
+        list_y1 = top + int(app_height * 0.55)
+        divider_threshold = 700
     require(
         title_pixels >= 120,
         f"Mac-reference completions title was not detected: pixels={title_pixels}",
@@ -1170,10 +1454,10 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
 
     panel_dark_pixels = dark_pixel_count(
         image,
-        left,
-        top + 52,
-        left + 820,
-        top + 330,
+        list_x0,
+        list_y0,
+        list_x1,
+        list_y1,
     )
     require(
         panel_dark_pixels >= 1_200,
@@ -1182,8 +1466,8 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
 
     row_divider_count = sum(
         1
-        for y in range(top + 120, top + 330)
-        if line_row_score(image, y, left, left + 820) >= 360
+        for y in range(list_y0 + int(app_height * 0.04), list_y1)
+        if line_row_score(image, y, list_x0, list_x1) >= divider_threshold
     )
     require(
         row_divider_count >= 3,
@@ -1206,6 +1490,7 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
     return (
         "Quill Chat Mac-reference completions panel: "
         f"app={app_width}x{app_height}, "
+        f"panel={panel_kind}, "
         f"title_pixels={title_pixels}, "
         f"text_pixels={panel_dark_pixels}, "
         f"divider_rows={row_divider_count}, "
@@ -1231,27 +1516,44 @@ def validate_quill_chat_mac_reference_history_selection(
     detail_left = divider_x + 1
     detail_width = right - detail_left + 1
 
-    bullet_pixels = dark_pixel_count(
-        image,
-        left,
-        top + int(app_height * 0.31),
-        left + 42,
-        top + int(app_height * 0.37),
+    marker_y0 = top + int(app_height * 0.30)
+    marker_y1 = top + int(app_height * 0.47)
+    marker_row_pixels = [
+        (
+            y,
+            pixel_count(
+                image,
+                left,
+                y,
+                left + 28,
+                y + 1,
+                lambda rgb: sum(rgb) < 360,
+            ),
+        )
+        for y in range(marker_y0, marker_y1)
+    ]
+    marker_y, marker_peak_pixels = max(
+        marker_row_pixels,
+        key=lambda row: row[1],
     )
+    bullet_pixels = sum(count for _, count in marker_row_pixels)
     require(
         bullet_pixels >= 5,
-        f"Mac-reference selected history marker was not detected: pixels={bullet_pixels}",
+        "Mac-reference selected history marker was not detected: "
+        f"pixels={bullet_pixels}, peak={marker_peak_pixels}@{marker_y}",
     )
 
+    selected_row_text_y0 = max(marker_y - int(app_height * 0.025), top)
+    selected_row_text_y1 = min(marker_y + int(app_height * 0.035), bottom + 1)
     selected_row_pixels = dark_pixel_count(
         image,
         left + 30,
-        top + int(app_height * 0.30),
+        selected_row_text_y0,
         divider_x - 20,
-        top + int(app_height * 0.38),
+        selected_row_text_y1,
     )
     require(
-        selected_row_pixels >= 450,
+        selected_row_pixels >= 180,
         f"Mac-reference selected history row text was not detected: pixels={selected_row_pixels}",
     )
 
@@ -1340,6 +1642,7 @@ def validate_quill_chat_mac_reference_history_selection(
         f"app={app_width}x{app_height}, "
         f"sidebar={divider_x - left}px, "
         f"selected_marker_pixels={bullet_pixels}, "
+        f"selected_marker_peak={marker_peak_pixels}@{marker_y}, "
         f"selected_text_pixels={selected_row_pixels}, "
         f"transcript_panel_pixels={transcript_panel_pixels}, "
         f"alert={alert_segment.width}px@{alert_y}, "
@@ -1462,12 +1765,17 @@ def validate_quill_chat_mac_reference_markdown_transcript_selection(image: Scree
     )
 
 
-def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
+def validate_quill_chat_mac_reference_sent_message(
+    image: Screenshot,
+    label: str,
+    minimum_message_pixels: int,
+    minimum_right_aligned_message_pixels: int,
+) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
-    require(app_width >= 1800, f"Prompt-send window is too narrow: {app_width}px")
-    require(app_height >= 1200, f"Prompt-send window is too short: {app_height}px")
+    require(app_width >= 1800, f"{label} window is too narrow: {app_width}px")
+    require(app_height >= 1200, f"{label} window is too short: {app_height}px")
 
     divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
     divider_x = max(
@@ -1487,7 +1795,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
     require(
         prompt_card_like_pixels <= 8_000,
-        f"Mac-reference empty-state prompt cards remained after prompt send: pixels={prompt_card_like_pixels}",
+        f"Mac-reference empty-state prompt cards remained after {label}: pixels={prompt_card_like_pixels}",
     )
 
     wordmark_pixels = pixel_count(
@@ -1500,7 +1808,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
     )
     require(
         wordmark_pixels <= 650,
-        f"Mac-reference empty-state wordmark remained after prompt send: pixels={wordmark_pixels}",
+        f"Mac-reference empty-state wordmark remained after {label}: pixels={wordmark_pixels}",
     )
 
     message_pixels = dark_pixel_count(
@@ -1511,8 +1819,8 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         top + int(app_height * 0.70),
     )
     require(
-        message_pixels >= 350,
-        f"Mac-reference prompt-send message content was not detected: pixels={message_pixels}",
+        message_pixels >= minimum_message_pixels,
+        f"Mac-reference {label} message content was not detected: pixels={message_pixels}",
     )
     right_aligned_message_pixels = dark_pixel_count(
         image,
@@ -1522,8 +1830,8 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         top + int(app_height * 0.16),
     )
     require(
-        right_aligned_message_pixels >= 220,
-        "Mac-reference prompt-send message did not align to the trailing edge: "
+        right_aligned_message_pixels >= minimum_right_aligned_message_pixels,
+        f"Mac-reference {label} message did not align to the trailing edge: "
         f"right_aligned_pixels={right_aligned_message_pixels}",
     )
 
@@ -1536,7 +1844,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         alert_pixel,
         min_width=int(detail_width * 0.55),
     )
-    require(alert is not None, "Mac-reference prompt-send alert was not detected")
+    require(alert is not None, f"Mac-reference {label} alert was not detected")
     alert_y, alert_segment = alert
 
     composer = best_horizontal_segment(
@@ -1548,11 +1856,11 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         mac_reference_composer_pixel,
         min_width=int(detail_width * 0.55),
     )
-    require(composer is not None, "Mac-reference prompt-send composer was not detected")
+    require(composer is not None, f"Mac-reference {label} composer was not detected")
     composer_y, composer_segment = composer
 
     return (
-        "Quill Chat Mac-reference prompt send: "
+        f"Quill Chat Mac-reference {label}: "
         f"app={app_width}x{app_height}, "
         f"sidebar={divider_x - left}px, "
         f"prompt_card_pixels={prompt_card_like_pixels}, "
@@ -1560,6 +1868,119 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         f"message_pixels={message_pixels}, "
         f"right_message_pixels={right_aligned_message_pixels}, "
         f"alert={alert_segment.width}px@{alert_y}, "
+        f"composer={composer_segment.width}px@{composer_y}"
+    )
+
+
+def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference_sent_message(
+        image,
+        "prompt-send",
+        minimum_message_pixels=350,
+        minimum_right_aligned_message_pixels=220,
+    )
+
+
+def validate_quill_chat_mac_reference_composer_send(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference_sent_message(
+        image,
+        "composer-send",
+        minimum_message_pixels=160,
+        minimum_right_aligned_message_pixels=120,
+    )
+
+
+def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(app_width >= 1800, f"Functional transcript window is too narrow: {app_width}px")
+    require(app_height >= 1200, f"Functional transcript window is too short: {app_height}px")
+
+    divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+    )
+    divider_score = line_column_score(image, divider_x, top + int(app_height * 0.04), bottom - 40)
+    sidebar_ratio = (divider_x - left) / app_width
+    require(
+        0.255 <= sidebar_ratio <= 0.305 and divider_score >= app_height * 0.72,
+        f"Functional transcript sidebar divider mismatch: x={divider_x}, ratio={sidebar_ratio:.3f}, score={divider_score}",
+    )
+
+    detail_left = divider_x + 1
+    detail_width = right - detail_left + 1
+    prompt_card_like_pixels = pixel_count(
+        image,
+        detail_left,
+        top + int(app_height * 0.25),
+        right + 1,
+        top + int(app_height * 0.62),
+        mac_reference_prompt_card_pixel,
+    )
+    require(
+        prompt_card_like_pixels <= 8_000,
+        f"Functional transcript still shows empty-state prompt cards: pixels={prompt_card_like_pixels}",
+    )
+
+    wordmark_pixels = pixel_count(
+        image,
+        detail_left + int(detail_width * 0.35),
+        top + int(app_height * 0.20),
+        detail_left + int(detail_width * 0.65),
+        top + int(app_height * 0.45),
+        colorful_wordmark_pixel,
+    )
+    require(
+        wordmark_pixels <= 650,
+        f"Functional transcript still shows the empty-state wordmark: pixels={wordmark_pixels}",
+    )
+
+    leading_message_pixels = dark_pixel_count(
+        image,
+        detail_left + int(detail_width * 0.02),
+        top + int(app_height * 0.12),
+        detail_left + int(detail_width * 0.45),
+        top + int(app_height * 0.26),
+    )
+    require(
+        leading_message_pixels >= 120,
+        f"Functional transcript assistant reply was not detected: pixels={leading_message_pixels}",
+    )
+
+    trailing_message_pixels = dark_pixel_count(
+        image,
+        detail_left + int(detail_width * 0.77),
+        top + int(app_height * 0.05),
+        right - int(detail_width * 0.01),
+        top + int(app_height * 0.18),
+    )
+    require(
+        trailing_message_pixels >= 120,
+        f"Functional transcript user message was not detected on the trailing edge: pixels={trailing_message_pixels}",
+    )
+
+    composer = best_horizontal_segment(
+        image,
+        top + int(app_height * 0.88),
+        bottom + 1,
+        detail_left,
+        right + 1,
+        mac_reference_composer_pixel,
+        min_width=int(detail_width * 0.55),
+    )
+    require(composer is not None, "Functional transcript composer was not detected")
+    composer_y, composer_segment = composer
+
+    return (
+        "Quill Chat functional transcript: "
+        f"app={app_width}x{app_height}, "
+        f"sidebar={divider_x - left}px, "
+        f"prompt_card_pixels={prompt_card_like_pixels}, "
+        f"wordmark_pixels={wordmark_pixels}, "
+        f"assistant_pixels={leading_message_pixels}, "
+        f"user_pixels={trailing_message_pixels}, "
         f"composer={composer_segment.width}px@{composer_y}"
     )
 
@@ -1801,58 +2222,118 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
     require(660 <= app_height <= 820, f"Generated Enchanted Qt window height is unexpected: {app_height}px")
 
     sidebar_width = min(360, max(300, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
     sidebar_pixels = pixel_count(
         image,
         left,
         top,
-        left + sidebar_width,
+        detail_left,
         bottom + 1,
         enchanted_sidebar_pixel,
     )
-    selected_row_pixels = pixel_count(
+    sidebar_text_pixels = dark_pixel_count(
         image,
-        left + 16,
-        top + 100,
-        left + sidebar_width - 16,
-        min(bottom + 1, top + 240),
-        enchanted_selected_row_pixel,
+        left + 24,
+        top + 80,
+        detail_left - 16,
+        bottom - 160,
     )
-    primary_pixels = pixel_count(
+    stale_primary_pixels = pixel_count(
         image,
         left + 20,
         top + 20,
-        left + sidebar_width - 20,
-        # The qt catalog paints the "New chat" primary button a bit lower than the
-        # native layout (~y98-136), just below the old top+92 cutoff — extend the
-        # band so the accent-blue button is inside the sampled region.
-        top + 150,
+        detail_left - 20,
+        top + 170,
         enchanted_primary_pixel,
     )
-    detail_card_pixels = pixel_count(
+    wordmark_pixels = pixel_count(
         image,
-        left + sidebar_width + 16,
-        top + 70,
+        detail_left + 16,
+        top + 120,
         right - 20,
-        bottom - 20,
+        bottom - 240,
+        colorful_wordmark_pixel,
+    )
+    prompt_card_row = best_prompt_card_row(
+        image,
+        top + 120,
+        bottom - 120,
+        detail_left + 16,
+        right - 20,
+        min_width=110,
+        predicate=generic_qt_card_pixel,
+    )
+    require(prompt_card_row is not None, "Generated Enchanted Qt prompt-card row was not detected")
+    prompt_y, prompt_segments = prompt_card_row
+    prompt_card_height = prompt_card_fill_height(
+        image,
+        prompt_y,
+        bottom - 120,
+        prompt_segments,
         generic_qt_card_pixel,
     )
-    detail_text_pixels = dark_pixel_count(image, left + sidebar_width + 16, top + 20, right - 20, bottom - 20)
+    prompt_text_pixels = dark_pixel_count(
+        image,
+        prompt_segments[0].start + 10,
+        max(top, prompt_y - 6),
+        prompt_segments[-1].end - 10,
+        min(bottom, prompt_y + 85),
+    )
+    notice_pixels = pixel_count(
+        image,
+        detail_left + 16,
+        bottom - 160,
+        right - 20,
+        bottom - 60,
+        alert_pixel,
+    )
+    composer_pixels = pixel_count(
+        image,
+        detail_left + 100,
+        bottom - 80,
+        right - 100,
+        bottom - 15,
+        mac_reference_composer_pixel,
+    )
+    bottom_nav_pixels = dark_pixel_count(image, left + 20, bottom - 130, detail_left - 20, bottom - 20)
+    detail_text_pixels = dark_pixel_count(image, detail_left + 16, top + 20, right - 20, bottom - 20)
     require(sidebar_pixels >= 150000, f"Generated Enchanted Qt sidebar was not detected: pixels={sidebar_pixels}")
     require(
-        selected_row_pixels >= 10000,
-        f"Generated Enchanted Qt selected conversation row was not detected: pixels={selected_row_pixels}",
+        sidebar_text_pixels >= 2500,
+        f"Generated Enchanted Qt chat sidebar text was not detected: pixels={sidebar_text_pixels}",
     )
-    require(primary_pixels >= 700, f"Generated Enchanted Qt primary action was not detected: pixels={primary_pixels}")
-    require(detail_card_pixels >= 50000, f"Generated Enchanted Qt detail cards were not detected: pixels={detail_card_pixels}")
+    require(
+        stale_primary_pixels <= 300,
+        "Generated Enchanted Qt still shows the stale generic primary action: "
+        f"pixels={stale_primary_pixels}",
+    )
+    require(wordmark_pixels >= 2000, f"Generated Enchanted Qt wordmark was not detected: pixels={wordmark_pixels}")
+    require(
+        prompt_card_height >= 110,
+        f"Generated Enchanted Qt prompt cards are too short: height={prompt_card_height}px",
+    )
+    require(
+        prompt_text_pixels >= 1200,
+        f"Generated Enchanted Qt prompt card text was not detected: pixels={prompt_text_pixels}",
+    )
+    require(notice_pixels >= 15000, f"Generated Enchanted Qt notice banner was not detected: pixels={notice_pixels}")
+    require(composer_pixels >= 5000, f"Generated Enchanted Qt composer was not detected: pixels={composer_pixels}")
+    require(bottom_nav_pixels >= 300, f"Generated Enchanted Qt bottom navigation was not detected: pixels={bottom_nav_pixels}")
     require(detail_text_pixels >= 4000, f"Generated Enchanted Qt detail text was not detected: pixels={detail_text_pixels}")
 
     return (
-        "Quill Enchanted generated Qt snapshot: "
+        "Quill Enchanted generated Qt chat snapshot: "
         f"app={app_width}x{app_height}, "
         f"sidebar_pixels={sidebar_pixels}, "
-        f"selected_row_pixels={selected_row_pixels}, "
-        f"primary_pixels={primary_pixels}, "
-        f"detail_card_pixels={detail_card_pixels}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
+        f"stale_primary_pixels={stale_primary_pixels}, "
+        f"wordmark_pixels={wordmark_pixels}, "
+        f"prompt_cards={[f'{segment.start}-{segment.end}' for segment in prompt_segments]}, "
+        f"prompt_card_height={prompt_card_height}, "
+        f"prompt_text_pixels={prompt_text_pixels}, "
+        f"notice_pixels={notice_pixels}, "
+        f"composer_pixels={composer_pixels}, "
+        f"bottom_nav_pixels={bottom_nav_pixels}, "
         f"detail_text_pixels={detail_text_pixels}"
     )
 
@@ -1865,6 +2346,13 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
     require(640 <= app_height <= 840, f"Generated Enchanted GTK window height is unexpected: {app_height}px")
 
     detail_left = left + min(360, max(300, int(app_width * 0.30)))
+    sidebar_text_pixels = dark_pixel_count(
+        image,
+        left + 10,
+        top + 60,
+        detail_left - 10,
+        bottom - 80,
+    )
     detail_surface_pixels = pixel_count(
         image,
         detail_left,
@@ -1898,12 +2386,16 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
         prompt_card_pixels >= 30000,
         f"Generated Enchanted GTK prompt cards were not detected: pixels={prompt_card_pixels}",
     )
-    require(wordmark_pixels >= 1200, f"Generated Enchanted GTK wordmark was not detected: pixels={wordmark_pixels}")
+    require(
+        sidebar_text_pixels >= 1200,
+        f"Generated Enchanted GTK sidebar history was not detected: pixels={sidebar_text_pixels}",
+    )
     require(detail_text_pixels >= 2500, f"Generated Enchanted GTK text content was not detected: pixels={detail_text_pixels}")
 
     return (
         "Quill Enchanted generated GTK snapshot: "
         f"app={app_width}x{app_height}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
         f"detail_surface_pixels={detail_surface_pixels}, "
         f"prompt_card_pixels={prompt_card_pixels}, "
         f"wordmark_pixels={wordmark_pixels}, "
@@ -2723,7 +3215,13 @@ def main() -> int:
         "quill-wireguard-qt-import-invalid-paste",
         "quill-wireguard-qt-import-invalid-file",
     }
-    if compact_wireguard_dialog_product:
+    compact_quill_chat_dialog_product = product in {
+        "quill-chat-linux-mac-reference-settings-delete-confirmation",
+    }
+    if compact_quill_chat_dialog_product:
+        minimum_width = 260
+        minimum_height = 140
+    elif compact_wireguard_dialog_product:
         minimum_width = 500
         minimum_height = 360
     elif smoke_product:
@@ -2759,6 +3257,14 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_settings_panel(image))
     elif product == "quill-chat-linux-mac-reference-settings-endpoint-typed":
         print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_endpoint=True))
+    elif product == "quill-chat-linux-mac-reference-settings-bearer-token-typed":
+        print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_bearer_token=True))
+    elif product == "quill-chat-linux-mac-reference-settings-ping-interval-typed":
+        print(validate_quill_chat_mac_reference_settings_panel(image, require_typed_ping_interval=True))
+    elif product == "quill-chat-linux-mac-reference-settings-default-model-selected":
+        print(validate_quill_chat_mac_reference_settings_panel(image, require_selected_default_model=True))
+    elif product == "quill-chat-linux-mac-reference-settings-delete-confirmation":
+        print(validate_quill_chat_mac_reference_settings_delete_confirmation(image))
     elif product == "quill-chat-linux-mac-reference-completions-panel":
         print(validate_quill_chat_mac_reference_completions_panel(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":
@@ -2771,12 +3277,14 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_long_transcript_selection(image))
     elif product == "quill-chat-linux-mac-reference-prompt-send":
         print(validate_quill_chat_mac_reference_prompt_send(image))
+    elif product == "quill-chat-linux-mac-reference-composer-send":
+        print(validate_quill_chat_mac_reference_composer_send(image))
+    elif product == "quill-chat-linux-functional-transcript":
+        print(validate_quill_chat_functional_transcript(image))
     elif product in {"quill-enchanted-mac-reference", "quill-enchanted-linux-mac-reference"}:
         print(validate_quill_enchanted_mac_reference(image))
     elif product in {"quill-chat-mac-reference", "quill-chat-linux-mac-reference"}:
         print(validate_quill_chat_mac_reference(image))
-    elif product == "quill-enchanted-linux-gtk":
-        print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted-qt":
         print(validate_quill_enchanted_qt_native(image))
     elif product == "quill-enchanted":

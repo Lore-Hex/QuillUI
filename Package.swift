@@ -531,16 +531,12 @@ func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target
 
 // WireGuardKit deps + Linux-specific excludes.
 #if os(Linux)
-let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC", "Network", "NetworkExtension"]
-let wireGuardKitExcludes: [String] = [
-    "WireGuardAdapter.swift",
-    // Upstream emits `#error("Unimplemented")` for these on non-iOS/
-    // non-macOS — skipping them keeps the rest of WireGuardKit
-    // compiling on Linux.
-    "DNSResolver.swift",
-    "PacketTunnelSettingsGenerator.swift",
-    "IPAddress+AddrInfo.swift"
-]
+let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC", "WireGuardKitGo", "Network", "NetworkExtension"]
+// All WireGuardKit Swift files now compile on Linux: DNSResolver / IPAddress+AddrInfo /
+// PacketTunnelSettingsGenerator (engine networking, via the Network/NetworkExtension shims
+// + os-gate/C-type patches) and WireGuardAdapter (the Go-engine bridge, over the
+// WireGuardKitGo Linux stub shim). Nothing left to exclude.
+let wireGuardKitExcludes: [String] = []
 #else
 let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC"]
 let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
@@ -1295,21 +1291,169 @@ if wireguardUpstreamPresent {
             publicHeadersPath: "."
         )
     )
+    // Vendored minizip (Sources/WireGuardApp/ZipArchive/3rdparty/minizip) — the
+    // zip/unzip C backing ZipArchive.swift uses (zipOpen / unzOpen64 / …). Links
+    // system zlib (-lz); bzip2 is `#ifdef HAVE_BZIP2`-guarded so we don't define
+    // it (no libbz2 needed). zlib.h resolves via the system include path. Same
+    // shape as WireGuardRingLoggerC.
+    targets.append(
+        .target(
+            name: "WireGuardMinizipC",
+            path: ".upstream/wireguard-apple/Sources/WireGuardApp/ZipArchive/3rdparty/minizip",
+            exclude: ["MiniZip64_info.txt"],
+            sources: ["zip.c", "unzip.c", "ioapi.c"],
+            publicHeadersPath: ".",
+            linkerSettings: [.linkedLibrary("z")]
+        )
+    )
+    // highlighter.c — WireGuard's wg-quick-config syntax highlighter (the
+    // `enum highlight_type` { HighlightSection, HighlightField, … } + highlight_config
+    // span scanner) backing ConfTextStorage/ConfTextColorTheme. Self-contained POSIX
+    // C (no external lib). It shares the View/ dir with the conformance target's
+    // .swift cells, so exclude those (the C target compiles only highlighter.c;
+    // highlighter.h is its public header) — same overlap pattern as WireGuardRingLoggerC.
+    targets.append(
+        .target(
+            name: "WireGuardHighlighterC",
+            path: ".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS/View",
+            exclude: ["ButtonRow.swift", "ConfTextColorTheme.swift", "ConfTextStorage.swift",
+                      "ConfTextView.swift", "DeleteTunnelsConfirmationAlert.swift", "KeyValueRow.swift",
+                      "LogViewCell.swift", "OnDemandWiFiControls.swift", "TunnelListRow.swift"],
+            sources: ["highlighter.c"],
+            publicHeadersPath: "."
+        )
+    )
     targets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
-            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC"],
+            dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "CoreWLAN", "LocalAuthentication", "ServiceManagement", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
             path: ".upstream/wireguard-apple",
             sources: [
                 // Shared logging: Logger.swift (wg_log) over the ringlogger C
                 // ring buffer (import WireGuardRingLoggerC) + the `os` shadow.
                 "Sources/Shared/Logging/Logger.swift",
+                // Shared Keychain: SecItem* + the legacy macOS keychain-ACL APIs
+                // (SecTrustedApplication/SecAccess) via the Security shim. wg_log
+                // for failures. No real keychain on Linux (compile-only).
+                "Sources/Shared/Keychain.swift",
+                // Shared FileManager+Extension: app-group / log-file URLs + deleteFile;
+                // Foundation + os/wg_log. (networkExtensionLastErrorFileURL used by TunnelsManager.)
+                "Sources/Shared/FileManager+Extension.swift",
+                // NETunnelProviderProtocol+Extension: defines PacketTunnelProviderError
+                // + the protocol<->TunnelConfiguration bridge. Breaks the modularity
+                // wall via fetch-upstream patches (asWgQuickConfig/fromWgQuickConfig
+                // made public in QuillWireGuardUpstreamConfig + import patch).
+                "Sources/Shared/Model/NETunnelProviderProtocol+Extension.swift",
+                // TunnelErrors: WireGuardAppError conformances + localizedUIString;
+                // needs PacketTunnelProviderError (above) + tr + NEVPNError + wg_log.
+                "Sources/WireGuardApp/Tunnel/TunnelErrors.swift",
+                // TunnelsManager + TunnelContainer (the model layer core). Uses KVO
+                // (observe(\.status)) + objc_*AssociatedObject — compile shims in
+                // QuillFoundation; splitToArray made public in UpstreamConfig.
+                // TunnelConfiguration+UapiConfig: the UAPI parser (fromUapiConfig:basedOn:),
+                // used by TunnelsManager. Uses ParserState/ParseError (made public).
+                "Sources/WireGuardApp/Tunnel/TunnelConfiguration+UapiConfig.swift",
+                "Sources/WireGuardApp/Tunnel/TunnelsManager.swift",
+                // TunnelViewModel: config edit/validation VM (pure Foundation +
+                // WireGuardKit + splitToArray; no AppKit/KVO). Used by TunnelEdit/Detail VCs.
+                "Sources/WireGuardApp/UI/TunnelViewModel.swift",
+                // ActivateOnDemandViewModel: on-demand config edit VM (Foundation;
+                // TunnelContainer + ActivateOnDemandOption, both in-target). Dep of
+                // TunnelEditViewController + TunnelDetailTableViewController.
+                "Sources/WireGuardApp/UI/ActivateOnDemandViewModel.swift",
+                // Error presentation: ErrorPresenterProtocol + macOS ErrorPresenter
+                // (NSAlert-based; WireGuardAppError -> alert). Used by the VCs.
+                "Sources/WireGuardApp/UI/ErrorPresenterProtocol.swift",
+                "Sources/WireGuardApp/UI/macOS/ErrorPresenter.swift",
+                // TunnelListRow: NSView cell binding to a TunnelContainer via KVO
+                // (observe(\.name)/(\.status)) — exercises the KVO shims (#355).
+                "Sources/WireGuardApp/UI/macOS/View/TunnelListRow.swift",
+                // Log viewer support files: LogViewHelper (reads the ringlogger C
+                // ring buffer → timestamped entries; import WireGuardRingLoggerC) +
+                // LogViewCell (NSTableCellView; lowered to conform to QuillReusableView
+                // so it's dequeuable). LogViewController itself is still deferred on C
+                // (cancelOperation override-from-extension); its A wall (the @Sendable
+                // Timer block) is now solved by QuillTimer.make + the lowering rewrite.
+                "Sources/WireGuardApp/UI/LogViewHelper.swift",
+                "Sources/WireGuardApp/UI/macOS/View/LogViewCell.swift",
+                // NSTableView+Reuse: the generic dequeueReusableCell<T: NSView &
+                // QuillReusableView>() the tables use — the B-wall fix (the cell type
+                // is constrained to a protocol requiring init(), so T() compiles
+                // without forcing required init() onto NSView repo-wide).
+                "Sources/WireGuardApp/UI/macOS/NSTableView+Reuse.swift",
+                // LogViewController: the NSTableView-backed log viewer — the first full
+                // VC that needed ALL THREE concurrency/init/extension walls solved:
+                // A (its @Sendable Timer → QuillTimer.make via the lowering),
+                // B (dequeues LogViewTimestampCell/LogViewMessageCell, which conform to
+                //    QuillReusableView with required init()),
+                // C (its `override func cancelOperation` lives in an `extension` —
+                //    the lowering moves it into the class body so the override is legal
+                //    without an ObjC runtime).
+                "Sources/WireGuardApp/UI/macOS/ViewController/LogViewController.swift",
+                // ParseError+WireGuardAppError: retroactively conforms WireGuardKit's
+                // TunnelConfiguration.ParseError (public enum in QuillWireGuardUpstreamConfig)
+                // to the app's WireGuardAppError → localized alertText. Foundation-only
+                // logic (tr + AlertText, both already here); no AppKit/concurrency surface.
+                "Sources/WireGuardApp/UI/macOS/ParseError+WireGuardAppError.swift",
+                // DeleteTunnelsConfirmationAlert: NSAlert subclass (delete confirmation).
+                "Sources/WireGuardApp/UI/macOS/View/DeleteTunnelsConfirmationAlert.swift",
+                // Shared NotificationToken: a Foundation-only NotificationCenter
+                // observer wrapper (+ NotificationCenter.observe); used by the model
+                // layer (TunnelsManager/LogViewController). No ObjC.
+                "Sources/Shared/NotificationToken.swift",
                 // First real MODEL file: TunnelStatus maps NEVPNStatus -> app
                 // status, compiling against the NetworkExtension shadow (uses
                 // NEVPNStatus incl. .reasserting, #338). Its @objc enum is
                 // stripped by fetch-upstream's (now whole-app) lowering. Grows
                 // this target toward the single-app-module.
                 "Sources/WireGuardApp/Tunnel/TunnelStatus.swift",
+                // StatusItemController: the macOS menu-bar status item (NSStatusBar/
+                // NSStatusItem + an animated NSImage on a Timer). Binds a
+                // TunnelContainer's status to the status-bar icon. Plain class (not
+                // @MainActor); its Timer closure touches only non-@MainActor members,
+                // so it compiles whether or not the lowering rewrites the Timer to
+                // QuillTimer.make. No table (no dequeueReusableCell/B), no extension
+                // override (C). Needs NSStatusItem.squareLength (added to the shadow).
+                "Sources/WireGuardApp/UI/macOS/StatusItemController.swift",
+                // MainMenu: the macOS menu bar (NSMenu subclass) — App/File/Edit/Tunnel/Window
+                // submenus built with NSMenu.addItem(withTitle:action:keyEquivalent:) +
+                // NSMenuItem.separator() + keyEquivalentModifierMask; actions are Selector("…")
+                // routed to NSApp/NSApp.delegate/responder chain (no @objc methods of its own).
+                // First file of the app-BOOTSTRAP layer (after the full VC/view layer).
+                "Sources/WireGuardApp/UI/macOS/MainMenu.swift",
+                // StatusMenu: the status-bar dropdown (NSMenu subclass) + TunnelMenuItem
+                // (NSMenuItem subclass observing tunnel name/status via KVO). Builds the
+                // per-tunnel menu, manage/import/about/quit items; @objc actions lowered to
+                // QuillActionDispatching. The biggest bootstrap file; dep of TunnelsTracker.
+                "Sources/WireGuardApp/UI/macOS/StatusMenu.swift",
+                // TunnelsTracker: observes each tunnel's status (KVO) + the TunnelsManager
+                // list/activation delegates, forwarding changes to StatusMenu / StatusItemController /
+                // ManageTunnelsRootViewController.tunnelsListVC (all in-target). Plain class,
+                // import Cocoa, ErrorPresenter for activation failures.
+                "Sources/WireGuardApp/UI/macOS/TunnelsTracker.swift",
+                // LaunchedAtLoginDetector + MacAppStoreUpdateDetector: inspect the open/quit
+                // Apple events (NSAppleEventDescriptor + kCoreEventClass/kAEOpenApplication/
+                // kAEQuitApplication/keySenderPIDAttr) and call Darwin C (clock_gettime_nsec_np/
+                // proc_pidpath) — all shadowed in QuillFoundation/AppleEventsShim.swift (Linux:
+                // these features don't exist, so compile-faithful stubs). FileManager.loginHelperTimestampURL ✓.
+                "Sources/WireGuardApp/UI/macOS/LaunchedAtLoginDetector.swift",
+                "Sources/WireGuardApp/UI/macOS/MacAppStoreUpdateDetector.swift",
+                // AppDelegate: the macOS app entry/integration (NSApplicationDelegate, @MainActor) —
+                // builds MainMenu/StatusMenu/TunnelsTracker/ManageTunnelsRootViewController, conforms
+                // StatusMenuWindowDelegate (showManageTunnelsWindow), reads NSAppleEventManager.shared()
+                // .currentAppleEvent for launch detection, toggles login-item via SMLoginItemSetEnabled
+                // (import ServiceManagement). @objc actions lowered to QuillActionDispatching.
+                "Sources/WireGuardApp/UI/macOS/AppDelegate.swift",
+                // Application: the NSApplication subclass that owns the AppDelegate (set as
+                // .delegate before NSApplicationMain). THE LAST FILE of the WireGuard macOS app.
+                "Sources/WireGuardApp/UI/macOS/Application.swift",
+                // The NE EXTENSION (the macOS product's other half): PacketTunnelProvider
+                // (NEPacketTunnelProvider subclass — startTunnel/stopTunnel/handleAppMessage
+                // driving the now-complete WireGuardKit WireGuardAdapter) + ErrorNotifier.
+                // Compiled alongside the app in this target (it already deps NetworkExtension
+                // + WireGuardKit + os). Imports WireGuardKit via a fetch-upstream patch.
+                "Sources/WireGuardNetworkExtension/PacketTunnelProvider.swift",
+                "Sources/WireGuardNetworkExtension/ErrorNotifier.swift",
                 // ActivateOnDemandOption: maps on-demand config <-> NEOnDemandRule[]
                 // (NE on-demand surface from #338/#340 + wg_log from #345).
                 "Sources/WireGuardApp/Tunnel/ActivateOnDemandOption.swift",
@@ -1318,7 +1462,78 @@ if wireguardUpstreamPresent {
                 // by the rest of the model layer.
                 "Sources/WireGuardApp/WireGuardAppError.swift",
                 "Sources/WireGuardApp/WireGuardResult.swift",
+                // ZIP subsystem (config import/export): ZipArchive wraps the vendored
+                // minizip C (import WireGuardMinizipC) + zlib; ZipImporter/ZipExporter
+                // are Foundation logic (parse/serialize .conf via wg-quick — import
+                // WireGuardKit + QuillWireGuardUpstreamConfig). Critical path to
+                // ImportPanelPresenter → TunnelsListTableViewController.
+                "Sources/WireGuardApp/ZipArchive/ZipArchive.swift",
+                "Sources/WireGuardApp/ZipArchive/ZipImporter.swift",
+                "Sources/WireGuardApp/ZipArchive/ZipExporter.swift",
+                // TunnelImporter: routes imported .zip/.conf URLs through ZipImporter
+                // + the wg-quick parser into TunnelsManager.addMultiple (DispatchGroup).
+                "Sources/WireGuardApp/UI/TunnelImporter.swift",
+                // ImportPanelPresenter: NSOpenPanel (.conf/.zip) -> TunnelImporter.
+                // @MainActor (UI presenter touching sourceVC.view.window); its caller is
+                // the @MainActor VC action handleImportTunnelAction.
+                "Sources/WireGuardApp/UI/macOS/ImportPanelPresenter.swift",
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
+                // ButtonRow: the action-button cell dequeued by TunnelDetailTableViewController
+                // (NSButton momentaryPushIn/rounded + onButtonClicked). Conforms QuillReusableView
+                // (required init()) for generic dequeue; target-action lowered to QuillActionDispatching.
+                "Sources/WireGuardApp/UI/macOS/View/ButtonRow.swift",
+                // NSColor+Hex: NSColor(hex:) convenience init (chains to the shadow's
+                // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;
+                // the color base for the conf-editor theme (ConfTextColorTheme, later).
+                "Sources/WireGuardApp/UI/macOS/NSColor+Hex.swift",
+                // ConfTextColorTheme: the conf-editor syntax color themes (Aqua +
+                // DarkAqua) keyed by the highlighter C span types (HighlightSection
+                // etc. — import WireGuardHighlighterC) → NSColor(hex:). First file of
+                // the NSTextView text subsystem (ConfTextStorage/ConfTextView follow).
+                "Sources/WireGuardApp/UI/macOS/View/ConfTextColorTheme.swift",
+                // ConfTextStorage: NSTextStorage subclass — runs the highlighter C over
+                // the wg-quick text + applies syntax colors (ConfTextColorTheme) to a
+                // backing NSMutableAttributedString (import WireGuardHighlighterC). Uses
+                // the shadow's new NSTextStorage designated init() + NSFontManager.convert/
+                // convertWeight + NSFontTraitMask.
+                "Sources/WireGuardApp/UI/macOS/View/ConfTextStorage.swift",
+                // ConfTextView: NSTextView subclass (the wg-quick config editor) — the
+                // LAST text-subsystem file. Hosts ConfTextStorage via a layout manager,
+                // syntax-highlights on edit, themes via NSAppearance, NSTextViewDelegate.
+                "Sources/WireGuardApp/UI/macOS/View/ConfTextView.swift",
+                // OnDemandWiFiControls (OnDemandControlsRow): on-demand SSID controls
+                // (NSTokenField + NSPopUpButton + CWWiFiClient SSIDs via CoreWLAN). Dep of
+                // TunnelEditViewController + TunnelDetailTableViewController.
+                "Sources/WireGuardApp/UI/macOS/View/OnDemandWiFiControls.swift",
+                // TunnelEditViewController: the config-edit VC — the GATE for both table
+                // VCs (each presents it). ConfTextView editor + KeyValueRow name/key fields
+                // + OnDemandControlsRow + ActivateOnDemandViewModel + TunnelViewModel.
+                // Imports WireGuardKit + QuillWireGuardUpstreamConfig (fetch-upstream patch);
+                // @objc actions lowered; cancelOperation extension-override merged into class.
+                "Sources/WireGuardApp/UI/macOS/ViewController/TunnelEditViewController.swift",
+                // PrivateDataConfirmation: gates revealing a tunnel's private/pre-shared
+                // key behind LAContext (import LocalAuthentication). Shared dep called by
+                // BOTH remaining table VCs (TunnelsList + TunnelDetail). No auth backend
+                // on Linux → the LocalAuthentication shadow always denies (safe default).
+                "Sources/WireGuardApp/UI/PrivateDataConfirmation.swift",
+                // TunnelDetailTableViewController: the tunnel-detail table VC (one of the two
+                // remaining). Dequeues KeyValueRow/KeyValueImageRow/ButtonRow (all QuillReusableView);
+                // presents TunnelEditViewController; PrivateDataConfirmation key-reveal gate;
+                // ActivateOnDemandViewModel + TunnelViewModel; KVO via Cocoa shim; @objc actions
+                // lowered to QuillActionDispatching. Imports WireGuardKit (TunnelConfiguration).
+                "Sources/WireGuardApp/UI/macOS/ViewController/TunnelDetailTableViewController.swift",
+                // TunnelsListTableViewController: the main tunnels list (the OTHER table VC).
+                // NSPopUpButton add/action menus (popup.cell as? NSPopUpButtonCell — arrowPosition),
+                // NSButton remove action, dequeues TunnelListRow (QuillReusableView ✓), declares its
+                // own TunnelsListTableViewControllerDelegate, presents TunnelEditViewController for add;
+                // NSMenuItemValidation; @objc actions lowered to QuillActionDispatching. import Cocoa only.
+                "Sources/WireGuardApp/UI/macOS/ViewController/TunnelsListTableViewController.swift",
+                // ManageTunnelsRootViewController: the SPLIT-VIEW ROOT — the LAST VC of the
+                // WireGuard macOS UI. Hosts TunnelsListTableViewController (left) +
+                // TunnelDetail/Unusable/Buttoned detail VCs (right) via addChild + Auto Layout
+                // (NSLayoutGuide); routes toolbar/menu actions to children via
+                // supplementalTarget(forAction:). import Cocoa only; no @objc (pre-lowered).
+                "Sources/WireGuardApp/UI/macOS/ViewController/ManageTunnelsRootViewController.swift",
                 // First real ViewController: a full NSViewController (NSButton,
                 // target-action, Auto Layout) compiling against the shadow after
                 // fetch-upstream's AppKit lowering. No app-level deps (no `tr`).
@@ -1657,7 +1872,7 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: ["QuillFoundation", "QuillDataMacros", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
         path: "Sources/QuillSwiftUICompatibility"
     ),
     .target(
@@ -1669,6 +1884,13 @@ targets.append(contentsOf: [
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
     .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
+    // LocalAuthentication shim — LAContext/LAPolicy/LAError so WireGuard's
+    // PrivateDataConfirmation (key-reveal gate) recompiles; no auth backend on Linux.
+    .target(name: "LocalAuthentication", dependencies: [], path: "Sources/LocalAuthenticationShim"),
+    .testTarget(name: "LocalAuthenticationTests", dependencies: ["LocalAuthentication"], path: "Tests/LocalAuthenticationTests"),
+    // WireGuardKitGo Linux stub — the wireguard-go cgo bridge (Go engine not built here);
+    // lets WireGuardKit's WireGuardAdapter recompile. Compile-faithful, never runs on Linux.
+    .target(name: "WireGuardKitGo", dependencies: [], path: "Sources/WireGuardKitGoShim"),
     // os shim — covers the two os_log overloads (Apple message-first + the
     // xctest type-first) coexisting unambiguously; see Sources/osShim.
     .testTarget(name: "osTests", dependencies: ["os"], path: "Tests/osTests"),
@@ -2147,7 +2369,7 @@ let packageTestTargets: [Target] = {
         // reimpl retirement, epic #188.
         .testTarget(
             name: "QuillEnchantedDataTests",
-            dependencies: ["QuillEnchantedData"],
+            dependencies: ["QuillEnchantedData", "QuillEnchantedShared"],
             swiftSettings: appSwiftSettings
         ),
         .testTarget(
@@ -2336,6 +2558,11 @@ let packageTestTargets: [Target] = {
     tests.append(.testTarget(
         name: "QuillCompatibilityModuleTests",
         dependencies: quillLinuxCompatibilityModuleTestDependencies,
+        swiftSettings: appSwiftSettings
+    ))
+    tests.append(.testTarget(
+        name: "OllamaKitTests",
+        dependencies: ["OllamaKit"],
         swiftSettings: appSwiftSettings
     ))
     #endif

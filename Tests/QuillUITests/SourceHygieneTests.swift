@@ -518,13 +518,32 @@ struct SourceHygieneTests {
     @Test("ImageRenderer comments describe the current GTK offscreen path")
     func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
         let root = try packageRoot()
-        let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillUI/GdkPixbufTranscode.swift"),
+        let rendererSource = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Rendering/ImageRenderer.swift"),
+            encoding: .utf8
+        )
+        let gtkSource = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4ImageRenderer.swift"),
             encoding: .utf8
         )
 
-        #expect(source.contains("QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1"))
-        #expect(!source.contains("not yet wired up; see the TODO on `ImageRenderer`"))
+        #expect(rendererSource.contains("ImageRendererBackend.installViewRenderer"))
+        #expect(gtkSource.contains("gtk_widget_snapshot_child"))
+        #expect(gtkSource.contains("cairo_surface_write_to_png_stream"))
+        #expect(!rendererSource.contains("not yet wired up; see the TODO on `ImageRenderer`"))
+    }
+
+    @Test("Enchanted image export rewrite rules stay removed")
+    func enchantedImageExportRewriteRulesStayRemoved() throws {
+        let root = try packageRoot()
+        let rules = root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules")
+
+        #expect(!FileManager.default.fileExists(
+            atPath: rules.appendingPathComponent("Extensions/View+Extension.swift.pl").path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: rules.appendingPathComponent("Services/Clipboard.swift.pl").path
+        ))
     }
 
     @Test("Linux controls read backend-scoped reference environment")
@@ -993,6 +1012,11 @@ struct SourceHygieneTests {
         #expect(enchantedQtRuntime.contains("imagePreviewFallback: EnchantedIcon.imagePreviewFallback"))
         #expect(enchantedQtRuntime.contains("unavailableModel: EnchantedIcon.unavailableModel"))
         #expect(enchantedQtRuntime.contains("prompts: EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(QuillEnchantedQtSnapshot.Prompt.init)"))
+        let visiblePromptPositions = enchantedMacReferenceVisiblePromptTitles.compactMap { promptTitle in
+            enchantedShared.range(of: "title: \"\(promptTitle)\"")?.lowerBound
+        }
+        #expect(visiblePromptPositions.count == enchantedMacReferenceVisiblePromptTitles.count)
+        #expect(zip(visiblePromptPositions, visiblePromptPositions.dropFirst()).allSatisfy { pair in pair.0 < pair.1 })
         for promptTitle in enchantedNativeSamplePromptTitles {
             #expect(enchantedShared.contains("title: \"\(promptTitle)\""))
         }
@@ -2476,7 +2500,6 @@ struct SourceHygieneTests {
         #expect(genericQtRuntime.contains("public var messages: [Message]?"))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Open conversation with replies and boosts.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Weekend photo thread with media previews.\""))
-        #expect(genericQtRuntime.contains("detailSubtitle: \"Language practice with the lower row selected.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Desktop compatibility article selected for reading.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Project navigator source file selected.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Core engineering channel with the lower row selected.\""))
@@ -2600,12 +2623,18 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-composer-typed\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-panel\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-endpoint-typed\""))
+        #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-bearer-token-typed\""))
+        #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-ping-interval-typed\""))
+        #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-default-model-selected\""))
+        #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-delete-confirmation\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-completions-panel\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-history-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-markdown-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-long-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-prompt-send\""))
+        #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-composer-send\""))
+        #expect(backendProducts.contains("*:composer-send)"))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-tunnel-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-name-edit\""))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-import-paste\""))
@@ -2667,6 +2696,14 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_is_backend_smoke_product \"$PRODUCT\""))
         #expect(backendScript.contains("quillui_normalize_backend_smoke_interaction_mode \"$INTERACTION_MODE\""))
         #expect(backendScript.contains("quillui_is_backend_smoke_sheet_interaction \"$INTERACTION_MODE\""))
+        let sheetHelperDefinition = backendScript.range(of: "quillui_is_backend_smoke_sheet_interaction()")
+        let sheetHelperFirstUse = backendScript.range(of: "if quillui_is_backend_smoke_sheet_interaction \"$INTERACTION_MODE\"")
+        #expect(sheetHelperDefinition != nil)
+        #expect(sheetHelperFirstUse != nil)
+        if let sheetHelperDefinition, let sheetHelperFirstUse {
+            #expect(sheetHelperDefinition.lowerBound < sheetHelperFirstUse.lowerBound)
+        }
+        #expect(backendScript.contains("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}"))
         #expect(backendScript.contains("refresh_capture_window_for_active_child_window"))
         #expect(backendScript.contains("refresh_capture_window_for_sheet_interaction"))
         #expect(backendScript.contains("quillui_find_visible_window_for_pid_except \"$DISPLAY_ID\" \"$app_pid\" \"$window_id\""))
@@ -2985,6 +3022,11 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("quill-gtk-interaction-smoke|quill-enchanted-linux|quill-chat-linux"))
         #expect(backendProducts.contains("echo \"gtk\""))
         #expect(screenshotVerifier.contains("Quill backend interaction smoke"))
+        #expect(screenshotVerifier.contains("mac_reference_sidebar_tint_pixel"))
+        #expect(screenshotVerifier.contains("Mac-reference sidebar lost its green-tinted source-list material"))
+        #expect(screenshotVerifier.contains("cool_wordmark_pixel"))
+        #expect(screenshotVerifier.contains("warm_wordmark_pixel"))
+        #expect(screenshotVerifier.contains("Mac-reference wordmark lost its blue-to-red color range"))
         #expect(screenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
@@ -2993,8 +3035,11 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("ENCHANTED_LINUX_SNAPSHOT_VALIDATORS"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt\": validate_quill_enchanted_linux_qt_snapshot"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-gtk\": validate_quill_enchanted_linux_gtk_snapshot"))
+        #expect(!screenshotVerifier.contains("product == \"quill-enchanted-linux-gtk\":\n        print(validate_quill_enchanted_qt_native(image))"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_linux_qt_snapshot"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_linux_gtk_snapshot"))
+        #expect(screenshotVerifier.contains("Generated Enchanted GTK sidebar history was not detected"))
+        #expect(screenshotVerifier.contains("sidebar_text_pixels={sidebar_text_pixels}"))
         #expect(screenshotVerifier.contains("product == \"quill-enchanted-list-selection\""))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_gtk_list_selection"))
         #expect(screenshotVerifier.contains("load_generic_qt_app_products()"))
@@ -3229,8 +3274,8 @@ struct SourceHygieneTests {
         #expect(!source.contains(".product(name: \"BackendGTK4\", package: \"SwiftOpenUI\")"))
     }
 
-    @Test("QuillPromptGrid uses image accessories on Linux")
-    func quillPromptGridUsesImageAccessoriesOnLinux() throws {
+    @Test("QuillPromptGrid uses backend-stable prompt accessories on Linux")
+    func quillPromptGridUsesBackendStablePromptAccessoriesOnLinux() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
         guard let gridStart = controls.range(of: "public struct QuillPromptGrid: View"),
               let nextSection = controls.range(of: "public struct QuillConversationHistoryItem: Identifiable") else {
@@ -3243,12 +3288,79 @@ struct SourceHygieneTests {
         #expect(promptGrid.contains("Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columns)"))
         #expect(promptGrid.contains("ForEach(prompts)"))
         #expect(promptGrid.contains("Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))"))
-        #expect(promptGrid.contains("private var promptFontSize: CGFloat { 15 }"))
-        #expect(promptGrid.contains("Color(hex: \"#F4F4F6\")"))
+        #expect(promptGrid.contains("private var promptFontSize: CGFloat {\n        #if os(Linux)\n        cardHeight >= 220 ? 24 : 15"))
+        #expect(promptGrid.contains("Color.clear\n                    .frame(height: promptCardContentHeight)"))
+        #expect(promptGrid.contains("private var promptCardContentHeight: CGFloat"))
+        #expect(promptGrid.contains("max(1, cardHeight - (promptCardPaddingWidth * 2))"))
+        #expect(promptGrid.contains("QuillDesktopChromeStyle.promptCardBackground"))
+        #expect(promptGrid.contains("QuillPromptLightbulbGlyph(color: Color(hex: \"#2E2E31\"))"))
+        #expect(promptGrid.contains("private struct QuillPromptLightbulbGlyph: View"))
+        #expect(!promptGrid.contains("Image(systemName: QuillSystemSymbol.compatibleName(\"lightbulb\"))"))
         #expect(!promptGrid.contains("prompt.systemImage.contains(\"lightbulb\") ? \"!\" : \"?\""))
         #expect(!promptGrid.contains("#if os(Linux)\n        ZStack"))
-        #expect(!promptGrid.contains("private var promptFontSize: CGFloat { 24 }"))
         #expect(!promptGrid.contains("Color(hex: \"#E8E8EE\")"))
+    }
+
+    @Test("QuillDesktopSplitLayout mirrors Mac reference titlebar chrome")
+    func quillDesktopSplitLayoutMirrorsMacReferenceTitlebarChrome() throws {
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+
+        #expect(controls.contains("private var sidebarToggleGlyph: some View"))
+        #expect(controls.contains(".frame(width: 176, height: 24, alignment: .leading)"))
+        #expect(controls.contains("Color.clear\n                .frame(width: 48, height: 1)"))
+        #expect(controls.contains(".font(.system(size: 16, weight: .regular))"))
+        #expect(controls.contains("public struct QuillDesktopChatScaffold<"))
+        #expect(controls.contains("public var composerMaxWidth: CGFloat"))
+        #expect(controls.contains("public var composerHorizontalPadding: CGFloat"))
+        #expect(controls.contains("public var composerVerticalPadding: CGFloat"))
+        #expect(controls.contains("public var hasSelection: Bool"))
+        #expect(controls.contains("public var showsStatus: Bool"))
+        #expect(controls.contains("if hasSelection {\n                    selectedContent"))
+        #expect(controls.contains("if showsStatus {\n                    statusContent"))
+        #expect(controls.contains(".padding(.horizontal, composerHorizontalPadding)"))
+        #expect(controls.contains(".padding(.vertical, composerVerticalPadding)"))
+        #expect(controls.contains(".frame(maxWidth: composerMaxWidth)"))
+        #expect(controls.contains("public struct QuillDesktopChatToolbar: View"))
+        #expect(controls.contains("public var modelActions: [QuillMenuAction]"))
+        #expect(controls.contains("public var optionsActions: [QuillMenuAction]"))
+        #expect(controls.contains("QuillToolbarIconButton(systemImage: \"square.and.pencil\", action: onNewConversation)"))
+        #expect(controls.contains(".background(QuillDesktopChromeStyle.sidebarBackground)"))
+        #expect(controls.contains(".background(QuillDesktopChromeStyle.detailBackground)"))
+        #expect(controls.contains("public static var promptCardBackground: Color"))
+        #expect(controls.contains("ForEach(Array(brandTitle.enumerated()), id: \\.offset)"))
+        #expect(controls.contains(".foregroundColor(linuxWordmarkColor(at: index))"))
+        #expect(controls.contains("private func linuxWordmarkColor(at index: Int) -> Color"))
+        #expect(controls.contains("Color(hex: \"#657BE8\")"))
+        #expect(controls.contains("Color(hex: \"#D96570\")"))
+        #expect(!controls.contains(".background(Color(hex: \"#F5F5F7\"))"))
+        #expect(!controls.contains(".foregroundColor(Color(hex: \"#9B72CB\"))"))
+        #expect(!controls.contains(".fontWeight(.semibold)\n                            .foregroundColor(Color(hex: \"#444446\"))"))
+    }
+
+    @Test("GTK toolbar primitives use custom glyph children instead of text arrows")
+    func gtkToolbarPrimitivesUseCustomGlyphChildrenInsteadOfTextArrows() throws {
+        let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        let toolbar = try packageSource("Sources/QuillUI/GTKToolbarMenuButton.swift")
+        let shim = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h")
+
+        #expect(controls.contains("#if os(Linux)\n        QuillGTKToolbarIconButton("))
+        #expect(toolbar.contains("struct QuillGTKToolbarIconButton: View, PrimitiveView, GTKRenderable"))
+        #expect(toolbar.contains("gtk_swift_menu_button_set_always_show_arrow(button, 0)"))
+        #expect(toolbar.contains("gtk_swift_menu_button_set_child(button, makeToolbarGlyphChild("))
+        #expect(toolbar.contains("gtk_box_append(toolbarBoxPointer(box), makeToolbarGlyphLabel(glyph))"))
+        #expect(toolbar.contains("private func toolbarBoxPointer"))
+        #expect(!toolbar.contains("boxPointer(box)"))
+        #expect(toolbar.contains("materialName: \"more_horiz\""))
+        #expect(toolbar.contains("materialName: \"expand_more\""))
+        #expect(toolbar.contains("materialName: \"edit_square\""))
+        #expect(toolbar.contains("materialName: \"library_books\""))
+        #expect(toolbar.contains("materialName: \"auto_awesome\""))
+        #expect(toolbar.contains("materialName: \"filter_list\""))
+        #expect(!toolbar.contains("private var menuTitle"))
+        #expect(!toolbar.contains("\"\u{2022}\u{2022}\u{2022}"))
+        #expect(!toolbar.contains("\"\u{2304}\""))
+        #expect(shim.contains("gtk_swift_menu_button_set_child(GtkWidget *button, GtkWidget *child)"))
+        #expect(shim.contains("gtk_swift_menu_button_set_always_show_arrow(GtkWidget *button"))
     }
 
     @Test("QuillConversationHistoryList mirrors Enchanted row preview and accessibility")
@@ -3307,19 +3419,33 @@ struct SourceHygieneTests {
         #expect(historyList.contains("private var emptyHistoryCornerRadius: CGFloat { 8 }"))
         #expect(historyList.contains("private var sortedItems: [QuillConversationHistoryItem]"))
         #expect(historyList.contains("items.sorted { $0.updatedAt > $1.updatedAt }"))
+        #expect(historyList.contains("public struct QuillDateGroupedConversationHistoryList: View"))
+        #expect(historyList.contains("public var dateTitle: (Date) -> String"))
+        #expect(historyList.contains("public var onDeleteDay: ((Date) -> Void)?"))
+        #expect(historyList.contains("Dictionary(grouping: items) { item in"))
+        #expect(historyList.contains("Calendar.current.startOfDay(for: item.updatedAt)"))
+        #expect(historyList.contains("QuillConversationHistoryDayGroup("))
+        #expect(historyList.contains("ForEach(dayGroups) { group in"))
+        #expect(historyList.contains("Text(dateTitle(group.date))"))
+        #expect(historyList.contains("ForEach(group.items) { item in"))
+        #expect(historyList.contains("private func groupedRow(for item: QuillConversationHistoryItem) -> some View"))
+        #expect(historyList.contains("let textState = PaintControlState(isHovered: isHovered, isSelected: false)"))
+        #expect(historyList.contains("MacListRowPaint.primaryTextColor(for: textState)"))
+        #expect(historyList.contains("Button(role: .destructive, action: { onDeleteDay(date) })"))
+        #expect(historyList.contains("Button(role: .destructive, action: { onDelete(item) })"))
+        #expect(historyList.contains("private var groupedSectionFontSize: CGFloat { 24 }"))
+        #expect(historyList.contains("private var groupedRowFontSize: CGFloat { 23 }"))
+        #expect(historyList.contains("private var groupedRowMinHeight: CGFloat { 48 }"))
+        #expect(historyList.contains("private var groupedSelectionDotSize: CGFloat { 8 }"))
         #expect(!historyList.contains("No conversations yet"))
         #expect(!historyList.contains(".font(.caption)"))
         #expect(!historyList.contains(".padding(.top, 12)"))
-        #expect(!historyList.contains("Circle()"))
         #expect(!historyList.contains("QuillConversationHistorySection"))
         #expect(!historyList.contains("ForEach(sections)"))
         #expect(!historyList.contains("Text(section.title)"))
         #expect(!historyList.contains("private static func sectionTitle"))
-        #expect(!historyList.contains("Divider()"))
         #expect(!historyList.contains("selectionIndicatorTopPadding"))
         #expect(!historyList.contains("rowHorizontalPadding"))
-        #expect(!historyList.contains("rowVerticalPadding"))
-        #expect(!historyList.contains("rowMinHeight"))
         #expect(!historyList.contains("QuillDesktopChromeStyle.selectedRowCornerRadius"))
         #expect(historyList.contains("@State private var hoveredItemID: String?"))
         #expect(historyList.contains("let isHovered = hoveredItemID == item.id"))
@@ -3342,6 +3468,13 @@ struct SourceHygieneTests {
     @Test("QuillSidebarNavigationButton uses native image symbols")
     func quillSidebarNavigationButtonUsesNativeImageSymbols() throws {
         let controls = try packageSource("Sources/QuillUI/Controls.swift")
+        #expect(controls.contains("public struct QuillDesktopSidebar<Content: View>: View"))
+        #expect(controls.contains("public var bottomActions: [QuillSidebarNavigationAction]"))
+        #expect(controls.contains("QuillSidebarBottomNavigation(actions: bottomActions)"))
+        #expect(controls.contains(".padding(.horizontal, 18)"))
+        #expect(controls.contains(".padding(.top, 88)"))
+        #expect(controls.contains(".padding(.bottom, 18)"))
+
         guard let buttonStart = controls.range(of: "public struct QuillSidebarNavigationButton: View"),
               let nextSection = controls.range(of: "public struct QuillStatusBanner: View") else {
             Issue.record("Unable to locate QuillSidebarNavigationButton source")
@@ -3350,12 +3483,54 @@ struct SourceHygieneTests {
 
         let sidebarButton = String(controls[buttonStart.lowerBound..<nextSection.lowerBound])
         #expect(sidebarButton.contains("Image(systemName: sidebarSystemImageName)"))
+        #expect(sidebarButton.contains("if systemImage == \"textformat.abc\""))
+        #expect(sidebarButton.contains("Text(\"Abc\")"))
+        #expect(sidebarButton.contains("QuillSidebarKeyboardGlyph(color: Color(hex: \"#3A3A3C\"))"))
+        #expect(sidebarButton.contains("QuillSidebarGearGlyph(color: Color(hex: \"#3A3A3C\"))"))
+        #expect(sidebarButton.contains("private struct QuillSidebarKeyboardGlyph: View"))
+        #expect(sidebarButton.contains("private struct QuillSidebarGearGlyph: View"))
+        #expect(sidebarButton.contains(".stroke(color, lineWidth: 1.3)"))
+        #expect(sidebarButton.contains(".stroke(color, lineWidth: 1.6)"))
         #expect(sidebarButton.contains("\"textformat\", \"textformat.abc\""))
         #expect(sidebarButton.contains("\"keyboard\", \"keyboard.fill\""))
         #expect(sidebarButton.contains("\"gearshape\", \"gearshape.fill\", \"gear\""))
-        #expect(!sidebarButton.contains("Text(\"Abc\")"))
         #expect(!sidebarButton.contains("case \"keyboard\", \"keyboard.fill\":"))
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
+    }
+
+    @Test("GTK plain button style suppresses platform chrome")
+    func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        for source in [renderer, patcher] {
+            #expect(source.contains("gtk_widget_add_css_class(button, \"flat\")"))
+            #expect(source.contains("background: transparent;"))
+            #expect(source.contains("background-color: transparent;"))
+            #expect(source.contains("background-image: none;"))
+            #expect(source.contains("border: none;"))
+            #expect(source.contains("border-radius: 0;"))
+            #expect(source.contains("box-shadow: none;"))
+            #expect(source.contains("outline: none;"))
+            #expect(source.contains("text-shadow: none;"))
+            #expect(!source.contains("border: none; background: none; padding: 0;"))
+        }
+    }
+
+    @Test("Vendored GTK renderer preserves SwiftUI scroll row width contract")
+    func vendoredGTKRendererPreservesSwiftUIScrollRowWidthContract() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("private final class GTKScrollViewCrossAxisContext"))
+        #expect(renderer.contains("gtkScrollViewCrossAxisTickCallback"))
+        #expect(renderer.contains("gtkInstallScrollViewCrossAxisFill("))
+        #expect(renderer.contains("gtk_widget_set_size_request(context.child, width, -1)"))
+        #expect(renderer.contains("SwiftUI lays vertical ScrollView content out in the viewport"))
+        #expect(renderer.contains("fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal)"))
+        #expect(renderer.contains("gtkPropagateSingleChildLayoutMarkers(from: renderedChildren, to: box)"))
+        #expect(renderer.contains("SwiftUI lays repeated vertical rows against the parent's"))
+        #expect(renderer.contains("gtk_widget_set_hexpand(widget, 1)"))
+        #expect(renderer.contains("gtk_widget_set_halign(widget, GTK_ALIGN_FILL)"))
     }
 
     private func packageRoot() throws -> URL {
@@ -3415,6 +3590,13 @@ private let enchantedNativeSamplePromptTitles: [String] = [
     "What are the largest cities in USA in population? Give a table",
     "Give me ideas about New Years resolutions",
     "What is bubble sort? Write example in python"
+]
+
+private let enchantedMacReferenceVisiblePromptTitles: [String] = [
+    "How to center div in HTML?",
+    "How to do personal taxes in USA?",
+    "Explain supercomputers like I'm five years old",
+    "Write a text message asking a friend to be my plus-one at a wedding"
 ]
 
 private extension String {

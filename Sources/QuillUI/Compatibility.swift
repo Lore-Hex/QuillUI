@@ -249,15 +249,8 @@ fileprivate func recordCompatibilityWarning(_ operation: String, message: String
     )
 }
 
-public struct QuillPlatformImage: Sendable {
-    public var data: Data?
-
-    public init(data: Data? = nil) {
-        self.data = data
-    }
-}
-
-public typealias PlatformImage = QuillPlatformImage
+public typealias QuillPlatformImage = RSImage
+public typealias PlatformImage = RSImage
 
 public extension QuillPlatformImage {
     func convertImageToBase64String() -> String {
@@ -291,7 +284,7 @@ public extension QuillPlatformImage {
             return self
         }
 
-        return QuillPlatformImage(data: resizedData)
+        return QuillPlatformImage(data: resizedData) ?? self
     }
 
     func compressImageData() -> Data? {
@@ -454,101 +447,6 @@ public enum QuillImageFormatDetector {
         }
 
         return .unknown
-    }
-}
-
-/// Renders a SwiftUI view tree to a bitmap image.
-///
-/// On Apple platforms `ImageRenderer` walks the SwiftUI view tree, lays it out,
-/// and rasterizes it via Core Graphics into a `UIImage` / `NSImage`.
-///
-/// On Linux, QuillUI rasterizes via two paths:
-///
-///  1. **Solid `Color` content** is shortcut through `quillRenderSolidColorImage`,
-///     skipping the full GTK round-trip. Fast, and works without a display
-///     backend.
-///  2. **Any other view type** can opt into the experimental
-///     `quillRenderViewToImage` GTK path with
-///     `QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1`. That path uses SwiftOpenUI's
-///     `gtkRenderView` to translate the view tree into a GtkWidget hierarchy,
-///     parents the widget in an offscreen GtkWindow, forces a layout pass with
-///     `gtk_widget_size_allocate`, snapshots the child widget, draws the
-///     resulting `GskRenderNode` to a cairo image surface, and encodes the
-///     result via gdk-pixbuf.
-///
-/// Both paths return `nil` on failure (matching Apple's ImageRenderer
-/// failure-mode contract) and record a `.warning` diagnostic naming the
-/// failure cause. The opt-in general path requires GTK to be initializable
-/// under a controlled display backend such as Xvfb or a desktop Wayland/X11
-/// session; the default remains nil+warning for non-Color content.
-public final class ImageRenderer<Content: View> {
-    public var content: Content
-    public var scale: CGFloat = 1.0
-
-    /// Pixel size used when the content has no intrinsic layout. SwiftUI's
-    /// real ImageRenderer uses the view's idealSize / proposedSize; without
-    /// a layout pass on Linux we pick a fixed default that's large enough to
-    /// be useful but small enough to keep test fixtures cheap.
-    private static var defaultSize: (width: Int, height: Int) { (256, 256) }
-
-    public init(content: Content) {
-        self.content = content
-        recordCompatibilityFallback(
-            "ImageRenderer.init",
-            message: "ImageRenderer is available on Linux; Color content rasterizes by default and arbitrary view rasterization is an experimental GTK offscreen path gated by QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1."
-        )
-    }
-
-    public var uiImage: PlatformImage? {
-        renderToPlatformImage(operation: "ImageRenderer.uiImage")
-    }
-
-    public var nsImage: PlatformImage? {
-        renderToPlatformImage(operation: "ImageRenderer.nsImage")
-    }
-
-    /// Shared renderer for both `uiImage` and `nsImage`. Returns a
-    /// PlatformImage carrying PNG bytes when rasterization succeeds,
-    /// otherwise nil with a `.warning` diagnostic.
-    private func renderToPlatformImage(operation: String) -> PlatformImage? {
-        let (width, height) = Self.defaultSize
-
-        // Fast path: solid Color content rasterizes via gdk-pixbuf without
-        // any GTK widget round-trip. Cheaper, and works in display-less
-        // environments (no xvfb required).
-        if let color = content as? Color {
-            if let png = quillRenderSolidColorImage(
-                red: Double(color.red),
-                green: Double(color.green),
-                blue: Double(color.blue),
-                alpha: Double(color.alpha),
-                width: width,
-                height: height,
-                format: .png
-            ) {
-                return PlatformImage(data: png)
-            }
-            recordCompatibilityWarning(
-                operation,
-                message: "\(operation): gdk-pixbuf failed to encode the synthesized Color image. Returning nil."
-            )
-            return nil
-        }
-
-        // Experimental general path: walk the SwiftUI view through
-        // SwiftOpenUI's GTK4 backend, snapshot the widget tree, draw it to a
-        // cairo surface, and encode via gdk-pixbuf. This is opt-in because
-        // GTK snapshotting can crash if initialized outside a controlled
-        // display/test harness.
-        if let png = quillRenderViewToImage(content, width: width, height: height, format: .png) {
-            return PlatformImage(data: png)
-        }
-
-        recordCompatibilityWarning(
-            operation,
-            message: "\(operation) returned nil for content of type \(type(of: content)). QuillUI currently rasterizes Color content by default; arbitrary SwiftUI view rasterization is an experimental GTK offscreen path gated by QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1."
-        )
-        return nil
     }
 }
 
@@ -723,9 +621,9 @@ public extension EnvironmentValues {
 }
 
 public struct PresentationMode: @unchecked Sendable {
-    private let dismissAction: @Sendable () -> Void
+    private let dismissAction: () -> Void
 
-    public init(dismiss: @escaping @Sendable () -> Void = {}) {
+    public init(dismiss: @escaping () -> Void = {}) {
         dismissAction = dismiss
     }
 
@@ -737,12 +635,17 @@ public struct PresentationMode: @unchecked Sendable {
 }
 
 private struct PresentationModeKey: EnvironmentKey {
-    static let defaultValue = PresentationMode()
+    static let defaultValue: PresentationMode? = nil
 }
 
 public extension EnvironmentValues {
     var presentationMode: PresentationMode {
-        get { self[PresentationModeKey.self] }
+        get {
+            let dismiss = self.dismiss
+            return self[PresentationModeKey.self] ?? PresentationMode {
+                dismiss()
+            }
+        }
         set { self[PresentationModeKey.self] = newValue }
     }
 }

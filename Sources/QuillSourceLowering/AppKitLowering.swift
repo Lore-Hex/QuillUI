@@ -30,6 +30,25 @@ import SwiftSyntaxBuilder
 ///     `toggleFullScreen(_:)`) so a qualified `#selector` compares equal to the
 ///     unqualified `#selector` that set the action — menu validation
 ///     (`menuItem.action == #selector(Type.foo)`) relies on this.
+///   * `Timer(timeInterval:repeats:){…}` → `QuillTimer.make(timeInterval:repeats:){…}`.
+///     swift-corelibs-Foundation's `Timer.init` block is hard `@Sendable`, so
+///     verbatim pre-Concurrency closures that call `@MainActor` UI methods (the
+///     norm in AppKit apps — `NSViewController` is `@MainActor`) fail to compile
+///     on Linux ("call to main actor-isolated method in a synchronous nonisolated
+///     context"). `QuillTimer.make` (QuillFoundation) takes a NON-`@Sendable`
+///     block, so the closure inherits `@MainActor`. A distinct symbol avoids the
+///     overload ambiguity a same-name `Timer` overload would cause (trailing
+///     closures match the last parameter by position). Only the block /
+///     trailing-closure init is rewritten — the target-action
+///     `Timer(timeInterval:target:selector:…)` and `Timer.scheduledTimer` are
+///     left alone.
+///   * `extension <LocalClass> { override func/var … }` → the `override` members
+///     are moved into the class body. Swift forbids overriding a non-`@objc`
+///     method from an extension; on macOS AppKit methods are `@objc` so it's
+///     allowed, but on Linux there's no `@objc`, so the override must live in the
+///     class itself (e.g. WireGuard's `LogViewController.cancelOperation`). Only
+///     extensions of classes defined in the same file are touched; non-`override`
+///     members stay in the extension.
 ///
 /// Runtime dispatch (a generated per-class `quillPerform(_:)` the Qt control
 /// backing invokes on click) layers on separately; this pass produces source
@@ -48,7 +67,24 @@ public struct AppKitLowering {
         // idempotent.
         let collector = ActionMethodCollector(viewMode: .sourceAccurate)
         collector.walk(tree)
-        let rewritten = AppKitRewriter().rewrite(tree).description
+        // Pass 1: the in-place rewrites (strip @objc, #selector→Selector,
+        // Timer→QuillTimer.make, os.log import, os(macOS) widening).
+        let pass1 = AppKitRewriter().rewrite(tree)
+        // Pass 2: move `override` members declared in `extension <LocalClass> { … }`
+        // into the class body. Swift forbids overriding a non-@objc method from an
+        // extension; on macOS these methods are @objc so it's allowed, but on Linux
+        // there is no @objc, so the override must live in the class itself. Run after
+        // pass 1 so the moved members carry pass-1's transforms (e.g. #selector).
+        // App-agnostic — keyed only off "extension of a class defined in this file".
+        let mergeCollector = ExtensionOverrideCollector(viewMode: .sourceAccurate)
+        mergeCollector.walk(pass1)
+        let merged: Syntax = mergeCollector.overridesByClass.isEmpty
+            ? pass1
+            : ExtensionOverrideMerger(
+                localClassNames: mergeCollector.localClassNames,
+                overridesByClass: mergeCollector.overridesByClass
+              ).rewrite(pass1)
+        let rewritten = merged.description
         let conformances = Self.generateDispatchConformances(
             orderedTypes: collector.orderedTypes,
             byType: collector.byType
@@ -318,6 +354,43 @@ private final class AppKitRewriter: SyntaxRewriter {
         return copy
     }
 
+    // Timer(timeInterval:repeats:block:) -> QuillTimer.make(timeInterval:repeats:block:).
+    // corelibs-Foundation's Timer.init block is hard @Sendable, so verbatim
+    // pre-Concurrency closures that call @MainActor UI methods fail to compile on
+    // Linux. QuillTimer.make (QuillFoundation, #if os(Linux)) takes a NON-@Sendable
+    // block so the closure inherits @MainActor; it's a distinct symbol (no overload
+    // ambiguity) returning a real Timer. Idempotent: the rewritten callee is a
+    // member access (QuillTimer.make), not the `Timer` identifier, so it won't
+    // re-match.
+    override func visit(_ node: FunctionCallExprSyntax) -> ExprSyntax {
+        let recursed = super.visit(node)
+        guard let call = recursed.as(FunctionCallExprSyntax.self),
+              let callee = call.calledExpression.as(DeclReferenceExprSyntax.self),
+              callee.baseName.text == "Timer",
+              Self.isTimerBlockInit(call) else {
+            return recursed
+        }
+        var make = ExprSyntax("QuillTimer.make")
+        make.leadingTrivia = call.calledExpression.leadingTrivia
+        make.trailingTrivia = call.calledExpression.trailingTrivia
+        var copy = call
+        copy.calledExpression = make
+        return ExprSyntax(copy)
+    }
+
+    /// True iff `call` is `Timer(timeInterval:repeats:block:)` — labels
+    /// `timeInterval` + `repeats` with the block as a trailing closure, or those
+    /// two labels plus an explicit `block:` argument. Other `Timer` inits (the
+    /// target-action `timeInterval:target:selector:userInfo:repeats:`,
+    /// `fire:interval:…`) and `Timer.scheduledTimer` don't match and are untouched.
+    static func isTimerBlockInit(_ call: FunctionCallExprSyntax) -> Bool {
+        let labels: [String?] = call.arguments.map { $0.label?.text }
+        if call.trailingClosure != nil {
+            return labels == ["timeInterval", "repeats"]
+        }
+        return labels == ["timeInterval", "repeats", "block"]
+    }
+
     /// Normalize a `#selector` reference into a stable key: drop the leading type
     /// qualifier (everything up to and including the final `.` that precedes the
     /// method name, considering only dots *before* any `(` so argument labels are
@@ -329,5 +402,81 @@ private final class AppKitRewriter: SyntaxRewriter {
             return t
         }
         return String(t[t.index(after: lastDot.lowerBound)...])
+    }
+}
+
+// MARK: - Extension-override merge (Pass 2)
+
+/// `true` if a member declares `override` (func / var / subscript).
+private func isOverrideMember(_ item: MemberBlockItemSyntax) -> Bool {
+    func hasOverride(_ modifiers: DeclModifierListSyntax) -> Bool {
+        modifiers.contains { $0.name.text == "override" }
+    }
+    if let f = item.decl.as(FunctionDeclSyntax.self) { return hasOverride(f.modifiers) }
+    if let v = item.decl.as(VariableDeclSyntax.self) { return hasOverride(v.modifiers) }
+    if let s = item.decl.as(SubscriptDeclSyntax.self) { return hasOverride(s.modifiers) }
+    return false
+}
+
+/// Walks a (pass-1) tree and records: the names of classes defined in the file,
+/// and — keyed by extended-type name — the `override` members declared inside
+/// `extension <Type> { … }`. The merger only acts on extensions whose type is one
+/// of the local classes.
+private final class ExtensionOverrideCollector: SyntaxVisitor {
+    private(set) var localClassNames: Set<String> = []
+    private(set) var overridesByClass: [String: [MemberBlockItemSyntax]] = [:]
+
+    override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
+        localClassNames.insert(node.name.text)
+        return .visitChildren
+    }
+    override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
+        let overrides = node.memberBlock.members.filter(isOverrideMember)
+        if !overrides.isEmpty {
+            overridesByClass[node.extendedType.trimmedDescription, default: []].append(contentsOf: overrides)
+        }
+        return .visitChildren
+    }
+}
+
+/// Moves the collected `override` members out of each `extension <LocalClass>`
+/// and appends them to that class's body, where Swift permits the override
+/// without an Objective-C runtime. The emptied extension is left in place (an
+/// empty extension is harmless and keeps any conformance clause). Idempotent: a
+/// second run finds no override-in-extension, so nothing moves.
+private final class ExtensionOverrideMerger: SyntaxRewriter {
+    private let localClassNames: Set<String>
+    private let overridesByClass: [String: [MemberBlockItemSyntax]]
+
+    init(localClassNames: Set<String>, overridesByClass: [String: [MemberBlockItemSyntax]]) {
+        self.localClassNames = localClassNames
+        self.overridesByClass = overridesByClass
+        super.init()
+    }
+
+    override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(ClassDeclSyntax.self)
+        guard localClassNames.contains(recursed.name.text),
+              let moved = overridesByClass[recursed.name.text], !moved.isEmpty else {
+            return DeclSyntax(recursed)
+        }
+        var copy = recursed
+        var members = copy.memberBlock.members
+        for item in moved { members.append(item) }
+        copy.memberBlock.members = members
+        return DeclSyntax(copy)
+    }
+
+    override func visit(_ node: ExtensionDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(ExtensionDeclSyntax.self)
+        let typeName = recursed.extendedType.trimmedDescription
+        guard localClassNames.contains(typeName), overridesByClass[typeName] != nil else {
+            return DeclSyntax(recursed)
+        }
+        let kept = recursed.memberBlock.members.filter { !isOverrideMember($0) }
+        guard kept.count != recursed.memberBlock.members.count else { return DeclSyntax(recursed) }
+        var copy = recursed
+        copy.memberBlock.members = MemberBlockItemListSyntax(kept)
+        return DeclSyntax(copy)
     }
 }

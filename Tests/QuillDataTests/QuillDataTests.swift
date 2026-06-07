@@ -177,6 +177,28 @@ struct QuillDataTests {
         #expect(models.map(\.priority) == [9])
     }
 
+    @Test("QuillPredicate supports captured UUID identity lookups")
+    func quillPredicateCapturedUUIDIdentityLookup() throws {
+        let url = temporarySQLiteURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let schema = Schema([ValueTodoItem.self])
+        let context = try ModelContext(ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, url: url)]
+        ))
+        let selectedID = UUID()
+
+        context.insert(ValueTodoItem(id: UUID(), title: "Other", priority: 1))
+        context.insert(ValueTodoItem(id: selectedID, title: "Selected", priority: 9))
+
+        let matches = try context.fetch(FetchDescriptor<ValueTodoItem>(
+            predicate: #QuillPredicate<ValueTodoItem> { $0.id == selectedID }
+        ))
+
+        #expect(matches.map(\.title) == ["Selected"])
+    }
+
     @Test("file-backed containers persist across new contexts")
     func fileBackedContainersPersistAcrossContexts() throws {
         let url = temporarySQLiteURL()

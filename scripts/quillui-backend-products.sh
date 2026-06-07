@@ -542,6 +542,18 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:settings-endpoint-typed)
       verify_product="quill-chat-linux-mac-reference-settings-endpoint-typed"
       ;;
+    *:settings-bearer-token-typed)
+      verify_product="quill-chat-linux-mac-reference-settings-bearer-token-typed"
+      ;;
+    *:settings-ping-interval-typed)
+      verify_product="quill-chat-linux-mac-reference-settings-ping-interval-typed"
+      ;;
+    *:settings-default-model-selected)
+      verify_product="quill-chat-linux-mac-reference-settings-default-model-selected"
+      ;;
+    *:settings-delete-confirmation)
+      verify_product="quill-chat-linux-mac-reference-settings-delete-confirmation"
+      ;;
     *:completions-panel)
       verify_product="quill-chat-linux-mac-reference-completions-panel"
       ;;
@@ -559,6 +571,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
       ;;
     *:prompt-send)
       verify_product="quill-chat-linux-mac-reference-prompt-send"
+      ;;
+    *:composer-send)
+      verify_product="quill-chat-linux-mac-reference-composer-send"
       ;;
     *)
       verify_product="quill-chat-linux-toolbar-menu"

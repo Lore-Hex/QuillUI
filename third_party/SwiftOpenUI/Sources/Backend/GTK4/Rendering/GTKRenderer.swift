@@ -17,8 +17,86 @@ private func gtkMarkLayoutHelper(_ widget: UnsafeMutablePointer<GtkWidget>) {
     g_object_set_data(gobject, gtkSwiftLayoutHelperMarker, UnsafeMutableRawPointer(bitPattern: 1))
 }
 
+private func gtkHasLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: String) -> Bool {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    return g_object_get_data(gobject, key) != nil
+}
+
+private func gtkSetLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: String) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, key, UnsafeMutableRawPointer(bitPattern: 1))
+}
+
+private func gtkPropagateSingleChildLayoutMarkers(
+    from children: [UnsafeMutablePointer<GtkWidget>],
+    to wrapper: UnsafeMutablePointer<GtkWidget>
+) {
+    guard children.count == 1, let child = children.first else { return }
+    if gtkHasLayoutMarker(child, key: gtkSwiftSpacerMarker) {
+        gtkSetLayoutMarker(wrapper, key: gtkSwiftSpacerMarker)
+    }
+    if gtkHasLayoutMarker(child, key: gtkSwiftDividerMarker) {
+        gtkSetLayoutMarker(wrapper, key: gtkSwiftDividerMarker)
+    }
+}
+
 private func gtkVStackSpacing(_ spacing: Int) -> Int {
     spacing == stackDefaultSpacing ? 0 : resolveStackSpacing(spacing)
+}
+
+private final class GTKScrollViewCrossAxisContext {
+    let child: UnsafeMutablePointer<GtkWidget>
+    let fillWidth: Bool
+    let fillHeight: Bool
+    var lastWidth: gint = -1
+    var lastHeight: gint = -1
+
+    init(child: UnsafeMutablePointer<GtkWidget>, fillWidth: Bool, fillHeight: Bool) {
+        self.child = child
+        self.fillWidth = fillWidth
+        self.fillHeight = fillHeight
+    }
+}
+
+private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, userData in
+    guard let widget, let userData else { return 0 }
+    let context = Unmanaged<GTKScrollViewCrossAxisContext>.fromOpaque(userData).takeUnretainedValue()
+    let width = gtk_widget_get_width(widget)
+    let height = gtk_widget_get_height(widget)
+
+    if context.fillWidth, width > 1, width != context.lastWidth {
+        context.lastWidth = width
+        gtk_widget_set_size_request(context.child, width, -1)
+        gtk_widget_queue_resize(context.child)
+    }
+    if context.fillHeight, height > 1, height != context.lastHeight {
+        context.lastHeight = height
+        gtk_widget_set_size_request(context.child, -1, height)
+        gtk_widget_queue_resize(context.child)
+    }
+
+    return 1
+}
+
+private func gtkInstallScrollViewCrossAxisFill(
+    on scrolled: UnsafeMutablePointer<GtkWidget>,
+    child: UnsafeMutablePointer<GtkWidget>,
+    fillWidth: Bool,
+    fillHeight: Bool
+) {
+    guard fillWidth || fillHeight else { return }
+    let context = GTKScrollViewCrossAxisContext(
+        child: child,
+        fillWidth: fillWidth,
+        fillHeight: fillHeight
+    )
+    let contextPtr = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        scrolled,
+        gtkScrollViewCrossAxisTickCallback,
+        contextPtr,
+        { userData in Unmanaged<GTKScrollViewCrossAxisContext>.fromOpaque(userData!).release() }
+    )
 }
 
 /// Convert a Double pixel dimension into an integer GTK size. GTK widgets
@@ -76,10 +154,25 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
     // because these types have Body = Never.
     if let multi = view as? MultiChildView {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        var needsHExpand = false
+        var needsVExpand = false
+        var renderedChildren: [UnsafeMutablePointer<GtkWidget>] = []
         for child in multi.children {
             let widget = widgetFromOpaque(gtkRenderAnyView(child))
+            renderedChildren.append(widget)
+            if gtk_widget_get_hexpand(widget) != 0 {
+                needsHExpand = true
+                gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+            }
+            if gtk_widget_get_vexpand(widget) != 0 {
+                needsVExpand = true
+                gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+            }
             gtk_box_append(boxPointer(box), widget)
         }
+        gtkPropagateSingleChildLayoutMarkers(from: renderedChildren, to: box)
+        if needsHExpand { gtk_widget_set_hexpand(box, 1) }
+        if needsVExpand { gtk_widget_set_vexpand(box, 1) }
         return opaqueFromWidget(box)
     }
 
@@ -525,11 +618,21 @@ extension Button: GTKRenderable, GTKDescribable {
         let buttonStyleType = getCurrentEnvironment().buttonStyle
         switch buttonStyleType {
         case .plain:
+            gtk_widget_add_css_class(button, "flat")
             applyCSSToWidget(button, properties: """
-                border: none; background: none; padding: 0;
-                min-height: 0; min-width: 0;
+                background: transparent;
+                background-color: transparent;
+                background-image: none;
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
+                outline: none;
+                padding: 0;
+                min-height: 0;
+                min-width: 0;
+                text-shadow: none;
                 """)
-        case .borderedProminent:
+        case .borderedProminent, .quillPaintMacDefault:
             // Concrete macOS-like accent blue with explicit overrides of
             // GTK's default button gradient and inset shadow, both of which
             // stack on top of `background-color` and render it invisible
@@ -563,7 +666,7 @@ extension Button: GTKRenderable, GTKDescribable {
                     color: rgba(255, 255, 255, 0.7);
                     """
             )
-        case .bordered:
+        case .bordered, .quillPaintMacBordered:
             applyCSSToWidget(button, properties: """
                 border: 1px solid @borders; border-radius: 6px;
                 padding: 6px 12px;
@@ -1161,9 +1264,25 @@ private func gtkRenderFallbackZStack(
 extension Group: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        var needsHExpand = false
+        var needsVExpand = false
+        var renderedChildren: [UnsafeMutablePointer<GtkWidget>] = []
         for child in gtkRenderChildren(content) {
-            gtk_box_append(boxPointer(box), widgetFromOpaque(child))
+            let widget = widgetFromOpaque(child)
+            renderedChildren.append(widget)
+            if gtk_widget_get_hexpand(widget) != 0 {
+                needsHExpand = true
+                gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+            }
+            if gtk_widget_get_vexpand(widget) != 0 {
+                needsVExpand = true
+                gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+            }
+            gtk_box_append(boxPointer(box), widget)
         }
+        gtkPropagateSingleChildLayoutMarkers(from: renderedChildren, to: box)
+        if needsHExpand { gtk_widget_set_hexpand(box, 1) }
+        if needsVExpand { gtk_widget_set_vexpand(box, 1) }
         return opaqueFromWidget(box)
     }
 }
@@ -1171,11 +1290,25 @@ extension Group: GTKRenderable {
 extension ForEach: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        var needsHExpand = false
+        var needsVExpand = false
         for item in data {
             let childView = content(item)
             let widget = widgetFromOpaque(gtkRenderView(childView))
+            // SwiftUI lays repeated vertical rows against the parent's
+            // proposed width. This keeps ScrollView/List rows from collapsing
+            // to their natural text width and then being centered.
+            needsHExpand = true
+            gtk_widget_set_hexpand(widget, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+            if gtk_widget_get_vexpand(widget) != 0 {
+                needsVExpand = true
+                gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+            }
             gtk_box_append(boxPointer(box), widget)
         }
+        if needsHExpand { gtk_widget_set_hexpand(box, 1) }
+        if needsVExpand { gtk_widget_set_vexpand(box, 1) }
         return opaqueFromWidget(box)
     }
 }
@@ -2932,10 +3065,6 @@ private func gtkAttachStandaloneTaskLifecycle(
 
 extension TaskView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
-        gtkCollectTaskPayload(GTK4TaskPayload(
-            priority: priority,
-            action: bindTaskActionToCurrentEnvironment(action)
-        ))
         return GTK4DescriptorNode(
             kind: .task,
             typeName: "TaskView",
@@ -2945,13 +3074,11 @@ extension TaskView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        if GTKViewHost.getCurrentRebuilding() == nil {
-            gtkAttachStandaloneTaskLifecycle(
-                to: widget,
-                priority: priority,
-                action: bindTaskActionToCurrentEnvironment(action)
-            )
-        }
+        gtkAttachStandaloneTaskLifecycle(
+            to: widget,
+            priority: priority,
+            action: bindTaskActionToCurrentEnvironment(action)
+        )
         return opaqueFromWidget(widget)
     }
 }
@@ -4266,7 +4393,25 @@ extension ScrollView: GTKRenderable, GTKDescribable {
         if axes.contains(.horizontal) {
             gtk_widget_set_hexpand(child, 0)
         }
+        if axes.contains(.vertical) && !axes.contains(.horizontal) {
+            // SwiftUI lays vertical ScrollView content out in the viewport
+            // width. This lets rows that rely on HStack + Spacer, such as
+            // chat bubbles and settings rows, align against the visible
+            // scroll area instead of their natural text width.
+            gtk_widget_set_hexpand(child, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        }
+        if axes.contains(.horizontal) && !axes.contains(.vertical) {
+            gtk_widget_set_vexpand(child, 1)
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        }
         gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+        )
 
         gtk_widget_set_vexpand(scrolled, 1)
         gtk_widget_set_hexpand(scrolled, 1)

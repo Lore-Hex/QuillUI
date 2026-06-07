@@ -69,6 +69,26 @@ gtk_swift_label_get_use_markup(GtkWidget *label) {
     return gtk_label_get_use_markup(GTK_LABEL(label));
 }
 
+// --- Accessibility shims ---
+
+static inline void
+gtk_swift_accessible_update_label(GtkWidget *widget, const char *label) {
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(widget),
+        GTK_ACCESSIBLE_PROPERTY_LABEL,
+        label ? label : "",
+        -1);
+}
+
+static inline void
+gtk_swift_accessible_update_description(GtkWidget *widget, const char *description) {
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(widget),
+        GTK_ACCESSIBLE_PROPERTY_DESCRIPTION,
+        description ? description : "",
+        -1);
+}
+
 // --- Widget type shims ---
 
 static inline gboolean
@@ -179,6 +199,8 @@ g_object_set_double(gpointer object, const char *property, double value) {
 
 static inline void
 gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE);
+    gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
 }
 
@@ -427,6 +449,18 @@ gtk_swift_menu_button_set_popover(GtkWidget *button, GtkWidget *popover) {
 static inline void
 gtk_swift_menu_button_set_label(GtkWidget *button, const char *label) {
     gtk_menu_button_set_label(GTK_MENU_BUTTON(button), label);
+}
+
+static inline void
+gtk_swift_menu_button_set_child(GtkWidget *button, GtkWidget *child) {
+    gtk_menu_button_set_child(GTK_MENU_BUTTON(button), child);
+}
+
+static inline void
+gtk_swift_menu_button_set_always_show_arrow(GtkWidget *button,
+                                            gboolean always_show_arrow) {
+    gtk_menu_button_set_always_show_arrow(GTK_MENU_BUTTON(button),
+                                          always_show_arrow);
 }
 
 // --- GtkListView / GtkListItem / GtkStringObject shims ---
@@ -1017,6 +1051,62 @@ gtk_swift_gslist_nth_data(GSList *list, guint n) {
 static inline GtkWidget *
 gtk_swift_event_controller_get_widget(gpointer controller) {
     return gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(controller));
+}
+
+// --- Clipboard shims ---
+
+static inline gboolean
+gtk_swift_clipboard_set_text(const char *text) {
+    GdkDisplay *display = gdk_display_get_default();
+    if (!display) return FALSE;
+    GdkClipboard *clipboard = gdk_display_get_clipboard(display);
+    if (!clipboard) return FALSE;
+    gdk_clipboard_set_text(clipboard, text ? text : "");
+    return TRUE;
+}
+
+typedef struct {
+    GMainLoop *loop;
+    char *text;
+} GtkSwiftClipboardReadTextState;
+
+static inline void
+gtk_swift_clipboard_read_text_done(GObject *source,
+                                   GAsyncResult *result,
+                                   gpointer user_data) {
+    GtkSwiftClipboardReadTextState *state =
+        (GtkSwiftClipboardReadTextState *)user_data;
+    GError *error = NULL;
+    state->text = gdk_clipboard_read_text_finish(
+        GDK_CLIPBOARD(source),
+        result,
+        &error);
+    if (error) g_error_free(error);
+    g_main_loop_quit(state->loop);
+}
+
+static inline char *
+gtk_swift_clipboard_read_text(void) {
+    GdkDisplay *display = gdk_display_get_default();
+    if (!display) return NULL;
+    GdkClipboard *clipboard = gdk_display_get_clipboard(display);
+    if (!clipboard) return NULL;
+
+    GtkSwiftClipboardReadTextState state = {0};
+    state.loop = g_main_loop_new(NULL, FALSE);
+    gdk_clipboard_read_text_async(
+        clipboard,
+        NULL,
+        gtk_swift_clipboard_read_text_done,
+        &state);
+    g_main_loop_run(state.loop);
+    g_main_loop_unref(state.loop);
+    return state.text;
+}
+
+static inline void
+gtk_swift_clipboard_free_text(char *text) {
+    g_free(text);
 }
 
 /// Return the currently active GtkWindow for the default GApplication, or

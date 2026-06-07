@@ -559,9 +559,17 @@ func gtkSetupMenuBarIfNeeded(
 
 /// GTK4 rendering backend for SwiftOpenUI.
 public struct GTK4Backend: RenderBackend {
-    public init() {}
+    public init() {
+        installImageRendererBackend()
+    }
+
+    public func installImageRendererBackend() {
+        installGTK4ImageRendererBackend()
+    }
 
     public func run<A: App>(_ appType: A.Type) {
+        installImageRendererBackend()
+
         // Load bundled icon fonts into FontConfig before GTK/Pango builds
         // its default font map. Safe to call multiple times but cheapest
         // to do exactly once per process, and must happen before any widget

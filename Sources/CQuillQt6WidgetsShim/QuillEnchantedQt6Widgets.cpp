@@ -57,6 +57,23 @@
 #include <cstdlib>
 #include <functional>
 
+int quill_qt_native_clipboard_set_text(const char *text) {
+    if (QClipboard *clipboard = QApplication::clipboard()) {
+        clipboard->setText(text == nullptr ? QString() : QString::fromUtf8(text));
+        return 1;
+    }
+    return 0;
+}
+
+const char *quill_qt_native_clipboard_text(void) {
+    static QByteArray text;
+    if (QClipboard *clipboard = QApplication::clipboard()) {
+        text = clipboard->text().toUtf8();
+        return text.constData();
+    }
+    return nullptr;
+}
+
 namespace {
 
 using QuillQtWidgets::clearLayout;

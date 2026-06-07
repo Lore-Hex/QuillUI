@@ -148,12 +148,12 @@ run_smoke() {
 
   QUILLUI_LINUX_BACKEND="$requested_backend" \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift build --scratch-path .build-linux --product "$product"
+    swift build --disable-index-store --scratch-path .build-linux --product "$product"
   quillui_record_backend_product_build "$ROOT_DIR/.build-linux" "$product" "$requested_backend"
   bin_path="$(
     QUILLUI_LINUX_BACKEND="$requested_backend" \
       "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-      swift build --scratch-path .build-linux --show-bin-path
+      swift build --disable-index-store --scratch-path .build-linux --show-bin-path
   )"
   executable="$bin_path/$product"
 
@@ -182,11 +182,13 @@ if [[ "$SKIP_ENCHANTED_BUILD" != "1" && -d "$ENCHANTED_APP_DIR" ]]; then
 
     if [[ "$backend" == "qt" ]]; then
       ENCHANTED_BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+        --disable-index-store \
         --package-path "$generated_work_root/package" \
         --scratch-path "$generated_work_root/.build-check" \
         --show-bin-path)"
     else
       ENCHANTED_BIN_DIR="$(swift build \
+        --disable-index-store \
         --package-path "$generated_work_root/package" \
         --scratch-path "$generated_work_root/.build-check" \
         --show-bin-path)"

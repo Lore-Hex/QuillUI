@@ -1284,6 +1284,7 @@ private func gtkSheetDefaultHeight() -> gint {
     new_bool_keys = '''        let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
         let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
         let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
 
         if !isPresented.wrappedValue {
 '''
@@ -1298,6 +1299,7 @@ private func gtkSheetDefaultHeight() -> gint {
     new_item_keys = '''        let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
         let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
         let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
         let itemIDKey = gtkSheetDataKey("item-id", modifierType: type(of: self))
 
         guard let currentItem = item.wrappedValue else {
@@ -1403,15 +1405,91 @@ private func gtkSheetDefaultHeight() -> gint {
     text = text.replace('g_object_set_data(anchorObj, "swift-sheet-window", gpointer(dialogWin))', 'g_object_set_data(anchorObj, info.windowKey, gpointer(dialogWin))')
     text = text.replace('g_object_set_data(anchorObj, "swift-sheet-item-id", gpointer(bitPattern: currentIdHash))', 'g_object_set_data(anchorObj, info.itemIDKey, gpointer(bitPattern: currentIdHash))')
 
+    bool_overlay_dismiss = '''        if !isPresented.wrappedValue {
+            gtkRemoveSheetRootOverlay(
+                anchor: anchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                onDismiss: onDismiss
+            )
+            // Dismiss active sheet if binding turned false
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+'''
+    bool_overlay_dismiss_without_comment = '''        if !isPresented.wrappedValue {
+            gtkRemoveSheetRootOverlay(
+                anchor: anchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                onDismiss: onDismiss
+            )
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+'''
+    if "gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey,\n                onDismiss: onDismiss" not in text:
+        text = text.replace(
+            '''        if !isPresented.wrappedValue {
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+''',
+            bool_overlay_dismiss_without_comment,
+            1,
+        )
+        text = text.replace(
+            '''        if !isPresented.wrappedValue {
+            // Dismiss active sheet if binding turned false
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+''',
+            bool_overlay_dismiss,
+            1,
+        )
+
+    item_overlay_dismiss = '''        guard let currentItem = item.wrappedValue else {
+            gtkRemoveSheetRootOverlay(
+                anchor: anchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                itemIDKey: itemIDKey,
+                onDismiss: onDismiss
+            )
+            // Dismiss active sheet if item became nil
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+'''
+    item_overlay_dismiss_without_comment = '''        guard let currentItem = item.wrappedValue else {
+            gtkRemoveSheetRootOverlay(
+                anchor: anchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                itemIDKey: itemIDKey,
+                onDismiss: onDismiss
+            )
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+'''
+    if "gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey,\n                itemIDKey: itemIDKey,\n                onDismiss: onDismiss" not in text:
+        text = text.replace(
+            '''        guard let currentItem = item.wrappedValue else {
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+''',
+            item_overlay_dismiss_without_comment,
+            1,
+        )
+        text = text.replace(
+            '''        guard let currentItem = item.wrappedValue else {
+            // Dismiss active sheet if item became nil
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
+''',
+            item_overlay_dismiss,
+            1,
+        )
+
 if 'gtkDebugLog("sheet bool presented=' not in text:
     text = text.replace(
         """        let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
         let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
 
         if !isPresented.wrappedValue {
 """,
         """        let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
         let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
         gtkDebugLog("sheet bool presented=\\(isPresented.wrappedValue) activeKey=\\(activeKey)")
 
         if !isPresented.wrappedValue {
@@ -1446,6 +1524,238 @@ if 'gtkDebugLog("sheet bool idle present' not in text:
 """,
         1,
     )
+
+sheet_overlay_helpers = '''private func gtkSheetPresentationMode() -> String {
+    return (ProcessInfo.processInfo.environment["QUILLUI_BACKEND_SHEET_PRESENTATION"]
+        ?? ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_PRESENTATION"]
+        ?? "root-overlay")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+}
+
+private func gtkShouldRenderSheetInRootOverlay() -> Bool {
+    let mode = gtkSheetPresentationMode()
+    return mode.isEmpty || mode == "root" || mode == "root-overlay" || mode == "window-overlay"
+}
+
+private func gtkShouldRenderSheetInWindow() -> Bool {
+    let mode = gtkSheetPresentationMode()
+    return mode == "overlay" || mode == "in-window" || mode == "inline"
+}
+
+private func gtkRemoveSheetRootOverlay(
+    anchor: UnsafeMutablePointer<GtkWidget>,
+    overlayKey: String,
+    activeKey: String,
+    itemIDKey: String? = nil,
+    onDismiss: (() -> Void)? = nil
+) {
+    let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
+    guard let panelPtr = g_object_get_data(gobject, overlayKey) else {
+        return
+    }
+    let panel = panelPtr.assumingMemoryBound(to: GtkWidget.self)
+    gtk_widget_unparent(panel)
+    g_object_set_data(gobject, overlayKey, nil)
+    g_object_set_data(gobject, activeKey, nil)
+    if let itemIDKey {
+        g_object_set_data(gobject, itemIDKey, nil)
+    }
+    onDismiss?()
+}
+
+private func gtkCreateSheetOverlayPanel(
+    sheetWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtk_widget_set_size_request(panel, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())
+    gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(panel, GTK_ALIGN_CENTER)
+    applyCSSToWidget(
+        panel,
+        properties: "background: #f8f8fb; border: 1px solid rgba(0,0,0,0.12); border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.18);"
+    )
+
+    gtk_widget_set_hexpand(sheetWidget, 1)
+    gtk_widget_set_vexpand(sheetWidget, 1)
+    gtk_widget_set_halign(sheetWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(sheetWidget, GTK_ALIGN_FILL)
+    gtk_box_append(boxPointer(panel), sheetWidget)
+    return panel
+}
+
+private func gtkCreateSheetOverlay(
+    contentWidget: UnsafeMutablePointer<GtkWidget>,
+    sheetWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let overlay = gtk_overlay_new()!
+    gtk_widget_set_hexpand(overlay, 1)
+    gtk_widget_set_vexpand(overlay, 1)
+    gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+
+    gtk_widget_set_hexpand(contentWidget, 1)
+    gtk_widget_set_vexpand(contentWidget, 1)
+    gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+    gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
+
+    let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+    gtk_overlay_add_overlay(OpaquePointer(overlay), panel)
+    return overlay
+}
+
+'''
+if "private func gtkShouldRenderSheetInWindow" not in text:
+    marker = "\nprivate func gtkSheetDataKey"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI sheet overlay helper insertion shape was not recognized")
+    text = text.replace(marker, "\n" + sheet_overlay_helpers + "private func gtkSheetDataKey", 1)
+
+bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
+            let sheetView = sheetContent
+            let binding = isPresented
+            let userOnDismiss = onDismiss
+            let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let previous = getCurrentEnvironment()
+            var env = previous
+            if let config = dismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    binding.wrappedValue = false
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetView))
+            setCurrentEnvironment(previous)
+            return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
+        }
+
+        if gtkShouldRenderSheetInRootOverlay(),
+           let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
+                ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
+           let rootOverlay = gtkRootPresentationOverlay(for: root) {
+            guard g_object_get_data(gobject, activeKey) == nil else {
+                return opaqueFromWidget(widget)
+            }
+            g_object_set_data(gobject, activeKey, gpointer(bitPattern: 1))
+            let sheetView = sheetContent
+            let binding = isPresented
+            let userOnDismiss = onDismiss
+            let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let previous = getCurrentEnvironment()
+            var env = previous
+            if let config = dismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)
+                    binding.wrappedValue = false
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetView))
+            setCurrentEnvironment(previous)
+            let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            g_object_set_data(gobject, overlayKey, gpointer(panel))
+            gtk_overlay_add_overlay(rootOverlay, panel)
+            return opaqueFromWidget(widget)
+        }
+
+'''
+if "gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)" not in text:
+    bool_marker = "        // Guard against duplicate presentation on rebuild\n"
+    if bool_marker not in text:
+        raise SystemExit("SwiftOpenUI bool sheet overlay insertion shape was not recognized")
+    text = text.replace(bool_marker, bool_sheet_overlay + bool_marker, 1)
+
+item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
+            let sheetBuilder = sheetContent
+            let itemBinding = item
+            let userOnDismiss = onDismiss
+            let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+            let previous = getCurrentEnvironment()
+            var env = previous
+            if let config = itemDismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    itemBinding.wrappedValue = nil
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetBuilder(currentItem)))
+            setCurrentEnvironment(previous)
+            return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
+        }
+
+        if gtkShouldRenderSheetInRootOverlay(),
+           let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
+                ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
+           let rootOverlay = gtkRootPresentationOverlay(for: root) {
+            let currentIdHash = currentItem.id.hashValue
+            if g_object_get_data(gobject, activeKey) != nil {
+                let storedHash = Int(bitPattern: g_object_get_data(gobject, itemIDKey))
+                if storedHash == currentIdHash {
+                    return opaqueFromWidget(widget)
+                }
+                gtkRemoveSheetRootOverlay(
+                    anchor: anchor,
+                    overlayKey: overlayKey,
+                    activeKey: activeKey,
+                    itemIDKey: itemIDKey,
+                    onDismiss: onDismiss
+                )
+            }
+            g_object_set_data(gobject, activeKey, gpointer(bitPattern: 1))
+            g_object_set_data(gobject, itemIDKey, gpointer(bitPattern: currentIdHash))
+            let sheetBuilder = sheetContent
+            let itemBinding = item
+            let userOnDismiss = onDismiss
+            let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+            let previous = getCurrentEnvironment()
+            var env = previous
+            if let config = itemDismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    gtkRemoveSheetRootOverlay(
+                        anchor: anchor,
+                        overlayKey: overlayKey,
+                        activeKey: activeKey,
+                        itemIDKey: itemIDKey
+                    )
+                    itemBinding.wrappedValue = nil
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetBuilder(currentItem)))
+            setCurrentEnvironment(previous)
+            let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            g_object_set_data(gobject, overlayKey, gpointer(panel))
+            gtk_overlay_add_overlay(rootOverlay, panel)
+            return opaqueFromWidget(widget)
+        }
+
+'''
+if "let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))" in text and text.count("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)") < 2:
+    item_marker = "        // Check if the item identity changed while a sheet is already active\n"
+    if item_marker not in text:
+        raise SystemExit("SwiftOpenUI item sheet overlay insertion shape was not recognized")
+    text = text.replace(item_marker, item_sheet_overlay + item_marker, 1)
 
 text = text.replace(
     'gtk_window_set_default_size(dialogWin, 400, 300)',
@@ -1549,7 +1859,7 @@ private final class GTKScrollToContext {
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 4) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 180) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks
@@ -1560,7 +1870,17 @@ private struct GTKPendingScrollRequest {
     let anchor: UnitPoint?
 }
 
+private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
 private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
 
 private func gtkClampScrollValue(_ value: Double, lower: Double, upper: Double) -> Double {
     return min(max(value, lower), upper)
@@ -1611,23 +1931,26 @@ private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor:
     }
 }
 
-private let gtkScrollToTickCallback: GtkTickCallback = { _, _, userData in
-    guard let userData else { return 0 }
-    let context = Unmanaged<GTKScrollToContext>.fromOpaque(userData).takeUnretainedValue()
-    gtkApplyScrollTo(context.target, anchor: context.anchor)
-    context.remainingTicks -= 1
-    return context.remainingTicks > 0 ? 1 : 0
-}
-
 private func gtkScheduleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
     let context = GTKScrollToContext(target: target, anchor: anchor)
-    _ = gtk_widget_add_tick_callback(
-        target,
-        gtkScrollToTickCallback,
-        Unmanaged.passRetained(context).toOpaque(),
-        { userData in Unmanaged<GTKScrollToContext>.fromOpaque(userData!).release() }
-    )
+    _ = g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+        let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)
+        let context = unmanaged.takeUnretainedValue()
+        guard gtk_swift_is_widget(context.target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        gtkApplyScrollTo(context.target, anchor: context.anchor)
+        context.remainingTicks -= 1
+        if context.remainingTicks > 0 { return 1 }
+        g_object_unref(gpointer(context.target))
+        unmanaged.release()
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
 }
 
 private func gtkScheduleIdleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
@@ -1650,14 +1973,10 @@ private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget
 }
 
 private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
-    guard
-        let widget = lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>,
-        gtk_swift_is_widget(widget) != 0
-    else {
-        gtkPendingScrollRequests[id] = GTKPendingScrollRequest(anchor: anchor)
-        return
-    }
-    gtkApplyOrScheduleScrollTo(widget, anchor: anchor)
+    let request = GTKPendingScrollRequest(anchor: anchor)
+    gtkPendingScrollRequests[id] = request
+    guard let widget = gtkScrollTargetRegistry[id] else { return }
+    gtkResolvePendingScrollTo(id: id, widget: widget)
 }
 
 private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
@@ -1672,7 +1991,7 @@ private final class GTKScrollToContext {
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 4) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 180) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks
@@ -1683,7 +2002,17 @@ private struct GTKPendingScrollRequest {
     let anchor: UnitPoint?
 }
 
+private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
 private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
 
 private func gtkClampScrollValue(_ value: Double, lower: Double, upper: Double) -> Double {
     return min(max(value, lower), upper)
@@ -1734,23 +2063,26 @@ private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor:
     }
 }
 
-private let gtkScrollToTickCallback: GtkTickCallback = { _, _, userData in
-    guard let userData else { return 0 }
-    let context = Unmanaged<GTKScrollToContext>.fromOpaque(userData).takeUnretainedValue()
-    gtkApplyScrollTo(context.target, anchor: context.anchor)
-    context.remainingTicks -= 1
-    return context.remainingTicks > 0 ? 1 : 0
-}
-
 private func gtkScheduleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
     let context = GTKScrollToContext(target: target, anchor: anchor)
-    _ = gtk_widget_add_tick_callback(
-        target,
-        gtkScrollToTickCallback,
-        Unmanaged.passRetained(context).toOpaque(),
-        { userData in Unmanaged<GTKScrollToContext>.fromOpaque(userData!).release() }
-    )
+    _ = g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+        let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)
+        let context = unmanaged.takeUnretainedValue()
+        guard gtk_swift_is_widget(context.target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        gtkApplyScrollTo(context.target, anchor: context.anchor)
+        context.remainingTicks -= 1
+        if context.remainingTicks > 0 { return 1 }
+        g_object_unref(gpointer(context.target))
+        unmanaged.release()
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
 }
 
 private func gtkScheduleIdleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
@@ -1773,14 +2105,10 @@ private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget
 }
 
 private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
-    guard
-        let widget = lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>,
-        gtk_swift_is_widget(widget) != 0
-    else {
-        gtkPendingScrollRequests[id] = GTKPendingScrollRequest(anchor: anchor)
-        return
-    }
-    gtkApplyOrScheduleScrollTo(widget, anchor: anchor)
+    let request = GTKPendingScrollRequest(anchor: anchor)
+    gtkPendingScrollRequests[id] = request
+    guard let widget = gtkScrollTargetRegistry[id] else { return }
+    gtkResolvePendingScrollTo(id: id, widget: widget)
 }
 
 private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
@@ -1814,7 +2142,7 @@ elif "gtkPendingScrollRequests" not in text:
     let anchor: UnitPoint?
     var remainingTicks: Int
 
-    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 4) {
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 180) {
         self.target = target
         self.anchor = anchor
         self.remainingTicks = remainingTicks
@@ -1825,12 +2153,148 @@ private struct GTKPendingScrollRequest {
     let anchor: UnitPoint?
 }
 
+private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
 private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
 
 '''
     if old_scroll_context_init not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader context upgrade shape was not recognized")
     text = text.replace(old_scroll_context_init, new_scroll_context_init, 1)
+if "remainingTicks: Int = 4" in text:
+    text = text.replace("remainingTicks: Int = 4", "remainingTicks: Int = 180")
+old_apply_scroll = '''private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+
+    var parent = gtk_widget_get_parent(target)
+    while let scrolled = parent {
+        let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(scrolled)))
+        if typeName == "GtkScrolledWindow" {
+            var targetX = 0.0
+            var targetY = 0.0
+            guard gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY) != 0 else { return }
+
+            let anchorPoint = anchor ?? .top
+            if let vadjustment = gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(vadjustment)
+                let upper = gtk_adjustment_get_upper(vadjustment)
+                let pageSize = gtk_adjustment_get_page_size(vadjustment)
+                let currentValue = gtk_adjustment_get_value(vadjustment)
+                let maxValue = max(lower, upper - pageSize)
+                let targetHeight = max(1.0, Double(gtk_widget_get_height(target)))
+                let desired = currentValue + targetY - ((pageSize - targetHeight) * anchorPoint.y)
+                gtk_adjustment_set_value(
+                    vadjustment,
+                    gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                )
+            }
+
+            if let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(hadjustment)
+                let upper = gtk_adjustment_get_upper(hadjustment)
+                let pageSize = gtk_adjustment_get_page_size(hadjustment)
+                let currentValue = gtk_adjustment_get_value(hadjustment)
+                let maxValue = max(lower, upper - pageSize)
+                let targetWidth = max(1.0, Double(gtk_widget_get_width(target)))
+                let desired = currentValue + targetX - ((pageSize - targetWidth) * anchorPoint.x)
+                gtk_adjustment_set_value(
+                    hadjustment,
+                    gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                )
+            }
+            return
+        }
+        parent = gtk_widget_get_parent(scrolled)
+    }
+}
+'''
+new_apply_scroll = '''private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+
+    var parent = gtk_widget_get_parent(target)
+    while let scrolled = parent {
+        let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(scrolled)))
+        if typeName == "GtkScrolledWindow" {
+            var targetX = 0.0
+            var targetY = 0.0
+            guard gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY) != 0 else {
+                parent = gtk_widget_get_parent(scrolled)
+                continue
+            }
+
+            let anchorPoint = anchor ?? .top
+            var applied = false
+            if let vadjustment = gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(vadjustment)
+                let upper = gtk_adjustment_get_upper(vadjustment)
+                let pageSize = gtk_adjustment_get_page_size(vadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(vadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetHeight = max(1.0, Double(gtk_widget_get_height(target)))
+                    let desired = currentValue + targetY - ((pageSize - targetHeight) * anchorPoint.y)
+                    gtk_adjustment_set_value(
+                        vadjustment,
+                        gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                    )
+                    applied = true
+                }
+            }
+
+            if let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(hadjustment)
+                let upper = gtk_adjustment_get_upper(hadjustment)
+                let pageSize = gtk_adjustment_get_page_size(hadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(hadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetWidth = max(1.0, Double(gtk_widget_get_width(target)))
+                    let desired = currentValue + targetX - ((pageSize - targetWidth) * anchorPoint.x)
+                    gtk_adjustment_set_value(
+                        hadjustment,
+                        gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                    )
+                    applied = true
+                }
+            }
+            if applied { return }
+        }
+        parent = gtk_widget_get_parent(scrolled)
+    }
+}
+'''
+if old_apply_scroll in text:
+    text = text.replace(old_apply_scroll, new_apply_scroll)
+elif "private func gtkApplyScrollTo(" in text and "var applied = false" not in text:
+    raise SystemExit("SwiftOpenUI ScrollViewReader scroll-range upgrade shape was not recognized")
+if "gtkScrollTargetRegistry" not in text:
+    old_scroll_registry = '''private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+'''
+    new_scroll_registry = '''private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
+private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
+
+'''
+    if old_scroll_registry not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader GTK target registry shape was not recognized")
+    text = text.replace(old_scroll_registry, new_scroll_registry, 1)
 if "context.remainingTicks -= 1" not in text:
     text = text.replace(
         '''    gtkApplyScrollTo(context.target, anchor: context.anchor)
@@ -1854,9 +2318,29 @@ if "gtkApplyOrScheduleScrollTo(_ widget" not in text and "private func gtkSchedu
 }
 
 '''
+    timeout_schedule_end = '''    g_object_ref(gpointer(target))
+    _ = g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+        let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)
+        let context = unmanaged.takeUnretainedValue()
+        guard gtk_swift_is_widget(context.target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        gtkApplyScrollTo(context.target, anchor: context.anchor)
+        context.remainingTicks -= 1
+        if context.remainingTicks > 0 { return 1 }
+        g_object_unref(gpointer(context.target))
+        unmanaged.release()
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
+}
+
+'''
     text = text.replace(
         schedule_end,
-        schedule_end + '''private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+        timeout_schedule_end + '''private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     gtkApplyScrollTo(widget, anchor: anchor)
     gtkScheduleScrollTo(widget, anchor: anchor)
 }
@@ -1971,6 +2455,19 @@ old_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable
 new_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
     let request = GTKPendingScrollRequest(anchor: anchor)
     gtkPendingScrollRequests[id] = request
+    guard let widget = gtkScrollTargetRegistry[id] else { return }
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
+
+'''
+if old_resolve_or_queue in text:
+    text = text.replace(old_resolve_or_queue, new_resolve_or_queue)
+elif "let request = GTKPendingScrollRequest(anchor: anchor)" not in text:
+    raise SystemExit("SwiftOpenUI ScrollViewReader request queue shape was not recognized")
+elif "lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>" in text:
+    stale_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
+    let request = GTKPendingScrollRequest(anchor: anchor)
+    gtkPendingScrollRequests[id] = request
     guard
         let widget = lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>,
         gtk_swift_is_widget(widget) != 0
@@ -1979,10 +2476,9 @@ new_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable
 }
 
 '''
-if old_resolve_or_queue in text:
-    text = text.replace(old_resolve_or_queue, new_resolve_or_queue)
-elif "let request = GTKPendingScrollRequest(anchor: anchor)" not in text:
-    raise SystemExit("SwiftOpenUI ScrollViewReader request queue shape was not recognized")
+    if stale_resolve_or_queue not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader request queue stale-lookup shape was not recognized")
+    text = text.replace(stale_resolve_or_queue, new_resolve_or_queue)
 
 on_appear_helper = r'''
 private let gtkOnAppearTickCallback: GtkTickCallback = { _, _, userData in
@@ -2072,14 +2568,24 @@ old_id_view = '''extension IdView: GTKRenderable {
 new_id_view = '''extension IdView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        registerViewID(id, element: widget)
-        gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)
+        gtkRegisterScrollTarget(id: AnyHashable(id), widget: widget)
         return opaqueFromWidget(widget)
     }
 }
 '''
 if "gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)" not in text and old_id_view in text:
     text = text.replace(old_id_view, new_id_view, 1)
+elif "gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)" in text:
+    old_patched_id_view = '''extension IdView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+        registerViewID(id, element: widget)
+        gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)
+        return opaqueFromWidget(widget)
+    }
+}
+'''
+    text = text.replace(old_patched_id_view, new_id_view, 1)
 
 old_on_appear_rebuild = '''        if !isRebuild {
             let boundAction = bindActionToCurrentEnvironment(action)
@@ -2540,6 +3046,44 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
+root_overlay_helpers = '''private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
+
+func gtkCreateRootPresentationContainer(
+    winPtr: UnsafeMutablePointer<GtkWindow>,
+    contentWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let overlay = gtk_overlay_new()!
+    gtk_widget_set_hexpand(overlay, 1)
+    gtk_widget_set_vexpand(overlay, 1)
+    gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+
+    gtk_widget_set_hexpand(contentWidget, 1)
+    gtk_widget_set_vexpand(contentWidget, 1)
+    gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+    gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
+
+    let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    return overlay
+}
+
+func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
+    let gobject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else {
+        return nil
+    }
+    let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
+    return OpaquePointer(overlay)
+}
+
+'''
+if "gtkRootPresentationOverlayKey" not in text:
+    marker = "func gtkConfigureRootContentToFillWindow"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK root presentation helper insertion point was not recognized")
+    text = text.replace(marker, root_overlay_helpers + marker, 1)
 old = '''        case .automatic:
             return (
                 defaultWindowWidth ?? defaultAutomaticWindowWidth,
@@ -2601,6 +3145,23 @@ new_default_size = '''        if let defaultSize = gtkResolvedDefaultWindowSize(
 '''
 if "gtk_widget_set_size_request(\n                contentWidget,\n                gint(defaultSize.width)" not in text:
     text = text.replace(old_default_size, new_default_size, 1)
+root_content_old = '''        gtkConfigureRootContentToFillWindow(contentWidget)
+
+        gtk_window_set_child(winPtr, contentWidget)
+        let winWidget = widgetPointer(winPtr)
+        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: contentWidget, windowID: Int(bitPattern: winPtr))
+'''
+root_content_new = '''        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
+        gtkConfigureRootContentToFillWindow(rootContentWidget)
+
+        gtk_window_set_child(winPtr, rootContentWidget)
+        let winWidget = widgetPointer(winPtr)
+        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+'''
+if "gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)" not in text:
+    if root_content_old not in text:
+        raise SystemExit("SwiftOpenUI GTK root presentation content insertion shape was not recognized")
+    text = text.replace(root_content_old, root_content_new)
 old_menubar_label = '''        gtk_swift_menu_append_submenu(menuModel, "File", fileMenu)
 '''
 new_menubar_label = '''        let environment = ProcessInfo.processInfo.environment
@@ -3584,9 +4145,19 @@ if "case .quillPaintMacDefault:" not in text:
 
             switch buttonStyleType {
             case .plain:
+                gtk_widget_add_css_class(button, "flat")
                 applyCSSToWidget(button, properties: """
-                    border: none; background: none; padding: 0;
-                    min-height: 0; min-width: 0;
+                    background: transparent;
+                    background-color: transparent;
+                    background-image: none;
+                    border: none;
+                    border-radius: 0;
+                    box-shadow: none;
+                    outline: none;
+                    padding: 0;
+                    min-height: 0;
+                    min-width: 0;
+                    text-shadow: none;
                     """)
             case .borderedProminent:
                 applyCSSToWidget(

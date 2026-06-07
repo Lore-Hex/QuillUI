@@ -79,7 +79,7 @@ do
   copy_source "$source_file"
 done
 
-swift run --package-path "$ROOT_DIR" --scratch-path "$ROOT_DIR/.build/quill-source-lower-tool" --disable-sandbox quill-source-lower "$SOURCE_COPY" "$LOWERED_COPY"
+"$ROOT_DIR/scripts/run-quill-source-lower.sh" "$SOURCE_COPY" "$LOWERED_COPY"
 
 find "$LOWERED_COPY" -name '*.swift' -print0 |
   xargs -0 perl -0pi -e '

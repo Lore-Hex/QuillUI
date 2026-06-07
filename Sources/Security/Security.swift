@@ -465,6 +465,30 @@ public func SecTrustSetAnchorCertificates(_ trust: SecTrust, _ anchorCertificate
     errSecSuccess
 }
 
+// Legacy macOS keychain-ACL APIs used by WireGuard's Keychain.makeReference on
+// the os(macOS)||os(Linux) branch. There is no real keychain on Linux — these
+// are compile-only stubs that succeed with dummy objects (a runtime layer keeps
+// tunnel configs out-of-band). `SecTrustedApplicationCreateFromPath`'s path is
+// typed `String?` (not `UnsafePointer<CChar>?`) because the implicit Swift→C
+// string bridging that lets Apple's C import accept a `String` does NOT apply to
+// a Swift-declared shim; the app passes a `String` or `nil`, both of which a
+// `String?` accepts.
+public final class SecTrustedApplication {}
+public final class SecAccess {}
+public let kOSReturnSuccess: OSStatus = 0
+public let kSecAttrAccess: CFString = "secaccess" as CFString
+public let kSecAttrDescription: CFString = "desc" as CFString
+
+public func SecTrustedApplicationCreateFromPath(_ path: String?, _ app: UnsafeMutablePointer<SecTrustedApplication?>?) -> OSStatus {
+    app?.pointee = SecTrustedApplication()
+    return errSecSuccess
+}
+
+public func SecAccessCreate(_ descriptor: CFString, _ trustedlist: CFArray?, _ accessRef: UnsafeMutablePointer<SecAccess?>?) -> OSStatus {
+    accessRef?.pointee = SecAccess()
+    return errSecSuccess
+}
+
 public func SecTrustSetAnchorCertificatesOnly(_ trust: SecTrust, _ anchorCertificatesOnly: Bool) {}
 
 public func SecTrustEvaluateWithError(_ trust: SecTrust, _ error: UnsafeMutablePointer<CFError?>?) -> Bool {

@@ -1,4 +1,5 @@
 s/\@NSApplicationDelegateAdaptor\(PanelManager\.self\) var panelManager/\@State var panelManager = PanelManager()/g;
+s/WindowGroup \{/WindowGroup("Quill Chat") {/g;
 # Drop the secondary macOS-only `Window("Keyboard Shortcuts")` scene. The lowering
 # compiles the os(macOS) blocks for the Linux port, and the generic backend renders
 # this extra window's KeyboardShortcutsDemo content INLINE in the main window —

@@ -1,5 +1,7 @@
-s/\.padding\(\)\n(\s*)\.frame\(width: 800\)/.padding(.horizontal, 40)\n$1.padding(.vertical, 16)\n$1.frame(maxWidth: .infinity)/g;
-s/\.frame\(width: 800\)/.frame(maxWidth: .infinity)/g;
+s/\.padding\(\)\n(\s*)\.frame\((?:maxWidth|width): 800\)/.padding(.horizontal, 40)\n$1.padding(.vertical, 16)\n$1.frame(maxWidth: .infinity)/g;
+s/\.frame\((?:maxWidth|width): 800\)/.frame(maxWidth: .infinity)/g;
+s/Text\("Enchanted"\)/Text("Quill Chat")/g;
+s/title: "Enchanted"/title: "Quill Chat"/g;
 
 # Issue #17 — Enchanted parity: match macOS sidebar width 602px.
 # Inject `.navigationSplitViewColumnWidth(602)` after the sidebar's

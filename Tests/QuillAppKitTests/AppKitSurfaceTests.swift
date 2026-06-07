@@ -43,4 +43,265 @@ struct AppKitSurfaceTests {
         #expect(view.layoutGuides.isEmpty)
         #expect(guide.owningView == nil)
     }
+
+    @Test("NSImage template-name constants + NSEvent.specialKey (WireGuard's tunnels list)")
+    func nsImageTemplateNamesAndSpecialKey() {
+        // NSImage(named: NSImage.addTemplateName) etc. in the toolbar.
+        #expect(NSImage.addTemplateName == "NSAddTemplate")
+        #expect(NSImage.removeTemplateName == "NSRemoveTemplate")
+        #expect(NSImage.actionTemplateName == "NSActionTemplate")
+        // event.specialKey == .delete in keyDown; nil compile-stub on Linux.
+        #expect(NSEvent().specialKey == nil)
+        #expect(NSEvent.SpecialKey.delete == NSEvent.SpecialKey.delete)
+        #expect(NSEvent.SpecialKey.delete != NSEvent.SpecialKey.tab)
+    }
+
+    @Test("NSView frame/bounds change notifications + posts flags + NSTableView.usesAutomaticRowHeights")
+    @MainActor func viewNotificationsAndTableRowHeights() {
+        // WireGuard's LogViewController observes frame/bounds changes to autoscroll.
+        #expect(NSView.frameDidChangeNotification.rawValue == "NSViewFrameDidChangeNotification")
+        #expect(NSView.boundsDidChangeNotification.rawValue == "NSViewBoundsDidChangeNotification")
+        let v = NSView(frame: .zero)
+        v.postsFrameChangedNotifications = true
+        v.postsBoundsChangedNotifications = true
+        #expect(v.postsFrameChangedNotifications && v.postsBoundsChangedNotifications)
+        let table = NSTableView(frame: .zero)
+        table.usesAutomaticRowHeights = true
+        #expect(table.usesAutomaticRowHeights)
+    }
+
+    @Test("LogViewController AppKit deps: NSUserInterfaceItemIdentifier(_:), NSWindow.FrameAutosaveName, NSResponder.cancelOperation, NSTableView.row(at:)/NSView.scroll")
+    @MainActor func logViewControllerAppKitSurface() {
+        // NSTableColumn(identifier: NSUserInterfaceItemIdentifier("time")) — the
+        // unlabeled convenience init WireGuard uses to build its log columns.
+        let ident = NSUserInterfaceItemIdentifier("time")
+        #expect(ident.rawValue == "time")
+        let column = NSTableColumn(identifier: ident)
+        #expect(column.identifier.rawValue == "time")
+
+        // NSWindow.FrameAutosaveName (= String) flows into setFrameAutosaveName,
+        // which LogViewController calls to persist the log window's geometry.
+        let name = NSWindow.FrameAutosaveName("LogWindow")
+        #expect(name == "LogWindow")
+        let window = NSWindow()
+        #expect(window.setFrameAutosaveName(name))
+
+        // NSResponder.cancelOperation (Esc / Cmd-.) — compile-stub, callable.
+        NSResponder().cancelOperation(nil)
+
+        // NSTableView.row(at:) (compile-stub: -1 = no row) + NSView.scroll(_:):
+        // LogViewController uses these to keep the log scrolled to the tail.
+        let table = NSTableView(frame: .zero)
+        #expect(table.row(at: NSPoint(x: 0, y: 0)) == -1)
+        table.scroll(NSPoint(x: 0, y: 10))
+    }
+
+    @Test("NSColor(red:green:blue:alpha:) generic RGB init exists (WireGuard's NSColor(hex:) chains to it)")
+    func nsColorGenericRGBInit() {
+        // Compile-stub (ignores components), but must exist + be callable so
+        // WireGuard's NSColor+Hex — NSColor(hex:) -> self.init(red:green:blue:alpha:) — compiles.
+        let c = NSColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1)
+        #expect(c.withAlphaComponent(1) === c) // stub returns self; proves a usable NSColor
+    }
+
+    @Test("NSStatusItem.squareLength / variableLength sentinels (WireGuard's StatusItemController)")
+    func nsStatusItemLengthSentinels() {
+        // WireGuard: NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength).
+        #expect(NSStatusItem.squareLength == -2)
+        #expect(NSStatusItem.variableLength == -1)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.button?.image = nil          // the status-bar button is reachable (compile-stub)
+        item.length = NSStatusItem.squareLength
+        #expect(item.length == -2)
+    }
+
+    @Test("NSTextStorage.edited(_:range:changeInLength:) + EditActions (WireGuard's ConfTextStorage)")
+    func nsTextStorageEditActions() {
+        // ConfTextStorage : NSTextStorage calls edited(.editedCharacters/.editedAttributes, …)
+        // after mutating its backing NSMutableAttributedString.
+        #expect(NSTextStorage.EditActions.editedCharacters != NSTextStorage.EditActions.editedAttributes)
+        let both: NSTextStorage.EditActions = [.editedCharacters, .editedAttributes]
+        #expect(both.contains(.editedCharacters) && both.contains(.editedAttributes))
+        let storage = NSTextStorage(string: "") // corelibs designated init (init() isn't)
+        storage.edited(.editedCharacters, range: NSRange(location: 0, length: 0), changeInLength: 0)
+        storage.processEditing() // compile-stubs, callable
+    }
+
+    @Test("NSFontManager.convert/convertWeight + NSFontTraitMask + NSTextStorage() (ConfTextStorage shadow)")
+    func confTextStorageShadowSurface() {
+        // ConfTextStorage derives bold/italic fonts via NSFontManager + builds on
+        // NSTextStorage's designated init().
+        #expect(NSFontTraitMask.italicFontMask != NSFontTraitMask.boldFontMask)
+        let fm = NSFontManager.shared
+        let base = NSFont.systemFont(ofSize: 15)            // no-weight overload
+        _ = fm.convertWeight(true, of: base)                // compile-stubs (return the font)
+        _ = fm.convert(base, toHaveTrait: .italicFontMask)
+        // NSTextStorage() — the new designated init() ConfTextStorage overrides.
+        let storage = NSTextStorage()
+        storage.edited(.editedAttributes, range: NSRange(location: 0, length: 0), changeInLength: 0)
+        _ = storage
+    }
+
+    @Test("NSTextView init(frame:textContainer:) + preserved NSTextView()/(frame:) + edit hooks (ConfTextView)")
+    func confTextViewShadowSurface() {
+        // The new designated init ConfTextView uses:
+        let tv = NSTextView(frame: .zero, textContainer: NSTextContainer())
+        tv.isAutomaticDataDetectionEnabled = false
+        tv.isAutomaticLinkDetectionEnabled = false
+        tv.isAutomaticTextCompletionEnabled = false
+        #expect(tv.shouldChangeText(in: NSRange(location: 0, length: 0), replacementString: "x"))
+        tv.didChangeText()
+        // Preserved entry points (must still work — AppleCompatibilitySmoke uses NSTextView()):
+        _ = NSTextView()
+        _ = NSTextView(frame: .zero)
+        // NSView appearance hooks ConfTextView overrides:
+        let v = NSView(frame: .zero)
+        _ = v.effectiveAppearance
+        v.viewDidChangeEffectiveAppearance()
+    }
+
+    @Test("NSTokenField + NSTokenFieldDelegate (WireGuard's OnDemandControlsRow)")
+    func nsTokenFieldSurface() {
+        let tf = NSTokenField()
+        tf.tokenStyle = .squared
+        tf.tokenizingCharacterSet = CharacterSet([])
+        #expect(tf.tokenStyle == .squared)
+        // NSTokenFieldDelegate refines NSTextFieldDelegate; its completion hook
+        // has a default impl (nil) so conformers override only what they need.
+        final class D: NSObject, NSTokenFieldDelegate {}
+        let d = D()
+        #expect(d.tokenField(tf, completionsForSubstring: "x", indexOfToken: 0, indexOfSelectedItem: nil) == nil)
+    }
+
+    @Test("TunnelEditViewController shadow gaps: NSText min/maxSize, NSWindow.ignoresMouseEvents, NSStackView.setHuggingPriority, NSTextContainer.size")
+    func tunnelEditShadowSurface() {
+        let tv = NSTextView()
+        tv.minSize = NSSize(width: 1, height: 1)
+        tv.maxSize = NSSize(width: 100, height: 100)
+        tv.isHorizontallyResizable = true
+        tv.isVerticallyResizable = true
+        #expect(tv.minSize.width == 1 && tv.maxSize.height == 100)
+        let w = NSWindow()
+        w.ignoresMouseEvents = true
+        #expect(w.ignoresMouseEvents)
+        let stack = NSStackView()
+        stack.setHuggingPriority(.defaultHigh, for: .horizontal) // compile-stub
+        let tc = NSTextContainer()
+        tc.size = NSSize(width: 50, height: 50)
+        #expect(tc.size.width == 50)
+    }
+
+    @Test("TunnelDetailTableViewController shadow gaps: NSView.toolTip, NSScrollView.drawsBackground, NSTableView.selectionHighlightStyle")
+    @MainActor func tunnelDetailShadowSurface() {
+        // ButtonRow.buttonToolTip / cell tooltips set NSView.toolTip (NSButton is an NSView).
+        let button = NSButton()
+        button.toolTip = "Activate"
+        #expect(button.toolTip == "Activate")
+        // TunnelDetail's table is hosted in a transparent scroll view.
+        let scroll = NSScrollView(frame: .zero)
+        scroll.drawsBackground = false
+        #expect(scroll.drawsBackground == false)
+        // The read-only detail rows use selectionHighlightStyle = .none.
+        let table = NSTableView(frame: .zero)
+        table.selectionHighlightStyle = .none
+        #expect(table.selectionHighlightStyle == .none)
+        #expect(NSTableView.SelectionHighlightStyle.none != NSTableView.SelectionHighlightStyle.regular)
+    }
+
+    @Test("TunnelsListTableViewController shadow gaps: NSControl.cell as? NSPopUpButtonCell, NSButton(frame:), @MainActor keyDown")
+    @MainActor func tunnelsListShadowSurface() {
+        // The add/action menus do (popup.cell as? NSPopUpButtonCell)?.arrowPosition = .arrowAtBottom.
+        // NSPopUpButton seeds its cell with an NSPopUpButtonCell (now : NSCell) so the downcast succeeds.
+        let popup = NSPopUpButton(frame: .zero, pullsDown: true)
+        let cell = popup.cell as? NSPopUpButtonCell
+        #expect(cell != nil)
+        cell?.arrowPosition = .arrowAtBottom
+        #expect(cell?.arrowPosition == .arrowAtBottom)
+        // NSButton(frame:) — FillerButton: NSButton uses super.init(frame:).
+        let filler = NSButton(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        #expect(filler.frame.width == 10)
+        // keyDown is @MainActor (TunnelsList.keyDown calls @MainActor handleRemoveTunnelAction on Delete).
+        NSResponder().keyDown(with: NSEvent())
+    }
+
+    @Test("ManageTunnelsRootViewController shadow gap: NSResponder.supplementalTarget(forAction:sender:)")
+    @MainActor func manageTunnelsRootShadowSurface() {
+        // The split-view root overrides supplementalTarget to route toolbar/menu actions
+        // to its child VCs; the base returns nil (no supplemental target).
+        let responder = NSResponder()
+        #expect(responder.supplementalTarget(forAction: Selector("handleAddEmptyTunnelAction"), sender: nil) == nil)
+    }
+
+    @Test("MainMenu shadow gaps: NSMenuItem.separator() func + NSMenu(title:)/addItem(withTitle:action:keyEquivalent:)/setSubmenu + subclass init() w/o override")
+    @MainActor func mainMenuShadowSurface() {
+        let menu = NSMenu(title: "File")
+        #expect(menu.title == "File")
+        let item = menu.addItem(withTitle: "New", action: Selector("handleAddEmptyTunnelAction"), keyEquivalent: "n")
+        item.keyEquivalentModifierMask = [.command, .option]
+        #expect(item.keyEquivalent == "n")
+        // separator() is the call form (was a `static var separator` property; MainMenu/StatusMenu use ()).
+        menu.addItem(NSMenuItem.separator())
+        menu.setSubmenu(NSMenu(), for: item)
+        // NSMenu's init() is convenience (init(title:) designated) → a subclass can declare
+        // its own init() WITHOUT `override` (what WireGuard's MainMenu/StatusMenu rely on).
+        let custom = MenuInitModelProbe()
+        #expect(custom.title == "probe")
+    }
+
+    @Test("StatusMenu shadow gaps: NSMenu.numberOfItems / removeItem(at:) / item(at:)")
+    @MainActor func statusMenuShadowSurface() {
+        let menu = NSMenu(title: "Status")
+        let a = menu.addItem(withTitle: "A", action: nil, keyEquivalent: "")
+        menu.addItem(NSMenuItem.separator())
+        let c = menu.addItem(withTitle: "C", action: nil, keyEquivalent: "")
+        #expect(menu.numberOfItems == 3)
+        #expect(menu.item(at: 0) === a)
+        menu.removeItem(at: 1) // remove the separator (StatusMenu rebuilds per-tunnel rows by index)
+        #expect(menu.numberOfItems == 2)
+        #expect(menu.item(at: 1) === c)
+        menu.removeItem(at: 99) // out-of-range → no-op (no crash)
+        #expect(menu.numberOfItems == 2)
+    }
+
+    @Test("Apple-Events detector shadow: NSAppleEventDescriptor + kAE constants + Darwin C stubs")
+    func appleEventsDetectorShadow() {
+        #if os(Linux)
+        // LaunchedAtLoginDetector/MacAppStoreUpdateDetector compare eventClass/eventID
+        // against these four-char-code constants (visible via AppKit → @_exported QuillFoundation).
+        #expect(kCoreEventClass == 0x6165_7674) // 'aevt'
+        #expect(kAEOpenApplication != kAEQuitApplication)
+        let desc = NSAppleEventDescriptor()
+        #expect(desc.eventClass == 0 && desc.eventID == 0 && desc.int32Value == 0)
+        #expect(desc.attributeDescriptor(forKeyword: keySenderPIDAttr) == nil)
+        // Darwin-only C the detectors call — compile-stubs, never executed on Linux.
+        #expect(clock_gettime_nsec_np(CLOCK_UPTIME_RAW) == 0)
+        #expect(proc_pidpath(0, nil, 0) == 0)
+        #endif
+    }
+
+    @Test("AppDelegate shadow gaps: NSApp.activationPolicy() method/AboutPanel, NSWindow(contentViewController:)/attachedSheet, NSAppleEventManager")
+    @MainActor func appDelegateShadowSurface() {
+        // activationPolicy() is now a method (was a property); setActivationPolicy round-trips.
+        _ = NSApp.setActivationPolicy(.accessory)
+        #expect(NSApp.activationPolicy() == .accessory)
+        _ = NSApp.setActivationPolicy(.regular)
+        // Standard About panel (compile-stub) + its option keys.
+        NSApp.orderFrontStandardAboutPanel(options: [.applicationVersion: "1.0", .version: "", .credits: ""])
+        #expect(NSApplication.AboutPanelOptionKey.applicationVersion != NSApplication.AboutPanelOptionKey.credits)
+        // NSWindow hosting a VC + attachedSheet (nil until sheets are modelled).
+        let win = NSWindow(contentViewController: NSViewController())
+        #expect(win.contentViewController != nil && win.attachedSheet == nil)
+        // NSAppleEventManager (via AppKit → @_exported QuillFoundation): no current event on Linux.
+        #if os(Linux)
+        #expect(NSAppleEventManager.shared().currentAppleEvent == nil)
+        #endif
+    }
+}
+
+/// Probes the NSMenu init-model fix: a subclass declaring `init()` (a new designated
+/// init calling super.init(title:)) compiles WITHOUT an `override` keyword — exactly
+/// as WireGuard's MainMenu/StatusMenu do.
+private final class MenuInitModelProbe: NSMenu {
+    init() { super.init(title: "probe") }
+    required init(coder decoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }

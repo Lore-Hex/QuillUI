@@ -52,17 +52,30 @@ struct QuillDataSourceLoweringTests {
 
         let script = root.appendingPathComponent("scripts/lower-swiftdata-for-quilldata.sh")
         let scriptSource = try String(contentsOf: script, encoding: .utf8)
-        #expect(scriptSource.contains("quill-source-lower"))
-        #expect(scriptSource.contains("QUILLUI_SOURCE_LOWER"))
-        #expect(scriptSource.contains("--disable-sandbox"))
+        #expect(scriptSource.contains("run-quill-source-lower.sh"))
+        #expect(!scriptSource.contains("--package-path \"$ROOT_DIR\""))
         #expect(!scriptSource.contains("perl -0pi"))
-        let lowerer = try builtQuillSourceLowerExecutable(root: root)
+
+        let lowererWrapper = try String(
+            contentsOf: root.appendingPathComponent("scripts/run-quill-source-lower.sh"),
+            encoding: .utf8
+        )
+        #expect(lowererWrapper.contains("QUILLUI_SOURCE_LOWER"))
+        #expect(lowererWrapper.contains(".build/quill-source-lower-package"))
+        #expect(lowererWrapper.contains("ln -s \"$ROOT_DIR/Sources/QuillSourceLowering\""))
+        #expect(lowererWrapper.contains("--package-path \"$TOOL_PACKAGE_DIR\""))
+        #expect(!lowererWrapper.contains("--package-path \"$ROOT_DIR\""))
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path, source.path, output.path]
         process.environment = ProcessInfo.processInfo.environment.merging(
-            ["QUILLUI_SOURCE_LOWER": lowerer.path]
+            [
+                "QUILLUI_SOURCE_LOWER_PACKAGE_DIR": directory
+                    .appendingPathComponent("ToolPackage", isDirectory: true).path,
+                "QUILLUI_SOURCE_LOWER_SCRATCH_PATH": directory
+                    .appendingPathComponent("ToolScratch", isDirectory: true).path,
+            ]
         ) { _, new in new }
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -473,6 +486,7 @@ struct QuillDataSourceLoweringTests {
         #expect(visualScript.contains("quillui_find_quill_chat_reference_window \"$DISPLAY_ID\""))
         #expect(smokeLib.contains("quillui_find_quill_chat_reference_window()"))
         #expect(smokeLib.contains("quillui_place_reference_window()"))
+        #expect(smokeLib.contains("openbox"))
         #expect(visualScript.contains("capture_window=\"$window_id\""))
         #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
         #expect(smokeLib.contains("quill-chat-linux-mac-reference"))
@@ -483,18 +497,50 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(verifier.contains("validate_quill_chat_mac_reference"))
         #expect(verifier.contains("Mac-reference prompt card row was not detected"))
+        #expect(verifier.contains("prompt_card_fill_height"))
+        #expect(verifier.contains("Mac-reference prompt cards are too short"))
+        #expect(verifier.contains("card_height={prompt_card_height}px"))
         #expect(verifier.contains("Mac-reference sidebar region rendered no content"))
+        #expect(verifier.contains("mac_reference_sidebar_tint_pixel"))
+        #expect(verifier.contains("Mac-reference sidebar lost its green-tinted source-list material"))
         #expect(verifier.contains("Mac-reference window controls were not detected"))
+        #expect(verifier.contains("cool_wordmark_pixel"))
+        #expect(verifier.contains("warm_wordmark_pixel"))
+        #expect(verifier.contains("Mac-reference wordmark lost its blue-to-red color range"))
         #expect(verifier.contains("Mac-reference alert is too short"))
         #expect(verifier.contains("Quill Chat Mac-reference landmarks"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_composer_typed"))
         #expect(verifier.contains("Mac-reference typed composer text was not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_settings_panel"))
+        #expect(verifier.contains("panel_kind = \"root-overlay\""))
+        #expect(verifier.contains("top + int(app_height * 0.18)"))
+        #expect(verifier.contains("abs(panel_segment.center - detail_center)"))
+        #expect(verifier.contains("Mac-reference root-overlay settings panel is misplaced or too narrow"))
+        #expect(verifier.contains("panel={panel_segment.width}px@{panel_y} ({panel_kind})"))
         #expect(verifier.contains("Mac-reference typed settings endpoint was not detected"))
+        #expect(verifier.contains("endpoint_text_pixels >= 550"))
+        #expect(verifier.contains("Mac-reference typed settings bearer token was not detected"))
+        #expect(verifier.contains("token_y0 = panel_y + 350"))
+        #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
+        #expect(verifier.contains("ping_y0 = panel_y + 384"))
+        #expect(verifier.contains("Mac-reference selected default model was not detected"))
+        #expect(verifier.contains("model_text_pixels >= 200"))
+        #expect(verifier.contains("selected_model_pixels={model_text_pixels}"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_completions_panel"))
+        #expect(verifier.contains("root_title_pixels = pixel_count"))
+        #expect(verifier.contains("divider_threshold = 700"))
+        #expect(verifier.contains("panel={panel_kind}"))
         #expect(verifier.contains("Mac-reference completions list dividers were not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_history_selection"))
         #expect(verifier.contains("Mac-reference selected history marker was not detected"))
+        #expect(verifier.contains("top + int(app_height * 0.30)"))
+        #expect(verifier.contains("left + 28"))
+        #expect(verifier.contains("lambda rgb: sum(rgb) < 360"))
+        #expect(verifier.contains("top + int(app_height * 0.47)"))
+        #expect(verifier.contains("marker_y, marker_peak_pixels = max("))
+        #expect(verifier.contains("selected_row_text_y0 = max(marker_y - int(app_height * 0.025), top)"))
+        #expect(verifier.contains("selected_row_pixels >= 180"))
+        #expect(verifier.contains("selected_marker_peak={marker_peak_pixels}@{marker_y}"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-transcript-selection"))
         #expect(verifier.contains("Mac-reference selected transcript assistant message was not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_markdown_transcript_selection"))
@@ -506,7 +552,12 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference long transcript did not scroll to the dense bottom marker"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_prompt_send"))
-        #expect(verifier.contains("Mac-reference prompt-send message content was not detected"))
+        #expect(verifier.contains("Mac-reference {label} message content was not detected"))
+        #expect(verifier.contains("validate_quill_chat_mac_reference_composer_send"))
+        #expect(verifier.contains("Mac-reference {label} message did not align to the trailing edge"))
+        #expect(verifier.contains("validate_quill_chat_functional_transcript"))
+        #expect(verifier.contains("Functional transcript assistant reply was not detected"))
+        #expect(verifier.contains("quill-chat-linux-functional-transcript"))
 
         let interactionScript = try String(
             contentsOf: root.appendingPathComponent("scripts/linux-backend-interaction-check.sh"),
@@ -532,10 +583,25 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("settings-panel"))
         #expect(interactionScript.contains("alert-settings-panel"))
         #expect(interactionScript.contains("settings-endpoint-typed"))
+        #expect(interactionScript.contains("settings-bearer-token-typed"))
+        #expect(interactionScript.contains("settings-ping-interval-typed"))
+        #expect(interactionScript.contains("settings-default-model-selected"))
+        #expect(interactionScript.contains("settings-delete-confirmation"))
         #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-52}\""))
         #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-1366}\""))
         #expect(interactionScript.contains("settings_x=\"${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}\""))
         #expect(interactionScript.contains("settings_y=\"${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}\""))
+        #expect(interactionScript.contains("endpoint_x=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-650}\""))
+        #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-800}\""))
+        #expect(interactionScript.contains("ping_y=\"${QUILLUI_BACKEND_PING_CLICK_Y:-838}\""))
+        #expect(interactionScript.contains("model_x=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}\""))
+        #expect(interactionScript.contains("model_y=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-763}\""))
+        #expect(interactionScript.contains("xdotool key --clearmodifiers Down Return"))
+        #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}\""))
+        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}\""))
+        #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
+        #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+a"))
+        #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-$((window_y + 222))}\""))
         #expect(interactionScript.contains("window_x + 52"))
         #expect(interactionScript.contains("window_height - 14"))
         #expect(interactionScript.contains("completions-panel"))
@@ -547,7 +613,17 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("transcript-selection"))
         #expect(interactionScript.contains("markdown-transcript-selection"))
         #expect(interactionScript.contains("long-transcript-selection"))
+        #expect(interactionScript.contains("quill_chat_mac_reference_history_row_y()"))
+        #expect(interactionScript.contains("recent-transcript)"))
+        #expect(interactionScript.contains("window_y + 540"))
+        #expect(interactionScript.contains("markdown-transcript)"))
+        #expect(interactionScript.contains("window_y + 590"))
+        #expect(interactionScript.contains("long-transcript)"))
+        #expect(interactionScript.contains("window_y + 638"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_SCROLL_CLICKS"))
+        #expect(interactionScript.contains("xdotool click --repeat"))
         #expect(interactionScript.contains("prompt-send"))
+        #expect(interactionScript.contains("composer-send"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE=1"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_TYPE_TEXT"))
         #expect(interactionScript.contains("generic_backend_list_selection_y()"))
@@ -562,6 +638,10 @@ struct QuillDataSourceLoweringTests {
         #expect(!smokeLib.contains("quill-chat-linux-mac-reference-composer-typed"))
         #expect(!smokeLib.contains("quill-chat-linux-mac-reference-settings-panel"))
         #expect(!smokeLib.contains("quill-chat-linux-mac-reference-settings-endpoint-typed"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-settings-bearer-token-typed"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-settings-ping-interval-typed"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-settings-default-model-selected"))
+        #expect(!smokeLib.contains("quill-chat-linux-mac-reference-settings-delete-confirmation"))
         #expect(!smokeLib.contains("quill-chat-linux-mac-reference-completions-panel"))
         #expect(!smokeLib.contains("quill-chat-linux-mac-reference-history-selection"))
         #expect(!smokeLib.contains("quill-chat-linux-mac-reference-transcript-selection"))
@@ -572,12 +652,92 @@ struct QuillDataSourceLoweringTests {
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-composer-typed"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-settings-panel"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-settings-endpoint-typed"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-settings-bearer-token-typed"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-settings-ping-interval-typed"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-settings-default-model-selected"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-settings-delete-confirmation"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-completions-panel"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-history-selection"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-transcript-selection"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-markdown-transcript-selection"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-long-transcript-selection"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-prompt-send"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-composer-send"))
+        #expect(backendProducts.contains("*:composer-send)"))
+
+        let functionalScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/quill-chat-functional-check.sh"),
+            encoding: .utf8
+        )
+        let mockOllama = try String(
+            contentsOf: root.appendingPathComponent("scripts/mock-ollama.py"),
+            encoding: .utf8
+        )
+        #expect(functionalScript.contains("scripts/mock-ollama.py"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MESSAGE"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_REPLY"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_SCREENSHOT"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MOCK_START_DEADLINE"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_DEADLINE"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE"))
+        #expect(functionalScript.contains("QUILLDATA_HOME=$RUN_HOME"))
+        #expect(functionalScript.contains("mock Ollama did not start"))
+        #expect(functionalScript.contains("quillui_functional_xdotool()"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT"))
+        #expect(functionalScript.contains("launch_app_instance()"))
+        #expect(functionalScript.contains("resolve_app_window_geometry()"))
+        #expect(functionalScript.contains("payload.get(\"path\") == \"/api/chat\""))
+        #expect(functionalScript.contains("home / \".quilldata\" / \"default.sqlite\""))
+        #expect(functionalScript.contains("row[0].endswith(\"_MessageSD\")"))
+        #expect(functionalScript.contains("len(matching_request_users) == 1"))
+        #expect(functionalScript.contains("request_ok and user_persisted and assistant_persisted"))
+        #expect(functionalScript.contains("baseline_chat_requests"))
+        #expect(functionalScript.contains("last_request_count == baseline_chat_requests"))
+        #expect(functionalScript.contains("quill-chat-linux-functional-transcript"))
+        #expect(functionalScript.contains("Functional relaunch screenshot"))
+        #expect(functionalScript.contains("Functional failure screenshot"))
+        #expect(functionalScript.contains("quillui_print_backend_app_log_tail"))
+        #expect(functionalScript.contains("Mock Ollama log"))
+        #expect(functionalScript.contains("window_height - 190"))
+        #expect(functionalScript.contains("window_x + 110"))
+        #expect(functionalScript.contains("window_y + 172"))
+        #expect(functionalScript.contains("Click the row band rather than the header"))
+        #expect(!functionalScript.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
+        #expect(!functionalScript.contains("QUILLUI_ENCHANTED_FORCE_UNREACHABLE=1"))
+        #expect(mockOllama.contains("class MockOllamaHandler"))
+        #expect(mockOllama.contains("\"method\": \"GET\""))
+        #expect(mockOllama.contains("\"method\": \"POST\""))
+        #expect(mockOllama.contains("self.path == \"/api/tags\""))
+        #expect(mockOllama.contains("self.path != \"/api/chat\""))
+        #expect(mockOllama.contains("application/x-ndjson"))
+
+        let parityWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/enchanted-parity.yml"),
+            encoding: .utf8
+        )
+        #expect(parityWorkflow.contains("openbox"))
+        #expect(parityWorkflow.contains("QUILLUI_BACKEND_SKIP_BUILD: \"1\""))
+        #expect(parityWorkflow.contains("Run real-source sidebar and transcript interaction verifiers"))
+        #expect(parityWorkflow.contains("settings-panel"))
+        #expect(parityWorkflow.contains("settings-endpoint-typed"))
+        #expect(parityWorkflow.contains("settings-bearer-token-typed"))
+        #expect(parityWorkflow.contains("settings-ping-interval-typed"))
+        #expect(parityWorkflow.contains("settings-default-model-selected"))
+        #expect(parityWorkflow.contains("settings-delete-confirmation"))
+        #expect(parityWorkflow.contains("completions-panel"))
+        #expect(parityWorkflow.contains("history-selection"))
+        #expect(parityWorkflow.contains("transcript-selection"))
+        #expect(parityWorkflow.contains("markdown-transcript-selection"))
+        #expect(parityWorkflow.contains("long-transcript-selection"))
+        #expect(parityWorkflow.contains(".qa/quill-chat-linux-mac-reference-${mode}-gtk.png"))
+        #expect(parityWorkflow.contains("Run live composer-send and relaunch functional verifier"))
+        #expect(parityWorkflow.contains("scripts/quill-chat-functional-check.sh"))
+        #expect(parityWorkflow.contains(".qa/quill-chat-linux-functional-composer-send-gtk.png"))
+        #expect(parityWorkflow.contains("timeout --kill-after=15s 180s"))
+        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: \"1\""))
+        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_X: \"700\""))
+        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_Y: \"1190\""))
 
         let seedScript = try String(
             contentsOf: root.appendingPathComponent("scripts/seed-quill-chat-reference-data.py"),
@@ -593,6 +753,29 @@ struct QuillDataSourceLoweringTests {
         #expect(seedScript.contains("Long transcript scroll test"))
         #expect(seedScript.contains("bottom scroll target is visible near the composer"))
         #expect(seedScript.contains("\"conversation\": transcript_conversation_payload"))
+
+        let enchantedSeedScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/seed-enchanted-reference-data.py"),
+            encoding: .utf8
+        )
+        #expect(enchantedSeedScript.contains("home / \".quilldata\" / \"default.sqlite\""))
+        #expect(enchantedSeedScript.contains("_quilldata_json_GeneratedSwiftUILinuxApp_ConversationSD"))
+        #expect(enchantedSeedScript.contains("_quilldata_json_GeneratedSwiftUILinuxApp_MessageSD"))
+        #expect(enchantedSeedScript.contains("_quilldata_json_GeneratedSwiftUILinuxApp_LanguageModelSD"))
+        #expect(enchantedSeedScript.contains("quill_chat_reference_items(now)"))
+        #expect(enchantedSeedScript.contains("dt.datetime.now(dt.timezone.utc).replace(microsecond=0)"))
+        #expect(enchantedSeedScript.contains("mistral-7b-reference-linux-picker:latest"))
+        #expect(enchantedSeedScript.contains("image_support=False"))
+        #expect(enchantedSeedScript.contains("Auto-config test: reply with one short phrase"))
+        #expect(enchantedSeedScript.contains("Write a text message asking a friend"))
+        #expect(enchantedSeedScript.contains("How to center div in HTML?"))
+        #expect(enchantedSeedScript.contains("Long transcript scroll test"))
+        #expect(enchantedSeedScript.contains("Use **flexbox**: set `display` to `flex`"))
+        #expect(enchantedSeedScript.contains("Final answer: bottom scroll target is visible near the composer"))
+        #expect(enchantedSeedScript.contains("\"name\": name"))
+        #expect(enchantedSeedScript.contains("\"conversation\": conversation_payload"))
+        #expect(enchantedSeedScript.contains("\"modelProvider\": {\"ollama\": {}}"))
+        #expect(enchantedSeedScript.contains("home / \".quillui\" / \"enchanted\" / \"enchanted-quilldata.sqlite\""))
 
         let controls = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUI/Controls.swift"),
@@ -624,6 +807,125 @@ struct QuillDataSourceLoweringTests {
         #expect(modelStoreRule.contains("llava:latest"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModel"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModels.first"))
+        #expect(modelStoreRule.contains("let availableModels = storedModels.filter"))
+        #expect(modelStoreRule.contains("self.selectedModel = availableModels.first"))
+        #expect(modelStoreRule.contains("self.supportsImages = self.selectedModel?.supportsImages ?? availableModels.first?.supportsImages ?? false"))
+
+        let applicationEntryPointRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Application/EnchantedApp.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(applicationEntryPointRule.contains("WindowGroup(\"Quill Chat\")"))
+
+        let chatViewRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/ChatView_macOS.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(chatViewRule.contains("Text(\"Quill Chat\")"))
+        #expect(chatViewRule.contains("title: \"Quill Chat\""))
+        #expect(chatViewRule.contains("(?:maxWidth|width): 800"))
+
+        let chatViewTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/macOS/Chat/ChatView_macOS.swift"),
+            encoding: .utf8
+        )
+        #expect(chatViewTemplate.contains("QuillDesktopChatScaffold("))
+        #expect(chatViewTemplate.contains("hasSelection: selectedConversation != nil"))
+        #expect(chatViewTemplate.contains("showsStatus: !reachable"))
+        #expect(chatViewTemplate.contains("QuillDesktopChatToolbar("))
+        #expect(chatViewTemplate.contains("EmptyConversaitonView(sendPrompt: sendPrompt)"))
+        #expect(chatViewTemplate.contains("private func sendPrompt(_ selectedMessage: String)"))
+        #expect(!chatViewTemplate.contains("QuillDesktopSplitLayout("))
+        #expect(!chatViewTemplate.contains("VStack(alignment: .center, spacing: 0)"))
+        #expect(!chatViewTemplate.contains(".frame(width: 800)"))
+        #expect(!chatViewTemplate.contains("composerWidth:"))
+
+        let emptyConversationRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/EmptyConversaitonView.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(emptyConversationRule.contains("Text(\"Quill\")"))
+        #expect(emptyConversationRule.contains("brandTitle: \"Quill\""))
+
+        let emptyConversationTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/EmptyConversaitonView.swift"),
+            encoding: .utf8
+        )
+        #expect(emptyConversationTemplate.contains("private let macReferencePromptTitles = ["))
+        #expect(emptyConversationTemplate.contains("\"How to center div in HTML?\""))
+        #expect(emptyConversationTemplate.contains("\"How to do personal taxes in USA?\""))
+        #expect(emptyConversationTemplate.contains("\"Explain supercomputers like I'm five years old\""))
+        #expect(emptyConversationTemplate.contains("\"Write a text message asking a friend to be my plus-one at a wedding\""))
+        #expect(emptyConversationTemplate.contains("SamplePrompts.samples.first { $0.prompt == title }"))
+        #expect(emptyConversationTemplate.contains(": Array(SamplePrompts.samples.prefix(4))"))
+
+        let sidebarTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift"),
+            encoding: .utf8
+        )
+        #expect(sidebarTemplate.contains("import QuillUI"))
+        #expect(sidebarTemplate.contains("QuillDesktopSidebar(bottomActions: bottomActions)"))
+        #expect(sidebarTemplate.contains("ConversationHistoryList("))
+        #expect(sidebarTemplate.contains("private var bottomActions: [QuillSidebarNavigationAction]"))
+        #expect(sidebarTemplate.contains("actions.append(QuillSidebarNavigationAction(title: \"Completions\""))
+        #expect(sidebarTemplate.contains("actions.append(QuillSidebarNavigationAction(title: \"Shortcuts\""))
+        #expect(sidebarTemplate.contains("actions.append(QuillSidebarNavigationAction(title: \"Settings\""))
+        #expect(!sidebarTemplate.contains("SidebarButton("))
+        #expect(!sidebarTemplate.contains(".padding(.top, 88)"))
+        #expect(!sidebarTemplate.contains("Text(\"New chat\")"))
+        #expect(!sidebarTemplate.contains("Color(red: 0.259, green: 0.522, blue: 0.957)"))
+
+        let historyTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"),
+            encoding: .utf8
+        )
+        #expect(historyTemplate.contains("import QuillUI"))
+        #expect(historyTemplate.contains("QuillDateGroupedConversationHistoryList("))
+        #expect(historyTemplate.contains("selectedID: selectedConversation?.id.uuidString"))
+        #expect(historyTemplate.contains("dateTitle: { $0.daysAgoString() }"))
+        #expect(historyTemplate.contains("private var historyItems: [QuillConversationHistoryItem]"))
+        #expect(historyTemplate.contains("id: conversation.id.uuidString"))
+        #expect(historyTemplate.contains("private func conversation(for item: QuillConversationHistoryItem) -> ConversationSD?"))
+        #expect(!historyTemplate.contains("struct ConversationGroup: Hashable"))
+        #expect(!historyTemplate.contains("conversationGroup.date.daysAgoString()"))
+        #expect(!historyTemplate.contains("if selectedConversation == dailyConversation"))
+        #expect(!historyTemplate.contains(".showIf("))
+        #expect(!historyTemplate.contains("QuillConversationHistoryList("))
+
+        let messageListTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/MessageListVIew.swift"),
+            encoding: .utf8
+        )
+        #expect(messageListTemplate.contains("private let quillMessageListBottomID"))
+        #expect(messageListTemplate.contains(".id(quillMessageListBottomID)"))
+        #expect(messageListTemplate.contains("scrollViewProxy.scrollTo(quillMessageListBottomID, anchor: .bottom)"))
+        #expect(messageListTemplate.contains("DispatchQueue.main.async"))
+        #expect(messageListTemplate.contains(".onChange(of: messages.map(\\.id))"))
+        #expect(messageListTemplate.contains("#if os(Linux)"))
+
+        let unreachableRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/UnreachableAPIView.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(unreachableRule.contains("Quill is unreachable"))
+        #expect(unreachableRule.contains("update your Quill API endpoint"))
+
+        let conversationStoreRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/ConversationStore.swift.pl"),
+            encoding: .utf8
+        )
+        #expect(conversationStoreRule.contains("if !currentMessageBuffer.isEmpty"))
+        #expect(conversationStoreRule.contains("lastMesasge.content.append(currentMessageBuffer)"))
+        #expect(conversationStoreRule.contains("var pendingMessages = conversation.messages.sorted"))
+        #expect(conversationStoreRule.contains("pendingMessages.append(userMessage)"))
+        #expect(conversationStoreRule.contains("pendingMessages.append(assistantMessage)"))
+        #expect(conversationStoreRule.contains("self.messages = pendingMessages.sorted"))
+        #expect(conversationStoreRule.contains("self.selectedConversation = conversation"))
+        #expect(conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
+        #expect(conversationStoreRule.contains("!messageHistory.contains(where: { \\$0.role == .user && \\$0.content == userPrompt })"))
+        #expect(conversationStoreRule.contains("messageHistory.append(currentUserRequestMessage)"))
+        #expect(conversationStoreRule.contains("Task { try? await self.loadConversations() }"))
+        #expect(!conversationStoreRule.contains("conversation.messages + [userMessage]"))
 
         let appStoreRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/AppStore.swift.pl"),
@@ -1006,6 +1308,7 @@ struct QuillDataSourceLoweringTests {
                     return opaqueFromWidget(widget)
                 }
 
+                // Guard against duplicate presentation on rebuild
                 guard g_object_get_data(gobject, "swift-sheet-active") == nil else {
                     return opaqueFromWidget(widget)
                 }
@@ -1078,6 +1381,7 @@ struct QuillDataSourceLoweringTests {
                     return opaqueFromWidget(widget)
                 }
 
+                // Check if the item identity changed while a sheet is already active
                 let currentIdHash = currentItem.id.hashValue
                 if g_object_get_data(gobject, "swift-sheet-active") != nil {
                     let storedHash = Int(bitPattern: g_object_get_data(gobject, "swift-sheet-item-id"))
@@ -1457,6 +1761,11 @@ struct QuillDataSourceLoweringTests {
         try """
         import Foundation
 
+        func gtkConfigureRootContentToFillWindow(_ contentWidget: UnsafeMutablePointer<GtkWidget>) {
+            gtk_widget_set_hexpand(contentWidget, 1)
+            gtk_widget_set_vexpand(contentWidget, 1)
+        }
+
         extension WindowGroup {
             func gtkResolvedDefaultWindowSize() -> (width: Double, height: Double)? {
                 switch windowSizing ?? .automatic {
@@ -1478,6 +1787,12 @@ struct QuillDataSourceLoweringTests {
                         gint(defaultSize.height)
                     )
                 }
+
+                gtkConfigureRootContentToFillWindow(contentWidget)
+
+                gtk_window_set_child(winPtr, contentWidget)
+                let winWidget = widgetPointer(winPtr)
+                gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: contentWidget, windowID: Int(bitPattern: winPtr))
             }
 
             func gtkInstallDefaultMenu(menuModel: OpaquePointer, fileMenu: OpaquePointer) {
@@ -1633,6 +1948,10 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
 
+        let patchScript = try String(contentsOf: script, encoding: .utf8)
+        #expect(patchScript.contains("text.replace(\"remainingTicks: Int = 4\", \"remainingTicks: Int = 180\")"))
+        #expect(patchScript.contains("SwiftOpenUI ScrollViewReader scroll-range upgrade shape was not recognized"))
+
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
         #expect(patchedSwiftOpenUIManifest.contains("func swiftOpenUIPkgConfigArguments("))
@@ -1664,7 +1983,13 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if needsVExpand { gtk_widget_set_vexpand(box, 1) }"))
         #expect(patchedRenderer.contains("SwiftUI lays repeated vertical rows against the parent's"))
         #expect(patchedRenderer.contains("gtk_widget_set_hexpand(widget, 1)"))
-        #expect(patchedRenderer.contains("background: transparent; background-color: transparent; border: none"))
+        #expect(patchedRenderer.contains("gtk_widget_add_css_class(button, \"flat\")"))
+        #expect(patchedRenderer.contains("background: transparent;"))
+        #expect(patchedRenderer.contains("background-color: transparent;"))
+        #expect(patchedRenderer.contains("background-image: none;"))
+        #expect(patchedRenderer.contains("border-radius: 0;"))
+        #expect(patchedRenderer.contains("box-shadow: none;"))
+        #expect(patchedRenderer.contains("text-shadow: none;"))
         #expect(patchedRenderer.contains("SwiftUI lays vertical ScrollView content out in the viewport"))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(child, GTK_ALIGN_FILL)"))
         #expect(patchedRenderer.contains("gtk_widget_set_valign(child, GTK_ALIGN_FILL)"))
@@ -1701,19 +2026,51 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkInstallScrollViewCrossAxisFill("))
         #expect(patchedRenderer.contains("gtk_widget_set_size_request(context.child, width, -1)"))
         #expect(patchedRenderer.contains("private final class GTKScrollToContext"))
+        #expect(patchedRenderer.contains("private var gtkScrollTargetRegistry"))
+        #expect(patchedRenderer.contains("private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>)"))
+        #expect(patchedRenderer.contains("g_object_ref(gpointer(widget))"))
+        #expect(patchedRenderer.contains("gtkScrollTargetRegistry.updateValue(widget, forKey: id)"))
+        #expect(patchedRenderer.contains("g_object_unref(gpointer(previous))"))
         #expect(patchedRenderer.contains("private var gtkPendingScrollRequests"))
         #expect(patchedRenderer.contains("gtk_widget_translate_coordinates(target, scrolled"))
         #expect(patchedRenderer.contains("gtk_scrolled_window_get_vadjustment"))
+        #expect(patchedRenderer.contains("var applied = false"))
+        #expect(patchedRenderer.contains("if upper - lower > pageSize + 1.0"))
+        #expect(patchedRenderer.contains("parent = gtk_widget_get_parent(scrolled)\n                continue"))
+        #expect(patchedRenderer.contains("if applied { return }"))
         #expect(patchedRenderer.contains("let request = GTKPendingScrollRequest(anchor: anchor)"))
         #expect(patchedRenderer.contains("gtkPendingScrollRequests[id] = request"))
+        #expect(patchedRenderer.contains("guard let widget = gtkScrollTargetRegistry[id] else { return }"))
+        #expect(patchedRenderer.contains("gtkResolvePendingScrollTo(id: id, widget: widget)"))
         #expect(patchedRenderer.contains("gtkScheduleScrollTo(widget, anchor: anchor)"))
         #expect(patchedRenderer.contains("gtkScheduleIdleScrollTo(_ target"))
         #expect(patchedRenderer.contains("g_object_ref(gpointer(target))"))
+        #expect(patchedRenderer.contains("g_timeout_add(16, { userData -> gboolean in"))
+        #expect(patchedRenderer.contains("let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)"))
+        #expect(patchedRenderer.contains("unmanaged.release()"))
         #expect(patchedRenderer.contains("defer { g_object_unref(gpointer(context.target)) }"))
         #expect(patchedRenderer.contains("g_idle_add({ userData -> gboolean in"))
         #expect(patchedRenderer.contains("gtkScheduleIdleScrollTo(widget, anchor: request.anchor)"))
         #expect(patchedRenderer.contains("gtkResolveOrQueueScrollTo(id: anyID, anchor: anchor)"))
-        #expect(patchedRenderer.contains("gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)"))
+        #expect(patchedRenderer.contains("gtkRegisterScrollTarget(id: AnyHashable(id), widget: widget)"))
+        #expect(!patchedRenderer.contains("lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>"))
+        #expect(patchedRenderer.contains("private func gtkSheetPresentationMode() -> String"))
+        #expect(patchedRenderer.contains("QUILLUI_BACKEND_SHEET_PRESENTATION"))
+        #expect(patchedRenderer.contains("private func gtkShouldRenderSheetInRootOverlay() -> Bool"))
+        #expect(patchedRenderer.contains("return mode.isEmpty || mode == \"root\" || mode == \"root-overlay\" || mode == \"window-overlay\""))
+        #expect(patchedRenderer.contains("private func gtkShouldRenderSheetInWindow() -> Bool"))
+        #expect(patchedRenderer.contains("QUILLUI_GTK_SHEET_PRESENTATION"))
+        #expect(patchedRenderer.contains("return mode == \"overlay\" || mode == \"in-window\" || mode == \"inline\""))
+        #expect(patchedRenderer.contains("private func gtkRemoveSheetRootOverlay("))
+        #expect(patchedRenderer.contains("gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey"))
+        #expect(patchedRenderer.contains("private func gtkCreateSheetOverlayPanel("))
+        #expect(patchedRenderer.contains("private func gtkCreateSheetOverlay("))
+        #expect(patchedRenderer.contains("gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)"))
+        #expect(patchedRenderer.contains("gtkRootPresentationOverlay(for: root)"))
+        #expect(patchedRenderer.contains("gtk_overlay_add_overlay(rootOverlay, panel)"))
+        #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
+        #expect(patchedRenderer.contains("remainingTicks: Int = 180"))
+        #expect(!patchedRenderer.contains("remainingTicks: Int = 4"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))
@@ -1769,6 +2126,13 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedBackend.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"))
         #expect(patchedBackend.contains("requestedWidth ?? defaultWindowWidth ?? defaultAutomaticWindowWidth"))
         #expect(patchedBackend.contains("gtk_widget_set_size_request(\n                contentWidget"))
+        #expect(patchedBackend.contains("private let gtkRootPresentationOverlayKey"))
+        #expect(patchedBackend.contains("func gtkCreateRootPresentationContainer("))
+        #expect(patchedBackend.contains("g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))"))
+        #expect(patchedBackend.contains("func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer?"))
+        #expect(patchedBackend.contains("let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)"))
+        #expect(patchedBackend.contains("gtk_window_set_child(winPtr, rootContentWidget)"))
+        #expect(patchedBackend.contains("gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget"))
 
         let patchedToolbar = try String(contentsOf: toolbar, encoding: .utf8)
         #expect(patchedToolbar.contains("public let renderedViews: [any View]"))
@@ -1859,6 +2223,62 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSymbolValues["play.fill"] == "play_arrow")
     }
 
+    @Test("vendored SwiftOpenUI restores GTK input focus by stable identity before DFS fallback")
+    func vendoredSwiftOpenUIRestoresGTKInputFocusByStableIdentity() throws {
+        let root = try packageRoot()
+        let viewHost = root
+            .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift")
+        let source = try String(contentsOf: viewHost, encoding: .utf8)
+
+        #expect(source.contains("let descriptorIdentity: GTK4DescriptorIdentity?"))
+        #expect(source.contains("let stableFocusKey: String?"))
+        #expect(source.contains("private let focusIdentityKey = \"gtk-swift-focus-identity\""))
+        #expect(source.contains("gtkTagFocusableInputIdentities("))
+        #expect(source.contains("stableFocusKey(from: node.descriptor)"))
+        #expect(source.contains("target = findUniqueEditable(in: widget, stableFocusKey: stableFocusKey)"))
+        #expect(source.contains("target = findEditable(in: widget, descriptorIdentity: descriptorIdentity)"))
+        #expect(source.contains("target = findNthEditable(in: widget, targetIndex: info.editableIndex"))
+
+        let stableKeyIndex = source.range(
+            of: "target = findUniqueEditable(in: widget, stableFocusKey: stableFocusKey)"
+        )?.lowerBound
+        let descriptorIndex = source.range(
+            of: "target = findEditable(in: widget, descriptorIdentity: descriptorIdentity)"
+        )?.lowerBound
+        let fallbackIndex = source.range(
+            of: "target = findNthEditable(in: widget, targetIndex: info.editableIndex"
+        )?.lowerBound
+
+        #expect(stableKeyIndex != nil)
+        #expect(descriptorIndex != nil)
+        #expect(fallbackIndex != nil)
+        if let stableKeyIndex, let descriptorIndex, let fallbackIndex {
+            #expect(stableKeyIndex < descriptorIndex)
+            #expect(descriptorIndex < fallbackIndex)
+        }
+    }
+
+    @Test("vendored SwiftOpenUI starts GTK task modifiers after map")
+    func vendoredSwiftOpenUIStartsGTKTasksAfterMap() throws {
+        let root = try packageRoot()
+        let viewHost = root
+            .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift")
+        let renderer = root
+            .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let viewHostSource = try String(contentsOf: viewHost, encoding: .utf8)
+        let rendererSource = try String(contentsOf: renderer, encoding: .utf8)
+
+        #expect(viewHostSource.contains("private var taskLifecycleSuspended = true"))
+        #expect(viewHostSource.contains("host.resumeTasksAfterAppear()"))
+        #expect(viewHostSource.contains("if !taskLifecycleSuspended {"))
+        #expect(viewHostSource.contains("for (identity, payload) in taskPayloadsByIdentity where activeTasksByIdentity[identity] == nil"))
+        #expect(rendererSource.contains("extension TaskView: GTKRenderable, GTKDescribable"))
+        #expect(rendererSource.contains("gtkAttachStandaloneTaskLifecycle("))
+        #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
+        #expect(!rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
+        #expect(!rendererSource.contains("gtkCollectTaskPayload(GTK4TaskPayload(\n            priority: priority"))
+    }
+
     private func runScript(
         _ script: URL,
         arguments: [String],
@@ -1892,55 +2312,8 @@ struct QuillDataSourceLoweringTests {
         throw SourceLoweringTestError.packageRootNotFound
     }
 
-    private func builtQuillSourceLowerExecutable(root: URL) throws -> URL {
-        let fileManager = FileManager.default
-        let direct = root.appendingPathComponent(".build/debug/quill-source-lower")
-        if fileManager.isExecutableFile(atPath: direct.path) {
-            return direct
-        }
-
-        let buildDirectory = root.appendingPathComponent(".build", isDirectory: true)
-        if let enumerator = fileManager.enumerator(
-            at: buildDirectory,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) {
-            for case let candidate as URL in enumerator {
-                guard candidate.lastPathComponent == "quill-source-lower",
-                      fileManager.isExecutableFile(atPath: candidate.path)
-                else {
-                    continue
-                }
-                return candidate
-            }
-        }
-
-        // `swift test` does not build executable products, so quill-source-lower
-        // may not exist yet. Build it on demand into the same dedicated scratch
-        // path the lowering script uses — separate from the in-use main .build,
-        // so there is no SwiftPM lock contention with the running test build.
-        let scratch = root.appendingPathComponent(".build/quill-source-lower-tool")
-        let build = Process()
-        build.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        build.arguments = [
-            "swift", "build", "--product", "quill-source-lower",
-            "--package-path", root.path, "--scratch-path", scratch.path,
-        ]
-        build.standardOutput = FileHandle.nullDevice
-        build.standardError = FileHandle.nullDevice
-        try build.run()
-        build.waitUntilExit()
-
-        let built = scratch.appendingPathComponent("debug/quill-source-lower")
-        if fileManager.isExecutableFile(atPath: built.path) {
-            return built
-        }
-
-        throw SourceLoweringTestError.quillSourceLowerNotBuilt
-    }
 }
 
 private enum SourceLoweringTestError: Error {
     case packageRootNotFound
-    case quillSourceLowerNotBuilt
 }

@@ -143,9 +143,9 @@ Your working directory IS a fresh git worktree at this path. Implement the issue
 
 QUALITY BAR — read carefully:
 
-1. **Make the build pass — but don't get stuck on sandbox-environment failures.** Run \`swift build\` after meaningful edits and fix real compile errors in your code. HOWEVER: if \`swift build\` fails ONLY with environment errors that are NOT about your source — e.g. \`Invalid manifest\`, \`Could not resolve host: github.com\`, SwiftPM cache "not writable" warnings, or SDK/toolchain version mismatches — that is a known limitation of this sandbox, NOT a bug in your code. In that case, COMMIT your work anyway and exit. The spawn wrapper runs an authoritative \`swift build\` OUTSIDE the sandbox (full network + toolchain access) after you exit, and will ABANDON the PR if your code genuinely doesn't compile — so committing despite a sandbox-only build failure is safe and correct. Never loop forever trying to fix an \`Invalid manifest\`/network error you cannot fix from inside the sandbox.
+1. **Make the build pass — but don't get stuck on sandbox-environment failures.** ALWAYS build with \`swift build --disable-sandbox\` (and test with \`swift test --disable-sandbox\`). The \`--disable-sandbox\` flag is REQUIRED here: without it SwiftPM tries to sandbox-exec its manifest/plugins, which fails inside this worker with \`sandbox_apply: Operation not permitted\`. Fix real compile errors in your code. HOWEVER: if the build fails ONLY with environment errors that are NOT about your source — e.g. \`sandbox_apply: Operation not permitted\`, \`sandbox-exec\` failures, \`Invalid manifest\`, \`Could not resolve host: github.com\`, SwiftPM cache "not writable" warnings, or SDK/toolchain version mismatches — that is a known limitation of this environment, NOT a bug in your code. In that case, COMMIT your work anyway and exit. The spawn wrapper runs an authoritative \`swift build --disable-sandbox\` OUTSIDE the sandbox (full network + toolchain access) after you exit, and will ABANDON the PR if your code genuinely doesn't compile — so committing despite an environment-only build failure is safe and correct. Never loop forever trying to fix a \`sandbox_apply\`/\`Invalid manifest\`/network error you cannot fix from inside the sandbox.
 
-2. **Tests must pass for any test you touch.** If the issue says "add tests" or you write tests, run \`swift test --filter <SuiteName>\` and confirm green before committing.
+2. **Tests must pass for any test you touch.** If the issue says "add tests" or you write tests, run \`swift test --disable-sandbox --filter <SuiteName>\` and confirm green before committing.
 
 3. **No trash commits.** Do NOT commit \`.swarm-prompt.txt\`, \`.swarm-run.log\`, build artifacts under \`.build/\`, or any other temporary scratch. The wrapper has gitignored these but if you somehow add them, they will be rejected at PR time.
 
@@ -177,12 +177,16 @@ cd "$WORKTREE"
 echo "[$ENGINE] Running $ENGINE on issue #$ISSUE_NUMBER..."
 case "$ENGINE" in
   codex)
-    # network_access=true: workspace-write blocks network by default, which makes
-    # codex's internal `swift build` fail ("Could not resolve host: github.com" when
-    # fetching SwiftPM deps) → codex can't self-verify and ships unbuildable/guessed
-    # code. Allowing network (still write-confined to the workspace) lets it build.
-    codex exec --sandbox workspace-write \
-      -c sandbox_workspace_write.network_access=true \
+    # danger-full-access: workspace-write confines writes to the worktree, but
+    # SwiftPM must write its global manifest/dependency cache + scratch dirs
+    # (~/.cache, ~/.swiftpm, per-target .build) OUTSIDE the worktree — those
+    # writes were denied ("sandbox_apply: Operation not permitted", "don't have
+    # permission to save output-file-map.json"), so codex could not build and
+    # shipped blind/guessed code. These are trusted local dev workers on the
+    # user's own machine working only in their worktree (the wrapper validates
+    # the diff before any PR), so full access is the right trade: it lets codex
+    # run a real `swift build --disable-sandbox` and iterate on actual errors.
+    codex exec --sandbox danger-full-access \
       --skip-git-repo-check "$(cat .swarm-prompt.txt)" \
       2>&1 | tee .swarm-run.log
     ;;
@@ -224,8 +228,10 @@ if [[ -z "$REAL_CHANGES" ]]; then
 fi
 
 # 5c. Build the whole package. If it fails, abandon.
-echo "[$ENGINE] Running build gate (swift build)..."
-if ! swift build > .swarm-build-after.log 2>&1; then
+# --disable-sandbox: SwiftPM's manifest/plugin sandbox-exec fails with
+# "sandbox_apply: Operation not permitted" in this worker environment.
+echo "[$ENGINE] Running build gate (swift build --disable-sandbox)..."
+if ! swift build --disable-sandbox > .swarm-build-after.log 2>&1; then
   echo "[$ENGINE] BUILD FAILED — aborting PR. Last 20 lines of build log:"
   tail -20 .swarm-build-after.log | sed 's/^/  /'
   echo "[$ENGINE] Releasing claim. Issue returns to queue."

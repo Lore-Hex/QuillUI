@@ -270,6 +270,7 @@ fi
 # "'gdk-pixbuf/gdk-pixbuf.h' file not found" / "could not build C module
 # 'CGdkPixbuf'". Mirror that here by passing pkg-config -I/-L/-l flags through.
 quillui_build_args=(
+  --disable-index-store
   --package-path "$PACKAGE_DIR"
   --scratch-path "$BUILD_SCRATCH"
   --product "$PRODUCT_NAME"

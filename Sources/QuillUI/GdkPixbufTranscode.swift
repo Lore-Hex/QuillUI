@@ -153,11 +153,9 @@ private func quillEncodePixbuf(
 /// Synthesize a solid-color image at the given size and encode it via
 /// gdk-pixbuf in the requested container format.
 ///
-/// This is the Linux backing for the subset of `ImageRenderer` we currently
-/// support: when `ImageRenderer.content` is a `Color`, we extract the RGBA
-/// components and render a real-pixels image at the requested size. More
-/// complex SwiftUI view trees use the opt-in GTK offscreen rasterizer gated
-/// by `QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1`.
+/// QuillUI uses this helper for image-transcoding tests and byte-backed image
+/// transforms. SwiftOpenUI's public `ImageRenderer` now owns view-to-image
+/// rendering and installs its general GTK path through the backend hook.
 ///
 /// Returns `nil` if `width` or `height` is non-positive, if `gdk_pixbuf_new`
 /// fails (low memory, hostile dimensions), or if the encoder fails. Each

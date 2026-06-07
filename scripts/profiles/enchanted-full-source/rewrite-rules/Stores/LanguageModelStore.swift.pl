@@ -43,7 +43,12 @@ func loadModels() async throws {
 
         DispatchQueue.main.async {
             let remoteModelNames = remoteModels.map { $0.name }
-            self.models = storedModels.filter{remoteModelNames.contains($0.name)}
+            let availableModels = storedModels.filter{remoteModelNames.contains($0.name)}
+            self.models = availableModels
+            if self.selectedModel == nil {
+                self.selectedModel = availableModels.first
+            }
+            self.supportsImages = self.selectedModel?.supportsImages ?? availableModels.first?.supportsImages ?? false
         }
     }
 

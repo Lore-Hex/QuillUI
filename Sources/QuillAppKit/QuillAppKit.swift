@@ -52,6 +52,22 @@ public let NSNotFound: Int = Int.max
 public typealias NSImage = RSImage
 public typealias NSColor = RSColor
 public typealias NSFont = RSFont
+
+public extension NSImage {
+    /// Apple's `NSImage.Name` (a String). Apps construct/extend it
+    /// (`NSImage.Name("StatusCircleYellow")`, `extension NSImage.Name { … }`).
+    typealias Name = String
+    // Apple's standard template-image names (NSImage.Name = String). Used as
+    // `NSImage(named: NSImage.addTemplateName)` (WireGuard's tunnels toolbar).
+    static let addTemplateName: Name = "NSAddTemplate"
+    static let removeTemplateName: Name = "NSRemoveTemplate"
+    static let actionTemplateName: Name = "NSActionTemplate"
+    // Standard status-dot image names (WireGuard's TunnelListRow status icon).
+    static let statusAvailableName: Name = "NSStatusAvailable"
+    static let statusNoneName: Name = "NSStatusNone"
+    static let statusPartiallyAvailableName: Name = "NSStatusPartiallyAvailable"
+    static let statusUnavailableName: Name = "NSStatusUnavailable"
+}
 public typealias NSScreen = RSScreen
 
 // `NSBitmapImageRep` is the AppKit type that converts between
@@ -150,6 +166,9 @@ public extension NSColor {
     convenience init(deviceWhite: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(calibratedWhite: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(srgbRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
+    /// Apple's generic calibrated-RGB init (`NSColor(red:green:blue:alpha:)`).
+    /// WireGuard's NSColor(hex:) chains to it. Compile-stub (ignores components).
+    convenience init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(deviceRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(calibratedRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
     convenience init(hue: CGFloat, saturation: CGFloat, brightness: CGFloat, alpha: CGFloat) { self.init() }
@@ -166,7 +185,24 @@ public extension NSColor {
     var brightnessComponent: CGFloat { 0 }
 }
 
+/// NSFontManager font-trait mask. WireGuard's ConfTextStorage derives its italic
+/// font via `convert(_:toHaveTrait: .italicFontMask)`. Compile-only constants.
+public struct NSFontTraitMask: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let italicFontMask = NSFontTraitMask(rawValue: 1 << 0)
+    public static let boldFontMask = NSFontTraitMask(rawValue: 1 << 1)
+    public static let unitalicFontMask = NSFontTraitMask(rawValue: 1 << 2)
+    public static let unboldFontMask = NSFontTraitMask(rawValue: 1 << 3)
+    public static let narrowFontMask = NSFontTraitMask(rawValue: 1 << 4)
+    public static let expandedFontMask = NSFontTraitMask(rawValue: 1 << 5)
+    public static let condensedFontMask = NSFontTraitMask(rawValue: 1 << 6)
+    public static let smallCapsFontMask = NSFontTraitMask(rawValue: 1 << 7)
+    public static let fixedPitchFontMask = NSFontTraitMask(rawValue: 1 << 8)
+}
+
 public extension NSFont {
+    static func systemFont(ofSize: CGFloat) -> NSFont { NSFont() }
     static func systemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
     static func boldSystemFont(ofSize: CGFloat) -> NSFont { NSFont() }
     static func monospacedSystemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
@@ -227,6 +263,11 @@ open class NSFontManager: NSObject, @unchecked Sendable {
 
     public func availableFonts() -> [String] { Self.fallbackFonts }
     public func availableFontFamilies() -> [String] { Self.fallbackFontFamilies }
+    /// Font-trait / weight conversion. Compile-stubs (return the input font);
+    /// WireGuard's ConfTextStorage derives bold/italic variants of its base font.
+    public func convert(_ font: NSFont, toHaveTrait trait: NSFontTraitMask) -> NSFont { font }
+    public func convert(_ font: NSFont, toNotHaveTrait trait: NSFontTraitMask) -> NSFont { font }
+    public func convertWeight(_ upFlag: Bool, of font: NSFont) -> NSFont { font }
     public func availableMembers(ofFontFamily fontFamily: String) -> [[Any]]? {
         switch fontFamily {
         case "Courier":
@@ -381,13 +422,28 @@ open class NSResponder: NSObject {
     open func mouseUp(with event: NSEvent) { nextResponder?.mouseUp(with: event) }
     open func mouseDragged(with event: NSEvent) { nextResponder?.mouseDragged(with: event) }
     open func mouseMoved(with event: NSEvent) { nextResponder?.mouseMoved(with: event) }
-    open func keyDown(with event: NSEvent) { nextResponder?.keyDown(with: event) }
+    // @MainActor: key events are delivered on the main thread, and overrides
+    // (e.g. WireGuard's TunnelsListTableViewController.keyDown calling the
+    // @MainActor handleRemoveTunnelAction on Delete) need that isolation. Same
+    // rationale as cancelOperation below.
+    @MainActor open func keyDown(with event: NSEvent) { nextResponder?.keyDown(with: event) }
     open func keyUp(with event: NSEvent) { nextResponder?.keyUp(with: event) }
     open func flagsChanged(with event: NSEvent) { nextResponder?.flagsChanged(with: event) }
     open func scrollWheel(with event: NSEvent) { nextResponder?.scrollWheel(with: event) }
     open var acceptsFirstResponder: Bool { false }
     open func becomeFirstResponder() -> Bool { true }
     open func resignFirstResponder() -> Bool { true }
+    /// `cancelOperation(_:)` — the Esc / Cmd-. action method. Apple's NSResponder
+    /// is @MainActor, so this method is marked @MainActor: subclass overrides that
+    /// call @MainActor UI methods (e.g. WireGuard's LogViewController.cancelOperation
+    /// → closeClicked()) inherit the isolation and type-check. Compile-stub; real
+    /// responder-chain dispatch is a runtime concern.
+    @MainActor open func cancelOperation(_ sender: Any?) {}
+    /// Action-routing hook (NSResponder). WireGuard's ManageTunnelsRootViewController
+    /// overrides it to forward toolbar/menu actions (handleAddEmptyTunnelAction etc.)
+    /// to its child list/detail VCs. @MainActor so the override can reach those
+    /// @MainActor child-VC properties. Default returns nil (no supplemental target).
+    @MainActor open func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? { nil }
 }
 
 /// Mirrors `NSLayoutGuide`: a rectangular region that participates in Auto
@@ -414,6 +470,19 @@ public final class NSLayoutGuide: NSObject {
 }
 
 open class NSView: NSResponder {
+    /// Posted when a view's frame/bounds change (when posts*ChangedNotifications
+    /// is set). WireGuard's LogViewController observes these to autoscroll.
+    public static let frameDidChangeNotification = Notification.Name("NSViewFrameDidChangeNotification")
+    public static let boundsDidChangeNotification = Notification.Name("NSViewBoundsDidChangeNotification")
+    public var postsFrameChangedNotifications: Bool = false
+    public var postsBoundsChangedNotifications: Bool = false
+    /// `scroll(_:)` — scroll the view's content so `point` is at the origin.
+    /// WireGuard's LogViewController calls it on the table to keep the tail
+    /// visible. Compile-stub until the Qt scroll-view backend honors it.
+    public func scroll(_ point: NSPoint) {}
+    /// Hover tooltip. WireGuard sets it on detail-row buttons (ButtonRow.buttonToolTip)
+    /// and table cells. Compile-stub (stored) until the Qt backend wires native tooltips.
+    public var toolTip: String?
     public var frame: NSRect = .zero {
         didSet {
             guard frame != oldValue else { return }
@@ -445,6 +514,11 @@ open class NSView: NSResponder {
             quillMarkNeedsDisplay()
         }
     }
+    /// The appearance the view actually renders with (light/dark). Compile-stub
+    /// (a default NSAppearance); WireGuard's ConfTextView reads it to theme its
+    /// syntax colors, and overrides `viewDidChangeEffectiveAppearance()` to re-theme.
+    public var effectiveAppearance: NSAppearance = NSAppearance()
+    open func viewDidChangeEffectiveAppearance() {}
     public var clipsToBounds: Bool = false
     public var autoresizingMask: AutoresizingMask = []
     public var identifier: NSUserInterfaceItemIdentifier?
@@ -838,6 +912,9 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
 }
 
 @MainActor open class NSViewController: NSResponder {
+    /// The VC that presented this one (set on present; read as
+    /// `presentingViewController?.dismiss(self)`). Compile stub: nil unless set.
+    public weak var presentingViewController: NSViewController?
     private var quillView: NSView = NSView()
     public var view: NSView {
         get {
@@ -947,6 +1024,10 @@ public extension NSWindowDelegate {
 }
 
 open class NSWindow: NSResponder {
+    /// `NSWindow.FrameAutosaveName` (= String) — the type passed to
+    /// `setFrameAutosaveName(_:)`. WireGuard's LogViewController builds one
+    /// (`NSWindow.FrameAutosaveName("LogWindow")`) to persist window geometry.
+    public typealias FrameAutosaveName = String
     public struct StyleMask: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -1007,6 +1088,9 @@ open class NSWindow: NSResponder {
         }
     }
     public var contentViewController: NSViewController?
+    /// The sheet currently presented on this window, if any (WireGuard's AppDelegate.quit
+    /// checks it before terminating). Compile-stub: nil until sheets are modelled.
+    public var attachedSheet: NSWindow?
     public weak var windowController: NSWindowController?
     public weak var delegate: NSWindowDelegate?
     public var styleMask: StyleMask = []
@@ -1019,6 +1103,9 @@ open class NSWindow: NSResponder {
     public var isMovable: Bool = true
     public var isMovableByWindowBackground: Bool = false
     public var isReleasedWhenClosed: Bool = true
+    /// When true, the window is transparent to mouse events (WireGuard toggles this
+    /// on the edit sheet during save). Compile-stub.
+    public var ignoresMouseEvents: Bool = false
     public var isVisible: Bool = false
     public var isMiniaturized: Bool = false
     public var isZoomed: Bool = false
@@ -1093,6 +1180,11 @@ open class NSWindow: NSResponder {
         self.frame = contentRect
         self.styleMask = styleMask
         contentView?.quillSetWindowRecursively(self)
+    }
+    /// Window hosting a view controller (WireGuard's AppDelegate manage-tunnels window).
+    public convenience init(contentViewController: NSViewController) {
+        self.init(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)
+        self.contentViewController = contentViewController
     }
 
     public func makeKeyAndOrderFront(_ sender: Any?) { isVisible = true; isKeyWindow = true }
@@ -1243,7 +1335,7 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     public var orderedWindows: [NSWindow] = []
     public var orderedDocuments: [NSDocument] = []
     public var isActive: Bool = false
-    public var activationPolicy: ActivationPolicy = .regular
+    private var _activationPolicy: ActivationPolicy = .regular
     public var dockTile: NSDockTile = NSDockTile()
     public var presentationOptions: PresentationOptions = []
     public var currentEvent: NSEvent?
@@ -1271,7 +1363,21 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         public static let alertThirdButtonReturn = ModalResponse(rawValue: 1002)
     }
 
-    public func setActivationPolicy(_ p: ActivationPolicy) -> Bool { activationPolicy = p; return true }
+    public func setActivationPolicy(_ p: ActivationPolicy) -> Bool { _activationPolicy = p; return true }
+    /// Current activation policy (macOS is a method, not a property). WireGuard's
+    /// AppDelegate calls `NSApp.activationPolicy()` to toggle dock-icon visibility.
+    public func activationPolicy() -> ActivationPolicy { _activationPolicy }
+    /// Standard About panel (WireGuard's AppDelegate.aboutClicked). Compile-stub.
+    public struct AboutPanelOptionKey: Hashable, RawRepresentable, Sendable {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public static let applicationName = AboutPanelOptionKey(rawValue: "ApplicationName")
+        public static let applicationIcon = AboutPanelOptionKey(rawValue: "ApplicationIcon")
+        public static let applicationVersion = AboutPanelOptionKey(rawValue: "ApplicationVersion")
+        public static let version = AboutPanelOptionKey(rawValue: "Version")
+        public static let credits = AboutPanelOptionKey(rawValue: "Credits")
+    }
+    public func orderFrontStandardAboutPanel(options: [AboutPanelOptionKey: Any] = [:]) {}
     public func activate(ignoringOtherApps: Bool = false) { isActive = true }
     public func activate() { isActive = true }
     public func deactivate() { isActive = false }
@@ -1349,7 +1455,9 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         case .mouseMoved:
             responder.mouseMoved(with: event)
         case .keyDown:
-            responder.keyDown(with: event)
+            // keyDown is @MainActor (key events are main-thread); the event pump
+            // dispatches on the main thread, so assume isolation for this one call.
+            MainActor.assumeIsolated { responder.keyDown(with: event) }
         case .keyUp:
             responder.keyUp(with: event)
         case .flagsChanged:
@@ -1409,6 +1517,20 @@ open class NSEvent: NSObject, @unchecked Sendable {
         public static let function = ModifierFlags(rawValue: 1 << 23)
         public static let deviceIndependentFlagsMask = ModifierFlags(rawValue: 0xffff_0000)
     }
+    /// Mirrors `NSEvent.SpecialKey` (the subset apps check, e.g. WireGuard's
+    /// `event.specialKey == .delete`). Apple models it as a struct.
+    public struct SpecialKey: Equatable, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let delete = SpecialKey(rawValue: 0x7f)
+        public static let backspace = SpecialKey(rawValue: 8)
+        public static let carriageReturn = SpecialKey(rawValue: 13)
+        public static let enter = SpecialKey(rawValue: 3)
+        public static let tab = SpecialKey(rawValue: 9)
+    }
+    /// The special key for this event, or nil. Compile-only stub on Linux (no
+    /// real key events); a runtime layer would compute it from the key code.
+    public var specialKey: SpecialKey? { nil }
     public enum EventType: UInt, Sendable {
         case leftMouseDown = 1, leftMouseUp = 2, rightMouseDown = 3, rightMouseUp = 4
         case mouseMoved = 5, leftMouseDragged = 6, rightMouseDragged = 7
@@ -2379,8 +2501,12 @@ open class NSMenu: NSObject {
     public private(set) var lastPopUpLocation: NSPoint = .zero
     public private(set) weak var lastPopUpView: NSView?
 
-    public override init() { super.init() }
+    // init(title:) is the designated init (as on macOS); init() is convenience.
+    // This lets NSMenu subclasses (MainMenu/StatusMenu) declare their own `init()`
+    // as a new designated init calling super.init(title:) WITHOUT an `override`
+    // keyword — matching the unmodified upstream source.
     public init(title: String) { super.init(); self.title = title }
+    public override convenience init() { self.init(title: "") }
     public func addItem(_ i: NSMenuItem) {
         i.menu = self
         items.append(i)
@@ -2397,6 +2523,18 @@ open class NSMenu: NSObject {
     public func removeItem(_ i: NSMenuItem) {
         items.removeAll { $0 === i }
         if i.menu === self { i.menu = nil }
+    }
+    /// Number of items (WireGuard's StatusMenu uses it to compute insert indices).
+    public var numberOfItems: Int { items.count }
+    /// Remove the item at `index` (WireGuard's StatusMenu rebuilds the per-tunnel rows).
+    public func removeItem(at index: Int) {
+        guard items.indices.contains(index) else { return }
+        let i = items.remove(at: index)
+        if i.menu === self { i.menu = nil }
+    }
+    /// The item at `index`, or nil if out of range.
+    public func item(at index: Int) -> NSMenuItem? {
+        items.indices.contains(index) ? items[index] : nil
     }
     public func removeAllItems() {
         for item in items where item.menu === self {
@@ -2482,7 +2620,10 @@ open class NSMenuItem: NSObject {
         self.title = title; self.action = action; self.keyEquivalent = keyEquivalent
     }
     public override init() { super.init() }
-    public static var separator: NSMenuItem { NSMenuItem() }
+    // WireGuard's MainMenu/StatusMenu build separators with `NSMenuItem.separator()`
+    // (the call form). Was a `static var separator` property (unused in-tree) — now a
+    // func so those call sites resolve. separatorItem() kept as the legacy alias.
+    public static func separator() -> NSMenuItem { NSMenuItem() }
     public static func separatorItem() -> NSMenuItem { NSMenuItem() }
 }
 
@@ -2615,7 +2756,10 @@ open class NSAlert: NSObject {
     public var alertStyle: Style = .informational
     public var showsHelp: Bool = false
     public var helpAnchor: String?
-    public weak var window: NSWindow?
+    /// The alert's panel window. Non-optional to match Apple's `NSAlert.window`
+    /// (e.g. `alert.window.sheetParent` in WireGuard's DeleteTunnelsConfirmationAlert);
+    /// a lazily-created compile-only stub on Linux (no real panel is shown).
+    public lazy var window: NSWindow = NSWindow()
     public var buttons: [NSButton] = []
     public var accessoryView: NSView?
     public var showsSuppressionButton: Bool = false
@@ -2716,6 +2860,9 @@ open class NSOpenPanel: NSSavePanel {
 // MARK: - NSScrollView / NSScroller / NSTextField / NSTextView / NSImageView / NSButton / NSPopUpButton / NSSearchField / NSSplitView / NSSlider
 
 open class NSScrollView: NSView {
+    /// Whether the scroll view paints its background. WireGuard's TunnelDetail table
+    /// sets it false for a transparent detail view. Compile-stub (stored).
+    public var drawsBackground: Bool = true
     public var contentView: NSClipView = NSClipView() {
         didSet {
             quillInstallContentView(replacing: oldValue)
@@ -2892,8 +3039,35 @@ public extension NSTextFieldDelegate {
     func control(_ control: NSControl, textShouldEndEditing: NSText) -> Bool { true }
 }
 
+/// NSTokenField — a token-entry text field (WireGuard's on-demand SSID list).
+/// Inherits NSTextField's inits/value API; adds the token-specific surface.
+open class NSTokenField: NSTextField {
+    public enum TokenStyle: Int, Sendable { case `default` = 0, none, plainText, rounded, squared }
+    public var tokenizingCharacterSet: CharacterSet = CharacterSet(charactersIn: ",")
+    public var tokenStyle: TokenStyle = .default
+    public var completionDelay: TimeInterval = 0
+    public class var defaultCompletionDelay: TimeInterval { 0 }
+    public class var defaultTokenizingCharacterSet: CharacterSet { CharacterSet(charactersIn: ",") }
+}
+
+/// NSTokenFieldDelegate refines NSTextFieldDelegate; on macOS its methods are
+/// @objc-optional. Declared with a default impl so conformers (e.g. WireGuard's
+/// OnDemandControlsRow) only override what they need.
+public protocol NSTokenFieldDelegate: NSTextFieldDelegate {
+    func tokenField(_ tokenField: NSTokenField, completionsForSubstring substring: String, indexOfToken tokenIndex: Int, indexOfSelectedItem selectedIndex: UnsafeMutablePointer<Int>?) -> [Any]?
+}
+public extension NSTokenFieldDelegate {
+    func tokenField(_ tokenField: NSTokenField, completionsForSubstring substring: String, indexOfToken tokenIndex: Int, indexOfSelectedItem selectedIndex: UnsafeMutablePointer<Int>?) -> [Any]? { nil }
+}
+
 open class NSText: NSView {
-    public var string: String = ""
+    open var string: String = ""
+    /// Layout bounds for the text (WireGuard's ConfTextView sets these to size the
+    /// config editor). Compile-stubs.
+    public var minSize: NSSize = .zero
+    public var maxSize: NSSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+    public var isHorizontallyResizable: Bool = false
+    public var isVerticallyResizable: Bool = false
 }
 
 open class NSTextView: NSText {
@@ -2928,7 +3102,25 @@ open class NSTextView: NSText {
     public var backgroundColor: NSColor?
     public var drawsBackground: Bool = true
     public weak var delegate: NSTextViewDelegate?
+    public var isAutomaticDataDetectionEnabled: Bool = false
+    public var isAutomaticLinkDetectionEnabled: Bool = false
+    public var isAutomaticTextCompletionEnabled: Bool = false
     public var attributedString: NSAttributedString { NSAttributedString(string: string) }
+    /// NSTextView's designated init is `init(frame:textContainer:)` (Apple-faithful;
+    /// WireGuard's ConfTextView calls it). Declaring it means NSTextView stops
+    /// inheriting NSView's inits, so re-declare them to keep NSTextView() /
+    /// NSTextView(frame:) / NSTextView(coder:) working (zero blast radius).
+    public init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
+        super.init(frame: frameRect)
+        if let container { self.textContainer = container }
+    }
+    public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
+    public convenience init() { self.init(frame: .zero, textContainer: nil) }
+    public required init?(coder: NSCoder) { super.init(frame: .zero) }
+    /// Programmatic text-change hooks (compile-stubs). ConfTextView uses these to
+    /// replace text + notify the layout/delegate.
+    public func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool { true }
+    public func didChangeText() {}
     public func setSelectedRange(_ r: NSRange) {
         selectedRange = clampedTextRange(r)
         selectedRanges = [NSValue(range: selectedRange)]
@@ -2997,6 +3189,26 @@ open class NSTextStorage: NSMutableAttributedString {
     public var layoutManagers: [NSLayoutManager] = []
     public func addLayoutManager(_ m: NSLayoutManager) { layoutManagers.append(m) }
     public func removeLayoutManager(_ m: NSLayoutManager) {}
+    /// Edit-notification mask passed to `edited(_:range:changeInLength:)`. A
+    /// custom NSTextStorage (e.g. WireGuard's ConfTextStorage) calls it after
+    /// mutating its backing store so layout managers can re-lay-out. Compile-stub
+    /// on Linux (no layout pass yet).
+    public struct EditActions: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let editedAttributes = EditActions(rawValue: 1 << 0)
+        public static let editedCharacters = EditActions(rawValue: 1 << 1)
+    }
+    open func edited(_ editedMask: EditActions, range editedRange: NSRange, changeInLength delta: Int) {}
+    open func processEditing() {}
+    /// corelibs NSMutableAttributedString's `init()` is NOT a designated initializer,
+    /// so a custom NSTextStorage (e.g. WireGuard's ConfTextStorage) can't `override
+    /// init()` against it. Declare a designated `init()` here (delegating to the
+    /// corelibs designated `init(string:)`) so subclasses can override it; re-declare
+    /// `init(string:)` so NSTextStorage(string:) still works; + the required NSCoding init.
+    public init() { super.init(string: "") }
+    public override init(string str: String) { super.init(string: str) }
+    public required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
 open class NSLayoutManager: NSObject, @unchecked Sendable {
@@ -3010,6 +3222,9 @@ open class NSTextContainer: NSObject, @unchecked Sendable {
     public override init() {}
     public init(size: NSSize) {}
     public var containerSize: NSSize = .zero
+    /// Modern name for the container's text-layout size (containerSize is the
+    /// deprecated alias). WireGuard's ConfTextView reads/sets it.
+    public var size: NSSize = .zero
     public var widthTracksTextView: Bool = false
     public var heightTracksTextView: Bool = false
     public var lineFragmentPadding: CGFloat = 0
@@ -3047,6 +3262,10 @@ open class NSImageView: NSControl {
 }
 
 open class NSControl: NSView {
+    /// The control's backing cell (legacy AppKit). WireGuard's tunnels list reaches
+    /// it as `(popup.cell as? NSPopUpButtonCell)?.arrowPosition`. NSPopUpButton seeds
+    /// it with an NSPopUpButtonCell so that downcast succeeds; nil elsewhere.
+    public var cell: NSCell?
     private var storedDoubleValue: Double = 0
     private var storedFloatValue: Float = 0
     private var storedIntegerValue: Int = 0
@@ -3174,6 +3393,10 @@ open class NSButton: NSControl {
     private var storedTitle: String = ""
     private var storedAttributedTitle: NSAttributedString = NSAttributedString(string: "")
 
+    /// Frame init — NSButton's title/image designated inits otherwise suppress
+    /// NSView's, so subclasses like WireGuard's FillerButton (super.init(frame:)) need it.
+    public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
+
     public var title: String {
         get { storedTitle }
         set {
@@ -3276,6 +3499,9 @@ open class NSStackView: NSView {
     // Per-view trailing spacing. Recorded but not yet honored by the constraint
     // layout pass (like gravity), enough for source-compat.
     public func setCustomSpacing(_ spacing: CGFloat, after view: NSView) {}
+    /// Content-hugging priority for the stack axis (WireGuard's edit VC pins the
+    /// container). Compile-stub.
+    public func setHuggingPriority(_ priority: NSLayoutConstraint.Priority, for orientation: NSLayoutConstraint.Orientation) {}
     public func removeArrangedSubview(_ v: NSView) {
         arrangedSubviews.removeAll { $0 === v }
     }
@@ -3378,7 +3604,7 @@ open class NSPopUpButton: NSButton {
     public func itemWithTitle(_ t: String) -> NSMenuItem? {
         menu?.items.first { $0.title == t }
     }
-    public init(frame: NSRect, pullsDown: Bool) { super.init(title: "", target: nil, action: nil); self.pullsDown = pullsDown }
+    public init(frame: NSRect, pullsDown: Bool) { super.init(title: "", target: nil, action: nil); self.pullsDown = pullsDown; self.cell = NSPopUpButtonCell() }
     public convenience init() { self.init(frame: .zero, pullsDown: false) }
 
     private func ensureMenu() -> NSMenu {
@@ -3422,11 +3648,10 @@ open class NSPopUpButton: NSButton {
     }
 }
 
-open class NSPopUpButtonCell: NSObject {
-    public var menu: NSMenu? = NSMenu()
-    public var pullsDown: Bool = false
+open class NSPopUpButtonCell: NSCell {
     public var arrowPosition: ArrowPosition = .arrowAtBottom
     public enum ArrowPosition: UInt, Sendable { case noArrow, arrowAtCenter, arrowAtBottom }
+    public override init() { super.init() }
 }
 
 open class NSSearchField: NSTextField {
@@ -3635,6 +3860,15 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
 
 @MainActor open class NSTableView: NSControl {
     public static let selectionDidChangeNotification = Notification.Name("NSTableViewSelectionDidChangeNotification")
+    /// Auto row-height mode (WireGuard's LogViewController log table). No-op on Linux.
+    public var usesAutomaticRowHeights: Bool = false
+
+    /// Row-selection highlight style. WireGuard's TunnelDetail table uses `.none`
+    /// (no highlight on the read-only detail rows). Compile-stub (stored).
+    public enum SelectionHighlightStyle: Int, Sendable {
+        case none = -1, regular = 0, sourceList = 1
+    }
+    public var selectionHighlightStyle: SelectionHighlightStyle = .regular
 
     public weak var delegate: NSTableViewDelegate?
     public weak var dataSource: NSTableViewDataSource?
@@ -3854,6 +4088,11 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
         return cachedCellViews.first(where: { $0.value === view })?.key.row ?? -1
     }
 
+    /// `row(at:)` — the row index under a point in the table's coordinates.
+    /// WireGuard's LogViewController uses it to detect scrolled-to-end.
+    /// Compile-stub (-1 = no row) until Qt-backed hit-testing lands.
+    public func row(at point: NSPoint) -> Int { -1 }
+
     public func column(for view: NSView) -> Int {
         cachedCellViews.first(where: { $0.value === view })?.key.column ?? -1
     }
@@ -4055,6 +4294,19 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
         public static let slideRight = AnimationOptions(rawValue: 0x40)
     }
     public enum DropOperation: UInt, Sendable { case on, above }
+}
+
+/// Compat constraint for `NSTableView.dequeueReusableCell<T>()`, which constructs
+/// a fresh cell via `T()`. On macOS that compiles because NSView is an `@objc`
+/// class (the ObjC runtime guarantees `init()`); on Linux NSView is plain Swift,
+/// so constructing a generic class value needs a `required init()`. Rather than
+/// force `required init()` onto NSView (which would cascade to *every* NSView
+/// subclass repo-wide), the WireGuard reuse extension is lowered to constrain its
+/// cell type to `NSView & QuillReusableView`, and the handful of cell types it
+/// dequeues conform (each with a `required init()`). App-agnostic: any AppKit app
+/// whose `dequeueReusableCell` constructs `T()` reuses this.
+public protocol QuillReusableView: AnyObject {
+    init()
 }
 
 open class NSTableHeaderView: NSView {}
@@ -4521,6 +4773,11 @@ open class NSStatusItem: NSObject {
     public var button: NSStatusBarButton? = NSStatusBarButton()
     public var menu: NSMenu?
     public var length: CGFloat = -1
+    /// Apple's status-item length sentinels live on NSStatusItem:
+    /// `squareLength` = square item matching the bar height; `variableLength`
+    /// = sized to content. WireGuard uses `NSStatusItem.squareLength`.
+    public static var squareLength: CGFloat { -2 }
+    public static var variableLength: CGFloat { -1 }
     public var visible: Bool = true
     public var behavior: Behavior = []
     public var autosaveName: String = ""
@@ -4720,6 +4977,9 @@ public protocol NSAccessibilityProtocol {}
 public struct NSUserInterfaceItemIdentifier: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
     public var rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
+    /// Apple's unlabeled convenience init (`NSUserInterfaceItemIdentifier("x")`),
+    /// used by WireGuard's table-column setup.
+    public init(_ rawValue: String) { self.rawValue = rawValue }
     public init(stringLiteral value: String) { self.rawValue = value }
 }
 

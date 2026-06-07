@@ -3130,3 +3130,58 @@ behavior for Signal-style account/key storage code. It adds
 `allKeys`, open result/config vars, false-on-missing delete, and
 upstream-shaped namespace `clear()` behavior while still documenting that Linux
 storage is process-local and not secure OS keychain persistence.
+
+## Checkpoint 186: GTK Toolbar Glyph Parity
+
+Status: implemented locally; guarded by QuillUI build, source hygiene build,
+shell syntax, profile budget, backend product integrity, and CI visual follow-up.
+
+Quill Chat's GTK toolbar controls now render from QuillUI-owned symbol children
+instead of text labels such as three bullets plus a chevron. The Linux toolbar
+menu primitive suppresses GTK's built-in arrow, installs a custom Material
+Symbols child, and keeps the native GTK popover/action path. The compose button
+uses the same GTK primitive path with `edit_square`, so the closed-state toolbar
+is closer to the macOS square-and-pencil affordance without Enchanted source
+changes.
+
+## Checkpoint 187: GTK Sheet Overlay Presentation
+
+Status: implemented locally; guarded by QuillUI/QuillData/compatibility test
+target builds, isolated SwiftOpenUI patch execution, shell syntax, profile
+budget, backend product integrity, and CI visual follow-up.
+
+GTK `.sheet` presentations now have an experimental centered in-window overlay
+path through `QUILLUI_GTK_SHEET_PRESENTATION=overlay`, while the default stays
+with separate GTK windows until the overlay can attach at the true application
+root instead of a modifier's local subtree. The generic sheet smoke tests keep
+`QUILLUI_GTK_SHEET_PRESENTATION=window`. QuillUI's `presentationMode`
+compatibility now falls back to the current `dismiss` environment action, so
+sheet content that still uses `presentationMode.wrappedValue.dismiss()` can
+close through the same backend presentation state as `dismiss()`.
+
+## Checkpoint 188: GTK Sheet Default Safety
+
+Status: implemented locally; guarded by source hygiene, SwiftOpenUI patch
+assertions, shell syntax, focused SwiftPM target build, and CI visual follow-up.
+
+The GTK sheet overlay path is now explicit opt-in instead of default-on. A
+source-hygiene guard keeps `quillui_is_backend_smoke_sheet_interaction`
+declared before the interaction script uses it to set
+`QUILLUI_GTK_SHEET_PRESENTATION=window`, preventing Bash from skipping the
+generic sheet-window mode. This preserves working window-level sheet semantics
+for Enchanted while leaving the overlay experiment available for future
+root-attached presentation work.
+
+## Checkpoint 189: GTK Root-Attached Sheet Presentation
+
+Status: implemented locally; guarded by SwiftOpenUI patch assertions, shell
+syntax, focused SwiftPM target build, profile budget, backend product
+integrity, and CI visual follow-up.
+
+GTK windows now install a root presentation overlay around their rendered
+content, and `.sheet` modifiers attach centered panels to that window-level
+overlay by default. The old local inline overlay remains available through
+explicit sheet presentation environment modes, and the transient GTK window path
+stays as a fallback when no root overlay is available. This moves Quill Chat's
+Settings and Completions sheets toward macOS-style in-window presentation
+without adding Enchanted source edits.

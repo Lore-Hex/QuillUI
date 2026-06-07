@@ -433,13 +433,13 @@ open class RSImage: NSObject, @unchecked Sendable {
     /// compatibility shape — readers reach back to the original
     /// bytes for re-encoding (e.g. `tiffRepresentation`).
     public var data: Data?
-    public func pngData() -> Data? { nil }
-    public func dataRepresentation() -> Data? { nil }
+    public func pngData() -> Data? { data }
+    public func dataRepresentation() -> Data? { data }
     public func tinted(with: Any) -> RSImage { self }
     public static func image(with data: Data, imageResultBlock: @escaping (RSImage?) -> Void) {
-        imageResultBlock(RSImage())
+        imageResultBlock(RSImage(data: data))
     }
-    public static func image(data: Data) async -> RSImage? { RSImage() }
+    public static func image(data: Data) async -> RSImage? { RSImage(data: data) }
     public static func scaledImageData(_ data: Data, maxPixelSize: Int) -> Data? { data }
     public static var smartBadgeTemplateName: String { "" }
     public func maskWithColor(color: Any) -> RSImage? { self }

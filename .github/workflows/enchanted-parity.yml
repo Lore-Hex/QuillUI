@@ -16,12 +16,10 @@ name: Enchanted Parity
 # parity proof; the uploaded render is the human-eyeball reference each run. Kept
 # as its OWN workflow (does not gate the main "Linux CI").
 #
-# This workflow also runs NON-GATING (continue-on-error) real-source INTERACTION
-# measurements (epic #188 step 2): it drives quill-chat-linux through its
-# mac-reference interaction smokes (composer, ...) to size the gap before they are
-# promoted to gating and the hand-written reimpl is retired. The interaction harness
-# (scripts/linux-backend-interaction-check.sh) and its verify products already exist;
-# these steps activate them in CI.
+# This workflow also gates real-source INTERACTION smokes (epic #188 step 2):
+# it drives quill-chat-linux through mac-reference interaction paths such as
+# composer typing, then checks the captured frame with product-specific
+# validators.
 
 on:
   push:
@@ -45,6 +43,9 @@ jobs:
       QUILLUI_SKIP_APT: "1"
       QUILLUI_BACKEND_MAC_REFERENCE: "1"
       QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted
+      # Match Linux CI's tuned guard floor. The default 12 GiB threshold can
+      # fail after the generated Enchanted build on otherwise healthy runners.
+      QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "6"
 
     steps:
       - name: Checkout
@@ -61,6 +62,7 @@ jobs:
             libgdk-pixbuf-2.0-dev \
             libgtk-4-dev \
             libsqlite3-dev \
+            openbox \
             pkg-config \
             qt6-base-dev \
             ripgrep \
@@ -80,20 +82,79 @@ jobs:
               quill-chat-linux \
               gtk
 
-      - name: Measure real-source composer-typed interaction (non-gating)
-        if: always()
-        continue-on-error: true
+      - name: Run real-source composer-typed interaction verifier
         env:
+          QUILLUI_BACKEND_SKIP_BUILD: "1"
           QUILLUI_BACKEND_INTERACTION_MODE: composer-typed
         run: |
-          # Step 2 of the cutover: prove the REAL source's composer accepts typed
+          # Prove the REAL source's composer accepts typed
           # input via the generic GTK backend (no Ollama / no seeded history needed).
-          # Non-gating MEASUREMENT — sizes the interaction gap before promotion. The
-          # harness routes quill-chat-linux + composer-typed (with MAC_REFERENCE=1) to
-          # the quill-chat-linux-mac-reference-composer-typed validator.
+          # The harness routes quill-chat-linux + composer-typed
+          # (with MAC_REFERENCE=1) to the typed-composer validator.
           QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-interaction-composer.log \
             scripts/linux-backend-interaction-check.sh \
               .qa/quill-chat-linux-mac-reference-composer-typed-gtk.png \
+              quill-chat-linux \
+              gtk
+
+      - name: Run real-source composer-send interaction verifier
+        env:
+          QUILLUI_BACKEND_SKIP_BUILD: "1"
+          QUILLUI_BACKEND_INTERACTION_MODE: composer-send
+        run: |
+          # Prove typed composer content can be submitted into a chat message.
+          # This deterministic mac-reference row keeps Ollama unreachable, so
+          # live HTTP/persistence is covered by the functional row below.
+          QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-interaction-composer-send.log \
+            scripts/linux-backend-interaction-check.sh \
+              .qa/quill-chat-linux-mac-reference-composer-send-gtk.png \
+              quill-chat-linux \
+              gtk
+
+      - name: Run real-source sidebar and transcript interaction verifiers
+        env:
+          QUILLUI_BACKEND_SKIP_BUILD: "1"
+        run: |
+          # Gate the Mac-reference settings/completions/sidebar/transcript
+          # paths that exercise the Enchanted profile's real SwiftData-backed
+          # history, relationship fetches, markdown rendering, and long-scroll
+          # behavior.
+          for mode in \
+            settings-panel \
+            settings-endpoint-typed \
+            settings-bearer-token-typed \
+            settings-ping-interval-typed \
+            settings-default-model-selected \
+            settings-delete-confirmation \
+            completions-panel \
+            history-selection \
+            transcript-selection \
+            markdown-transcript-selection \
+            long-transcript-selection
+          do
+            QUILLUI_BACKEND_INTERACTION_MODE="$mode" \
+            QUILLUI_BACKEND_INTERACTION_APP_LOG=".qa/quill-chat-linux-interaction-${mode}.log" \
+              scripts/linux-backend-interaction-check.sh \
+                ".qa/quill-chat-linux-mac-reference-${mode}-gtk.png" \
+                quill-chat-linux \
+                gtk
+          done
+
+      - name: Run live composer-send and relaunch functional verifier
+        env:
+          QUILLUI_BACKEND_SKIP_BUILD: "1"
+          QUILLUI_FUNCTIONAL_COMPOSER_X: "700"
+          QUILLUI_FUNCTIONAL_COMPOSER_Y: "1190"
+          QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: "1"
+        run: |
+          # Prove the real-source composer submits to Ollama and persists
+          # the streamed user/assistant turn through QuillData, then relaunch
+          # with the same data home and select the saved conversation from disk.
+          QUILLUI_FUNCTIONAL_APP_LOG=.qa/quill-chat-linux-functional-app.log \
+          QUILLUI_FUNCTIONAL_MOCK_LOG=.qa/quill-chat-linux-functional-ollama.log \
+            timeout --kill-after=15s 180s \
+            scripts/quill-chat-functional-check.sh \
+              .qa/quill-chat-linux-functional-composer-send-gtk.png \
               quill-chat-linux \
               gtk
 
@@ -113,4 +174,5 @@ jobs:
           # .qa is a DOT-directory; upload-artifact@v4 excludes hidden files by
           # default, which is why the render never uploaded ("No files found").
           include-hidden-files: true
+          retention-days: 1
           if-no-files-found: warn

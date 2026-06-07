@@ -68,7 +68,7 @@ rm -rf "$WORK_ROOT"
 mkdir -p "$SOURCE_COPY"
 cp -R "$UPSTREAM_DIR"/. "$SOURCE_COPY"/
 
-swift run --package-path "$ROOT_DIR" --scratch-path "$ROOT_DIR/.build/quill-source-lower-tool" --disable-sandbox quill-source-lower "$SOURCE_COPY" "$LOWERED_COPY"
+"$ROOT_DIR/scripts/run-quill-source-lower.sh" "$SOURCE_COPY" "$LOWERED_COPY"
 "$ROOT_DIR/scripts/lower-swiftui-source-for-linux.sh" "$LOWERED_COPY"
 
 "$ROOT_DIR/scripts/profiles/enchanted-full-source/lower-profile-source.sh" "$LOWERED_COPY"

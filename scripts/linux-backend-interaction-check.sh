@@ -108,6 +108,17 @@ quillui_is_wireguard_malformed_import_interaction() {
     || quillui_is_wireguard_malformed_import_file_interaction "$1"
 }
 
+quillui_is_backend_smoke_sheet_interaction() {
+  case "$1" in
+    nested-sheet|sidebar-sheet|banner-sheet)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 wireguard_import_configuration_file_for_mode() {
   if quillui_is_wireguard_malformed_import_file_interaction "$1"; then
     wireguard_malformed_import_configuration_file
@@ -161,6 +172,9 @@ quillui_append_backend_selection_start_environment \
   "$SELECTED_BACKEND" \
   "$INTERACTION_MODE" \
   "$OUTPUT_DIR"
+if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
+  app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
+fi
 env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 
@@ -226,6 +240,24 @@ enchanted_list_selection_y() {
   else
     printf '%s\n' "$((window_y + 455))"
   fi
+}
+
+quill_chat_mac_reference_history_row_y() {
+  case "$1" in
+    recent-transcript)
+      printf '%s\n' "$((window_y + 540))"
+      ;;
+    markdown-transcript)
+      printf '%s\n' "$((window_y + 590))"
+      ;;
+    long-transcript)
+      printf '%s\n' "$((window_y + 638))"
+      ;;
+    *)
+      echo "Unknown Quill Chat reference history row: $1" >&2
+      exit 64
+      ;;
+  esac
 }
 
 click_enchanted_list_selection() {
@@ -342,17 +374,6 @@ wireguard_import_configuration_for_mode() {
   fi
 }
 
-quillui_is_backend_smoke_sheet_interaction() {
-  case "$1" in
-    nested-sheet|sidebar-sheet|banner-sheet)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 refresh_capture_window_for_active_child_window() {
   local attempt
   local candidate_window
@@ -405,6 +426,21 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
         ;;
+      composer-send)
+        # Behavioral parity: type in the real-source composer and submit through
+        # the upstream TextField onSubmit path. The mac-reference runtime is kept
+        # unreachable for deterministic screenshots, so this verifies the typed
+        # message leaves the empty state and renders as a trailing user message;
+        # the live Ollama/persistence proof remains a separate functional smoke.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
+        sleep 1
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
+        sleep 3
+        ;;
       settings-panel)
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           click_x="${QUILLUI_BACKEND_CLICK_X:-52}"
@@ -426,18 +462,97 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
           settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+          endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-650}"
+          endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-495}"
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
           settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+          endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-$((window_x + 120))}"
+          endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-$((window_y + 104))}"
         fi
-        endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-$((window_x + 120))}"
-        endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-$((window_y + 104))}"
         click_at "$settings_x" "$settings_y"
         sleep 1
         click_at "$endpoint_x" "$endpoint_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434}"
         sleep 1
+        ;;
+      settings-bearer-token-typed)
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+          token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-650}"
+          token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-800}"
+        else
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+          token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-$((window_x + 120))}"
+          token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-$((window_y + 222))}"
+        fi
+        click_at "$settings_x" "$settings_y"
+        sleep 1
+        click_at "$token_x" "$token_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345}"
+        sleep 1
+        ;;
+      settings-ping-interval-typed)
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+          ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-650}"
+          ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-838}"
+        else
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+          ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-$((window_x + 120))}"
+          ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-$((window_y + 250))}"
+        fi
+        click_at "$settings_x" "$settings_y"
+        sleep 1
+        click_at "$ping_x" "$ping_y"
+        sleep 1
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+        sleep 0.2
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-123456789012345}"
+        sleep 1
+        ;;
+      settings-default-model-selected)
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+          model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}"
+          model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-763}"
+        else
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+          model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-$((window_x + 180))}"
+          model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-$((window_y + 210))}"
+        fi
+        click_at "$settings_x" "$settings_y"
+        sleep 1
+        click_at "$model_x" "$model_y"
+        sleep 0.5
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Down Return
+        sleep "$post_click_sleep"
+        ;;
+      settings-delete-confirmation)
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+          clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}"
+          clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}"
+        else
+          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+          clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-$((window_x + window_width / 2))}"
+          clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-$((window_y + window_height - 372))}"
+        fi
+        click_at "$settings_x" "$settings_y"
+        sleep 1
+        click_at "$clear_x" "$clear_y"
+        sleep "$post_click_sleep"
+        refresh_capture_window_for_active_child_window
         ;;
       completions-panel)
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -452,13 +567,17 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
         click_at "$click_x" "$click_y"
         sleep 1
         ;;
       transcript-selection|markdown-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y markdown-transcript)}"
+        else
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
+        fi
         sleep 2
         click_at "$click_x" "$click_y"
         sleep 1
@@ -467,11 +586,20 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       long-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 220))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 514))}"
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y long-transcript)}"
+        else
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 514))}"
+        fi
         sleep 2
         click_at "$click_x" "$click_y"
         sleep 1
         click_at "$click_x" "$click_y"
+        sleep 1
+        scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
+        scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
+        DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$scroll_x" "$scroll_y"
+        DISPLAY="$DISPLAY_ID" xdotool click --repeat "${QUILLUI_BACKEND_SCROLL_CLICKS:-24}" --delay 25 5
         sleep 2
         ;;
       prompt-send)
