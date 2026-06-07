@@ -398,6 +398,21 @@ struct QuillUITests {
         #expect(tappedSettings)
     }
 
+    @Test("QuillDesktopChatUtilitySidebar owns utility sheet state")
+    func quillDesktopChatUtilitySidebarOwnsUtilitySheetState() {
+        let sidebar = QuillDesktopChatUtilitySidebar {
+            Text("History")
+        } settings: {
+            Text("Settings")
+        } completions: {
+            Text("Completions")
+        } shortcuts: {
+            Text("Shortcuts")
+        }
+
+        #expect(sidebar.settingsFocusedValue == nil)
+    }
+
     @Test("Message arrays build streaming scroll tokens from ids and last content")
     func messageArrayBuildsStreamingScrollToken() {
         struct Message: Identifiable {

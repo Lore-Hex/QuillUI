@@ -949,6 +949,66 @@ public struct QuillDesktopSidebar<Content: View>: View {
     }
 }
 
+public struct QuillDesktopChatUtilitySidebar<
+    Content: View,
+    SettingsContent: View,
+    CompletionsContent: View,
+    ShortcutsContent: View
+>: View {
+    public var settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>?
+    private var onSettings: () -> Void
+    private var content: Content
+    private var settingsContent: SettingsContent
+    private var completionsContent: CompletionsContent
+    private var shortcutsContent: ShortcutsContent
+    @State private var showSettings = false
+    @State private var showCompletions = false
+    @State private var showShortcuts = false
+
+    public init(
+        settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>? = nil,
+        onSettings: @escaping () -> Void = {},
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder settings: () -> SettingsContent,
+        @ViewBuilder completions: () -> CompletionsContent,
+        @ViewBuilder shortcuts: () -> ShortcutsContent
+    ) {
+        self.settingsFocusedValue = settingsFocusedValue
+        self.onSettings = onSettings
+        self.content = content()
+        self.settingsContent = settings()
+        self.completionsContent = completions()
+        self.shortcutsContent = shortcuts()
+    }
+
+    public var body: some View {
+        QuillDesktopSidebar(bottomActions: bottomActions) {
+            content
+        }
+        .quillDesktopChatUtilitySheets(
+            showSettings: $showSettings,
+            showCompletions: $showCompletions,
+            showShortcuts: $showShortcuts,
+            settingsFocusedValue: settingsFocusedValue
+        ) {
+            settingsContent
+        } completions: {
+            completionsContent
+        } shortcuts: {
+            shortcutsContent
+        }
+    }
+
+    private var bottomActions: [QuillSidebarNavigationAction] {
+        QuillSidebarNavigationAction.desktopChatUtilityToggles(
+            showCompletions: $showCompletions,
+            showShortcuts: $showShortcuts,
+            showSettings: $showSettings,
+            onSettings: onSettings
+        )
+    }
+}
+
 public extension View {
     @ViewBuilder
     func quillDesktopChatUtilitySheets<

@@ -12,12 +12,12 @@ struct SidebarView: View {
     var onConversationTap: (_ conversation: ConversationSD) -> ()
     var onConversationDelete: (_ conversation: ConversationSD) -> ()
     var onDeleteDailyConversations: (_ date: Date) -> ()
-    @State var showSettings = false
-    @State var showCompletions = false
-    @State var showKeyboardShortcuts = false
 
     var body: some View {
-        QuillDesktopSidebar(bottomActions: bottomActions) {
+        QuillDesktopChatUtilitySidebar(
+            settingsFocusedValue: \.showSettings,
+            onSettings: { Task { Haptics.shared.mediumTap() } }
+        ) {
             ConversationHistoryList(
                 selectedConversation: selectedConversation,
                 conversations: conversations,
@@ -25,27 +25,12 @@ struct SidebarView: View {
                 onDelete: onConversationDelete,
                 onDeleteDailyConversations: onDeleteDailyConversations
             )
-        }
-        .quillDesktopChatUtilitySheets(
-            showSettings: $showSettings,
-            showCompletions: $showCompletions,
-            showShortcuts: $showKeyboardShortcuts,
-            settingsFocusedValue: \.showSettings
-        ) {
+        } settings: {
             Settings()
         } completions: {
             CompletionsEditor()
         } shortcuts: {
             KeyboardShortcutsDemo()
         }
-    }
-
-    private var bottomActions: [QuillSidebarNavigationAction] {
-        QuillSidebarNavigationAction.desktopChatUtilityToggles(
-            showCompletions: $showCompletions,
-            showShortcuts: $showKeyboardShortcuts,
-            showSettings: $showSettings,
-            onSettings: { Task { Haptics.shared.mediumTap() } }
-        )
     }
 }
