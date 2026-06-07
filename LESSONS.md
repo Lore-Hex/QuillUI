@@ -1138,6 +1138,35 @@ Patterns that closed them:
 
 ---
 
+### Track B sub-5.6k: generic decode converters, @_exported import path, init-override trap, nonisolated instance vars (2026-06, ~99%, 5.62k)
+
+- **One missing NSCoder convenience can gate many files.** `decodeArrayOfObjects(
+  ofClass:forKey:)` (absent on corelibs) is used by ~9 NSSecureCoding decoders;
+  adding it (generic `-> [DecodedObjectType]?` over `decodeObject(forKey:) as?`,
+  in the QuillNSCoder port) cleared all 9 + cascades (-820 in one build). Apple's
+  is generic so `ofClass: NSData.self` yields `[NSData]?` and callers bridge
+  `as [Data]?`. Same shape as the NSKeyedUnarchiver converters.
+- **UIKit shim re-exports QuillFoundation** (`@_exported import QuillFoundation`
+  in UIKitShim), so ANY symbol added to QuillFoundation OR UIKitShim is visible to
+  every SSK file that does `import UIKit`. That's the import path for the UIKit-
+  text cluster (String+SSK): NSTextAttachment, UIImage.withRenderingMode +
+  RenderingMode, NSParagraphStyle.defaultWritingDirection, NSAttributedString(
+  attachment:) -- all inert, in UIKitShim.
+- **You CANNOT add a no-arg `init()` to an NSObject subclass via extension** --
+  "initializer 'init()' declared in 'NSObject' cannot be overridden from
+  extension". `NSAttributedString()`/`NSMutableAttributedString()` (corelibs lacks
+  a usable parameterless init) must instead be a fetch-upstream patch rewriting
+  the call sites to `(string: "")`. Tell: the broken extension still DECLARES the
+  init (so consumers compile) while its body errors -- check OWN (incl QuillPort/).
+- **`nonisolated` is needed for INSTANCE computed vars too, not just statics**, on
+  a `@MainActor` class accessed from a nonisolated consumer. UIDevice is
+  @MainActor; ProximityMonitoringManager reads `UIDevice.current.proximityState`
+  off the main actor -> mark the inert `proximityState`/`isProximityMonitoringEnabled`
+  vars `nonisolated` (Bool is Sendable), same as the battery/proximity static
+  notification names.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
