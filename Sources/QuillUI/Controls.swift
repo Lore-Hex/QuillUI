@@ -4,6 +4,7 @@
 // branches looked correct.
 import Foundation
 import Dispatch
+import QuillKit
 import QuillPaint
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
@@ -2010,6 +2011,33 @@ public struct QuillMenuAction: Identifiable {
 
     public static func disabled(id: String? = nil, title: String) -> QuillMenuAction {
         QuillMenuAction(id: id, title: title, isDisabled: true) {}
+    }
+
+    public static func copyText(
+        _ text: String,
+        title: String = "Copy",
+        systemImage: String = "doc.on.doc",
+        clipboard: QuillClipboard = .shared
+    ) -> QuillMenuAction {
+        QuillMenuAction(title: title, systemImage: systemImage) {
+            clipboard.setString(text)
+        }
+    }
+
+    public static func edit(
+        title: String = "Edit",
+        systemImage: String = "pencil",
+        action: @escaping () -> Void
+    ) -> QuillMenuAction {
+        QuillMenuAction(title: title, systemImage: systemImage, action: action)
+    }
+
+    public static func unselect(
+        title: String = "Unselect",
+        systemImage: String = "pencil",
+        action: @escaping () -> Void
+    ) -> QuillMenuAction {
+        QuillMenuAction(title: title, systemImage: systemImage, action: action)
     }
 
     public static func selectableItems<Item, SelectionID: Hashable>(

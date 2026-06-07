@@ -1,4 +1,5 @@
 import Foundation
+import QuillKit
 import QuillUIGtk
 import QuillUIQt
 import Testing
@@ -116,6 +117,27 @@ struct QuillUITests {
         #expect(emptyActions.first?.isDisabled == true)
         emptyActions.first?.perform()
         #expect(selectedTitle == nil)
+
+        let clipboard = QuillClipboard()
+        let copy = QuillMenuAction.copyText("Copied text", clipboard: clipboard)
+        #expect(copy.title == "Copy")
+        #expect(copy.systemImage == "doc.on.doc")
+        copy.perform()
+        #expect(clipboard.string() == "Copied text")
+
+        var didEdit = false
+        let edit = QuillMenuAction.edit { didEdit = true }
+        #expect(edit.title == "Edit")
+        #expect(edit.systemImage == "pencil")
+        edit.perform()
+        #expect(didEdit)
+
+        var didUnselect = false
+        let unselect = QuillMenuAction.unselect { didUnselect = true }
+        #expect(unselect.title == "Unselect")
+        #expect(unselect.systemImage == "pencil")
+        unselect.perform()
+        #expect(didUnselect)
     }
 
     @Test("QuillSheetStatusBanner exposes reusable sheet-backed status state")

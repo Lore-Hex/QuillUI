@@ -60,9 +60,7 @@ struct MessageListView: View {
 
     private func contextMenuActions(for message: MessageSD) -> [QuillMenuAction] {
         var actions = [
-            QuillMenuAction(title: "Copy", systemImage: "doc.on.doc") {
-                Clipboard.shared.setString(message.content)
-            }
+            QuillMenuAction.copyText(message.content)
         ]
 
 #if os(iOS) || os(visionOS)
@@ -75,13 +73,13 @@ struct MessageListView: View {
 #endif
 
         if message.role == "user" {
-            actions.append(QuillMenuAction(title: "Edit", systemImage: "pencil") {
+            actions.append(.edit {
                 withAnimation { editMessage = message }
             })
         }
 
         if editMessage?.id == message.id {
-            actions.append(QuillMenuAction(title: "Unselect", systemImage: "pencil") {
+            actions.append(.unselect {
                 withAnimation { editMessage = nil }
             })
         }
