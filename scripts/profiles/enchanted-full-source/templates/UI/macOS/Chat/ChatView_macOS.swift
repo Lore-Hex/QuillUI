@@ -70,7 +70,10 @@ struct ChatView: View {
                 editMessage: $editMessage
             )
         } emptyContent: {
-            EmptyConversaitonView(sendPrompt: sendPrompt)
+            EmptyConversaitonView(sendPrompt: QuillPrompt.selectedModelSender(
+                selectedModel: selectedModel,
+                onSend: onSendMessageTap
+            ))
         } statusContent: {
             UnreachableAPIView()
         } composer: {
@@ -84,12 +87,6 @@ struct ChatView: View {
             )
         }
         .quillSyncEditableMessage($editMessage, draft: $message, isFocused: $isFocusedInput, content: \.content)
-    }
-
-    private func sendPrompt(_ selectedMessage: String) {
-        if let selectedModel = selectedModel {
-            onSendMessageTap(selectedMessage, selectedModel, nil, nil)
-        }
     }
 }
 #endif

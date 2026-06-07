@@ -90,6 +90,23 @@ public struct QuillPrompt: Identifiable, Hashable, Sendable {
             QuillPrompt(id: id(item), title: title(item), systemImage: systemImage(item))
         }
     }
+
+    public static func selectedModelSender<Model, Attachment, TrimmingID>(
+        selectedModel: Model?,
+        attachment: Attachment? = nil,
+        trimmingID: TrimmingID? = nil,
+        onSend: @escaping (
+            _ prompt: String,
+            _ model: Model,
+            _ attachment: Attachment?,
+            _ trimmingID: TrimmingID?
+        ) -> Void
+    ) -> (String) -> Void {
+        { prompt in
+            guard let selectedModel else { return }
+            onSend(prompt, selectedModel, attachment, trimmingID)
+        }
+    }
 }
 
 public struct QuillPromptGridLayout: Equatable, Sendable {
