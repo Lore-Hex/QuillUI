@@ -61,6 +61,9 @@ public struct GTK4RotationDescriptor: Equatable {
 public struct GTK4AnimatedDescriptor: Equatable {
     public let curve: String
     public let duration: Double
+    public let delay: Double
+    public let repeatsForever: Bool
+    public let autoreverses: Bool
 }
 
 public struct GTK4TextDescriptor: Equatable {
