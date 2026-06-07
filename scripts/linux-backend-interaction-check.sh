@@ -175,6 +175,14 @@ quillui_append_backend_selection_start_environment \
 if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
   app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
 fi
+quill_chat_copy_runtime_dir=""
+if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "copy-chat" ]]; then
+  quill_chat_copy_runtime_dir="${QUILLUI_BACKEND_CLIPBOARD_RUNTIME_DIR:-$OUTPUT_DIR/quill-chat-copy-runtime}"
+  rm -rf "$quill_chat_copy_runtime_dir/quill-pasteboard"
+  mkdir -p "$quill_chat_copy_runtime_dir"
+  chmod 700 "$quill_chat_copy_runtime_dir" 2>/dev/null || true
+  app_environment+=("XDG_RUNTIME_DIR=$quill_chat_copy_runtime_dir")
+fi
 env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 
@@ -519,6 +527,48 @@ delete_quill_chat_completion() {
   sleep "${QUILLUI_BACKEND_COMPLETION_DELETE_SLEEP:-2}"
 }
 
+select_quill_chat_markdown_transcript() {
+  local click_x="${QUILLUI_BACKEND_HISTORY_CLICK_X:-$((window_x + 190))}"
+  local click_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    click_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$(quill_chat_mac_reference_history_row_y markdown-transcript)}"
+  else
+    click_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$((window_y + 466))}"
+  fi
+
+  sleep 2
+  click_at "$click_x" "$click_y"
+  sleep 1
+  click_at "$click_x" "$click_y"
+  sleep 1
+}
+
+copy_quill_chat_transcript() {
+  local menu_x
+  local menu_y
+  local copy_x
+  local copy_y
+
+  select_quill_chat_markdown_transcript
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    menu_x="${QUILLUI_BACKEND_MENU_CLICK_X:-1964}"
+    menu_y="${QUILLUI_BACKEND_MENU_CLICK_Y:-57}"
+    copy_x="${QUILLUI_BACKEND_COPY_CHAT_CLICK_X:-1940}"
+    copy_y="${QUILLUI_BACKEND_COPY_CHAT_CLICK_Y:-109}"
+  else
+    menu_x="${QUILLUI_BACKEND_MENU_CLICK_X:-$((window_x + window_width - 84))}"
+    menu_y="${QUILLUI_BACKEND_MENU_CLICK_Y:-$((window_y + 54))}"
+    copy_x="${QUILLUI_BACKEND_COPY_CHAT_CLICK_X:-$((window_x + window_width - 110))}"
+    copy_y="${QUILLUI_BACKEND_COPY_CHAT_CLICK_Y:-$((window_y + 92))}"
+  fi
+
+  click_at "$menu_x" "$menu_y"
+  sleep 0.8
+  click_at "$copy_x" "$copy_y"
+  sleep "${QUILLUI_BACKEND_COPY_CHAT_SLEEP:-1.5}"
+}
+
 open_quill_chat_new_chat() {
   local history_x
   local history_y
@@ -713,6 +763,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
       completions-delete)
         delete_quill_chat_completion
         ;;
+      copy-chat)
+        copy_quill_chat_transcript
+        ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
         click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
@@ -720,17 +773,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         ;;
       transcript-selection|markdown-transcript-selection)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
-        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y markdown-transcript)}"
-        else
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
-        fi
-        sleep 2
-        click_at "$click_x" "$click_y"
-        sleep 1
-        click_at "$click_x" "$click_y"
-        sleep 1
+        select_quill_chat_markdown_transcript
         ;;
       long-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 220))}"
@@ -991,10 +1034,34 @@ if [[ "$settled_capture_taken" != "1" ]]; then
   DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 fi
 
+verify_quill_chat_copy_clipboard_if_needed() {
+  [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "copy-chat" ]] || return 0
+
+  local clipboard_file="$quill_chat_copy_runtime_dir/quill-pasteboard/Apple.NSGeneralPboard/types/public.utf8-plain-text"
+  if [[ ! -s "$clipboard_file" ]]; then
+    echo "Copy Chat did not write a plain-text pasteboard file: $clipboard_file" >&2
+    return 65
+  fi
+
+  if ! grep -Fq "User: How to center div in HTML?" "$clipboard_file" \
+      || ! grep -Fq "Assistant: Use **flexbox**" "$clipboard_file" \
+      || ! grep -Fq "justify-content" "$clipboard_file"; then
+    echo "Copy Chat pasteboard text did not contain the selected transcript." >&2
+    sed -n '1,12p' "$clipboard_file" >&2
+    return 65
+  fi
+
+  printf 'Copy Chat pasteboard text verified: %s\n' "$clipboard_file"
+}
+
 VERIFY_PRODUCT=""
 quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
 if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
-  :
+  verify_quill_chat_copy_clipboard_if_needed || {
+    copy_status=$?
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
+    exit "$copy_status"
+  }
 else
   verify_status=$?
   quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"

@@ -111,6 +111,9 @@ Recently cleared:
 - Prompt-card send is covered by the same verifier via the `prompt-send` row:
   clicking a starter card leaves the empty state and renders a trailing user
   message while the unreachable banner and composer remain stable.
+- Copy Chat is covered by the same verifier via the `copy-chat` row: it selects
+  the seeded transcript, uses the toolbar More menu, and asserts the Linux
+  pasteboard contains the copied user/assistant transcript text.
 - Live composer-send behavior is covered by `scripts/quill-chat-functional-check.sh`:
   the real composer submits exactly one typed user prompt to mock Ollama, renders
   the streamed assistant reply, and persists user plus assistant rows through

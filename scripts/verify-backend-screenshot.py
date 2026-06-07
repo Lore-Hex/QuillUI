@@ -3912,6 +3912,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_composer_send(image))
     elif product == "quill-chat-linux-mac-reference-new-chat":
         print(validate_quill_chat_mac_reference(image))
+    elif product == "quill-chat-linux-mac-reference-copy-chat":
+        print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))
     elif product == "quill-chat-linux-functional-transcript":
         print(validate_quill_chat_functional_transcript(image))
     elif product in {"quill-enchanted-mac-reference", "quill-enchanted-linux-mac-reference"}:

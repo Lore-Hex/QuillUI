@@ -134,6 +134,7 @@ jobs:
             completions-delete \
             new-chat \
             prompt-send \
+            copy-chat \
             history-selection \
             transcript-selection \
             markdown-transcript-selection \
