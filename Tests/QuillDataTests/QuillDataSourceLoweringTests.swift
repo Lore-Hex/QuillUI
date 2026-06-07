@@ -373,10 +373,18 @@ struct QuillDataSourceLoweringTests {
         let passing = try runScript(script, arguments: ["--max-shell-lines", "50"])
         #expect(passing.status == 0, Comment(rawValue: passing.output))
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
+        #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
         #expect(failing.output.contains("profile budget failed"))
+
+        let templateFailing = try runScript(script, arguments: [
+            "--profile", "enchanted-full-source",
+            "--max-template-lines", "1"
+        ])
+        #expect(templateFailing.status != 0, Comment(rawValue: templateFailing.output))
+        #expect(templateFailing.output.contains("profile template budget failed"))
     }
 
     @Test("Linux Swift test wrapper applies checkout patches before testing")
