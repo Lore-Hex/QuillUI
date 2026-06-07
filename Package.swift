@@ -1906,7 +1906,7 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: ["QuillFoundation", "QuillDataMacros", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: ["QuillKit", "QuillFoundation", "QuillDataMacros", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
         path: "Sources/QuillSwiftUICompatibility"
     ),
     .target(

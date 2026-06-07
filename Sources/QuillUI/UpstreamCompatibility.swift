@@ -947,6 +947,23 @@ public struct GestureView<Content: View, GestureValue>: View {
     public var body: some View { content }
 }
 
+// OnHoverView lives here (not a lower layer) because Sources/QuillUI/
+// GTKHoverModifiers.swift renders it via `extension OnHoverView: GTKRenderable`,
+// and onHover records a QuillKit diagnostic. The only vendored caller
+// (DesignSystem AccountPopoverView) is target-excluded, so it need not be visible
+// to vendored source.
+public struct OnHoverView<Content: View>: View {
+    public let content: Content
+    public let action: (Bool) -> Void
+
+    public init(content: Content, action: @escaping (Bool) -> Void) {
+        self.content = content
+        self.action = action
+    }
+
+    public var body: some View { content }
+}
+
 public struct TransitionView<Content: View>: View {
     public let content: Content
     public let transition: AnyTransition
@@ -1231,6 +1248,14 @@ public extension View {
             message: "View accessibility child behavior is preserved for GTK accessibility rendering on Linux."
         )
         return AccessibilityElementView(content: self, children: children)
+    }
+
+    func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
+        recordQuillUIFallback(
+            "onHover",
+            message: "onHover is preserved as hover handler metadata on Linux."
+        )
+        return OnHoverView(content: self, action: action)
     }
 
     func lineLimit(_ number: Int?, reservesSpace: Bool) -> some View {

@@ -1,11 +1,12 @@
 import Foundation
 
-// SwiftUI View-modifier surface MOVED here from QuillUI/UpstreamCompatibility so a
-// single canonical declaration is visible to BOTH QuillUI (via @_exported import
-// SwiftOpenUI) and vendored real source (DesignSystem, which imports SwiftOpenUI
-// through the SwiftUI shadow). These are metadata-passthrough modifiers that GTK
-// does not render from here, so they are no-ops on Linux. (Having two copies — in
-// QuillUI and here — makes their use ambiguous, hence the move.)
+// A few plain compat TYPES that vendored source references but that carry no
+// QuillKit diagnostics or GTK rendering, so they can live in this lower package.
+// The rich modifiers (contentShape / allowsHitTesting / listRow* /
+// scrollContentBackground / symbolEffect — which record QuillKit fallback
+// diagnostics — and onHover — which renders GTK accessibility/hover metadata)
+// were moved UP to QuillSwiftUICompatibility / QuillUI: SwiftOpenUI is a separate
+// lower package and cannot import QuillKit, so it cannot record those diagnostics.
 public struct SymbolEffect: Sendable {
     public init() {}
     public static let variableColor = SymbolEffect()
@@ -33,91 +34,8 @@ public struct ListStyleType: Sendable {
     public static let bordered = ListStyleType(id: "bordered")
 }
 
-// AccessibilityChildBehavior + accessibilityLabel/accessibilityValue/
-// accessibilityElement live in QuillUI/UpstreamCompatibility (they render real
-// GTK accessibility metadata via GTKAccessibilityModifiers, and SourceHygieneTests
-// pins them there). No compiled vendored source uses them — the only callers
-// (DesignSystem AccountPopoverView / StatusEditorToolbarItem) are target-excluded.
-
 extension View {
-    // Typed-view modifiers MOVED from QuillUI/UpstreamCompatibility (struct + func)
-    // so vendored source (imports SwiftOpenUI, not QuillUI) can use them while
-    // QuillUI's own CompatibilityModuleTests — which assert each returns a named
-    // view carrying its parameter (.shape/.enabled/.action/.visibility/.edges/.insets)
-    // — keep passing via QuillUI's @_exported import SwiftOpenUI. The `.circle`
-    // / Rectangle() cases resolve through the generic (Shape.circle returns Circle).
-    public func contentShape<S: Shape>(_ shape: S) -> ContentShapeView<Self, S> {
-        ContentShapeView(content: self, shape: shape)
-    }
-    public func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
-        OnHoverView(content: self, action: action)
-    }
-    public func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
-        AllowsHitTestingView(content: self, enabled: enabled)
-    }
-    public func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> ListRowSeparatorView<Self> {
-        ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
-    }
-    public func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
-        ListRowInsetsView(content: self, insets: insets)
-    }
+    // listStyle is a pure no-op metadata passthrough (not asserted by the
+    // diagnostics test), so it can stay in this lower package for vendored source.
     public func listStyle(_ style: ListStyleType) -> some View { self }
-    public func symbolEffect<Value: Equatable>(_ effect: SymbolEffect, options: SymbolEffectOptions = .default, value: Value) -> some View {
-        animation(.easeInOut(duration: 0.2), value: value)
-    }
-}
-
-// Typed passthrough views (moved from QuillUI/UpstreamCompatibility). Each stores
-// its parameter and renders `content` (GTK does not paint these from here). Names
-// are load-bearing: CompatibilityModuleTests checks `type(of:)` contains them.
-public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
-    public let content: Content
-    public let shape: ShapeValue
-    public init(content: Content, shape: ShapeValue) {
-        self.content = content
-        self.shape = shape
-    }
-    public var body: some View { content }
-}
-
-public struct OnHoverView<Content: View>: View {
-    public let content: Content
-    public let action: (Bool) -> Void
-    public init(content: Content, action: @escaping (Bool) -> Void) {
-        self.content = content
-        self.action = action
-    }
-    public var body: some View { content }
-}
-
-public struct AllowsHitTestingView<Content: View>: View {
-    public let content: Content
-    public let enabled: Bool
-    public init(content: Content, enabled: Bool) {
-        self.content = content
-        self.enabled = enabled
-    }
-    public var body: some View { content }
-}
-
-public struct ListRowSeparatorView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-    public let edges: Edge.Set
-    public init(content: Content, visibility: Visibility, edges: Edge.Set) {
-        self.content = content
-        self.visibility = visibility
-        self.edges = edges
-    }
-    public var body: some View { content }
-}
-
-public struct ListRowInsetsView<Content: View>: View {
-    public let content: Content
-    public let insets: EdgeInsets?
-    public init(content: Content, insets: EdgeInsets?) {
-        self.content = content
-        self.insets = insets
-    }
-    public var body: some View { content }
 }
