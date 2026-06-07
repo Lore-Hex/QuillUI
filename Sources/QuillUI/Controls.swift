@@ -626,6 +626,54 @@ public struct QuillDateGroupedConversationHistoryList: View {
         self.onDeleteDay = onDeleteDay
     }
 
+    public init<SourceItem>(
+        items: [SourceItem],
+        selectedID: String? = nil,
+        id: @escaping (SourceItem) -> String,
+        title: @escaping (SourceItem) -> String,
+        updatedAt: @escaping (SourceItem) -> Date,
+        lastMessage: @escaping (SourceItem) -> String = { _ in "" },
+        dateTitle: @escaping (Date) -> String,
+        deleteDayTitle: String = "Delete daily conversations",
+        deleteItemTitle: String = "Delete",
+        onSelect: @escaping (SourceItem) -> Void,
+        onDelete: ((SourceItem) -> Void)? = nil,
+        onDeleteDay: ((Date) -> Void)? = nil
+    ) {
+        var sourceItemsByID: [String: SourceItem] = [:]
+        let historyItems = items.map { item in
+            let itemID = id(item)
+            sourceItemsByID[itemID] = item
+            return QuillConversationHistoryItem(
+                id: itemID,
+                title: title(item),
+                updatedAt: updatedAt(item),
+                lastMessage: lastMessage(item)
+            )
+        }
+
+        self.init(
+            items: historyItems,
+            selectedID: selectedID,
+            dateTitle: dateTitle,
+            deleteDayTitle: deleteDayTitle,
+            deleteItemTitle: deleteItemTitle,
+            onSelect: { item in
+                if let sourceItem = sourceItemsByID[item.id] {
+                    onSelect(sourceItem)
+                }
+            },
+            onDelete: onDelete.map { delete in
+                { item in
+                    if let sourceItem = sourceItemsByID[item.id] {
+                        delete(sourceItem)
+                    }
+                }
+            },
+            onDeleteDay: onDeleteDay
+        )
+    }
+
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: groupedListSpacing) {
