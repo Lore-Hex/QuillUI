@@ -566,6 +566,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:completions-edit-save)
       verify_product="quill-chat-linux-mac-reference-completions-edited"
       ;;
+    *:completions-delete)
+      verify_product="quill-chat-linux-mac-reference-completions-deleted"
+      ;;
     *:history-selection)
       verify_product="quill-chat-linux-mac-reference-history-selection"
       ;;

@@ -1449,7 +1449,11 @@ def validate_quill_chat_mac_reference_settings_delete_confirmation(image: Screen
     )
 
 
-def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> str:
+def validate_quill_chat_mac_reference_completions_panel(
+    image: Screenshot,
+    minimum_row_dividers: int = 3,
+    minimum_row_action_segments: int = 4,
+) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1510,8 +1514,9 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
         if line_row_score(image, y, list_x0, list_x1) >= divider_threshold
     )
     require(
-        row_divider_count >= 3,
-        f"Mac-reference completions list dividers were not detected: rows={row_divider_count}",
+        row_divider_count >= minimum_row_dividers,
+        "Mac-reference completions list dividers were not detected: "
+        f"rows={row_divider_count}, minimum={minimum_row_dividers}",
     )
 
     if panel_kind == "root-overlay":
@@ -1577,9 +1582,9 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
         min_height=4,
     )
     require(
-        row_action_segments >= 4,
+        row_action_segments >= minimum_row_action_segments,
         "Mac-reference completions row edit/delete actions were not detected: "
-        f"segments={row_action_segments}, roi={row_action_roi}",
+        f"segments={row_action_segments}, minimum={minimum_row_action_segments}, roi={row_action_roi}",
     )
 
     wordmark_pixels = pixel_count(
@@ -1801,6 +1806,41 @@ def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> s
         "Quill Chat Mac-reference completions edited: "
         f"dismissed_save_pixels={dismissed_save_pixels}, "
         f"edited_row_name_pixels={edited_row_name_pixels}; "
+        f"{panel_summary}"
+    )
+
+
+def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> str:
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_row_dividers=2,
+        minimum_row_action_segments=3,
+    )
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    row_action_roi = (
+        left + int(app_width * 0.725),
+        top + int(app_height * 0.37),
+        left + int(app_width * 0.79),
+        top + int(app_height * 0.53),
+    )
+    deleted_row_action_segments = dark_row_segment_count(
+        image,
+        *row_action_roi,
+        min_row_pixels=2,
+        min_height=4,
+    )
+    require(
+        deleted_row_action_segments <= 3,
+        "Deleted completion row still appears to be present: "
+        f"segments={deleted_row_action_segments}, roi={row_action_roi}",
+    )
+
+    return (
+        "Quill Chat Mac-reference completions deleted: "
+        f"row_action_segments={deleted_row_action_segments}; "
         f"{panel_summary}"
     )
 
@@ -3856,6 +3896,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_completions_saved(image))
     elif product == "quill-chat-linux-mac-reference-completions-edited":
         print(validate_quill_chat_mac_reference_completions_edited(image))
+    elif product == "quill-chat-linux-mac-reference-completions-deleted":
+        print(validate_quill_chat_mac_reference_completions_deleted(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":
         print(validate_quill_chat_mac_reference_history_selection(image))
     elif product == "quill-chat-linux-mac-reference-transcript-selection":

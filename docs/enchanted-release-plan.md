@@ -130,9 +130,10 @@ Recently cleared:
 - Settings delete-all confirmation is covered by the same verifier via the
   `settings-delete-confirmation` row.
 - Completions sheet presentation, nested New Completion editing, saving a
-  renamed completion back into the list, and editing an existing completion are
-  covered by the same verifier via the `completions-panel`,
-  `completions-new-sheet`, `completions-save`, and `completions-edit-save` rows.
+  renamed completion back into the list, editing an existing completion, and
+  deleting a completion are covered by the same verifier via the
+  `completions-panel`, `completions-new-sheet`, `completions-save`,
+  `completions-edit-save`, and `completions-delete` rows.
 
 ## Non-Goals For The First Release
 

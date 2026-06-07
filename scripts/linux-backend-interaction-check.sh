@@ -502,6 +502,23 @@ edit_quill_chat_existing_completion() {
   sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
 }
 
+delete_quill_chat_completion() {
+  local delete_x
+  local delete_y
+
+  open_quill_chat_completions_panel
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-1545}"
+    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-536}"
+  else
+    delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + window_width - 125))}"
+    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 320))}"
+  fi
+
+  click_at "$delete_x" "$delete_y"
+  sleep "${QUILLUI_BACKEND_COMPLETION_DELETE_SLEEP:-2}"
+}
+
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
 if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   focus_x="${QUILLUI_BACKEND_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
@@ -665,6 +682,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       completions-edit-save)
         edit_quill_chat_existing_completion
+        ;;
+      completions-delete)
+        delete_quill_chat_completion
         ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
