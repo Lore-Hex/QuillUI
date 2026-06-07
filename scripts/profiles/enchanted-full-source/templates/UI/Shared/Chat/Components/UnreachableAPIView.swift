@@ -7,20 +7,15 @@ import SwiftUI
 import QuillUI
 
 struct UnreachableAPIView: View {
-    @State var showSettings = false
-
     var body: some View {
-        QuillStatusBanner(
+        QuillSheetStatusBanner(
             message: "Quill is unreachable. Plug Quill back in if it's unplugged, or go to Settings and\nupdate your Quill API endpoint.",
             actionTitle: "Settings",
-            showsActivity: true
+            showsActivity: true,
+            horizontalPadding: 28,
+            topPadding: 10,
+            bottomPadding: 74
         ) {
-            showSettings.toggle()
-        }
-        .padding(.horizontal, 28)
-        .padding(.top, 10)
-        .padding(.bottom, 74)
-        .sheet(isPresented: $showSettings) {
             Settings()
         }
     }

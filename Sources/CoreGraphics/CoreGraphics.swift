@@ -11,6 +11,10 @@ import QuillKit
 
 public typealias CGKeyCode = UInt16
 
+public extension CGKeyCode {
+    static let kVK_ANSI_V: CGKeyCode = 0x09
+}
+
 public struct CGEventFlags: OptionSet, Sendable {
     public var rawValue: UInt64
 

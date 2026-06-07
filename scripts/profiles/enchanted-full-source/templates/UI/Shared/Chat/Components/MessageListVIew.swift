@@ -1,12 +1,9 @@
-import Dispatch
 import SwiftUI
 
 #if (os(macOS) || os(Linux))
 import AppKit
 import QuillUI
 #endif
-
-private let quillMessageListBottomID = "quill-message-list-bottom"
 
 struct MessageListView: View {
     var messages: [MessageSD]
@@ -15,12 +12,6 @@ struct MessageListView: View {
     @Binding var editMessage: MessageSD?
     @State private var messageSelected: MessageSD?
     @StateObject private var speechSynthesizer = SpeechSynthesizer.shared
-
-    func onEditMessageTap() -> (MessageSD) -> Void {
-        return { message in
-            editMessage = message
-        }
-    }
 
     func onReadAloud(_ message: String) {
         Task {
@@ -35,82 +26,19 @@ struct MessageListView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            ScrollViewReader { scrollViewProxy in
-                ScrollView {
-                    VStack {
-                        ForEach(messages) { message in
-                            let contextMenu = ContextMenu(menuItems: {
-                                Button(action: { Clipboard.shared.setString(message.content) }) {
-                                    Label("Copy", systemImage: "doc.on.doc")
-                                }
-
-#if os(iOS) || os(visionOS)
-                                Button(action: { messageSelected = message }) {
-                                    Label("Select Text", systemImage: "selection.pin.in.out")
-                                }
-
-                                Button(action: {
-                                    onReadAloud(message.content)
-                                }) {
-                                    Label("Read Aloud", systemImage: "speaker.wave.3.fill")
-                                }
-#endif
-
-                                if message.role == "user" {
-                                    Button(action: {
-                                        withAnimation { editMessage = message }
-                                    }) {
-                                        Label("Edit", systemImage: "pencil")
-                                    }
-                                }
-
-                                if editMessage?.id == message.id {
-                                    Button(action: {
-                                        withAnimation { editMessage = nil }
-                                    }) {
-                                        Label("Unselect", systemImage: "pencil")
-                                    }
-                                }
-                            })
-
-                            ChatMessageView(
-                                message: message,
-                                showLoader: conversationState == .loading && messages.last == message,
-                                userInitials: userInitials,
-                                editMessage: $editMessage
-                            )
-                            .listRowInsets(EdgeInsets())
-                            .listRowSeparator(.hidden)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 10)
-                            .contentShape(Rectangle())
-                            .contextMenu(contextMenu)
-                            .runningBorder(animated: message.id == editMessage?.id)
-                            .id(message)
-                        }
-
-                        Color.clear
-                            .frame(height: 1)
-                            .id(quillMessageListBottomID)
-                    }
-                }
-                .onAppear {
-                    scrollToBottom(scrollViewProxy)
-                }
-                .onChange(of: messages.map(\.id)) { _, _ in
-                    scrollToBottom(scrollViewProxy)
-                }
-                .onChange(of: messages.last?.content) {
-                    scrollToBottom(scrollViewProxy)
-                }
-#if os(iOS) || os(visionOS)
-                .sheet(item: $messageSelected) { message in
-                    SelectTextSheet(message: message)
-                }
-#endif
-            }
-
+        QuillMessageList(
+            messages: messages,
+            scrollToken: scrollToken,
+            actions: contextMenuActions
+        ) { message in
+            ChatMessageView(
+                message: message,
+                showLoader: conversationState == .loading && messages.last == message,
+                userInitials: userInitials,
+                editMessage: $editMessage
+            )
+            .runningBorder(animated: message.id == editMessage?.id)
+        } overlay: {
             ReadingAloudView(onStopTap: stopReadingAloud)
                 .frame(maxWidth: 400)
                 .showIf(speechSynthesizer.isSpeaking)
@@ -119,16 +47,45 @@ struct MessageListView: View {
                     removal: AnyTransition.opacity.combined(with: .scale(scale: 0.7, anchor: .top)))
                 )
         }
+#if os(iOS) || os(visionOS)
+        .sheet(item: $messageSelected) { message in
+            SelectTextSheet(message: message)
+        }
+#endif
     }
 
-    private func scrollToBottom(_ scrollViewProxy: ScrollViewProxy) {
-        #if os(Linux)
-        scrollViewProxy.scrollTo(quillMessageListBottomID, anchor: .bottom)
-        DispatchQueue.main.async {
-            scrollViewProxy.scrollTo(quillMessageListBottomID, anchor: .bottom)
+    private var scrollToken: AnyHashable {
+        AnyHashable(messages.map(\.id).map(\.uuidString).joined(separator: "|") + "|" + (messages.last?.content ?? ""))
+    }
+
+    private func contextMenuActions(for message: MessageSD) -> [QuillMenuAction] {
+        var actions = [
+            QuillMenuAction(title: "Copy", systemImage: "doc.on.doc") {
+                Clipboard.shared.setString(message.content)
+            }
+        ]
+
+#if os(iOS) || os(visionOS)
+        actions.append(QuillMenuAction(title: "Select Text", systemImage: "selection.pin.in.out") {
+            messageSelected = message
+        })
+        actions.append(QuillMenuAction(title: "Read Aloud", systemImage: "speaker.wave.3.fill") {
+            onReadAloud(message.content)
+        })
+#endif
+
+        if message.role == "user" {
+            actions.append(QuillMenuAction(title: "Edit", systemImage: "pencil") {
+                withAnimation { editMessage = message }
+            })
         }
-        #else
-        scrollViewProxy.scrollTo(messages.last, anchor: .bottom)
-        #endif
+
+        if editMessage?.id == message.id {
+            actions.append(QuillMenuAction(title: "Unselect", systemImage: "pencil") {
+                withAnimation { editMessage = nil }
+            })
+        }
+
+        return actions
     }
 }

@@ -32,19 +32,18 @@ struct ChatView: View {
     @FocusState private var isFocusedInput: Bool
 
     private var modelMenuActions: [QuillMenuAction] {
-        if modelsList.isEmpty {
-            return [
-                QuillMenuAction(title: "No models available", isDisabled: true) {}
-            ]
-        }
-
-        return modelsList.map { model in
-            let title = model.prettyVersion.isEmpty ? model.prettyName : "\(model.prettyName) \(model.prettyVersion)"
-            let icon = selectedModel?.name == model.name ? "checkmark" : nil
-            return QuillMenuAction(id: model.name, title: title, systemImage: icon) {
+        QuillMenuAction.selectableItems(
+            modelsList,
+            selectedID: selectedModel?.name,
+            emptyTitle: "No models available",
+            id: { $0.name },
+            title: { model in
+                model.prettyVersion.isEmpty ? model.prettyName : "\(model.prettyName) \(model.prettyVersion)"
+            },
+            onSelect: { model in
                 onSelectModel(model)
             }
-        }
+        )
     }
 
     private var optionsMenuActions: [QuillMenuAction] {

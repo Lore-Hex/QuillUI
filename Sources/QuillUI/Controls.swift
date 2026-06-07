@@ -3,6 +3,7 @@
 // QuillSystemSymbol, etc.) invisible on macOS even though the inner
 // branches looked correct.
 import Foundation
+import Dispatch
 import QuillPaint
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
@@ -68,6 +69,33 @@ public struct QuillPrompt: Identifiable, Hashable, Sendable {
         self.title = title
         self.systemImage = systemImage
     }
+}
+
+public struct QuillPromptGridLayout: Equatable, Sendable {
+    public var columns: Int
+    public var cardWidth: CGFloat
+    public var cardHeight: CGFloat
+    public var spacing: Int
+
+    public init(
+        columns: Int = 4,
+        cardWidth: CGFloat = 155,
+        cardHeight: CGFloat = 128,
+        spacing: Int = 15
+    ) {
+        self.columns = max(1, columns)
+        self.cardWidth = cardWidth
+        self.cardHeight = cardHeight
+        self.spacing = spacing
+    }
+
+    public static let compactCards = QuillPromptGridLayout()
+    public static let wideDesktopCards = QuillPromptGridLayout(
+        columns: 4,
+        cardWidth: 302,
+        cardHeight: 128,
+        spacing: 15
+    )
 }
 
 private extension String {
@@ -185,18 +213,35 @@ public struct QuillPromptGrid: View {
 
     public init(
         prompts: [QuillPrompt],
+        layout: QuillPromptGridLayout,
+        action: @escaping (QuillPrompt) -> Void
+    ) {
+        self.prompts = prompts
+        self.columns = layout.columns
+        self.cardWidth = layout.cardWidth
+        self.cardHeight = layout.cardHeight
+        self.spacing = layout.spacing
+        self.action = action
+    }
+
+    public init(
+        prompts: [QuillPrompt],
         columns: Int = 4,
         cardWidth: CGFloat = 155,
         cardHeight: CGFloat = 128,
         spacing: Int = 15,
         action: @escaping (QuillPrompt) -> Void
     ) {
-        self.prompts = prompts
-        self.columns = max(1, columns)
-        self.cardWidth = cardWidth
-        self.cardHeight = cardHeight
-        self.spacing = spacing
-        self.action = action
+        self.init(
+            prompts: prompts,
+            layout: QuillPromptGridLayout(
+                columns: columns,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight,
+                spacing: spacing
+            ),
+            action: action
+        )
     }
 
     public var body: some View {
@@ -1009,6 +1054,62 @@ public struct QuillStatusBanner: View {
     #endif
 }
 
+public struct QuillSheetStatusBanner<SheetContent: View>: View {
+    public var message: String
+    public var actionTitle: String
+    public var showsActivity: Bool
+    public var horizontalPadding: CGFloat
+    public var topPadding: CGFloat
+    public var bottomPadding: CGFloat
+    private var sheetContent: () -> SheetContent
+
+    @State private var isPresented = false
+
+    public init(
+        message: String,
+        actionTitle: String,
+        showsActivity: Bool = false,
+        horizontalPadding: CGFloat = 0,
+        topPadding: CGFloat = 0,
+        bottomPadding: CGFloat = 0,
+        @ViewBuilder sheet: @escaping () -> SheetContent
+    ) {
+        self.message = message
+        self.actionTitle = actionTitle
+        self.showsActivity = showsActivity
+        self.horizontalPadding = horizontalPadding
+        self.topPadding = topPadding
+        self.bottomPadding = bottomPadding
+        self.sheetContent = sheet
+    }
+
+    public var body: some View {
+        QuillStatusBanner(
+            message: message,
+            actionTitle: actionTitle,
+            showsActivity: showsActivity
+        ) {
+            isPresented.toggle()
+        }
+        .padding(.horizontal, resolvedHorizontalPadding)
+        .padding(.top, resolvedTopPadding)
+        .padding(.bottom, resolvedBottomPadding)
+        .sheet(isPresented: $isPresented) {
+            sheetContent()
+        }
+    }
+
+    #if os(macOS) || os(iOS) || os(visionOS)
+    private var resolvedHorizontalPadding: CGFloat { horizontalPadding }
+    private var resolvedTopPadding: CGFloat { topPadding }
+    private var resolvedBottomPadding: CGFloat { bottomPadding }
+    #else
+    private var resolvedHorizontalPadding: Int { Int(horizontalPadding.rounded()) }
+    private var resolvedTopPadding: Int { Int(topPadding.rounded()) }
+    private var resolvedBottomPadding: Int { Int(bottomPadding.rounded()) }
+    #endif
+}
+
 public struct QuillMacWindowControls: View {
     public init() {}
 
@@ -1061,19 +1162,38 @@ public struct QuillChatEmptyState: View {
     public init(
         brandTitle: String = "Quill",
         prompts: [QuillPrompt],
+        layout: QuillPromptGridLayout,
+        action: @escaping (QuillPrompt) -> Void
+    ) {
+        self.brandTitle = brandTitle
+        self.prompts = prompts
+        self.columns = layout.columns
+        self.cardWidth = layout.cardWidth
+        self.cardHeight = layout.cardHeight
+        self.spacing = layout.spacing
+        self.action = action
+    }
+
+    public init(
+        brandTitle: String = "Quill",
+        prompts: [QuillPrompt],
         columns: Int = 4,
         cardWidth: CGFloat = 155,
         cardHeight: CGFloat = 128,
         spacing: Int = 15,
         action: @escaping (QuillPrompt) -> Void
     ) {
-        self.brandTitle = brandTitle
-        self.prompts = prompts
-        self.columns = max(1, columns)
-        self.cardWidth = cardWidth
-        self.cardHeight = cardHeight
-        self.spacing = spacing
-        self.action = action
+        self.init(
+            brandTitle: brandTitle,
+            prompts: prompts,
+            layout: QuillPromptGridLayout(
+                columns: columns,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight,
+                spacing: spacing
+            ),
+            action: action
+        )
     }
 
     public var body: some View {
@@ -1360,6 +1480,115 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     #else
     private var resolvedToolbarHeight: CGFloat { toolbarHeight }
     #endif
+}
+
+public struct QuillMessageList<Message: Identifiable & Hashable, RowContent: View, OverlayContent: View>: View
+where Message.ID: Hashable {
+    public var messages: [Message]
+    public var scrollToken: AnyHashable
+    public var rowVerticalPadding: CGFloat
+    public var rowHorizontalPadding: CGFloat
+    private var actions: (Message) -> [QuillMenuAction]
+    private var rowContent: (Message) -> RowContent
+    private var overlayContent: () -> OverlayContent
+
+    public init(
+        messages: [Message],
+        scrollToken: AnyHashable? = nil,
+        rowVerticalPadding: CGFloat = 10,
+        rowHorizontalPadding: CGFloat = 10,
+        actions: @escaping (Message) -> [QuillMenuAction] = { _ in [] },
+        @ViewBuilder row: @escaping (Message) -> RowContent,
+        @ViewBuilder overlay: @escaping () -> OverlayContent
+    ) {
+        self.messages = messages
+        self.scrollToken = scrollToken ?? Self.defaultScrollToken(for: messages)
+        self.rowVerticalPadding = rowVerticalPadding
+        self.rowHorizontalPadding = rowHorizontalPadding
+        self.actions = actions
+        self.rowContent = row
+        self.overlayContent = overlay
+    }
+
+    public var body: some View {
+        ZStack(alignment: .top) {
+            ScrollViewReader { scrollViewProxy in
+                ScrollView {
+                    VStack {
+                        ForEach(messages) { message in
+                            rowContent(message)
+                                .listRowInsets(EdgeInsets())
+                                .listRowSeparator(.hidden)
+                                .padding(.vertical, rowVerticalPadding)
+                                .padding(.horizontal, rowHorizontalPadding)
+                                .contentShape(Rectangle())
+                                .contextMenu {
+                                    ForEach(actions(message)) { action in
+                                        contextMenuItem(for: action)
+                                    }
+                                }
+                                .id(message)
+                        }
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id(Self.bottomSentinelID)
+                    }
+                }
+                .onAppear {
+                    scrollToBottom(scrollViewProxy)
+                }
+                .onChange(of: scrollToken) { _, _ in
+                    scrollToBottom(scrollViewProxy)
+                }
+            }
+
+            overlayContent()
+        }
+    }
+
+    private static var bottomSentinelID: String { "quill-message-list-bottom" }
+
+    private static func defaultScrollToken(for messages: [Message]) -> AnyHashable {
+        AnyHashable(messages.map { AnyHashable($0.id) })
+    }
+
+    @ViewBuilder
+    private func contextMenuItem(for action: QuillMenuAction) -> some View {
+        switch action.kind {
+        case .divider:
+            Divider()
+        case .item:
+            Button(action: { action.perform() }) {
+                if let systemImage = action.systemImage {
+                    Label(action.title, systemImage: QuillSystemSymbol.compatibleName(systemImage))
+                } else {
+                    Text(action.title)
+                }
+            }
+            .disabled(action.isDisabled)
+        }
+    }
+
+    private func scrollToBottom(_ scrollViewProxy: ScrollViewProxy) {
+        #if os(Linux)
+        scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        let deferredProxy = QuillUncheckedSendableScrollViewProxy(proxy: scrollViewProxy)
+        DispatchQueue.main.async {
+            deferredProxy.proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        }
+        #else
+        if let last = messages.last {
+            scrollViewProxy.scrollTo(last, anchor: .bottom)
+        } else {
+            scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        }
+        #endif
+    }
+}
+
+private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable {
+    var proxy: ScrollViewProxy
 }
 
 public struct QuillDesktopChatScaffold<
@@ -1699,6 +1928,35 @@ public struct QuillMenuAction: Identifiable {
         var action = QuillMenuAction(id: id, title: "", action: {})
         action.kind = .divider
         return action
+    }
+
+    public static func disabled(id: String? = nil, title: String) -> QuillMenuAction {
+        QuillMenuAction(id: id, title: title, isDisabled: true) {}
+    }
+
+    public static func selectableItems<Item, SelectionID: Hashable>(
+        _ items: [Item],
+        selectedID: SelectionID?,
+        emptyTitle: String? = nil,
+        selectedSystemImage: String = "checkmark",
+        id: @escaping (Item) -> SelectionID,
+        title: @escaping (Item) -> String,
+        onSelect: @escaping (Item) -> Void
+    ) -> [QuillMenuAction] {
+        guard !items.isEmpty else {
+            return emptyTitle.map { [QuillMenuAction.disabled(title: $0)] } ?? []
+        }
+
+        return items.map { item in
+            let itemID = id(item)
+            return QuillMenuAction(
+                id: String(describing: itemID),
+                title: title(item),
+                systemImage: selectedID == itemID ? selectedSystemImage : nil
+            ) {
+                onSelect(item)
+            }
+        }
     }
 
     public func perform() {

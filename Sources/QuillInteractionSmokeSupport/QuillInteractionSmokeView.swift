@@ -231,24 +231,19 @@ private struct SidebarSheetSmoke: View {
 }
 
 private struct BannerSheetSmoke: View {
-    @State private var isPresented = false
-
     var body: some View {
-        QuillStatusBanner(
+        QuillSheetStatusBanner(
             message: "Banner sheet closed",
             actionTitle: "Settings"
         ) {
-            isPresented.toggle()
-        }
-        .frame(width: 520, alignment: .leading)
-        .sheet(isPresented: $isPresented) {
             SmokeSheetContent(
                 title: "Banner Sheet Open",
-                message: "A Quill status banner action presented this sheet from @State.",
+                message: "A Quill sheet status banner presented this sheet.",
                 width: 420,
                 height: 200
             )
         }
+        .frame(width: 520, alignment: .leading)
     }
 }
 

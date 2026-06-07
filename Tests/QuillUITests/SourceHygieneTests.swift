@@ -554,6 +554,57 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Apple service aliases live in reusable compatibility modules")
+    func appleServiceAliasesLiveInReusableCompatibilityModules() throws {
+        let root = try packageRoot()
+        let quillKit = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillKit/QuillKit.swift"),
+            encoding: .utf8
+        )
+        let quillShims = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillShims/QuillShims.swift"),
+            encoding: .utf8
+        )
+        let swiftUILowering = try String(
+            contentsOf: root.appendingPathComponent("scripts/lower-swiftui-source-for-linux.sh"),
+            encoding: .utf8
+        )
+        let coreGraphics = try String(
+            contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
+            encoding: .utf8
+        )
+        let profileAliases = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift"),
+            encoding: .utf8
+        )
+
+        for alias in [
+            "public typealias Accessibility = QuillAccessibilityService",
+            "public typealias Clipboard = QuillClipboard",
+            "public typealias KeyBase = QuillKeyBase",
+            "public typealias HotkeyCombination = QuillHotkeyCombination",
+            "public typealias FloatingPanel = QuillFloatingPanel",
+            "public typealias PanelManager = QuillPanelManager",
+            "public typealias QuillUpdater = QuillUpdateService",
+            "public typealias QuillUSBWatcher = QuillDeviceWatcher",
+            "public typealias HotkeyService = QuillHotkeyService"
+        ] {
+            #expect(quillKit.contains(alias))
+            #expect(!profileAliases.contains(alias.replacingOccurrences(of: "public ", with: "")))
+        }
+        #expect(quillShims.contains("@_exported import QuillKit"))
+        #expect(quillShims.contains("@_exported import CoreGraphics"))
+        #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
+        #expect(quillKit.contains("quill-pasteboard"))
+        #expect(quillKit.contains("Apple.NSGeneralPboard"))
+        #expect(quillKit.contains("writeFileBackedPasteboardString(string, forType: type)"))
+        #expect(coreGraphics.contains("static let kVK_ANSI_V: CGKeyCode = 0x09"))
+        #expect(!profileAliases.contains("typealias CGKeyCode = UInt16"))
+        #expect(!profileAliases.contains("static let kVK_ANSI_V"))
+        #expect(profileAliases.contains("typealias CheckForUpdatesMenuItem = QuillCheckForUpdatesMenuItem"))
+        #expect(profileAliases.contains("enum QuillUSBLauncher"))
+    }
+
     @Test("Linux controls read backend-scoped reference environment")
     func linuxControlsReadBackendScopedReferenceEnvironment() throws {
         let root = try packageRoot()
@@ -1503,6 +1554,7 @@ struct SourceHygieneTests {
         let smokeLib = try packageSource("scripts/quillui-linux-backend-smoke-lib.sh")
         let backendProducts = try packageSource("scripts/quillui-backend-products.sh")
         let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
+        let interactionModeRunner = try packageSource("scripts/run-linux-backend-interaction-modes.sh")
         let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
         let legacyScreenshotVerifier = try packageSource("scripts/verify-gtk-screenshot.py")
         let legacyGtkScript = try packageSource("scripts/linux-gtk-interaction-check.sh")
@@ -1522,6 +1574,8 @@ struct SourceHygieneTests {
         #expect(sharedView.contains("native backend button click"))
         #expect(sharedView.contains("private struct SmokeSheetContent"))
         #expect(sharedView.contains("SmokeSheetContent("))
+        #expect(sharedView.contains("QuillSheetStatusBanner("))
+        #expect(sharedView.contains("A Quill sheet status banner presented this sheet."))
         #expect(backendCore.contains("static var status: QuillBackendRuntimeStatus"))
         #expect(backendCore.contains("QuillBackendRegistry.runtimeStatus(preferred: identifier)"))
         #expect(backendCore.contains("public static func runtimeStatus("))
@@ -2005,6 +2059,8 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
         #expect(screenshotVerifier.contains("product == \"quill-enchanted-qt\""))
         #expect(screenshotVerifier.contains("product == \"quill-enchanted-qt-list-selection\""))
+        #expect(screenshotVerifier.contains("def generic_gtk_card_pixel"))
+        #expect(screenshotVerifier.contains("return generic_qt_card_pixel(rgb) or prompt_card_pixel(rgb)"))
         #expect(screenshotVerifier.contains("ENCHANTED_LINUX_SNAPSHOT_VALIDATORS"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt\": validate_quill_enchanted_linux_qt_snapshot"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt-selected-chat\": validate_quill_enchanted_linux_qt_selected_chat"))
@@ -2052,6 +2108,8 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("Quill WireGuard GTK {scenario}"))
         #expect(screenshotVerifier.contains("validate_quill_wireguard_gtk_native"))
         #expect(screenshotVerifier.contains("validate_quill_wireguard_gtk_import"))
+        #expect(screenshotVerifier.contains("divider_min_x = left + int(app_width * 0.24)"))
+        #expect(screenshotVerifier.contains("divider_max_x = left + int(app_width * 0.58)"))
         #expect(screenshotVerifier.contains("Quill WireGuard {backend.upper()} import error"))
         #expect(screenshotVerifier.contains("validate_quill_wireguard_import_error"))
         #expect(screenshotVerifier.contains("wireguard_error_text_pixel"))
@@ -2107,6 +2165,12 @@ struct SourceHygieneTests {
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
         #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$requested_backend\""))
         #expect(smokeMatrixRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$RUNTIME_MATRIX_COMMAND\""))
+        #expect(interactionModeRunner.contains("Usage: run-linux-backend-interaction-modes.sh OUTPUT_TEMPLATE PRODUCT BACKEND MODE..."))
+        #expect(interactionModeRunner.contains("QUILLUI_BACKEND_INTERACTION_MODE_TIMEOUT"))
+        #expect(interactionModeRunner.contains("timeout --kill-after=\"$MODE_KILL_AFTER\" \"$MODE_TIMEOUT\""))
+        #expect(interactionModeRunner.contains("QUILLUI_BACKEND_INTERACTION_MODE=\"$mode\""))
+        #expect(interactionModeRunner.contains("QUILLUI_BACKEND_INTERACTION_APP_LOG=\"$app_log_path\""))
+        #expect(interactionModeRunner.contains("OUTPUT_TEMPLATE must include {mode}"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
@@ -2350,6 +2414,12 @@ struct SourceHygieneTests {
         }
 
         let promptGrid = String(controls[gridStart.lowerBound..<nextSection.lowerBound])
+        #expect(controls.contains("public struct QuillPromptGridLayout: Equatable, Sendable"))
+        #expect(controls.contains("public static let compactCards = QuillPromptGridLayout()"))
+        #expect(controls.contains("public static let wideDesktopCards = QuillPromptGridLayout("))
+        #expect(promptGrid.contains("layout: QuillPromptGridLayout"))
+        #expect(promptGrid.contains("self.columns = layout.columns"))
+        #expect(promptGrid.contains("self.init(\n            prompts: prompts,\n            layout: QuillPromptGridLayout("))
         #expect(promptGrid.contains("LazyVGrid(columns: gridColumns, alignment: .leading, spacing: gridSpacing)"))
         #expect(promptGrid.contains("Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columns)"))
         #expect(promptGrid.contains("ForEach(prompts)"))
@@ -2376,6 +2446,15 @@ struct SourceHygieneTests {
         #expect(controls.contains("Color.clear\n                .frame(width: 48, height: 1)"))
         #expect(controls.contains(".font(.system(size: 16, weight: .regular))"))
         #expect(controls.contains("public struct QuillDesktopChatScaffold<"))
+        #expect(controls.contains("public struct QuillMessageList<"))
+        #expect(controls.contains("public var scrollToken: AnyHashable"))
+        #expect(controls.contains("private static var bottomSentinelID: String"))
+        #expect(controls.contains("ScrollViewReader { scrollViewProxy in"))
+        #expect(controls.contains("ForEach(actions(message))"))
+        #expect(controls.contains("contextMenuItem(for: action)"))
+        #expect(controls.contains("QuillUncheckedSendableScrollViewProxy(proxy: scrollViewProxy)"))
+        #expect(controls.contains("private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable"))
+        #expect(controls.contains("DispatchQueue.main.async"))
         #expect(controls.contains("public var composerMaxWidth: CGFloat"))
         #expect(controls.contains("public var composerHorizontalPadding: CGFloat"))
         #expect(controls.contains("public var composerVerticalPadding: CGFloat"))
@@ -2390,6 +2469,11 @@ struct SourceHygieneTests {
         #expect(controls.contains("public var modelActions: [QuillMenuAction]"))
         #expect(controls.contains("public var optionsActions: [QuillMenuAction]"))
         #expect(controls.contains("QuillToolbarIconButton(systemImage: \"square.and.pencil\", action: onNewConversation)"))
+        #expect(controls.contains("layout: QuillPromptGridLayout"))
+        #expect(controls.contains("self.init(\n            brandTitle: brandTitle,\n            prompts: prompts,\n            layout: QuillPromptGridLayout("))
+        #expect(controls.contains("public static func selectableItems<Item, SelectionID: Hashable>"))
+        #expect(controls.contains("return emptyTitle.map { [QuillMenuAction.disabled(title: $0)] } ?? []"))
+        #expect(controls.contains("systemImage: selectedID == itemID ? selectedSystemImage : nil"))
         #expect(controls.contains(".background(QuillDesktopChromeStyle.sidebarBackground)"))
         #expect(controls.contains(".background(QuillDesktopChromeStyle.detailBackground)"))
         #expect(controls.contains("public static var promptCardBackground: Color"))
@@ -2413,6 +2497,12 @@ struct SourceHygieneTests {
         #expect(toolbar.contains("struct QuillGTKToolbarIconButton: View, PrimitiveView, GTKRenderable"))
         #expect(toolbar.contains("gtk_swift_menu_button_set_always_show_arrow(button, 0)"))
         #expect(toolbar.contains("gtk_swift_menu_button_set_child(button, makeToolbarGlyphChild("))
+        #expect(toolbar.contains("gtk_swift_widget_insert_action_group(button, \"menu\", gpointer(actionGroup))"))
+        #expect(toolbar.contains("gtk_swift_widget_insert_action_group(popover, \"menu\", gpointer(actionGroup))"))
+        #expect(toolbar.contains("QUILLUI_GTK_TOOLBAR_ACTION_COMMAND_DIR"))
+        #expect(toolbar.contains("actionsByTitle[action.title] = box"))
+        #expect(toolbar.contains("g_timeout_add(100, { userData -> gboolean in"))
+        #expect(toolbar.contains("String(contentsOf: commandURL, encoding: .utf8)"))
         #expect(toolbar.contains("gtk_box_append(toolbarBoxPointer(box), makeToolbarGlyphLabel(glyph))"))
         #expect(toolbar.contains("private func toolbarBoxPointer"))
         #expect(!toolbar.contains("boxPointer(box)"))
@@ -2540,6 +2630,10 @@ struct SourceHygieneTests {
         #expect(controls.contains(".padding(.horizontal, 18)"))
         #expect(controls.contains(".padding(.top, 88)"))
         #expect(controls.contains(".padding(.bottom, 18)"))
+        #expect(controls.contains("public struct QuillSheetStatusBanner<SheetContent: View>: View"))
+        #expect(controls.contains("@State private var isPresented = false"))
+        #expect(controls.contains(".sheet(isPresented: $isPresented)"))
+        #expect(controls.contains("private var resolvedHorizontalPadding: Int { Int(horizontalPadding.rounded()) }"))
 
         guard let buttonStart = controls.range(of: "public struct QuillSidebarNavigationButton: View"),
               let nextSection = controls.range(of: "public struct QuillStatusBanner: View") else {

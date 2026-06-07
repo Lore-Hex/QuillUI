@@ -53,6 +53,92 @@ struct QuillUITests {
         _ = QuillAppWindow.self
     }
 
+    // MARK: - QuillPromptGridLayout
+
+    @Test("QuillPromptGridLayout exposes reusable desktop prompt presets")
+    func quillPromptGridLayoutPresets() {
+        let clamped = QuillPromptGridLayout(columns: 0, cardWidth: 120, cardHeight: 80, spacing: 6)
+        #expect(clamped.columns == 1)
+        #expect(clamped.cardWidth == 120)
+        #expect(clamped.cardHeight == 80)
+        #expect(clamped.spacing == 6)
+
+        #expect(QuillPromptGridLayout.compactCards == QuillPromptGridLayout())
+        #expect(QuillPromptGridLayout.wideDesktopCards.columns == 4)
+        #expect(QuillPromptGridLayout.wideDesktopCards.cardWidth == 302)
+        #expect(QuillPromptGridLayout.wideDesktopCards.cardHeight == 128)
+        #expect(QuillPromptGridLayout.wideDesktopCards.spacing == 15)
+    }
+
+    // MARK: - QuillMenuAction helpers
+
+    @Test("QuillMenuAction builds disabled and selectable menu rows")
+    func quillMenuActionSelectableItems() {
+        struct MenuItem {
+            var id: String
+            var title: String
+        }
+
+        var selectedTitle: String?
+        let items = [
+            MenuItem(id: "a", title: "Alpha"),
+            MenuItem(id: "b", title: "Beta")
+        ]
+        let actions = QuillMenuAction.selectableItems(
+            items,
+            selectedID: "b",
+            emptyTitle: "No items",
+            id: { $0.id },
+            title: { $0.title },
+            onSelect: { selectedTitle = $0.title }
+        )
+
+        #expect(actions.map(\.id) == ["a", "b"])
+        #expect(actions.map(\.title) == ["Alpha", "Beta"])
+        #expect(actions.map(\.systemImage) == [nil, "checkmark"])
+        #expect(actions.allSatisfy { !$0.isDisabled })
+
+        actions[0].perform()
+        #expect(selectedTitle == "Alpha")
+
+        selectedTitle = nil
+        let emptyActions = QuillMenuAction.selectableItems(
+            [MenuItem](),
+            selectedID: Optional<String>.none,
+            emptyTitle: "No items",
+            id: { $0.id },
+            title: { $0.title },
+            onSelect: { selectedTitle = $0.title }
+        )
+
+        #expect(emptyActions.count == 1)
+        #expect(emptyActions.first?.title == "No items")
+        #expect(emptyActions.first?.isDisabled == true)
+        emptyActions.first?.perform()
+        #expect(selectedTitle == nil)
+    }
+
+    @Test("QuillSheetStatusBanner exposes reusable sheet-backed status state")
+    func quillSheetStatusBannerStoresConfiguration() {
+        let banner = QuillSheetStatusBanner(
+            message: "Offline",
+            actionTitle: "Settings",
+            showsActivity: true,
+            horizontalPadding: 28,
+            topPadding: 10,
+            bottomPadding: 74
+        ) {
+            QuillStatusBanner(message: "Settings")
+        }
+
+        #expect(banner.message == "Offline")
+        #expect(banner.actionTitle == "Settings")
+        #expect(banner.showsActivity == true)
+        #expect(banner.horizontalPadding == 28)
+        #expect(banner.topPadding == 10)
+        #expect(banner.bottomPadding == 74)
+    }
+
     // MARK: - Backend registry
 
     @Test("Backend registry exposes SwiftUI GTK and Qt")

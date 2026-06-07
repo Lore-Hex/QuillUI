@@ -661,6 +661,9 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("copy_quill_chat_transcript()"))
         #expect(interactionScript.contains("select_quill_chat_markdown_transcript()"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_CLIPBOARD_RUNTIME_DIR"))
+        #expect(interactionScript.contains("QUILLUI_GTK_TOOLBAR_ACTION_COMMAND_DIR=$quill_gtk_toolbar_action_command_dir"))
+        #expect(interactionScript.contains("! -s \"$clipboard_file\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"$action_title\" > \"$quill_gtk_toolbar_action_command_dir/command-$(date +%s%N)-$$\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_Y"))
         #expect(interactionScript.contains("Copy Chat pasteboard text verified"))
         #expect(interactionScript.contains("Copy Chat as JSON pasteboard text verified"))
@@ -804,7 +807,7 @@ struct QuillDataSourceLoweringTests {
         #expect(parityWorkflow.contains("transcript-selection"))
         #expect(parityWorkflow.contains("markdown-transcript-selection"))
         #expect(parityWorkflow.contains("long-transcript-selection"))
-        #expect(parityWorkflow.contains(".qa/quill-chat-linux-mac-reference-${mode}-gtk.png"))
+        #expect(parityWorkflow.contains(".qa/quill-chat-linux-mac-reference-{mode}-gtk.png"))
         #expect(parityWorkflow.contains("Package real-source GTK release artifact"))
         #expect(parityWorkflow.contains("scripts/package-swiftui-linux-app.sh"))
         #expect(parityWorkflow.contains("--artifact-dir .build/releases/quill-chat-linux-gtk"))
@@ -825,6 +828,11 @@ struct QuillDataSourceLoweringTests {
         #expect(parityWorkflow.contains("echo \"QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run\" >> \"$GITHUB_ENV\""))
         #expect(parityWorkflow.contains(".qa/quill-chat-linux-release-artifact-gtk.png"))
         #expect(parityWorkflow.contains(".qa/quill-chat-linux-release-artifact-new-chat-gtk.png"))
+        #expect(parityWorkflow.contains("scripts/run-linux-backend-interaction-modes.sh"))
+        #expect(parityWorkflow.contains("QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE: \".qa/quill-chat-linux-interaction-{mode}.log\""))
+        #expect(parityWorkflow.contains("QUILLUI_BACKEND_INTERACTION_MODE_TIMEOUT: \"120s\""))
+        #expect(parityWorkflow.contains(".qa/quill-chat-linux-mac-reference-{mode}-gtk.png"))
+        #expect(!parityWorkflow.contains("for mode in \\"))
         #expect(parityWorkflow.contains("Run live composer-send and relaunch functional verifier"))
         #expect(parityWorkflow.contains("scripts/quill-chat-functional-check.sh"))
         #expect(parityWorkflow.contains(".qa/quill-chat-linux-functional-composer-send-gtk.png"))
@@ -927,8 +935,12 @@ struct QuillDataSourceLoweringTests {
         #expect(chatViewTemplate.contains("hasSelection: selectedConversation != nil"))
         #expect(chatViewTemplate.contains("showsStatus: !reachable"))
         #expect(chatViewTemplate.contains("QuillDesktopChatToolbar("))
+        #expect(chatViewTemplate.contains("QuillMenuAction.selectableItems("))
+        #expect(chatViewTemplate.contains("emptyTitle: \"No models available\""))
+        #expect(chatViewTemplate.contains("selectedID: selectedModel?.name"))
         #expect(chatViewTemplate.contains("EmptyConversaitonView(sendPrompt: sendPrompt)"))
         #expect(chatViewTemplate.contains("private func sendPrompt(_ selectedMessage: String)"))
+        #expect(!chatViewTemplate.contains("modelsList.map { model in"))
         #expect(!chatViewTemplate.contains("QuillDesktopSplitLayout("))
         #expect(!chatViewTemplate.contains("VStack(alignment: .center, spacing: 0)"))
         #expect(!chatViewTemplate.contains(".frame(width: 800)"))
@@ -952,6 +964,9 @@ struct QuillDataSourceLoweringTests {
         #expect(emptyConversationTemplate.contains("\"Write a text message asking a friend to be my plus-one at a wedding\""))
         #expect(emptyConversationTemplate.contains("SamplePrompts.samples.first { $0.prompt == title }"))
         #expect(emptyConversationTemplate.contains(": Array(SamplePrompts.samples.prefix(4))"))
+        #expect(emptyConversationTemplate.contains("layout: .wideDesktopCards"))
+        #expect(!emptyConversationTemplate.contains("cardWidth: 302"))
+        #expect(!emptyConversationTemplate.contains("Genuine macOS Enchanted shows"))
 
         let sidebarTemplate = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift"),
@@ -990,12 +1005,17 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/MessageListVIew.swift"),
             encoding: .utf8
         )
-        #expect(messageListTemplate.contains("private let quillMessageListBottomID"))
-        #expect(messageListTemplate.contains(".id(quillMessageListBottomID)"))
-        #expect(messageListTemplate.contains("scrollViewProxy.scrollTo(quillMessageListBottomID, anchor: .bottom)"))
-        #expect(messageListTemplate.contains("DispatchQueue.main.async"))
-        #expect(messageListTemplate.contains(".onChange(of: messages.map(\\.id))"))
-        #expect(messageListTemplate.contains("#if os(Linux)"))
+        #expect(messageListTemplate.contains("QuillMessageList("))
+        #expect(messageListTemplate.contains("scrollToken: scrollToken"))
+        #expect(messageListTemplate.contains("actions: contextMenuActions"))
+        #expect(messageListTemplate.contains("private var scrollToken: AnyHashable"))
+        #expect(messageListTemplate.contains("messages.map(\\.id).map(\\.uuidString).joined(separator: \"|\")"))
+        #expect(messageListTemplate.contains("private func contextMenuActions(for message: MessageSD) -> [QuillMenuAction]"))
+        #expect(messageListTemplate.contains("QuillMenuAction(title: \"Copy\", systemImage: \"doc.on.doc\")"))
+        #expect(!messageListTemplate.contains("private let quillMessageListBottomID"))
+        #expect(!messageListTemplate.contains("ScrollViewReader"))
+        #expect(!messageListTemplate.contains("DispatchQueue.main.async"))
+        #expect(!messageListTemplate.contains(".onChange(of: messages.map(\\.id))"))
 
         let unreachableRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/UnreachableAPIView.swift.pl"),
@@ -1003,6 +1023,16 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(unreachableRule.contains("Quill is unreachable"))
         #expect(unreachableRule.contains("update your Quill API endpoint"))
+
+        let unreachableTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/UnreachableAPIView.swift"),
+            encoding: .utf8
+        )
+        #expect(unreachableTemplate.contains("QuillSheetStatusBanner("))
+        #expect(unreachableTemplate.contains("horizontalPadding: 28"))
+        #expect(unreachableTemplate.contains("bottomPadding: 74"))
+        #expect(!unreachableTemplate.contains("@State var showSettings"))
+        #expect(!unreachableTemplate.contains(".sheet(isPresented: $showSettings)"))
 
         let conversationStoreRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/ConversationStore.swift.pl"),
@@ -1089,6 +1119,8 @@ struct QuillDataSourceLoweringTests {
         }
 
         let lowered = try String(contentsOf: source, encoding: .utf8)
+        #expect(lowered.contains("import QuillShims"))
+        #expect(lowered.components(separatedBy: "import QuillShims").count == 2)
         #expect(lowered.contains("#if (os(macOS) || os(Linux)) && canImport(AppKit)"))
         #expect(lowered.contains("#elseif !os(macOS) && canImport(UIKit)"))
         #expect(lowered.contains("#if os(macOS) || os(Linux)"))

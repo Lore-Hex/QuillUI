@@ -21,6 +21,15 @@ fi
 
 "$(dirname "$0")/lower-observable-for-swiftopenui.py" "$SOURCE_DIR"
 
+swift_files=()
+while IFS= read -r -d '' source_file; do
+  swift_files+=("${source_file#$SOURCE_DIR/}")
+done < <(find "$SOURCE_DIR" -name '*.swift' -print0)
+
+if (( ${#swift_files[@]} > 0 )); then
+  "$(dirname "$0")/ensure-swift-imports.sh" "$SOURCE_DIR" QuillShims "${swift_files[@]}"
+fi
+
 find "$SOURCE_DIR" -name '*.swift' -print0 |
   xargs -0 perl -0pi -e '
     s/^[ \t]*\@main[ \t]*\n//gm;
