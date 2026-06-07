@@ -15,14 +15,7 @@ struct SidebarView: View {
     var onNewConversationTap: () -> () = {}
     @State var showSettings = false
     @State var showCompletions = false
-    @State var showKeyboardShortcutas = false
-
-    private func onSettingsTap() {
-        Task {
-            showSettings.toggle()
-            Haptics.shared.mediumTap()
-        }
-    }
+    @State var showKeyboardShortcuts = false
 
     var body: some View {
         QuillDesktopSidebar(bottomActions: bottomActions) {
@@ -34,27 +27,26 @@ struct SidebarView: View {
                 onDeleteDailyConversations: onDeleteDailyConversations
             )
         }
-#if (os(macOS) || os(Linux))
-        .focusedSceneValue(\.showSettings, $showSettings)
-#endif
-        .sheet(isPresented: $showSettings) {
+        .quillDesktopChatUtilitySheets(
+            showSettings: $showSettings,
+            showCompletions: $showCompletions,
+            showShortcuts: $showKeyboardShortcuts,
+            settingsFocusedValue: \.showSettings
+        ) {
             Settings()
-        }
-#if (os(macOS) || os(Linux))
-        .sheet(isPresented: $showCompletions) {
+        } completions: {
             CompletionsEditor()
-        }
-        .sheet(isPresented: $showKeyboardShortcutas) {
+        } shortcuts: {
             KeyboardShortcutsDemo()
         }
-#endif
     }
 
     private var bottomActions: [QuillSidebarNavigationAction] {
-        QuillSidebarNavigationAction.desktopChatUtilities(
-            onCompletions: { showCompletions.toggle() },
-            onShortcuts: { showKeyboardShortcutas.toggle() },
-            onSettings: onSettingsTap
+        QuillSidebarNavigationAction.desktopChatUtilityToggles(
+            showCompletions: $showCompletions,
+            showShortcuts: $showKeyboardShortcuts,
+            showSettings: $showSettings,
+            onSettings: { Task { Haptics.shared.mediumTap() } }
         )
     }
 }

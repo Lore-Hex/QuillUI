@@ -845,6 +845,22 @@ public struct QuillSidebarNavigationAction: Identifiable {
         ]
         #endif
     }
+
+    public static func desktopChatUtilityToggles(
+        showCompletions: Binding<Bool>,
+        showShortcuts: Binding<Bool>,
+        showSettings: Binding<Bool>,
+        onSettings: @escaping () -> Void = {}
+    ) -> [QuillSidebarNavigationAction] {
+        desktopChatUtilities(
+            onCompletions: { showCompletions.wrappedValue.toggle() },
+            onShortcuts: { showShortcuts.wrappedValue.toggle() },
+            onSettings: {
+                showSettings.wrappedValue.toggle()
+                onSettings()
+            }
+        )
+    }
 }
 
 public struct QuillSidebarBottomNavigation: View {
@@ -893,6 +909,55 @@ public struct QuillDesktopSidebar<Content: View>: View {
         .padding(.horizontal, 18)
         .padding(.top, 88)
         .padding(.bottom, 18)
+    }
+}
+
+public extension View {
+    @ViewBuilder
+    func quillDesktopChatUtilitySheets<
+        SettingsContent: View,
+        CompletionsContent: View,
+        ShortcutsContent: View
+    >(
+        showSettings: Binding<Bool>,
+        showCompletions: Binding<Bool>,
+        showShortcuts: Binding<Bool>,
+        settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>? = nil,
+        @ViewBuilder settings: @escaping () -> SettingsContent,
+        @ViewBuilder completions: @escaping () -> CompletionsContent,
+        @ViewBuilder shortcuts: @escaping () -> ShortcutsContent
+    ) -> some View {
+        #if os(macOS) || os(Linux)
+        if let settingsFocusedValue {
+            self
+                .focusedSceneValue(settingsFocusedValue, showSettings)
+                .sheet(isPresented: showSettings) {
+                    settings()
+                }
+                .sheet(isPresented: showCompletions) {
+                    completions()
+                }
+                .sheet(isPresented: showShortcuts) {
+                    shortcuts()
+                }
+        } else {
+            self
+                .sheet(isPresented: showSettings) {
+                    settings()
+                }
+                .sheet(isPresented: showCompletions) {
+                    completions()
+                }
+                .sheet(isPresented: showShortcuts) {
+                    shortcuts()
+                }
+        }
+        #else
+        self
+            .sheet(isPresented: showSettings) {
+                settings()
+            }
+        #endif
     }
 }
 

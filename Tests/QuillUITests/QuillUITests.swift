@@ -2,6 +2,7 @@ import Foundation
 import QuillKit
 import QuillUIGtk
 import QuillUIQt
+import SwiftUI
 import Testing
 @testable import QuillUI
 
@@ -215,6 +216,28 @@ struct QuillUITests {
         #else
         #expect(opened == ["settings"])
         #endif
+
+        var showCompletions = false
+        var showShortcuts = false
+        var showSettings = false
+        var tappedSettings = false
+        let toggles = QuillSidebarNavigationAction.desktopChatUtilityToggles(
+            showCompletions: Binding(get: { showCompletions }, set: { showCompletions = $0 }),
+            showShortcuts: Binding(get: { showShortcuts }, set: { showShortcuts = $0 }),
+            showSettings: Binding(get: { showSettings }, set: { showSettings = $0 }),
+            onSettings: { tappedSettings = true }
+        )
+
+        toggles.forEach { $0.perform() }
+        #if os(macOS) || os(Linux)
+        #expect(showCompletions)
+        #expect(showShortcuts)
+        #else
+        #expect(!showCompletions)
+        #expect(!showShortcuts)
+        #endif
+        #expect(showSettings)
+        #expect(tappedSettings)
     }
 
     @Test("Message arrays build streaming scroll tokens from ids and last content")
