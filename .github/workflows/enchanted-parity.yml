@@ -110,6 +110,7 @@ jobs:
           scripts/check-linux-app-runtime-deps.sh \
             .build/releases/quill-chat-linux-gtk \
             quill-chat-linux \
+            --require-bundled-swift-runtime \
             --report .qa/quill-chat-linux-runtime-deps.tsv
           echo "QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run" >> "$GITHUB_ENV"
 

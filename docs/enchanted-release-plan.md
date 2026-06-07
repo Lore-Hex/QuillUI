@@ -131,7 +131,8 @@ Recently cleared:
   the release binary has unresolved dynamic libraries.
 - The Enchanted release artifact now passes `--bundle-swift-runtime`, so Swift
   toolchain libraries are copied into `lib/swift/linux`, exposed through the
-  artifact launcher, and classified as artifact-bundled by the dependency audit.
+  artifact launcher, and required to classify as artifact-bundled by the
+  dependency audit.
 - Typed composer focus/input is covered by the real-source GTK mac-reference
   interaction verifier.
 - Composer-send UI transition is covered by the real-source GTK mac-reference

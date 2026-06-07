@@ -4,6 +4,7 @@ set -euo pipefail
 ARTIFACT_DIR="${1:-}"
 PRODUCT_NAME="${2:-}"
 REPORT_PATH=""
+REQUIRE_BUNDLED_SWIFT_RUNTIME=0
 
 usage() {
   cat <<MSG
@@ -11,6 +12,11 @@ Usage: $(basename "$0") ARTIFACT_DIR PRODUCT_NAME [--report PATH]
 
 Audits dynamic runtime dependencies for a packaged Linux app artifact.
 Fails when ldd reports unresolved libraries and writes a TSV dependency report.
+
+Options:
+  --report PATH                     TSV output path.
+  --require-bundled-swift-runtime   Fail if Swift runtime libraries resolve from
+                                    the host instead of the artifact.
 MSG
 }
 
@@ -25,6 +31,10 @@ while [[ $# -gt 0 ]]; do
     --report)
       REPORT_PATH="${2:-}"
       shift 2
+      ;;
+    --require-bundled-swift-runtime)
+      REQUIRE_BUNDLED_SWIFT_RUNTIME=1
+      shift
       ;;
     --help|-h)
       usage
@@ -79,14 +89,22 @@ else
   ldd "$BINARY_PATH" > "$LDD_OUTPUT"
 fi
 
-python3 - "$LDD_OUTPUT" "$REPORT_PATH" "$ARTIFACT_DIR" <<'PY'
+python3 - "$LDD_OUTPUT" "$REPORT_PATH" "$ARTIFACT_DIR" "$REQUIRE_BUNDLED_SWIFT_RUNTIME" <<'PY'
 import os
-import re
 import sys
 
-ldd_path, report_path, artifact_dir = sys.argv[1:4]
+ldd_path, report_path, artifact_dir, require_bundled_swift_runtime = sys.argv[1:5]
+require_bundled_swift_runtime = require_bundled_swift_runtime == "1"
 rows = []
 unresolved = []
+host_swift_runtime = []
+bundled_swift_runtime = []
+
+def is_swift_runtime(name, path):
+    return (
+        "/swift/linux/" in path
+        or name.startswith(("libswift", "libFoundation", "libdispatch", "libBlocksRuntime", "lib_FoundationICU"))
+    )
 
 def classify(name, path):
     if path == "not found":
@@ -121,6 +139,10 @@ for raw_line in open(ldd_path, encoding="utf-8", errors="replace"):
     kind = classify(name, path)
     if kind == "unresolved":
         unresolved.append(name)
+    if kind == "swift-runtime":
+        host_swift_runtime.append(name)
+    elif kind == "artifact-bundled" and is_swift_runtime(name, path):
+        bundled_swift_runtime.append(name)
     rows.append((name, kind, path))
 
 with open(report_path, "w", encoding="utf-8") as report:
@@ -138,6 +160,12 @@ print(
 
 if unresolved:
     raise SystemExit("Unresolved runtime dependencies: " + ", ".join(unresolved))
+
+if require_bundled_swift_runtime:
+    if host_swift_runtime:
+        raise SystemExit("Swift runtime resolved from host: " + ", ".join(host_swift_runtime))
+    if not bundled_swift_runtime:
+        raise SystemExit("--require-bundled-swift-runtime was set but no bundled Swift runtime libraries were found")
 PY
 
 printf 'Runtime dependency report written: %s\n' "$REPORT_PATH"

@@ -168,8 +168,11 @@ artifact-bundled dependencies. When `--bundle-swift-runtime` is set, the
 packager copies Swift toolchain libraries from the build host into
 `lib/swift/linux`, records the count in `metadata/quillui-release.env`, and the
 generated `run` launcher prepends that artifact-local directory to
-`LD_LIBRARY_PATH`. `scripts/generate-flatpak-manifest.sh` then consumes the same
-artifact directory and writes a first Flatpak manifest scaffold:
+`LD_LIBRARY_PATH`. Pass `--require-bundled-swift-runtime` to the dependency
+checker for release rows that must fail if Swift libraries resolve from the
+host instead of the artifact. `scripts/generate-flatpak-manifest.sh` then
+consumes the same artifact directory and writes a first Flatpak manifest
+scaffold:
 
 ```bash
 scripts/generate-flatpak-manifest.sh \
@@ -179,6 +182,7 @@ scripts/generate-flatpak-manifest.sh \
 scripts/check-linux-app-runtime-deps.sh \
   .build/releases/quill-chat-linux-gtk \
   quill-chat-linux \
+  --require-bundled-swift-runtime \
   --report .qa/quill-chat-linux-runtime-deps.tsv
 ```
 
