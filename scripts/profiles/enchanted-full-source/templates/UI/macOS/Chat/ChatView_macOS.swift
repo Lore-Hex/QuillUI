@@ -51,7 +51,10 @@ struct ChatView: View {
             title: "Enchanted",
             sidebarWidth: 320,
             hasSelection: selectedConversation != nil,
-            showsStatus: !reachable
+            showsStatus: !reachable,
+            modelActions: modelMenuActions,
+            optionsActions: optionsMenuActions,
+            onNewConversation: onNewConversationTap
         ) {
             SidebarView(
                 selectedConversation: selectedConversation,
@@ -60,12 +63,6 @@ struct ChatView: View {
                 onConversationDelete: onConversationDelete,
                 onDeleteDailyConversations: onDeleteDailyConversations,
                 onNewConversationTap: onNewConversationTap
-            )
-        } toolbar: {
-            QuillDesktopChatToolbar(
-                modelActions: modelMenuActions,
-                optionsActions: optionsMenuActions,
-                onNewConversation: onNewConversationTap
             )
         } selectedContent: {
             MessageListView(

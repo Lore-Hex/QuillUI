@@ -1841,6 +1841,51 @@ public struct QuillDesktopChatScaffold<
     }
 }
 
+public extension QuillDesktopChatScaffold where ToolbarContent == QuillDesktopChatToolbar {
+    init(
+        title: String,
+        sidebarWidth: CGFloat = 320,
+        composerMaxWidth: CGFloat = .infinity,
+        composerHorizontalPadding: CGFloat = 40,
+        composerVerticalPadding: CGFloat = 16,
+        hasSelection: Bool,
+        showsStatus: Bool = false,
+        modelActions: [QuillMenuAction],
+        optionsActions: [QuillMenuAction],
+        onNewConversation: @escaping () -> Void,
+        @ViewBuilder sidebar: () -> Sidebar,
+        @ViewBuilder selectedContent: () -> SelectedContent,
+        @ViewBuilder emptyContent: () -> EmptyContent,
+        @ViewBuilder statusContent: () -> StatusContent,
+        @ViewBuilder composer: () -> ComposerContent
+    ) {
+        self.init(
+            title: title,
+            sidebarWidth: sidebarWidth,
+            composerMaxWidth: composerMaxWidth,
+            composerHorizontalPadding: composerHorizontalPadding,
+            composerVerticalPadding: composerVerticalPadding,
+            hasSelection: hasSelection,
+            showsStatus: showsStatus,
+            sidebar: sidebar
+        ) {
+            QuillDesktopChatToolbar(
+                modelActions: modelActions,
+                optionsActions: optionsActions,
+                onNewConversation: onNewConversation
+            )
+        } selectedContent: {
+            selectedContent()
+        } emptyContent: {
+            emptyContent()
+        } statusContent: {
+            statusContent()
+        } composer: {
+            composer()
+        }
+    }
+}
+
 public struct QuillDesktopChatToolbar: View {
     public var modelActions: [QuillMenuAction]
     public var optionsActions: [QuillMenuAction]

@@ -239,6 +239,34 @@ struct QuillUITests {
         #expect(banner.bottomPadding == 74)
     }
 
+    @Test("QuillDesktopChatScaffold builds standard toolbar shells")
+    func quillDesktopChatScaffoldStandardToolbarInitializer() {
+        let scaffold = QuillDesktopChatScaffold(
+            title: "Chat",
+            sidebarWidth: 280,
+            hasSelection: false,
+            showsStatus: true,
+            modelActions: [],
+            optionsActions: [],
+            onNewConversation: {}
+        ) {
+            Text("Sidebar")
+        } selectedContent: {
+            Text("Selected")
+        } emptyContent: {
+            Text("Empty")
+        } statusContent: {
+            Text("Status")
+        } composer: {
+            Text("Composer")
+        }
+
+        #expect(scaffold.title == "Chat")
+        #expect(scaffold.sidebarWidth == 280)
+        #expect(scaffold.hasSelection == false)
+        #expect(scaffold.showsStatus == true)
+    }
+
     @Test("QuillSidebarNavigationAction exposes standard desktop chat utilities")
     func quillSidebarNavigationActionDesktopChatUtilities() {
         var opened: [String] = []
