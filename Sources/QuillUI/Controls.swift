@@ -70,6 +70,26 @@ public struct QuillPrompt: Identifiable, Hashable, Sendable {
         self.title = title
         self.systemImage = systemImage
     }
+
+    public static func selectedPrompts<Item>(
+        from source: [Item],
+        preferredTitles: [String],
+        fallbackCount: Int = 4,
+        id: (Item) -> String,
+        title: (Item) -> String,
+        systemImage: (Item) -> String
+    ) -> [QuillPrompt] {
+        let preferredItems = preferredTitles.compactMap { preferredTitle in
+            source.first { title($0) == preferredTitle }
+        }
+        let selectedItems = preferredItems.count == preferredTitles.count
+            ? preferredItems
+            : Array(source.prefix(max(0, fallbackCount)))
+
+        return selectedItems.map { item in
+            QuillPrompt(id: id(item), title: title(item), systemImage: systemImage(item))
+        }
+    }
 }
 
 public struct QuillPromptGridLayout: Equatable, Sendable {

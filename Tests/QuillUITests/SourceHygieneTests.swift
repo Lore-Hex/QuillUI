@@ -2418,6 +2418,10 @@ struct SourceHygieneTests {
         }
 
         let promptGrid = String(controls[gridStart.lowerBound..<nextSection.lowerBound])
+        #expect(controls.contains("public static func selectedPrompts<Item>("))
+        #expect(controls.contains("let preferredItems = preferredTitles.compactMap { preferredTitle in"))
+        #expect(controls.contains("source.first { title($0) == preferredTitle }"))
+        #expect(controls.contains(": Array(source.prefix(max(0, fallbackCount)))"))
         #expect(controls.contains("public struct QuillPromptGridLayout: Equatable, Sendable"))
         #expect(controls.contains("public static let compactCards = QuillPromptGridLayout()"))
         #expect(controls.contains("public static let wideDesktopCards = QuillPromptGridLayout("))

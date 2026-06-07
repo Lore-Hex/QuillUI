@@ -17,20 +17,13 @@ struct EmptyConversaitonView: View, KeyboardReadable {
     ]
 
     private var prompts: [QuillPrompt] {
-        let referenceSamples = macReferencePromptTitles.compactMap { title in
-            SamplePrompts.samples.first { $0.prompt == title }
-        }
-        let selectedSamples = referenceSamples.count == macReferencePromptTitles.count
-            ? referenceSamples
-            : Array(SamplePrompts.samples.prefix(4))
-
-        return selectedSamples.map { sample in
-            QuillPrompt(
-                id: sample.id,
-                title: sample.prompt,
-                systemImage: sample.type.icon
-            )
-        }
+        QuillPrompt.selectedPrompts(
+            from: SamplePrompts.samples,
+            preferredTitles: macReferencePromptTitles,
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.type.icon }
+        )
     }
 
     var body: some View {

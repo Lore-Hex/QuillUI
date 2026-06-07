@@ -72,6 +72,52 @@ struct QuillUITests {
         #expect(QuillPromptGridLayout.wideDesktopCards.spacing == 15)
     }
 
+    @Test("QuillPrompt selects preferred prompt order with prefix fallback")
+    func quillPromptSelectedPrompts() {
+        struct Sample {
+            var id: String
+            var prompt: String
+            var icon: String
+        }
+
+        let samples = [
+            Sample(id: "a", prompt: "Alpha", icon: "a.circle"),
+            Sample(id: "b", prompt: "Beta", icon: "b.circle"),
+            Sample(id: "c", prompt: "Gamma", icon: "c.circle")
+        ]
+
+        let preferred = QuillPrompt.selectedPrompts(
+            from: samples,
+            preferredTitles: ["Gamma", "Alpha"],
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.icon }
+        )
+        #expect(preferred.map(\.id) == ["c", "a"])
+        #expect(preferred.map(\.title) == ["Gamma", "Alpha"])
+        #expect(preferred.map(\.systemImage) == ["c.circle", "a.circle"])
+
+        let fallback = QuillPrompt.selectedPrompts(
+            from: samples,
+            preferredTitles: ["Missing", "Alpha"],
+            fallbackCount: 2,
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.icon }
+        )
+        #expect(fallback.map(\.id) == ["a", "b"])
+
+        let emptyFallback = QuillPrompt.selectedPrompts(
+            from: samples,
+            preferredTitles: ["Missing"],
+            fallbackCount: -1,
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.icon }
+        )
+        #expect(emptyFallback.isEmpty)
+    }
+
     // MARK: - QuillMenuAction helpers
 
     @Test("QuillMenuAction builds disabled and selectable menu rows")
