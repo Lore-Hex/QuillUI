@@ -331,6 +331,36 @@ open(path, "w").write(s)
 PY
     fi
 
+    # swift-corelibs NSAttributedString/NSMutableAttributedString have no
+    # parameterless init() (NSAttributedString() binds to init?(coder:),
+    # NSMutableAttributedString() needs init(string:)). The extension-override
+    # route is illegal (init() is NSObject's, not overridable from an extension),
+    # so rewrite the empty constructors to the equivalent (string: "") form across
+    # SSK. Idempotent (the rewritten form no longer matches "()"). Skip QuillPort
+    # symlinks so the committed port sources aren't touched. Linux-only build.
+    echo "==> patching signal-ios empty NS(Mutable)AttributedString() constructors"
+    python3 - "$UPSTREAM_DIR/signal-ios/SignalServiceKit" <<'PY'
+import sys, os
+root = sys.argv[1]
+n = 0
+for dp, _dirs, files in os.walk(root):
+    if "/QuillPort" in dp:
+        continue
+    for f in files:
+        if not f.endswith(".swift"):
+            continue
+        path = os.path.join(dp, f)
+        if os.path.islink(path):
+            continue
+        src = open(path, encoding="utf-8").read()
+        out = src.replace("NSMutableAttributedString()", 'NSMutableAttributedString(string: "")')
+        out = out.replace("NSAttributedString()", 'NSAttributedString(string: "")')
+        if out != src:
+            open(path, "w", encoding="utf-8").write(out)
+            n += 1
+print(f"  rewrote NS(Mutable)AttributedString() in {n} files")
+PY
+
     # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
     # members on Apple. The lowering pass strips `@objc` (-> plain `public
     # protocol`), which makes `optional` invalid ("'optional' can only be applied
