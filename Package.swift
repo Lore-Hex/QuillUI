@@ -1567,7 +1567,7 @@ targets.append(contentsOf: [
     ),
     .target(
         name: "SwiftUI",
-        dependencies: ["QuillUI", "QuillSwiftUICompatibility"],
+        dependencies: ["QuillUI", "QuillSwiftUICompatibility", "QuillDataMacros"],
         path: "Sources/SwiftUIShim"
     ),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
