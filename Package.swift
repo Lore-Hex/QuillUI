@@ -1996,16 +1996,30 @@ if quillUILinuxBuildBackend == .qt {
     // Compile the VERBATIM upstream ButtonedDetailViewController.swift into the qt
     // graph (its only import is `Cocoa`, added above) so QuillAppKitQtTests can
     // render the REAL upstream file — not a hand-written twin — through
-    // QuillAppKit→Qt. Path-scoped to the single file; gated on the upstream
-    // checkout so a fresh clone still resolves the manifest.
+    // QuillAppKit→Qt. Gated on the upstream checkout so a fresh clone still
+    // resolves the manifest.
     if wireguardUpstreamPresent {
         targets.append(
             .target(
                 name: "QuillButtonedDetailConformance",
                 dependencies: ["Cocoa"],
-                path: ".upstream/wireguard-apple",
+                // Path scoped to the ViewController directory (NOT the whole
+                // .upstream tree): the canonical Qt product build is warning-gated
+                // (any warning = fatal), and a broad `path` makes SwiftPM flag
+                // every sibling upstream file as "unhandled". Compile the verbatim
+                // ButtonedDetailViewController.swift and explicitly exclude its
+                // sibling VCs (each a later render rung) so zero files are unhandled.
+                path: ".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController",
+                exclude: [
+                    "LogViewController.swift",
+                    "ManageTunnelsRootViewController.swift",
+                    "TunnelDetailTableViewController.swift",
+                    "TunnelEditViewController.swift",
+                    "TunnelsListTableViewController.swift",
+                    "UnusableTunnelDetailViewController.swift"
+                ],
                 sources: [
-                    "Sources/WireGuardApp/UI/macOS/ViewController/ButtonedDetailViewController.swift"
+                    "ButtonedDetailViewController.swift"
                 ],
                 swiftSettings: [.swiftLanguageMode(.v5)]
             )
