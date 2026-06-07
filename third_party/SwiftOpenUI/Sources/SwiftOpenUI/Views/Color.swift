@@ -120,3 +120,12 @@ public struct Color: Equatable, Sendable, View, PrimitiveView {
     private static func clamp01(_ v: Double) -> Double { min(max(v, 0), 1) }
     private static func clamp255(_ v: Int) -> Int { min(max(v, 0), 255) }
 }
+
+// SwiftUI Color.RGBColorSpace + Color(_:red:green:blue:opacity:). Moved from QuillUI
+// so a single canonical decl reaches both QuillUI and vendored DesignSystem.
+extension Color {
+    public enum RGBColorSpace: Sendable { case sRGB, sRGBLinear, displayP3 }
+    public init(_ colorSpace: RGBColorSpace, red: Double, green: Double, blue: Double, opacity: Double = 1.0) {
+        self.init(red: red, green: green, blue: blue, opacity: opacity)
+    }
+}

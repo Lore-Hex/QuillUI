@@ -1504,28 +1504,6 @@ public extension View {
         return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
     }
 
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping (V, V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value, action)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        _ action: @escaping () -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value) { _, _ in action() }
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        _ action: @escaping (V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value) { _, newValue in action(newValue) }
-    }
-
     func confirmationDialog<Actions: View, Message: View>(
         _ title: String,
         isPresented: Binding<Bool>,

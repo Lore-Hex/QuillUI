@@ -154,16 +154,8 @@ public struct QuillPlatformColor: @unchecked Sendable {
 }
 
 public extension Color {
-    enum RGBColorSpace {
-        case sRGB
-    }
-
     init(_ platformColor: QuillPlatformColor) {
         self = platformColor.color
-    }
-
-    init(_ colorSpace: RGBColorSpace, red: Double, green: Double, blue: Double, opacity: Double = 1.0) {
-        self.init(red: red, green: green, blue: blue, opacity: opacity)
     }
 
     // SwiftOpenUI ships its own `Color.init(hex:)` — don't redeclare on
