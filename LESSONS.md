@@ -1108,6 +1108,36 @@ Patterns that closed them:
 
 ---
 
+### Track B sub-7.0k: fetch-patch renames, @_disfavoredOverload, and the OWN-grep blindspot (2026-06, ~98.7%, 7.02k)
+
+- **swift-corelibs / GRDB API renames & removals -> fetch-upstream patch** (one
+  line often clears a whole file). ProxiedContentDownloader: `NSURL.fileURL(withPath:)`
+  (corelibs only has withPathComponents:[String], returns URL?) + `.atomicWrite`
+  (now `.atomic`) -> rewrite to `URL(fileURLWithPath:)` + `.atomic` (100->0).
+  GRDBDatabaseStorageAdapter: drop `Configuration.defaultTransactionKind` ("now
+  automatically managed") + `.automaticMemoryManagement` (removed). Always ALSO
+  apply the replacement to the live .upstream once (fetch-patches run at fetch).
+- **NSFileCoordinator absent -> inert same-module port** (init(filePresenter:) +
+  coordinate(writing/readingItemAt:options:error:byAccessor:) that just runs the
+  accessor with the same URL; single-process DB on Linux). Its WritingOptions
+  OptionSet needs `.forMerging`. swift-corelibs has NO `NSErrorPointer` typealias
+  -> type the error param `UnsafeMutablePointer<NSError?>?` directly.
+- **THE BLINDSPOT: the OWN-errors grep was checking the wrong path.** Port files
+  live at `Sources/SignalServiceKitObjCPort/` but link-ports compiles them at
+  `.upstream/.../SignalServiceKit/QuillPort/`, so an OWN grep keyed on
+  `SignalServiceKitObjCPort/` NEVER matched port-body errors. QuillNSCoder.encodeBytes
+  + QuillStream.write/read had `ambiguous use of ...` errors in their bodies the
+  whole time (~50, counted but invisible to OWN). External callers (raw pointers)
+  resolved to these overloads fine, masking the broken bodies. FIX the grep to
+  include `QuillPort/.*error:`.
+- **@_disfavoredOverload resolves raw/typed-pointer overload ambiguity.** A raw
+  overload `f(UnsafeRawPointer)` next to the corelibs base `f(UnsafePointer<UInt8>)`
+  makes the internal forward (a typed pointer, which converts to raw) ambiguous.
+  Mark the raw overload `@_disfavoredOverload`: the typed internal forward picks
+  the base, external raw-pointer calls still pick the overload.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
