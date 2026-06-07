@@ -520,8 +520,7 @@ final class QuillSwiftUIViewModifierShimTests: XCTestCase {
         let _ = color
             .tint(.blue)
             .accessibilityHidden(true)
-            .accessibilityElement(children: .combine)
-            .onHover { _ in }
+            .listRowBackground(SwiftUI.Color?.none)
             .previewLayout(.sizeThatFits)
     }
 }

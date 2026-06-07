@@ -2,7 +2,11 @@ import Foundation
 
 // SwiftUI View-modifier / type surface used by vendored real source
 // (DesignSystem) that SwiftOpenUI doesn't yet provide. No-ops on Linux where
-// the modifier has no visual effect (accessibility, hover, preview layout).
+// the modifier has no visual effect (preview layout, accessibility).
+//
+// NOTE: contentShape / onHover / accessibilityElement (+ AccessibilityChildBehavior)
+// already live in QuillUI's UpstreamCompatibility — they are NOT duplicated here
+// (doing so makes their use ambiguous inside QuillUI).
 
 public enum PreviewLayout: Sendable {
     case device
@@ -10,18 +14,8 @@ public enum PreviewLayout: Sendable {
     case fixed(width: CGFloat, height: CGFloat)
 }
 
-public struct AccessibilityChildBehavior: Equatable, Sendable {
-    let raw: Int
-    public static let ignore = AccessibilityChildBehavior(raw: 0)
-    public static let combine = AccessibilityChildBehavior(raw: 1)
-    public static let contain = AccessibilityChildBehavior(raw: 2)
-}
-
 extension View {
     public func accessibilityHidden(_ hidden: Bool) -> some View { self }
-    public func accessibilityElement(children: AccessibilityChildBehavior = .ignore) -> some View { self }
-    public func onHover(perform action: @escaping (Bool) -> Void) -> some View { self }
-    public func contentShape<S>(_ shape: S) -> some View { self }
     public func listRowBackground<V: View>(_ view: V?) -> some View { self }
     public func tint(_ tint: Color?) -> some View { self }
     public func previewLayout(_ value: PreviewLayout) -> some View { self }
