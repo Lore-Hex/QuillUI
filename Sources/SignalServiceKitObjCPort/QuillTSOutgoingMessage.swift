@@ -56,6 +56,9 @@ open class TSOutgoingMessage: TSMessage {
     // reached because shouldSyncTranscript() is false by default.
     open func contentBuilder(thread: TSThread, transaction: DBReadTransaction) -> SSKProtoContentBuilder? { nil }
     open func dataMessageBuilder(with thread: TSThread, transaction: DBReadTransaction) -> SSKProtoDataMessageBuilder? { nil }
+    open func buildDataMessage(_ thread: TSThread, transaction: DBReadTransaction) -> SSKProtoDataMessage? {
+        try? dataMessageBuilder(with: thread, transaction: transaction)?.build()
+    }
     open func buildPlaintextData(inThread thread: TSThread, tx: DBWriteTransaction) throws -> Data { Data() }
     open func shouldSyncTranscript() -> Bool { false }
     open func buildSyncTranscriptMessage(localThread: TSContactThread, tx: DBWriteTransaction) throws -> OutgoingSyncMessage {
