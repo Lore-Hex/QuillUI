@@ -15,6 +15,13 @@
 //
 import Foundation
 
+// Result of addGroupsV2ToDataMessageBuilder (defined in the excluded
+// TSOutgoingMessage.m). The caller switches over exactly these two cases.
+enum OutgoingGroupProtoResult {
+    case error
+    case addedWithoutGroupAvatar
+}
+
 private let tsOutgoingMessageSchemaVersion: UInt = 1
 
 open class TSOutgoingMessage: TSMessage {
