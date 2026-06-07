@@ -569,6 +569,46 @@ copy_quill_chat_transcript() {
   sleep "${QUILLUI_BACKEND_COPY_CHAT_SLEEP:-1.5}"
 }
 
+open_quill_chat_settings_delete_confirmation() {
+  local settings_x
+  local settings_y
+  local clear_x
+  local clear_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+    settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+    clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}"
+    clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}"
+  else
+    settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+    settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+    clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-$((window_x + window_width / 2))}"
+    clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-$((window_y + window_height - 372))}"
+  fi
+  click_at "$settings_x" "$settings_y"
+  sleep 1
+  click_at "$clear_x" "$clear_y"
+  sleep "$post_click_sleep"
+}
+
+confirm_quill_chat_settings_delete() {
+  local delete_x
+  local delete_y
+
+  open_quill_chat_settings_delete_confirmation
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    delete_x="${QUILLUI_BACKEND_DELETE_CONFIRM_CLICK_X:-150}"
+    delete_y="${QUILLUI_BACKEND_DELETE_CONFIRM_CLICK_Y:-96}"
+  else
+    delete_x="${QUILLUI_BACKEND_DELETE_CONFIRM_CLICK_X:-$((window_x + 150))}"
+    delete_y="${QUILLUI_BACKEND_DELETE_CONFIRM_CLICK_Y:-$((window_y + 96))}"
+  fi
+  click_at "$delete_x" "$delete_y"
+  sleep "${QUILLUI_BACKEND_DELETE_CONFIRM_SLEEP:-2}"
+  capture_window="root"
+}
+
 open_quill_chat_new_chat() {
   local history_x
   local history_y
@@ -731,22 +771,11 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep "$post_click_sleep"
         ;;
       settings-delete-confirmation)
-        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
-          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
-          clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}"
-          clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}"
-        else
-          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
-          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
-          clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-$((window_x + window_width / 2))}"
-          clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-$((window_y + window_height - 372))}"
-        fi
-        click_at "$settings_x" "$settings_y"
-        sleep 1
-        click_at "$clear_x" "$clear_y"
-        sleep "$post_click_sleep"
+        open_quill_chat_settings_delete_confirmation
         refresh_capture_window_for_active_child_window
+        ;;
+      settings-delete-confirmed)
+        confirm_quill_chat_settings_delete
         ;;
       completions-panel)
         open_quill_chat_completions_panel
@@ -1054,6 +1083,68 @@ verify_quill_chat_copy_clipboard_if_needed() {
   printf 'Copy Chat pasteboard text verified: %s\n' "$clipboard_file"
 }
 
+quill_chat_deleted_records_cleared() {
+  local database_path="$1"
+
+  python3 - "$database_path" <<'PY'
+import sqlite3
+import sys
+
+database_path = sys.argv[1]
+connection = sqlite3.connect(database_path)
+tables = [
+    row[0]
+    for row in connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'"
+    )
+]
+if "quillDataRecords" in tables:
+    rows = connection.execute(
+        """
+        SELECT "modelType", COUNT(*)
+        FROM "quillDataRecords"
+        WHERE "modelType" LIKE '%.ConversationSD'
+           OR "modelType" LIKE '%.MessageSD'
+        GROUP BY "modelType"
+        """
+    ).fetchall()
+else:
+    rows = []
+    for table in tables:
+        if table.endswith("_ConversationSD") or table.endswith("_MessageSD"):
+            count = connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+            if count:
+                rows.append((table, count))
+connection.close()
+if rows:
+    print(rows)
+    raise SystemExit(1)
+PY
+}
+
+verify_quill_chat_delete_confirmed_if_needed() {
+  [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "settings-delete-confirmed" ]] || return 0
+
+  local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+  if [[ ! -f "$database_path" ]]; then
+    echo "QuillData database for delete confirmation was not found: $database_path" >&2
+    return 65
+  fi
+
+  local attempt
+  for attempt in {1..20}; do
+    if quill_chat_deleted_records_cleared "$database_path" >/tmp/quill-chat-delete-confirmed-counts.txt 2>&1; then
+      printf 'Settings delete confirmed cleared conversation data: %s\n' "$database_path"
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "Settings delete confirmation did not clear ConversationSD/MessageSD rows." >&2
+  cat /tmp/quill-chat-delete-confirmed-counts.txt >&2 || true
+  return 65
+}
+
 VERIFY_PRODUCT=""
 quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
 if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
@@ -1061,6 +1152,11 @@ if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_
     copy_status=$?
     quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
     exit "$copy_status"
+  }
+  verify_quill_chat_delete_confirmed_if_needed || {
+    delete_status=$?
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
+    exit "$delete_status"
   }
 else
   verify_status=$?

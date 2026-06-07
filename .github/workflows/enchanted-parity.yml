@@ -127,6 +127,7 @@ jobs:
             settings-ping-interval-typed \
             settings-default-model-selected \
             settings-delete-confirmation \
+            settings-delete-confirmed \
             completions-panel \
             completions-new-sheet \
             completions-save \

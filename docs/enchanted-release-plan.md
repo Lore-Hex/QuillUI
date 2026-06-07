@@ -137,6 +137,9 @@ Recently cleared:
   the `settings-default-model-selected` row.
 - Settings delete-all confirmation is covered by the same verifier via the
   `settings-delete-confirmation` row.
+- Confirmed Settings delete-all is covered by the same verifier via the
+  `settings-delete-confirmed` row: it accepts the destructive confirmation and
+  asserts the seeded conversation/message rows are removed from QuillData.
 - Completions sheet presentation, nested New Completion editing, saving a
   renamed completion back into the list, editing an existing completion, and
   deleting a completion are covered by the same verifier via the

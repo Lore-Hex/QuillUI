@@ -554,6 +554,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:settings-delete-confirmation)
       verify_product="quill-chat-linux-mac-reference-settings-delete-confirmation"
       ;;
+    *:settings-delete-confirmed)
+      verify_product="quill-chat-linux-mac-reference-settings-panel"
+      ;;
     *:completions-panel)
       verify_product="quill-chat-linux-mac-reference-completions-panel"
       ;;

@@ -2764,6 +2764,7 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-ping-interval-typed\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-default-model-selected\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-delete-confirmation\""))
+        #expect(backendProducts.contains("*:settings-delete-confirmed)"))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-completions-panel\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-completions-new-sheet\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-completions-saved\""))
