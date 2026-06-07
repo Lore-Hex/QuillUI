@@ -29,7 +29,7 @@ public typealias UIScreen = NSScreen
 #else
 // Linux: no AppKit/UIKit fonts. Provide the UIFont surface upstream UI uses
 // (scaled system fonts, the `.rounded` design). Metrics are identity on Linux.
-public final class UIFont {
+public final class UIFont: @unchecked Sendable {
     public let pointSize: CGFloat
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
@@ -60,7 +60,7 @@ public final class UIFont {
         public static let black = Weight(rawValue: 0.62)
     }
 }
-public final class UIFontDescriptor {
+public final class UIFontDescriptor: @unchecked Sendable {
     public let name: String
     public init(name: String = ".AppleSystemUIFont") { self.name = name }
     public enum SystemDesign: Equatable, Sendable { case `default`, rounded, serif, monospaced }
@@ -68,7 +68,7 @@ public final class UIFontDescriptor {
         UIFontDescriptor(name: design == .rounded ? ".AppleSystemUIFontRounded-Regular" : name)
     }
 }
-public final class UIFontMetrics {
+public final class UIFontMetrics: @unchecked Sendable {
     public static let `default` = UIFontMetrics()
     public func scaledValue(for value: CGFloat) -> CGFloat { value }
 }
