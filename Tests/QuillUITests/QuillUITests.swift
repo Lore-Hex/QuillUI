@@ -186,6 +186,37 @@ struct QuillUITests {
         unselect.perform()
         #expect(didUnselect)
 
+        let messageClipboard = QuillClipboard()
+        var didSelectText = false
+        var didReadAloud = false
+        var didPerformExtra = false
+        var didEditMessage = false
+        var didUnselectMessage = false
+        let messageActions = QuillMenuAction.chatMessageActions(
+            content: "Message text",
+            isUserMessage: true,
+            isEditing: true,
+            selectText: { didSelectText = true },
+            readAloud: { didReadAloud = true },
+            additionalActions: [
+                QuillMenuAction(title: "Extra", systemImage: "sparkle") {
+                    didPerformExtra = true
+                }
+            ],
+            onEdit: { didEditMessage = true },
+            onUnselect: { didUnselectMessage = true },
+            clipboard: messageClipboard
+        )
+
+        #expect(messageActions.map(\.title) == ["Copy", "Select Text", "Read Aloud", "Extra", "Edit", "Unselect"])
+        messageActions.forEach { $0.perform() }
+        #expect(messageClipboard.string() == "Message text")
+        #expect(didSelectText)
+        #expect(didReadAloud)
+        #expect(didPerformExtra)
+        #expect(didEditMessage)
+        #expect(didUnselectMessage)
+
         var copiedJSONValues: [Bool] = []
         let copyChatActions = QuillMenuAction.copyChatActions { copiedJSONValues.append($0) }
         #expect(copyChatActions.map(\.title) == ["Copy Chat", "Copy Chat as JSON"])

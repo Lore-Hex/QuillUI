@@ -55,31 +55,20 @@ struct MessageListView: View {
     }
 
     private func contextMenuActions(for message: MessageSD) -> [QuillMenuAction] {
-        var actions = [
-            QuillMenuAction.copyText(message.content)
-        ]
-
+        QuillMenuAction.chatMessageActions(
+            content: message.content,
+            isUserMessage: message.role == "user",
+            isEditing: editMessage?.id == message.id,
 #if os(iOS) || os(visionOS)
-        actions.append(QuillMenuAction(title: "Select Text", systemImage: "selection.pin.in.out") {
-            messageSelected = message
-        })
-        actions.append(QuillMenuAction(title: "Read Aloud", systemImage: "speaker.wave.3.fill") {
-            onReadAloud(message.content)
-        })
+            selectText: { messageSelected = message },
+            readAloud: { onReadAloud(message.content) },
 #endif
-
-        if message.role == "user" {
-            actions.append(.edit {
+            onEdit: {
                 withAnimation { editMessage = message }
-            })
-        }
-
-        if editMessage?.id == message.id {
-            actions.append(.unselect {
+            },
+            onUnselect: {
                 withAnimation { editMessage = nil }
-            })
-        }
-
-        return actions
+            }
+        )
     }
 }

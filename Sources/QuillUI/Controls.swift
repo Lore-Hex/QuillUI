@@ -2178,6 +2178,34 @@ public struct QuillMenuAction: Identifiable {
         QuillMenuAction(title: title, systemImage: systemImage, action: action)
     }
 
+    public static func chatMessageActions(
+        content: String,
+        isUserMessage: Bool,
+        isEditing: Bool,
+        selectText: (() -> Void)? = nil,
+        readAloud: (() -> Void)? = nil,
+        additionalActions: [QuillMenuAction] = [],
+        onEdit: @escaping () -> Void,
+        onUnselect: @escaping () -> Void,
+        clipboard: QuillClipboard = .shared
+    ) -> [QuillMenuAction] {
+        var actions = [QuillMenuAction.copyText(content, clipboard: clipboard)]
+        if let selectText {
+            actions.append(QuillMenuAction(title: "Select Text", systemImage: "selection.pin.in.out", action: selectText))
+        }
+        if let readAloud {
+            actions.append(QuillMenuAction(title: "Read Aloud", systemImage: "speaker.wave.3.fill", action: readAloud))
+        }
+        actions.append(contentsOf: additionalActions)
+        if isUserMessage {
+            actions.append(.edit(action: onEdit))
+        }
+        if isEditing {
+            actions.append(.unselect(action: onUnselect))
+        }
+        return actions
+    }
+
     public static func copyChatActions(copy: @escaping (_ json: Bool) -> Void) -> [QuillMenuAction] {
         [
             QuillMenuAction(title: "Copy Chat", systemImage: "doc.on.doc") {
