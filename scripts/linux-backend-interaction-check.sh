@@ -176,7 +176,7 @@ if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
   app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
 fi
 quill_chat_copy_runtime_dir=""
-if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "copy-chat" ]]; then
+if [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "copy-chat" || "$INTERACTION_MODE" == "copy-chat-json" ) ]]; then
   quill_chat_copy_runtime_dir="${QUILLUI_BACKEND_CLIPBOARD_RUNTIME_DIR:-$OUTPUT_DIR/quill-chat-copy-runtime}"
   rm -rf "$quill_chat_copy_runtime_dir/quill-pasteboard"
   mkdir -p "$quill_chat_copy_runtime_dir"
@@ -545,6 +545,7 @@ select_quill_chat_markdown_transcript() {
 }
 
 copy_quill_chat_transcript() {
+  local copy_json="${1:-0}"
   local menu_x
   local menu_y
   local copy_x
@@ -554,13 +555,23 @@ copy_quill_chat_transcript() {
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     menu_x="${QUILLUI_BACKEND_MENU_CLICK_X:-1964}"
     menu_y="${QUILLUI_BACKEND_MENU_CLICK_Y:-57}"
-    copy_x="${QUILLUI_BACKEND_COPY_CHAT_CLICK_X:-1940}"
-    copy_y="${QUILLUI_BACKEND_COPY_CHAT_CLICK_Y:-109}"
+    if [[ "$copy_json" == "1" ]]; then
+      copy_x="${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_X:-1940}"
+      copy_y="${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_Y:-145}"
+    else
+      copy_x="${QUILLUI_BACKEND_COPY_CHAT_CLICK_X:-1940}"
+      copy_y="${QUILLUI_BACKEND_COPY_CHAT_CLICK_Y:-109}"
+    fi
   else
     menu_x="${QUILLUI_BACKEND_MENU_CLICK_X:-$((window_x + window_width - 84))}"
     menu_y="${QUILLUI_BACKEND_MENU_CLICK_Y:-$((window_y + 54))}"
-    copy_x="${QUILLUI_BACKEND_COPY_CHAT_CLICK_X:-$((window_x + window_width - 110))}"
-    copy_y="${QUILLUI_BACKEND_COPY_CHAT_CLICK_Y:-$((window_y + 92))}"
+    if [[ "$copy_json" == "1" ]]; then
+      copy_x="${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_X:-$((window_x + window_width - 110))}"
+      copy_y="${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_Y:-$((window_y + 126))}"
+    else
+      copy_x="${QUILLUI_BACKEND_COPY_CHAT_CLICK_X:-$((window_x + window_width - 110))}"
+      copy_y="${QUILLUI_BACKEND_COPY_CHAT_CLICK_Y:-$((window_y + 92))}"
+    fi
   fi
 
   click_at "$menu_x" "$menu_y"
@@ -826,6 +837,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       copy-chat)
         copy_quill_chat_transcript
+        ;;
+      copy-chat-json)
+        copy_quill_chat_transcript 1
         ;;
       toolbar-model-selected)
         select_quill_chat_toolbar_model_and_send_prompt
@@ -1099,12 +1113,33 @@ if [[ "$settled_capture_taken" != "1" ]]; then
 fi
 
 verify_quill_chat_copy_clipboard_if_needed() {
-  [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "copy-chat" ]] || return 0
+  [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "copy-chat" || "$INTERACTION_MODE" == "copy-chat-json" ) ]] || return 0
 
   local clipboard_file="$quill_chat_copy_runtime_dir/quill-pasteboard/Apple.NSGeneralPboard/types/public.utf8-plain-text"
   if [[ ! -s "$clipboard_file" ]]; then
     echo "Copy Chat did not write a plain-text pasteboard file: $clipboard_file" >&2
     return 65
+  fi
+
+  if [[ "$INTERACTION_MODE" == "copy-chat-json" ]]; then
+    python3 - "$clipboard_file" <<'PY'
+import json
+import sys
+
+clipboard_file = sys.argv[1]
+with open(clipboard_file, encoding="utf-8") as stream:
+    payload = json.load(stream)
+if not isinstance(payload, list):
+    raise SystemExit("Copy Chat as JSON did not produce a top-level list")
+roles = [item.get("role") for item in payload if isinstance(item, dict)]
+contents = "\n".join(str(item.get("content", "")) for item in payload if isinstance(item, dict))
+if "user" not in roles or "assistant" not in roles:
+    raise SystemExit(f"Copy Chat as JSON roles are incomplete: {roles}")
+if "How to center div in HTML?" not in contents or "Use **flexbox**" not in contents or "justify-content" not in contents:
+    raise SystemExit("Copy Chat as JSON did not contain the selected transcript")
+PY
+    printf 'Copy Chat as JSON pasteboard text verified: %s\n' "$clipboard_file"
+    return 0
   fi
 
   if ! grep -Fq "User: How to center div in HTML?" "$clipboard_file" \

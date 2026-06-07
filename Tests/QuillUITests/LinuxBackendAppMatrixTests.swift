@@ -536,6 +536,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(productsScript.contains("*:new-chat)"))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat\""))
         #expect(productsScript.contains("*:copy-chat)"))
+        #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat-json\""))
+        #expect(productsScript.contains("*:copy-chat-json)"))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-toolbar-model-selected\""))
         #expect(productsScript.contains("*:toolbar-model-selected)"))
         #expect(productsScript.contains("verify_product=\"quill-wireguard-qt-tunnel-selection\""))
@@ -777,6 +779,7 @@ struct LinuxBackendAppMatrixTests {
         printf 'app-verify-chat-composer-send=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk composer-send)"
         printf 'app-verify-chat-new-chat=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk new-chat)"
         printf 'app-verify-chat-copy-chat=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk copy-chat)"
+        printf 'app-verify-chat-copy-chat-json=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk copy-chat-json)"
         printf 'app-verify-chat-toolbar-model=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk toolbar-model-selected)"
         printf 'app-verify-chat-reference-toolbar=%s\\n' "$(QUILLUI_BACKEND_MAC_REFERENCE=1 quillui_backend_app_interaction_verify_product_for_product quill-chat-linux qt toolbar-menu)"
         printf 'app-verify-wireguard-qt-click=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-wireguard qt click)"
@@ -918,6 +921,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("app-verify-chat-composer-send=quill-chat-linux-mac-reference-composer-send"))
         #expect(result.output.contains("app-verify-chat-new-chat=quill-chat-linux-mac-reference-new-chat"))
         #expect(result.output.contains("app-verify-chat-copy-chat=quill-chat-linux-mac-reference-copy-chat"))
+        #expect(result.output.contains("app-verify-chat-copy-chat-json=quill-chat-linux-mac-reference-copy-chat-json"))
         #expect(result.output.contains("app-verify-chat-toolbar-model=quill-chat-linux-mac-reference-toolbar-model-selected"))
         #expect(result.output.contains("app-verify-chat-reference-toolbar=quill-chat-linux-mac-reference-toolbar-menu"))
         #expect(result.output.contains("app-verify-wireguard-qt-click=quill-wireguard-qt-tunnel-selection"))

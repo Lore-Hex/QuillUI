@@ -137,6 +137,7 @@ jobs:
             toolbar-model-selected \
             prompt-send \
             copy-chat \
+            copy-chat-json \
             history-selection \
             transcript-selection \
             markdown-transcript-selection \

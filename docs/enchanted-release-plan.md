@@ -114,6 +114,10 @@ Recently cleared:
 - Copy Chat is covered by the same verifier via the `copy-chat` row: it selects
   the seeded transcript, uses the toolbar More menu, and asserts the Linux
   pasteboard contains the copied user/assistant transcript text.
+- Copy Chat as JSON is covered by the same verifier via the `copy-chat-json`
+  row: it selects the seeded transcript, uses the second toolbar More-menu row,
+  parses the pasteboard JSON, and asserts it contains the copied user/assistant
+  transcript records.
 - Live composer-send behavior is covered by `scripts/quill-chat-functional-check.sh`:
   the real composer submits exactly one typed user prompt to mock Ollama, renders
   the streamed assistant reply, and persists user plus assistant rows through
