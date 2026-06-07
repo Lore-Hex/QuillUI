@@ -593,6 +593,7 @@ struct SourceHygieneTests {
             #expect(!profileAliases.contains(alias.replacingOccurrences(of: "public ", with: "")))
         }
         #expect(quillShims.contains("@_exported import QuillKit"))
+        #expect(quillShims.contains("@_exported import CoreGraphics"))
         #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
         #expect(quillKit.contains("quill-pasteboard"))
         #expect(quillKit.contains("Apple.NSGeneralPboard"))

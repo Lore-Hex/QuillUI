@@ -60,7 +60,6 @@ import SwiftUI
 import Combine
 import AsyncAlgorithms
 import Carbon
-import CoreGraphics
 import Security
 import AVFoundation
 import Speech
@@ -118,6 +117,8 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         let hotkey = HotkeyCombination(keyBase: [.command], key: 0x09) {}
         XCTAssertEqual(hotkey.keyBase, [KeyBase.command])
         XCTAssertEqual(hotkey.key, 0x09)
+        XCTAssertEqual(UInt16.kVK_ANSI_V, 0x09)
+        XCTAssertEqual(CGKeyCode.kVK_ANSI_V, 0x09)
     }
 
     func testServiceManagementShim() {

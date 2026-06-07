@@ -5,6 +5,7 @@
 @_exported import QuillRS
 
 #if os(Linux)
+@_exported import CoreGraphics
 @_exported import UIKit
 @_exported import MessageUI
 @_exported import SafariServices
