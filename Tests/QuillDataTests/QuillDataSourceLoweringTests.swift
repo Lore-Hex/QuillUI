@@ -416,7 +416,9 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains(".target(\n        name: \"IOKit\""))
         #expect(manifest.contains("path: \"Sources/IOKit\""))
         #expect(manifest.contains("publicHeadersPath: \".\""))
-        #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\"], path: \"Sources/UIKitShim\")"))
+        // UserNotifications is @_exported by the UIKit shim so SignalServiceKit's
+        // `import UIKit`-only files resolve UNUserNotificationCenter & co. (Track B).
+        #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\"], path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: [\"QuillFoundation\"],\n        path: \"Sources/QuillUIKit\"\n    )"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))

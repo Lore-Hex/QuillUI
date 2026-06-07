@@ -1,29 +1,44 @@
-// Self-contained: deliberately does NOT depend on QuillShims (which would drag
-// QuillData→GRDB + the whole UIKit/WebKit shim graph into the conformance build).
-// The only thing PrivateDataConfirmation needs from `import LocalAuthentication`
-// is the LAContext/LAPolicy/LAError surface below, all built on Foundation alone.
+// Shared LocalAuthentication Linux shim — serves BOTH WireGuard's
+// PrivateDataConfirmation (key-reveal gate; needs LAContext/LAPolicy/LAError plus the
+// idiomatic `someNSError as? LAError` reverse-bridge) AND SignalServiceKit's
+// ScreenLock / OWSPaymentsLock / DeviceOwnerAuthenticationType (which need the full
+// LAError.Code case set, LABiometryType + LAContext.biometryType, and a pointer-shaped
+// canEvaluatePolicy that also accepts a literal `nil`).
+//
+// Self-contained: depends only on Foundation (NOT QuillFoundation / QuillShims) so the
+// WireGuard conformance build stays lean. There is no biometric / passcode backend on
+// Linux, so this is INERT: policy evaluation always reports "cannot evaluate" / denied —
+// the safe default for an environment with no local-auth hardware. On macOS this target
+// is gated out of Package.swift (the real framework is used); the `#if os(Linux)` here is
+// belt-and-suspenders so the file is empty if it ever compiles on Apple.
 #if os(Linux)
 import Foundation
 
-// LocalAuthentication shadow — a compile-faithful Linux surface for the slice of
-// Apple's LocalAuthentication framework WireGuard touches. There is no biometric /
-// passcode backend on Linux, so this exists purely so source like WireGuard's
-// `PrivateDataConfirmation` (which gates revealing a tunnel's private/pre-shared key
-// behind `LAContext`) recompiles unmodified. Behaviourally the stub always reports
-// "cannot evaluate / not authenticated", so the protected reveal simply never fires —
-// the safe default for an environment with no local-auth hardware.
-
-/// The authentication policy passed to `LAContext`. WireGuard uses
+/// The authentication policy passed to `LAContext`. WireGuard and SSK both pass
 /// `.deviceOwnerAuthentication` (passcode-or-biometric).
 public enum LAPolicy: Int, Sendable {
     case deviceOwnerAuthenticationWithBiometrics = 1
     case deviceOwnerAuthentication = 2
 }
 
-/// LocalAuthentication's error type. Modelled as a `CustomNSError` struct (as on
-/// Apple) so the framework's idiomatic `someNSError as? LAError` reverse-bridge —
-/// which `PrivateDataConfirmation` performs on `canEvaluatePolicy`'s out-error — is
-/// a valid cast on Linux too.
+/// The biometry kind reported by `LAContext.biometryType`. None on Linux.
+public enum LABiometryType: Int, Sendable {
+    case none = 0
+    case touchID = 1
+    case faceID = 2
+    case opticID = 4
+}
+
+/// LocalAuthentication's error type. Modelled as a `CustomNSError` struct (as on Apple)
+/// so the framework's idiomatic `someNSError as? LAError` reverse-bridge — which both
+/// WireGuard's PrivateDataConfirmation and SSK's `outcomeForLAError` perform on
+/// canEvaluatePolicy's out-error — is a valid cast on Linux too.
+///
+/// On iOS the `touchID*` cases are deprecated aliases of the `biometry*` cases and share
+/// raw values; a Swift enum cannot duplicate raw values, so each gets a distinct dummy
+/// raw here. The raw values are never used on Linux (no `LAError` is ever constructed
+/// from a code), so the exact numbers do not matter — only that every case SSK switches
+/// on exists.
 public struct LAError: Error, CustomNSError {
     public enum Code: Int, Sendable {
         case authenticationFailed = -1
@@ -31,9 +46,16 @@ public struct LAError: Error, CustomNSError {
         case userFallback = -3
         case systemCancel = -4
         case passcodeNotSet = -5
-        case biometryNotAvailable = -6
-        case biometryNotEnrolled = -7
-        case biometryLockout = -8
+        case touchIDNotAvailable = -6
+        case touchIDNotEnrolled = -7
+        case touchIDLockout = -8
+        case appCancel = -9
+        case invalidContext = -10
+        case biometryNotAvailable = -106
+        case biometryNotEnrolled = -107
+        case biometryLockout = -108
+        case companionNotAvailable = -111
+        case notInteractive = -1004
     }
 
     public let code: Code
@@ -44,17 +66,27 @@ public struct LAError: Error, CustomNSError {
     public var errorUserInfo: [String: Any] { [:] }
 }
 
-/// The authentication context. Compile-faithful stub: with no local-auth backend,
-/// `canEvaluatePolicy` reports unavailable (clearing the out-error) and
-/// `evaluatePolicy` denies, so callers fall through to their not-authenticated path.
+/// The authentication context. Compile-faithful inert stub: with no local-auth backend,
+/// `canEvaluatePolicy` reports unavailable (clearing the out-error) and `evaluatePolicy`
+/// denies, so callers fall through to their not-authenticated path.
 open class LAContext {
     public init() {}
 
-    /// Reports whether `policy` can be evaluated. Always `false` on Linux; clears the
-    /// out-error so the caller's `error as? LAError` yields `nil` (→ no special-case).
+    public var interactionNotAllowed: Bool = false
+    public var localizedFallbackTitle: String?
+    public var touchIDAuthenticationAllowableReuseDuration: TimeInterval = 0
+    /// No biometrics on Linux -> none.
+    public var biometryType: LABiometryType { .none }
+
+    // `error` is NSErrorPointer-shaped (UnsafeMutablePointer<NSError?>?) rather than
+    // `inout NSError?` so callers can pass BOTH `&authError` (ScreenLock / OWSPaymentsLock /
+    // the LocalAuthenticationTests + PrivateDataConfirmation) and a literal `nil`
+    // (DeviceOwnerAuthenticationType). An `inout NSError?` parameter would reject the
+    // literal nil. Inert: always "cannot evaluate" on Linux.
     @discardableResult
-    open func canEvaluatePolicy(_ policy: LAPolicy, error: inout NSError?) -> Bool {
-        error = nil
+    open func canEvaluatePolicy(_ policy: LAPolicy, error: UnsafeMutablePointer<NSError?>?) -> Bool {
+        _ = policy
+        error?.pointee = nil
         return false
     }
 
