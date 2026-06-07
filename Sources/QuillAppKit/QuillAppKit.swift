@@ -3465,6 +3465,20 @@ open class NSButton: NSControl {
         button.setButtonType(.switch)
         return button
     }
+
+    /// Intrinsic size for a push button: an estimated title width (rough
+    /// system-font metric) plus standard bezel padding, at the standard
+    /// rounded-button height. Without this a button pinned only by its center
+    /// (e.g. WireGuard's ButtonedDetailViewController — centerX/centerY and no
+    /// width/height constraint) would solve to 0×0 and render invisibly. The Qt
+    /// layout pass injects this as a soft (medium-priority) size suggestion that
+    /// still yields to required size/edge constraints. Faithful text metrics
+    /// (QuillTypography) refine this estimate in a later paint-fidelity rung.
+    open override var intrinsicContentSize: NSSize {
+        let estimatedTextWidth = CGFloat(storedTitle.count) * 7.0
+        let width = max(60, estimatedTextWidth + 28) // ~14pt of bezel inset per side
+        return NSSize(width: width, height: 32)
+    }
 }
 
 public extension NSControl {

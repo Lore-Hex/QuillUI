@@ -2,6 +2,11 @@ import Testing
 import AppKit
 import QuillUIKit
 @testable import QuillAppKitQt
+#if canImport(QuillButtonedDetailConformance)
+// The VERBATIM upstream WireGuard VC, compiled into the qt graph when the
+// .upstream checkout is present (purist render path). Internal type → @testable.
+@testable import QuillButtonedDetailConformance
+#endif
 
 /// M1 slice 1 (issue #231): prove the AppKit shadow's NSApplication/NSWindow are
 /// backed by a real Qt6 widget on Linux — i.e. unmodified `import AppKit` code
@@ -439,5 +444,48 @@ struct QuillAppKitQtTests {
         let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
         #expect(size > 500)
         window.closeQtWindow()
+    }
+
+    // M-render (purist path): render the LITERAL upstream WireGuard
+    // ButtonedDetailViewController — the VERBATIM .upstream source file compiled
+    // into QuillButtonedDetailConformance, NOT a hand-written twin — through
+    // QuillAppKit→Qt. The real VC pins its button by center only (no width/height
+    // constraint), so this also exercises the intrinsic-size fallback in the Qt
+    // layout pass: the button must solve to a non-zero size, not collapse to 0×0.
+    @Test("The LITERAL upstream ButtonedDetailViewController renders to a non-empty PNG via Qt")
+    func rendersLiteralButtonedDetailVCToPNG() throws {
+        #if canImport(QuillButtonedDetailConformance)
+        guard QuillQt.ensureInitialized() else { return }
+
+        let vc = ButtonedDetailViewController()   // the VERBATIM upstream type
+        vc.setButtonTitle("Import tunnels")        // real upstream API
+        #expect(!vc.isViewLoaded)
+        let content = vc.view                      // triggers the real loadView()
+        #expect(vc.isViewLoaded)
+        #expect(content.subviews.count == 1)       // the button is in the loaded tree
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 160), // ≥ the VC's 320×120 min
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+        window.contentView = content
+        content.realizeQtSubtree()                 // realize the loadView-built tree into Qt
+        content.layoutQtSubtree(width: 360, height: 160)
+
+        // The teeth of the rung: the center-pinned button (no size constraint of
+        // its own) must get a real, non-zero solved size from the intrinsic-size
+        // fallback — a blank window can still exceed the byte threshold.
+        let button = content.subviews[0]
+        #expect(button.frame.width > 0)
+        #expect(button.frame.height > 0)
+
+        window.showAsQtWindowWithContent()
+        let out = "/tmp/quillappkitqt-buttoned-detail.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 500)
+        window.closeQtWindow()
+        #endif
     }
 }

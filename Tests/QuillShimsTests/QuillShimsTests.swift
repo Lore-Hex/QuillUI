@@ -501,7 +501,7 @@ final class QuillEntryMacroTests: XCTestCase {
 
 #if !os(macOS) && !os(iOS)
 // Shared SwiftUI View-modifier / type surface used by vendored real source:
-// no-op modifiers (tint/accessibilityHidden/onHover), Color.resolve, Font.weight.
+// no-op modifiers (tint/accessibilityHidden), Color.resolve, Font.weight.
 final class QuillSwiftUIViewModifierShimTests: XCTestCase {
     func testColorResolve() {
         let color: SwiftUI.Color = .red
@@ -522,6 +522,23 @@ final class QuillSwiftUIViewModifierShimTests: XCTestCase {
             .accessibilityHidden(true)
             .listRowBackground(SwiftUI.Color?.none)
             .previewLayout(.sizeThatFits)
+    }
+}
+
+// Shared SwiftUI compat additions used by vendored real source (DesignSystem):
+// `Color: Sendable` and the SwiftUI-style nesting `Font.Weight`/`.Design`/`.TextStyle`.
+final class QuillSwiftUIColorFontShimTests: XCTestCase {
+    func testColorIsSendable() {
+        // Compiles only if Color conforms to Sendable.
+        let c: any Sendable = SwiftUI.Color.red
+        XCTAssertTrue(c is SwiftUI.Color)
+    }
+
+    func testFontTypeNesting() {
+        XCTAssertEqual(SwiftUI.Font.Weight.semibold, SwiftUI.FontWeight.semibold)
+        XCTAssertEqual(SwiftUI.Font.Design.rounded, SwiftUI.FontDesign.rounded)
+        let style: SwiftUI.Font.TextStyle = .body
+        XCTAssertEqual(style, SwiftUI.Font.body)
     }
 }
 #endif
