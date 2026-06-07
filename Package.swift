@@ -1562,7 +1562,7 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: ["QuillFoundation", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: ["QuillFoundation", "QuillDataMacros", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
         path: "Sources/QuillSwiftUICompatibility"
     ),
     .target(
@@ -2271,6 +2271,7 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
     targets += [
         .target(
             name: "IceCubesShims",
+            dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
             path: "Sources/IceCubesShims"
         ),
         .target(
@@ -2300,6 +2301,35 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
                 "os",
             ],
             path: ".upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient",
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp Env. Compiles once patch_icecubes adds
+        // `import FoundationNetworking` (StreamWatcher → URLSessionWebSocketTask)
+        // and `import UIKit` (Router → UIImage/UIApplication). The 6 excluded
+        // files are Apple-framework system services (CoreHaptics/AudioToolbox/
+        // TelemetryDeck/UserNotifications/QuickLook) that are Linux no-ops.
+        .target(
+            name: "Env",
+            dependencies: [
+                "Models",
+                "NetworkClient",
+                "SwiftUI",
+                "IceCubesShims",
+                "Combine",
+                "os",
+                "KeychainSwift",
+            ],
+            path: ".upstream/icecubes/Packages/Env/Sources/Env",
+            exclude: [
+                "HapticManager.swift",
+                "SoundEffectManager.swift",
+                "Telemetry.swift",
+                "PushNotificationsService.swift",
+                "QuickLook.swift",
+                "PreviewEnv.swift",
+            ],
             swiftSettings: [
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
             ]

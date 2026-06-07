@@ -184,4 +184,50 @@ public struct QuillRelationshipMacro: PeerMacro {
     public static func expansion(of node: AttributeSyntax, providingPeersOf declaration: some DeclSyntaxProtocol, in context: some MacroExpansionContext) throws -> [DeclSyntax] { [] }
 }
 
-@main struct QuillDataMacrosPlugin: CompilerPlugin { let providingMacros: [Macro.Type] = [QuillModelMacro.self, QuillPredicateMacro.self, QuillAttributeMacro.self, QuillRelationshipMacro.self] }
+/// `@Entry` (SwiftUI, iOS 18) — declares a property in an `EnvironmentValues`
+/// extension as an environment entry. Generates the computed get/set backed by
+/// a private `EnvironmentKey` peer that holds the default value. Mirrors
+/// Apple's `@Entry`.
+public struct QuillEntryMacro: AccessorMacro, PeerMacro {
+    private static func parts(_ declaration: some DeclSyntaxProtocol)
+        -> (name: String, type: TypeSyntax, value: ExprSyntax)? {
+        guard let varDecl = declaration.as(VariableDeclSyntax.self),
+              let binding = varDecl.bindings.first,
+              let name = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text,
+              let type = binding.typeAnnotation?.type,
+              let value = binding.initializer?.value
+        else { return nil }
+        return (name, type, value)
+    }
+
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingAccessorsOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AccessorDeclSyntax] {
+        guard let (name, _, _) = parts(declaration) else { return [] }
+        let key = "__Key_\(name)"
+        return [
+            "get { self[\(raw: key).self] }",
+            "set { self[\(raw: key).self] = newValue }",
+        ]
+    }
+
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingPeersOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        guard let (name, type, value) = parts(declaration) else { return [] }
+        let key = "__Key_\(name)"
+        return [
+            """
+            private struct \(raw: key): EnvironmentKey {
+                static var defaultValue: \(type) { \(value) }
+            }
+            """,
+        ]
+    }
+}
+
+@main struct QuillDataMacrosPlugin: CompilerPlugin { let providingMacros: [Macro.Type] = [QuillModelMacro.self, QuillPredicateMacro.self, QuillAttributeMacro.self, QuillRelationshipMacro.self, QuillEntryMacro.self] }

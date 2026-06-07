@@ -143,6 +143,25 @@ public struct QuillNetNewsWireContentView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 6)
 
+            // Add Feed — inline subscribe-by-URL, NetNewsWire's "Add Feed"
+            // action. Uses an explicit Binding like the search field
+            // (SwiftOpenUI on Linux doesn't synthesize `$model` for
+            // @StateObject members). Clears the field on a successful add.
+            HStack(spacing: 6) {
+                TextField("Add feed URL", text: Binding(
+                    get: { model.addFeedURLText },
+                    set: { model.addFeedURLText = $0 }
+                ))
+                Button("Add") {
+                    if model.addFeed(urlString: model.addFeedURLText) {
+                        model.addFeedURLText = ""
+                    }
+                }
+            }
+            .font(.caption)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(model.subscribedFeeds) { feed in
@@ -789,6 +808,9 @@ final class RSSReaderModel: ObservableObject {
     /// through `selectedFeedID`.
     @Published var subscribedFeeds: [Feed]
     @Published var selectedFeedID: Feed.ID?
+    /// Text in the inline "Add Feed" field (sidebar). Cleared on a successful
+    /// subscribe via `addFeed`.
+    @Published var addFeedURLText: String = ""
 
     private var didStartInitialLoad = false
     private let initialSelectionEnvironment: [String: String]

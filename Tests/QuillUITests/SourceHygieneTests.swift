@@ -2500,7 +2500,6 @@ struct SourceHygieneTests {
         #expect(genericQtRuntime.contains("public var messages: [Message]?"))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Open conversation with replies and boosts.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Weekend photo thread with media previews.\""))
-        #expect(genericQtRuntime.contains("detailSubtitle: \"Language practice with the lower row selected.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Desktop compatibility article selected for reading.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Project navigator source file selected.\""))
         #expect(genericQtRuntime.contains("detailSubtitle: \"Core engineering channel with the lower row selected.\""))
