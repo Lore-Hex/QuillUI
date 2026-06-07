@@ -376,6 +376,9 @@ public final class CGContext {
     public func addPath(_ path: Any?) {}
     public func clip() {}
     public func clip(to rect: CGRect) {}
+    // CGContext.clip(to:mask:) — clips to a rect using an image mask. Inert on
+    // Linux (no real raster). SSK: AvatarBuilder masks a tinted icon.
+    public func clip(to rect: CGRect, mask image: Any) {}
 
     public func saveGState() {}
     public func restoreGState() {}
@@ -459,6 +462,10 @@ open class RSImage: NSObject, @unchecked Sendable {
     public var imageOrientation: Orientation { .up }
 
     public func withTintColor(_ color: Any) -> RSImage { self }
+    // Typed overload so a leading-dot color literal (e.g. `.white`) resolves its
+    // contextual base. SSK: AvatarBuilder.releaseNotesIcon does
+    // `UIImage(named:)!.withTintColor(.white)`. Inert (returns self).
+    public func withTintColor(_ color: RSColor) -> RSImage { self }
     public func draw(in rect: CGRect) {}
     public func draw(at point: CGPoint) {}
 

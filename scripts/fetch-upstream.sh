@@ -1110,6 +1110,10 @@ subs = [
     # the inert CGImageSourceCreateImageAtIndex (returns nil on Linux), so nil is
     # equivalent. (Two identical occurrences.)
     ("[kCGImageSourceShouldCache: kCFBooleanFalse] as CFDictionary", "nil as CFDictionary?"),
+    # AvatarBuilder: a `[cgColor, cgColor] as CFArray` for a CGGradient. swift-corelibs
+    # has no [Any?]<->CFArray bridge, and our CGGradient init already takes `colors: Any?`,
+    # so drop the coercion and let the array pass through directly. (Unique occurrence.)
+    ("] as CFArray", "]"),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
