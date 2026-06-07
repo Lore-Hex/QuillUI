@@ -1088,6 +1088,7 @@ public enum QuillGenericQtAppCatalog {
         secondaryActionTitle: "Models",
         listTitle: "Conversations",
         status: "Local model ready",
+        selectedIndex: -1,
         selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
             EnchantedInitialSelection.selectedConversationIndexEnvironmentKeys
         ),

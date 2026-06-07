@@ -639,7 +639,7 @@ public enum EnchantedPalette {
     public static let sidebarColor = "#F5F5F7"
     public static let sidebarSelectedColor = "#E8E8ED"
     public static let cardColor = "#FFFFFF"
-    public static let cardQuietColor = "#F4F4F6"
+    public static let cardQuietColor = "#F1F1F5"
     public static let hairlineColor = "#D8D8DE"
     public static let textColor = "#1D1D1F"
     public static let secondaryTextColor = "#6E6E73"

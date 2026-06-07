@@ -2,25 +2,35 @@
 #include "QuillQtWidgetsSupport.hpp"
 
 #include <QApplication>
+#include <QColor>
 #include <QFrame>
+#include <QFontMetrics>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QLabel>
 #include <QLayout>
+#include <QLinearGradient>
 #include <QList>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QLineEdit>
 #include <QAbstractItemView>
+#include <QPaintEvent>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPushButton>
+#include <QPixmap>
 #include <QScrollArea>
 #include <QSize>
 #include <QSizePolicy>
 #include <QSplitter>
+#include <QStyle>
 #include <QString>
+#include <QStringList>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -78,9 +88,11 @@ struct GenericDetailPane {
     QLabel *titleLabel;
     QLabel *subtitleLabel;
     QVBoxLayout *contentLayout;
+    bool preservesHeaderTitle;
 };
 
 struct GenericSelection {
+    bool hasSelection;
     QString detailTitle;
     QString detailSubtitle;
     QString messagesTitle;
@@ -99,6 +111,9 @@ QString genericStyleSheet(const QJsonObject &style) {
     const QString promptCard = styleValue(style, "promptCardColor", "#FFFFFF");
     const QString notice = styleValue(style, "noticeColor", "#F8D7DA");
     const QString noticeButtonColor = styleValue(style, "noticeButtonColor", "#000000");
+    const QString messageUserBubble = styleValue(style, "messageUserBubbleColor", "#007AFF");
+    const QString messageAssistantBubble = styleValue(style, "messageAssistantBubbleColor", "#F6F6F6");
+    const QString messageSystemBubble = styleValue(style, "messageSystemBubbleColor", "#E8E8ED");
     const QString activeCard = styleValue(style, "activeCardColor", "#E7F0FA");
     const QString primary = styleValue(style, "primaryColor", "#2E5B78");
     const QString selected = styleValue(style, "selectedMutedColor", "#DDEBFA");
@@ -135,6 +150,7 @@ QString genericStyleSheet(const QJsonObject &style) {
     const QString promptButtonRadius = cssPixels(style, "promptButtonRadius", 8);
     const QString promptButtonPadding = cssPixels(style, "promptButtonPadding", 12);
     const QString composerEditorRadius = cssPixels(style, "composerEditorRadius", 23);
+    const QString conversationSelectionDotRadius = cssPixels(style, "conversationSelectionDotRadius", 4);
 
     QString sheet = QStringLiteral(R"(
         QWidget#genericRoot { background: %1; color: %2; font-size: %3; }
@@ -185,7 +201,9 @@ QString genericStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QFrame#promptCard { background: %1; border: 0; border-radius: %2; }
         QFrame#notice { background: %3; border: 0; border-radius: %2; }
-        QLineEdit#composerEditor { background: %4; color: %5; border: 1px solid %6; border-radius: %7; padding-left: %8; padding-right: %8; }
+        QFrame#composerFrame { background: %4; border: 1px solid %6; border-radius: %7; }
+        QLineEdit#composerEditor { background: transparent; color: %5; border: 0; padding-left: 0; padding-right: 0; }
+        QLabel#composerAccessoryIcon { background: transparent; border: 0; }
     )").arg(
         promptCard,
         promptButtonRadius,
@@ -201,6 +219,7 @@ QString genericStyleSheet(const QJsonObject &style) {
         QLabel#appTitle { color: %1; font-size: %2; font-weight: %3; }
         QLabel#sectionTitle { color: %1; font-size: %4; font-weight: %5; }
         QLabel#detailTitle { color: %1; font-size: %6; font-weight: %7; }
+        QLabel#chatHeaderTitle { color: %1; font-size: %8; font-weight: 500; }
         QLabel#headline { color: %1; font-size: %8; font-weight: %9; }
     )").arg(
         ink,
@@ -216,6 +235,7 @@ QString genericStyleSheet(const QJsonObject &style) {
 
     sheet += QStringLiteral(R"(
         QLabel#bodyText, QLabel#messageText { color: %1; font-size: %2; line-height: 140%; }
+        QLabel#messageTextInverted { color: white; font-size: %2; line-height: 140%; }
         QLabel#badge { color: %3; font-size: %4; font-weight: %5; }
     )").arg(ink, messageBodyFontSize, badge, captionFontSize, sectionTitleFontWeight);
 
@@ -224,18 +244,36 @@ QString genericStyleSheet(const QJsonObject &style) {
     )").arg(activeCard, selectedBorder, activeCardRadius);
 
     sheet += QStringLiteral(R"(
+        QFrame#messageUserBubble { background: %1; border: 0; border-radius: %4; }
+        QFrame#messageAssistantBubble { background: %2; border: 0; border-radius: %4; }
+        QFrame#messageSystemBubble { background: %3; border: 0; border-radius: %4; }
+    )").arg(messageUserBubble, messageAssistantBubble, messageSystemBubble, messageCardRadius);
+
+    sheet += QStringLiteral(R"(
         QListWidget#itemList { background: transparent; border: 0; outline: 0; }
         QListWidget#itemList::item { border-radius: %1; margin: %2 0; padding: %3; }
         QListWidget#itemList::item:selected { background: %4; color: %5; }
         QListWidget#chatItemList { background: transparent; border: 0; outline: 0; }
         QListWidget#chatItemList::item { background: transparent; border: 0; margin: %2 0; padding: 0; }
         QListWidget#chatItemList::item:selected { background: transparent; color: %5; }
-    )").arg(listItemRadius, listItemVerticalMargin, listItemPadding, selected, ink);
+        QFrame#chatSelectionDot { background: transparent; border: 0; border-radius: %6; }
+        QFrame#chatSelectionDot[selected="true"] { background: %7; }
+    )").arg(
+        listItemRadius,
+        listItemVerticalMargin,
+        listItemPadding,
+        selected,
+        ink,
+        conversationSelectionDotRadius,
+        primary
+    );
 
     sheet += QStringLiteral(R"(
         QPushButton#primaryButton { background: %1; color: white; border: 0; border-radius: %2; padding: %3 %4; text-align: left; }
         QPushButton#secondaryButton { background: transparent; color: %5; border: 1px solid %6; border-radius: %7; padding: %8 %9; text-align: left; }
         QPushButton#sidebarNavigationButton { background: transparent; color: %5; border: 0; padding: %8 %9; text-align: left; }
+        QPushButton#headerIconButton { background: transparent; border: 0; padding: %8; }
+        QPushButton#headerIconButton:hover { background: %10; border-radius: %7; }
     )").arg(
         primary,
         primaryButtonRadius,
@@ -245,7 +283,8 @@ QString genericStyleSheet(const QJsonObject &style) {
         controlBorder,
         secondaryButtonRadius,
         secondaryButtonVerticalPadding,
-        secondaryButtonHorizontalPadding
+        secondaryButtonHorizontalPadding,
+        selected
     );
 
     sheet += QStringLiteral(R"(
@@ -273,9 +312,12 @@ QString genericStyleSheet(const QJsonObject &style) {
     return sheet;
 }
 
-int boundedSelectedIndex(const QJsonArray &items, int selectedIndex) {
+int boundedSelectedIndex(const QJsonArray &items, int selectedIndex, bool allowsNoSelection = false) {
     if (items.isEmpty()) {
         return -1;
+    }
+    if (selectedIndex < 0) {
+        return allowsNoSelection ? -1 : 0;
     }
     return std::min(std::max(selectedIndex, 0), static_cast<int>(items.size()) - 1);
 }
@@ -288,9 +330,10 @@ QJsonObject selectedItem(const QJsonArray &items, int row) {
 }
 
 GenericSelection selectionForRow(const QJsonObject &payload, const QJsonArray &items, int row) {
+    const bool hasSelection = row >= 0 && row < items.size();
     const QString baseTitle = stringValue(payload, "detailTitle", QStringLiteral("Qt preview"));
     const QString baseSubtitle = stringValue(payload, "detailSubtitle");
-    const QJsonObject item = selectedItem(items, row);
+    const QJsonObject item = hasSelection ? selectedItem(items, row) : QJsonObject();
 
     QString detailTitle = stringValue(item, "detailTitle");
     if (detailTitle.isEmpty()) {
@@ -320,6 +363,7 @@ GenericSelection selectionForRow(const QJsonObject &payload, const QJsonArray &i
         : jsonArrayValue(payload, "messages");
 
     return GenericSelection {
+        hasSelection,
         detailTitle,
         detailSubtitle,
         stringValue(payload, "messagesTitle", QStringLiteral("Activity")),
@@ -332,8 +376,132 @@ bool usesChatPresentation(const QJsonObject &payload) {
     return stringValue(payload, "presentation", QStringLiteral("standard")) == QStringLiteral("chat");
 }
 
+QString elidedChatSidebarText(const QString &text, const QJsonObject &style) {
+    QLabel probe;
+    const int maximumWidth = intValue(style, "chatSidebarTitleMaxWidth", 180);
+    return QFontMetrics(probe.font()).elidedText(text, Qt::ElideRight, maximumWidth);
+}
+
 QString promptAccessoryText(const QString &systemImage) {
     return systemImage.contains(QStringLiteral("questionmark")) ? QStringLiteral("?") : QStringLiteral("i");
+}
+
+QIcon symbolicIcon(const QString &kind) {
+    QPixmap pixmap(48, 48);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QColor ink(QStringLiteral("#52575D"));
+    QPen pen(ink, 3.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+
+    if (kind == QStringLiteral("chevronDown")) {
+        painter.drawLine(QPointF(15, 20), QPointF(24, 29));
+        painter.drawLine(QPointF(24, 29), QPointF(33, 20));
+    } else if (kind == QStringLiteral("ellipsis")) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(ink);
+        painter.drawEllipse(QPointF(16, 24), 2.8, 2.8);
+        painter.drawEllipse(QPointF(24, 24), 2.8, 2.8);
+        painter.drawEllipse(QPointF(32, 24), 2.8, 2.8);
+    } else if (kind == QStringLiteral("compose")) {
+        painter.drawRoundedRect(QRectF(10, 13, 25, 25), 2.4, 2.4);
+        painter.drawLine(QPointF(23, 31), QPointF(37, 17));
+        painter.drawLine(QPointF(34, 14), QPointF(40, 20));
+    } else if (kind == QStringLiteral("waveform")) {
+        painter.setPen(QPen(ink, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(13, 21), QPointF(13, 27));
+        painter.drawLine(QPointF(18.5, 17), QPointF(18.5, 31));
+        painter.drawLine(QPointF(24, 12), QPointF(24, 36));
+        painter.drawLine(QPointF(29.5, 17), QPointF(29.5, 31));
+        painter.drawLine(QPointF(35, 21), QPointF(35, 27));
+    } else if (kind == QStringLiteral("keyboard")) {
+        painter.drawRoundedRect(QRectF(8, 15, 32, 21), 3.5, 3.5);
+        painter.setPen(QPen(ink, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        for (int x = 14; x <= 32; x += 6) {
+            painter.drawPoint(QPointF(x, 22));
+            painter.drawPoint(QPointF(x, 28));
+        }
+        painter.drawLine(QPointF(17, 32), QPointF(31, 32));
+    } else if (kind == QStringLiteral("gear")) {
+        painter.drawEllipse(QPointF(24, 24), 7.5, 7.5);
+        painter.drawEllipse(QPointF(24, 24), 2.8, 2.8);
+        painter.drawLine(QPointF(24, 10), QPointF(24, 14));
+        painter.drawLine(QPointF(24, 34), QPointF(24, 38));
+        painter.drawLine(QPointF(10, 24), QPointF(14, 24));
+        painter.drawLine(QPointF(34, 24), QPointF(38, 24));
+        painter.drawLine(QPointF(14.5, 14.5), QPointF(17.5, 17.5));
+        painter.drawLine(QPointF(30.5, 30.5), QPointF(33.5, 33.5));
+        painter.drawLine(QPointF(33.5, 14.5), QPointF(30.5, 17.5));
+        painter.drawLine(QPointF(17.5, 30.5), QPointF(14.5, 33.5));
+    } else if (kind == QStringLiteral("question") || kind == QStringLiteral("info")) {
+        painter.drawEllipse(QPointF(24, 24), 12, 12);
+        QFont font = painter.font();
+        font.setPixelSize(22);
+        font.setWeight(QFont::DemiBold);
+        painter.setFont(font);
+        painter.drawText(
+            QRectF(12, 10, 24, 30),
+            Qt::AlignCenter,
+            kind == QStringLiteral("question") ? QStringLiteral("?") : QStringLiteral("i")
+        );
+    } else if (kind == QStringLiteral("text")) {
+        QFont font = painter.font();
+        font.setPixelSize(17);
+        font.setWeight(QFont::Medium);
+        painter.setFont(font);
+        painter.drawText(QRectF(4, 11, 40, 26), Qt::AlignCenter, QStringLiteral("Abc"));
+    } else {
+        painter.drawEllipse(QPointF(24, 24), 12, 12);
+        QFont font = painter.font();
+        font.setPixelSize(22);
+        font.setWeight(QFont::DemiBold);
+        painter.setFont(font);
+        painter.drawText(QRectF(12, 10, 24, 30), Qt::AlignCenter, QStringLiteral("i"));
+    }
+
+    return QIcon(pixmap);
+}
+
+QIcon systemImageIcon(const QString &systemImage) {
+    const QString normalized = systemImage.trimmed().toLower();
+    if (normalized.contains(QStringLiteral("textformat"))
+        || normalized.contains(QStringLiteral("character.cursor.ibeam"))
+        || normalized.contains(QStringLiteral("ibeam"))) {
+        return symbolicIcon(QStringLiteral("text"));
+    }
+    if (normalized.contains(QStringLiteral("keyboard")) || normalized == QStringLiteral("space")) {
+        return symbolicIcon(QStringLiteral("keyboard"));
+    }
+    if (normalized.contains(QStringLiteral("gearshape"))
+        || normalized == QStringLiteral("gear")
+        || normalized.contains(QStringLiteral("gear."))) {
+        return symbolicIcon(QStringLiteral("gear"));
+    }
+    if (normalized.contains(QStringLiteral("questionmark"))) {
+        return symbolicIcon(QStringLiteral("question"));
+    }
+    if (normalized.contains(QStringLiteral("lightbulb"))) {
+        return symbolicIcon(QStringLiteral("info"));
+    }
+    if (normalized.contains(QStringLiteral("ellipsis"))) {
+        return symbolicIcon(QStringLiteral("ellipsis"));
+    }
+    if (normalized.contains(QStringLiteral("chevron.down"))) {
+        return symbolicIcon(QStringLiteral("chevronDown"));
+    }
+    if (normalized.contains(QStringLiteral("square.and.pencil"))
+        || normalized.contains(QStringLiteral("pencil"))) {
+        return symbolicIcon(QStringLiteral("compose"));
+    }
+    if (normalized.contains(QStringLiteral("waveform"))
+        || normalized.contains(QStringLiteral("mic"))
+        || normalized.contains(QStringLiteral("audio"))) {
+        return symbolicIcon(QStringLiteral("waveform"));
+    }
+    return symbolicIcon(QStringLiteral("info"));
 }
 
 QFrame *promptCardWidget(const QJsonObject &prompt, const QJsonObject &style) {
@@ -361,12 +529,79 @@ QFrame *promptCardWidget(const QJsonObject &prompt, const QJsonObject &style) {
     layout->addWidget(title);
     layout->addStretch(1);
 
-    QLabel *icon = label(accessoryText, QStringLiteral("promptIcon"));
+    QLabel *icon = new QLabel();
+    icon->setObjectName(QStringLiteral("promptIcon"));
+    const int iconSize = intValue(style, "actionButtonIconSize", 16);
+    icon->setPixmap(systemImageIcon(systemImage).pixmap(iconSize, iconSize));
+    icon->setFixedSize(iconSize, iconSize);
     icon->setAlignment(Qt::AlignRight | Qt::AlignBottom);
     applyAccessibleText(icon, accessoryText, titleText);
-    layout->addWidget(icon);
+    layout->addWidget(icon, 0, Qt::AlignRight | Qt::AlignBottom);
     return card;
 }
+
+class GradientWordmark final : public QWidget {
+public:
+    explicit GradientWordmark(const QString &text, const QJsonObject &style, QWidget *parent = nullptr)
+        : QWidget(parent),
+          text(text),
+          fontSize(intValue(style, "emptyStateWordmarkFontSize", 46)),
+          fontWeight(intValue(style, "emptyStateWordmarkFontWeight", 100)) {
+        setObjectName(QStringLiteral("emptyWordmark"));
+        QFont wordmarkFont = resolvedFont();
+        QFontMetrics metrics(wordmarkFont);
+        setMinimumSize(metrics.horizontalAdvance(text) + 18, metrics.height() + 10);
+        setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        QFont wordmarkFont = resolvedFont();
+        QFontMetrics metrics(wordmarkFont);
+        const QRect textRect = metrics.boundingRect(text);
+        const qreal x = (width() - metrics.horizontalAdvance(text)) / 2.0;
+        const qreal y = (height() + metrics.ascent() - metrics.descent()) / 2.0;
+
+        QPainterPath path;
+        path.addText(QPointF(x - textRect.left(), y), wordmarkFont, text);
+
+        QLinearGradient gradient(path.boundingRect().topLeft(), path.boundingRect().topRight());
+        gradient.setColorAt(0.0, QColor(QStringLiteral("#6D79E7")));
+        gradient.setColorAt(0.52, QColor(QStringLiteral("#B06FD0")));
+        gradient.setColorAt(1.0, QColor(QStringLiteral("#DF6D75")));
+        painter.fillPath(path, gradient);
+    }
+
+private:
+    QFont resolvedFont() const {
+        QFont font;
+        font.setFamilies(QStringList {
+            QStringLiteral("SF Pro Display"),
+            QStringLiteral("Inter"),
+            QStringLiteral("Noto Sans"),
+            QStringLiteral("DejaVu Sans"),
+            QStringLiteral("sans-serif")
+        });
+        font.setPixelSize(fontSize);
+        if (fontWeight <= 150) {
+            font.setWeight(QFont::Thin);
+        } else if (fontWeight <= 350) {
+            font.setWeight(QFont::Light);
+        } else if (fontWeight >= 650) {
+            font.setWeight(QFont::Bold);
+        } else {
+            font.setWeight(QFont::Normal);
+        }
+        return font;
+    }
+
+    QString text;
+    int fontSize;
+    int fontWeight;
+};
 
 QWidget *promptGridWidget(const QJsonArray &prompts, const QJsonObject &style) {
     QWidget *gridHost = new QWidget();
@@ -401,10 +636,9 @@ QWidget *emptyStateWidget(const QJsonObject &payload, const QJsonObject &style) 
     layout->setAlignment(Qt::AlignCenter);
 
     if (!titleText.isEmpty()) {
-        QLabel *title = label(titleText, QStringLiteral("emptyWordmark"));
-        title->setAlignment(Qt::AlignCenter);
+        GradientWordmark *title = new GradientWordmark(titleText, style);
         applyAccessibleText(title, titleText, titleText);
-        layout->addWidget(title);
+        layout->addWidget(title, 0, Qt::AlignCenter);
     }
 
     if (!subtitleText.isEmpty()) {
@@ -456,14 +690,52 @@ QWidget *composerWidget(const QJsonObject &payload, const QJsonObject &style) {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(intValue(style, "composerSpacing", 10));
 
+    QFrame *frame = QuillQtWidgets::frame(QStringLiteral("composerFrame"));
+    frame->setMinimumHeight(intValue(style, "composerMinHeight", 46));
+    frame->setMaximumHeight(intValue(style, "composerMaxHeight", 120));
+    QHBoxLayout *frameLayout = new QHBoxLayout(frame);
+    const int horizontalPadding = intValue(style, "composerHorizontalPadding", 14);
+    frameLayout->setContentsMargins(horizontalPadding, 0, horizontalPadding, 0);
+    frameLayout->setSpacing(intValue(style, "composerAccessorySpacing", 8));
+
     QLineEdit *editor = new QLineEdit();
     editor->setObjectName(QStringLiteral("composerEditor"));
     editor->setPlaceholderText(stringValue(payload, "composerPlaceholder", QStringLiteral("Message")));
-    editor->setMinimumHeight(intValue(style, "composerMinHeight", 46));
-    editor->setMaximumHeight(intValue(style, "composerMaxHeight", 120));
+    editor->setMinimumHeight(std::max(24, intValue(style, "composerMinHeight", 46) - 4));
+    editor->setMaximumHeight(std::max(24, intValue(style, "composerMaxHeight", 120) - 4));
     applyAccessibleText(editor, editor->placeholderText(), editor->placeholderText());
-    layout->addWidget(editor);
+    frameLayout->addWidget(editor, 1);
+
+    QLabel *accessory = new QLabel();
+    accessory->setObjectName(QStringLiteral("composerAccessoryIcon"));
+    const int accessorySize = intValue(style, "composerAccessoryIconSize", 24);
+    accessory->setPixmap(systemImageIcon(QStringLiteral("waveform")).pixmap(accessorySize, accessorySize));
+    accessory->setFixedSize(accessorySize, accessorySize);
+    accessory->setAlignment(Qt::AlignCenter);
+    applyAccessibleText(accessory, QStringLiteral("Voice input"), QStringLiteral("Voice input"));
+    frameLayout->addWidget(accessory);
+
+    layout->addWidget(frame);
     return composer;
+}
+
+QPushButton *headerIconButton(const QString &systemImage, const QString &title, const QJsonObject &style) {
+    QPushButton *button = new QPushButton();
+    button->setObjectName(QStringLiteral("headerIconButton"));
+    button->setIcon(systemImageIcon(systemImage));
+    const int iconSize = intValue(style, "headerIconButtonIconSize", 24);
+    button->setIconSize(QSize(
+        iconSize,
+        iconSize
+    ));
+    button->setFixedSize(
+        intValue(style, "headerIconButtonSize", 34),
+        intValue(style, "headerIconButtonSize", 34)
+    );
+    button->setFlat(true);
+    button->setFocusPolicy(Qt::NoFocus);
+    applyAccessibleText(button, title, title);
+    return button;
 }
 
 QWidget *bottomNavigationWidget(const QJsonArray &actions, const QJsonObject &style) {
@@ -480,6 +752,11 @@ QWidget *bottomNavigationWidget(const QJsonArray &actions, const QJsonObject &st
         }
         QPushButton *button = new QPushButton(titleText);
         button->setObjectName(QStringLiteral("sidebarNavigationButton"));
+        button->setIcon(systemImageIcon(stringValue(action, "systemImage")));
+        button->setIconSize(QSize(
+            intValue(style, "actionButtonIconSize", 16),
+            intValue(style, "actionButtonIconSize", 16)
+        ));
         button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         applyAccessibleText(button, titleText, titleText);
         layout->addWidget(button);
@@ -491,6 +768,23 @@ QFrame *trafficDot(const QString &objectName) {
     QFrame *dot = QuillQtWidgets::frame(objectName);
     dot->setFixedSize(10, 10);
     return dot;
+}
+
+QFrame *chatSelectionDotWidget(const QJsonObject &style) {
+    QFrame *dot = QuillQtWidgets::frame(QStringLiteral("chatSelectionDot"));
+    const int dotSize = intValue(style, "conversationSelectionDotSize", 8);
+    dot->setFixedSize(dotSize, dotSize);
+    dot->setProperty("selected", false);
+    return dot;
+}
+
+void refreshDynamicStyle(QWidget *widget) {
+    if (widget == nullptr || widget->style() == nullptr) {
+        return;
+    }
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+    widget->update();
 }
 
 QWidget *chatSidebarChromeWidget() {
@@ -519,8 +813,21 @@ QFrame *itemRowWidget(const QJsonObject &item, const QJsonObject &style, bool ch
 
     QFrame *row = QuillQtWidgets::frame(QStringLiteral("itemRow"));
     applyAccessibleText(row, titleText, rowSummary);
-    QVBoxLayout *layout = new QVBoxLayout(row);
-    layout->setContentsMargins(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
+    QVBoxLayout *layout = nullptr;
+    if (chatMode) {
+        QHBoxLayout *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
+        rowLayout->setSpacing(intValue(style, "conversationSelectionDotSpacing", 8));
+        rowLayout->addWidget(chatSelectionDotWidget(style), 0, Qt::AlignTop);
+
+        QWidget *textHost = new QWidget(row);
+        layout = new QVBoxLayout(textHost);
+        layout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->addWidget(textHost, 1);
+    } else {
+        layout = new QVBoxLayout(row);
+        layout->setContentsMargins(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
+    }
     layout->setSpacing(intValue(style, "itemRowSpacing", 4));
 
     if (chatMode && !badgeText.isEmpty()) {
@@ -529,7 +836,10 @@ QFrame *itemRowWidget(const QJsonObject &item, const QJsonObject &style, bool ch
         layout->addWidget(date);
     }
 
-    QLabel *title = label(titleText, chatMode ? QStringLiteral("chatSidebarTitle") : QStringLiteral("sectionTitle"));
+    QLabel *title = label(
+        chatMode ? elidedChatSidebarText(titleText, style) : titleText,
+        chatMode ? QStringLiteral("chatSidebarTitle") : QStringLiteral("sectionTitle")
+    );
     applyAccessibleText(title, titleText, rowSummary);
     title->setWordWrap(false);
     layout->addWidget(title);
@@ -548,6 +858,27 @@ QFrame *itemRowWidget(const QJsonObject &item, const QJsonObject &style, bool ch
     return row;
 }
 
+void updateChatSelectionDots(QListWidget *list) {
+    if (list == nullptr || list->objectName() != QStringLiteral("chatItemList")) {
+        return;
+    }
+    const int selectedRow = list->currentRow();
+    for (int rowIndex = 0; rowIndex < list->count(); rowIndex += 1) {
+        QWidget *rowWidget = list->itemWidget(list->item(rowIndex));
+        if (rowWidget == nullptr) {
+            continue;
+        }
+        const bool isSelected = rowIndex == selectedRow;
+        rowWidget->setProperty("chatSelected", isSelected);
+        refreshDynamicStyle(rowWidget);
+        QFrame *dot = rowWidget->findChild<QFrame *>(QStringLiteral("chatSelectionDot"));
+        if (dot != nullptr) {
+            dot->setProperty("selected", isSelected);
+            refreshDynamicStyle(dot);
+        }
+    }
+}
+
 QListWidget *listWidget(const QJsonArray &items, int selectedIndex, const QJsonObject &style, bool chatMode = false) {
     QListWidget *list = new QListWidget();
     list->setObjectName(chatMode ? QStringLiteral("chatItemList") : QStringLiteral("itemList"));
@@ -555,7 +886,7 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex, const QJsonO
     list->setSpacing(intValue(style, "listSpacing", 4));
     list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     if (chatMode) {
-        list->setSelectionMode(QAbstractItemView::NoSelection);
+        list->setSelectionMode(QAbstractItemView::SingleSelection);
         list->setFocusPolicy(Qt::NoFocus);
     }
 
@@ -567,9 +898,12 @@ QListWidget *listWidget(const QJsonArray &items, int selectedIndex, const QJsonO
         list->setItemWidget(listItem, itemRowWidget(item, style, chatMode));
     }
 
-    const int boundedIndex = boundedSelectedIndex(items, selectedIndex);
+    const int boundedIndex = boundedSelectedIndex(items, selectedIndex, chatMode);
     if (boundedIndex >= 0) {
         list->setCurrentRow(boundedIndex);
+    }
+    if (chatMode) {
+        updateChatSelectionDots(list);
     }
     return list;
 }
@@ -698,12 +1032,85 @@ QFrame *messageCard(const QJsonObject &message, const QJsonObject &style) {
     return card;
 }
 
+QString chatMessageRole(const QJsonObject &message) {
+    QString role = stringValue(message, "role");
+    if (role.isEmpty()) {
+        role = stringValue(message, "sender", QStringLiteral("system"));
+    }
+    return role.trimmed().toLower();
+}
+
+QString chatMessageBody(const QJsonObject &message) {
+    const QString content = stringValue(message, "content");
+    if (!content.isEmpty()) {
+        return content;
+    }
+    return stringValue(message, "body");
+}
+
+QWidget *chatMessageWidget(const QJsonObject &message, const QJsonObject &style) {
+    const QString role = chatMessageRole(message);
+    const bool isUser = role == QStringLiteral("user");
+    const bool isAssistant = role == QStringLiteral("assistant");
+    const QString bodyText = chatMessageBody(message);
+
+    QWidget *host = new QWidget();
+    QHBoxLayout *row = new QHBoxLayout(host);
+    row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(0);
+
+    QFrame *bubble = QuillQtWidgets::frame(
+        isUser
+            ? QStringLiteral("messageUserBubble")
+            : (isAssistant ? QStringLiteral("messageAssistantBubble") : QStringLiteral("messageSystemBubble"))
+    );
+    bubble->setMaximumWidth(intValue(style, "messageBubbleMaxWidth", 520));
+    applyAccessibleText(bubble, role, accessibilitySummary(role, bodyText));
+
+    QVBoxLayout *layout = new QVBoxLayout(bubble);
+    layout->setContentsMargins(
+        intValue(style, "messageCardPaddingHorizontal", 14),
+        intValue(style, "messageCardPaddingVertical", 10),
+        intValue(style, "messageCardPaddingHorizontal", 14),
+        intValue(style, "messageCardPaddingVertical", 10)
+    );
+    layout->setSpacing(intValue(style, "messageCardSpacing", 6));
+
+    QLabel *body = label(bodyText, isUser ? QStringLiteral("messageTextInverted") : QStringLiteral("messageText"));
+    body->setWordWrap(true);
+    applyAccessibleText(body, bodyText, bodyText);
+    layout->addWidget(body);
+
+    if (isUser) {
+        row->addStretch(1);
+        row->addWidget(bubble, 0, Qt::AlignRight);
+    } else {
+        row->addWidget(bubble, 0, Qt::AlignLeft);
+        row->addStretch(1);
+    }
+
+    return host;
+}
+
+void populateChatMessages(QVBoxLayout *layout, const QJsonArray &messages, const QJsonObject &style) {
+    for (const QJsonValue &value : messages) {
+        layout->addWidget(chatMessageWidget(value.toObject(), style));
+    }
+}
+
 void populateDetailContent(
     QVBoxLayout *layout,
     const GenericSelection &selection,
-    const QJsonObject &style
+    const QJsonObject &style,
+    bool chatMode = false
 ) {
     clearLayout(layout);
+
+    if (chatMode && !selection.messages.isEmpty()) {
+        layout->addStretch(1);
+        populateChatMessages(layout, selection.messages, style);
+        return;
+    }
 
     int sectionIndex = 0;
     for (const QJsonValue &value : selection.sections) {
@@ -723,14 +1130,45 @@ void populateDetailContent(
     layout->addStretch(1);
 }
 
-void applySelection(GenericDetailPane &detailPane, const GenericSelection &selection, const QJsonObject &style) {
+void populateEmptyStateContent(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style
+);
+
+void applySelection(
+    GenericDetailPane &detailPane,
+    const GenericSelection &selection,
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    bool chatMode
+) {
     const QString detailSummary = accessibilitySummary(selection.detailTitle, selection.detailSubtitle);
-    detailPane.titleLabel->setText(selection.detailTitle);
+    if (!detailPane.preservesHeaderTitle) {
+        detailPane.titleLabel->setText(selection.detailTitle);
+    }
     detailPane.subtitleLabel->setText(selection.detailSubtitle);
     applyAccessibleText(detailPane.view, selection.detailTitle, detailSummary);
-    applyAccessibleText(detailPane.titleLabel, selection.detailTitle, detailSummary);
+    if (!detailPane.preservesHeaderTitle) {
+        applyAccessibleText(detailPane.titleLabel, selection.detailTitle, detailSummary);
+    }
     applyAccessibleText(detailPane.subtitleLabel, selection.detailSubtitle, selection.detailSubtitle);
-    populateDetailContent(detailPane.contentLayout, selection, style);
+    if (chatMode && !selection.hasSelection) {
+        populateEmptyStateContent(detailPane.contentLayout, payload, style);
+    } else {
+        populateDetailContent(detailPane.contentLayout, selection, style, chatMode);
+    }
+}
+
+void populateEmptyStateContent(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style
+) {
+    clearLayout(layout);
+    layout->addStretch(1);
+    layout->addWidget(emptyStateWidget(payload, style), 0, Qt::AlignCenter);
+    layout->addStretch(1);
 }
 
 GenericDetailPane chatDetailWidget(
@@ -755,14 +1193,30 @@ GenericDetailPane chatDetailWidget(
     const int headerPadding = intValue(style, "headerPadding", 18);
     headerLayout->setContentsMargins(headerPadding, 0, headerPadding, 0);
     headerLayout->setSpacing(intValue(style, "headerSpacing", 12));
-    QLabel *title = label(headerTitle, QStringLiteral("detailTitle"));
+    QLabel *title = label(headerTitle, QStringLiteral("chatHeaderTitle"));
     title->setWordWrap(false);
     applyAccessibleText(title, headerTitle, detailSummary);
     headerLayout->addWidget(title, 1);
-    QLabel *toolbar = label(QStringLiteral("..."), QStringLiteral("caption"));
-    toolbar->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    applyAccessibleText(toolbar, QStringLiteral("Toolbar"), QStringLiteral("Toolbar"));
-    headerLayout->addWidget(toolbar);
+    headerLayout->addWidget(headerIconButton(
+        QStringLiteral("chevron.down"),
+        QStringLiteral("Conversation menu"),
+        style
+    ));
+    headerLayout->addWidget(headerIconButton(
+        QStringLiteral("ellipsis"),
+        QStringLiteral("More options"),
+        style
+    ));
+    headerLayout->addWidget(headerIconButton(
+        QStringLiteral("chevron.down"),
+        QStringLiteral("More options menu"),
+        style
+    ));
+    headerLayout->addWidget(headerIconButton(
+        QStringLiteral("square.and.pencil"),
+        QStringLiteral("New chat"),
+        style
+    ));
     layout->addWidget(header);
 
     QWidget *body = new QWidget();
@@ -775,9 +1229,11 @@ GenericDetailPane chatDetailWidget(
     QVBoxLayout *conversationLayout = new QVBoxLayout(conversationHost);
     conversationLayout->setContentsMargins(0, 0, 0, 0);
     conversationLayout->setSpacing(intValue(style, "detailContentSpacing", 14));
-    conversationLayout->addStretch(1);
-    conversationLayout->addWidget(emptyStateWidget(payload, style), 0, Qt::AlignCenter);
-    conversationLayout->addStretch(1);
+    if (selectedIndex >= 0) {
+        populateDetailContent(conversationLayout, selection, style, true);
+    } else {
+        populateEmptyStateContent(conversationLayout, payload, style);
+    }
     bodyLayout->addWidget(conversationHost, 1);
 
     if (QFrame *notice = noticeWidget(payload, style)) {
@@ -790,7 +1246,7 @@ GenericDetailPane chatDetailWidget(
     QLabel *subtitle = label(selection.detailSubtitle, QStringLiteral("caption"));
     subtitle->setParent(detail);
     subtitle->hide();
-    return GenericDetailPane { detail, title, subtitle, conversationLayout };
+    return GenericDetailPane { detail, title, subtitle, conversationLayout, true };
 }
 
 GenericDetailPane detailWidget(
@@ -829,7 +1285,7 @@ GenericDetailPane detailWidget(
     layout->addLayout(contentLayout, 1);
     populateDetailContent(contentLayout, selection, style);
 
-    return GenericDetailPane { detail, title, subtitle, contentLayout };
+    return GenericDetailPane { detail, title, subtitle, contentLayout, false };
 }
 
 QWidget *scrollWrapped(QWidget *child) {
@@ -878,12 +1334,13 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
 
     const QJsonArray items = jsonArrayValue(payload, "items");
     const int rawSelectedIndex = intValue(payload, "selectedIndex", 0);
-    const int selectedIndex = boundedSelectedIndex(items, rawSelectedIndex);
     const bool chatMode = usesChatPresentation(payload);
+    const int selectedIndex = boundedSelectedIndex(items, rawSelectedIndex, chatMode);
     QListWidget *itemList = listWidget(items, selectedIndex, style, chatMode);
     GenericDetailPane detailPane = detailWidget(payload, items, selectedIndex, style);
     QObject::connect(itemList, &QListWidget::currentRowChanged, [&](int row) {
-        applySelection(detailPane, selectionForRow(payload, items, row), style);
+        applySelection(detailPane, selectionForRow(payload, items, row), payload, style, chatMode);
+        updateChatSelectionDots(itemList);
     });
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal);
