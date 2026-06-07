@@ -112,6 +112,42 @@ open class NSParagraphStyle: NSObject {
 
 open class NSMutableParagraphStyle: NSParagraphStyle {}
 
+public extension NSParagraphStyle {
+    /// Inert on Linux: returns .natural (no per-language BiDi resolution yet).
+    /// SSK's String.naturalTextAlignment switches over the result.
+    class func defaultWritingDirection(forLanguage language: String?) -> NSWritingDirection {
+        return .natural
+    }
+}
+
+// NSTextAttachment: an inline image/data attachment in an attributed string.
+// swift-corelibs Foundation has no NSTextAttachment; SSK (String+SSK) builds one
+// to embed a templated image. Inert holder of image/bounds; rendering deferred.
+open class NSTextAttachment: NSObject {
+    public var image: UIImage?
+    public var bounds: CGRect
+    public var contents: Data?
+    public override init() {
+        self.image = nil
+        self.bounds = .zero
+        self.contents = nil
+        super.init()
+    }
+}
+
+public extension UIImage {
+    enum RenderingMode: Int, Sendable {
+        case automatic = 0
+        case alwaysOriginal = 1
+        case alwaysTemplate = 2
+    }
+    /// Inert on Linux: returns self (no template tinting). SSK uses
+    /// .alwaysTemplate for theme-tinted glyphs; the original image suffices.
+    func withRenderingMode(_ renderingMode: RenderingMode) -> UIImage {
+        return self
+    }
+}
+
 // Standard attributed-string attribute keys (UIKit/AppKit additions; not in
 // swift-corelibs Foundation). Raw values match Apple's.
 public extension NSAttributedString.Key {
@@ -127,6 +163,15 @@ public extension NSAttributedString.Key {
     static let attachment = NSAttributedString.Key(rawValue: "NSAttachment")
     static let kern = NSAttributedString.Key(rawValue: "NSKern")
     static let baselineOffset = NSAttributedString.Key(rawValue: "NSBaselineOffset")
+}
+
+public extension NSAttributedString {
+    /// NSAttributedString(attachment:) -- wraps a text attachment in an attributed
+    /// string with the attachment attribute under the U+FFFC object-replacement
+    /// character (matches Apple). Image rendering is inert; the attribute is set.
+    convenience init(attachment: NSTextAttachment) {
+        self.init(string: "\u{FFFC}", attributes: [.attachment: attachment])
+    }
 }
 
 public class UIScene: NSObject {
