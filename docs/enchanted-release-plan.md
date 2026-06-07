@@ -86,23 +86,34 @@ Required click-through flows:
 
 ### Packaging
 
-- Provide a local run script for developers.
-- Provide a reproducible release build path.
+- Provide a local run script for developers. The generic
+  `scripts/package-swiftui-linux-app.sh` emits a runnable artifact directory
+  with a `run` launcher.
+- Provide a reproducible release build path. The same generic packager accepts
+  any lowered SwiftUI app source, app type, product name, backend facade, output
+  directory, and optional tarball path.
 - Prefer Flatpak for the first public installable artifact.
 - Capture screenshots from the release artifact, not a special test-only binary.
 - Document required local services, especially Ollama endpoint configuration.
 
 ## Current Priority Order
 
-1. Finish the remaining toolbar and chat-state mutation flows, starting with
-   New Chat from a selected transcript.
+1. Rerun visual and interaction smoke against the packaged release artifact,
+   not only the generated build directory.
 2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
 3. Wire QuillPaint into the controls that currently fail visual parity.
-4. Produce a release artifact and rerun visual/interaction smoke against it.
+4. Add the first Flatpak manifest once the packaged artifact passes the same
+   visual and interaction rows.
 5. Only then resume NetNewsWire as the next public app.
 
 Recently cleared:
 
+- The first generic release artifact path is available: Docker verified
+  `scripts/package-swiftui-linux-app.sh` against real Enchanted source, producing
+  a runnable `quill-chat-linux` GTK artifact directory and tarball.
+- The packaged `run` launcher has passed the Mac-reference visual smoke and the
+  `new-chat` semantic interaction row via `QUILLUI_BACKEND_APP_EXECUTABLE`, so
+  QA can now target release artifacts instead of only generated build products.
 - Typed composer focus/input is covered by the real-source GTK mac-reference
   interaction verifier.
 - Composer-send UI transition is covered by the real-source GTK mac-reference
