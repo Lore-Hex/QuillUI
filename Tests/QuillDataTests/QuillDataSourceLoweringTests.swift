@@ -1432,6 +1432,12 @@ struct QuillDataSourceLoweringTests {
                     gtkPixelSize(layout.containerSize.width),
                     gtkPixelSize(layout.containerSize.height)
                 )
+                if let xw = maxWidth, xw == .infinity {
+                    gtk_widget_set_hexpand(wrapper, 1)
+                }
+                if let xh = maxHeight, xh == .infinity {
+                    gtk_widget_set_vexpand(wrapper, 1)
+                }
                 return opaqueFromWidget(wrapper)
             }
 
@@ -2186,6 +2192,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if gtk_widget_get_hexpand(childWidget) != 0"))
         #expect(patchedRenderer.contains("gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)"))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)"))
+        #expect(patchedRenderer.contains("if maxWidth != nil {"))
+        #expect(patchedRenderer.contains("if maxHeight != nil {"))
+        #expect(!patchedRenderer.contains("if let xw = maxWidth, xw != nil"))
+        #expect(!patchedRenderer.contains("if let xh = maxHeight, xh != nil"))
         #expect(patchedRenderer.contains("expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity)"))
         #expect(patchedRenderer.contains("expandsToFillHeight: childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
         #expect(patchedRenderer.contains("expandsToFillHeight: gtk_widget_get_vexpand(child) != 0 || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
