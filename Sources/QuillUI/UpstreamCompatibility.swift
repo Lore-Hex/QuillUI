@@ -842,16 +842,6 @@ public enum ScrollIndicatorVisibility: Sendable {
     case never
 }
 
-public struct AccessibilityChildBehavior: Hashable, Sendable {
-    private let rawValue: String
-
-    private init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let combine = AccessibilityChildBehavior("combine")
-}
-
 public struct AccessibilityLabelView<Content: View>: View {
     public typealias Body = Never
 
@@ -1216,30 +1206,6 @@ public extension Shape {
 }
 
 public extension View {
-    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
-        recordQuillUIFallback(
-            "allowsHitTesting",
-            message: "allowsHitTesting is preserved as hit-testing metadata on Linux."
-        )
-        return AllowsHitTestingView(content: self, enabled: enabled)
-    }
-
-    func contentShape<S: Shape>(_ shape: S) -> ContentShapeView<Self, S> {
-        recordQuillUIFallback(
-            "contentShape",
-            message: "contentShape is preserved as hit-testing shape metadata on Linux."
-        )
-        return ContentShapeView(content: self, shape: shape)
-    }
-
-    func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
-        recordQuillUIFallback(
-            "onHover",
-            message: "onHover is preserved as hover handler metadata on Linux."
-        )
-        return OnHoverView(content: self, action: action)
-    }
-
     func offset(_ size: CGSize) -> OffsetView<Self> {
         offset(x: size.width, y: size.height)
     }
@@ -1265,22 +1231,6 @@ public extension View {
         padding(edges, Int(amount))
     }
 
-    func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
-        recordQuillUIFallback(
-            "listRowInsets",
-            message: "listRowInsets is preserved as list row layout metadata on Linux."
-        )
-        return ListRowInsetsView(content: self, insets: insets)
-    }
-
-    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> ListRowSeparatorView<Self> {
-        recordQuillUIFallback(
-            "listRowSeparator",
-            message: "listRowSeparator is preserved as list row separator metadata on Linux."
-        )
-        return ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
-    }
-
     func focused<Value>(_ binding: Binding<Value>) -> FocusBindingView<Self, Value> {
         recordQuillUIFallback(
             "focused",
@@ -1303,30 +1253,6 @@ public extension View {
             message: "textSelection is preserved as selectable text metadata on Linux."
         )
         return TextSelectionView(content: self, selection: selection)
-    }
-
-    func accessibilityLabel(_ label: String) -> AccessibilityLabelView<Self> {
-        recordQuillUIFallback(
-            "accessibilityLabel",
-            message: "View accessibility labels are propagated to GTK accessibility metadata on Linux."
-        )
-        return AccessibilityLabelView(content: self, label: label)
-    }
-
-    func accessibilityValue(_ value: String) -> AccessibilityValueView<Self> {
-        recordQuillUIFallback(
-            "accessibilityValue",
-            message: "View accessibility values are propagated to GTK accessibility metadata on Linux."
-        )
-        return AccessibilityValueView(content: self, value: value)
-    }
-
-    func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self> {
-        recordQuillUIFallback(
-            "accessibilityElement(children:)",
-            message: "View accessibility child behavior is preserved for GTK accessibility rendering on Linux."
-        )
-        return AccessibilityElementView(content: self, children: children)
     }
 
     func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
