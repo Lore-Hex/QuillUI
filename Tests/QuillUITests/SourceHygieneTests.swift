@@ -3358,6 +3358,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/check-linux-app-metadata.sh"),
             encoding: .utf8
         )
+        let flatpakManifestSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/generate-flatpak-manifest.sh"),
+            encoding: .utf8
+        )
         let legacyQuillChatBuildSource = try String(
             contentsOf: root.appendingPathComponent("scripts/build-quill-chat-linux.sh"),
             encoding: .utf8
@@ -3450,6 +3454,17 @@ struct SourceHygieneTests {
         #expect(metadataCheckSource.contains("grep -Fx \"Exec=$PRODUCT_NAME\""))
         #expect(metadataCheckSource.contains("ET.parse(metainfo_path).getroot()"))
         #expect(metadataCheckSource.contains("Linux app metadata ok: %s"))
+        #expect(flatpakManifestSource.contains("Usage: $(basename \"$0\") --artifact-dir PATH [--output PATH]"))
+        #expect(flatpakManifestSource.contains("QUILLUI_FLATPAK_ARTIFACT_DIR"))
+        #expect(flatpakManifestSource.contains("metadata_value app_id \"$METADATA_FILE\""))
+        #expect(flatpakManifestSource.contains("\"app-id\": app_id"))
+        #expect(flatpakManifestSource.contains("\"runtime\": os.environ[\"QUILLUI_FLATPAK_RUNTIME_ID\"]"))
+        #expect(flatpakManifestSource.contains("\"command\": product_name"))
+        #expect(flatpakManifestSource.contains("\"finish-args\": finish_args"))
+        #expect(flatpakManifestSource.contains("install -Dm644 share/applications/{app_id}.desktop"))
+        #expect(flatpakManifestSource.contains("install -Dm644 share/metainfo/{app_id}.metainfo.xml"))
+        #expect(flatpakManifestSource.contains("exec /app/lib/quillui-app/run \"$@\""))
+        #expect(flatpakManifestSource.contains("Flatpak manifest written: %s"))
         #expect(legacyQuillChatBuildSource.contains("scripts/build-enchanted-linux.sh"))
         #expect(enchantedBuildSource.contains("--backend-facade"))
         #expect(enchantedBuildSource.contains("QUILLUI_ENCHANTED_BACKEND_FACADE"))

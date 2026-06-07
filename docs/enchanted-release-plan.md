@@ -92,7 +92,9 @@ Required click-through flows:
 - Provide a reproducible release build path. The same generic packager accepts
   any lowered SwiftUI app source, app type, product name, backend facade, output
   directory, app id, desktop metadata, optional icon, and optional tarball path.
-- Prefer Flatpak for the first public installable artifact.
+- Prefer Flatpak for the first public installable artifact. Generate the first
+  Flatpak manifest from the packaged app metadata, then audit the runtime
+  dependency closure before calling it end-user installable.
 - Capture screenshots from the release artifact, not a special test-only binary.
 - Document required local services, especially Ollama endpoint configuration.
 
@@ -102,8 +104,8 @@ Required click-through flows:
    not only the generated build directory.
 2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
 3. Wire QuillPaint into the controls that currently fail visual parity.
-4. Add the first Flatpak manifest once the packaged artifact passes the same
-   visual and interaction rows.
+4. Turn the first Flatpak manifest scaffold into a full Flatpak build by
+   closing the Swift/GTK/runtime dependency bundle.
 5. Only then resume NetNewsWire as the next public app.
 
 Recently cleared:
@@ -120,6 +122,9 @@ Recently cleared:
 - The generic package output now includes `.desktop` and AppStream metainfo
   files plus a metadata checker, and Enchanted CI validates Quill Chat's
   `io.lorehex.QuillChat` desktop metadata before running the packaged app.
+- The generic package output now feeds `scripts/generate-flatpak-manifest.sh`,
+  and Enchanted CI emits `.qa/io.lorehex.QuillChat.flatpak.json` from the same
+  release artifact metadata before running packaged-app parity checks.
 - Typed composer focus/input is covered by the real-source GTK mac-reference
   interaction verifier.
 - Composer-send UI transition is covered by the real-source GTK mac-reference

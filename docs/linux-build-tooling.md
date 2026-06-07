@@ -141,6 +141,41 @@ backend facade flag forwards to the generated app entry so GTK facade imports
 and the Qt native runtime can be compile-checked without changing the Quill
 Chat source tree.
 
+## Release Artifacts
+
+`scripts/package-swiftui-linux-app.sh` wraps the generic builder and writes a
+runnable artifact directory. The artifact includes `bin/PRODUCT`, SwiftPM
+resource directories, a `run` launcher, release metadata, a `.desktop` file,
+AppStream metainfo, and an optional tarball:
+
+```bash
+scripts/package-swiftui-linux-app.sh \
+  --profile enchanted-full-source \
+  --source-dir /path/to/Enchanted \
+  --app-type EnchantedApp \
+  --product-name quill-chat-linux \
+  --artifact-dir .build/releases/quill-chat-linux-gtk \
+  --display-name "Quill Chat" \
+  --app-id io.lorehex.QuillChat
+```
+
+`scripts/check-linux-app-metadata.sh` validates that packaged desktop metadata
+matches the executable and release metadata. `scripts/generate-flatpak-manifest.sh`
+then consumes the same artifact directory and writes a first Flatpak manifest
+scaffold:
+
+```bash
+scripts/generate-flatpak-manifest.sh \
+  --artifact-dir .build/releases/quill-chat-linux-gtk \
+  --output .qa/io.lorehex.QuillChat.flatpak.json
+```
+
+The manifest intentionally comes from package metadata, not Enchanted-specific
+paths, so future app profiles can reuse it. A fully public Flatpak still needs
+the Linux runtime dependency closure audited and built inside a compatible SDK;
+the manifest is the reproducible packaging shape, not a claim that arbitrary
+host-built Swift binaries are portable across every Flatpak runtime.
+
 The Linux backend visual smoke script can screenshot either root SwiftPM
 products or generated app products. CI drives matrix jobs through
 `scripts/run-linux-backend-smoke-matrix.sh`, which reads a

@@ -102,6 +102,10 @@ jobs:
             io.lorehex.QuillChat \
             quill-chat-linux \
             "Quill Chat"
+          scripts/generate-flatpak-manifest.sh \
+            --artifact-dir .build/releases/quill-chat-linux-gtk \
+            --output .qa/io.lorehex.QuillChat.flatpak.json
+          python3 -m json.tool .qa/io.lorehex.QuillChat.flatpak.json >/dev/null
           echo "QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run" >> "$GITHUB_ENV"
 
       - name: Run packaged release artifact verifier
