@@ -668,7 +668,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIGtk",
-        dependencies: ["QuillUI"],
+        dependencies: ["QuillUI", "CCairo"],
         path: "Sources/QuillUIGtk",
         swiftSettings: appSwiftSettings
     ),
