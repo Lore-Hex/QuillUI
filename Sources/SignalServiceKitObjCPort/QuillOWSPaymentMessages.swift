@@ -71,6 +71,24 @@ open class OWSOutgoingPaymentMessage: TSOutgoingMessage, OWSPaymentMessage {
                    recipientAddressStates: recipientAddressStates, storedMessageState: storedMessageState, wasNotCreatedLocally: wasNotCreatedLocally)
     }
 
+    // Builder initializer (OWSOutgoingPaymentMessage.m
+    // initWithBuilder:paymentNotification:transaction:): the convenience init in
+    // OWSOutgoingPaymentMessage.swift delegates here. Forwards to TSOutgoingMessage's
+    // builder init with empty recipient sets (as in the original) and stores the
+    // payment notification.
+    public init(builder messageBuilder: TSOutgoingMessageBuilder,
+                paymentNotification: TSPaymentNotification,
+                transaction: DBReadTransaction) {
+        self.paymentCancellation = nil
+        self.paymentNotification = paymentNotification
+        self.paymentRequest = nil
+        super.init(outgoingMessageWith: messageBuilder,
+                   additionalRecipients: [],
+                   explicitRecipients: [],
+                   skippedRecipients: [],
+                   transaction: transaction)
+    }
+
     public override func encode(with coder: NSCoder) {
         super.encode(with: coder)
         if let paymentCancellation { coder.encode(paymentCancellation, forKey: "paymentCancellation") }
@@ -123,6 +141,18 @@ open class OWSIncomingPaymentMessage: TSIncomingMessage, OWSPaymentMessage {
                    storyTimestamp: storyTimestamp, wasRemotelyDeleted: wasRemotelyDeleted, authorPhoneNumber: authorPhoneNumber, authorUUID: authorUUID,
                    deprecated_sourceDeviceId: deprecated_sourceDeviceId, read: read, serverDeliveryTimestamp: serverDeliveryTimestamp, serverGuid: serverGuid,
                    serverTimestamp: serverTimestamp, viewed: viewed, wasReceivedByUD: wasReceivedByUD)
+    }
+
+    // Builder initializer (OWSIncomingPaymentMessage.m
+    // initIncomingMessageWithBuilder:paymentNotification:): TSIncomingMessageBuilder
+    // .build() returns this when a paymentNotification is present. Forwards to
+    // TSIncomingMessage's builder init and stores the payment notification.
+    public init(initIncomingMessageWithBuilder messageBuilder: TSIncomingMessageBuilder,
+                paymentNotification: TSPaymentNotification) {
+        self.paymentCancellation = nil
+        self.paymentNotification = paymentNotification
+        self.paymentRequest = nil
+        super.init(incomingMessageWithBuilder: messageBuilder)
     }
 
     public override func encode(with coder: NSCoder) {
