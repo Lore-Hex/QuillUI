@@ -647,6 +647,7 @@ public enum EnchantedPalette {
     public static let destructiveColor = "#B42318"
     public static let successColor = "#34C759"
     public static let warningColor = "#FF9F0A"
+    public static let noticeColor = "#F7CED4"
     public static let dropTargetColor = "#EAF2FF"
     public static let selectedMutedColor = "#FFFFFF"
     public static let headerColor = EnchantedPalette.canvasColor
@@ -708,7 +709,7 @@ public enum EnchantedVisualMetrics {
     public static let promptGridColumns = 4
     public static let promptGridSpacing = 15
     public static let promptCardWidth = 160
-    public static let promptCardHeight = 128
+    public static let promptCardHeight = 150
     public static let promptGridWidth = promptCardWidth * promptGridColumns + promptGridSpacing * (promptGridColumns - 1)
     public static let promptButtonIconSpacing = 10
     public static let promptButtonTextWidthInset = 80

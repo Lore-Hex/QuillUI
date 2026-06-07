@@ -790,11 +790,13 @@ quillui_resolve_linux_backend_executable() {
     local enchanted_bin_path
     if [[ "$enchanted_backend_facade" == "qt" ]]; then
       enchanted_bin_path="$(QUILLUI_LINUX_BACKEND=qt "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+        --disable-index-store \
         --package-path "$enchanted_work_root/package" \
         --scratch-path "$enchanted_work_root/.build-check" \
         --show-bin-path)"
     else
       enchanted_bin_path="$(swift build \
+        --disable-index-store \
         --package-path "$enchanted_work_root/package" \
         --scratch-path "$enchanted_work_root/.build-check" \
         --show-bin-path)"
@@ -824,7 +826,7 @@ quillui_resolve_linux_backend_executable() {
         --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
       QUILLUI_LINUX_BACKEND="$linux_build_backend" \
         "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-        swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product"
+        swift build --disable-index-store --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product"
       quillui_record_backend_product_build \
         "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" \
         "$product" \
@@ -833,7 +835,7 @@ quillui_resolve_linux_backend_executable() {
       bin_path="$(
         QUILLUI_LINUX_BACKEND="$linux_build_backend" \
           "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-          swift build --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --show-bin-path
+          swift build --disable-index-store --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --show-bin-path
       )"
       quillui_assign_output "$output_var" "$bin_path/$product" || return $?
     fi

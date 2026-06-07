@@ -28,7 +28,21 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
     public var items: [Item]
     public var sections: [Section]
     public var messages: [Message]
+    public var presentation: Presentation
+    public var emptyStateTitle: String
+    public var emptyStateSubtitle: String
+    public var prompts: [Prompt]
+    public var bottomNavigation: [NavigationAction]
+    public var composerPlaceholder: String
+    public var noticeTitle: String
+    public var noticeBody: String
+    public var noticeActionTitle: String
     public var style: Style
+
+    public enum Presentation: String, Codable, Sendable {
+        case standard
+        case chat
+    }
 
     public struct Item: Codable, Sendable {
         public var title: String
@@ -107,11 +121,38 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         }
     }
 
+    public struct Prompt: Codable, Sendable {
+        public var title: String
+        public var systemImage: String
+
+        public init(title: String, systemImage: String = "") {
+            self.title = title
+            self.systemImage = systemImage
+        }
+
+        public init(_ prompt: EnchantedPrompt) {
+            self.init(title: prompt.title, systemImage: prompt.systemImage)
+        }
+    }
+
+    public struct NavigationAction: Codable, Sendable {
+        public var title: String
+        public var systemImage: String
+
+        public init(title: String, systemImage: String = "") {
+            self.title = title
+            self.systemImage = systemImage
+        }
+    }
+
     public struct Style: Codable, Sendable {
         public var canvasColor: String
         public var sidebarColor: String
         public var cardColor: String
         public var activeCardColor: String
+        public var headerColor: String
+        public var promptCardColor: String
+        public var noticeColor: String
         public var primaryColor: String
         public var inkColor: String
         public var mutedColor: String
@@ -129,9 +170,27 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         public var sectionTitleFontWeight: Int
         public var currentTitleFontSize: Int
         public var currentTitleFontWeight: Int
+        public var emptyStateWordmarkFontSize: Int
+        public var emptyStateWordmarkFontWeight: Int
         public var messageBodyFontSize: Int
         public var conversationTitleFontSize: Int
         public var conversationTitleFontWeight: Int
+        public var headerHeight: Int
+        public var headerPadding: Int
+        public var headerSpacing: Int
+        public var headerTitleSpacing: Int
+        public var contentPadding: Int
+        public var emptyStateMaxWidth: Int
+        public var emptyStatePadding: Int
+        public var emptyStateSpacing: Int
+        public var emptyStateHeaderSpacing: Int
+        public var promptGridColumns: Int
+        public var promptGridSpacing: Int
+        public var promptCardWidth: Int
+        public var promptCardHeight: Int
+        public var promptGridWidth: Int
+        public var promptButtonPadding: Int
+        public var promptButtonRadius: Int
         public var sidebarPadding: Int
         public var sidebarSpacing: Int
         public var sidebarActionSpacing: Int
@@ -158,6 +217,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         public var messageCardPaddingHorizontal: Int
         public var messageCardPaddingVertical: Int
         public var messageCardSpacing: Int
+        public var composerMinWidth: Int
+        public var composerMaxWidth: Int
+        public var composerPadding: Int
+        public var composerSpacing: Int
+        public var promptRowSpacing: Int
+        public var composerMinHeight: Int
+        public var composerMaxHeight: Int
+        public var composerEditorRadius: Int
+        public var composerSendButtonMinWidth: Int
         public var detailPaddingHorizontal: Int
         public var detailPaddingVertical: Int
         public var detailSpacing: Int
@@ -168,6 +236,9 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             sidebarColor: "#EEF2EA",
             cardColor: "#FFFFFF",
             activeCardColor: "#E7F0FA",
+            headerColor: "#F7F8F4",
+            promptCardColor: "#FFFFFF",
+            noticeColor: "#F8D7DA",
             primaryColor: "#2E5B78",
             inkColor: "#182027",
             mutedColor: "#65707A",
@@ -185,9 +256,27 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             sectionTitleFontWeight: EnchantedTypography.sectionTitleFontWeight,
             currentTitleFontSize: EnchantedTypography.currentTitleFontSize,
             currentTitleFontWeight: EnchantedTypography.currentTitleFontWeight,
+            emptyStateWordmarkFontSize: EnchantedTypography.emptyStateWordmarkFontSize,
+            emptyStateWordmarkFontWeight: EnchantedTypography.emptyStateWordmarkFontWeight,
             messageBodyFontSize: EnchantedTypography.messageBodyFontSize,
             conversationTitleFontSize: EnchantedTypography.conversationTitleFontSize,
             conversationTitleFontWeight: EnchantedTypography.conversationTitleFontWeight,
+            headerHeight: 76,
+            headerPadding: 18,
+            headerSpacing: 12,
+            headerTitleSpacing: 4,
+            contentPadding: 22,
+            emptyStateMaxWidth: 760,
+            emptyStatePadding: 26,
+            emptyStateSpacing: 18,
+            emptyStateHeaderSpacing: 8,
+            promptGridColumns: 4,
+            promptGridSpacing: 15,
+            promptCardWidth: 160,
+            promptCardHeight: 128,
+            promptGridWidth: 685,
+            promptButtonPadding: 12,
+            promptButtonRadius: 8,
             sidebarPadding: 18,
             sidebarSpacing: 12,
             sidebarActionSpacing: 8,
@@ -214,6 +303,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             messageCardPaddingHorizontal: 14,
             messageCardPaddingVertical: 10,
             messageCardSpacing: 6,
+            composerMinWidth: 620,
+            composerMaxWidth: 800,
+            composerPadding: 18,
+            composerSpacing: 10,
+            promptRowSpacing: 12,
+            composerMinHeight: 46,
+            composerMaxHeight: 120,
+            composerEditorRadius: 23,
+            composerSendButtonMinWidth: 86,
             detailPaddingHorizontal: 24,
             detailPaddingVertical: 22,
             detailSpacing: 14,
@@ -225,6 +323,9 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             sidebarColor: EnchantedPalette.sidebarColor,
             cardColor: EnchantedPalette.cardColor,
             activeCardColor: EnchantedPalette.sidebarSelectedColor,
+            headerColor: EnchantedPalette.headerColor,
+            promptCardColor: EnchantedPalette.cardQuietColor,
+            noticeColor: EnchantedPalette.noticeColor,
             primaryColor: EnchantedPalette.accentColor,
             inkColor: EnchantedPalette.textColor,
             mutedColor: EnchantedPalette.secondaryTextColor,
@@ -234,6 +335,24 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             selectedBorderColor: EnchantedPalette.controlBorderColor,
             dividerColor: EnchantedPalette.hairlineColor,
             controlBorderColor: EnchantedPalette.controlBorderColor,
+            emptyStateWordmarkFontSize: EnchantedTypography.emptyStateWordmarkFontSize,
+            emptyStateWordmarkFontWeight: EnchantedTypography.emptyStateWordmarkFontWeight,
+            headerHeight: EnchantedVisualMetrics.headerHeight,
+            headerPadding: EnchantedVisualMetrics.headerPadding,
+            headerSpacing: EnchantedVisualMetrics.headerSpacing,
+            headerTitleSpacing: EnchantedVisualMetrics.headerTitleSpacing,
+            contentPadding: EnchantedVisualMetrics.contentPadding,
+            emptyStateMaxWidth: EnchantedVisualMetrics.emptyStateMaxWidth,
+            emptyStatePadding: EnchantedVisualMetrics.emptyStatePadding,
+            emptyStateSpacing: EnchantedVisualMetrics.emptyStateSpacing,
+            emptyStateHeaderSpacing: EnchantedVisualMetrics.emptyStateHeaderSpacing,
+            promptGridColumns: EnchantedVisualMetrics.promptGridColumns,
+            promptGridSpacing: EnchantedVisualMetrics.promptGridSpacing,
+            promptCardWidth: EnchantedVisualMetrics.promptCardWidth,
+            promptCardHeight: EnchantedVisualMetrics.promptCardHeight,
+            promptGridWidth: EnchantedVisualMetrics.promptGridWidth,
+            promptButtonPadding: EnchantedVisualMetrics.promptButtonPadding,
+            promptButtonRadius: EnchantedVisualMetrics.promptButtonRadius,
             sidebarPadding: EnchantedVisualMetrics.sidebarPadding,
             sidebarSpacing: EnchantedVisualMetrics.sidebarSpacing,
             sidebarActionSpacing: EnchantedVisualMetrics.conversationActionsSpacing,
@@ -261,6 +380,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             messageCardPaddingHorizontal: EnchantedVisualMetrics.messageBubbleHorizontalPadding,
             messageCardPaddingVertical: EnchantedVisualMetrics.messageBubbleVerticalPadding,
             messageCardSpacing: EnchantedVisualMetrics.messageBubbleSpacing,
+            composerMinWidth: EnchantedVisualMetrics.composerMinWidth,
+            composerMaxWidth: EnchantedVisualMetrics.composerMaxWidth,
+            composerPadding: EnchantedVisualMetrics.composerPadding,
+            composerSpacing: EnchantedVisualMetrics.composerSpacing,
+            promptRowSpacing: EnchantedVisualMetrics.promptRowSpacing,
+            composerMinHeight: EnchantedVisualMetrics.composerMinHeight,
+            composerMaxHeight: EnchantedVisualMetrics.composerMaxHeight,
+            composerEditorRadius: EnchantedVisualMetrics.composerEditorRadius,
+            composerSendButtonMinWidth: EnchantedVisualMetrics.composerSendButtonMinWidth,
             detailPaddingHorizontal: EnchantedVisualMetrics.contentPadding,
             detailPaddingVertical: EnchantedVisualMetrics.contentPadding,
             detailSpacing: EnchantedVisualMetrics.messageSpacing,
@@ -272,6 +400,9 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             sidebarColor: String,
             cardColor: String,
             activeCardColor: String,
+            headerColor: String = "#F7F8F4",
+            promptCardColor: String = "#FFFFFF",
+            noticeColor: String = "#F8D7DA",
             primaryColor: String,
             inkColor: String,
             mutedColor: String,
@@ -289,9 +420,27 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             sectionTitleFontWeight: Int = EnchantedTypography.sectionTitleFontWeight,
             currentTitleFontSize: Int = EnchantedTypography.currentTitleFontSize,
             currentTitleFontWeight: Int = EnchantedTypography.currentTitleFontWeight,
+            emptyStateWordmarkFontSize: Int = EnchantedTypography.emptyStateWordmarkFontSize,
+            emptyStateWordmarkFontWeight: Int = EnchantedTypography.emptyStateWordmarkFontWeight,
             messageBodyFontSize: Int = EnchantedTypography.messageBodyFontSize,
             conversationTitleFontSize: Int = EnchantedTypography.conversationTitleFontSize,
             conversationTitleFontWeight: Int = EnchantedTypography.conversationTitleFontWeight,
+            headerHeight: Int = 76,
+            headerPadding: Int = 18,
+            headerSpacing: Int = 12,
+            headerTitleSpacing: Int = 4,
+            contentPadding: Int = 22,
+            emptyStateMaxWidth: Int = 760,
+            emptyStatePadding: Int = 26,
+            emptyStateSpacing: Int = 18,
+            emptyStateHeaderSpacing: Int = 8,
+            promptGridColumns: Int = 4,
+            promptGridSpacing: Int = 15,
+            promptCardWidth: Int = 160,
+            promptCardHeight: Int = 128,
+            promptGridWidth: Int = 685,
+            promptButtonPadding: Int = 12,
+            promptButtonRadius: Int = 8,
             sidebarPadding: Int = 18,
             sidebarSpacing: Int = 12,
             sidebarActionSpacing: Int = 8,
@@ -318,6 +467,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             messageCardPaddingHorizontal: Int = 14,
             messageCardPaddingVertical: Int = 10,
             messageCardSpacing: Int = 6,
+            composerMinWidth: Int = 620,
+            composerMaxWidth: Int = 800,
+            composerPadding: Int = 18,
+            composerSpacing: Int = 10,
+            promptRowSpacing: Int = 12,
+            composerMinHeight: Int = 46,
+            composerMaxHeight: Int = 120,
+            composerEditorRadius: Int = 23,
+            composerSendButtonMinWidth: Int = 86,
             detailPaddingHorizontal: Int = 24,
             detailPaddingVertical: Int = 22,
             detailSpacing: Int = 14,
@@ -327,6 +485,9 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             self.sidebarColor = sidebarColor
             self.cardColor = cardColor
             self.activeCardColor = activeCardColor
+            self.headerColor = headerColor
+            self.promptCardColor = promptCardColor
+            self.noticeColor = noticeColor
             self.primaryColor = primaryColor
             self.inkColor = inkColor
             self.mutedColor = mutedColor
@@ -344,9 +505,27 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             self.sectionTitleFontWeight = sectionTitleFontWeight
             self.currentTitleFontSize = currentTitleFontSize
             self.currentTitleFontWeight = currentTitleFontWeight
+            self.emptyStateWordmarkFontSize = emptyStateWordmarkFontSize
+            self.emptyStateWordmarkFontWeight = emptyStateWordmarkFontWeight
             self.messageBodyFontSize = messageBodyFontSize
             self.conversationTitleFontSize = conversationTitleFontSize
             self.conversationTitleFontWeight = conversationTitleFontWeight
+            self.headerHeight = headerHeight
+            self.headerPadding = headerPadding
+            self.headerSpacing = headerSpacing
+            self.headerTitleSpacing = headerTitleSpacing
+            self.contentPadding = contentPadding
+            self.emptyStateMaxWidth = emptyStateMaxWidth
+            self.emptyStatePadding = emptyStatePadding
+            self.emptyStateSpacing = emptyStateSpacing
+            self.emptyStateHeaderSpacing = emptyStateHeaderSpacing
+            self.promptGridColumns = promptGridColumns
+            self.promptGridSpacing = promptGridSpacing
+            self.promptCardWidth = promptCardWidth
+            self.promptCardHeight = promptCardHeight
+            self.promptGridWidth = promptGridWidth
+            self.promptButtonPadding = promptButtonPadding
+            self.promptButtonRadius = promptButtonRadius
             self.sidebarPadding = sidebarPadding
             self.sidebarSpacing = sidebarSpacing
             self.sidebarActionSpacing = sidebarActionSpacing
@@ -373,6 +552,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             self.messageCardPaddingHorizontal = messageCardPaddingHorizontal
             self.messageCardPaddingVertical = messageCardPaddingVertical
             self.messageCardSpacing = messageCardSpacing
+            self.composerMinWidth = composerMinWidth
+            self.composerMaxWidth = composerMaxWidth
+            self.composerPadding = composerPadding
+            self.composerSpacing = composerSpacing
+            self.promptRowSpacing = promptRowSpacing
+            self.composerMinHeight = composerMinHeight
+            self.composerMaxHeight = composerMaxHeight
+            self.composerEditorRadius = composerEditorRadius
+            self.composerSendButtonMinWidth = composerSendButtonMinWidth
             self.detailPaddingHorizontal = detailPaddingHorizontal
             self.detailPaddingVertical = detailPaddingVertical
             self.detailSpacing = detailSpacing
@@ -384,6 +572,9 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             case sidebarColor
             case cardColor
             case activeCardColor
+            case headerColor
+            case promptCardColor
+            case noticeColor
             case primaryColor
             case inkColor
             case mutedColor
@@ -401,9 +592,27 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             case sectionTitleFontWeight
             case currentTitleFontSize
             case currentTitleFontWeight
+            case emptyStateWordmarkFontSize
+            case emptyStateWordmarkFontWeight
             case messageBodyFontSize
             case conversationTitleFontSize
             case conversationTitleFontWeight
+            case headerHeight
+            case headerPadding
+            case headerSpacing
+            case headerTitleSpacing
+            case contentPadding
+            case emptyStateMaxWidth
+            case emptyStatePadding
+            case emptyStateSpacing
+            case emptyStateHeaderSpacing
+            case promptGridColumns
+            case promptGridSpacing
+            case promptCardWidth
+            case promptCardHeight
+            case promptGridWidth
+            case promptButtonPadding
+            case promptButtonRadius
             case sidebarPadding
             case sidebarSpacing
             case sidebarActionSpacing
@@ -430,6 +639,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             case messageCardPaddingHorizontal
             case messageCardPaddingVertical
             case messageCardSpacing
+            case composerMinWidth
+            case composerMaxWidth
+            case composerPadding
+            case composerSpacing
+            case promptRowSpacing
+            case composerMinHeight
+            case composerMaxHeight
+            case composerEditorRadius
+            case composerSendButtonMinWidth
             case detailPaddingHorizontal
             case detailPaddingVertical
             case detailSpacing
@@ -449,6 +667,12 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
                     ?? defaults.cardColor,
                 activeCardColor: try container.decodeIfPresent(String.self, forKey: .activeCardColor)
                     ?? defaults.activeCardColor,
+                headerColor: try container.decodeIfPresent(String.self, forKey: .headerColor)
+                    ?? defaults.headerColor,
+                promptCardColor: try container.decodeIfPresent(String.self, forKey: .promptCardColor)
+                    ?? defaults.promptCardColor,
+                noticeColor: try container.decodeIfPresent(String.self, forKey: .noticeColor)
+                    ?? defaults.noticeColor,
                 primaryColor: try container.decodeIfPresent(String.self, forKey: .primaryColor)
                     ?? defaults.primaryColor,
                 inkColor: try container.decodeIfPresent(String.self, forKey: .inkColor)
@@ -483,12 +707,52 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
                     ?? defaults.currentTitleFontSize,
                 currentTitleFontWeight: try container.decodeIfPresent(Int.self, forKey: .currentTitleFontWeight)
                     ?? defaults.currentTitleFontWeight,
+                emptyStateWordmarkFontSize: try container.decodeIfPresent(
+                    Int.self,
+                    forKey: .emptyStateWordmarkFontSize
+                ) ?? defaults.emptyStateWordmarkFontSize,
+                emptyStateWordmarkFontWeight: try container.decodeIfPresent(
+                    Int.self,
+                    forKey: .emptyStateWordmarkFontWeight
+                ) ?? defaults.emptyStateWordmarkFontWeight,
                 messageBodyFontSize: try container.decodeIfPresent(Int.self, forKey: .messageBodyFontSize)
                     ?? defaults.messageBodyFontSize,
                 conversationTitleFontSize: try container.decodeIfPresent(Int.self, forKey: .conversationTitleFontSize)
                     ?? defaults.conversationTitleFontSize,
                 conversationTitleFontWeight: try container.decodeIfPresent(Int.self, forKey: .conversationTitleFontWeight)
                     ?? defaults.conversationTitleFontWeight,
+                headerHeight: try container.decodeIfPresent(Int.self, forKey: .headerHeight)
+                    ?? defaults.headerHeight,
+                headerPadding: try container.decodeIfPresent(Int.self, forKey: .headerPadding)
+                    ?? defaults.headerPadding,
+                headerSpacing: try container.decodeIfPresent(Int.self, forKey: .headerSpacing)
+                    ?? defaults.headerSpacing,
+                headerTitleSpacing: try container.decodeIfPresent(Int.self, forKey: .headerTitleSpacing)
+                    ?? defaults.headerTitleSpacing,
+                contentPadding: try container.decodeIfPresent(Int.self, forKey: .contentPadding)
+                    ?? defaults.contentPadding,
+                emptyStateMaxWidth: try container.decodeIfPresent(Int.self, forKey: .emptyStateMaxWidth)
+                    ?? defaults.emptyStateMaxWidth,
+                emptyStatePadding: try container.decodeIfPresent(Int.self, forKey: .emptyStatePadding)
+                    ?? defaults.emptyStatePadding,
+                emptyStateSpacing: try container.decodeIfPresent(Int.self, forKey: .emptyStateSpacing)
+                    ?? defaults.emptyStateSpacing,
+                emptyStateHeaderSpacing: try container.decodeIfPresent(Int.self, forKey: .emptyStateHeaderSpacing)
+                    ?? defaults.emptyStateHeaderSpacing,
+                promptGridColumns: try container.decodeIfPresent(Int.self, forKey: .promptGridColumns)
+                    ?? defaults.promptGridColumns,
+                promptGridSpacing: try container.decodeIfPresent(Int.self, forKey: .promptGridSpacing)
+                    ?? defaults.promptGridSpacing,
+                promptCardWidth: try container.decodeIfPresent(Int.self, forKey: .promptCardWidth)
+                    ?? defaults.promptCardWidth,
+                promptCardHeight: try container.decodeIfPresent(Int.self, forKey: .promptCardHeight)
+                    ?? defaults.promptCardHeight,
+                promptGridWidth: try container.decodeIfPresent(Int.self, forKey: .promptGridWidth)
+                    ?? defaults.promptGridWidth,
+                promptButtonPadding: try container.decodeIfPresent(Int.self, forKey: .promptButtonPadding)
+                    ?? defaults.promptButtonPadding,
+                promptButtonRadius: try container.decodeIfPresent(Int.self, forKey: .promptButtonRadius)
+                    ?? defaults.promptButtonRadius,
                 sidebarPadding: try container.decodeIfPresent(Int.self, forKey: .sidebarPadding)
                     ?? defaults.sidebarPadding,
                 sidebarSpacing: try container.decodeIfPresent(Int.self, forKey: .sidebarSpacing)
@@ -549,6 +813,24 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
                 ) ?? defaults.messageCardPaddingVertical,
                 messageCardSpacing: try container.decodeIfPresent(Int.self, forKey: .messageCardSpacing)
                     ?? defaults.messageCardSpacing,
+                composerMinWidth: try container.decodeIfPresent(Int.self, forKey: .composerMinWidth)
+                    ?? defaults.composerMinWidth,
+                composerMaxWidth: try container.decodeIfPresent(Int.self, forKey: .composerMaxWidth)
+                    ?? defaults.composerMaxWidth,
+                composerPadding: try container.decodeIfPresent(Int.self, forKey: .composerPadding)
+                    ?? defaults.composerPadding,
+                composerSpacing: try container.decodeIfPresent(Int.self, forKey: .composerSpacing)
+                    ?? defaults.composerSpacing,
+                promptRowSpacing: try container.decodeIfPresent(Int.self, forKey: .promptRowSpacing)
+                    ?? defaults.promptRowSpacing,
+                composerMinHeight: try container.decodeIfPresent(Int.self, forKey: .composerMinHeight)
+                    ?? defaults.composerMinHeight,
+                composerMaxHeight: try container.decodeIfPresent(Int.self, forKey: .composerMaxHeight)
+                    ?? defaults.composerMaxHeight,
+                composerEditorRadius: try container.decodeIfPresent(Int.self, forKey: .composerEditorRadius)
+                    ?? defaults.composerEditorRadius,
+                composerSendButtonMinWidth: try container.decodeIfPresent(Int.self, forKey: .composerSendButtonMinWidth)
+                    ?? defaults.composerSendButtonMinWidth,
                 detailPaddingHorizontal: try container.decodeIfPresent(Int.self, forKey: .detailPaddingHorizontal)
                     ?? defaults.detailPaddingHorizontal,
                 detailPaddingVertical: try container.decodeIfPresent(Int.self, forKey: .detailPaddingVertical)
@@ -583,6 +865,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         items: [Item],
         sections: [Section],
         messages: [Message] = [],
+        presentation: Presentation = .standard,
+        emptyStateTitle: String = "",
+        emptyStateSubtitle: String = "",
+        prompts: [Prompt] = [],
+        bottomNavigation: [NavigationAction] = [],
+        composerPlaceholder: String = "",
+        noticeTitle: String = "",
+        noticeBody: String = "",
+        noticeActionTitle: String = "",
         style: Style = .desktop
     ) {
         self.windowTitle = windowTitle
@@ -606,6 +897,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         self.items = items
         self.sections = sections
         self.messages = messages
+        self.presentation = presentation
+        self.emptyStateTitle = emptyStateTitle
+        self.emptyStateSubtitle = emptyStateSubtitle
+        self.prompts = prompts
+        self.bottomNavigation = bottomNavigation
+        self.composerPlaceholder = composerPlaceholder
+        self.noticeTitle = noticeTitle
+        self.noticeBody = noticeBody
+        self.noticeActionTitle = noticeActionTitle
         self.style = style
     }
 
@@ -631,6 +931,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         case items
         case sections
         case messages
+        case presentation
+        case emptyStateTitle
+        case emptyStateSubtitle
+        case prompts
+        case bottomNavigation
+        case composerPlaceholder
+        case noticeTitle
+        case noticeBody
+        case noticeActionTitle
         case style
     }
 
@@ -663,6 +972,15 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             items: try container.decode([Item].self, forKey: .items),
             sections: try container.decode([Section].self, forKey: .sections),
             messages: try container.decodeIfPresent([Message].self, forKey: .messages) ?? [],
+            presentation: try container.decodeIfPresent(Presentation.self, forKey: .presentation) ?? .standard,
+            emptyStateTitle: try container.decodeIfPresent(String.self, forKey: .emptyStateTitle) ?? "",
+            emptyStateSubtitle: try container.decodeIfPresent(String.self, forKey: .emptyStateSubtitle) ?? "",
+            prompts: try container.decodeIfPresent([Prompt].self, forKey: .prompts) ?? [],
+            bottomNavigation: try container.decodeIfPresent([NavigationAction].self, forKey: .bottomNavigation) ?? [],
+            composerPlaceholder: try container.decodeIfPresent(String.self, forKey: .composerPlaceholder) ?? "",
+            noticeTitle: try container.decodeIfPresent(String.self, forKey: .noticeTitle) ?? "",
+            noticeBody: try container.decodeIfPresent(String.self, forKey: .noticeBody) ?? "",
+            noticeActionTitle: try container.decodeIfPresent(String.self, forKey: .noticeActionTitle) ?? "",
             style: try container.decodeIfPresent(Style.self, forKey: .style) ?? .desktop
         )
     }
@@ -757,14 +1075,14 @@ public enum QuillGenericQtAppCatalog {
     )
 
     public static let enchantedUpstreamSlice = QuillGenericQtAppSnapshot(
-        windowTitle: "Quill Enchanted Slice",
+        windowTitle: "Quill Chat",
         minimumWidth: EnchantedVisualMetrics.minimumWindowWidth,
         minimumHeight: EnchantedVisualMetrics.minimumWindowHeight,
         defaultWidth: EnchantedVisualMetrics.defaultWindowWidth,
         defaultHeight: EnchantedVisualMetrics.defaultWindowHeight,
         sidebarWidth: EnchantedVisualMetrics.sidebarWidth,
         detailWidth: EnchantedVisualMetrics.detailWidth,
-        sidebarTitle: "Enchanted",
+        sidebarTitle: "Quill Chat",
         sidebarSubtitle: "Local AI conversations",
         primaryActionTitle: "New chat",
         secondaryActionTitle: "Models",
@@ -777,9 +1095,10 @@ public enum QuillGenericQtAppCatalog {
         detailSubtitle: "A compact chat workspace with model status, recent prompts, and draft replies.",
         items: [
             .init(
-                title: "Auto-config check",
-                subtitle: "Reply with one short phrase",
-                badge: "ollama",
+                title: "Auto-config test: reply with one sho...",
+                subtitle: "",
+                badge: "3 days ago",
+                height: 76,
                 detailSubtitle: "Local model setup conversation with endpoint status visible.",
                 sections: [
                     .init(title: "Endpoint", body: "The selected chat keeps the Ollama endpoint, model choice, and readiness status close to the transcript."),
@@ -791,9 +1110,20 @@ public enum QuillGenericQtAppCatalog {
                 ]
             ),
             .init(
-                title: "Wedding plus-one",
-                subtitle: "Draft a friendly message",
-                badge: "draft",
+                title: "say one short word",
+                subtitle: "",
+                height: 44
+            ),
+            .init(
+                title: "say hi in one word",
+                subtitle: "",
+                height: 54
+            ),
+            .init(
+                title: "Write a text message asking a frien...",
+                subtitle: "",
+                badge: "4 days ago",
+                height: 82,
                 detailSubtitle: "Friendly draft-writing conversation.",
                 sections: [
                     .init(title: "Conversation", body: "Draft state, title, and preview text stay easy to scan while the reply is refined."),
@@ -805,17 +1135,15 @@ public enum QuillGenericQtAppCatalog {
                 ]
             ),
             .init(
-                title: "Language phrases",
-                subtitle: "Practice short translations",
-                detailSubtitle: "Language practice with the lower row selected.",
-                sections: [
-                    .init(title: "Session", body: "The selected practice thread updates the title, cards, and transcript together."),
-                    .init(title: "Practice set", body: "The lower row keeps a distinct prompt, response, and detail card for quick review.")
-                ],
-                messages: [
-                    .init(sender: "user", body: "Practice three short translations."),
-                    .init(sender: "assistant", body: "Bonjour, gracias, and guten Abend.")
-                ]
+                title: "Give me phrases to learn in a new la...",
+                subtitle: "",
+                badge: "7 days ago",
+                height: 82
+            ),
+            .init(
+                title: "How to center div in HTML?",
+                subtitle: "",
+                height: 50
             )
         ],
         sections: [
@@ -825,6 +1153,19 @@ public enum QuillGenericQtAppCatalog {
         messages: [
             .init(sender: "assistant", body: "The selected conversation is ready for a local-model response.")
         ],
+        presentation: .chat,
+        emptyStateTitle: "Quill",
+        emptyStateSubtitle: EnchantedCopy.emptyStateSubtitle,
+        prompts: EnchantedPromptCatalog.visibleEmptyConversationPrompts.map(QuillGenericQtAppSnapshot.Prompt.init),
+        bottomNavigation: [
+            .init(title: EnchantedCopy.completionsTitle, systemImage: EnchantedIcon.completions),
+            .init(title: EnchantedCopy.shortcutsTitle, systemImage: EnchantedIcon.shortcuts),
+            .init(title: EnchantedCopy.settingsTitle, systemImage: EnchantedIcon.settings)
+        ],
+        composerPlaceholder: EnchantedCopy.composerPlaceholder,
+        noticeTitle: "Quill is unreachable.",
+        noticeBody: "Plug Quill back in if it's unplugged, or go to Settings and update your Quill API endpoint.",
+        noticeActionTitle: EnchantedCopy.settingsTitle,
         style: .enchanted
     )
 

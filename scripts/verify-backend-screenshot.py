@@ -2222,58 +2222,118 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
     require(660 <= app_height <= 820, f"Generated Enchanted Qt window height is unexpected: {app_height}px")
 
     sidebar_width = min(360, max(300, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
     sidebar_pixels = pixel_count(
         image,
         left,
         top,
-        left + sidebar_width,
+        detail_left,
         bottom + 1,
         enchanted_sidebar_pixel,
     )
-    selected_row_pixels = pixel_count(
+    sidebar_text_pixels = dark_pixel_count(
         image,
-        left + 16,
-        top + 100,
-        left + sidebar_width - 16,
-        min(bottom + 1, top + 240),
-        enchanted_selected_row_pixel,
+        left + 24,
+        top + 80,
+        detail_left - 16,
+        bottom - 160,
     )
-    primary_pixels = pixel_count(
+    stale_primary_pixels = pixel_count(
         image,
         left + 20,
         top + 20,
-        left + sidebar_width - 20,
-        # The qt catalog paints the "New chat" primary button a bit lower than the
-        # native layout (~y98-136), just below the old top+92 cutoff — extend the
-        # band so the accent-blue button is inside the sampled region.
-        top + 150,
+        detail_left - 20,
+        top + 170,
         enchanted_primary_pixel,
     )
-    detail_card_pixels = pixel_count(
+    wordmark_pixels = pixel_count(
         image,
-        left + sidebar_width + 16,
-        top + 70,
+        detail_left + 16,
+        top + 120,
         right - 20,
-        bottom - 20,
+        bottom - 240,
+        colorful_wordmark_pixel,
+    )
+    prompt_card_row = best_prompt_card_row(
+        image,
+        top + 120,
+        bottom - 120,
+        detail_left + 16,
+        right - 20,
+        min_width=110,
+        predicate=generic_qt_card_pixel,
+    )
+    require(prompt_card_row is not None, "Generated Enchanted Qt prompt-card row was not detected")
+    prompt_y, prompt_segments = prompt_card_row
+    prompt_card_height = prompt_card_fill_height(
+        image,
+        prompt_y,
+        bottom - 120,
+        prompt_segments,
         generic_qt_card_pixel,
     )
-    detail_text_pixels = dark_pixel_count(image, left + sidebar_width + 16, top + 20, right - 20, bottom - 20)
+    prompt_text_pixels = dark_pixel_count(
+        image,
+        prompt_segments[0].start + 10,
+        max(top, prompt_y - 6),
+        prompt_segments[-1].end - 10,
+        min(bottom, prompt_y + 85),
+    )
+    notice_pixels = pixel_count(
+        image,
+        detail_left + 16,
+        bottom - 160,
+        right - 20,
+        bottom - 60,
+        alert_pixel,
+    )
+    composer_pixels = pixel_count(
+        image,
+        detail_left + 100,
+        bottom - 80,
+        right - 100,
+        bottom - 15,
+        mac_reference_composer_pixel,
+    )
+    bottom_nav_pixels = dark_pixel_count(image, left + 20, bottom - 130, detail_left - 20, bottom - 20)
+    detail_text_pixels = dark_pixel_count(image, detail_left + 16, top + 20, right - 20, bottom - 20)
     require(sidebar_pixels >= 150000, f"Generated Enchanted Qt sidebar was not detected: pixels={sidebar_pixels}")
     require(
-        selected_row_pixels >= 10000,
-        f"Generated Enchanted Qt selected conversation row was not detected: pixels={selected_row_pixels}",
+        sidebar_text_pixels >= 2500,
+        f"Generated Enchanted Qt chat sidebar text was not detected: pixels={sidebar_text_pixels}",
     )
-    require(primary_pixels >= 700, f"Generated Enchanted Qt primary action was not detected: pixels={primary_pixels}")
-    require(detail_card_pixels >= 50000, f"Generated Enchanted Qt detail cards were not detected: pixels={detail_card_pixels}")
+    require(
+        stale_primary_pixels <= 300,
+        "Generated Enchanted Qt still shows the stale generic primary action: "
+        f"pixels={stale_primary_pixels}",
+    )
+    require(wordmark_pixels >= 2000, f"Generated Enchanted Qt wordmark was not detected: pixels={wordmark_pixels}")
+    require(
+        prompt_card_height >= 110,
+        f"Generated Enchanted Qt prompt cards are too short: height={prompt_card_height}px",
+    )
+    require(
+        prompt_text_pixels >= 1200,
+        f"Generated Enchanted Qt prompt card text was not detected: pixels={prompt_text_pixels}",
+    )
+    require(notice_pixels >= 15000, f"Generated Enchanted Qt notice banner was not detected: pixels={notice_pixels}")
+    require(composer_pixels >= 5000, f"Generated Enchanted Qt composer was not detected: pixels={composer_pixels}")
+    require(bottom_nav_pixels >= 300, f"Generated Enchanted Qt bottom navigation was not detected: pixels={bottom_nav_pixels}")
     require(detail_text_pixels >= 4000, f"Generated Enchanted Qt detail text was not detected: pixels={detail_text_pixels}")
 
     return (
-        "Quill Enchanted generated Qt snapshot: "
+        "Quill Enchanted generated Qt chat snapshot: "
         f"app={app_width}x{app_height}, "
         f"sidebar_pixels={sidebar_pixels}, "
-        f"selected_row_pixels={selected_row_pixels}, "
-        f"primary_pixels={primary_pixels}, "
-        f"detail_card_pixels={detail_card_pixels}, "
+        f"sidebar_text_pixels={sidebar_text_pixels}, "
+        f"stale_primary_pixels={stale_primary_pixels}, "
+        f"wordmark_pixels={wordmark_pixels}, "
+        f"prompt_cards={[f'{segment.start}-{segment.end}' for segment in prompt_segments]}, "
+        f"prompt_card_height={prompt_card_height}, "
+        f"prompt_text_pixels={prompt_text_pixels}, "
+        f"notice_pixels={notice_pixels}, "
+        f"composer_pixels={composer_pixels}, "
+        f"bottom_nav_pixels={bottom_nav_pixels}, "
         f"detail_text_pixels={detail_text_pixels}"
     )
 

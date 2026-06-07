@@ -56,12 +56,12 @@ QUILLUI_LINUX_BACKEND=qt QUILLUI_QT_GENERIC=1 \
 echo "==> Building $PRODUCT (QUILLUI_LINUX_BACKEND=qt, QUILLUI_QT_GENERIC=1)"
 QUILLUI_LINUX_BACKEND=qt QUILLUI_QT_GENERIC=1 \
   "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-  swift build --scratch-path "$SCRATCH_PATH" --product "$PRODUCT"
+  swift build --disable-index-store --scratch-path "$SCRATCH_PATH" --product "$PRODUCT"
 
 BIN_DIR="$(
   QUILLUI_LINUX_BACKEND=qt QUILLUI_QT_GENERIC=1 \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift build --scratch-path "$SCRATCH_PATH" --show-bin-path
+    swift build --disable-index-store --scratch-path "$SCRATCH_PATH" --show-bin-path
 )"
 APP_EXECUTABLE="$BIN_DIR/$PRODUCT"
 
