@@ -22,6 +22,10 @@ open class INIntentResponse: NSObject {}
 public final class INInteraction: NSObject {
     public let intent: INIntent
     public let response: INIntentResponse?
+    /// Donation metadata (ThreadUtil sets these before donate()). Stored but inert
+    /// on Linux -- the interaction is never registered with a system donation DB.
+    public var groupIdentifier: String?
+    public var direction: INInteractionDirection = .unspecified
 
     public init(intent: INIntent, response: INIntentResponse?) {
         self.intent = intent
