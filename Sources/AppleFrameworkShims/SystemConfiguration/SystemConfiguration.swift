@@ -19,6 +19,22 @@ import Glibc
 import Darwin
 #endif
 
+#if canImport(Glibc)
+// Linux's sockaddr_in (Glibc) has no sin_len -- the BSD-only leading length byte
+// that Apple's sockaddr_in carries. ReachabilityManager sets it before building
+// the IPv4-0.0.0.0 SCNetworkReachability probe. Provide an inert computed sin_len
+// so the assignment compiles; Linux's socket layer derives length from the
+// address family, so the value is ignored. Visible to ReachabilityManager via
+// `import SystemConfiguration`. Glibc-gated so it cannot collide with Apple's
+// real field on macOS (where the shim also compiles for QuillUI).
+extension sockaddr_in {
+    public var sin_len: UInt8 {
+        get { 0 }
+        set { _ = newValue }
+    }
+}
+#endif
+
 /// Opaque reachability handle (a CF type on Apple).
 public final class SCNetworkReachability {}
 
