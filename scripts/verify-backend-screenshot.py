@@ -1698,6 +1698,68 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
     )
 
 
+def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> str:
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    dismissed_save_roi = (
+        left + int(app_width * 0.65),
+        top + int(app_height * 0.275),
+        left + int(app_width * 0.72),
+        top + int(app_height * 0.325),
+    )
+    saved_row_roi = (
+        left + int(app_width * 0.24),
+        top + int(app_height * 0.50),
+        left + int(app_width * 0.45),
+        top + int(app_height * 0.57),
+    )
+    saved_row_action_roi = (
+        left + int(app_width * 0.725),
+        top + int(app_height * 0.49),
+        left + int(app_width * 0.79),
+        top + int(app_height * 0.57),
+    )
+
+    dismissed_save_pixels = pixel_count(
+        image,
+        *dismissed_save_roi,
+        mac_reference_completion_action_pixel,
+    )
+    saved_row_pixels = dark_pixel_count(image, *saved_row_roi)
+    saved_row_action_segments = dark_row_segment_count(
+        image,
+        *saved_row_action_roi,
+        min_row_pixels=2,
+        min_height=4,
+    )
+
+    require(
+        dismissed_save_pixels <= 35,
+        "Completions Upsert sheet still appears to be visible after Save: "
+        f"pixels={dismissed_save_pixels}, roi={dismissed_save_roi}",
+    )
+    require(
+        saved_row_pixels >= 260,
+        f"Saved completion row was not detected: pixels={saved_row_pixels}, roi={saved_row_roi}",
+    )
+    require(
+        saved_row_action_segments >= 1,
+        "Saved completion edit/delete controls were not detected: "
+        f"segments={saved_row_action_segments}, roi={saved_row_action_roi}",
+    )
+
+    return (
+        "Quill Chat Mac-reference completions saved: "
+        f"dismissed_save_pixels={dismissed_save_pixels}, "
+        f"saved_row_pixels={saved_row_pixels}, "
+        f"saved_row_action_segments={saved_row_action_segments}; "
+        f"{panel_summary}"
+    )
+
+
 def validate_quill_chat_mac_reference_history_selection(
     image: Screenshot,
     require_transcript: bool = False,
@@ -3745,6 +3807,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_completions_panel(image))
     elif product == "quill-chat-linux-mac-reference-completions-new-sheet":
         print(validate_quill_chat_mac_reference_completions_new_sheet(image))
+    elif product == "quill-chat-linux-mac-reference-completions-saved":
+        print(validate_quill_chat_mac_reference_completions_saved(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":
         print(validate_quill_chat_mac_reference_history_selection(image))
     elif product == "quill-chat-linux-mac-reference-transcript-selection":

@@ -127,6 +127,8 @@ jobs:
             settings-default-model-selected \
             settings-delete-confirmation \
             completions-panel \
+            completions-new-sheet \
+            completions-save \
             history-selection \
             transcript-selection \
             markdown-transcript-selection \

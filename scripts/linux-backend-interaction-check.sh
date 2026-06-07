@@ -435,6 +435,35 @@ open_quill_chat_new_completion_sheet() {
   refresh_capture_window_for_active_child_window
 }
 
+save_quill_chat_new_completion() {
+  local name_x
+  local name_y
+  local save_x
+  local save_y
+
+  open_quill_chat_new_completion_sheet
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-720}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-468}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-1450}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-408}"
+  else
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + window_width / 2))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 260))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + window_width - 130))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 46))}"
+  fi
+
+  click_at "$name_x" "$name_y"
+  sleep 0.5
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+  sleep 0.2
+  type_text "${QUILLUI_BACKEND_COMPLETION_NAME_TEXT:-Linux Saved Completion}"
+  sleep 0.5
+  click_at "$save_x" "$save_y"
+  sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
+}
+
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
 if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   focus_x="${QUILLUI_BACKEND_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
@@ -592,6 +621,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       completions-new-sheet)
         open_quill_chat_new_completion_sheet
+        ;;
+      completions-save)
+        save_quill_chat_new_completion
         ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
