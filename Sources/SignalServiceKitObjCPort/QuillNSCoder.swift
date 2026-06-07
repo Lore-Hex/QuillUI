@@ -25,6 +25,11 @@ extension NSCoder {
     // `$0.baseAddress` is an `UnsafeRawPointer?` -- so the bare-corelibs call
     // fails with "cannot convert UnsafeRawPointer? to UnsafePointer<UInt8>?".
     // Forward the raw form to the UInt8 overload it does have. (ECKeyPair.encode.)
+    // @_disfavoredOverload so the forwarded call below (a typed UnsafePointer<UInt8>?)
+    // resolves to the swift-corelibs base encodeBytes, not back to this overload --
+    // otherwise the typed<->raw pointer conversion makes the re-dispatch ambiguous.
+    // External callers pass an UnsafeRawPointer?, which only this overload accepts.
+    @_disfavoredOverload
     func encodeBytes(_ bytes: UnsafeRawPointer?, length: Int, forKey key: String) {
         encodeBytes(bytes?.assumingMemoryBound(to: UInt8.self), length: length, forKey: key)
     }

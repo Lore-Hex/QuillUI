@@ -23,13 +23,20 @@
 //
 import Foundation
 
+// @_disfavoredOverload so each forwarded call below (a typed UInt8 pointer)
+// resolves to the swift-corelibs base method, not back to these overloads --
+// otherwise the typed<->raw pointer conversion makes the re-dispatch ambiguous.
+// External callers pass a raw pointer (or UnsafePointer<Int8>), which only these
+// overloads accept.
 extension OutputStream {
+    @_disfavoredOverload
     func write(_ buffer: UnsafeRawPointer, maxLength len: Int) -> Int {
         write(buffer.assumingMemoryBound(to: UInt8.self), maxLength: len)
     }
 }
 
 extension InputStream {
+    @_disfavoredOverload
     func read(_ buffer: UnsafeMutableRawPointer, maxLength len: Int) -> Int {
         read(buffer.assumingMemoryBound(to: UInt8.self), maxLength: len)
     }
