@@ -3518,6 +3518,22 @@ struct SourceHygieneTests {
         }
     }
 
+    @Test("Vendored GTK renderer preserves SwiftUI scroll row width contract")
+    func vendoredGTKRendererPreservesSwiftUIScrollRowWidthContract() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("private final class GTKScrollViewCrossAxisContext"))
+        #expect(renderer.contains("gtkScrollViewCrossAxisTickCallback"))
+        #expect(renderer.contains("gtkInstallScrollViewCrossAxisFill("))
+        #expect(renderer.contains("gtk_widget_set_size_request(context.child, width, -1)"))
+        #expect(renderer.contains("SwiftUI lays vertical ScrollView content out in the viewport"))
+        #expect(renderer.contains("fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal)"))
+        #expect(renderer.contains("gtkPropagateSingleChildLayoutMarkers(from: renderedChildren, to: box)"))
+        #expect(renderer.contains("SwiftUI lays repeated vertical rows against the parent's"))
+        #expect(renderer.contains("gtk_widget_set_hexpand(widget, 1)"))
+        #expect(renderer.contains("gtk_widget_set_halign(widget, GTK_ALIGN_FILL)"))
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default

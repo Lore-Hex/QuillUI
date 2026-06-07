@@ -99,14 +99,15 @@ on_exit() {
 }
 trap on_exit EXIT
 
-python3 - "$MOCK_HOST" "$MOCK_PORT" <<'PY'
+python3 - "$MOCK_HOST" "$MOCK_PORT" "${QUILLUI_FUNCTIONAL_MOCK_START_DEADLINE:-10}" <<'PY'
 import socket
 import sys
 import time
 
 host = sys.argv[1]
 port = int(sys.argv[2])
-deadline = time.time() + 10
+deadline_seconds = float(sys.argv[3])
+deadline = time.time() + deadline_seconds
 while time.time() < deadline:
     try:
         with socket.create_connection((host, port), timeout=0.2):
@@ -181,7 +182,7 @@ quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
 sleep 1
 quillui_functional_xdotool key --clearmodifiers Return
 
-python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" <<'PY'
+python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_SEND_DEADLINE:-25}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -194,6 +195,7 @@ mock_log = Path(sys.argv[1])
 message_text = sys.argv[2]
 reply_text = sys.argv[3]
 home = Path(sys.argv[4])
+deadline_seconds = float(sys.argv[5])
 database_path = home / ".quilldata" / "default.sqlite"
 
 
@@ -224,7 +226,7 @@ def persisted_messages() -> list[dict[str, object]]:
     return [json.loads(bytes(row[0]).decode("utf-8")) for row in rows]
 
 
-deadline = time.time() + 25
+deadline = time.time() + deadline_seconds
 last_request = None
 last_messages: list[dict[str, object]] = []
 while time.time() < deadline:
@@ -301,7 +303,7 @@ PY
   quillui_functional_xdotool mousemove "$history_x" "$history_y" click 1
   sleep "${QUILLUI_FUNCTIONAL_RELAUNCH_SETTLE_SLEEP:-3}"
 
-  python3 - "$MOCK_LOG_PATH" "$baseline_chat_requests" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" <<'PY'
+  python3 - "$MOCK_LOG_PATH" "$baseline_chat_requests" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE:-15}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -315,6 +317,7 @@ baseline_chat_requests = int(sys.argv[2])
 message_text = sys.argv[3]
 reply_text = sys.argv[4]
 home = Path(sys.argv[5])
+deadline_seconds = float(sys.argv[6])
 database_path = home / ".quilldata" / "default.sqlite"
 
 
@@ -345,7 +348,7 @@ def persisted_messages() -> list[dict[str, object]]:
     return [json.loads(bytes(row[0]).decode("utf-8")) for row in rows]
 
 
-deadline = time.time() + 15
+deadline = time.time() + deadline_seconds
 last_request_count = 0
 last_messages: list[dict[str, object]] = []
 while time.time() < deadline:
