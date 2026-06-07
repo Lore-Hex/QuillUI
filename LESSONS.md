@@ -1042,6 +1042,43 @@ Patterns that closed them:
 
 ---
 
+### Track B sub-7.9k: cross-module visibility, C-struct & init shims, inert raster (2026-06, ~98.2%, 7.87k)
+
+- **CROSS-MODULE shim/extension members MUST be public.** A shim in a *separate*
+  module (QuillFoundation, UIKitShim, the AppleFrameworkShims) is only visible to
+  SSK consumers if its members are `public`. An inert `extension sockaddr_in {
+  var sin_len }` added as `internal` left ReachabilityManager still red and the
+  count unchanged -- the rebuild that added `public` fixed it. (SAME-module PORT
+  files -- QuillNSCoder/QuillStream/QuillIndexPath, linked into SSK -- can stay
+  internal.) Note: `grep -c SYMBOL` counts swiftc's context lines too (~6-24x per
+  distinct error), so a fix can look like it INCREASED a symbol's mentions; count
+  distinct with `grep -E "FILE.swift:[0-9]+:[0-9]+: error:" | wc -l`.
+- **You can extend a C struct with an inert computed property.** `sockaddr_in`
+  (Glibc) lacks Apple's BSD `sin_len` length byte. `extension sockaddr_in { public
+  var sin_len: UInt8 { get {0} set {} } }` (canImport(Glibc)-gated, in the
+  SystemConfiguration shim the consumer imports) lets the assignment compile;
+  Linux derives socket length from the address family so the value is ignored.
+- **A convenience init delegating to the designated init adds an arg-variant
+  without losing init().** AVAsset only had `init()`; `convenience init(url:) {
+  self.init() }` added the URL form AttachmentContentValidatorImpl calls, while
+  keeping the `init()` that the AVURLAsset subclass's `super.init()` relies on.
+- **A UIKit-ism the consumer needs but can't import -> same-module port.**
+  `IndexPath(row:section:)` is a UIKit add (corelibs IndexPath has only
+  init(indexes:)); CollectionDifference+SSK imports only Foundation, so the
+  convenience went in a new same-module port (QuillIndexPath) delegating to
+  init(indexes: [section, row]).
+- **Inert raster: fill the CGContext bitmap surface, return nil.** BlurHash builds
+  a CGContext bitmap context (CGBitmapInfo | CGImageAlphaInfo -> UInt32 bitmapInfo,
+  then CGContext(data:...) + makeImage()). Added CGBitmapInfo (OptionSet) +
+  CGImageAlphaInfo (enum) with Apple's raw values, an inert bitmap init, and
+  makeImage()->nil to QuillFoundation's CG shim. The existing setFillColor/fill/
+  draw no-ops mean the whole path compiles and yields nil (placeholder rendering
+  deferred). BlurHash 150->50. Diagnostic-only "extra argument"/"takes no
+  arguments" usually means a shim type/init is MISSING an arg-variant, not that
+  the caller is wrong.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
