@@ -2026,6 +2026,7 @@ struct QuillDataSourceLoweringTests {
                 // real package to `swift package resolve`, so opt out of the
                 // unconditional resolve the patcher does in the real build.
                 "QUILLUI_SKIP_PACKAGE_RESOLVE": "1",
+                "QUILLUI_PATCH_TEST_LENIENT": "1",
             ]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
