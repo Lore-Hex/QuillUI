@@ -33,7 +33,7 @@ public typealias UIScreen = NSScreen
 #else
 // Linux: no AppKit/UIKit fonts. Provide the UIFont surface upstream UI uses
 // (scaled system fonts, the `.rounded` design). Metrics are identity on Linux.
-public final class UIFont: @unchecked Sendable {
+public final class UIFont: Equatable, @unchecked Sendable {
     public let pointSize: CGFloat
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
@@ -64,12 +64,52 @@ public final class UIFont: @unchecked Sendable {
         public static let black = Weight(rawValue: 0.62)
     }
 }
+extension UIFont {
+    // Equatable so SSK value types that embed a UIFont (e.g.
+    // StyleDisplayConfiguration / MentionDisplayConfiguration in BodyRanges)
+    // can synthesize Equatable. Compared by the inert shim's identifying
+    // fields; there is no real font backing on Linux.
+    public static func == (lhs: UIFont, rhs: UIFont) -> Bool {
+        lhs.pointSize == rhs.pointSize
+            && lhs.fontName == rhs.fontName
+            && lhs.fontDescriptor.symbolicTraits == rhs.fontDescriptor.symbolicTraits
+    }
+}
+
 public final class UIFontDescriptor: @unchecked Sendable {
     public let name: String
-    public init(name: String = ".AppleSystemUIFont") { self.name = name }
+    // Symbolic traits requested on this descriptor. Inert on Linux (no real
+    // font substitution) but round-tripped so `withSymbolicTraits` composes
+    // and UIFont's Equatable can distinguish bold/italic variants.
+    public var symbolicTraits: SymbolicTraits
+    public init(name: String = ".AppleSystemUIFont", symbolicTraits: SymbolicTraits = []) {
+        self.name = name
+        self.symbolicTraits = symbolicTraits
+    }
     public enum SystemDesign: Equatable, Sendable { case `default`, rounded, serif, monospaced }
     public func withDesign(_ design: SystemDesign) -> UIFontDescriptor? {
-        UIFontDescriptor(name: design == .rounded ? ".AppleSystemUIFontRounded-Regular" : name)
+        UIFontDescriptor(
+            name: design == .rounded ? ".AppleSystemUIFontRounded-Regular" : name,
+            symbolicTraits: symbolicTraits
+        )
+    }
+    // Mirror of UIKit's UIFontDescriptor.SymbolicTraits. Bit values match the
+    // platform constants so any compared/persisted raw values stay stable.
+    public struct SymbolicTraits: OptionSet, Sendable {
+        public let rawValue: UInt32
+        public init(rawValue: UInt32) { self.rawValue = rawValue }
+        public static let traitItalic = SymbolicTraits(rawValue: 1 << 0)
+        public static let traitBold = SymbolicTraits(rawValue: 1 << 1)
+        public static let traitExpanded = SymbolicTraits(rawValue: 1 << 5)
+        public static let traitCondensed = SymbolicTraits(rawValue: 1 << 6)
+        public static let traitMonoSpace = SymbolicTraits(rawValue: 1 << 10)
+        public static let traitVertical = SymbolicTraits(rawValue: 1 << 11)
+        public static let traitUIOptimized = SymbolicTraits(rawValue: 1 << 12)
+        public static let traitTightLeading = SymbolicTraits(rawValue: 1 << 15)
+        public static let traitLooseLeading = SymbolicTraits(rawValue: 1 << 16)
+    }
+    public func withSymbolicTraits(_ traits: SymbolicTraits) -> UIFontDescriptor? {
+        UIFontDescriptor(name: name, symbolicTraits: symbolicTraits.union(traits))
     }
 }
 public final class UIFontMetrics: @unchecked Sendable {
@@ -214,6 +254,23 @@ public extension NSAttributedString.Key {
     static let attachment = NSAttributedString.Key(rawValue: "NSAttachment")
     static let kern = NSAttributedString.Key(rawValue: "NSKern")
     static let baselineOffset = NSAttributedString.Key(rawValue: "NSBaselineOffset")
+}
+
+// Mirror of UIKit's NSUnderlineStyle. Modeled as an OptionSet (matching the
+// platform, where line styles and patterns combine) with the standard raw
+// values; SSK uses `.single.rawValue` for strikethrough/underline attributes.
+public struct NSUnderlineStyle: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let single = NSUnderlineStyle(rawValue: 0x01)
+    public static let thick = NSUnderlineStyle(rawValue: 0x02)
+    public static let double = NSUnderlineStyle(rawValue: 0x09)
+    public static let patternSolid = NSUnderlineStyle(rawValue: 0x0000)
+    public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
+    public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
+    public static let patternDashDot = NSUnderlineStyle(rawValue: 0x0300)
+    public static let patternDashDotDot = NSUnderlineStyle(rawValue: 0x0400)
+    public static let byWord = NSUnderlineStyle(rawValue: 0x8000)
 }
 
 public extension NSAttributedString {

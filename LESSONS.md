@@ -1240,6 +1240,38 @@ several CI/packaging lessons worth keeping:
 
 ---
 
+### Track B post-infra: CI OOM flake fix + the UIKit font-shim cluster (2026-06-07)
+
+- **CI "Corrupted JSON" flake = OOM, fixed by a global swift `--jobs` cap (#440).**
+  The main-wide Linux CI failure `Internal Error: dataCorrupted(... "Corrupted JSON"
+  ... unexpected end of file)` is NOT a transient compiler hiccup -- it is an OOM. On
+  the 16 GiB `ubuntu-24.04` runner `swift build/test` default to `-j$(nproc)`; the huge
+  generated SwiftUI app and the full package+test build spike past memory, the OOM
+  killer truncates a compiler frontend mid-write, and SwiftPM aborts reading the
+  truncated JSON. It hit the `Swift tests` step (a per-step retry was insufficient).
+  Fix: inject a cap at the shared `scripts/swiftpm-preserve-package-resolved.sh`
+  chokepoint every GTK/Qt `swift build/test` routes through -- auto = ~6 GiB/frontend
+  capped to `nproc` (-> 2 on the 16 GiB runner), Linux-only (via `/proc/meminfo`, so
+  macOS is untouched), `QUILLUI_SWIFT_JOBS` overrides (0/off disables), explicit
+  `--jobs` wins. Cost ~0 wall-time (50m21s vs ~50m baseline -- memory, not CPU, was the
+  bottleneck). Residual: a few bare `swift build` else-branches (GTK fast-paths) do not
+  route through the wrapper; cap them if they ever flake.
+- **UIKit font-shim cluster: StyleAttribute + MentionAttribute (202+26 -> 0, SSK
+  4818 -> 4402).** Two distinct `UIFontDescriptor` types exist -- UIKitShim's (what SSK
+  `import UIKit` resolves to) and QuillFoundation's (for RSFont). The error
+  `'SymbolicTraits' is not a member type of class 'UIKit.UIFontDescriptor'` means the
+  *UIKitShim* one lacked it. Added to UIKitShim's `UIFontDescriptor`: a nested
+  `SymbolicTraits` OptionSet (traitBold/Italic/MonoSpace/...), a `symbolicTraits` prop,
+  and `withSymbolicTraits(_:)`. Made `UIFont: Equatable` -- it was the ONLY
+  non-Equatable stored member of `StyleDisplayConfiguration`/`MentionDisplayConfiguration`
+  (`ThemedColor` already conforms), so their synthesized `Equatable` then succeeds. Added
+  `NSUnderlineStyle` (OptionSet: `.single` etc.). Lesson: "type X not a member type of
+  class UIKit.Y" or "value type does not conform to Equatable" on an SSK struct usually =
+  a missing nested type or a single non-Equatable stored-property shim type -- find the
+  ONE offending member rather than touching the upstream struct.
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"
