@@ -45,7 +45,7 @@ FOUNDATIONNETWORKING_TYPES='\bURLRequest\b|\bURLResponse\b|\bHTTPURLResponse\b|\
 # ImageIO: CGImageSource and the kCGImage* metadata keys (the ImageIO shim on
 # Linux). On Apple these arrive transitively via UIKit / CoreGraphics, so the
 # upstream files do not import ImageIO explicitly.
-IMAGEIO_TYPES='\bCGImageSource\b|\bkCGImage'
+IMAGEIO_TYPES='\bCGImageSource\b|\bkCGImage|\bCGDataProvider\b'
 
 # CoreFoundation: the CF* value types. swift-corelibs-foundation's `import
 # Foundation` does not re-export these on Linux (on Apple it does), so files

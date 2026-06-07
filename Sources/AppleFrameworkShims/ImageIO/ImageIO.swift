@@ -72,3 +72,53 @@ public let kCGImagePropertyDepth: String = "Depth"
 public let kCGImagePropertyColorModel: String = "ColorModel"
 public let kCGImagePropertyColorModelRGB: String = "RGB"
 public let kCGImagePropertyColorModelGray: String = "Gray"
+
+// MARK: - CGDataProvider direct-access surface
+//
+// CGDataProvider+SSK.swift builds a "direct" provider over a FileHandle so an
+// attachment can be decoded without loading the whole file into memory. It uses
+// the CGDataProviderDirectCallbacks struct and the
+// CGDataProvider(directInfo:size:callbacks:) initializer. On Linux there is no
+// CoreGraphics image pipeline to pull bytes through the provider, so the
+// initializer is inert (it stores nothing and never invokes the callbacks); it
+// exists only so the upstream `extension CGDataProvider { static func from }`
+// and its call sites compile. The position parameter of getBytesAtPosition is
+// typed UInt64 (rather than Apple's off_t/Int64) to match the upstream closure,
+// which compares it against FileHandle.offset() (a UInt64) directly.
+public struct CGDataProviderDirectCallbacks {
+    public var version: UInt32
+    public var getBytePointer: (@convention(c) (UnsafeMutableRawPointer?) -> UnsafeRawPointer?)?
+    public var releaseBytePointer: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer) -> Void)?
+    public var getBytesAtPosition: (@convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer, UInt64, Int) -> Int)?
+    public var releaseInfo: (@convention(c) (UnsafeMutableRawPointer?) -> Void)?
+
+    public init(
+        version: UInt32,
+        getBytePointer: (@convention(c) (UnsafeMutableRawPointer?) -> UnsafeRawPointer?)?,
+        releaseBytePointer: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer) -> Void)?,
+        getBytesAtPosition: (@convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer, UInt64, Int) -> Int)?,
+        releaseInfo: (@convention(c) (UnsafeMutableRawPointer?) -> Void)?
+    ) {
+        self.version = version
+        self.getBytePointer = getBytePointer
+        self.releaseBytePointer = releaseBytePointer
+        self.getBytesAtPosition = getBytesAtPosition
+        self.releaseInfo = releaseInfo
+    }
+}
+
+extension CGDataProvider {
+    public convenience init?(
+        directInfo info: UnsafeMutableRawPointer?,
+        size: Int64,
+        callbacks: UnsafePointer<CGDataProviderDirectCallbacks>?
+    ) {
+        // Inert: no CoreGraphics consumer pulls bytes on Linux. The provider's
+        // releaseInfo would normally balance the passRetained the caller does, so
+        // release it here to avoid leaking the wrapper the caller handed us.
+        if let info, let release = callbacks?.pointee.releaseInfo {
+            release(info)
+        }
+        self.init()
+    }
+}
