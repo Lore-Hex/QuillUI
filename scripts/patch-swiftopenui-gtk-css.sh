@@ -1198,6 +1198,129 @@ if finite_frame_flexible_height not in text:
     if old_flexible_axis_frame_fill in text:
         text = text.replace(old_flexible_axis_frame_fill, new_flexible_axis_frame_fill)
 
+fixed_frame_child_sizing = "SwiftUI proposes the clamped fixed-frame size to children"
+if fixed_frame_child_sizing not in text:
+    old_clamped_child_size = '''            if childExpH || childExpV {
+                gtk_widget_set_size_request(
+                    child,
+                    childExpH ? gint(layout.childPlacement.size.width) : -1,
+                    childExpV ? gint(layout.childPlacement.size.height) : -1
+                )
+            }
+'''
+    new_clamped_child_size = '''            // SwiftUI proposes the clamped fixed-frame size to children.
+            // Without this, HStacks with Spacer() inside fixed-width
+            // sheets keep their oversized natural width and GTK clips
+            // trailing controls such as Close/New/Edit/Delete buttons.
+            gtk_widget_set_size_request(
+                child,
+                gtkPixelSize(layout.childPlacement.size.width),
+                gtkPixelSize(layout.childPlacement.size.height)
+            )
+'''
+    if old_clamped_child_size not in text:
+        raise SystemExit("SwiftOpenUI fixed-frame clamped child sizing shape was not recognized")
+    text = text.replace(old_clamped_child_size, new_clamped_child_size, 1)
+
+fixed_frame_expanding_child_sizing = "Expanding fixed-frame children receive the proposed frame size"
+if fixed_frame_expanding_child_sizing not in text:
+    old_expanding_child_slot = '''        let slot: UnsafeMutablePointer<GtkWidget> = clampsChild
+            ? gtk_swift_scrolled_window_new()!
+            : gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+
+        // Expanding children should fill the slot; non-expanding ones
+'''
+    new_expanding_child_slot = '''        let slot: UnsafeMutablePointer<GtkWidget> = clampsChild
+            ? gtk_swift_scrolled_window_new()!
+            : gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+
+        // Expanding fixed-frame children receive the proposed frame size
+        // even when the child does not need clipping. Otherwise a padded
+        // VStack/HStack can keep its natural width and lose trailing
+        // Spacer-aligned controls.
+        if childExpH || childExpV {
+            gtk_widget_set_size_request(
+                child,
+                childExpH ? gtkPixelSize(layout.childPlacement.size.width) : -1,
+                childExpV ? gtkPixelSize(layout.childPlacement.size.height) : -1
+            )
+        }
+
+        // Expanding children should fill the slot; non-expanding ones
+'''
+    if old_expanding_child_slot not in text:
+        raise SystemExit("SwiftOpenUI fixed-frame expanding child sizing shape was not recognized")
+    text = text.replace(old_expanding_child_slot, new_expanding_child_slot, 1)
+
+fixed_frame_box_clipping = "Fixed-frame clipping uses a normal GtkBox allocation"
+if fixed_frame_box_clipping not in text:
+    old_fixed_clip_slot = '''        let slot: UnsafeMutablePointer<GtkWidget> = clampsChild
+            ? gtk_swift_scrolled_window_new()!
+            : gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+'''
+    new_fixed_clip_slot = '''        // Fixed-frame clipping uses a normal GtkBox allocation.
+        // GtkScrolledWindow preserves the child's wider natural width
+        // internally, which breaks SwiftUI Spacer rows inside clipped
+        // fixed-width sheets.
+        let slot: UnsafeMutablePointer<GtkWidget> = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+'''
+    if old_fixed_clip_slot not in text:
+        raise SystemExit("SwiftOpenUI fixed-frame clip slot shape was not recognized")
+    text = text.replace(old_fixed_clip_slot, new_fixed_clip_slot, 1)
+
+    old_fixed_clip_child = '''            gtk_swift_scrolled_window_configure_clip(
+                slot,
+                gint(layout.childPlacement.size.width),
+                gint(layout.childPlacement.size.height)
+            )
+            gtk_swift_scrolled_window_set_child(slot, child)
+'''
+    if old_fixed_clip_child not in text:
+        raise SystemExit("SwiftOpenUI fixed-frame clip child shape was not recognized")
+    text = text.replace(old_fixed_clip_child, "", 1)
+
+    old_fixed_unclipped_append = '''        if !clampsChild {
+            gtk_box_append(boxPointer(slot), child)
+        }
+'''
+    new_fixed_unclipped_append = '''        gtk_box_append(boxPointer(slot), child)
+'''
+    if old_fixed_unclipped_append not in text:
+        raise SystemExit("SwiftOpenUI fixed-frame child append shape was not recognized")
+    text = text.replace(old_fixed_unclipped_append, new_fixed_unclipped_append, 1)
+
+padded_view_child_fill = "PaddedView must let expanding content fill its margin wrapper"
+if padded_view_child_fill not in text:
+    old_padded_expand = '''        gtk_widget_set_margin_top(child, gint(top))
+        gtk_widget_set_margin_bottom(child, gint(bottom))
+        gtk_widget_set_margin_start(child, gint(leading))
+        gtk_widget_set_margin_end(child, gint(trailing))
+        if gtk_widget_get_hexpand(child) != 0 { gtk_widget_set_hexpand(wrapper, 1) }
+        if gtk_widget_get_vexpand(child) != 0 { gtk_widget_set_vexpand(wrapper, 1) }
+        gtkMarkHostedNodeKind(wrapper, kind: .padding)
+'''
+    new_padded_expand = '''        gtk_widget_set_margin_top(child, gint(top))
+        gtk_widget_set_margin_bottom(child, gint(bottom))
+        gtk_widget_set_margin_start(child, gint(leading))
+        gtk_widget_set_margin_end(child, gint(trailing))
+        // PaddedView must let expanding content fill its margin wrapper.
+        // This is what carries a fixed frame's proposed width into a
+        // padded VStack/HStack instead of clipping Spacer-based rows at
+        // their natural size.
+        if gtk_widget_get_hexpand(child) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        }
+        if gtk_widget_get_vexpand(child) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        }
+        gtkMarkHostedNodeKind(wrapper, kind: .padding)
+'''
+    if old_padded_expand not in text:
+        raise SystemExit("SwiftOpenUI PaddedView child fill shape was not recognized")
+    text = text.replace(old_padded_expand, new_padded_expand, 1)
+
 if "let transientRoot: gpointer?" not in text:
     old_sheet_info = '''private class SheetInfo {
     let anchor: UnsafeMutablePointer<GtkWidget>
@@ -2516,6 +2639,40 @@ if "gtkInstallScrollViewCrossAxisFill(on: scrolled" not in text:
 """,
         1,
     )
+
+if "gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox" not in text:
+    old_list_width_propagation = "        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 1)\n"
+    new_list_width_propagation = """        // A vertical SwiftUI List lays rows out in the viewport width.
+        // Propagating natural width lets fixed-width row content push
+        // trailing controls outside the visible sheet.
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+"""
+    if old_list_width_propagation not in text:
+        raise SystemExit("SwiftOpenUI List natural-width propagation shape was not recognized")
+    text = text.replace(old_list_width_propagation, new_list_width_propagation, 1)
+
+    old_list_row = """            let row = gtk_list_box_row_new()!
+            gtk_list_box_row_set_child(
+"""
+    new_list_row = """            let row = gtk_list_box_row_new()!
+            gtk_widget_set_hexpand(row, 1)
+            gtk_widget_set_halign(row, GTK_ALIGN_FILL)
+            gtk_list_box_row_set_child(
+"""
+    if old_list_row not in text:
+        raise SystemExit("SwiftOpenUI List row expansion shape was not recognized")
+    text = text.replace(old_list_row, new_list_row, 1)
+
+    old_list_child = """        gtk_scrolled_window_set_child(scrolledOp, listBox)
+        gtk_widget_set_vexpand(scrolled, 1)
+"""
+    new_list_child = """        gtk_scrolled_window_set_child(scrolledOp, listBox)
+        gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)
+        gtk_widget_set_vexpand(scrolled, 1)
+"""
+    if old_list_child not in text:
+        raise SystemExit("SwiftOpenUI List cross-axis fill shape was not recognized")
+    text = text.replace(old_list_child, new_list_child, 1)
 
 old_scroll_reader = '''        proxy.scrollToAction = { anyID, anchor in
             guard let widget = lookupViewID(anyID) as? UnsafeMutablePointer<GtkWidget> else { return }

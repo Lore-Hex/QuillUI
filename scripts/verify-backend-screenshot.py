@@ -419,6 +419,41 @@ def dark_pixel_count(image: Screenshot, x0: int, y0: int, x1: int, y1: int) -> i
     )
 
 
+def dark_row_segment_count(
+    image: Screenshot,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    *,
+    min_row_pixels: int,
+    min_height: int,
+) -> int:
+    count = 0
+    start: int | None = None
+    last = 0
+
+    for y in range(max(0, y0), min(image.height, y1)):
+        row_pixels = sum(
+            1
+            for x in range(max(0, x0), min(image.width, x1))
+            if sum(image.rgb(x, y)) < 420
+        )
+        if row_pixels >= min_row_pixels:
+            if start is None:
+                start = y
+            last = y
+        elif start is not None:
+            if last - start + 1 >= min_height:
+                count += 1
+            start = None
+
+    if start is not None and last - start + 1 >= min_height:
+        count += 1
+
+    return count
+
+
 def pixel_count(
     image: Screenshot,
     x0: int,
@@ -487,6 +522,11 @@ def mac_window_control_pixel(rgb: tuple[int, int, int]) -> bool:
 def colorful_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return max(rgb) - min(rgb) >= 35 and 180 <= sum(rgb) <= 650
+
+
+def mac_reference_completion_action_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return blue >= 180 and blue - red >= 40 and blue - green >= 40 and max(rgb) - min(rgb) >= 40
 
 
 def cool_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
@@ -1474,6 +1514,74 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
         f"Mac-reference completions list dividers were not detected: rows={row_divider_count}",
     )
 
+    if panel_kind == "root-overlay":
+        close_roi = (
+            left + int(app_width * 0.71),
+            top + int(app_height * 0.275),
+            left + int(app_width * 0.79),
+            top + int(app_height * 0.335),
+        )
+        new_completion_roi = (
+            left + int(app_width * 0.70),
+            top + int(app_height * 0.33),
+            left + int(app_width * 0.80),
+            top + int(app_height * 0.405),
+        )
+        row_action_roi = (
+            left + int(app_width * 0.725),
+            top + int(app_height * 0.37),
+            left + int(app_width * 0.79),
+            top + int(app_height * 0.53),
+        )
+    else:
+        close_roi = (
+            max(list_x0, list_x1 - 180),
+            top + 8,
+            list_x1,
+            top + 70,
+        )
+        new_completion_roi = (
+            max(list_x0, list_x1 - 240),
+            list_y0 + int(app_height * 0.03),
+            list_x1,
+            list_y0 + int(app_height * 0.09),
+        )
+        row_action_roi = (
+            max(list_x0, list_x1 - 180),
+            list_y0 + int(app_height * 0.08),
+            list_x1,
+            list_y1,
+        )
+
+    close_pixels = dark_pixel_count(image, *close_roi)
+    require(
+        close_pixels >= 60,
+        f"Mac-reference completions Close control was not detected: pixels={close_pixels}, roi={close_roi}",
+    )
+
+    new_completion_pixels = pixel_count(
+        image,
+        *new_completion_roi,
+        mac_reference_completion_action_pixel,
+    )
+    require(
+        new_completion_pixels >= 120,
+        "Mac-reference completions New Completion action was not detected: "
+        f"pixels={new_completion_pixels}, roi={new_completion_roi}",
+    )
+
+    row_action_segments = dark_row_segment_count(
+        image,
+        *row_action_roi,
+        min_row_pixels=2,
+        min_height=4,
+    )
+    require(
+        row_action_segments >= 4,
+        "Mac-reference completions row edit/delete actions were not detected: "
+        f"segments={row_action_segments}, roi={row_action_roi}",
+    )
+
     wordmark_pixels = pixel_count(
         image,
         left + int(app_width * 0.50),
@@ -1494,6 +1602,9 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
         f"title_pixels={title_pixels}, "
         f"text_pixels={panel_dark_pixels}, "
         f"divider_rows={row_divider_count}, "
+        f"close_pixels={close_pixels}, "
+        f"new_completion_pixels={new_completion_pixels}, "
+        f"row_action_segments={row_action_segments}, "
         f"wordmark_pixels={wordmark_pixels}"
     )
 

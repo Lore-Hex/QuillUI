@@ -3670,6 +3670,41 @@ struct SourceHygieneTests {
         }
     }
 
+    @Test("GTK patcher preserves fixed-frame and list viewport sizing contracts")
+    func gtkPatcherPreservesFixedFrameAndListViewportSizingContracts() throws {
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        #expect(patcher.contains("fixed_frame_child_sizing = \"SwiftUI proposes the clamped fixed-frame size to children\""))
+        #expect(patcher.contains("gtkPixelSize(layout.childPlacement.size.width)"))
+        #expect(patcher.contains("gtkPixelSize(layout.childPlacement.size.height)"))
+        #expect(patcher.contains("fixed_frame_expanding_child_sizing = \"Expanding fixed-frame children receive the proposed frame size\""))
+        #expect(patcher.contains("childExpH ? gtkPixelSize(layout.childPlacement.size.width) : -1"))
+        #expect(patcher.contains("childExpV ? gtkPixelSize(layout.childPlacement.size.height) : -1"))
+        #expect(patcher.contains("fixed_frame_box_clipping = \"Fixed-frame clipping uses a normal GtkBox allocation\""))
+        #expect(patcher.contains("let slot: UnsafeMutablePointer<GtkWidget> = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!"))
+        #expect(patcher.contains("gtk_box_append(boxPointer(slot), child)"))
+        #expect(patcher.contains("padded_view_child_fill = \"PaddedView must let expanding content fill its margin wrapper\""))
+        #expect(patcher.contains("gtk_widget_set_halign(child, GTK_ALIGN_FILL)"))
+        #expect(patcher.contains("gtk_widget_set_valign(child, GTK_ALIGN_FILL)"))
+        #expect(patcher.contains("gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)"))
+        #expect(patcher.contains("gtk_widget_set_halign(row, GTK_ALIGN_FILL)"))
+        #expect(patcher.contains("gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)"))
+    }
+
+    @Test("Completions screenshot verifier requires trailing controls")
+    func completionsScreenshotVerifierRequiresTrailingControls() throws {
+        let verifier = try packageSource("scripts/verify-backend-screenshot.py")
+
+        #expect(verifier.contains("def mac_reference_completion_action_pixel"))
+        #expect(verifier.contains("def dark_row_segment_count"))
+        #expect(verifier.contains("Mac-reference completions Close control was not detected"))
+        #expect(verifier.contains("Mac-reference completions New Completion action was not detected"))
+        #expect(verifier.contains("Mac-reference completions row edit/delete actions were not detected"))
+        #expect(verifier.contains("close_pixels >= 60"))
+        #expect(verifier.contains("new_completion_pixels >= 120"))
+        #expect(verifier.contains("row_action_segments >= 4"))
+    }
+
     @Test("Vendored GTK renderer preserves SwiftUI scroll row width contract")
     func vendoredGTKRendererPreservesSwiftUIScrollRowWidthContract() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
