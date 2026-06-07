@@ -86,28 +86,68 @@ Required click-through flows:
 
 ### Packaging
 
-- Provide a local run script for developers.
-- Provide a reproducible release build path.
-- Prefer Flatpak for the first public installable artifact.
+- Provide a local run script for developers. The generic
+  `scripts/package-swiftui-linux-app.sh` emits a runnable artifact directory
+  with a `run` launcher.
+- Provide a reproducible release build path. The same generic packager accepts
+  any lowered SwiftUI app source, app type, product name, backend facade, output
+  directory, app id, desktop metadata, optional icon, and optional tarball path.
+- Prefer Flatpak for the first public installable artifact. Generate the first
+  Flatpak manifest from the packaged app metadata, then audit the runtime
+  dependency closure before calling it end-user installable.
 - Capture screenshots from the release artifact, not a special test-only binary.
 - Document required local services, especially Ollama endpoint configuration.
 
 ## Current Priority Order
 
-1. Finish the remaining Settings and Completions mutation flows: default model
-   picker and completion-create/edit/save.
+1. Rerun visual and interaction smoke against the packaged release artifact,
+   not only the generated build directory.
 2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
 3. Wire QuillPaint into the controls that currently fail visual parity.
-4. Produce a release artifact and rerun visual/interaction smoke against it.
+4. Turn the first Flatpak manifest scaffold into a full Flatpak build by
+   closing the remaining GTK/system dependency bundle.
 5. Only then resume NetNewsWire as the next public app.
 
 Recently cleared:
 
+- The first generic release artifact path is available: Docker verified
+  `scripts/package-swiftui-linux-app.sh` against real Enchanted source, producing
+  a runnable `quill-chat-linux` GTK artifact directory and tarball.
+- The packaged `run` launcher has passed the Mac-reference visual smoke and the
+  `new-chat` semantic interaction row via `QUILLUI_BACKEND_APP_EXECUTABLE`, so
+  QA can now target release artifacts instead of only generated build products.
+- Enchanted Parity CI now exports the packaged launcher through
+  `QUILLUI_BACKEND_APP_EXECUTABLE` after packaging, so the downstream
+  interaction and functional rows exercise the same release artifact path.
+- The generic package output now includes `.desktop` and AppStream metainfo
+  files plus a metadata checker, and Enchanted CI validates Quill Chat's
+  `io.lorehex.QuillChat` desktop metadata before running the packaged app.
+- The generic package output now feeds `scripts/generate-flatpak-manifest.sh`,
+  and Enchanted CI emits `.qa/io.lorehex.QuillChat.flatpak.json` from the same
+  release artifact metadata before running packaged-app parity checks.
+- The packaged Enchanted CI path now writes
+  `.qa/quill-chat-linux-runtime-deps.tsv` with Swift runtime, system, loader,
+  virtual, and artifact-bundled dependency classifications, failing early if
+  the release binary has unresolved dynamic libraries.
+- The Enchanted release artifact now passes `--bundle-swift-runtime`, so Swift
+  toolchain libraries are copied into `lib/swift/linux`, exposed through the
+  artifact launcher, and required to classify as artifact-bundled by the
+  dependency audit.
 - Typed composer focus/input is covered by the real-source GTK mac-reference
   interaction verifier.
 - Composer-send UI transition is covered by the real-source GTK mac-reference
   interaction verifier: typed text submits with Return and becomes a trailing
   user message while the unreachable banner and composer remain stable.
+- Prompt-card send is covered by the same verifier via the `prompt-send` row:
+  clicking a starter card leaves the empty state and renders a trailing user
+  message while the unreachable banner and composer remain stable.
+- Copy Chat is covered by the same verifier via the `copy-chat` row: it selects
+  the seeded transcript, uses the toolbar More menu, and asserts the Linux
+  pasteboard contains the copied user/assistant transcript text.
+- Copy Chat as JSON is covered by the same verifier via the `copy-chat-json`
+  row: it selects the seeded transcript, uses the second toolbar More-menu row,
+  parses the pasteboard JSON, and asserts it contains the copied user/assistant
+  transcript records.
 - Live composer-send behavior is covered by `scripts/quill-chat-functional-check.sh`:
   the real composer submits exactly one typed user prompt to mock Ollama, renders
   the streamed assistant reply, and persists user plus assistant rows through
@@ -119,6 +159,8 @@ Recently cleared:
   relaunched transcript screenshot.
 - Settings and Completions sheet presentation are covered by the real-source GTK
   mac-reference interaction verifier.
+- Settings from the unreachable-state banner is covered by the same verifier via
+  the `alert-settings-panel` row.
 - Settings endpoint editing is covered by the same verifier via the
   `settings-endpoint-typed` row.
 - Settings bearer-token editing is covered by the same verifier via the
@@ -129,6 +171,22 @@ Recently cleared:
   the `settings-default-model-selected` row.
 - Settings delete-all confirmation is covered by the same verifier via the
   `settings-delete-confirmation` row.
+- Confirmed Settings delete-all is covered by the same verifier via the
+  `settings-delete-confirmed` row: it accepts the destructive confirmation and
+  asserts the seeded conversation/message rows are removed from QuillData.
+- Completions sheet presentation, nested New Completion editing, saving a
+  renamed completion back into the list, editing an existing completion, and
+  deleting a completion are covered by the same verifier via the
+  `completions-panel`, `completions-new-sheet`, `completions-save`,
+  `completions-edit-save`, and `completions-delete` rows.
+- New Chat toolbar reset is covered by the same verifier via the `new-chat`
+  row: it selects a seeded transcript first, clicks the compose action, and
+  verifies the empty chat wordmark, prompt cards, unreachable alert, and
+  composer return.
+- Toolbar model selection is covered by the same verifier via the
+  `toolbar-model-selected` row: it opens the top-right model menu, selects the
+  seeded non-image model, sends a starter prompt, and asserts the newest
+  QuillData conversation persisted that selected model.
 
 ## Non-Goals For The First Release
 

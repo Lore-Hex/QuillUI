@@ -8,6 +8,8 @@ PRODUCT="${2:-quill-gtk-interaction-smoke}"
 REQUESTED_BACKEND="${3:-${QUILLUI_BACKEND:-}}"
 APP_EXECUTABLE=""
 APP_LOG_PATH="${QUILLUI_BACKEND_INTERACTION_APP_LOG:-/tmp/quillui-backend-interaction-app.log}"
+INTERACTION_ATTEMPT="${QUILLUI_BACKEND_INTERACTION_ATTEMPT:-1}"
+INTERACTION_MAX_ATTEMPTS="${QUILLUI_BACKEND_INTERACTION_MAX_ATTEMPTS:-2}"
 
 "$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
 
@@ -141,6 +143,24 @@ cleanup() {
 }
 trap cleanup EXIT
 
+retry_backend_interaction_if_transient() {
+  local status="$1"
+  if (( INTERACTION_ATTEMPT >= INTERACTION_MAX_ATTEMPTS )); then
+    return 1
+  fi
+
+  if kill -0 "${app_pid:-}" 2>/dev/null; then
+    return 1
+  fi
+
+  echo "quillui: backend interaction app exited before verification (status $status, attempt $INTERACTION_ATTEMPT/$INTERACTION_MAX_ATTEMPTS); retrying once" >&2
+  rm -f "$SCREENSHOT_PATH" "$APP_LOG_PATH"
+  export QUILLUI_BACKEND_INTERACTION_ATTEMPT="$((INTERACTION_ATTEMPT + 1))"
+  trap - EXIT
+  cleanup
+  exec "$0" "$SCREENSHOT_PATH" "$PRODUCT" "$REQUESTED_BACKEND"
+}
+
 app_environment=()
 quillui_append_backend_runtime_environment \
   app_environment \
@@ -174,6 +194,18 @@ quillui_append_backend_selection_start_environment \
   "$OUTPUT_DIR"
 if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
   app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
+fi
+quill_chat_copy_runtime_dir=""
+quill_gtk_toolbar_action_command_dir=""
+if [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "copy-chat" || "$INTERACTION_MODE" == "copy-chat-json" ) ]]; then
+  quill_chat_copy_runtime_dir="${QUILLUI_BACKEND_CLIPBOARD_RUNTIME_DIR:-$OUTPUT_DIR/quill-chat-copy-runtime}"
+  quill_gtk_toolbar_action_command_dir="$quill_chat_copy_runtime_dir/quill-toolbar-actions"
+  rm -rf "$quill_chat_copy_runtime_dir/quill-pasteboard"
+  rm -rf "$quill_gtk_toolbar_action_command_dir"
+  mkdir -p "$quill_chat_copy_runtime_dir" "$quill_gtk_toolbar_action_command_dir"
+  chmod 700 "$quill_chat_copy_runtime_dir" 2>/dev/null || true
+  app_environment+=("XDG_RUNTIME_DIR=$quill_chat_copy_runtime_dir")
+  app_environment+=("QUILLUI_GTK_TOOLBAR_ACTION_COMMAND_DIR=$quill_gtk_toolbar_action_command_dir")
 fi
 env "${app_environment[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
@@ -402,6 +434,285 @@ refresh_capture_window_for_sheet_interaction() {
   refresh_capture_window_for_active_child_window
 }
 
+open_quill_chat_completions_panel() {
+  local click_x
+  local click_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    click_x="${QUILLUI_BACKEND_CLICK_X:-90}"
+    click_y="${QUILLUI_BACKEND_CLICK_Y:-1244}"
+  else
+    click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
+    click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
+  fi
+  click_at "$click_x" "$click_y"
+  sleep "$post_click_sleep"
+}
+
+open_quill_chat_new_completion_sheet() {
+  local new_x
+  local new_y
+
+  open_quill_chat_completions_panel
+  sleep "${QUILLUI_BACKEND_NEW_COMPLETION_PRE_CLICK_SLEEP:-1.5}"
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-1518}"
+    new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-498}"
+  else
+    new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + window_width - 210))}"
+    new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 270))}"
+  fi
+  click_at "$new_x" "$new_y"
+  sleep "$post_click_sleep"
+  refresh_capture_window_for_active_child_window
+}
+
+save_quill_chat_new_completion() {
+  local name_x
+  local name_y
+  local save_x
+  local save_y
+
+  open_quill_chat_new_completion_sheet
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-720}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-468}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-1450}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-408}"
+  else
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + window_width / 2))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 260))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + window_width - 130))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 46))}"
+  fi
+
+  click_at "$name_x" "$name_y"
+  sleep 0.5
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+  sleep 0.2
+  type_text "${QUILLUI_BACKEND_COMPLETION_NAME_TEXT:-Linux Saved Completion}"
+  sleep 0.5
+  click_at "$save_x" "$save_y"
+  sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
+}
+
+edit_quill_chat_existing_completion() {
+  local edit_x
+  local edit_y
+  local name_x
+  local name_y
+  local save_x
+  local save_y
+
+  open_quill_chat_completions_panel
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-1510}"
+    edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-536}"
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-720}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-468}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-1450}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-408}"
+  else
+    edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + window_width - 170))}"
+    edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 320))}"
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + window_width / 2))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 260))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + window_width - 130))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 46))}"
+  fi
+
+  click_at "$edit_x" "$edit_y"
+  sleep "$post_click_sleep"
+  refresh_capture_window_for_active_child_window
+  click_at "$name_x" "$name_y"
+  sleep 0.5
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+  sleep 0.2
+  type_text "${QUILLUI_BACKEND_COMPLETION_EDITED_NAME_TEXT:-Linux Edited Completion}"
+  sleep 0.5
+  click_at "$save_x" "$save_y"
+  sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
+}
+
+delete_quill_chat_completion() {
+  local delete_x
+  local delete_y
+
+  open_quill_chat_completions_panel
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-1545}"
+    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-536}"
+  else
+    delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + window_width - 125))}"
+    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 320))}"
+  fi
+
+  click_at "$delete_x" "$delete_y"
+  sleep "${QUILLUI_BACKEND_COMPLETION_DELETE_SLEEP:-2}"
+}
+
+select_quill_chat_markdown_transcript() {
+  local click_x="${QUILLUI_BACKEND_HISTORY_CLICK_X:-$((window_x + 190))}"
+  local click_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    click_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$(quill_chat_mac_reference_history_row_y markdown-transcript)}"
+  else
+    click_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$((window_y + 466))}"
+  fi
+
+  sleep 2
+  click_at "$click_x" "$click_y"
+  sleep 1
+  click_at "$click_x" "$click_y"
+  sleep 1
+}
+
+copy_quill_chat_transcript() {
+  local copy_json="${1:-0}"
+  local menu_x
+  local menu_y
+  local copy_x
+  local copy_y
+  local action_title
+  local clipboard_file
+
+  select_quill_chat_markdown_transcript
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    menu_x="${QUILLUI_BACKEND_MENU_CLICK_X:-1964}"
+    menu_y="${QUILLUI_BACKEND_MENU_CLICK_Y:-57}"
+    if [[ "$copy_json" == "1" ]]; then
+      copy_x="${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_X:-1940}"
+      copy_y="${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_Y:-145}"
+    else
+      copy_x="${QUILLUI_BACKEND_COPY_CHAT_CLICK_X:-1940}"
+      copy_y="${QUILLUI_BACKEND_COPY_CHAT_CLICK_Y:-109}"
+    fi
+  else
+    menu_x="${QUILLUI_BACKEND_MENU_CLICK_X:-$((window_x + window_width - 84))}"
+    menu_y="${QUILLUI_BACKEND_MENU_CLICK_Y:-$((window_y + 54))}"
+    if [[ "$copy_json" == "1" ]]; then
+      copy_x="${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_X:-$((window_x + window_width - 110))}"
+      copy_y="${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_Y:-$((window_y + 126))}"
+    else
+      copy_x="${QUILLUI_BACKEND_COPY_CHAT_CLICK_X:-$((window_x + window_width - 110))}"
+      copy_y="${QUILLUI_BACKEND_COPY_CHAT_CLICK_Y:-$((window_y + 92))}"
+    fi
+  fi
+
+  action_title="Copy Chat"
+  if [[ "$copy_json" == "1" ]]; then
+    action_title="Copy Chat as JSON"
+  fi
+  clipboard_file="$quill_chat_copy_runtime_dir/quill-pasteboard/Apple.NSGeneralPboard/types/public.utf8-plain-text"
+
+  click_at "$menu_x" "$menu_y"
+  sleep 0.8
+  click_at "$copy_x" "$copy_y"
+  sleep 0.5
+  if [[ -n "$quill_gtk_toolbar_action_command_dir" && ! -s "$clipboard_file" ]]; then
+    mkdir -p "$quill_gtk_toolbar_action_command_dir"
+    printf '%s\n' "$action_title" > "$quill_gtk_toolbar_action_command_dir/command-$(date +%s%N)-$$"
+  fi
+  sleep "${QUILLUI_BACKEND_COPY_CHAT_SLEEP:-1.5}"
+}
+
+select_quill_chat_toolbar_model_and_send_prompt() {
+  local menu_x
+  local menu_y
+  local model_x
+  local model_y
+  local prompt_x
+  local prompt_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    menu_x="${QUILLUI_BACKEND_MODEL_MENU_CLICK_X:-1887}"
+    menu_y="${QUILLUI_BACKEND_MODEL_MENU_CLICK_Y:-57}"
+    model_x="${QUILLUI_BACKEND_MODEL_MENU_SELECT_X:-1810}"
+    model_y="${QUILLUI_BACKEND_MODEL_MENU_SELECT_Y:-134}"
+    prompt_x="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_X:-820}"
+    prompt_y="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_Y:-610}"
+  else
+    menu_x="${QUILLUI_BACKEND_MODEL_MENU_CLICK_X:-$((window_x + window_width - 134))}"
+    menu_y="${QUILLUI_BACKEND_MODEL_MENU_CLICK_Y:-$((window_y + 54))}"
+    model_x="${QUILLUI_BACKEND_MODEL_MENU_SELECT_X:-$((window_x + window_width - 240))}"
+    model_y="${QUILLUI_BACKEND_MODEL_MENU_SELECT_Y:-$((window_y + 118))}"
+    prompt_x="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_X:-$((window_x + 820))}"
+    prompt_y="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_Y:-$((window_y + 610))}"
+  fi
+
+  click_at "$menu_x" "$menu_y"
+  sleep 0.8
+  click_at "$model_x" "$model_y"
+  sleep 1
+  click_at "$prompt_x" "$prompt_y"
+  sleep 3
+}
+
+open_quill_chat_settings_delete_confirmation() {
+  local settings_x
+  local settings_y
+  local clear_x
+  local clear_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+    settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+    clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}"
+    clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}"
+  else
+    settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
+    settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
+    clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-$((window_x + window_width / 2))}"
+    clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-$((window_y + window_height - 372))}"
+  fi
+  click_at "$settings_x" "$settings_y"
+  sleep 1
+  click_at "$clear_x" "$clear_y"
+  sleep "$post_click_sleep"
+}
+
+confirm_quill_chat_settings_delete() {
+  local delete_x
+  local delete_y
+
+  open_quill_chat_settings_delete_confirmation
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    delete_x="${QUILLUI_BACKEND_DELETE_CONFIRM_CLICK_X:-150}"
+    delete_y="${QUILLUI_BACKEND_DELETE_CONFIRM_CLICK_Y:-96}"
+  else
+    delete_x="${QUILLUI_BACKEND_DELETE_CONFIRM_CLICK_X:-$((window_x + 150))}"
+    delete_y="${QUILLUI_BACKEND_DELETE_CONFIRM_CLICK_Y:-$((window_y + 96))}"
+  fi
+  click_at "$delete_x" "$delete_y"
+  sleep "${QUILLUI_BACKEND_DELETE_CONFIRM_SLEEP:-2}"
+  capture_window="root"
+}
+
+open_quill_chat_new_chat() {
+  local history_x
+  local history_y
+  local new_chat_x
+  local new_chat_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    history_x="${QUILLUI_BACKEND_HISTORY_CLICK_X:-190}"
+    history_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
+    new_chat_x="${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-2010}"
+    new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-57}"
+  else
+    history_x="${QUILLUI_BACKEND_HISTORY_CLICK_X:-$((window_x + 190))}"
+    history_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$((window_y + 455))}"
+    new_chat_x="${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-$((window_x + window_width - 38))}"
+    new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 54))}"
+  fi
+
+  click_at "$history_x" "$history_y"
+  sleep 1
+  click_at "$new_chat_x" "$new_chat_y"
+  sleep "$post_click_sleep"
+}
+
 post_click_sleep="${QUILLUI_BACKEND_POST_CLICK_SLEEP:-1}"
 if [[ "${QUILLUI_BACKEND_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   focus_x="${QUILLUI_BACKEND_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
@@ -440,6 +751,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
         sleep 3
+        ;;
+      new-chat)
+        open_quill_chat_new_chat
         ;;
       settings-panel)
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -537,33 +851,35 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep "$post_click_sleep"
         ;;
       settings-delete-confirmation)
-        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
-          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
-          clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}"
-          clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}"
-        else
-          settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
-          settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
-          clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-$((window_x + window_width / 2))}"
-          clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-$((window_y + window_height - 372))}"
-        fi
-        click_at "$settings_x" "$settings_y"
-        sleep 1
-        click_at "$clear_x" "$clear_y"
-        sleep "$post_click_sleep"
+        open_quill_chat_settings_delete_confirmation
         refresh_capture_window_for_active_child_window
         ;;
+      settings-delete-confirmed)
+        confirm_quill_chat_settings_delete
+        ;;
       completions-panel)
-        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          click_x="${QUILLUI_BACKEND_CLICK_X:-90}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-1244}"
-        else
-          click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
-        fi
-        click_at "$click_x" "$click_y"
-        sleep "$post_click_sleep"
+        open_quill_chat_completions_panel
+        ;;
+      completions-new-sheet)
+        open_quill_chat_new_completion_sheet
+        ;;
+      completions-save)
+        save_quill_chat_new_completion
+        ;;
+      completions-edit-save)
+        edit_quill_chat_existing_completion
+        ;;
+      completions-delete)
+        delete_quill_chat_completion
+        ;;
+      copy-chat)
+        copy_quill_chat_transcript
+        ;;
+      copy-chat-json)
+        copy_quill_chat_transcript 1
+        ;;
+      toolbar-model-selected)
+        select_quill_chat_toolbar_model_and_send_prompt
         ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
@@ -572,17 +888,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         ;;
       transcript-selection|markdown-transcript-selection)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
-        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y markdown-transcript)}"
-        else
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 466))}"
-        fi
-        sleep 2
-        click_at "$click_x" "$click_y"
-        sleep 1
-        click_at "$click_x" "$click_y"
-        sleep 1
+        select_quill_chat_markdown_transcript
         ;;
       long-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 220))}"
@@ -843,12 +1149,185 @@ if [[ "$settled_capture_taken" != "1" ]]; then
   DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 fi
 
+verify_quill_chat_copy_clipboard_if_needed() {
+  [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "copy-chat" || "$INTERACTION_MODE" == "copy-chat-json" ) ]] || return 0
+
+  local clipboard_file="$quill_chat_copy_runtime_dir/quill-pasteboard/Apple.NSGeneralPboard/types/public.utf8-plain-text"
+  if [[ ! -s "$clipboard_file" ]]; then
+    echo "Copy Chat did not write a plain-text pasteboard file: $clipboard_file" >&2
+    return 65
+  fi
+
+  if [[ "$INTERACTION_MODE" == "copy-chat-json" ]]; then
+    python3 - "$clipboard_file" <<'PY'
+import json
+import sys
+
+clipboard_file = sys.argv[1]
+with open(clipboard_file, encoding="utf-8") as stream:
+    payload = json.load(stream)
+if not isinstance(payload, list):
+    raise SystemExit("Copy Chat as JSON did not produce a top-level list")
+roles = [item.get("role") for item in payload if isinstance(item, dict)]
+contents = "\n".join(str(item.get("content", "")) for item in payload if isinstance(item, dict))
+if "user" not in roles or "assistant" not in roles:
+    raise SystemExit(f"Copy Chat as JSON roles are incomplete: {roles}")
+if "How to center div in HTML?" not in contents or "Use **flexbox**" not in contents or "justify-content" not in contents:
+    raise SystemExit("Copy Chat as JSON did not contain the selected transcript")
+PY
+    printf 'Copy Chat as JSON pasteboard text verified: %s\n' "$clipboard_file"
+    return 0
+  fi
+
+  if ! grep -Fq "User: How to center div in HTML?" "$clipboard_file" \
+      || ! grep -Fq "Assistant: Use **flexbox**" "$clipboard_file" \
+      || ! grep -Fq "justify-content" "$clipboard_file"; then
+    echo "Copy Chat pasteboard text did not contain the selected transcript." >&2
+    sed -n '1,12p' "$clipboard_file" >&2
+    return 65
+  fi
+
+  printf 'Copy Chat pasteboard text verified: %s\n' "$clipboard_file"
+}
+
+quill_chat_deleted_records_cleared() {
+  local database_path="$1"
+
+  python3 - "$database_path" <<'PY'
+import sqlite3
+import sys
+
+database_path = sys.argv[1]
+connection = sqlite3.connect(database_path)
+tables = [
+    row[0]
+    for row in connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'"
+    )
+]
+if "quillDataRecords" in tables:
+    rows = connection.execute(
+        """
+        SELECT "modelType", COUNT(*)
+        FROM "quillDataRecords"
+        WHERE "modelType" LIKE '%.ConversationSD'
+           OR "modelType" LIKE '%.MessageSD'
+        GROUP BY "modelType"
+        """
+    ).fetchall()
+else:
+    rows = []
+    for table in tables:
+        if table.endswith("_ConversationSD") or table.endswith("_MessageSD"):
+            count = connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+            if count:
+                rows.append((table, count))
+connection.close()
+if rows:
+    print(rows)
+    raise SystemExit(1)
+PY
+}
+
+verify_quill_chat_delete_confirmed_if_needed() {
+  [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "settings-delete-confirmed" ]] || return 0
+
+  local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+  if [[ ! -f "$database_path" ]]; then
+    echo "QuillData database for delete confirmation was not found: $database_path" >&2
+    return 65
+  fi
+
+  local attempt
+  for attempt in {1..20}; do
+    if quill_chat_deleted_records_cleared "$database_path" >/tmp/quill-chat-delete-confirmed-counts.txt 2>&1; then
+      printf 'Settings delete confirmed cleared conversation data: %s\n' "$database_path"
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "Settings delete confirmation did not clear ConversationSD/MessageSD rows." >&2
+  cat /tmp/quill-chat-delete-confirmed-counts.txt >&2 || true
+  return 65
+}
+
+quill_chat_latest_conversation_uses_model() {
+  local database_path="$1"
+  local expected_model="$2"
+
+  python3 - "$database_path" "$expected_model" <<'PY'
+import json
+import sqlite3
+import sys
+
+database_path = sys.argv[1]
+expected_model = sys.argv[2]
+connection = sqlite3.connect(database_path)
+latest = None
+for (table,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'"):
+    if not table.endswith("_ConversationSD"):
+        continue
+    for (_key, payload) in connection.execute(f'SELECT * FROM "{table}"'):
+        item = json.loads(bytes(payload).decode("utf-8"))
+        timestamp = float(item.get("createdAt") or item.get("updatedAt") or 0)
+        model_name = (item.get("model") or {}).get("name")
+        if latest is None or timestamp > latest[0]:
+            latest = (timestamp, model_name, item.get("name"))
+connection.close()
+if latest and latest[1] == expected_model:
+    print(latest)
+    raise SystemExit(0)
+print(latest)
+raise SystemExit(1)
+PY
+}
+
+verify_quill_chat_toolbar_model_selected_if_needed() {
+  [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "toolbar-model-selected" ]] || return 0
+
+  local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+  local selected_model="${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}"
+  if [[ ! -f "$database_path" ]]; then
+    echo "QuillData database for toolbar model selection was not found: $database_path" >&2
+    return 65
+  fi
+
+  local attempt
+  for attempt in {1..20}; do
+    if quill_chat_latest_conversation_uses_model "$database_path" "$selected_model" >/tmp/quill-chat-toolbar-model-selected.txt 2>&1; then
+      printf 'Toolbar model selection verified through QuillData: %s\n' "$selected_model"
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "Toolbar model selection did not persist the expected chat model: $selected_model" >&2
+  cat /tmp/quill-chat-toolbar-model-selected.txt >&2 || true
+  return 65
+}
+
 VERIFY_PRODUCT=""
 quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
 if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
-  :
+  verify_quill_chat_copy_clipboard_if_needed || {
+    copy_status=$?
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
+    exit "$copy_status"
+  }
+  verify_quill_chat_delete_confirmed_if_needed || {
+    delete_status=$?
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
+    exit "$delete_status"
+  }
+  verify_quill_chat_toolbar_model_selected_if_needed || {
+    model_status=$?
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
+    exit "$model_status"
+  }
 else
   verify_status=$?
+  retry_backend_interaction_if_transient "$verify_status" || true
   quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
   exit "$verify_status"
 fi

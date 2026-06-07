@@ -952,6 +952,256 @@ PY
     fi
 }
 
+patch_signal_ios() {
+    # GRDBSchemaMigrator.swift calls NSCoder.decodeTopLevelObject(of:forKey:),
+    # which swift-corelibs-foundation has renamed to decodeObject(of:forKey:)
+    # (same signature; corelibs makes the old spelling a hard error, not a mere
+    # deprecation). SSK builds Linux-only here, so the rename is safe. The `try`
+    # on the now-non-throwing call is a harmless warning. (Placed before the
+    # TSMutex block, which has early returns that would otherwise skip this.)
+    local mig="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Storage/Database/GRDBSchemaMigrator.swift"
+    if [[ -f "$mig" ]] && grep -q 'decodeTopLevelObject(' "$mig"; then
+        echo "==> patching signal-ios GRDBSchemaMigrator.swift decodeTopLevelObject -> decodeObject"
+        python3 - "$mig" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+open(path, "w").write(src.replace("decodeTopLevelObject(", "decodeObject("))
+PY
+    fi
+
+    # ReachabilityManager builds an OWSURLSession with a background
+    # URLSessionConfiguration. swift-corelibs-foundation marks
+    # URLSessionConfiguration.background(withIdentifier:) @available(unavailable)
+    # on non-Darwin (background transfers need the OS daemon). Linux-only build,
+    # so use .default -- a reachability probe needs no background semantics, and
+    # no background-only properties are set on this config, so the swap is total.
+    local reach="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Network/ReachabilityManager.swift"
+    if [[ -f "$reach" ]] && grep -q 'background(withIdentifier: "SSKReachabilityManagerImpl")' "$reach"; then
+        echo "==> patching signal-ios ReachabilityManager.swift background(withIdentifier:) -> .default"
+        python3 - "$reach" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+open(path, "w").write(s.replace('.background(withIdentifier: "SSKReachabilityManagerImpl")', '.default'))
+PY
+    fi
+
+    # ProxiedContentDownloader writes a downloaded asset via
+    #   assetData.write(to: NSURL.fileURL(withPath: filePath), options: .atomicWrite)
+    # swift-corelibs-foundation has no NSURL.fileURL(withPath:) (only the
+    # withPathComponents: [String] form, which also returns URL?), and
+    # Data.WritingOptions has no .atomicWrite (the modern spelling is .atomic).
+    # Rewrite to URL(fileURLWithPath:) (non-optional, present on corelibs) + .atomic
+    # -- same semantics, Linux-only build.
+    local proxied="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Network/ProxiedContentDownloader.swift"
+    if [[ -f "$proxied" ]] && grep -q 'NSURL.fileURL(withPath:' "$proxied"; then
+        echo "==> patching signal-ios ProxiedContentDownloader.swift NSURL.fileURL/atomicWrite"
+        python3 - "$proxied" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+s = s.replace("NSURL.fileURL(withPath: filePath)", "URL(fileURLWithPath: filePath)")
+s = s.replace(", options: .atomicWrite)", ", options: .atomic)")
+open(path, "w").write(s)
+PY
+    fi
+
+    # GRDBDatabaseStorageAdapter sets two GRDB Configuration knobs that the GRDB
+    # version vendored here has removed/auto-managed: `.defaultTransactionKind`
+    # ("now automatically managed") and `.automaticMemoryManagement` (no member).
+    # Drop both assignments (GRDB uses its managed defaults). Linux-only build;
+    # behaviour is GRDB's current default, which is fine for the single-process DB.
+    local gdsa="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Storage/Database/GRDBDatabaseStorageAdapter.swift"
+    if [[ -f "$gdsa" ]] && grep -q 'configuration.automaticMemoryManagement' "$gdsa"; then
+        echo "==> patching signal-ios GRDBDatabaseStorageAdapter.swift GRDB Configuration drift"
+        python3 - "$gdsa" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+s = s.replace("        configuration.defaultTransactionKind = .immediate\n", "")
+s = s.replace("        configuration.automaticMemoryManagement = false\n", "")
+open(path, "w").write(s)
+PY
+    fi
+
+    # swift-corelibs NSAttributedString/NSMutableAttributedString have no
+    # parameterless init() (NSAttributedString() binds to init?(coder:),
+    # NSMutableAttributedString() needs init(string:)). The extension-override
+    # route is illegal (init() is NSObject's, not overridable from an extension),
+    # so rewrite the empty constructors to the equivalent (string: "") form across
+    # SSK. Idempotent (the rewritten form no longer matches "()"). Skip QuillPort
+    # symlinks so the committed port sources aren't touched. Linux-only build.
+    echo "==> patching signal-ios empty NS(Mutable)AttributedString() constructors"
+    python3 - "$UPSTREAM_DIR/signal-ios/SignalServiceKit" <<'PY'
+import sys, os
+root = sys.argv[1]
+n = 0
+for dp, _dirs, files in os.walk(root):
+    if "/QuillPort" in dp:
+        continue
+    for f in files:
+        if not f.endswith(".swift"):
+            continue
+        path = os.path.join(dp, f)
+        if os.path.islink(path):
+            continue
+        src = open(path, encoding="utf-8").read()
+        out = src.replace("NSMutableAttributedString()", 'NSMutableAttributedString(string: "")')
+        out = out.replace("NSAttributedString()", 'NSAttributedString(string: "")')
+        if out != src:
+            open(path, "w", encoding="utf-8").write(out)
+            n += 1
+print(f"  rewrote NS(Mutable)AttributedString() in {n} files")
+PY
+
+    # AppVersion logs the locale's country via (locale as NSLocale).countryCode,
+    # but swift-corelibs marks NSLocale.countryCode `internal` (Apple's is public)
+    # -> "inaccessible due to internal protection level". Use the public Swift
+    # Locale.regionCode (the file already uses locale.languageCode). Linux-only.
+    local appver="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Util/AppVersion.swift"
+    if [[ -f "$appver" ]] && grep -q '(locale as NSLocale).countryCode' "$appver"; then
+        echo "==> patching signal-ios AppVersion.swift NSLocale.countryCode -> Locale.regionCode"
+        python3 - "$appver" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+open(path, "w").write(s.replace("(locale as NSLocale).countryCode", "locale.regionCode"))
+PY
+    fi
+
+    # EditableMessageBodyTextStorage: NSTextStorage calls super.init() in its
+    # init(db:). swift-corelibs has no parameterless NSTextStorage/NSMutableAttributedString
+    # init (the chain's designated init is init(string:)) -> "missing argument
+    # 'string'". Rewrite that one super.init() to super.init(string: "") (unique
+    # by the preceding `self.db = db`). Linux-only build.
+    local emb="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Messages/BodyRanges/EditableMessageBody.swift"
+    if [[ -f "$emb" ]] && grep -q 'self.db = db' "$emb"; then
+        echo "==> patching signal-ios EditableMessageBody.swift super.init() -> super.init(string:)"
+        python3 - "$emb" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+s = s.replace("self.db = db\n        super.init()", 'self.db = db\n        super.init(string: "")')
+open(path, "w").write(s)
+PY
+    fi
+
+    # swift-corelibs has no URL<->CFURL bridge, so `someURL as CFURL` ("URL is not
+    # convertible to CFURL") fails. The receivers are our own shims now changed to
+    # take URL (CGImageSourceCreateWithURL / CFNetworkCopyProxiesForURL /
+    # AudioServicesCreateSystemSoundID / CGImageDestinationCreateWithURL); drop the
+    # casts at their call sites.
+    echo "==> patching signal-ios drop `as CFURL` at URL-shim call sites"
+    python3 - "$UPSTREAM_DIR/signal-ios/SignalServiceKit" <<'PY'
+import sys, os
+root = sys.argv[1]
+subs = [
+    ("CGImageSourceCreateWithURL(fileUrl as CFURL", "CGImageSourceCreateWithURL(fileUrl"),
+    ("CGImageSourceCreateWithURL(fileUrlForSpritesheet() as CFURL", "CGImageSourceCreateWithURL(fileUrlForSpritesheet()"),
+    ("CFNetworkCopyProxiesForURL(chatURL as CFURL", "CFNetworkCopyProxiesForURL(chatURL"),
+    ("AudioServicesCreateSystemSoundID(url as CFURL", "AudioServicesCreateSystemSoundID(url"),
+    ("CGImageDestinationCreateWithURL(destinationUrl as CFURL", "CGImageDestinationCreateWithURL(destinationUrl"),
+    # The CGImageDestination type-id arg: swift-corelibs has no String<->CFString bridge,
+    # so `UTType.png.identifier as CFString` fails; the ImageIO shim takes String -> drop it.
+    ("UTType.png.identifier as CFString", "UTType.png.identifier"),
+    # BadgeAssets: `[kCGImageSourceShouldCache: kCFBooleanFalse]` is [String: CFBoolean?]
+    # which doesn't coerce to CFDictionary on swift-corelibs. The dict is only passed to
+    # the inert CGImageSourceCreateImageAtIndex (returns nil on Linux), so nil is
+    # equivalent. (Two identical occurrences.)
+    ("[kCGImageSourceShouldCache: kCFBooleanFalse] as CFDictionary", "nil as CFDictionary?"),
+]
+n = 0
+for dp, _d, fs in os.walk(root):
+    if "/QuillPort" in dp:
+        continue
+    for f in fs:
+        if not f.endswith(".swift"):
+            continue
+        p = os.path.join(dp, f)
+        if os.path.islink(p):
+            continue
+        s = open(p, encoding="utf-8").read()
+        o = s
+        for a, b in subs:
+            s = s.replace(a, b)
+        if s != o:
+            open(p, "w", encoding="utf-8").write(s)
+            n += 1
+print("  dropped as-CFURL at", n, "files")
+PY
+
+    # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
+    # members on Apple. The lowering pass strips `@objc` (-> plain `public
+    # protocol`), which makes `optional` invalid ("'optional' can only be applied
+    # to members of an '@objc' protocol"). Model optionality the Swift-native way:
+    # drop `optional`, add a default no-op extension, and drop the `?` optional-
+    # chaining at the two call sites. Conformers implement only the Resume method,
+    # so the Suspend default impl is load-bearing.
+    local mps="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Messages/MessagePipelineSupervisor.swift"
+    if [[ -f "$mps" ]] && grep -q 'optional func supervisorDid' "$mps"; then
+        echo "==> patching signal-ios MessagePipelineSupervisor.swift optional-protocol lowering"
+        python3 - "$mps" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+s = s.replace(
+    "    optional func supervisorDidSuspendMessageProcessing(_ supervisor: MessagePipelineSupervisor)",
+    "    func supervisorDidSuspendMessageProcessing(_ supervisor: MessagePipelineSupervisor)")
+s = s.replace(
+    "    optional func supervisorDidResumeMessageProcessing(_ supervisor: MessagePipelineSupervisor)\n}",
+    "    func supervisorDidResumeMessageProcessing(_ supervisor: MessagePipelineSupervisor)\n}\n\n"
+    "public extension MessageProcessingPipelineStage {\n"
+    "    // @objc `optional func` -> Swift-native default no-op impls.\n"
+    "    func supervisorDidSuspendMessageProcessing(_ supervisor: MessagePipelineSupervisor) {}\n"
+    "    func supervisorDidResumeMessageProcessing(_ supervisor: MessagePipelineSupervisor) {}\n"
+    "}")
+s = s.replace("supervisorDidSuspendMessageProcessing?(self)",
+              "supervisorDidSuspendMessageProcessing(self)")
+s = s.replace("supervisorDidResumeMessageProcessing?(self)",
+              "supervisorDidResumeMessageProcessing(self)")
+open(path, "w").write(s)
+print("patched MessagePipelineSupervisor.swift optional-protocol lowering")
+PY
+    fi
+
+    # Signal's SignalServiceKit/Concurrency/TSMutex.swift does
+    # `internal import os.lock` for os_unfair_lock. The `os` framework's clang
+    # `lock` submodule does not exist on Linux, and QuillUI's `os` is a Swift
+    # module (which cannot expose a clang submodule). Swap the import to
+    # QuillUI's COSUnfairLock C shim on non-Apple platforms. TSMutex's logic is
+    # untouched — only the import line is conditionalized.
+    local f="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Concurrency/TSMutex.swift"
+    if [[ ! -f "$f" ]]; then
+        return
+    fi
+    if grep -q 'COSUnfairLock' "$f"; then
+        echo "==> signal-ios TSMutex.swift already patched"
+        return
+    fi
+    echo "==> patching signal-ios TSMutex.swift os.lock import for Linux"
+    python3 - "$f" <<'PY'
+import sys
+path = sys.argv[1]
+src = open(path).read()
+patched = src.replace(
+    "internal import os.lock",
+    "#if canImport(Darwin)\n"
+    "internal import os.lock\n"
+    "#else\n"
+    // `public` (not `internal`): TSMutex's `withLock`/`lock` are `@inlinable`, and
+    // an @inlinable function may only reference public/usableFromInline symbols.
+    // An `internal import` makes the COSUnfairLock C functions internal -> the
+    // @inlinable methods can't call os_unfair_lock_lock. `public import` exposes them.
+    "public import COSUnfairLock\n"
+    "#endif",
+    1,
+)
+open(path, "w").write(patched)
+print("patched TSMutex.swift os.lock import for Linux")
+PY
+}
+
 want=("$@")
 if [[ ${#want[@]} -eq 0 ]]; then
     # Default set excludes codeedit/codeeditsymbols. CodeEditSymbols

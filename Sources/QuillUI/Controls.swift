@@ -3,6 +3,8 @@
 // QuillSystemSymbol, etc.) invisible on macOS even though the inner
 // branches looked correct.
 import Foundation
+import Dispatch
+import QuillKit
 import QuillPaint
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
@@ -63,11 +65,82 @@ public struct QuillPrompt: Identifiable, Hashable, Sendable {
     public var title: String
     public var systemImage: String
 
+    public static let quillChatMacReferencePromptTitles = [
+        "How to center div in HTML?",
+        "How to do personal taxes in USA?",
+        "Explain supercomputers like I'm five years old",
+        "Write a text message asking a friend to be my plus-one at a wedding"
+    ]
+
     public init(id: String? = nil, title: String, systemImage: String) {
         self.id = id ?? title
         self.title = title
         self.systemImage = systemImage
     }
+
+    public static func selectedPrompts<Item>(
+        from source: [Item],
+        preferredTitles: [String],
+        fallbackCount: Int = 4,
+        id: (Item) -> String,
+        title: (Item) -> String,
+        systemImage: (Item) -> String
+    ) -> [QuillPrompt] {
+        let preferredItems = preferredTitles.compactMap { preferredTitle in
+            source.first { title($0) == preferredTitle }
+        }
+        let selectedItems = preferredItems.count == preferredTitles.count
+            ? preferredItems
+            : Array(source.prefix(max(0, fallbackCount)))
+
+        return selectedItems.map { item in
+            QuillPrompt(id: id(item), title: title(item), systemImage: systemImage(item))
+        }
+    }
+
+    public static func selectedModelSender<Model, Attachment, TrimmingID>(
+        selectedModel: Model?,
+        attachment: Attachment? = nil,
+        trimmingID: TrimmingID? = nil,
+        onSend: @escaping (
+            _ prompt: String,
+            _ model: Model,
+            _ attachment: Attachment?,
+            _ trimmingID: TrimmingID?
+        ) -> Void
+    ) -> (String) -> Void {
+        { prompt in
+            guard let selectedModel else { return }
+            onSend(prompt, selectedModel, attachment, trimmingID)
+        }
+    }
+}
+
+public struct QuillPromptGridLayout: Equatable, Sendable {
+    public var columns: Int
+    public var cardWidth: CGFloat
+    public var cardHeight: CGFloat
+    public var spacing: Int
+
+    public init(
+        columns: Int = 4,
+        cardWidth: CGFloat = 155,
+        cardHeight: CGFloat = 128,
+        spacing: Int = 15
+    ) {
+        self.columns = max(1, columns)
+        self.cardWidth = cardWidth
+        self.cardHeight = cardHeight
+        self.spacing = spacing
+    }
+
+    public static let compactCards = QuillPromptGridLayout()
+    public static let wideDesktopCards = QuillPromptGridLayout(
+        columns: 4,
+        cardWidth: 302,
+        cardHeight: 128,
+        spacing: 15
+    )
 }
 
 private extension String {
@@ -185,18 +258,35 @@ public struct QuillPromptGrid: View {
 
     public init(
         prompts: [QuillPrompt],
+        layout: QuillPromptGridLayout,
+        action: @escaping (QuillPrompt) -> Void
+    ) {
+        self.prompts = prompts
+        self.columns = layout.columns
+        self.cardWidth = layout.cardWidth
+        self.cardHeight = layout.cardHeight
+        self.spacing = layout.spacing
+        self.action = action
+    }
+
+    public init(
+        prompts: [QuillPrompt],
         columns: Int = 4,
         cardWidth: CGFloat = 155,
         cardHeight: CGFloat = 128,
         spacing: Int = 15,
         action: @escaping (QuillPrompt) -> Void
     ) {
-        self.prompts = prompts
-        self.columns = max(1, columns)
-        self.cardWidth = cardWidth
-        self.cardHeight = cardHeight
-        self.spacing = spacing
-        self.action = action
+        self.init(
+            prompts: prompts,
+            layout: QuillPromptGridLayout(
+                columns: columns,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight,
+                spacing: spacing
+            ),
+            action: action
+        )
     }
 
     public var body: some View {
@@ -581,6 +671,54 @@ public struct QuillDateGroupedConversationHistoryList: View {
         self.onDeleteDay = onDeleteDay
     }
 
+    public init<SourceItem>(
+        items: [SourceItem],
+        selectedID: String? = nil,
+        id: @escaping (SourceItem) -> String,
+        title: @escaping (SourceItem) -> String,
+        updatedAt: @escaping (SourceItem) -> Date,
+        lastMessage: @escaping (SourceItem) -> String = { _ in "" },
+        dateTitle: @escaping (Date) -> String,
+        deleteDayTitle: String = "Delete daily conversations",
+        deleteItemTitle: String = "Delete",
+        onSelect: @escaping (SourceItem) -> Void,
+        onDelete: ((SourceItem) -> Void)? = nil,
+        onDeleteDay: ((Date) -> Void)? = nil
+    ) {
+        var sourceItemsByID: [String: SourceItem] = [:]
+        let historyItems = items.map { item in
+            let itemID = id(item)
+            sourceItemsByID[itemID] = item
+            return QuillConversationHistoryItem(
+                id: itemID,
+                title: title(item),
+                updatedAt: updatedAt(item),
+                lastMessage: lastMessage(item)
+            )
+        }
+
+        self.init(
+            items: historyItems,
+            selectedID: selectedID,
+            dateTitle: dateTitle,
+            deleteDayTitle: deleteDayTitle,
+            deleteItemTitle: deleteItemTitle,
+            onSelect: { item in
+                if let sourceItem = sourceItemsByID[item.id] {
+                    onSelect(sourceItem)
+                }
+            },
+            onDelete: onDelete.map { delete in
+                { item in
+                    if let sourceItem = sourceItemsByID[item.id] {
+                        delete(sourceItem)
+                    }
+                }
+            },
+            onDeleteDay: onDeleteDay
+        )
+    }
+
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: groupedListSpacing) {
@@ -721,6 +859,52 @@ public struct QuillSidebarNavigationAction: Identifiable {
     public func perform() {
         action()
     }
+
+    public static func completions(action: @escaping () -> Void) -> QuillSidebarNavigationAction {
+        QuillSidebarNavigationAction(title: "Completions", systemImage: "textformat.abc", action: action)
+    }
+
+    public static func shortcuts(action: @escaping () -> Void) -> QuillSidebarNavigationAction {
+        QuillSidebarNavigationAction(title: "Shortcuts", systemImage: "keyboard.fill", action: action)
+    }
+
+    public static func settings(action: @escaping () -> Void) -> QuillSidebarNavigationAction {
+        QuillSidebarNavigationAction(title: "Settings", systemImage: "gearshape.fill", action: action)
+    }
+
+    public static func desktopChatUtilities(
+        onCompletions: @escaping () -> Void,
+        onShortcuts: @escaping () -> Void,
+        onSettings: @escaping () -> Void
+    ) -> [QuillSidebarNavigationAction] {
+        #if os(macOS) || os(Linux)
+        return [
+            .completions(action: onCompletions),
+            .shortcuts(action: onShortcuts),
+            .settings(action: onSettings)
+        ]
+        #else
+        return [
+            .settings(action: onSettings)
+        ]
+        #endif
+    }
+
+    public static func desktopChatUtilityToggles(
+        showCompletions: Binding<Bool>,
+        showShortcuts: Binding<Bool>,
+        showSettings: Binding<Bool>,
+        onSettings: @escaping () -> Void = {}
+    ) -> [QuillSidebarNavigationAction] {
+        desktopChatUtilities(
+            onCompletions: { showCompletions.wrappedValue.toggle() },
+            onShortcuts: { showShortcuts.wrappedValue.toggle() },
+            onSettings: {
+                showSettings.wrappedValue.toggle()
+                onSettings()
+            }
+        )
+    }
 }
 
 public struct QuillSidebarBottomNavigation: View {
@@ -772,6 +956,149 @@ public struct QuillDesktopSidebar<Content: View>: View {
     }
 }
 
+public struct QuillDesktopChatUtilitySidebar<
+    Content: View,
+    SettingsContent: View,
+    CompletionsContent: View,
+    ShortcutsContent: View
+>: View {
+    public var settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>?
+    private var onSettings: () -> Void
+    private var content: Content
+    private var settingsContent: SettingsContent
+    private var completionsContent: CompletionsContent
+    private var shortcutsContent: ShortcutsContent
+    @State private var showSettings = false
+    @State private var showCompletions = false
+    @State private var showShortcuts = false
+
+    public init(
+        settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>? = nil,
+        onSettings: @escaping () -> Void = {},
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder settings: () -> SettingsContent,
+        @ViewBuilder completions: () -> CompletionsContent,
+        @ViewBuilder shortcuts: () -> ShortcutsContent
+    ) {
+        self.settingsFocusedValue = settingsFocusedValue
+        self.onSettings = onSettings
+        self.content = content()
+        self.settingsContent = settings()
+        self.completionsContent = completions()
+        self.shortcutsContent = shortcuts()
+    }
+
+    public var body: some View {
+        QuillDesktopSidebar(bottomActions: bottomActions) {
+            content
+        }
+        .quillDesktopChatUtilitySheets(
+            showSettings: $showSettings,
+            showCompletions: $showCompletions,
+            showShortcuts: $showShortcuts,
+            settingsFocusedValue: settingsFocusedValue
+        ) {
+            settingsContent
+        } completions: {
+            completionsContent
+        } shortcuts: {
+            shortcutsContent
+        }
+    }
+
+    private var bottomActions: [QuillSidebarNavigationAction] {
+        QuillSidebarNavigationAction.desktopChatUtilityToggles(
+            showCompletions: $showCompletions,
+            showShortcuts: $showShortcuts,
+            showSettings: $showSettings,
+            onSettings: onSettings
+        )
+    }
+}
+
+public extension View {
+    @ViewBuilder
+    func quillDesktopChatUtilitySheets<
+        SettingsContent: View,
+        CompletionsContent: View,
+        ShortcutsContent: View
+    >(
+        showSettings: Binding<Bool>,
+        showCompletions: Binding<Bool>,
+        showShortcuts: Binding<Bool>,
+        settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>? = nil,
+        @ViewBuilder settings: @escaping () -> SettingsContent,
+        @ViewBuilder completions: @escaping () -> CompletionsContent,
+        @ViewBuilder shortcuts: @escaping () -> ShortcutsContent
+    ) -> some View {
+        #if os(macOS) || os(Linux)
+        if let settingsFocusedValue {
+            self
+                .focusedSceneValue(settingsFocusedValue, showSettings)
+                .sheet(isPresented: showSettings) {
+                    settings()
+                }
+                .sheet(isPresented: showCompletions) {
+                    completions()
+                }
+                .sheet(isPresented: showShortcuts) {
+                    shortcuts()
+                }
+        } else {
+            self
+                .sheet(isPresented: showSettings) {
+                    settings()
+                }
+                .sheet(isPresented: showCompletions) {
+                    completions()
+                }
+                .sheet(isPresented: showShortcuts) {
+                    shortcuts()
+                }
+        }
+        #else
+        self
+            .sheet(isPresented: showSettings) {
+                settings()
+            }
+        #endif
+    }
+
+    #if os(macOS) || os(iOS) || os(visionOS)
+    func quillSyncEditableMessage<Message: Equatable>(
+        _ editMessage: Binding<Message?>,
+        draft: Binding<String>,
+        isFocused: FocusState<Bool>.Binding,
+        content: @escaping (Message) -> String
+    ) -> some View {
+        quillSyncEditableMessageBody(editMessage, draft: draft, setFocused: { isFocused.wrappedValue = true }, content: content)
+    }
+    #else
+    func quillSyncEditableMessage<Message: Equatable>(
+        _ editMessage: Binding<Message?>,
+        draft: Binding<String>,
+        isFocused: FocusState<Bool>,
+        content: @escaping (Message) -> String
+    ) -> some View {
+        quillSyncEditableMessageBody(editMessage, draft: draft, setFocused: { isFocused.wrappedValue = true }, content: content)
+    }
+    #endif
+
+    private func quillSyncEditableMessageBody<Message: Equatable>(
+        _ editMessage: Binding<Message?>,
+        draft: Binding<String>,
+        setFocused: @escaping () -> Void,
+        content: @escaping (Message) -> String
+    ) -> some View {
+        onChange(of: editMessage.wrappedValue, initial: false) { _, newMessage in
+            if let newMessage {
+                draft.wrappedValue = content(newMessage)
+                setFocused()
+            }
+        }
+    }
+}
+
 public struct QuillSidebarNavigationButton: View {
     public var title: String
     public var systemImage: String
@@ -787,7 +1114,7 @@ public struct QuillSidebarNavigationButton: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 sidebarIcon
-                    .frame(width: 24, height: 20, alignment: .leading)
+                    .frame(width: 24, height: 24, alignment: .leading)
 
                 Text(title)
                     .lineLimit(1)
@@ -816,13 +1143,13 @@ public struct QuillSidebarNavigationButton: View {
         if systemImage == "textformat.abc" {
             Text("Abc")
                 .font(.system(size: 13, weight: .regular))
-                .frame(width: 24, height: 20, alignment: .leading)
+                .frame(width: 24, height: 22, alignment: .leading)
         } else if systemImage == "keyboard" || systemImage == "keyboard.fill" {
             QuillSidebarKeyboardGlyph(color: Color(hex: "#3A3A3C"))
-                .frame(width: 24, height: 20, alignment: .leading)
+                .frame(width: 24, height: 22, alignment: .leading)
         } else if systemImage == "gearshape" || systemImage == "gearshape.fill" || systemImage == "gear" {
             QuillSidebarGearGlyph(color: Color(hex: "#3A3A3C"))
-                .frame(width: 24, height: 20, alignment: .leading)
+                .frame(width: 24, height: 24, alignment: .leading)
         } else {
             Image(systemName: sidebarSystemImageName)
                 .renderingMode(.template)
@@ -862,7 +1189,7 @@ private struct QuillSidebarKeyboardGlyph: View {
         ZStack {
             RoundedRectangle(cornerRadius: 2)
                 .stroke(color, lineWidth: 1.3)
-                .frame(width: 17, height: 11)
+                .frame(width: 19, height: 12.4)
 
             VStack(spacing: 1.5) {
                 HStack(spacing: 1.5) {
@@ -876,19 +1203,19 @@ private struct QuillSidebarKeyboardGlyph: View {
                     key
                     Rectangle()
                         .fill(color)
-                        .frame(width: 5.6, height: 1.4)
+                        .frame(width: 6.2, height: 1.4)
                     key
                 }
             }
             .padding(.top, 1)
         }
-        .frame(width: 17, height: 13, alignment: .center)
+        .frame(width: 21, height: 16, alignment: .center)
     }
 
     private var key: some View {
         Rectangle()
             .fill(color)
-            .frame(width: 1.8, height: 1.4)
+            .frame(width: 2, height: 1.4)
     }
 }
 
@@ -897,23 +1224,28 @@ private struct QuillSidebarGearGlyph: View {
 
     var body: some View {
         ZStack {
-            Rectangle()
+            ForEach(0..<8, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 1.1)
+                    .fill(color)
+                    .frame(width: 3.3, height: 7.2)
+                    .offset(y: -7.1)
+                    .rotationEffect(Angle.degrees(Double(index) * 45))
+            }
+
+            Circle()
                 .fill(color)
-                .frame(width: 3.2, height: 17)
-            Rectangle()
-                .fill(color)
-                .frame(width: 17, height: 3.2)
+                .frame(width: 16.5, height: 16.5)
             Circle()
                 .fill(QuillDesktopChromeStyle.sidebarBackground)
-                .frame(width: 11.2, height: 11.2)
+                .frame(width: 9.4, height: 9.4)
             Circle()
-                .stroke(color, lineWidth: 1.6)
-                .frame(width: 10, height: 10)
+                .stroke(color, lineWidth: 1.7)
+                .frame(width: 12.2, height: 12.2)
             Circle()
                 .fill(color)
-                .frame(width: 3.3, height: 3.3)
+                .frame(width: 3.4, height: 3.4)
         }
-        .frame(width: 17, height: 17, alignment: .center)
+        .frame(width: 22, height: 22, alignment: .center)
     }
 }
 
@@ -1009,6 +1341,102 @@ public struct QuillStatusBanner: View {
     #endif
 }
 
+public struct QuillSheetStatusBanner<SheetContent: View>: View {
+    public var message: String
+    public var actionTitle: String
+    public var showsActivity: Bool
+    public var horizontalPadding: CGFloat
+    public var topPadding: CGFloat
+    public var bottomPadding: CGFloat
+    private var sheetContent: () -> SheetContent
+
+    @State private var isPresented = false
+
+    public init(
+        message: String,
+        actionTitle: String,
+        showsActivity: Bool = false,
+        horizontalPadding: CGFloat = 0,
+        topPadding: CGFloat = 0,
+        bottomPadding: CGFloat = 0,
+        @ViewBuilder sheet: @escaping () -> SheetContent
+    ) {
+        self.message = message
+        self.actionTitle = actionTitle
+        self.showsActivity = showsActivity
+        self.horizontalPadding = horizontalPadding
+        self.topPadding = topPadding
+        self.bottomPadding = bottomPadding
+        self.sheetContent = sheet
+    }
+
+    public var body: some View {
+        QuillStatusBanner(
+            message: message,
+            actionTitle: actionTitle,
+            showsActivity: showsActivity
+        ) {
+            isPresented.toggle()
+        }
+        .padding(.horizontal, resolvedHorizontalPadding)
+        .padding(.top, resolvedTopPadding)
+        .padding(.bottom, resolvedBottomPadding)
+        .sheet(isPresented: $isPresented) {
+            sheetContent()
+        }
+    }
+
+    #if os(macOS) || os(iOS) || os(visionOS)
+    private var resolvedHorizontalPadding: CGFloat { horizontalPadding }
+    private var resolvedTopPadding: CGFloat { topPadding }
+    private var resolvedBottomPadding: CGFloat { bottomPadding }
+    #else
+    private var resolvedHorizontalPadding: Int { Int(horizontalPadding.rounded()) }
+    private var resolvedTopPadding: Int { Int(topPadding.rounded()) }
+    private var resolvedBottomPadding: Int { Int(bottomPadding.rounded()) }
+    #endif
+}
+
+public struct QuillChatUnreachableBanner<SettingsContent: View>: View {
+    public var message: String
+    public var actionTitle: String
+    public var showsActivity: Bool
+    public var horizontalPadding: CGFloat
+    public var topPadding: CGFloat
+    public var bottomPadding: CGFloat
+    private var settingsContent: () -> SettingsContent
+
+    public init(
+        message: String = "Quill is unreachable. Plug Quill back in if it's unplugged, or go to Settings and\nupdate your Quill API endpoint.",
+        actionTitle: String = "Settings",
+        showsActivity: Bool = true,
+        horizontalPadding: CGFloat = 28,
+        topPadding: CGFloat = 10,
+        bottomPadding: CGFloat = 74,
+        @ViewBuilder settings: @escaping () -> SettingsContent
+    ) {
+        self.message = message
+        self.actionTitle = actionTitle
+        self.showsActivity = showsActivity
+        self.horizontalPadding = horizontalPadding
+        self.topPadding = topPadding
+        self.bottomPadding = bottomPadding
+        self.settingsContent = settings
+    }
+
+    public var body: some View {
+        QuillSheetStatusBanner(
+            message: message,
+            actionTitle: actionTitle,
+            showsActivity: showsActivity,
+            horizontalPadding: horizontalPadding,
+            topPadding: topPadding,
+            bottomPadding: bottomPadding,
+            sheet: settingsContent
+        )
+    }
+}
+
 public struct QuillMacWindowControls: View {
     public init() {}
 
@@ -1061,19 +1489,38 @@ public struct QuillChatEmptyState: View {
     public init(
         brandTitle: String = "Quill",
         prompts: [QuillPrompt],
+        layout: QuillPromptGridLayout,
+        action: @escaping (QuillPrompt) -> Void
+    ) {
+        self.brandTitle = brandTitle
+        self.prompts = prompts
+        self.columns = layout.columns
+        self.cardWidth = layout.cardWidth
+        self.cardHeight = layout.cardHeight
+        self.spacing = layout.spacing
+        self.action = action
+    }
+
+    public init(
+        brandTitle: String = "Quill",
+        prompts: [QuillPrompt],
         columns: Int = 4,
         cardWidth: CGFloat = 155,
         cardHeight: CGFloat = 128,
         spacing: Int = 15,
         action: @escaping (QuillPrompt) -> Void
     ) {
-        self.brandTitle = brandTitle
-        self.prompts = prompts
-        self.columns = max(1, columns)
-        self.cardWidth = cardWidth
-        self.cardHeight = cardHeight
-        self.spacing = spacing
-        self.action = action
+        self.init(
+            brandTitle: brandTitle,
+            prompts: prompts,
+            layout: QuillPromptGridLayout(
+                columns: columns,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight,
+                spacing: spacing
+            ),
+            action: action
+        )
     }
 
     public var body: some View {
@@ -1271,6 +1718,61 @@ public struct QuillChatEmptyState: View {
     #endif
 }
 
+public struct QuillSelectedPromptEmptyState<Item>: View {
+    public var brandTitle: String
+    public var source: [Item]
+    public var preferredTitles: [String]
+    public var fallbackCount: Int
+    public var layout: QuillPromptGridLayout
+    public var sendPrompt: (String) -> Void
+    private var id: (Item) -> String
+    private var title: (Item) -> String
+    private var systemImage: (Item) -> String
+
+    public init(
+        brandTitle: String,
+        source: [Item],
+        preferredTitles: [String] = QuillPrompt.quillChatMacReferencePromptTitles,
+        fallbackCount: Int = 4,
+        layout: QuillPromptGridLayout = .wideDesktopCards,
+        id: @escaping (Item) -> String,
+        title: @escaping (Item) -> String,
+        systemImage: @escaping (Item) -> String,
+        sendPrompt: @escaping (String) -> Void
+    ) {
+        self.brandTitle = brandTitle
+        self.source = source
+        self.preferredTitles = preferredTitles
+        self.fallbackCount = fallbackCount
+        self.layout = layout
+        self.id = id
+        self.title = title
+        self.systemImage = systemImage
+        self.sendPrompt = sendPrompt
+    }
+
+    public var prompts: [QuillPrompt] {
+        QuillPrompt.selectedPrompts(
+            from: source,
+            preferredTitles: preferredTitles,
+            fallbackCount: fallbackCount,
+            id: id,
+            title: title,
+            systemImage: systemImage
+        )
+    }
+
+    public var body: some View {
+        QuillChatEmptyState(
+            brandTitle: brandTitle,
+            prompts: prompts,
+            layout: layout
+        ) { prompt in
+            sendPrompt(prompt.title)
+        }
+    }
+}
+
 public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Content: View>: View {
     public var title: String
     public var sidebarWidth: CGFloat
@@ -1362,6 +1864,207 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     #endif
 }
 
+public struct QuillMessageList<Message: Identifiable & Hashable, RowContent: View, OverlayContent: View>: View
+where Message.ID: Hashable {
+    public var messages: [Message]
+    public var scrollToken: AnyHashable
+    public var rowVerticalPadding: CGFloat
+    public var rowHorizontalPadding: CGFloat
+    private var actions: (Message) -> [QuillMenuAction]
+    private var rowContent: (Message) -> RowContent
+    private var overlayContent: () -> OverlayContent
+
+    public init(
+        messages: [Message],
+        scrollToken: AnyHashable? = nil,
+        rowVerticalPadding: CGFloat = 10,
+        rowHorizontalPadding: CGFloat = 10,
+        actions: @escaping (Message) -> [QuillMenuAction] = { _ in [] },
+        @ViewBuilder row: @escaping (Message) -> RowContent,
+        @ViewBuilder overlay: @escaping () -> OverlayContent
+    ) {
+        self.messages = messages
+        self.scrollToken = scrollToken ?? Self.defaultScrollToken(for: messages)
+        self.rowVerticalPadding = rowVerticalPadding
+        self.rowHorizontalPadding = rowHorizontalPadding
+        self.actions = actions
+        self.rowContent = row
+        self.overlayContent = overlay
+    }
+
+    public var body: some View {
+        ZStack(alignment: .top) {
+            ScrollViewReader { scrollViewProxy in
+                ScrollView {
+                    VStack {
+                        ForEach(messages) { message in
+                            rowContent(message)
+                                .listRowInsets(EdgeInsets())
+                                .listRowSeparator(.hidden)
+                                .padding(.vertical, rowVerticalPadding)
+                                .padding(.horizontal, rowHorizontalPadding)
+                                .contentShape(Rectangle())
+                                .contextMenu {
+                                    ForEach(actions(message)) { action in
+                                        contextMenuItem(for: action)
+                                    }
+                                }
+                                .id(message)
+                        }
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id(Self.bottomSentinelID)
+                    }
+                }
+                .onAppear {
+                    scrollToBottom(scrollViewProxy)
+                }
+                .onChange(of: scrollToken) { _, _ in
+                    scrollToBottom(scrollViewProxy)
+                }
+            }
+
+            overlayContent()
+        }
+    }
+
+    private static var bottomSentinelID: String { "quill-message-list-bottom" }
+
+    private static func defaultScrollToken(for messages: [Message]) -> AnyHashable {
+        AnyHashable(messages.map { AnyHashable($0.id) })
+    }
+
+    @ViewBuilder
+    private func contextMenuItem(for action: QuillMenuAction) -> some View {
+        switch action.kind {
+        case .divider:
+            Divider()
+        case .item:
+            Button(action: { action.perform() }) {
+                if let systemImage = action.systemImage {
+                    Label(action.title, systemImage: QuillSystemSymbol.compatibleName(systemImage))
+                } else {
+                    Text(action.title)
+                }
+            }
+            .disabled(action.isDisabled)
+        }
+    }
+
+    private func scrollToBottom(_ scrollViewProxy: ScrollViewProxy) {
+        #if os(Linux)
+        scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        let deferredProxy = QuillUncheckedSendableScrollViewProxy(proxy: scrollViewProxy)
+        DispatchQueue.main.async {
+            deferredProxy.proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        }
+        #else
+        if let last = messages.last {
+            scrollViewProxy.scrollTo(last, anchor: .bottom)
+        } else {
+            scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        }
+        #endif
+    }
+}
+
+public struct QuillEditableMessageList<Message: Identifiable & Hashable, RowContent: View, OverlayContent: View>: View
+where Message.ID: Hashable {
+    public var messages: [Message]
+    @Binding public var editingMessage: Message?
+    public var scrollToken: AnyHashable
+    public var rowVerticalPadding: CGFloat
+    public var rowHorizontalPadding: CGFloat
+    public var clipboard: QuillClipboard
+    private var content: (Message) -> String
+    private var isUserMessage: (Message) -> Bool
+    private var selectText: ((Message) -> Void)?
+    private var readAloud: ((Message) -> Void)?
+    private var additionalActions: (Message) -> [QuillMenuAction]
+    private var rowContent: (Message) -> RowContent
+    private var overlayContent: () -> OverlayContent
+
+    public init(
+        messages: [Message],
+        editingMessage: Binding<Message?>,
+        scrollToken: AnyHashable? = nil,
+        rowVerticalPadding: CGFloat = 10,
+        rowHorizontalPadding: CGFloat = 10,
+        content: @escaping (Message) -> String,
+        isUserMessage: @escaping (Message) -> Bool,
+        selectText: ((Message) -> Void)? = nil,
+        readAloud: ((Message) -> Void)? = nil,
+        additionalActions: @escaping (Message) -> [QuillMenuAction] = { _ in [] },
+        clipboard: QuillClipboard = .shared,
+        @ViewBuilder row: @escaping (Message) -> RowContent,
+        @ViewBuilder overlay: @escaping () -> OverlayContent
+    ) {
+        self.messages = messages
+        self._editingMessage = editingMessage
+        self.scrollToken = scrollToken ?? messages.quillMessageListScrollToken(content: content)
+        self.rowVerticalPadding = rowVerticalPadding
+        self.rowHorizontalPadding = rowHorizontalPadding
+        self.content = content
+        self.isUserMessage = isUserMessage
+        self.selectText = selectText
+        self.readAloud = readAloud
+        self.additionalActions = additionalActions
+        self.clipboard = clipboard
+        self.rowContent = row
+        self.overlayContent = overlay
+    }
+
+    public var body: some View {
+        QuillMessageList(
+            messages: messages,
+            scrollToken: scrollToken,
+            rowVerticalPadding: rowVerticalPadding,
+            rowHorizontalPadding: rowHorizontalPadding,
+            actions: contextMenuActions(for:),
+            row: rowContent,
+            overlay: overlayContent
+        )
+    }
+
+    public func contextMenuActions(for message: Message) -> [QuillMenuAction] {
+        let selectTextAction = selectText.map { selectText in
+            { selectText(message) }
+        }
+        let readAloudAction = readAloud.map { readAloud in
+            { readAloud(message) }
+        }
+
+        return QuillMenuAction.chatMessageActions(
+            content: content(message),
+            isUserMessage: isUserMessage(message),
+            isEditing: editingMessage?.id == message.id,
+            selectText: selectTextAction,
+            readAloud: readAloudAction,
+            additionalActions: additionalActions(message),
+            onEdit: {
+                withAnimation { editingMessage = message }
+            },
+            onUnselect: {
+                withAnimation { editingMessage = nil }
+            },
+            clipboard: clipboard
+        )
+    }
+}
+
+private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable {
+    var proxy: ScrollViewProxy
+}
+
+public extension Array where Element: Identifiable, Element.ID: Hashable {
+    func quillMessageListScrollToken(content: (Element) -> String) -> AnyHashable {
+        let itemIDs = map { String(describing: $0.id) }.joined(separator: "|")
+        let lastContent = last.map(content) ?? ""
+        return AnyHashable(itemIDs + "|" + lastContent)
+    }
+}
+
 public struct QuillDesktopChatScaffold<
     Sidebar: View,
     ToolbarContent: View,
@@ -1437,6 +2140,142 @@ public struct QuillDesktopChatScaffold<
                     .frame(maxWidth: composerMaxWidth)
             }
         }
+    }
+}
+
+public extension QuillDesktopChatScaffold where ToolbarContent == QuillDesktopChatToolbar {
+    init(
+        title: String,
+        sidebarWidth: CGFloat = 320,
+        composerMaxWidth: CGFloat = .infinity,
+        composerHorizontalPadding: CGFloat = 40,
+        composerVerticalPadding: CGFloat = 16,
+        hasSelection: Bool,
+        showsStatus: Bool = false,
+        modelActions: [QuillMenuAction],
+        optionsActions: [QuillMenuAction],
+        onNewConversation: @escaping () -> Void,
+        @ViewBuilder sidebar: () -> Sidebar,
+        @ViewBuilder selectedContent: () -> SelectedContent,
+        @ViewBuilder emptyContent: () -> EmptyContent,
+        @ViewBuilder statusContent: () -> StatusContent,
+        @ViewBuilder composer: () -> ComposerContent
+    ) {
+        self.init(
+            title: title,
+            sidebarWidth: sidebarWidth,
+            composerMaxWidth: composerMaxWidth,
+            composerHorizontalPadding: composerHorizontalPadding,
+            composerVerticalPadding: composerVerticalPadding,
+            hasSelection: hasSelection,
+            showsStatus: showsStatus,
+            sidebar: sidebar
+        ) {
+            QuillDesktopChatToolbar(
+                modelActions: modelActions,
+                optionsActions: optionsActions,
+                onNewConversation: onNewConversation
+            )
+        } selectedContent: {
+            selectedContent()
+        } emptyContent: {
+            emptyContent()
+        } statusContent: {
+            statusContent()
+        } composer: {
+            composer()
+        }
+    }
+}
+
+public struct QuillEditableDesktopChatScaffold<
+    EditMessage: Equatable,
+    Sidebar: View,
+    SelectedContent: View,
+    EmptyContent: View,
+    StatusContent: View,
+    ComposerContent: View
+>: View {
+    public var title: String
+    public var sidebarWidth: CGFloat
+    public var composerMaxWidth: CGFloat
+    public var composerHorizontalPadding: CGFloat
+    public var composerVerticalPadding: CGFloat
+    public var hasSelection: Bool
+    public var showsStatus: Bool
+    public var modelActions: [QuillMenuAction]
+    public var optionsActions: [QuillMenuAction]
+    private var editContent: (EditMessage) -> String
+    private var onNewConversation: () -> Void
+    private var sidebar: () -> Sidebar
+    private var selectedContent: (Binding<EditMessage?>) -> SelectedContent
+    private var emptyContent: () -> EmptyContent
+    private var statusContent: () -> StatusContent
+    private var composerContent: (Binding<String>, Binding<EditMessage?>) -> ComposerContent
+
+    @State private var draft: String
+    @State private var editMessage: EditMessage?
+    @FocusState private var isFocusedInput: Bool
+
+    public init(
+        title: String,
+        sidebarWidth: CGFloat = 320,
+        composerMaxWidth: CGFloat = .infinity,
+        composerHorizontalPadding: CGFloat = 40,
+        composerVerticalPadding: CGFloat = 16,
+        hasSelection: Bool,
+        showsStatus: Bool,
+        modelActions: [QuillMenuAction],
+        optionsActions: [QuillMenuAction],
+        onNewConversation: @escaping () -> Void,
+        initialDraft: String = "",
+        initialEditMessage: EditMessage? = nil,
+        editContent: @escaping (EditMessage) -> String,
+        @ViewBuilder sidebar: @escaping () -> Sidebar,
+        @ViewBuilder selectedContent: @escaping (Binding<EditMessage?>) -> SelectedContent,
+        @ViewBuilder emptyContent: @escaping () -> EmptyContent,
+        @ViewBuilder statusContent: @escaping () -> StatusContent,
+        @ViewBuilder composer: @escaping (Binding<String>, Binding<EditMessage?>) -> ComposerContent
+    ) {
+        self.title = title
+        self.sidebarWidth = sidebarWidth
+        self.composerMaxWidth = composerMaxWidth
+        self.composerHorizontalPadding = composerHorizontalPadding
+        self.composerVerticalPadding = composerVerticalPadding
+        self.hasSelection = hasSelection
+        self.showsStatus = showsStatus
+        self.modelActions = modelActions
+        self.optionsActions = optionsActions
+        self.onNewConversation = onNewConversation
+        self.editContent = editContent
+        self.sidebar = sidebar
+        self.selectedContent = selectedContent
+        self.emptyContent = emptyContent
+        self.statusContent = statusContent
+        self.composerContent = composer
+        self._draft = State(initialValue: initialDraft)
+        self._editMessage = State(initialValue: initialEditMessage)
+    }
+
+    public var body: some View {
+        QuillDesktopChatScaffold(
+            title: title,
+            sidebarWidth: sidebarWidth,
+            composerMaxWidth: composerMaxWidth,
+            composerHorizontalPadding: composerHorizontalPadding,
+            composerVerticalPadding: composerVerticalPadding,
+            hasSelection: hasSelection,
+            showsStatus: showsStatus,
+            modelActions: modelActions,
+            optionsActions: optionsActions,
+            onNewConversation: onNewConversation,
+            sidebar: sidebar,
+            selectedContent: { selectedContent($editMessage) },
+            emptyContent: emptyContent,
+            statusContent: statusContent,
+            composer: { composerContent($draft, $editMessage) }
+        )
+        .quillSyncEditableMessage($editMessage, draft: $draft, isFocused: $isFocusedInput, content: editContent)
     }
 }
 
@@ -1699,6 +2538,125 @@ public struct QuillMenuAction: Identifiable {
         var action = QuillMenuAction(id: id, title: "", action: {})
         action.kind = .divider
         return action
+    }
+
+    public static func disabled(id: String? = nil, title: String) -> QuillMenuAction {
+        QuillMenuAction(id: id, title: title, isDisabled: true) {}
+    }
+
+    public static func copyText(
+        _ text: String,
+        title: String = "Copy",
+        systemImage: String = "doc.on.doc",
+        clipboard: QuillClipboard = .shared
+    ) -> QuillMenuAction {
+        QuillMenuAction(title: title, systemImage: systemImage) {
+            clipboard.setString(text)
+        }
+    }
+
+    public static func edit(
+        title: String = "Edit",
+        systemImage: String = "pencil",
+        action: @escaping () -> Void
+    ) -> QuillMenuAction {
+        QuillMenuAction(title: title, systemImage: systemImage, action: action)
+    }
+
+    public static func unselect(
+        title: String = "Unselect",
+        systemImage: String = "pencil",
+        action: @escaping () -> Void
+    ) -> QuillMenuAction {
+        QuillMenuAction(title: title, systemImage: systemImage, action: action)
+    }
+
+    public static func chatMessageActions(
+        content: String,
+        isUserMessage: Bool,
+        isEditing: Bool,
+        selectText: (() -> Void)? = nil,
+        readAloud: (() -> Void)? = nil,
+        additionalActions: [QuillMenuAction] = [],
+        onEdit: @escaping () -> Void,
+        onUnselect: @escaping () -> Void,
+        clipboard: QuillClipboard = .shared
+    ) -> [QuillMenuAction] {
+        var actions = [QuillMenuAction.copyText(content, clipboard: clipboard)]
+        if let selectText {
+            actions.append(QuillMenuAction(title: "Select Text", systemImage: "selection.pin.in.out", action: selectText))
+        }
+        if let readAloud {
+            actions.append(QuillMenuAction(title: "Read Aloud", systemImage: "speaker.wave.3.fill", action: readAloud))
+        }
+        actions.append(contentsOf: additionalActions)
+        if isUserMessage {
+            actions.append(.edit(action: onEdit))
+        }
+        if isEditing {
+            actions.append(.unselect(action: onUnselect))
+        }
+        return actions
+    }
+
+    public static func copyChatActions(copy: @escaping (_ json: Bool) -> Void) -> [QuillMenuAction] {
+        [
+            QuillMenuAction(title: "Copy Chat", systemImage: "doc.on.doc") {
+                copy(false)
+            },
+            QuillMenuAction(title: "Copy Chat as JSON", systemImage: "curlybraces") {
+                copy(true)
+            }
+        ]
+    }
+
+    public static func selectableModels<Item, SelectionID: Hashable>(
+        _ models: [Item],
+        selectedID: SelectionID?,
+        emptyTitle: String = "No models available",
+        selectedSystemImage: String = "checkmark",
+        id: @escaping (Item) -> SelectionID,
+        name: @escaping (Item) -> String,
+        version: @escaping (Item) -> String = { _ in "" },
+        onSelect: @escaping (Item) -> Void
+    ) -> [QuillMenuAction] {
+        selectableItems(
+            models,
+            selectedID: selectedID,
+            emptyTitle: emptyTitle,
+            selectedSystemImage: selectedSystemImage,
+            id: id,
+            title: { model in
+                let version = version(model)
+                return version.isEmpty ? name(model) : "\(name(model)) \(version)"
+            },
+            onSelect: onSelect
+        )
+    }
+
+    public static func selectableItems<Item, SelectionID: Hashable>(
+        _ items: [Item],
+        selectedID: SelectionID?,
+        emptyTitle: String? = nil,
+        selectedSystemImage: String = "checkmark",
+        id: @escaping (Item) -> SelectionID,
+        title: @escaping (Item) -> String,
+        onSelect: @escaping (Item) -> Void
+    ) -> [QuillMenuAction] {
+        guard !items.isEmpty else {
+            return emptyTitle.map { [QuillMenuAction.disabled(title: $0)] } ?? []
+        }
+
+        return items.map { item in
+            let itemID = id(item)
+            return QuillMenuAction(
+                id: String(describing: itemID),
+                title: title(item),
+                systemImage: selectedID == itemID ? selectedSystemImage : nil
+            ) {
+                onSelect(item)
+            }
+        }
     }
 
     public func perform() {

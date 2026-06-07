@@ -1,6 +1,8 @@
 import Foundation
+import QuillKit
 import QuillUIGtk
 import QuillUIQt
+import SwiftUI
 import Testing
 @testable import QuillUI
 
@@ -51,6 +53,507 @@ struct QuillUITests {
         // QuillApp from the binary.
         _ = QuillApp.self
         _ = QuillAppWindow.self
+    }
+
+    // MARK: - QuillPromptGridLayout
+
+    @Test("QuillPromptGridLayout exposes reusable desktop prompt presets")
+    func quillPromptGridLayoutPresets() {
+        let clamped = QuillPromptGridLayout(columns: 0, cardWidth: 120, cardHeight: 80, spacing: 6)
+        #expect(clamped.columns == 1)
+        #expect(clamped.cardWidth == 120)
+        #expect(clamped.cardHeight == 80)
+        #expect(clamped.spacing == 6)
+
+        #expect(QuillPromptGridLayout.compactCards == QuillPromptGridLayout())
+        #expect(QuillPromptGridLayout.wideDesktopCards.columns == 4)
+        #expect(QuillPromptGridLayout.wideDesktopCards.cardWidth == 302)
+        #expect(QuillPromptGridLayout.wideDesktopCards.cardHeight == 128)
+        #expect(QuillPromptGridLayout.wideDesktopCards.spacing == 15)
+    }
+
+    @Test("QuillPrompt selects preferred prompt order with prefix fallback")
+    func quillPromptSelectedPrompts() {
+        struct Sample {
+            var id: String
+            var prompt: String
+            var icon: String
+        }
+
+        let samples = [
+            Sample(id: "a", prompt: "Alpha", icon: "a.circle"),
+            Sample(id: "b", prompt: "Beta", icon: "b.circle"),
+            Sample(id: "c", prompt: "Gamma", icon: "c.circle")
+        ]
+
+        let preferred = QuillPrompt.selectedPrompts(
+            from: samples,
+            preferredTitles: ["Gamma", "Alpha"],
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.icon }
+        )
+        #expect(preferred.map(\.id) == ["c", "a"])
+        #expect(preferred.map(\.title) == ["Gamma", "Alpha"])
+        #expect(preferred.map(\.systemImage) == ["c.circle", "a.circle"])
+
+        let fallback = QuillPrompt.selectedPrompts(
+            from: samples,
+            preferredTitles: ["Missing", "Alpha"],
+            fallbackCount: 2,
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.icon }
+        )
+        #expect(fallback.map(\.id) == ["a", "b"])
+
+        let emptyFallback = QuillPrompt.selectedPrompts(
+            from: samples,
+            preferredTitles: ["Missing"],
+            fallbackCount: -1,
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.icon }
+        )
+        #expect(emptyFallback.isEmpty)
+
+        #expect(QuillPrompt.quillChatMacReferencePromptTitles == [
+            "How to center div in HTML?",
+            "How to do personal taxes in USA?",
+            "Explain supercomputers like I'm five years old",
+            "Write a text message asking a friend to be my plus-one at a wedding"
+        ])
+
+        var sentPrompt = ""
+        let emptyState = QuillSelectedPromptEmptyState(
+            brandTitle: "Quill",
+            source: samples,
+            preferredTitles: ["Beta", "Alpha"],
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.icon },
+            sendPrompt: { sentPrompt = $0 }
+        )
+        #expect(emptyState.prompts.map(\.title) == ["Beta", "Alpha"])
+        emptyState.sendPrompt("Beta")
+        #expect(sentPrompt == "Beta")
+    }
+
+    @Test("QuillPrompt builds selected-model prompt senders")
+    func quillPromptSelectedModelSender() {
+        struct Model: Equatable {
+            var name: String
+        }
+
+        var sent: [(String, Model, String?, Int?)] = []
+        let send = QuillPrompt.selectedModelSender(
+            selectedModel: Model(name: "local"),
+            attachment: "image.png",
+            trimmingID: 42
+        ) { prompt, model, attachment, trimmingID in
+            sent.append((prompt, model, attachment, trimmingID))
+        }
+
+        send("Explain SwiftUI")
+        #expect(sent.count == 1)
+        #expect(sent[0].0 == "Explain SwiftUI")
+        #expect(sent[0].1 == Model(name: "local"))
+        #expect(sent[0].2 == "image.png")
+        #expect(sent[0].3 == 42)
+
+        let nilModelSend = QuillPrompt.selectedModelSender(
+            selectedModel: Optional<Model>.none,
+            attachment: Optional<String>.none,
+            trimmingID: Optional<Int>.none
+        ) { prompt, model, attachment, trimmingID in
+            sent.append((prompt, model, attachment, trimmingID))
+        }
+        nilModelSend("Ignored")
+        #expect(sent.count == 1)
+    }
+
+    // MARK: - QuillMenuAction helpers
+
+    @Test("QuillMenuAction builds disabled and selectable menu rows")
+    func quillMenuActionSelectableItems() {
+        struct MenuItem {
+            var id: String
+            var title: String
+        }
+
+        var selectedTitle: String?
+        let items = [
+            MenuItem(id: "a", title: "Alpha"),
+            MenuItem(id: "b", title: "Beta")
+        ]
+        let actions = QuillMenuAction.selectableItems(
+            items,
+            selectedID: "b",
+            emptyTitle: "No items",
+            id: { $0.id },
+            title: { $0.title },
+            onSelect: { selectedTitle = $0.title }
+        )
+
+        #expect(actions.map(\.id) == ["a", "b"])
+        #expect(actions.map(\.title) == ["Alpha", "Beta"])
+        #expect(actions.map(\.systemImage) == [nil, "checkmark"])
+        #expect(actions.allSatisfy { !$0.isDisabled })
+
+        actions[0].perform()
+        #expect(selectedTitle == "Alpha")
+
+        selectedTitle = nil
+        let emptyActions = QuillMenuAction.selectableItems(
+            [MenuItem](),
+            selectedID: Optional<String>.none,
+            emptyTitle: "No items",
+            id: { $0.id },
+            title: { $0.title },
+            onSelect: { selectedTitle = $0.title }
+        )
+
+        #expect(emptyActions.count == 1)
+        #expect(emptyActions.first?.title == "No items")
+        #expect(emptyActions.first?.isDisabled == true)
+        emptyActions.first?.perform()
+        #expect(selectedTitle == nil)
+
+        let clipboard = QuillClipboard()
+        let copy = QuillMenuAction.copyText("Copied text", clipboard: clipboard)
+        #expect(copy.title == "Copy")
+        #expect(copy.systemImage == "doc.on.doc")
+        copy.perform()
+        #expect(clipboard.string() == "Copied text")
+
+        var didEdit = false
+        let edit = QuillMenuAction.edit { didEdit = true }
+        #expect(edit.title == "Edit")
+        #expect(edit.systemImage == "pencil")
+        edit.perform()
+        #expect(didEdit)
+
+        var didUnselect = false
+        let unselect = QuillMenuAction.unselect { didUnselect = true }
+        #expect(unselect.title == "Unselect")
+        #expect(unselect.systemImage == "pencil")
+        unselect.perform()
+        #expect(didUnselect)
+
+        let messageClipboard = QuillClipboard()
+        var didSelectText = false
+        var didReadAloud = false
+        var didPerformExtra = false
+        var didEditMessage = false
+        var didUnselectMessage = false
+        let messageActions = QuillMenuAction.chatMessageActions(
+            content: "Message text",
+            isUserMessage: true,
+            isEditing: true,
+            selectText: { didSelectText = true },
+            readAloud: { didReadAloud = true },
+            additionalActions: [
+                QuillMenuAction(title: "Extra", systemImage: "sparkle") {
+                    didPerformExtra = true
+                }
+            ],
+            onEdit: { didEditMessage = true },
+            onUnselect: { didUnselectMessage = true },
+            clipboard: messageClipboard
+        )
+
+        #expect(messageActions.map(\.title) == ["Copy", "Select Text", "Read Aloud", "Extra", "Edit", "Unselect"])
+        messageActions.forEach { $0.perform() }
+        #expect(messageClipboard.string() == "Message text")
+        #expect(didSelectText)
+        #expect(didReadAloud)
+        #expect(didPerformExtra)
+        #expect(didEditMessage)
+        #expect(didUnselectMessage)
+
+        var copiedJSONValues: [Bool] = []
+        let copyChatActions = QuillMenuAction.copyChatActions { copiedJSONValues.append($0) }
+        #expect(copyChatActions.map(\.title) == ["Copy Chat", "Copy Chat as JSON"])
+        #expect(copyChatActions.map(\.systemImage) == ["doc.on.doc", "curlybraces"])
+        copyChatActions.forEach { $0.perform() }
+        #expect(copiedJSONValues == [false, true])
+
+        struct Model {
+            var id: String
+            var name: String
+            var version: String
+        }
+
+        var selectedModelID: String?
+        let modelActions = QuillMenuAction.selectableModels(
+            [
+                Model(id: "fast", name: "Fast", version: ""),
+                Model(id: "smart", name: "Smart", version: "v2")
+            ],
+            selectedID: "smart",
+            id: { $0.id },
+            name: { $0.name },
+            version: { $0.version },
+            onSelect: { selectedModelID = $0.id }
+        )
+
+        #expect(modelActions.map(\.title) == ["Fast", "Smart v2"])
+        #expect(modelActions.map(\.systemImage) == [nil, "checkmark"])
+        modelActions[0].perform()
+        #expect(selectedModelID == "fast")
+    }
+
+    @Test("QuillSheetStatusBanner exposes reusable sheet-backed status state")
+    func quillSheetStatusBannerStoresConfiguration() {
+        let banner = QuillSheetStatusBanner(
+            message: "Offline",
+            actionTitle: "Settings",
+            showsActivity: true,
+            horizontalPadding: 28,
+            topPadding: 10,
+            bottomPadding: 74
+        ) {
+            QuillStatusBanner(message: "Settings")
+        }
+
+        #expect(banner.message == "Offline")
+        #expect(banner.actionTitle == "Settings")
+        #expect(banner.showsActivity == true)
+        #expect(banner.horizontalPadding == 28)
+        #expect(banner.topPadding == 10)
+        #expect(banner.bottomPadding == 74)
+
+        let unreachableBanner = QuillChatUnreachableBanner {
+            QuillStatusBanner(message: "Settings")
+        }
+        #expect(unreachableBanner.message.contains("Quill is unreachable"))
+        #expect(unreachableBanner.message.contains("update your Quill API endpoint"))
+        #expect(unreachableBanner.actionTitle == "Settings")
+        #expect(unreachableBanner.showsActivity == true)
+        #expect(unreachableBanner.horizontalPadding == 28)
+        #expect(unreachableBanner.topPadding == 10)
+        #expect(unreachableBanner.bottomPadding == 74)
+    }
+
+    @Test("QuillDesktopChatScaffold builds standard toolbar shells")
+    func quillDesktopChatScaffoldStandardToolbarInitializer() {
+        let scaffold = QuillDesktopChatScaffold(
+            title: "Chat",
+            sidebarWidth: 280,
+            hasSelection: false,
+            showsStatus: true,
+            modelActions: [],
+            optionsActions: [],
+            onNewConversation: {}
+        ) {
+            Text("Sidebar")
+        } selectedContent: {
+            Text("Selected")
+        } emptyContent: {
+            Text("Empty")
+        } statusContent: {
+            Text("Status")
+        } composer: {
+            Text("Composer")
+        }
+
+        #expect(scaffold.title == "Chat")
+        #expect(scaffold.sidebarWidth == 280)
+        #expect(scaffold.hasSelection == false)
+        #expect(scaffold.showsStatus == true)
+
+        struct Message: Equatable {
+            var content: String
+        }
+        let editableScaffold = QuillEditableDesktopChatScaffold(
+            title: "Editable Chat",
+            sidebarWidth: 300,
+            hasSelection: true,
+            showsStatus: false,
+            modelActions: [],
+            optionsActions: [],
+            onNewConversation: {},
+            initialDraft: "Draft",
+            initialEditMessage: Optional<Message>.none,
+            editContent: { (message: Message) in message.content }
+        ) {
+            Text("Sidebar")
+        } selectedContent: { editMessage in
+            Text(editMessage.wrappedValue?.content ?? "Selected")
+        } emptyContent: {
+            Text("Empty")
+        } statusContent: {
+            Text("Status")
+        } composer: { draft, _ in
+            Text(draft.wrappedValue)
+        }
+
+        #expect(editableScaffold.title == "Editable Chat")
+        #expect(editableScaffold.sidebarWidth == 300)
+        #expect(editableScaffold.hasSelection == true)
+        #expect(editableScaffold.showsStatus == false)
+    }
+
+    @Test("Editable message sync modifier accepts optional edit bindings")
+    func quillSyncEditableMessageModifierCompiles() {
+        struct Message: Equatable {
+            var content: String
+        }
+
+        struct Probe: View {
+            @State var editMessage: Message?
+            @State var draft = ""
+            @FocusState var isFocused: Bool
+
+            var body: some View {
+                Text(draft)
+                    .quillSyncEditableMessage($editMessage, draft: $draft, isFocused: $isFocused, content: \.content)
+            }
+        }
+
+        _ = Probe()
+    }
+
+    @Test("QuillSidebarNavigationAction exposes standard desktop chat utilities")
+    func quillSidebarNavigationActionDesktopChatUtilities() {
+        var opened: [String] = []
+        let utilities = QuillSidebarNavigationAction.desktopChatUtilities(
+            onCompletions: { opened.append("completions") },
+            onShortcuts: { opened.append("shortcuts") },
+            onSettings: { opened.append("settings") }
+        )
+
+        #if os(macOS) || os(Linux)
+        #expect(utilities.map(\.title) == ["Completions", "Shortcuts", "Settings"])
+        #expect(utilities.map(\.systemImage) == ["textformat.abc", "keyboard.fill", "gearshape.fill"])
+        #else
+        #expect(utilities.map(\.title) == ["Settings"])
+        #expect(utilities.map(\.systemImage) == ["gearshape.fill"])
+        #endif
+
+        utilities.forEach { $0.perform() }
+        #if os(macOS) || os(Linux)
+        #expect(opened == ["completions", "shortcuts", "settings"])
+        #else
+        #expect(opened == ["settings"])
+        #endif
+
+        var showCompletions = false
+        var showShortcuts = false
+        var showSettings = false
+        var tappedSettings = false
+        let toggles = QuillSidebarNavigationAction.desktopChatUtilityToggles(
+            showCompletions: Binding(get: { showCompletions }, set: { showCompletions = $0 }),
+            showShortcuts: Binding(get: { showShortcuts }, set: { showShortcuts = $0 }),
+            showSettings: Binding(get: { showSettings }, set: { showSettings = $0 }),
+            onSettings: { tappedSettings = true }
+        )
+
+        toggles.forEach { $0.perform() }
+        #if os(macOS) || os(Linux)
+        #expect(showCompletions)
+        #expect(showShortcuts)
+        #else
+        #expect(!showCompletions)
+        #expect(!showShortcuts)
+        #endif
+        #expect(showSettings)
+        #expect(tappedSettings)
+    }
+
+    @Test("QuillDesktopChatUtilitySidebar owns utility sheet state")
+    func quillDesktopChatUtilitySidebarOwnsUtilitySheetState() {
+        let sidebar = QuillDesktopChatUtilitySidebar {
+            Text("History")
+        } settings: {
+            Text("Settings")
+        } completions: {
+            Text("Completions")
+        } shortcuts: {
+            Text("Shortcuts")
+        }
+
+        #expect(sidebar.settingsFocusedValue == nil)
+    }
+
+    @Test("Message arrays build streaming scroll tokens from ids and last content")
+    func messageArrayBuildsStreamingScrollToken() {
+        struct Message: Identifiable {
+            var id: String
+            var content: String
+        }
+
+        let messages = [
+            Message(id: "one", content: "hello"),
+            Message(id: "two", content: "partial")
+        ]
+
+        #expect(messages.quillMessageListScrollToken(content: \.content) == AnyHashable("one|two|partial"))
+        #expect([Message]().quillMessageListScrollToken(content: \.content) == AnyHashable("|"))
+    }
+
+    @Test("QuillEditableMessageList centralizes chat message menu actions")
+    @MainActor
+    func quillEditableMessageListBuildsMessageActions() {
+        struct Message: Identifiable, Hashable {
+            var id: String
+            var role: String
+            var content: String
+        }
+
+        let messages = [
+            Message(id: "u1", role: "user", content: "Hello"),
+            Message(id: "a1", role: "assistant", content: "World")
+        ]
+        var editedMessage: Message?
+        var selectedText = ""
+        var spokenText = ""
+        var extraID = ""
+        let clipboard = QuillClipboard()
+        let editBinding = Binding<Message?>(
+            get: { editedMessage },
+            set: { editedMessage = $0 }
+        )
+
+        let list = QuillEditableMessageList(
+            messages: messages,
+            editingMessage: editBinding,
+            content: \.content,
+            isUserMessage: { $0.role == "user" },
+            selectText: { selectedText = $0.content },
+            readAloud: { spokenText = $0.content },
+            additionalActions: { message in
+                [
+                    QuillMenuAction(title: "Extra") {
+                        extraID = message.id
+                    }
+                ]
+            },
+            clipboard: clipboard
+        ) { message in
+            Text(message.content)
+        } overlay: {
+            EmptyView()
+        }
+
+        #expect(list.scrollToken == AnyHashable("u1|a1|World"))
+
+        let userActions = list.contextMenuActions(for: messages[0])
+        #expect(userActions.map(\.title) == ["Copy", "Select Text", "Read Aloud", "Extra", "Edit"])
+        userActions.forEach { $0.perform() }
+        #expect(clipboard.string() == "Hello")
+        #expect(selectedText == "Hello")
+        #expect(spokenText == "Hello")
+        #expect(extraID == "u1")
+        #expect(editedMessage == messages[0])
+
+        let editingActions = list.contextMenuActions(for: messages[0])
+        #expect(editingActions.map(\.title).contains("Unselect"))
+        editingActions.first { $0.title == "Unselect" }?.perform()
+        #expect(editedMessage == nil)
+
+        let assistantActions = list.contextMenuActions(for: messages[1])
+        #expect(!assistantActions.map(\.title).contains("Edit"))
     }
 
     // MARK: - Backend registry

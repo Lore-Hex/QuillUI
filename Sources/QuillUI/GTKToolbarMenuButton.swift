@@ -14,6 +14,68 @@ private final class QuillGTKToolbarClosureBox {
 
 private final class QuillGTKMenuActionBox {
     var actions: [QuillGTKToolbarClosureBox] = []
+    var actionsByTitle: [String: QuillGTKToolbarClosureBox] = [:]
+}
+
+private final class QuillGTKToolbarAutomationBox {
+    let commandDirectoryPath: String
+    let actionBox: QuillGTKMenuActionBox
+
+    init(commandDirectoryPath: String, actionBox: QuillGTKMenuActionBox) {
+        self.commandDirectoryPath = commandDirectoryPath
+        self.actionBox = actionBox
+    }
+}
+
+private enum QuillGTKToolbarMenuAutomation {
+    static let commandDirectoryEnvironmentKey = "QUILLUI_GTK_TOOLBAR_ACTION_COMMAND_DIR"
+
+    static func installIfNeeded(actionBox: QuillGTKMenuActionBox) {
+        guard let commandDirectoryPath = ProcessInfo.processInfo.environment[commandDirectoryEnvironmentKey],
+              !commandDirectoryPath.isEmpty
+        else {
+            return
+        }
+
+        let automationBox = QuillGTKToolbarAutomationBox(
+            commandDirectoryPath: commandDirectoryPath,
+            actionBox: actionBox
+        )
+        let retained = Unmanaged.passRetained(automationBox).toOpaque()
+        g_timeout_add(100, { userData -> gboolean in
+            guard let userData else { return 1 }
+            let automationBox = Unmanaged<QuillGTKToolbarAutomationBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+            QuillGTKToolbarMenuAutomation.poll(automationBox)
+            return 1
+        }, retained)
+    }
+
+    private static func poll(_ automationBox: QuillGTKToolbarAutomationBox) {
+        let directoryURL = URL(fileURLWithPath: automationBox.commandDirectoryPath)
+        guard let commandURLs = try? FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for commandURL in commandURLs {
+            let resourceValues = try? commandURL.resourceValues(forKeys: [.isDirectoryKey])
+            guard resourceValues?.isDirectory != true,
+                  let title = try? String(contentsOf: commandURL, encoding: .utf8)
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  let action = automationBox.actionBox.actionsByTitle[title]
+            else {
+                continue
+            }
+
+            try? FileManager.default.removeItem(at: commandURL)
+            action.closure()
+        }
+    }
 }
 
 struct QuillGTKToolbarIconButton: View, PrimitiveView, GTKRenderable {
@@ -81,6 +143,7 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
         let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
         gtk_swift_menu_button_set_popover(button, popover)
         gtk_swift_widget_insert_action_group(button, "menu", gpointer(actionGroup))
+        gtk_swift_widget_insert_action_group(popover, "menu", gpointer(actionGroup))
 
         let retained = Unmanaged.passRetained(actionBox).toOpaque()
         let gobject = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self)
@@ -88,6 +151,7 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
             guard let userData else { return }
             Unmanaged<QuillGTKMenuActionBox>.fromOpaque(userData).release()
         }
+        QuillGTKToolbarMenuAutomation.installIfNeeded(actionBox: actionBox)
 
         return OpaquePointer(button)
     }
@@ -153,6 +217,7 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
             action.perform()
         }
         actionBox.actions.append(box)
+        actionBox.actionsByTitle[action.title] = box
         let boxPointer = Unmanaged.passUnretained(box).toOpaque()
 
         g_signal_connect_data(

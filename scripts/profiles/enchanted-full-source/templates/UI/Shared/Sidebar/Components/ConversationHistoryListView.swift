@@ -15,34 +15,15 @@ struct ConversationHistoryList: View {
 
     var body: some View {
         QuillDateGroupedConversationHistoryList(
-            items: historyItems,
+            items: conversations,
             selectedID: selectedConversation?.id.uuidString,
+            id: { $0.id.uuidString },
+            title: { $0.name },
+            updatedAt: { $0.updatedAt },
             dateTitle: { $0.daysAgoString() },
-            onSelect: { item in
-                if let conversation = conversation(for: item) {
-                    onTap(conversation)
-                }
-            },
-            onDelete: { item in
-                if let conversation = conversation(for: item) {
-                    onDelete(conversation)
-                }
-            },
+            onSelect: onTap,
+            onDelete: onDelete,
             onDeleteDay: onDeleteDailyConversations
         )
-    }
-
-    private var historyItems: [QuillConversationHistoryItem] {
-        conversations.map { conversation in
-            QuillConversationHistoryItem(
-                id: conversation.id.uuidString,
-                title: conversation.name,
-                updatedAt: conversation.updatedAt
-            )
-        }
-    }
-
-    private func conversation(for item: QuillConversationHistoryItem) -> ConversationSD? {
-        conversations.first { $0.id.uuidString == item.id }
     }
 }

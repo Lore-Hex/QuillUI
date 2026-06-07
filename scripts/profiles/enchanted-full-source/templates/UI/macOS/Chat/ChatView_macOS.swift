@@ -27,90 +27,61 @@ struct ChatView: View {
     var userInitials: String
     var copyChat: (_ json: Bool) -> Void
 
-    @State private var message = ""
-    @State private var editMessage: MessageSD?
-    @FocusState private var isFocusedInput: Bool
-
     private var modelMenuActions: [QuillMenuAction] {
-        if modelsList.isEmpty {
-            return [
-                QuillMenuAction(title: "No models available", isDisabled: true) {}
-            ]
-        }
-
-        return modelsList.map { model in
-            let title = model.prettyVersion.isEmpty ? model.prettyName : "\(model.prettyName) \(model.prettyVersion)"
-            let icon = selectedModel?.name == model.name ? "checkmark" : nil
-            return QuillMenuAction(id: model.name, title: title, systemImage: icon) {
-                onSelectModel(model)
-            }
-        }
+        QuillMenuAction.selectableModels(
+            modelsList,
+            selectedID: selectedModel?.name,
+            id: { $0.name },
+            name: { $0.prettyName },
+            version: { $0.prettyVersion },
+            onSelect: onSelectModel
+        )
     }
 
     private var optionsMenuActions: [QuillMenuAction] {
-        [
-            QuillMenuAction(title: "Copy Chat", systemImage: "doc.on.doc") {
-                copyChat(false)
-            },
-            QuillMenuAction(title: "Copy Chat as JSON", systemImage: "curlybraces") {
-                copyChat(true)
-            }
-        ]
+        QuillMenuAction.copyChatActions(copy: copyChat)
     }
 
     var body: some View {
-        QuillDesktopChatScaffold(
+        QuillEditableDesktopChatScaffold(
             title: "Enchanted",
-            sidebarWidth: 320,
             hasSelection: selectedConversation != nil,
-            showsStatus: !reachable
+            showsStatus: !reachable,
+            modelActions: modelMenuActions,
+            optionsActions: optionsMenuActions,
+            onNewConversation: onNewConversationTap,
+            editContent: { (message: MessageSD) in message.content }
         ) {
             SidebarView(
                 selectedConversation: selectedConversation,
                 conversations: conversations,
                 onConversationTap: onConversationTap,
                 onConversationDelete: onConversationDelete,
-                onDeleteDailyConversations: onDeleteDailyConversations,
-                onNewConversationTap: onNewConversationTap
+                onDeleteDailyConversations: onDeleteDailyConversations
             )
-        } toolbar: {
-            QuillDesktopChatToolbar(
-                modelActions: modelMenuActions,
-                optionsActions: optionsMenuActions,
-                onNewConversation: onNewConversationTap
-            )
-        } selectedContent: {
+        } selectedContent: { editMessage in
             MessageListView(
                 messages: messages,
                 conversationState: conversationState,
                 userInitials: userInitials,
-                editMessage: $editMessage
+                editMessage: editMessage
             )
         } emptyContent: {
-            EmptyConversaitonView(sendPrompt: sendPrompt)
+            EmptyConversaitonView(sendPrompt: QuillPrompt.selectedModelSender(
+                selectedModel: selectedModel,
+                onSend: onSendMessageTap
+            ))
         } statusContent: {
             UnreachableAPIView()
-        } composer: {
+        } composer: { message, editMessage in
             InputFieldsView(
-                message: $message,
+                message: message,
                 conversationState: conversationState,
                 onStopGenerateTap: onStopGenerateTap,
                 selectedModel: selectedModel,
                 onSendMessageTap: onSendMessageTap,
-                editMessage: $editMessage
+                editMessage: editMessage
             )
-        }
-        .onChange(of: editMessage, initial: false) { _, newMessage in
-            if let newMessage = newMessage {
-                message = newMessage.content
-                isFocusedInput = true
-            }
-        }
-    }
-
-    private func sendPrompt(_ selectedMessage: String) {
-        if let selectedModel = selectedModel {
-            onSendMessageTap(selectedMessage, selectedModel, nil, nil)
         }
     }
 }

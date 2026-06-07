@@ -126,6 +126,31 @@ struct LinuxBackendAppMatrixTests {
         }
     }
 
+    private static let expectedQuillChatMacReferenceInteractionModes = [
+        "settings-panel",
+        "alert-settings-panel",
+        "settings-endpoint-typed",
+        "settings-bearer-token-typed",
+        "settings-ping-interval-typed",
+        "settings-default-model-selected",
+        "settings-delete-confirmation",
+        "settings-delete-confirmed",
+        "completions-panel",
+        "completions-new-sheet",
+        "completions-save",
+        "completions-edit-save",
+        "completions-delete",
+        "new-chat",
+        "toolbar-model-selected",
+        "prompt-send",
+        "copy-chat",
+        "copy-chat-json",
+        "history-selection",
+        "transcript-selection",
+        "markdown-transcript-selection",
+        "long-transcript-selection"
+    ]
+
     private static func expectedVisualVerifierProduct(product: String, backend: String) -> String {
         if product == "quill-enchanted-linux" {
             return "quill-enchanted-linux-\(backend)"
@@ -377,6 +402,10 @@ struct LinuxBackendAppMatrixTests {
             )
         }
 
+        let quillChatModes = try runScript(script, arguments: ["quill-chat-mac-reference-interaction-modes"])
+        #expect(quillChatModes.status == 0, Comment(rawValue: quillChatModes.output))
+        #expect(Self.lines(quillChatModes.output) == Self.expectedQuillChatMacReferenceInteractionModes)
+
         let defaultBackend = try runScript(script, arguments: ["backend-for-product", "quill-wireguard"])
         #expect(defaultBackend.status == 0, Comment(rawValue: defaultBackend.output))
         #expect(defaultBackend.output.trimmingCharacters(in: .whitespacesAndNewlines) == "gtk")
@@ -532,6 +561,14 @@ struct LinuxBackendAppMatrixTests {
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-toolbar-menu\""))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-composer-typed\""))
         #expect(productsScript.contains("*:composer-send)"))
+        #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-new-chat\""))
+        #expect(productsScript.contains("*:new-chat)"))
+        #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat\""))
+        #expect(productsScript.contains("*:copy-chat)"))
+        #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat-json\""))
+        #expect(productsScript.contains("*:copy-chat-json)"))
+        #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-toolbar-model-selected\""))
+        #expect(productsScript.contains("*:toolbar-model-selected)"))
         #expect(productsScript.contains("verify_product=\"quill-wireguard-qt-tunnel-selection\""))
         #expect(productsScript.contains("verify_product=\"quill-wireguard-import-paste\""))
 
@@ -769,6 +806,10 @@ struct LinuxBackendAppMatrixTests {
         printf 'app-verify-chat-toolbar=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux qt toolbar-menu)"
         printf 'app-verify-chat-composer=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk composer-typed)"
         printf 'app-verify-chat-composer-send=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk composer-send)"
+        printf 'app-verify-chat-new-chat=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk new-chat)"
+        printf 'app-verify-chat-copy-chat=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk copy-chat)"
+        printf 'app-verify-chat-copy-chat-json=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk copy-chat-json)"
+        printf 'app-verify-chat-toolbar-model=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk toolbar-model-selected)"
         printf 'app-verify-chat-reference-toolbar=%s\\n' "$(QUILLUI_BACKEND_MAC_REFERENCE=1 quillui_backend_app_interaction_verify_product_for_product quill-chat-linux qt toolbar-menu)"
         printf 'app-verify-wireguard-qt-click=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-wireguard qt click)"
         printf 'app-verify-wireguard-qt-name-edit=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-wireguard qt name-edit)"
@@ -907,6 +948,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("app-verify-chat-toolbar=quill-chat-linux-toolbar-menu"))
         #expect(result.output.contains("app-verify-chat-composer=quill-chat-linux-mac-reference-composer-typed"))
         #expect(result.output.contains("app-verify-chat-composer-send=quill-chat-linux-mac-reference-composer-send"))
+        #expect(result.output.contains("app-verify-chat-new-chat=quill-chat-linux-mac-reference-new-chat"))
+        #expect(result.output.contains("app-verify-chat-copy-chat=quill-chat-linux-mac-reference-copy-chat"))
+        #expect(result.output.contains("app-verify-chat-copy-chat-json=quill-chat-linux-mac-reference-copy-chat-json"))
+        #expect(result.output.contains("app-verify-chat-toolbar-model=quill-chat-linux-mac-reference-toolbar-model-selected"))
         #expect(result.output.contains("app-verify-chat-reference-toolbar=quill-chat-linux-mac-reference-toolbar-menu"))
         #expect(result.output.contains("app-verify-wireguard-qt-click=quill-wireguard-qt-tunnel-selection"))
         #expect(result.output.contains("app-verify-wireguard-qt-name-edit=quill-wireguard-qt-name-edit"))
@@ -1033,7 +1078,10 @@ struct LinuxBackendAppMatrixTests {
         let result = try runScript(
             script,
             arguments: ["--matrix", "profile-matrix", csv.path],
-            environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path]
+            environment: [
+                "QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path,
+                "QUILLUI_RESOURCE_GUARD_DISABLE": "1",
+            ]
         )
 
         let expected = """

@@ -20,6 +20,22 @@ struct QuillKitTests {
         #expect(clipboard.data(forType: "public.png") == nil)
     }
 
+    @Test("clipboard instance values are isolated from later native plain-text writes")
+    func clipboardInstanceValuesAreIsolatedFromNativePlainTextWrites() {
+        let first = QuillClipboard()
+        let second = QuillClipboard()
+
+        first.setString("first", forType: "public.utf8-plain-text")
+        second.setString("second", forType: "public.utf8-plain-text")
+
+        #expect(first.string(forType: "public.utf8-plain-text") == "first")
+        #expect(second.string(forType: "public.utf8-plain-text") == "second")
+
+        first.setString(nil, forType: "public.utf8-plain-text")
+        #expect(first.string(forType: "public.utf8-plain-text") == nil)
+        #expect(second.string(forType: "public.utf8-plain-text") == "second")
+    }
+
     @Test("clipboard removes nil values without clearing other types")
     func clipboardNilRemovalIsScopedToType() {
         let clipboard = QuillClipboard()
@@ -87,6 +103,17 @@ struct QuillKitTests {
 
         #expect(writes.value == ["plain"])
         #expect(clipboard.string() == "plain")
+    }
+
+    @Test("Apple-shaped Clipboard alias uses the shared QuillKit clipboard")
+    func appleShapedClipboardAliasUsesSharedQuillKitClipboard() {
+        Clipboard.shared.clear()
+        Clipboard.shared.setString("alias text")
+
+        #expect(Clipboard.shared === QuillClipboard.shared)
+        #expect(QuillClipboard.shared.string() == "alias text")
+
+        Clipboard.shared.clear()
     }
 
     @Test("diagnostics record and clear compatibility events")
@@ -180,6 +207,8 @@ struct QuillKitTests {
         QuillCompatibilityDiagnostics.shared.clear()
 
         let accessibility = QuillAccessibilityService()
+        let appleNamedAccessibility = Accessibility.shared
+        #expect(appleNamedAccessibility === QuillAccessibilityService.shared)
         #expect(accessibility.checkAccessibility() == QuillAccessibility.isTrusted)
         #expect(accessibility.getSelectedText() == nil)
         accessibility.showAccessibilityInstructionsWindow()
@@ -188,6 +217,8 @@ struct QuillKitTests {
         QuillAccessibilityService.simulatePasteCommand()
 
         let panelManager = QuillPanelManager()
+        let appleNamedPanelManager = PanelManager()
+        #expect(type(of: appleNamedPanelManager.panel) == FloatingPanel.self)
         #expect(panelManager.panel.isVisible == false)
         panelManager.showPanel()
         #expect(panelManager.panel.isVisible)
@@ -198,20 +229,22 @@ struct QuillKitTests {
         #expect(panelManager.panel.isVisible == false)
 
         var hotkeyInvoked = false
-        let combination = QuillHotkeyCombination(keyBase: [.command], key: 0x09) {
+        let combination = HotkeyCombination(keyBase: [.command], key: 0x09) {
             hotkeyInvoked = true
         }
-        #expect(combination.keyBase == [.command])
+        #expect(combination.keyBase == [KeyBase.command])
         #expect(combination.key == 0x09)
         #expect(combination.keyBasePressed == false)
         combination.action()
         #expect(hotkeyInvoked)
 
-        let updater = QuillUpdateService()
+        let updater = QuillUpdater()
         #expect(updater.canCheckForUpdates == false)
         updater.checkForUpdates()
 
-        let watcher = QuillDeviceWatcher()
+        #expect(HotkeyService.shared === QuillHotkeyService.shared)
+
+        let watcher = QuillUSBWatcher()
         watcher.start()
         watcher.stop()
         watcher.autoConfigureIfNeeded()

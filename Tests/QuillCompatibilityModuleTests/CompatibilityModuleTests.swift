@@ -1804,6 +1804,33 @@ struct CompatibilityModuleTests {
             action: {}
         )
         #expect(custom.id == "settings.id")
+
+        let completions = QuillTestBox<Int>(0)
+        let shortcuts = QuillTestBox<Int>(0)
+        let settings = QuillTestBox<Int>(0)
+        let utilities = QuillSidebarNavigationAction.desktopChatUtilities(
+            onCompletions: { completions.value = (completions.value ?? 0) + 1 },
+            onShortcuts: { shortcuts.value = (shortcuts.value ?? 0) + 1 },
+            onSettings: { settings.value = (settings.value ?? 0) + 1 }
+        )
+
+        #if os(macOS) || os(Linux)
+        #expect(utilities.map(\.title) == ["Completions", "Shortcuts", "Settings"])
+        #expect(utilities.map(\.systemImage) == ["textformat.abc", "keyboard.fill", "gearshape.fill"])
+        #else
+        #expect(utilities.map(\.title) == ["Settings"])
+        #expect(utilities.map(\.systemImage) == ["gearshape.fill"])
+        #endif
+
+        utilities.forEach { $0.perform() }
+        #if os(macOS) || os(Linux)
+        #expect(completions.value == 1)
+        #expect(shortcuts.value == 1)
+        #else
+        #expect(completions.value == 0)
+        #expect(shortcuts.value == 0)
+        #endif
+        #expect(settings.value == 1)
     }
 
     // MARK: - QuillPrompt identity

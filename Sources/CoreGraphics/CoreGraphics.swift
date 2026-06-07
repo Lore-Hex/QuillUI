@@ -1,7 +1,19 @@
 import Foundation
 import QuillKit
 
+// CoreGraphics geometry value types live in swift-corelibs-foundation on Linux.
+// Re-export CGFloat so `import CoreGraphics` (without also importing Foundation)
+// resolves it — e.g. GRDB's CGFloat.swift does `#if canImport(CoreGraphics)
+// import CoreGraphics` then extends `CGFloat`. Re-exporting the real
+// Foundation.CGFloat (rather than declaring a new typealias) keeps a single
+// canonical type, so code importing Foundation + CoreGraphics sees no ambiguity.
+@_exported import struct Foundation.CGFloat
+
 public typealias CGKeyCode = UInt16
+
+public extension CGKeyCode {
+    static let kVK_ANSI_V: CGKeyCode = 0x09
+}
 
 public struct CGEventFlags: OptionSet, Sendable {
     public var rawValue: UInt64

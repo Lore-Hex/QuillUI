@@ -82,6 +82,55 @@ jobs:
               quill-chat-linux \
               gtk
 
+      - name: Package real-source GTK release artifact
+        run: |
+          scripts/package-swiftui-linux-app.sh \
+            --profile enchanted-full-source \
+            --source-dir "$QUILL_CHAT_DIR/Enchanted" \
+            --app-type EnchantedApp \
+            --product-name quill-chat-linux \
+            --workdir .build/quill-chat-linux-gtk \
+            --backend-facade gtk \
+            --artifact-dir .build/releases/quill-chat-linux-gtk \
+            --tarball .qa/quill-chat-linux-gtk-release.tar.gz \
+            --display-name "Quill Chat" \
+            --app-id io.lorehex.QuillChat \
+            --summary "Quill Chat is an Apple Swift chat app packaged for Linux through QuillUI." \
+            --categories "Utility;Network;" \
+            --bundle-swift-runtime
+          scripts/check-linux-app-metadata.sh \
+            .build/releases/quill-chat-linux-gtk \
+            io.lorehex.QuillChat \
+            quill-chat-linux \
+            "Quill Chat"
+          scripts/generate-flatpak-manifest.sh \
+            --artifact-dir .build/releases/quill-chat-linux-gtk \
+            --output .qa/io.lorehex.QuillChat.flatpak.json
+          python3 -m json.tool .qa/io.lorehex.QuillChat.flatpak.json >/dev/null
+          scripts/check-linux-app-runtime-deps.sh \
+            .build/releases/quill-chat-linux-gtk \
+            quill-chat-linux \
+            --require-bundled-swift-runtime \
+            --report .qa/quill-chat-linux-runtime-deps.tsv
+          echo "QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run" >> "$GITHUB_ENV"
+
+      - name: Run packaged release artifact verifier
+        env:
+          QUILLUI_BACKEND_SKIP_BUILD: "1"
+        run: |
+          QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quill-chat-linux-release-artifact-visual.log \
+            scripts/linux-backend-visual-check.sh \
+              .qa/quill-chat-linux-release-artifact-gtk.png \
+              quill-chat-linux \
+              gtk
+
+          QUILLUI_BACKEND_INTERACTION_MODE=new-chat \
+          QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-release-artifact-new-chat.log \
+            scripts/linux-backend-interaction-check.sh \
+              .qa/quill-chat-linux-release-artifact-new-chat-gtk.png \
+              quill-chat-linux \
+              gtk
+
       - name: Run real-source composer-typed interaction verifier
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
@@ -114,31 +163,20 @@ jobs:
       - name: Run real-source sidebar and transcript interaction verifiers
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
+          QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE: ".qa/quill-chat-linux-interaction-{mode}.log"
+          QUILLUI_BACKEND_INTERACTION_MODE_TIMEOUT: "120s"
         run: |
           # Gate the Mac-reference settings/completions/sidebar/transcript
           # paths that exercise the Enchanted profile's real SwiftData-backed
           # history, relationship fetches, markdown rendering, and long-scroll
           # behavior.
-          for mode in \
-            settings-panel \
-            settings-endpoint-typed \
-            settings-bearer-token-typed \
-            settings-ping-interval-typed \
-            settings-default-model-selected \
-            settings-delete-confirmation \
-            completions-panel \
-            history-selection \
-            transcript-selection \
-            markdown-transcript-selection \
-            long-transcript-selection
-          do
-            QUILLUI_BACKEND_INTERACTION_MODE="$mode" \
-            QUILLUI_BACKEND_INTERACTION_APP_LOG=".qa/quill-chat-linux-interaction-${mode}.log" \
-              scripts/linux-backend-interaction-check.sh \
-                ".qa/quill-chat-linux-mac-reference-${mode}-gtk.png" \
-                quill-chat-linux \
-                gtk
-          done
+          quill_chat_modes="$(scripts/quillui-backend-products.sh quill-chat-mac-reference-interaction-modes)"
+          # shellcheck disable=SC2086
+          scripts/run-linux-backend-interaction-modes.sh \
+            ".qa/quill-chat-linux-mac-reference-{mode}-gtk.png" \
+            quill-chat-linux \
+            gtk \
+            $quill_chat_modes
 
       - name: Run live composer-send and relaunch functional verifier
         env:

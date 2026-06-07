@@ -31,10 +31,12 @@
 #include <QStyle>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace {
 
@@ -173,6 +175,8 @@ QString genericStyleSheet(const QJsonObject &style) {
         QLabel#promptTitle { color: %6; font-size: %9; font-weight: 500; }
         QLabel#chatSidebarDate { color: %10; font-size: %11; font-weight: 650; }
         QLabel#chatSidebarTitle { color: %6; font-size: %12; font-weight: 450; }
+        QLabel#settingsTitle { color: %6; font-size: %13; font-weight: 650; }
+        QLabel#settingsFormLabel { color: %6; font-size: %11; font-weight: 600; }
     )").arg(
         header,
         divider,
@@ -185,7 +189,8 @@ QString genericStyleSheet(const QJsonObject &style) {
         conversationTitleFontSize,
         muted,
         sectionTitleFontSize,
-        conversationTitleFontSize
+        conversationTitleFontSize,
+        currentTitleFontSize
     );
 
     sheet += QStringLiteral(R"(
@@ -204,6 +209,10 @@ QString genericStyleSheet(const QJsonObject &style) {
         QFrame#composerFrame { background: %4; border: 1px solid %6; border-radius: %7; }
         QLineEdit#composerEditor { background: transparent; color: %5; border: 0; padding-left: 0; padding-right: 0; }
         QLabel#composerAccessoryIcon { background: transparent; border: 0; }
+        QFrame#settingsPanel { background: %1; border: 0; border-radius: %2; }
+        QLineEdit#settingsField { background: white; color: %5; border: 1px solid %6; border-radius: %2; padding: %8; }
+        QPushButton#settingsOptionButton { background: white; color: %5; border: 1px solid %6; border-radius: %2; padding: %8; }
+        QPushButton#settingsPrimaryButton { background: %5; color: white; border: 0; border-radius: %2; padding: %8; font-weight: 650; }
     )").arg(
         promptCard,
         promptButtonRadius,
@@ -752,6 +761,10 @@ QWidget *bottomNavigationWidget(const QJsonArray &actions, const QJsonObject &st
         }
         QPushButton *button = new QPushButton(titleText);
         button->setObjectName(QStringLiteral("sidebarNavigationButton"));
+        const QString navigationAction = stringValue(action, "id", titleText).trimmed().toLower();
+        button->setProperty("navigationAction", navigationAction);
+        button->setProperty("navigationTitle", titleText);
+        button->setProperty("navigationSubtitle", stringValue(action, "subtitle"));
         button->setIcon(systemImageIcon(stringValue(action, "systemImage")));
         button->setIconSize(QSize(
             intValue(style, "actionButtonIconSize", 16),
@@ -1098,6 +1111,268 @@ void populateChatMessages(QVBoxLayout *layout, const QJsonArray &messages, const
     }
 }
 
+QString activeNavigationIdentifier(const QJsonObject &payload) {
+    QString navigation = stringValue(payload, "activeNavigation").trimmed().toLower();
+    if (!navigation.isEmpty()) {
+        return navigation;
+    }
+    const char *environmentNavigation = std::getenv("QUILLUI_GENERIC_QT_ACTIVE_NAVIGATION");
+    if (environmentNavigation == nullptr) {
+        return QString();
+    }
+    return QString::fromUtf8(environmentNavigation).trimmed().toLower();
+}
+
+QString automationNavigationClickIdentifier() {
+    const char *environmentNavigation = std::getenv("QUILLUI_GENERIC_QT_AUTOMATION_CLICK_NAVIGATION");
+    if (environmentNavigation == nullptr) {
+        return QString();
+    }
+    return QString::fromUtf8(environmentNavigation).trimmed().toLower();
+}
+
+QString settingsValue(
+    const QJsonObject &payload,
+    const char *key,
+    const QString &fallback = QString()
+) {
+    const QJsonObject settings = jsonObjectValue(payload, "settings");
+    return stringValue(settings, key, fallback);
+}
+
+QWidget *settingsFieldWidget(
+    const QString &labelText,
+    const QString &valueText,
+    const QJsonObject &style,
+    QLineEdit::EchoMode echoMode = QLineEdit::Normal
+) {
+    QWidget *fieldHost = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(fieldHost);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(intValue(style, "settingsFieldSpacing", 3));
+
+    QLabel *caption = label(labelText, QStringLiteral("settingsFormLabel"));
+    applyAccessibleText(caption, labelText, labelText);
+    layout->addWidget(caption);
+
+    QLineEdit *field = new QLineEdit(valueText);
+    field->setObjectName(QStringLiteral("settingsField"));
+    field->setEchoMode(echoMode);
+    field->setMinimumHeight(intValue(style, "settingsFieldMinHeight", 32));
+    applyAccessibleText(field, labelText, accessibilitySummary(labelText, valueText));
+    layout->addWidget(field);
+    return fieldHost;
+}
+
+QWidget *settingsOptionRow(
+    const QString &labelText,
+    const QStringList &options,
+    const QJsonObject &style
+) {
+    QWidget *host = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(host);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(intValue(style, "settingsFieldSpacing", 3));
+
+    QLabel *caption = label(labelText, QStringLiteral("settingsFormLabel"));
+    applyAccessibleText(caption, labelText, labelText);
+    layout->addWidget(caption);
+
+    QHBoxLayout *buttons = new QHBoxLayout();
+    buttons->setContentsMargins(0, 0, 0, 0);
+    buttons->setSpacing(intValue(style, "settingsOptionSpacing", 6));
+    for (const QString &option : options) {
+        QPushButton *button = new QPushButton(option);
+        button->setObjectName(QStringLiteral("settingsOptionButton"));
+        button->setMinimumHeight(intValue(style, "settingsFieldMinHeight", 32));
+        applyAccessibleText(button, option, option);
+        buttons->addWidget(button);
+    }
+    layout->addLayout(buttons);
+    return host;
+}
+
+QFrame *settingsPaneWidget(const QJsonObject &payload, const QJsonObject &style) {
+    QFrame *panel = QuillQtWidgets::frame(QStringLiteral("settingsPanel"));
+    panel->setMaximumWidth(intValue(style, "settingsPanelMaxWidth", 640));
+    panel->setMinimumWidth(intValue(style, "settingsPanelMinWidth", 560));
+    applyAccessibleText(panel, QStringLiteral("Settings"), QStringLiteral("Settings"));
+
+    QVBoxLayout *layout = new QVBoxLayout(panel);
+    const int padding = intValue(style, "settingsPanelPadding", 20);
+    layout->setContentsMargins(padding, padding, padding, padding);
+    layout->setSpacing(intValue(style, "settingsPanelSpacing", 8));
+
+    const QString titleText = settingsValue(payload, "title", QStringLiteral("Settings"));
+    const QString subtitleText = settingsValue(
+        payload,
+        "subtitle",
+        QStringLiteral("Refresh models, choose a local model, or clear history from this sidebar.")
+    );
+    QLabel *title = label(titleText, QStringLiteral("settingsTitle"));
+    applyAccessibleText(title, titleText, titleText);
+    layout->addWidget(title);
+
+    QLabel *subtitle = label(subtitleText, QStringLiteral("caption"));
+    subtitle->setWordWrap(true);
+    applyAccessibleText(subtitle, subtitleText, subtitleText);
+    layout->addWidget(subtitle);
+
+    QLabel *quillSection = label(settingsValue(payload, "quillSectionTitle", QStringLiteral("Quill")), QStringLiteral("sectionTitle"));
+    applyAccessibleText(quillSection, quillSection->text(), quillSection->text());
+    layout->addWidget(quillSection);
+
+    layout->addWidget(settingsFieldWidget(
+        settingsValue(payload, "endpointLabel", QStringLiteral("Quill API endpoint")),
+        settingsValue(payload, "endpoint", QStringLiteral("http://localhost:11434")),
+        style
+    ));
+    layout->addWidget(settingsFieldWidget(
+        settingsValue(payload, "systemPromptLabel", QStringLiteral("System prompt")),
+        settingsValue(payload, "systemPrompt", QStringLiteral("You are a helpful assistant.")),
+        style
+    ));
+    layout->addWidget(settingsFieldWidget(
+        settingsValue(payload, "bearerTokenLabel", QStringLiteral("Bearer Token")),
+        settingsValue(payload, "bearerToken"),
+        style,
+        QLineEdit::Password
+    ));
+    layout->addWidget(settingsFieldWidget(
+        settingsValue(payload, "pingIntervalLabel", QStringLiteral("Ping Interval (seconds)")),
+        settingsValue(payload, "pingInterval", QStringLiteral("30")),
+        style
+    ));
+
+    QLabel *appSection = label(settingsValue(payload, "appSectionTitle", QStringLiteral("APP")), QStringLiteral("sectionTitle"));
+    applyAccessibleText(appSection, appSection->text(), appSection->text());
+    layout->addWidget(appSection);
+    layout->addWidget(settingsOptionRow(
+        settingsValue(payload, "appearanceLabel", QStringLiteral("Appearance")),
+        QStringList {
+            settingsValue(payload, "appearanceSystemOption", QStringLiteral("System")),
+            settingsValue(payload, "appearanceLightOption", QStringLiteral("Light")),
+            settingsValue(payload, "appearanceDarkOption", QStringLiteral("Dark"))
+        },
+        style
+    ));
+    layout->addWidget(settingsFieldWidget(
+        settingsValue(payload, "initialsLabel", QStringLiteral("Initials")),
+        settingsValue(payload, "userInitials", QStringLiteral("Q")),
+        style
+    ));
+
+    QPushButton *refresh = new QPushButton(settingsValue(payload, "refreshModelsTitle", QStringLiteral("Refresh models")));
+    refresh->setObjectName(QStringLiteral("settingsPrimaryButton"));
+    refresh->setMinimumHeight(intValue(style, "settingsFieldMinHeight", 32));
+    applyAccessibleText(refresh, refresh->text(), refresh->text());
+    layout->addWidget(refresh);
+    return panel;
+}
+
+QString defaultNavigationTitle(const QString &navigationAction) {
+    if (navigationAction == QStringLiteral("completions")) {
+        return QStringLiteral("Completions");
+    }
+    if (navigationAction == QStringLiteral("shortcuts")) {
+        return QStringLiteral("Shortcuts");
+    }
+    if (navigationAction == QStringLiteral("settings")) {
+        return QStringLiteral("Settings");
+    }
+    return QStringLiteral("Panel");
+}
+
+QString defaultNavigationSubtitle(const QString &navigationAction) {
+    if (navigationAction == QStringLiteral("completions")) {
+        return QStringLiteral("Prompt completions use the shared Enchanted profile.");
+    }
+    if (navigationAction == QStringLiteral("shortcuts")) {
+        return QStringLiteral("Keyboard shortcuts use the shared QuillKit shortcut surface.");
+    }
+    return QStringLiteral("This panel is rendered by the generic Qt navigation host.");
+}
+
+QFrame *utilityPaneWidget(
+    const QString &navigationAction,
+    const QString &titleText,
+    const QString &subtitleText,
+    const QJsonObject &style
+) {
+    QFrame *panel = QuillQtWidgets::frame(QStringLiteral("settingsPanel"));
+    panel->setMaximumWidth(intValue(style, "settingsPanelMaxWidth", 640));
+    panel->setMinimumWidth(intValue(style, "settingsPanelMinWidth", 560));
+    const QString effectiveTitle = titleText.isEmpty() ? defaultNavigationTitle(navigationAction) : titleText;
+    const QString effectiveSubtitle = subtitleText.isEmpty() ? defaultNavigationSubtitle(navigationAction) : subtitleText;
+    applyAccessibleText(panel, effectiveTitle, accessibilitySummary(effectiveTitle, effectiveSubtitle));
+
+    QVBoxLayout *layout = new QVBoxLayout(panel);
+    const int padding = intValue(style, "settingsPanelPadding", 20);
+    layout->setContentsMargins(padding, padding, padding, padding);
+    layout->setSpacing(intValue(style, "settingsPanelSpacing", 8));
+
+    QLabel *title = label(effectiveTitle, QStringLiteral("settingsTitle"));
+    applyAccessibleText(title, effectiveTitle, effectiveTitle);
+    layout->addWidget(title);
+
+    QLabel *subtitle = label(effectiveSubtitle, QStringLiteral("caption"));
+    subtitle->setWordWrap(true);
+    applyAccessibleText(subtitle, effectiveSubtitle, effectiveSubtitle);
+    layout->addWidget(subtitle);
+
+    QLabel *body = label(
+        navigationAction == QStringLiteral("shortcuts")
+            ? QStringLiteral("No shortcuts yet.")
+            : QStringLiteral("No completions yet."),
+        QStringLiteral("bodyText")
+    );
+    body->setWordWrap(true);
+    applyAccessibleText(body, body->text(), body->text());
+    layout->addWidget(body);
+    return panel;
+}
+
+void populateSettingsContent(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style
+) {
+    clearLayout(layout);
+    layout->addStretch(1);
+    layout->addWidget(settingsPaneWidget(payload, style), 0, Qt::AlignCenter);
+    layout->addStretch(1);
+}
+
+void populateUtilityContent(
+    QVBoxLayout *layout,
+    const QString &navigationAction,
+    const QString &titleText,
+    const QString &subtitleText,
+    const QJsonObject &style
+) {
+    clearLayout(layout);
+    layout->addStretch(1);
+    layout->addWidget(utilityPaneWidget(navigationAction, titleText, subtitleText, style), 0, Qt::AlignCenter);
+    layout->addStretch(1);
+}
+
+void populateNavigationContent(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    const QString &navigationAction,
+    const QString &titleText = QString(),
+    const QString &subtitleText = QString()
+) {
+    if (navigationAction == QStringLiteral("settings")) {
+        populateSettingsContent(layout, payload, style);
+        return;
+    }
+    if (!navigationAction.isEmpty()) {
+        populateUtilityContent(layout, navigationAction, titleText, subtitleText, style);
+    }
+}
+
 void populateDetailContent(
     QVBoxLayout *layout,
     const GenericSelection &selection,
@@ -1153,7 +1428,10 @@ void applySelection(
         applyAccessibleText(detailPane.titleLabel, selection.detailTitle, detailSummary);
     }
     applyAccessibleText(detailPane.subtitleLabel, selection.detailSubtitle, selection.detailSubtitle);
-    if (chatMode && !selection.hasSelection) {
+    const QString activeNavigation = activeNavigationIdentifier(payload);
+    if (chatMode && !activeNavigation.isEmpty()) {
+        populateNavigationContent(detailPane.contentLayout, payload, style, activeNavigation);
+    } else if (chatMode && !selection.hasSelection) {
         populateEmptyStateContent(detailPane.contentLayout, payload, style);
     } else {
         populateDetailContent(detailPane.contentLayout, selection, style, chatMode);
@@ -1229,7 +1507,10 @@ GenericDetailPane chatDetailWidget(
     QVBoxLayout *conversationLayout = new QVBoxLayout(conversationHost);
     conversationLayout->setContentsMargins(0, 0, 0, 0);
     conversationLayout->setSpacing(intValue(style, "detailContentSpacing", 14));
-    if (selectedIndex >= 0) {
+    const QString activeNavigation = activeNavigationIdentifier(payload);
+    if (!activeNavigation.isEmpty()) {
+        populateNavigationContent(conversationLayout, payload, style, activeNavigation);
+    } else if (selectedIndex >= 0) {
         populateDetailContent(conversationLayout, selection, style, true);
     } else {
         populateEmptyStateContent(conversationLayout, payload, style);
@@ -1344,7 +1625,8 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     });
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal);
-    splitter->addWidget(sidebarWidget(payload, itemList, style));
+    QWidget *sidebar = sidebarWidget(payload, itemList, style);
+    splitter->addWidget(sidebar);
     splitter->addWidget(scrollWrapped(detailPane.view));
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
@@ -1353,6 +1635,37 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     splitter->setSizes(splitSizes);
     rootLayout->addWidget(splitter);
 
+    for (QPushButton *button : sidebar->findChildren<QPushButton *>()) {
+        const QString navigationAction = button->property("navigationAction").toString();
+        if (!navigationAction.isEmpty()) {
+            QObject::connect(button, &QPushButton::clicked, [&, button, navigationAction]() {
+                const bool blocked = itemList->blockSignals(true);
+                itemList->setCurrentRow(-1);
+                itemList->blockSignals(blocked);
+                updateChatSelectionDots(itemList);
+                populateNavigationContent(
+                    detailPane.contentLayout,
+                    payload,
+                    style,
+                    navigationAction,
+                    button->property("navigationTitle").toString(),
+                    button->property("navigationSubtitle").toString()
+                );
+            });
+        }
+    }
+
     root.show();
+    const QString automatedNavigationClick = automationNavigationClickIdentifier();
+    if (!automatedNavigationClick.isEmpty()) {
+        QTimer::singleShot(250, &root, [&]() {
+            for (QPushButton *button : sidebar->findChildren<QPushButton *>()) {
+                if (button->property("navigationAction").toString() == automatedNavigationClick) {
+                    button->click();
+                    return;
+                }
+            }
+        });
+    }
     return app.exec();
 }

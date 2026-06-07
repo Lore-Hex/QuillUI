@@ -96,7 +96,9 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("allPackageDependencies = quillDataPackageDependencies"))
-        #expect(manifest.contains("let quillDataPackageDependencies: [Package.Dependency] = ["))
+        // `var` (not `let`): SwiftProtobuf/swift-crypto are appended only when the
+        // Signal upstream is present (Track B), so non-Signal builds stay warning-clean.
+        #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
         #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("dependencies: [\"QuillEnchantedData\", \"QuillFoundation\"]"))
