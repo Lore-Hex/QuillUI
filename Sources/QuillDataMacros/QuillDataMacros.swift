@@ -230,4 +230,13 @@ public struct QuillEntryMacro: AccessorMacro, PeerMacro {
     }
 }
 
-@main struct QuillDataMacrosPlugin: CompilerPlugin { let providingMacros: [Macro.Type] = [QuillModelMacro.self, QuillPredicateMacro.self, QuillAttributeMacro.self, QuillRelationshipMacro.self, QuillEntryMacro.self] }
+/// `#Preview { … }` (SwiftUI, iOS 17) — Xcode preview registration. No-op on
+/// Linux (previews are never rendered); expands to nothing.
+public struct QuillPreviewMacro: DeclarationMacro {
+    public static func expansion(
+        of node: some FreestandingMacroExpansionSyntax,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] { [] }
+}
+
+@main struct QuillDataMacrosPlugin: CompilerPlugin { let providingMacros: [Macro.Type] = [QuillModelMacro.self, QuillPredicateMacro.self, QuillAttributeMacro.self, QuillRelationshipMacro.self, QuillEntryMacro.self, QuillPreviewMacro.self] }

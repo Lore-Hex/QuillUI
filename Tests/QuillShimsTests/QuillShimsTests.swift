@@ -517,3 +517,12 @@ final class QuillSwiftUIColorFontShimTests: XCTestCase {
     }
 }
 #endif
+
+#if !os(macOS) && !os(iOS)
+// The `#Preview` macro expands to nothing on Linux; declaring one here proves
+// the macro resolves and its body type-checks, so vendored real source that
+// declares SwiftUI previews compiles.
+#Preview {
+    SwiftUI.Text("preview")
+}
+#endif
