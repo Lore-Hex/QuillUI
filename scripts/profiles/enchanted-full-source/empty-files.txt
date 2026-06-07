@@ -6,6 +6,7 @@ UI/macOS/PromptPanel/PanelManager.swift
 UI/Shared/Chat/Components/EmptyConversaitonView.swift
 UI/Shared/Chat/Components/UnreachableAPIView.swift
 UI/Shared/Sidebar/Components/ConversationHistoryListView.swift
+UI/Shared/Sidebar/SidebarView.swift
 Application/QuillUpdater.swift
 Application/QuillUSBWatcher.swift
 Application/QuillUSBLauncher.swift

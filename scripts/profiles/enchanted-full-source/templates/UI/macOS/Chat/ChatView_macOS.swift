@@ -52,13 +52,25 @@ struct ChatView: View {
             onNewConversation: onNewConversationTap,
             editContent: { (message: MessageSD) in message.content }
         ) {
-            SidebarView(
-                selectedConversation: selectedConversation,
+            QuillDesktopChatConversationSidebar(
                 conversations: conversations,
-                onConversationTap: onConversationTap,
-                onConversationDelete: onConversationDelete,
-                onDeleteDailyConversations: onDeleteDailyConversations
-            )
+                selectedID: selectedConversation?.id.uuidString,
+                settingsFocusedValue: \.showSettings,
+                id: { $0.id.uuidString },
+                title: { $0.name },
+                updatedAt: { $0.updatedAt },
+                dateTitle: { $0.daysAgoString() },
+                onSettings: { Task { Haptics.shared.mediumTap() } },
+                onSelect: onConversationTap,
+                onDelete: onConversationDelete,
+                onDeleteDay: onDeleteDailyConversations
+            ) {
+                Settings()
+            } completions: {
+                CompletionsEditor()
+            } shortcuts: {
+                KeyboardShortcutsDemo()
+            }
         } selectedContent: { editMessage in
             MessageListView(
                 messages: messages,

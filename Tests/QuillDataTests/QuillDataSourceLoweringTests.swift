@@ -379,7 +379,7 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 225"))
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 200"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
@@ -957,6 +957,19 @@ struct QuillDataSourceLoweringTests {
         #expect(chatViewTemplate.contains("onNewConversation: onNewConversationTap"))
         #expect(chatViewTemplate.contains("editContent: { (message: MessageSD) in message.content }"))
         #expect(!chatViewTemplate.contains("QuillDesktopChatScaffold("))
+        #expect(chatViewTemplate.contains("QuillDesktopChatConversationSidebar("))
+        #expect(chatViewTemplate.contains("conversations: conversations"))
+        #expect(chatViewTemplate.contains("selectedID: selectedConversation?.id.uuidString"))
+        #expect(chatViewTemplate.contains("settingsFocusedValue: \\.showSettings"))
+        #expect(chatViewTemplate.contains("id: { $0.id.uuidString }"))
+        #expect(chatViewTemplate.contains("title: { $0.name }"))
+        #expect(chatViewTemplate.contains("updatedAt: { $0.updatedAt }"))
+        #expect(chatViewTemplate.contains("dateTitle: { $0.daysAgoString() }"))
+        #expect(chatViewTemplate.contains("onSettings: { Task { Haptics.shared.mediumTap() } }"))
+        #expect(chatViewTemplate.contains("onSelect: onConversationTap"))
+        #expect(chatViewTemplate.contains("onDelete: onConversationDelete"))
+        #expect(chatViewTemplate.contains("onDeleteDay: onDeleteDailyConversations"))
+        #expect(!chatViewTemplate.contains("SidebarView("))
         #expect(chatViewTemplate.contains("QuillMenuAction.selectableModels("))
         #expect(chatViewTemplate.contains("selectedID: selectedModel?.name"))
         #expect(chatViewTemplate.contains("name: { $0.prettyName }"))
@@ -1012,54 +1025,15 @@ struct QuillDataSourceLoweringTests {
             atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/EmptyConversaitonView.swift.pl").path
         ))
 
-        let sidebarTemplate = try String(
-            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift"),
-            encoding: .utf8
-        )
-        #expect(sidebarTemplate.contains("import QuillUI"))
-        #expect(sidebarTemplate.contains("QuillDesktopChatConversationSidebar("))
-        #expect(sidebarTemplate.contains("conversations: conversations"))
-        #expect(sidebarTemplate.contains("selectedID: selectedConversation?.id.uuidString"))
-        #expect(sidebarTemplate.contains("settingsFocusedValue: \\.showSettings"))
-        #expect(sidebarTemplate.contains("id: { $0.id.uuidString }"))
-        #expect(sidebarTemplate.contains("title: { $0.name }"))
-        #expect(sidebarTemplate.contains("updatedAt: { $0.updatedAt }"))
-        #expect(sidebarTemplate.contains("dateTitle: { $0.daysAgoString() }"))
-        #expect(sidebarTemplate.contains("onSettings: { Task { Haptics.shared.mediumTap() } }"))
-        #expect(sidebarTemplate.contains("onSelect: onConversationTap"))
-        #expect(sidebarTemplate.contains("onDelete: onConversationDelete"))
-        #expect(sidebarTemplate.contains("onDeleteDay: onDeleteDailyConversations"))
-        #expect(sidebarTemplate.contains("} completions: {"))
-        #expect(sidebarTemplate.contains("} shortcuts: {"))
-        #expect(!sidebarTemplate.contains("ConversationHistoryList("))
-        #expect(!sidebarTemplate.contains("QuillDesktopChatUtilitySidebar("))
-        #expect(!sidebarTemplate.contains("@State var showSettings"))
-        #expect(!sidebarTemplate.contains("@State var showCompletions"))
-        #expect(!sidebarTemplate.contains("@State var showKeyboardShortcuts"))
-        #expect(!sidebarTemplate.contains(".quillDesktopChatUtilitySheets("))
-        #expect(!sidebarTemplate.contains("private var bottomActions: [QuillSidebarNavigationAction]"))
-        #expect(!sidebarTemplate.contains("QuillSidebarNavigationAction.desktopChatUtilityToggles("))
-        #expect(!sidebarTemplate.contains("@Environment(\\.openWindow)"))
-        #expect(!sidebarTemplate.contains("private func onSettingsTap()"))
-        #expect(!sidebarTemplate.contains(".focusedSceneValue(\\.showSettings, $showSettings)"))
-        #expect(!sidebarTemplate.contains(".sheet(isPresented: $showSettings)"))
-        #expect(!sidebarTemplate.contains(".sheet(isPresented: $showCompletions)"))
-        #expect(!sidebarTemplate.contains(".sheet(isPresented: $showKeyboardShortcutas)"))
-        #expect(!sidebarTemplate.contains("showKeyboardShortcutas"))
-        #expect(!sidebarTemplate.contains("QuillSidebarNavigationAction.desktopChatUtilities("))
-        #expect(!sidebarTemplate.contains("actions.append(QuillSidebarNavigationAction(title: \"Completions\""))
-        #expect(!sidebarTemplate.contains("actions.append(QuillSidebarNavigationAction(title: \"Shortcuts\""))
-        #expect(!sidebarTemplate.contains("actions.append(QuillSidebarNavigationAction(title: \"Settings\""))
-        #expect(!sidebarTemplate.contains("SidebarButton("))
-        #expect(!sidebarTemplate.contains(".padding(.top, 88)"))
-        #expect(!sidebarTemplate.contains("Text(\"New chat\")"))
-        #expect(!sidebarTemplate.contains("Color(red: 0.259, green: 0.522, blue: 0.957)"))
-
         let optionalEmptyFiles = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
             encoding: .utf8
         )
+        #expect(optionalEmptyFiles.contains("UI/Shared/Sidebar/SidebarView.swift"))
         #expect(optionalEmptyFiles.contains("UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift").path
+        ))
         #expect(!FileManager.default.fileExists(
             atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/Components/ConversationHistoryListView.swift").path
         ))

@@ -124,13 +124,23 @@ struct GeneratedEnchantedFullSourceCheck {
             ollamaLangugeModels: [model],
             voices: []
         )
-        _ = SidebarView(
-            selectedConversation: conversation,
+        _ = QuillDesktopChatConversationSidebar(
             conversations: [conversation],
-            onConversationTap: { _ in },
-            onConversationDelete: { _ in },
-            onDeleteDailyConversations: { _ in }
-        )
+            selectedID: conversation.id.uuidString,
+            id: { $0.id.uuidString },
+            title: { $0.name },
+            updatedAt: { $0.updatedAt },
+            dateTitle: { $0.daysAgoString() },
+            onSelect: { _ in },
+            onDelete: { _ in },
+            onDeleteDay: { _ in }
+        ) {
+            Settings()
+        } completions: {
+            CompletionsEditor()
+        } shortcuts: {
+            KeyboardShortcutsDemo()
+        }
         _ = KeyboardShortcutsDemo()
         _ = ChatView(
             selectedConversation: conversation,
