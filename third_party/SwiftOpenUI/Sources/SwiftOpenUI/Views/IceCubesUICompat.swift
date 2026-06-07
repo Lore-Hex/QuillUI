@@ -52,23 +52,10 @@ extension View {
 extension ButtonStyleType { public static var glass: ButtonStyleType { .automatic } }
 extension ToolbarItemPlacement { public static var navigationBarTrailing: ToolbarItemPlacement { .trailing } }
 extension Shape where Self == Circle { public static var circle: Circle { Circle() } }
-extension View {
-    public func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
-        ScrollContentBackgroundView(content: self, visibility: visibility)
-    }
-}
 
-// Typed passthrough (moved from QuillUI). Name + .visibility are asserted by
-// CompatibilityModuleTests; reaches both QuillUI (re-export) and vendored source.
-public struct ScrollContentBackgroundView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-    public init(content: Content, visibility: Visibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-    public var body: some View { content }
-}
+// scrollContentBackground + ScrollContentBackgroundView moved to
+// QuillSwiftUICompatibility (records a QuillKit fallback diagnostic, which this
+// lower package cannot do).
 
 public struct Material: Sendable {
     public static let ultraThin = Material()
