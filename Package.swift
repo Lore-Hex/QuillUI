@@ -1587,14 +1587,6 @@ if libsignalUpstreamPresent {
 }
 #endif
 
-// The following Signal-only shim targets (CryptoKit / CommonCrypto /
-// SignalRingRTC / COSUnfairLock / Contacts / libPhoneNumber_iOS) are ONLY needed
-// when building the Signal slice. Gate them behind `signalUpstreamPresent` so they
-// are NOT added on a fresh checkout / CI (where .upstream/signal-ios is absent).
-// Otherwise CommonCrypto's C shim would try to `#include <openssl/evp.h>` on a
-// runner without libssl-dev and break main's Linux backends build. When signal is
-// absent the package is identical to clean main.
-if signalUpstreamPresent {
 // CryptoKit Linux shim → swift-crypto's `Crypto` (API-compatible). Canonical
 // Apple framework name so upstream `import CryptoKit` resolves here on Linux.
 #if os(Linux)
@@ -1612,7 +1604,18 @@ targets.append(
 // whose public umbrella is the canonical <CommonCrypto/CommonCrypto.h>, so
 // upstream `import CommonCrypto` resolves here. Links system libcrypto (apt
 // libssl-dev).
+//
+// Gated on signalUpstreamPresent: ONLY this target's C `#include <openssl/evp.h>`
+// + `link "crypto"` require libssl-dev, which CI runners lack. Only SignalServiceKit
+// depends on CommonCrypto (and SSK is itself gated), so excluding it on a fresh
+// checkout / CI (signal absent) leaves no dangling dependency and the package builds
+// identically to clean main. NOTE: the OTHER Signal shims (CryptoKit / the
+// signalAppleFrameworkShims loop / etc.) stay ungated — they compile inertly on CI
+// AND some are consumed by the always-built UIKit shim (e.g. UIKit →
+// UserNotifications), so gating them would dangle that dependency and invalidate the
+// whole manifest.
 #if os(Linux)
+if signalUpstreamPresent {
 targets.append(
     .target(
         name: "CommonCrypto",
@@ -1621,6 +1624,7 @@ targets.append(
         linkerSettings: [.linkedLibrary("crypto")]
     )
 )
+}
 #endif
 
 // SignalRingRTC Linux shim — faithful type-surface of signalapp/ringrtc
@@ -1676,7 +1680,6 @@ targets.append(
     )
 )
 #endif
-} // end: if signalUpstreamPresent — Signal-only crypto/contact/phone shims
 
 // Batch of thin Apple-framework / pod shims SignalServiceKit imports but that
 // don't exist on Linux. Each is a placeholder module so `import X` resolves;
@@ -1698,17 +1701,17 @@ let signalAppleFrameworkShims = [
     // (cZlibTarget, links libz) rather than an inert Swift shim, so it's added to
     // SignalServiceKit's dependencies explicitly below.
 ]
-// Also gated on signalUpstreamPresent (these inert shims are only consumed by
-// SignalServiceKit; not adding them on CI keeps the package identical to main).
+// NOTE: NOT gated on signalUpstreamPresent — the always-built UIKit shim depends on
+// some of these (e.g. UIKit → UserNotifications), so they must exist whenever Linux
+// builds, or the package manifest dangles that dependency. They are inert placeholder
+// modules that compile fine on CI without any signal upstream.
 #if os(Linux)
-if signalUpstreamPresent {
 for shimName in signalAppleFrameworkShims {
     // Each shim may build on QuillFoundation's Core Graphics / Foundation shadow
     // types (e.g. ImageIO's CGImageSource returns QuillFoundation's CGImage).
     // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
     // edge is inert for shims that do not import QuillFoundation.
     targets.append(.target(name: shimName, dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/\(shimName)"))
-}
 }
 #endif
 
