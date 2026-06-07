@@ -581,6 +581,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:markdown-transcript-selection)
       verify_product="quill-chat-linux-mac-reference-markdown-transcript-selection"
       ;;
+    *:message-hover-actions)
+      verify_product="quill-chat-linux-mac-reference-message-hover-actions"
+      ;;
     *:long-transcript-selection)
       verify_product="quill-chat-linux-mac-reference-long-transcript-selection"
       ;;
@@ -636,6 +639,7 @@ quillui_backend_quill_chat_mac_reference_interaction_modes() {
     history-selection \
     transcript-selection \
     markdown-transcript-selection \
+    message-hover-actions \
     long-transcript-selection
 }
 

@@ -2112,6 +2112,41 @@ def validate_quill_chat_mac_reference_markdown_transcript_selection(image: Scree
     )
 
 
+def validate_quill_chat_mac_reference_message_hover_actions(image: Screenshot) -> str:
+    history_summary = validate_quill_chat_mac_reference_history_selection(image, require_transcript=True)
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+    )
+    detail_left = divider_x + 1
+    detail_width = right - detail_left + 1
+
+    action_pixels = dark_pixel_count(
+        image,
+        detail_left + int(detail_width * 0.74),
+        top + int(app_height * 0.14),
+        right - int(detail_width * 0.02),
+        top + int(app_height * 0.25),
+    )
+    require(
+        action_pixels >= 35,
+        "Mac-reference message hover action icons were not detected. "
+        "The original Enchanted row should reveal copy/speak/edit controls on hover: "
+        f"pixels={action_pixels}",
+    )
+
+    return (
+        history_summary
+        + "\nQuill Chat Mac-reference message hover actions: "
+        f"action_pixels={action_pixels}"
+    )
+
+
 def validate_quill_chat_mac_reference_sent_message(
     image: Screenshot,
     label: str,
@@ -3915,6 +3950,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))
     elif product == "quill-chat-linux-mac-reference-markdown-transcript-selection":
         print(validate_quill_chat_mac_reference_markdown_transcript_selection(image))
+    elif product == "quill-chat-linux-mac-reference-message-hover-actions":
+        print(validate_quill_chat_mac_reference_message_hover_actions(image))
     elif product == "quill-chat-linux-mac-reference-long-transcript-selection":
         print(validate_quill_chat_mac_reference_long_transcript_selection(image))
     elif product == "quill-chat-linux-mac-reference-prompt-send":

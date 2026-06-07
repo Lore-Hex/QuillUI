@@ -148,6 +148,7 @@ struct LinuxBackendAppMatrixTests {
         "history-selection",
         "transcript-selection",
         "markdown-transcript-selection",
+        "message-hover-actions",
         "long-transcript-selection"
     ]
 
@@ -536,6 +537,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(interactionScript.contains("run_list_selection_or_header_interaction()"))
         #expect(interactionScript.contains("unsupported_backend_interaction_mode()"))
         #expect(interactionScript.contains("backend_label_for_message()"))
+        #expect(interactionScript.contains("hover_quill_chat_message_actions()"))
+        #expect(interactionScript.contains("message-hover-actions)"))
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-enchanted\" && ( \"$SELECTED_BACKEND\" == \"gtk\" || \"$SELECTED_BACKEND\" == \"qt\" ) ]]"))
         #expect(interactionScript.contains("run_list_selection_or_header_interaction \"Enchanted $(backend_label_for_message \"$SELECTED_BACKEND\")\" click_enchanted_list_selection"))
         #expect(interactionScript.contains("run_list_selection_or_header_interaction \"chat GTK\" click_chat_list_selection"))
@@ -567,6 +570,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(productsScript.contains("*:copy-chat)"))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat-json\""))
         #expect(productsScript.contains("*:copy-chat-json)"))
+        #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-message-hover-actions\""))
+        #expect(productsScript.contains("*:message-hover-actions)"))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-toolbar-model-selected\""))
         #expect(productsScript.contains("*:toolbar-model-selected)"))
         #expect(productsScript.contains("verify_product=\"quill-wireguard-qt-tunnel-selection\""))

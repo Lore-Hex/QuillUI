@@ -568,6 +568,23 @@ select_quill_chat_markdown_transcript() {
   sleep 1
 }
 
+hover_quill_chat_message_actions() {
+  local hover_x
+  local hover_y
+
+  select_quill_chat_markdown_transcript
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    hover_x="${QUILLUI_BACKEND_MESSAGE_HOVER_X:-1810}"
+    hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-192}"
+  else
+    hover_x="${QUILLUI_BACKEND_MESSAGE_HOVER_X:-$((window_x + (window_width * 88 / 100)))}"
+    hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-$((window_y + (window_height * 14 / 100)))}"
+  fi
+
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$hover_x" "$hover_y"
+  sleep "${QUILLUI_BACKEND_MESSAGE_HOVER_SLEEP:-1}"
+}
+
 copy_quill_chat_transcript() {
   local copy_json="${1:-0}"
   local menu_x
@@ -889,6 +906,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       transcript-selection|markdown-transcript-selection)
         select_quill_chat_markdown_transcript
+        ;;
+      message-hover-actions)
+        hover_quill_chat_message_actions
         ;;
       long-transcript-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 220))}"
