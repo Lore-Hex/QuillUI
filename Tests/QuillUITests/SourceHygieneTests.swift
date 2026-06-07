@@ -3362,6 +3362,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/generate-flatpak-manifest.sh"),
             encoding: .utf8
         )
+        let runtimeDepsSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/check-linux-app-runtime-deps.sh"),
+            encoding: .utf8
+        )
         let legacyQuillChatBuildSource = try String(
             contentsOf: root.appendingPathComponent("scripts/build-quill-chat-linux.sh"),
             encoding: .utf8
@@ -3465,6 +3469,13 @@ struct SourceHygieneTests {
         #expect(flatpakManifestSource.contains("install -Dm644 share/metainfo/{app_id}.metainfo.xml"))
         #expect(flatpakManifestSource.contains("exec /app/lib/quillui-app/run \"$@\""))
         #expect(flatpakManifestSource.contains("Flatpak manifest written: %s"))
+        #expect(runtimeDepsSource.contains("Usage: $(basename \"$0\") ARTIFACT_DIR PRODUCT_NAME [--report PATH]"))
+        #expect(runtimeDepsSource.contains("ldd \"$BINARY_PATH\" > \"$LDD_OUTPUT\""))
+        #expect(runtimeDepsSource.contains("library\\tkind\\tpath"))
+        #expect(runtimeDepsSource.contains("swift-runtime"))
+        #expect(runtimeDepsSource.contains("artifact-bundled"))
+        #expect(runtimeDepsSource.contains("Unresolved runtime dependencies:"))
+        #expect(runtimeDepsSource.contains("Runtime dependency report written: %s"))
         #expect(legacyQuillChatBuildSource.contains("scripts/build-enchanted-linux.sh"))
         #expect(enchantedBuildSource.contains("--backend-facade"))
         #expect(enchantedBuildSource.contains("QUILLUI_ENCHANTED_BACKEND_FACADE"))

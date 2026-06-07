@@ -106,6 +106,10 @@ jobs:
             --artifact-dir .build/releases/quill-chat-linux-gtk \
             --output .qa/io.lorehex.QuillChat.flatpak.json
           python3 -m json.tool .qa/io.lorehex.QuillChat.flatpak.json >/dev/null
+          scripts/check-linux-app-runtime-deps.sh \
+            .build/releases/quill-chat-linux-gtk \
+            quill-chat-linux \
+            --report .qa/quill-chat-linux-runtime-deps.tsv
           echo "QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run" >> "$GITHUB_ENV"
 
       - name: Run packaged release artifact verifier

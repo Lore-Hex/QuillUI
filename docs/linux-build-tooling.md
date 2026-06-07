@@ -160,7 +160,10 @@ scripts/package-swiftui-linux-app.sh \
 ```
 
 `scripts/check-linux-app-metadata.sh` validates that packaged desktop metadata
-matches the executable and release metadata. `scripts/generate-flatpak-manifest.sh`
+matches the executable and release metadata. `scripts/check-linux-app-runtime-deps.sh`
+audits `ldd` output for the packaged binary, fails on unresolved libraries, and
+writes a TSV that classifies Swift toolchain, system, loader, virtual, and
+artifact-bundled dependencies. `scripts/generate-flatpak-manifest.sh`
 then consumes the same artifact directory and writes a first Flatpak manifest
 scaffold:
 
@@ -168,6 +171,11 @@ scaffold:
 scripts/generate-flatpak-manifest.sh \
   --artifact-dir .build/releases/quill-chat-linux-gtk \
   --output .qa/io.lorehex.QuillChat.flatpak.json
+
+scripts/check-linux-app-runtime-deps.sh \
+  .build/releases/quill-chat-linux-gtk \
+  quill-chat-linux \
+  --report .qa/quill-chat-linux-runtime-deps.tsv
 ```
 
 The manifest intentionally comes from package metadata, not Enchanted-specific

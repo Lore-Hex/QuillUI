@@ -817,6 +817,8 @@ struct QuillDataSourceLoweringTests {
         #expect(parityWorkflow.contains("scripts/generate-flatpak-manifest.sh"))
         #expect(parityWorkflow.contains("--output .qa/io.lorehex.QuillChat.flatpak.json"))
         #expect(parityWorkflow.contains("python3 -m json.tool .qa/io.lorehex.QuillChat.flatpak.json >/dev/null"))
+        #expect(parityWorkflow.contains("scripts/check-linux-app-runtime-deps.sh"))
+        #expect(parityWorkflow.contains("--report .qa/quill-chat-linux-runtime-deps.tsv"))
         #expect(parityWorkflow.contains("Run packaged release artifact verifier"))
         #expect(parityWorkflow.contains("echo \"QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run\" >> \"$GITHUB_ENV\""))
         #expect(parityWorkflow.contains(".qa/quill-chat-linux-release-artifact-gtk.png"))

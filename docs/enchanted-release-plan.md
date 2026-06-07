@@ -125,6 +125,10 @@ Recently cleared:
 - The generic package output now feeds `scripts/generate-flatpak-manifest.sh`,
   and Enchanted CI emits `.qa/io.lorehex.QuillChat.flatpak.json` from the same
   release artifact metadata before running packaged-app parity checks.
+- The packaged Enchanted CI path now writes
+  `.qa/quill-chat-linux-runtime-deps.tsv` with Swift runtime, system, loader,
+  virtual, and artifact-bundled dependency classifications, failing early if
+  the release binary has unresolved dynamic libraries.
 - Typed composer focus/input is covered by the real-source GTK mac-reference
   interaction verifier.
 - Composer-send UI transition is covered by the real-source GTK mac-reference
