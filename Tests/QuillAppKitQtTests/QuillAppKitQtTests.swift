@@ -342,4 +342,102 @@ struct QuillAppKitQtTests {
         button.sendAction(Selector("unknownAction"), to: target)
         #expect(target.fired == ["save", "cancel"])
     }
+
+    // M-render slice (issue #231): the first END-TO-END proof that unmodified
+    // AppKit code RENDERS on Qt — build an NSWindow with a content view, a label
+    // and a button, solve Auto Layout, and grab the live QWidget tree to a PNG.
+    // This is the foundation for AppKit↔macOS visual parity (diff this PNG vs a
+    // macOS screenshot). Headless via QT_QPA_PLATFORM=offscreen.
+    @Test("A real AppKit window (label + button, Auto-Layout'd) renders to a non-empty PNG via Qt")
+    func rendersRealAppKitWindowToPNG() throws {
+        guard QuillQt.ensureInitialized() else { return }
+
+        // Built exactly as unmodified AppKit source would — no Qt symbols here.
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 140),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 140))
+        let label = NSTextField(labelWithString: "Add an empty tunnel or import one")
+        let button = NSButton(title: "Import Tunnels", target: nil, action: nil)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        button.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubviewQt(label)
+        content.addSubviewQt(button)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            label.topAnchor.constraint(equalTo: content.topAnchor, constant: 28),
+            label.widthAnchor.constraint(equalToConstant: 240),
+            label.heightAnchor.constraint(equalToConstant: 20),
+            button.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            button.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 18),
+            button.widthAnchor.constraint(equalToConstant: 160),
+            button.heightAnchor.constraint(equalToConstant: 30),
+        ])
+
+        window.contentView = content
+        content.layoutQtSubtree(width: 360, height: 140)
+        window.showAsQtWindowWithContent()
+
+        let out = "/tmp/quillappkitqt-wireguard-render.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        // A real rendered 360×140 window is several KB of PNG, not an empty file.
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 500)
+
+        window.closeQtWindow()
+    }
+
+    // M-render: render a real NSViewController whose view is built in loadView()
+    // (the shape of WireGuard's ButtonedDetailViewController empty state — a
+    // centered button). Exercises the new NSViewController lazy `.view` →
+    // loadView() path + realizeQtSubtree() (realizing a plain-addSubview tree
+    // into Qt). The literal conformance VC is the identical shape; rendering it
+    // verbatim needs the WireGuard conformance + a Qt backend in one graph (the
+    // next rung — they're currently in separate build graphs).
+    @Test("A loadView()-built NSViewController (empty-state shape) renders via Qt")
+    func rendersViewControllerToPNG() throws {
+        guard QuillQt.ensureInitialized() else { return }
+
+        final class EmptyStateVC: NSViewController {
+            let button = NSButton()
+            override func loadView() {
+                let v = NSView()
+                button.title = "Import tunnels"
+                v.addSubview(button) // plain addSubview, exactly like the real VC
+                button.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    button.centerXAnchor.constraint(equalTo: v.centerXAnchor),
+                    button.centerYAnchor.constraint(equalTo: v.centerYAnchor),
+                    button.widthAnchor.constraint(equalToConstant: 150),
+                    button.heightAnchor.constraint(equalToConstant: 30),
+                ])
+                self.view = v
+            }
+        }
+
+        let vc = EmptyStateVC()
+        #expect(!vc.isViewLoaded)
+        let content = vc.view          // triggers loadView() (the new lazy path)
+        #expect(vc.isViewLoaded)
+        #expect(content.subviews.count == 1) // the button is in the loaded tree
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 160),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+        window.contentView = content
+        content.realizeQtSubtree()              // realize the loadView-built tree into Qt
+        content.layoutQtSubtree(width: 360, height: 160)
+        window.showAsQtWindowWithContent()
+
+        let out = "/tmp/quillappkitqt-vc-render.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 500)
+        window.closeQtWindow()
+    }
 }

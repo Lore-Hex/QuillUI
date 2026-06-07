@@ -41,6 +41,23 @@ extension NSView {
         quill_appkit_qt_view_add_subview(parent, childWidget)
     }
 
+    /// Realize an ALREADY-BUILT AppKit view tree into Qt. Unmodified source (and
+    /// view controllers' `loadView`) builds hierarchies with plain `addSubview`,
+    /// so no backing QWidgets exist yet; this walks the tree, ensures a backing
+    /// widget for every view, and reparents each child's widget under its
+    /// superview's. Call once on a view controller's loaded view, then
+    /// `layoutQtSubtree` + grab. Idempotent-ish: re-running just re-parents.
+    public func realizeQtSubtree() {
+        ensureQtWidget()
+        for child in subviews {
+            child.realizeQtSubtree()
+            if let parentWidget = qtWidgetHandle,
+               let childWidget = child.qtWidgetHandle {
+                quill_appkit_qt_view_add_subview(parentWidget, childWidget)
+            }
+        }
+    }
+
     /// Number of direct child QWidgets (test verification).
     public var qtChildCount: Int {
         guard let handle = qtWidgetHandle else { return 0 }
@@ -76,5 +93,14 @@ extension NSWindow {
     public func showAsQtWindowWithContent() {
         showAsQtWindow()
         attachContentViewToQt()
+    }
+
+    /// Render this window (+ its content view tree) to a PNG via Qt's offscreen
+    /// grab. The foundation for AppKit-vs-macOS visual parity: lay out a real
+    /// AppKit view controller, render it here, diff against a macOS screenshot.
+    @discardableResult
+    public func grabQtWindowPNG(to path: String) -> Bool {
+        guard let handle = qtWindowHandle else { return false }
+        return path.withCString { quill_appkit_qt_window_grab_png(handle, $0) != 0 }
     }
 }
