@@ -7,7 +7,6 @@ import SwiftUI
 import QuillUI
 
 struct SidebarView: View {
-    @Environment(\.openWindow) var openWindow
     var selectedConversation: ConversationSD?
     var conversations: [ConversationSD]
     var onConversationTap: (_ conversation: ConversationSD) -> ()
@@ -52,16 +51,10 @@ struct SidebarView: View {
     }
 
     private var bottomActions: [QuillSidebarNavigationAction] {
-        var actions: [QuillSidebarNavigationAction] = []
-#if (os(macOS) || os(Linux))
-        actions.append(QuillSidebarNavigationAction(title: "Completions", systemImage: "textformat.abc") {
-            showCompletions.toggle()
-        })
-        actions.append(QuillSidebarNavigationAction(title: "Shortcuts", systemImage: "keyboard.fill") {
-            showKeyboardShortcutas.toggle()
-        })
-#endif
-        actions.append(QuillSidebarNavigationAction(title: "Settings", systemImage: "gearshape.fill", action: onSettingsTap))
-        return actions
+        QuillSidebarNavigationAction.desktopChatUtilities(
+            onCompletions: { showCompletions.toggle() },
+            onShortcuts: { showKeyboardShortcutas.toggle() },
+            onSettings: onSettingsTap
+        )
     }
 }

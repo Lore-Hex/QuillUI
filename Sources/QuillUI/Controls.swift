@@ -814,6 +814,36 @@ public struct QuillSidebarNavigationAction: Identifiable {
     public func perform() {
         action()
     }
+
+    public static func completions(action: @escaping () -> Void) -> QuillSidebarNavigationAction {
+        QuillSidebarNavigationAction(title: "Completions", systemImage: "textformat.abc", action: action)
+    }
+
+    public static func shortcuts(action: @escaping () -> Void) -> QuillSidebarNavigationAction {
+        QuillSidebarNavigationAction(title: "Shortcuts", systemImage: "keyboard.fill", action: action)
+    }
+
+    public static func settings(action: @escaping () -> Void) -> QuillSidebarNavigationAction {
+        QuillSidebarNavigationAction(title: "Settings", systemImage: "gearshape.fill", action: action)
+    }
+
+    public static func desktopChatUtilities(
+        onCompletions: @escaping () -> Void,
+        onShortcuts: @escaping () -> Void,
+        onSettings: @escaping () -> Void
+    ) -> [QuillSidebarNavigationAction] {
+        #if os(macOS) || os(Linux)
+        return [
+            .completions(action: onCompletions),
+            .shortcuts(action: onShortcuts),
+            .settings(action: onSettings)
+        ]
+        #else
+        return [
+            .settings(action: onSettings)
+        ]
+        #endif
+    }
 }
 
 public struct QuillSidebarBottomNavigation: View {

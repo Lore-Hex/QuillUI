@@ -139,6 +139,31 @@ struct QuillUITests {
         #expect(banner.bottomPadding == 74)
     }
 
+    @Test("QuillSidebarNavigationAction exposes standard desktop chat utilities")
+    func quillSidebarNavigationActionDesktopChatUtilities() {
+        var opened: [String] = []
+        let utilities = QuillSidebarNavigationAction.desktopChatUtilities(
+            onCompletions: { opened.append("completions") },
+            onShortcuts: { opened.append("shortcuts") },
+            onSettings: { opened.append("settings") }
+        )
+
+        #if os(macOS) || os(Linux)
+        #expect(utilities.map(\.title) == ["Completions", "Shortcuts", "Settings"])
+        #expect(utilities.map(\.systemImage) == ["textformat.abc", "keyboard.fill", "gearshape.fill"])
+        #else
+        #expect(utilities.map(\.title) == ["Settings"])
+        #expect(utilities.map(\.systemImage) == ["gearshape.fill"])
+        #endif
+
+        utilities.forEach { $0.perform() }
+        #if os(macOS) || os(Linux)
+        #expect(opened == ["completions", "shortcuts", "settings"])
+        #else
+        #expect(opened == ["settings"])
+        #endif
+    }
+
     // MARK: - Backend registry
 
     @Test("Backend registry exposes SwiftUI GTK and Qt")
