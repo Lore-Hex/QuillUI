@@ -118,6 +118,39 @@ struct QuillUITests {
         #expect(emptyFallback.isEmpty)
     }
 
+    @Test("QuillPrompt builds selected-model prompt senders")
+    func quillPromptSelectedModelSender() {
+        struct Model: Equatable {
+            var name: String
+        }
+
+        var sent: [(String, Model, String?, Int?)] = []
+        let send = QuillPrompt.selectedModelSender(
+            selectedModel: Model(name: "local"),
+            attachment: "image.png",
+            trimmingID: 42
+        ) { prompt, model, attachment, trimmingID in
+            sent.append((prompt, model, attachment, trimmingID))
+        }
+
+        send("Explain SwiftUI")
+        #expect(sent.count == 1)
+        #expect(sent[0].0 == "Explain SwiftUI")
+        #expect(sent[0].1 == Model(name: "local"))
+        #expect(sent[0].2 == "image.png")
+        #expect(sent[0].3 == 42)
+
+        let nilModelSend = QuillPrompt.selectedModelSender(
+            selectedModel: Optional<Model>.none,
+            attachment: Optional<String>.none,
+            trimmingID: Optional<Int>.none
+        ) { prompt, model, attachment, trimmingID in
+            sent.append((prompt, model, attachment, trimmingID))
+        }
+        nilModelSend("Ignored")
+        #expect(sent.count == 1)
+    }
+
     // MARK: - QuillMenuAction helpers
 
     @Test("QuillMenuAction builds disabled and selectable menu rows")
@@ -363,6 +396,21 @@ struct QuillUITests {
         #endif
         #expect(showSettings)
         #expect(tappedSettings)
+    }
+
+    @Test("QuillDesktopChatUtilitySidebar owns utility sheet state")
+    func quillDesktopChatUtilitySidebarOwnsUtilitySheetState() {
+        let sidebar = QuillDesktopChatUtilitySidebar {
+            Text("History")
+        } settings: {
+            Text("Settings")
+        } completions: {
+            Text("Completions")
+        } shortcuts: {
+            Text("Shortcuts")
+        }
+
+        #expect(sidebar.settingsFocusedValue == nil)
     }
 
     @Test("Message arrays build streaming scroll tokens from ids and last content")

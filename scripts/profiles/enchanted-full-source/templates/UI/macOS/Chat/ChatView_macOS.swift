@@ -49,7 +49,6 @@ struct ChatView: View {
     var body: some View {
         QuillDesktopChatScaffold(
             title: "Enchanted",
-            sidebarWidth: 320,
             hasSelection: selectedConversation != nil,
             showsStatus: !reachable,
             modelActions: modelMenuActions,
@@ -61,8 +60,7 @@ struct ChatView: View {
                 conversations: conversations,
                 onConversationTap: onConversationTap,
                 onConversationDelete: onConversationDelete,
-                onDeleteDailyConversations: onDeleteDailyConversations,
-                onNewConversationTap: onNewConversationTap
+                onDeleteDailyConversations: onDeleteDailyConversations
             )
         } selectedContent: {
             MessageListView(
@@ -72,7 +70,10 @@ struct ChatView: View {
                 editMessage: $editMessage
             )
         } emptyContent: {
-            EmptyConversaitonView(sendPrompt: sendPrompt)
+            EmptyConversaitonView(sendPrompt: QuillPrompt.selectedModelSender(
+                selectedModel: selectedModel,
+                onSend: onSendMessageTap
+            ))
         } statusContent: {
             UnreachableAPIView()
         } composer: {
@@ -86,12 +87,6 @@ struct ChatView: View {
             )
         }
         .quillSyncEditableMessage($editMessage, draft: $message, isFocused: $isFocusedInput, content: \.content)
-    }
-
-    private func sendPrompt(_ selectedMessage: String) {
-        if let selectedModel = selectedModel {
-            onSendMessageTap(selectedMessage, selectedModel, nil, nil)
-        }
     }
 }
 #endif

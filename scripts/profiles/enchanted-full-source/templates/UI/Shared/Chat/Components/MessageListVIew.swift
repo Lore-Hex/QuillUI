@@ -1,7 +1,6 @@
 import SwiftUI
 
 #if (os(macOS) || os(Linux))
-import AppKit
 import QuillUI
 #endif
 
@@ -13,17 +12,9 @@ struct MessageListView: View {
     @State private var messageSelected: MessageSD?
     @StateObject private var speechSynthesizer = SpeechSynthesizer.shared
 
-    func onReadAloud(_ message: String) {
-        Task {
-            await speechSynthesizer.speak(text: message)
-        }
-    }
+    func onReadAloud(_ message: String) { Task { await speechSynthesizer.speak(text: message) } }
 
-    func stopReadingAloud() {
-        Task {
-            await speechSynthesizer.stopSpeaking()
-        }
-    }
+    func stopReadingAloud() { Task { await speechSynthesizer.stopSpeaking() } }
 
     var body: some View {
         QuillMessageList(
@@ -55,14 +46,20 @@ struct MessageListView: View {
     }
 
     private func contextMenuActions(for message: MessageSD) -> [QuillMenuAction] {
-        QuillMenuAction.chatMessageActions(
+#if os(iOS) || os(visionOS)
+        let selectTextAction: (() -> Void)? = { messageSelected = message }
+        let readAloudAction: (() -> Void)? = { onReadAloud(message.content) }
+#else
+        let selectTextAction: (() -> Void)? = nil
+        let readAloudAction: (() -> Void)? = nil
+#endif
+
+        return QuillMenuAction.chatMessageActions(
             content: message.content,
             isUserMessage: message.role == "user",
             isEditing: editMessage?.id == message.id,
-#if os(iOS) || os(visionOS)
-            selectText: { messageSelected = message },
-            readAloud: { onReadAloud(message.content) },
-#endif
+            selectText: selectTextAction,
+            readAloud: readAloudAction,
             onEdit: {
                 withAnimation { editMessage = message }
             },

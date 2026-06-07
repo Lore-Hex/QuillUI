@@ -126,6 +126,31 @@ struct LinuxBackendAppMatrixTests {
         }
     }
 
+    private static let expectedQuillChatMacReferenceInteractionModes = [
+        "settings-panel",
+        "alert-settings-panel",
+        "settings-endpoint-typed",
+        "settings-bearer-token-typed",
+        "settings-ping-interval-typed",
+        "settings-default-model-selected",
+        "settings-delete-confirmation",
+        "settings-delete-confirmed",
+        "completions-panel",
+        "completions-new-sheet",
+        "completions-save",
+        "completions-edit-save",
+        "completions-delete",
+        "new-chat",
+        "toolbar-model-selected",
+        "prompt-send",
+        "copy-chat",
+        "copy-chat-json",
+        "history-selection",
+        "transcript-selection",
+        "markdown-transcript-selection",
+        "long-transcript-selection"
+    ]
+
     private static func expectedVisualVerifierProduct(product: String, backend: String) -> String {
         if product == "quill-enchanted-linux" {
             return "quill-enchanted-linux-\(backend)"
@@ -376,6 +401,10 @@ struct LinuxBackendAppMatrixTests {
                 Comment(rawValue: "interaction-extra-mode-matrix must mirror GTK/Qt for \(productAndMode): \(backends)")
             )
         }
+
+        let quillChatModes = try runScript(script, arguments: ["quill-chat-mac-reference-interaction-modes"])
+        #expect(quillChatModes.status == 0, Comment(rawValue: quillChatModes.output))
+        #expect(Self.lines(quillChatModes.output) == Self.expectedQuillChatMacReferenceInteractionModes)
 
         let defaultBackend = try runScript(script, arguments: ["backend-for-product", "quill-wireguard"])
         #expect(defaultBackend.status == 0, Comment(rawValue: defaultBackend.output))
