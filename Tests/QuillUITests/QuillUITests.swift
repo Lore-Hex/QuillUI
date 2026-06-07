@@ -394,6 +394,104 @@ struct QuillUITests {
         #expect(editableScaffold.showsStatus == false)
     }
 
+    @Test("QuillModelConversationChatScaffold owns model chat shell actions")
+    @MainActor
+    func quillModelConversationChatScaffoldBuildsDerivedActions() {
+        struct Conversation {
+            var id: String
+            var title: String
+            var updatedAt: Date
+            var lastMessage: String
+        }
+        struct Model {
+            var id: String
+            var name: String
+            var version: String
+        }
+        struct Prompt {
+            var id: String
+            var title: String
+            var icon: String
+        }
+        struct Message: Equatable {
+            var content: String
+        }
+
+        let conversations = [
+            Conversation(id: "c1", title: "First", updatedAt: Date(timeIntervalSince1970: 10), lastMessage: "Hello")
+        ]
+        let models = [
+            Model(id: "m1", name: "Small", version: "v1"),
+            Model(id: "m2", name: "Large", version: "v2")
+        ]
+        let prompts = [
+            Prompt(id: "p1", title: "Explain", icon: "questionmark.circle")
+        ]
+        var selectedModel = ""
+        var copiedJSONValues: [Bool] = []
+
+        let scaffold = QuillModelConversationChatScaffold(
+            title: "Chat",
+            conversations: conversations,
+            selectedConversationID: "c1",
+            models: models,
+            selectedModelID: "m2",
+            promptSource: prompts,
+            reachable: false,
+            statusMaxWidth: 888,
+            onNewConversation: {},
+            editContent: { (message: Message) in message.content },
+            conversationID: \.id,
+            conversationTitle: \.title,
+            conversationUpdatedAt: \.updatedAt,
+            conversationLastMessage: \.lastMessage,
+            conversationDateTitle: { _ in "Today" },
+            onSettings: {},
+            onSelectConversation: { _ in },
+            onDeleteConversation: { _ in },
+            onDeleteDailyConversations: { _ in },
+            modelID: \.id,
+            modelName: \.name,
+            modelVersion: \.version,
+            onSelectModel: { selectedModel = $0.id },
+            copyChat: { copiedJSONValues.append($0) },
+            promptID: \.id,
+            promptTitle: \.title,
+            promptSystemImage: \.icon,
+            sendPrompt: { _ in }
+        ) { editMessage in
+            Text(editMessage.wrappedValue?.content ?? "Selected")
+        } composer: { draft, _ in
+            Text(draft.wrappedValue)
+        } settings: {
+            Text("Settings")
+        } completions: {
+            Text("Completions")
+        } shortcuts: {
+            Text("Shortcuts")
+        }
+
+        #expect(scaffold.title == "Chat")
+        #expect(scaffold.conversations.count == 1)
+        #expect(scaffold.selectedConversationID == "c1")
+        #expect(scaffold.hasSelection == true)
+        #expect(scaffold.reachable == false)
+        #expect(scaffold.showsStatus == true)
+        #expect(scaffold.statusMaxWidth == 888)
+
+        let modelActions = scaffold.modelActions
+        #expect(modelActions.map(\.title) == ["Small v1", "Large v2"])
+        #expect(modelActions[0].systemImage == nil)
+        #expect(modelActions[1].systemImage == "checkmark")
+        modelActions[0].perform()
+        #expect(selectedModel == "m1")
+
+        let options = scaffold.optionsActions
+        #expect(options.map(\.title) == ["Copy Chat", "Copy Chat as JSON"])
+        options.forEach { $0.perform() }
+        #expect(copiedJSONValues == [false, true])
+    }
+
     @Test("Editable message sync modifier accepts optional edit bindings")
     func quillSyncEditableMessageModifierCompiles() {
         struct Message: Equatable {

@@ -2393,6 +2393,197 @@ public struct QuillEditableDesktopChatScaffold<
     }
 }
 
+public struct QuillModelConversationChatScaffold<
+    Conversation,
+    Model,
+    PromptItem,
+    EditMessage: Equatable,
+    SettingsContent: View,
+    CompletionsContent: View,
+    ShortcutsContent: View,
+    SelectedContent: View,
+    ComposerContent: View
+>: View {
+    public var title: String
+    public var brandTitle: String
+    public var conversations: [Conversation]
+    public var selectedConversationID: String?
+    public var models: [Model]
+    public var selectedModelID: String?
+    public var promptSource: [PromptItem]
+    public var reachable: Bool
+    public var statusMaxWidth: CGFloat
+    public var settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>?
+    private var onNewConversation: () -> Void
+    private var editContent: (EditMessage) -> String
+    private var conversationID: (Conversation) -> String
+    private var conversationTitle: (Conversation) -> String
+    private var conversationUpdatedAt: (Conversation) -> Date
+    private var conversationLastMessage: (Conversation) -> String
+    private var conversationDateTitle: (Date) -> String
+    private var onSettings: () -> Void
+    private var onSelectConversation: (Conversation) -> Void
+    private var onDeleteConversation: ((Conversation) -> Void)?
+    private var onDeleteDailyConversations: ((Date) -> Void)?
+    private var modelID: (Model) -> String
+    private var modelName: (Model) -> String
+    private var modelVersion: (Model) -> String
+    private var onSelectModel: (Model) -> Void
+    private var copyChat: (_ json: Bool) -> Void
+    private var promptID: (PromptItem) -> String
+    private var promptTitle: (PromptItem) -> String
+    private var promptSystemImage: (PromptItem) -> String
+    private var sendPrompt: (String) -> Void
+    private var selectedContent: (Binding<EditMessage?>) -> SelectedContent
+    private var composerContent: (Binding<String>, Binding<EditMessage?>) -> ComposerContent
+    private var settingsContent: () -> SettingsContent
+    private var completionsContent: () -> CompletionsContent
+    private var shortcutsContent: () -> ShortcutsContent
+
+    public init(
+        title: String,
+        brandTitle: String = "Quill",
+        conversations: [Conversation],
+        selectedConversationID: String?,
+        models: [Model],
+        selectedModelID: String?,
+        promptSource: [PromptItem],
+        reachable: Bool,
+        statusMaxWidth: CGFloat = 1524,
+        settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>? = nil,
+        onNewConversation: @escaping () -> Void,
+        editContent: @escaping (EditMessage) -> String,
+        conversationID: @escaping (Conversation) -> String,
+        conversationTitle: @escaping (Conversation) -> String,
+        conversationUpdatedAt: @escaping (Conversation) -> Date,
+        conversationLastMessage: @escaping (Conversation) -> String = { _ in "" },
+        conversationDateTitle: @escaping (Date) -> String,
+        onSettings: @escaping () -> Void = {},
+        onSelectConversation: @escaping (Conversation) -> Void,
+        onDeleteConversation: ((Conversation) -> Void)? = nil,
+        onDeleteDailyConversations: ((Date) -> Void)? = nil,
+        modelID: @escaping (Model) -> String,
+        modelName: @escaping (Model) -> String,
+        modelVersion: @escaping (Model) -> String = { _ in "" },
+        onSelectModel: @escaping (Model) -> Void,
+        copyChat: @escaping (_ json: Bool) -> Void,
+        promptID: @escaping (PromptItem) -> String,
+        promptTitle: @escaping (PromptItem) -> String,
+        promptSystemImage: @escaping (PromptItem) -> String,
+        sendPrompt: @escaping (String) -> Void,
+        @ViewBuilder selectedContent: @escaping (Binding<EditMessage?>) -> SelectedContent,
+        @ViewBuilder composer: @escaping (Binding<String>, Binding<EditMessage?>) -> ComposerContent,
+        @ViewBuilder settings: @escaping () -> SettingsContent,
+        @ViewBuilder completions: @escaping () -> CompletionsContent,
+        @ViewBuilder shortcuts: @escaping () -> ShortcutsContent
+    ) {
+        self.title = title
+        self.brandTitle = brandTitle
+        self.conversations = conversations
+        self.selectedConversationID = selectedConversationID
+        self.models = models
+        self.selectedModelID = selectedModelID
+        self.promptSource = promptSource
+        self.reachable = reachable
+        self.statusMaxWidth = statusMaxWidth
+        self.settingsFocusedValue = settingsFocusedValue
+        self.onNewConversation = onNewConversation
+        self.editContent = editContent
+        self.conversationID = conversationID
+        self.conversationTitle = conversationTitle
+        self.conversationUpdatedAt = conversationUpdatedAt
+        self.conversationLastMessage = conversationLastMessage
+        self.conversationDateTitle = conversationDateTitle
+        self.onSettings = onSettings
+        self.onSelectConversation = onSelectConversation
+        self.onDeleteConversation = onDeleteConversation
+        self.onDeleteDailyConversations = onDeleteDailyConversations
+        self.modelID = modelID
+        self.modelName = modelName
+        self.modelVersion = modelVersion
+        self.onSelectModel = onSelectModel
+        self.copyChat = copyChat
+        self.promptID = promptID
+        self.promptTitle = promptTitle
+        self.promptSystemImage = promptSystemImage
+        self.sendPrompt = sendPrompt
+        self.selectedContent = selectedContent
+        self.composerContent = composer
+        self.settingsContent = settings
+        self.completionsContent = completions
+        self.shortcutsContent = shortcuts
+    }
+
+    public var body: some View {
+        QuillEditableDesktopChatScaffold(
+            title: title,
+            hasSelection: hasSelection,
+            showsStatus: showsStatus,
+            modelActions: modelActions,
+            optionsActions: optionsActions,
+            onNewConversation: onNewConversation,
+            editContent: editContent
+        ) {
+            QuillDesktopChatConversationSidebar(
+                conversations: conversations,
+                selectedID: selectedConversationID,
+                settingsFocusedValue: settingsFocusedValue,
+                id: conversationID,
+                title: conversationTitle,
+                updatedAt: conversationUpdatedAt,
+                lastMessage: conversationLastMessage,
+                dateTitle: conversationDateTitle,
+                onSettings: onSettings,
+                onSelect: onSelectConversation,
+                onDelete: onDeleteConversation,
+                onDeleteDay: onDeleteDailyConversations,
+                settings: settingsContent,
+                completions: completionsContent,
+                shortcuts: shortcutsContent
+            )
+        } selectedContent: { editMessage in
+            selectedContent(editMessage)
+        } emptyContent: {
+            QuillSelectedPromptEmptyState(
+                brandTitle: brandTitle,
+                source: promptSource,
+                id: promptID,
+                title: promptTitle,
+                systemImage: promptSystemImage,
+                sendPrompt: sendPrompt
+            )
+        } statusContent: {
+            QuillChatUnreachableBanner(settings: settingsContent)
+                .frame(maxWidth: statusMaxWidth)
+        } composer: { draft, editMessage in
+            composerContent(draft, editMessage)
+        }
+    }
+
+    public var hasSelection: Bool {
+        selectedConversationID != nil
+    }
+
+    public var showsStatus: Bool {
+        !reachable
+    }
+
+    public var modelActions: [QuillMenuAction] {
+        QuillMenuAction.selectableModels(
+            models,
+            selectedID: selectedModelID,
+            id: modelID,
+            name: modelName,
+            version: modelVersion,
+            onSelect: onSelectModel
+        )
+    }
+
+    public var optionsActions: [QuillMenuAction] {
+        QuillMenuAction.copyChatActions(copy: copyChat)
+    }
+}
+
 public struct QuillDesktopChatToolbar: View {
     public var modelActions: [QuillMenuAction]
     public var optionsActions: [QuillMenuAction]

@@ -27,74 +27,45 @@ struct ChatView: View {
     var userInitials: String
     var copyChat: (_ json: Bool) -> Void
 
-    private var modelMenuActions: [QuillMenuAction] {
-        QuillMenuAction.selectableModels(
-            modelsList,
-            selectedID: selectedModel?.name,
-            id: { $0.name },
-            name: { $0.prettyName },
-            version: { $0.prettyVersion },
-            onSelect: onSelectModel
-        )
-    }
-
-    private var optionsMenuActions: [QuillMenuAction] {
-        QuillMenuAction.copyChatActions(copy: copyChat)
-    }
-
     var body: some View {
-        QuillEditableDesktopChatScaffold(
+        QuillModelConversationChatScaffold(
             title: "Enchanted",
-            hasSelection: selectedConversation != nil,
-            showsStatus: !reachable,
-            modelActions: modelMenuActions,
-            optionsActions: optionsMenuActions,
+            conversations: conversations,
+            selectedConversationID: selectedConversation?.id.uuidString,
+            models: modelsList,
+            selectedModelID: selectedModel?.name,
+            promptSource: SamplePrompts.samples,
+            reachable: reachable,
+            settingsFocusedValue: \.showSettings,
             onNewConversation: onNewConversationTap,
-            editContent: { (message: MessageSD) in message.content }
-        ) {
-            QuillDesktopChatConversationSidebar(
-                conversations: conversations,
-                selectedID: selectedConversation?.id.uuidString,
-                settingsFocusedValue: \.showSettings,
-                id: { $0.id.uuidString },
-                title: { $0.name },
-                updatedAt: { $0.updatedAt },
-                dateTitle: { $0.daysAgoString() },
-                onSettings: { Task { Haptics.shared.mediumTap() } },
-                onSelect: onConversationTap,
-                onDelete: onConversationDelete,
-                onDeleteDay: onDeleteDailyConversations
-            ) {
-                Settings()
-            } completions: {
-                CompletionsEditor()
-            } shortcuts: {
-                KeyboardShortcutsDemo()
-            }
-        } selectedContent: { editMessage in
+            editContent: \.content,
+            conversationID: { $0.id.uuidString },
+            conversationTitle: \.name,
+            conversationUpdatedAt: \.updatedAt,
+            conversationDateTitle: { $0.daysAgoString() },
+            onSettings: { Task { Haptics.shared.mediumTap() } },
+            onSelectConversation: onConversationTap,
+            onDeleteConversation: onConversationDelete,
+            onDeleteDailyConversations: onDeleteDailyConversations,
+            modelID: \.name,
+            modelName: \.prettyName,
+            modelVersion: \.prettyVersion,
+            onSelectModel: { onSelectModel($0) },
+            copyChat: copyChat,
+            promptID: \.id,
+            promptTitle: \.prompt,
+            promptSystemImage: { $0.type.icon },
+            sendPrompt: QuillPrompt.selectedModelSender(
+                selectedModel: selectedModel,
+                onSend: onSendMessageTap
+            )
+        ) { editMessage in
             MessageListView(
                 messages: messages,
                 conversationState: conversationState,
                 userInitials: userInitials,
                 editMessage: editMessage
             )
-        } emptyContent: {
-            QuillSelectedPromptEmptyState(
-                brandTitle: "Quill",
-                source: SamplePrompts.samples,
-                id: { $0.id },
-                title: { $0.prompt },
-                systemImage: { $0.type.icon },
-                sendPrompt: QuillPrompt.selectedModelSender(
-                    selectedModel: selectedModel,
-                    onSend: onSendMessageTap
-                )
-            )
-        } statusContent: {
-            QuillChatUnreachableBanner {
-                Settings()
-            }
-            .frame(maxWidth: 1524)
         } composer: { message, editMessage in
             InputFieldsView(
                 message: message,
@@ -104,6 +75,12 @@ struct ChatView: View {
                 onSendMessageTap: onSendMessageTap,
                 editMessage: editMessage
             )
+        } settings: {
+            Settings()
+        } completions: {
+            CompletionsEditor()
+        } shortcuts: {
+            KeyboardShortcutsDemo()
         }
     }
 }
