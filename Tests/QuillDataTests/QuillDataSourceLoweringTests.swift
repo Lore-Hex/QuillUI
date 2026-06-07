@@ -964,6 +964,9 @@ struct QuillDataSourceLoweringTests {
         #expect(emptyConversationTemplate.contains("\"Write a text message asking a friend to be my plus-one at a wedding\""))
         #expect(emptyConversationTemplate.contains("SamplePrompts.samples.first { $0.prompt == title }"))
         #expect(emptyConversationTemplate.contains(": Array(SamplePrompts.samples.prefix(4))"))
+        #expect(emptyConversationTemplate.contains("layout: .wideDesktopCards"))
+        #expect(!emptyConversationTemplate.contains("cardWidth: 302"))
+        #expect(!emptyConversationTemplate.contains("Genuine macOS Enchanted shows"))
 
         let sidebarTemplate = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift"),

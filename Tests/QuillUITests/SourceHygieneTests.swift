@@ -2412,6 +2412,12 @@ struct SourceHygieneTests {
         }
 
         let promptGrid = String(controls[gridStart.lowerBound..<nextSection.lowerBound])
+        #expect(controls.contains("public struct QuillPromptGridLayout: Equatable, Sendable"))
+        #expect(controls.contains("public static let compactCards = QuillPromptGridLayout()"))
+        #expect(controls.contains("public static let wideDesktopCards = QuillPromptGridLayout("))
+        #expect(promptGrid.contains("layout: QuillPromptGridLayout"))
+        #expect(promptGrid.contains("self.columns = layout.columns"))
+        #expect(promptGrid.contains("self.init(\n            prompts: prompts,\n            layout: QuillPromptGridLayout("))
         #expect(promptGrid.contains("LazyVGrid(columns: gridColumns, alignment: .leading, spacing: gridSpacing)"))
         #expect(promptGrid.contains("Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columns)"))
         #expect(promptGrid.contains("ForEach(prompts)"))
@@ -2461,6 +2467,8 @@ struct SourceHygieneTests {
         #expect(controls.contains("public var modelActions: [QuillMenuAction]"))
         #expect(controls.contains("public var optionsActions: [QuillMenuAction]"))
         #expect(controls.contains("QuillToolbarIconButton(systemImage: \"square.and.pencil\", action: onNewConversation)"))
+        #expect(controls.contains("layout: QuillPromptGridLayout"))
+        #expect(controls.contains("self.init(\n            brandTitle: brandTitle,\n            prompts: prompts,\n            layout: QuillPromptGridLayout("))
         #expect(controls.contains("public static func selectableItems<Item, SelectionID: Hashable>"))
         #expect(controls.contains("return emptyTitle.map { [QuillMenuAction.disabled(title: $0)] } ?? []"))
         #expect(controls.contains("systemImage: selectedID == itemID ? selectedSystemImage : nil"))

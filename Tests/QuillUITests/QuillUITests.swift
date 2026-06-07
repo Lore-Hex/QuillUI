@@ -53,6 +53,23 @@ struct QuillUITests {
         _ = QuillAppWindow.self
     }
 
+    // MARK: - QuillPromptGridLayout
+
+    @Test("QuillPromptGridLayout exposes reusable desktop prompt presets")
+    func quillPromptGridLayoutPresets() {
+        let clamped = QuillPromptGridLayout(columns: 0, cardWidth: 120, cardHeight: 80, spacing: 6)
+        #expect(clamped.columns == 1)
+        #expect(clamped.cardWidth == 120)
+        #expect(clamped.cardHeight == 80)
+        #expect(clamped.spacing == 6)
+
+        #expect(QuillPromptGridLayout.compactCards == QuillPromptGridLayout())
+        #expect(QuillPromptGridLayout.wideDesktopCards.columns == 4)
+        #expect(QuillPromptGridLayout.wideDesktopCards.cardWidth == 302)
+        #expect(QuillPromptGridLayout.wideDesktopCards.cardHeight == 128)
+        #expect(QuillPromptGridLayout.wideDesktopCards.spacing == 15)
+    }
+
     // MARK: - QuillMenuAction helpers
 
     @Test("QuillMenuAction builds disabled and selectable menu rows")

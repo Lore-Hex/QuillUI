@@ -71,6 +71,33 @@ public struct QuillPrompt: Identifiable, Hashable, Sendable {
     }
 }
 
+public struct QuillPromptGridLayout: Equatable, Sendable {
+    public var columns: Int
+    public var cardWidth: CGFloat
+    public var cardHeight: CGFloat
+    public var spacing: Int
+
+    public init(
+        columns: Int = 4,
+        cardWidth: CGFloat = 155,
+        cardHeight: CGFloat = 128,
+        spacing: Int = 15
+    ) {
+        self.columns = max(1, columns)
+        self.cardWidth = cardWidth
+        self.cardHeight = cardHeight
+        self.spacing = spacing
+    }
+
+    public static let compactCards = QuillPromptGridLayout()
+    public static let wideDesktopCards = QuillPromptGridLayout(
+        columns: 4,
+        cardWidth: 302,
+        cardHeight: 128,
+        spacing: 15
+    )
+}
+
 private extension String {
     var quillPromptGridDisplayTitle: String {
         #if os(macOS) || os(iOS) || os(visionOS)
@@ -186,18 +213,35 @@ public struct QuillPromptGrid: View {
 
     public init(
         prompts: [QuillPrompt],
+        layout: QuillPromptGridLayout,
+        action: @escaping (QuillPrompt) -> Void
+    ) {
+        self.prompts = prompts
+        self.columns = layout.columns
+        self.cardWidth = layout.cardWidth
+        self.cardHeight = layout.cardHeight
+        self.spacing = layout.spacing
+        self.action = action
+    }
+
+    public init(
+        prompts: [QuillPrompt],
         columns: Int = 4,
         cardWidth: CGFloat = 155,
         cardHeight: CGFloat = 128,
         spacing: Int = 15,
         action: @escaping (QuillPrompt) -> Void
     ) {
-        self.prompts = prompts
-        self.columns = max(1, columns)
-        self.cardWidth = cardWidth
-        self.cardHeight = cardHeight
-        self.spacing = spacing
-        self.action = action
+        self.init(
+            prompts: prompts,
+            layout: QuillPromptGridLayout(
+                columns: columns,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight,
+                spacing: spacing
+            ),
+            action: action
+        )
     }
 
     public var body: some View {
@@ -1062,19 +1106,38 @@ public struct QuillChatEmptyState: View {
     public init(
         brandTitle: String = "Quill",
         prompts: [QuillPrompt],
+        layout: QuillPromptGridLayout,
+        action: @escaping (QuillPrompt) -> Void
+    ) {
+        self.brandTitle = brandTitle
+        self.prompts = prompts
+        self.columns = layout.columns
+        self.cardWidth = layout.cardWidth
+        self.cardHeight = layout.cardHeight
+        self.spacing = layout.spacing
+        self.action = action
+    }
+
+    public init(
+        brandTitle: String = "Quill",
+        prompts: [QuillPrompt],
         columns: Int = 4,
         cardWidth: CGFloat = 155,
         cardHeight: CGFloat = 128,
         spacing: Int = 15,
         action: @escaping (QuillPrompt) -> Void
     ) {
-        self.brandTitle = brandTitle
-        self.prompts = prompts
-        self.columns = max(1, columns)
-        self.cardWidth = cardWidth
-        self.cardHeight = cardHeight
-        self.spacing = spacing
-        self.action = action
+        self.init(
+            brandTitle: brandTitle,
+            prompts: prompts,
+            layout: QuillPromptGridLayout(
+                columns: columns,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight,
+                spacing: spacing
+            ),
+            action: action
+        )
     }
 
     public var body: some View {
