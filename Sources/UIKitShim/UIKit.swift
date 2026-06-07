@@ -33,16 +33,34 @@ public typealias UIScreen = NSScreen
 #else
 // Linux: no AppKit/UIKit fonts. Provide the UIFont surface upstream UI uses
 // (scaled system fonts, the `.rounded` design). Metrics are identity on Linux.
-public final class UIFont: @unchecked Sendable {
+public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public let pointSize: CGFloat
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
+    /// Cap height (~70% of point size — DesignSystem emoji baseline math).
+    public var capHeight: CGFloat { pointSize * 0.7 }
+    /// Return a copy at a new point size (SwiftUI/UIKit `withSize`).
+    public func withSize(_ size: CGFloat) -> UIFont { UIFont(descriptor: fontDescriptor, size: size) }
     public init(descriptor: UIFontDescriptor, size: CGFloat) {
         self.pointSize = size; self.fontName = descriptor.name; self.fontDescriptor = descriptor
+        super.init()
     }
     init(pointSize: CGFloat, fontName: String) {
         self.pointSize = pointSize; self.fontName = fontName
         self.fontDescriptor = UIFontDescriptor(name: fontName)
+        super.init()
+    }
+    // NSCoding: vendored DesignSystem persists the chosen font via
+    // NSKeyedArchiver/Unarchiver(ofClass: UIFont.self), which requires NSObject & NSCoding.
+    public func encode(with coder: NSCoder) {
+        coder.encode(Double(pointSize), forKey: "QuillUIFontPointSize")
+        coder.encode(fontName, forKey: "QuillUIFontName")
+    }
+    public init?(coder: NSCoder) {
+        self.pointSize = CGFloat(coder.decodeDouble(forKey: "QuillUIFontPointSize"))
+        self.fontName = (coder.decodeObject(forKey: "QuillUIFontName") as? String) ?? ".AppleSystemUIFont"
+        self.fontDescriptor = UIFontDescriptor(name: self.fontName)
+        super.init()
     }
     public static func systemFont(ofSize size: CGFloat) -> UIFont {
         UIFont(pointSize: size, fontName: ".AppleSystemUIFont")
