@@ -1675,7 +1675,11 @@ targets.append(
 // is deferred (system UI / payments / Siri / telephony / etc. aren't available
 // on QuillOS). Sources live under Sources/AppleFrameworkShims/<Name>.
 let signalAppleFrameworkShims = [
-    "ContactsUI", "Intents", "PassKit", "LocalAuthentication", "Accelerate",
+    // NOTE: "LocalAuthentication" is intentionally NOT here — it's a SHARED target
+    // defined explicitly below (Sources/LocalAuthenticationShim), also depended on by
+    // WireGuard's PrivateDataConfirmation. SSK depends on it via its explicit list
+    // instead of this loop (the loop would create a duplicate target named the same).
+    "ContactsUI", "Intents", "PassKit", "Accelerate",
     "QuartzCore", "ImageIO", "CoreServices", "CoreImage", "AuthenticationServices",
     "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio",
@@ -1794,6 +1798,10 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             dependencies: [
                 "LibSignalClient",
                 "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
+                // Shared LocalAuthentication shim (Sources/LocalAuthenticationShim) —
+                // also used by WireGuard; depended on explicitly here rather than via the
+                // signalAppleFrameworkShims loop to avoid a duplicate target definition.
+                "LocalAuthentication",
                 "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock", "Contacts",
                 "libPhoneNumber_iOS", "UniformTypeIdentifiers", "zlib", "QuillFoundation",
                 .product(name: "GRDB", package: "GRDB.swift"),
