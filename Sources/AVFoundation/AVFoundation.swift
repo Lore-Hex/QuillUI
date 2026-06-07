@@ -329,6 +329,10 @@ public func CMAudioFormatDescriptionGetStreamBasicDescription(_ desc: CMFormatDe
 
 public class AVAsset: @unchecked Sendable {
     public init() {}
+    /// AVAsset(url:) -- Apple's URL initializer (superseded by AVURLAsset but
+    /// still used directly by AttachmentContentValidatorImpl). Inert on Linux (no
+    /// media decode); delegates to the no-arg init so the call site compiles.
+    public convenience init(url: URL) { self.init() }
     public var isReadable: Bool { false }
     public var isPlayable: Bool { false }
     public var duration: CMTime { .zero }
