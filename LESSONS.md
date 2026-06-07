@@ -946,9 +946,37 @@ Patterns that closed them:
   (OutgoingGroupProtoResult -> match the caller's switch cases exactly).
 - **Still-OPEN hard nuts:** the genuine swift-corelibs CF-bridging gaps
   (URL->CFURL, [String:CFBoolean?]->CFDictionary where kCFBoolean* is real
-  corelibs-optional) in BadgeAssets need a real helper, not a type shim; the
-  CGDataProvider direct-callbacks struct (@convention(c)) for streaming image
-  decode; PKContact (PassKit needs a Contacts dep).
+  corelibs-optional) in BadgeAssets need a real helper, not a type shim;
+  PKContact (PassKit needs a Contacts dep); selector-based Timer / NSObject
+  .perform (NSTimer+OWS) absent on swift-corelibs.
+
+---
+
+### Track B sub-9.3k: import-path-via-existing-import + SHIM-OWN close (2026-06, ~97.6%, 9.27k)
+
+- **The import PATH can be the consumer's OTHER existing import.** When a
+  consumer needs a Foundation-extension shim but does NOT import QuillFoundation,
+  you don't always need a new inject-foundation rule -- put the inert extension
+  in a shim module the consumer ALREADY imports. LogFormatter imports
+  `CocoaLumberjack` (not QuillFoundation) and sets
+  `formatter.formatterBehavior = .behavior10_4` (swift-corelibs DateFormatter has
+  neither the property nor a Behavior enum) -> shim `extension DateFormatter {
+  enum Behavior; var formatterBehavior (no-op get/set) }` INSIDE the
+  CocoaLumberjack shim. Cheapest path = whatever import is already on the file.
+  (`formatterBehavior` is also a contextual member, awkward to regex for an
+  inject rule -- another reason to host it where it's already visible.)
+- **SHIM-OWN-COMPILE-FAILURE, closed (the @convention(c) callback-struct case).**
+  `CGDataProvider` was an empty `class CGDataProvider {}` stub; CGDataProvider+SSK
+  needs `CGDataProviderDirectCallbacks` (a struct of `@convention(c)` fn-pointer
+  fields) + `CGDataProvider(directInfo:size:callbacks:)`. Missing -> the
+  extension file failed to compile -> 48 call sites saw "has no member 'from'".
+  Fix = fill the stub's missing surface in the ImageIO shim + add CGDataProvider
+  to the ImageIO inject regex. Two sub-lessons: (1) when YOU own a Linux callback
+  struct, type its params to the CONSUMER's usage, not Apple's -- the position
+  param is `UInt64` (not Apple's `off_t`/Int64) because the upstream closure
+  compares it to `FileHandle.offset()` (UInt64) directly; (2) an inert init can
+  still need to DO something -- here it invokes `releaseInfo(info)` to balance
+  the caller's `passRetained`, else the FileHandle wrapper leaks.
 
 ---
 
