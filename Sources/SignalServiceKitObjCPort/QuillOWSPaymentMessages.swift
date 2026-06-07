@@ -203,6 +203,19 @@ open class OWSIncomingArchivedPaymentMessage: TSIncomingMessage, OWSArchivedPaym
                    serverTimestamp: serverTimestamp, viewed: viewed, wasReceivedByUD: wasReceivedByUD)
     }
 
+    // Builder initializer (OWSIncomingArchivedPaymentMessage.m
+    // initIncomingMessageWith:amount:fee:note:): the backup restore path
+    // (BackupArchiveTSIncomingMessageArchiver) builds an archived-payment message.
+    // Designated init building TSArchivedPaymentInfo from amount/fee/note and
+    // forwarding to TSIncomingMessage's builder init (mirrors the Outgoing variant).
+    public init(incomingMessageWith messageBuilder: TSIncomingMessageBuilder,
+                amount: String?,
+                fee: String?,
+                note: String?) {
+        self.archivedPaymentInfo = TSArchivedPaymentInfo(amount: amount, fee: fee, note: note)
+        super.init(incomingMessageWithBuilder: messageBuilder)
+    }
+
     public override func encode(with coder: NSCoder) {
         super.encode(with: coder)
         coder.encode(archivedPaymentInfo, forKey: "archivedPaymentInfo")
