@@ -1049,7 +1049,10 @@ struct LinuxBackendAppMatrixTests {
         let result = try runScript(
             script,
             arguments: ["--matrix", "profile-matrix", csv.path],
-            environment: ["QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path]
+            environment: [
+                "QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path,
+                "QUILLUI_RESOURCE_GUARD_DISABLE": "1",
+            ]
         )
 
         let expected = """

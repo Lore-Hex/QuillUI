@@ -1199,7 +1199,14 @@ if finite_frame_flexible_height not in text:
         text = text.replace(old_flexible_axis_frame_fill, new_flexible_axis_frame_fill)
 
 fixed_frame_child_sizing = "SwiftUI proposes the clamped fixed-frame size to children"
-if fixed_frame_child_sizing not in text:
+has_fixed_frame_clip_region = (
+    "let clampsChild =" in text
+    or "gtk_swift_scrolled_window_configure_clip(" in text
+    or fixed_frame_child_sizing in text
+    or "Expanding fixed-frame children receive the proposed frame size" in text
+    or "Fixed-frame clipping uses a normal GtkBox allocation" in text
+)
+if has_fixed_frame_clip_region and fixed_frame_child_sizing not in text:
     old_clamped_child_size = '''            if childExpH || childExpV {
                 gtk_widget_set_size_request(
                     child,
@@ -1223,7 +1230,7 @@ if fixed_frame_child_sizing not in text:
     text = text.replace(old_clamped_child_size, new_clamped_child_size, 1)
 
 fixed_frame_expanding_child_sizing = "Expanding fixed-frame children receive the proposed frame size"
-if fixed_frame_expanding_child_sizing not in text:
+if has_fixed_frame_clip_region and fixed_frame_expanding_child_sizing not in text:
     old_expanding_child_slot = '''        let slot: UnsafeMutablePointer<GtkWidget> = clampsChild
             ? gtk_swift_scrolled_window_new()!
             : gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
@@ -1253,7 +1260,7 @@ if fixed_frame_expanding_child_sizing not in text:
     text = text.replace(old_expanding_child_slot, new_expanding_child_slot, 1)
 
 fixed_frame_box_clipping = "Fixed-frame clipping uses a normal GtkBox allocation"
-if fixed_frame_box_clipping not in text:
+if has_fixed_frame_clip_region and fixed_frame_box_clipping not in text:
     old_fixed_clip_slot = '''        let slot: UnsafeMutablePointer<GtkWidget> = clampsChild
             ? gtk_swift_scrolled_window_new()!
             : gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
@@ -1290,7 +1297,12 @@ if fixed_frame_box_clipping not in text:
     text = text.replace(old_fixed_unclipped_append, new_fixed_unclipped_append, 1)
 
 padded_view_child_fill = "PaddedView must let expanding content fill its margin wrapper"
-if padded_view_child_fill not in text:
+has_padded_view_region = (
+    "extension PaddedView" in text
+    or "gtkMarkHostedNodeKind(wrapper, kind: .padding)" in text
+    or padded_view_child_fill in text
+)
+if has_padded_view_region and padded_view_child_fill not in text:
     old_padded_expand = '''        gtk_widget_set_margin_top(child, gint(top))
         gtk_widget_set_margin_bottom(child, gint(bottom))
         gtk_widget_set_margin_start(child, gint(leading))
@@ -2710,7 +2722,12 @@ if "gtkInstallScrollViewCrossAxisFill(on: scrolled" not in text:
         1,
     )
 
-if "gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox" not in text:
+has_list_renderer_region = (
+    "extension List: GTKRenderable" in text
+    or "let listBox = gtk_list_box_new()" in text
+    or "gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox" in text
+)
+if has_list_renderer_region and "gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox" not in text:
     old_list_width_propagation = "        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 1)\n"
     new_list_width_propagation = """        // A vertical SwiftUI List lays rows out in the viewport width.
         // Propagating natural width lets fixed-width row content push
@@ -2856,7 +2873,12 @@ if "gtkScheduleOnAppear(boundAction, on: widget)" not in text and old_on_appear_
     text = text.replace(old_on_appear_rebuild, new_on_appear_rebuild, 1)
 
 mapped_on_disappear_marker = "GTK OnDisappear requires a prior map before firing"
-if mapped_on_disappear_marker not in text:
+has_on_disappear_region = (
+    "extension OnDisappearView: GTKRenderable" in text
+    or "private class DisappearBox" in text
+    or mapped_on_disappear_marker in text
+)
+if has_on_disappear_region and mapped_on_disappear_marker not in text:
     old_on_disappear = '''/// Holds the disappear callback and a reference to the host container
 /// for distinguishing rebuild unmaps from real disappears.
 private class DisappearBox {
