@@ -81,6 +81,7 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
         let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
         gtk_swift_menu_button_set_popover(button, popover)
         gtk_swift_widget_insert_action_group(button, "menu", gpointer(actionGroup))
+        gtk_swift_widget_insert_action_group(popover, "menu", gpointer(actionGroup))
 
         let retained = Unmanaged.passRetained(actionBox).toOpaque()
         let gobject = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self)

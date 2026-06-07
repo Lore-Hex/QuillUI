@@ -2466,6 +2466,8 @@ struct SourceHygieneTests {
         #expect(toolbar.contains("struct QuillGTKToolbarIconButton: View, PrimitiveView, GTKRenderable"))
         #expect(toolbar.contains("gtk_swift_menu_button_set_always_show_arrow(button, 0)"))
         #expect(toolbar.contains("gtk_swift_menu_button_set_child(button, makeToolbarGlyphChild("))
+        #expect(toolbar.contains("gtk_swift_widget_insert_action_group(button, \"menu\", gpointer(actionGroup))"))
+        #expect(toolbar.contains("gtk_swift_widget_insert_action_group(popover, \"menu\", gpointer(actionGroup))"))
         #expect(toolbar.contains("gtk_box_append(toolbarBoxPointer(box), makeToolbarGlyphLabel(glyph))"))
         #expect(toolbar.contains("private func toolbarBoxPointer"))
         #expect(!toolbar.contains("boxPointer(box)"))
