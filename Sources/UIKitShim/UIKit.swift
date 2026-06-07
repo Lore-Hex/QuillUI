@@ -238,6 +238,17 @@ public class UINotificationFeedbackGenerator: NSObject {
     /// Notification.Name extension that aliases it can be evaluated off the main
     /// actor. Raw value matches Apple's.
     nonisolated public static let batteryLevelDidChangeNotification = Notification.Name("UIDeviceBatteryLevelDidChangeNotification")
+
+    /// Proximity sensor is unavailable on QuillOS. The notification name exists
+    /// (inert -- never posted); proximityState is always false; enabling
+    /// monitoring is a no-op. SignalServiceKit's ProximityMonitoringManager uses
+    /// these. nonisolated static (Sendable) like the battery name.
+    nonisolated public static let proximityStateDidChangeNotification = Notification.Name("UIDeviceProximityStateDidChangeNotification")
+    nonisolated public var proximityState: Bool { false }
+    nonisolated public var isProximityMonitoringEnabled: Bool {
+        get { false }
+        set { _ = newValue }
+    }
     #endif
 }
 
