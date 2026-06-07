@@ -489,6 +489,27 @@ public class RSColor: NSObject, @unchecked Sendable {
         self._red = red; self._green = green; self._blue = blue; self._alpha = alpha
     }
 
+    /// Apple's UIColor(hue:saturation:brightness:alpha:) -- standard HSB->RGB
+    /// conversion, delegating to the RGBA designated init. (UIColor+OWS blending.)
+    public convenience init(hue: CGFloat, saturation: CGFloat, brightness: CGFloat, alpha: CGFloat) {
+        let h = (hue - floor(hue)) * 6
+        let i = floor(h)
+        let f = h - i
+        let p = brightness * (1 - saturation)
+        let q = brightness * (1 - saturation * f)
+        let t = brightness * (1 - saturation * (1 - f))
+        let r: CGFloat, g: CGFloat, b: CGFloat
+        switch Int(i) % 6 {
+        case 0: (r, g, b) = (brightness, t, p)
+        case 1: (r, g, b) = (q, brightness, p)
+        case 2: (r, g, b) = (p, brightness, t)
+        case 3: (r, g, b) = (p, q, brightness)
+        case 4: (r, g, b) = (t, p, brightness)
+        default: (r, g, b) = (brightness, p, q)
+        }
+        self.init(red: r, green: g, blue: b, alpha: alpha)
+    }
+
     public static let clear = RSColor(red: 0, green: 0, blue: 0, alpha: 0)
     public static let white = RSColor(red: 1, green: 1, blue: 1, alpha: 1)
     public static let black = RSColor(red: 0, green: 0, blue: 0, alpha: 1)
