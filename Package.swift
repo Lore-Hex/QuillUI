@@ -178,6 +178,13 @@ let nnwUpstreamPresent: Bool = false
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
+// Signal-iOS upstream-slice gates (per-worktree `.upstream/...`, not committed).
+// `signalUpstreamPresent` → the real signalapp/Signal-iOS source tree.
+// `libsignalUpstreamPresent` → real signalapp/libsignal (LibSignalClient Swift
+// wrapper + its Rust libsignal_ffi). Signal is compiled ON Linux against
+// QuillUI's Apple-framework shim products, so the targets are `#if os(Linux)`.
+let signalUpstreamPresent: Bool = upstreamPresent(".upstream/signal-ios/SignalServiceKit")
+let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/Sources/LibSignalClient")
 // Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
 // The upstream iOS platform pin is a manifest constraint, not a source one —
 // the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
@@ -531,10 +538,24 @@ let wireGuardKitDependencies: [Target.Dependency] = ["WireGuardKitC"]
 let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
 #endif
 
-let quillDataPackageDependencies: [Package.Dependency] = [
+var quillDataPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
     .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
 ]
+// SwiftProtobuf (SSK's *.pb.swift wire format) and swift-crypto (the `CryptoKit`
+// shim re-exports its `Crypto`) are Signal-only. Declare them ONLY when the Signal
+// upstream is present: on a fresh checkout / CI (signal absent) the CryptoKit shim
+// and SignalServiceKit aren't built, so declaring these unconditionally makes
+// non-Signal product builds (e.g. quill-icecubes) warn "dependency X is not used by
+// any target" — and the canonical Qt app products are gated warning-clean.
+if signalUpstreamPresent {
+    quillDataPackageDependencies.append(
+        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1")
+    )
+    quillDataPackageDependencies.append(
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0")
+    )
+}
 
 let cSQLiteTarget: Target = .systemLibrary(
     name: "CSQLite",
@@ -551,6 +572,20 @@ let cCairoTarget: Target = .systemLibrary(
     providers: [
         .apt(["libcairo2-dev"]),
         .brew(["cairo"])
+    ]
+)
+
+// Real system zlib (libz) — SignalServiceKit's CRC32 + GzipStreamTransform
+// `import zlib` and use the genuine C API (z_stream / deflate / inflate / crc32).
+// libz is present on Linux (zlib1g-dev) and macOS, so this is a REAL systemLibrary
+// (gzip actually works), not an inert framework shim. Module name is `zlib` so
+// the upstream `import zlib` resolves unmodified.
+let cZlibTarget: Target = .systemLibrary(
+    name: "zlib",
+    pkgConfig: "zlib",
+    providers: [
+        .apt(["zlib1g-dev"]),
+        .brew(["zlib"])
     ]
 )
 
@@ -604,6 +639,7 @@ let quillRSParserPlatformDeps: [Target.Dependency] = []
 var targets: [Target] = [
     cSQLiteTarget,
     cCairoTarget,
+    cZlibTarget,
     // Cassowary constraint solver (vendored nucleic/kiwi, C++), exposed to Swift via a
     // pure-C ABI. Backs Auto Layout (NSLayoutConstraint) for the AppKit→Qt compatibility
     // layer — issue #231, milestone M0. Default graph only (no Qt dependency).
@@ -1518,6 +1554,299 @@ if wireguardUpstreamPresent {
     #endif
 }
 
+// ── Signal-iOS upstream-slice (Linux / QuillOS) ─────────────────────────
+// Compile the REAL signalapp/Signal-iOS against QuillUI's Linux
+// Apple-framework shim products (UIKit / AVFoundation / Network / os / …),
+// real GRDB + SwiftProtobuf, and real libsignal. Unlike WireGuard (a
+// fixture shell on Linux) Signal is meant to BUILD on Linux, so these
+// targets are gated `#if os(Linux)`. Source comes from `.upstream/signal-ios`
+// and `.upstream/libsignal` (fetched per-worktree, never committed).
+//
+// libsignal wiring mirrors libsignal's own swift/Package.swift: `SignalFfi`
+// is a systemLibrary whose module.modulemap does `link "signal_ffi"`, and
+// `libsignal_ffi.a` is produced by `cargo build -p libsignal-ffi --release`
+// into `.upstream/libsignal/target/release/` (the -L path below). The Swift
+// wrapper compiles independently of the .a; the .a is only needed when a
+// downstream executable/test links.
+#if os(Linux)
+if libsignalUpstreamPresent {
+    targets += [
+        .systemLibrary(
+            name: "SignalFfi",
+            path: ".upstream/libsignal/swift/Sources/SignalFfi"
+        ),
+        .target(
+            name: "LibSignalClient",
+            dependencies: ["SignalFfi"],
+            path: ".upstream/libsignal/swift/Sources/LibSignalClient",
+            // libsignal v0.94.1's Swift predates Swift 6 strict-concurrency;
+            // build it in v5 language mode (revisit if it compiles clean).
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [
+                .linkedLibrary("stdc++"),
+                .unsafeFlags(["-L.upstream/libsignal/target/release"])
+            ]
+        )
+    ]
+}
+#endif
+
+// CryptoKit Linux shim → swift-crypto's `Crypto` (API-compatible). Canonical
+// Apple framework name so upstream `import CryptoKit` resolves here on Linux.
+// Gated on signalUpstreamPresent: it depends on the swift-crypto package (also
+// gated) and is consumed only by SignalServiceKit, so on a fresh checkout / CI
+// (signal absent) it is excluded — no dangling swift-crypto dependency and no
+// "unused dependency" warning in non-Signal product builds.
+#if os(Linux)
+if signalUpstreamPresent {
+targets.append(
+    .target(
+        name: "CryptoKit",
+        dependencies: [.product(name: "Crypto", package: "swift-crypto")],
+        path: "Sources/CryptoKitShim"
+    )
+)
+}
+#endif
+
+// CommonCrypto Linux shim → OpenSSL libcrypto (the AES subset Signal uses in
+// CipherContext / Cryptography / PaddingBucket / ProvisioningCipher). A C target
+// whose public umbrella is the canonical <CommonCrypto/CommonCrypto.h>, so
+// upstream `import CommonCrypto` resolves here. Links system libcrypto (apt
+// libssl-dev).
+//
+// Gated on signalUpstreamPresent: ONLY this target's C `#include <openssl/evp.h>`
+// + `link "crypto"` require libssl-dev, which CI runners lack. Only SignalServiceKit
+// depends on CommonCrypto (and SSK is itself gated), so excluding it on a fresh
+// checkout / CI (signal absent) leaves no dangling dependency and the package builds
+// identically to clean main. NOTE: the OTHER Signal shims (CryptoKit / the
+// signalAppleFrameworkShims loop / etc.) stay ungated — they compile inertly on CI
+// AND some are consumed by the always-built UIKit shim (e.g. UIKit →
+// UserNotifications), so gating them would dangle that dependency and invalidate the
+// whole manifest.
+#if os(Linux)
+if signalUpstreamPresent {
+targets.append(
+    .target(
+        name: "CommonCrypto",
+        path: "Sources/CommonCryptoShim",
+        publicHeadersPath: "include",
+        linkerSettings: [.linkedLibrary("crypto")]
+    )
+)
+}
+#endif
+
+// SignalRingRTC Linux shim — faithful type-surface of signalapp/ringrtc
+// v2.69.1 for the NON-calling SSK paths (CallLinkRootKey + RingRTC logging).
+// Real voice/video calling is WebRTC + a Rust FFI; deferred. See
+// Sources/SignalRingRTCShim/SignalRingRTC.swift.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "SignalRingRTC",
+        path: "Sources/SignalRingRTCShim"
+    )
+)
+#endif
+
+// os_unfair_lock C shim. Signal's TSMutex.swift `import os.lock` (the `os`
+// framework's clang `lock` submodule), which doesn't exist on Linux and can't
+// be added to QuillUI's Swift `os` module. This C target provides the exact
+// os_unfair_lock surface as a spinlock; TSMutex's import is patched to use it on
+// Linux (scripts/fetch-upstream.sh).
+#if os(Linux)
+targets.append(
+    .target(
+        name: "COSUnfairLock",
+        path: "Sources/COSUnfairLock",
+        publicHeadersPath: "include"
+    )
+)
+#endif
+
+// Contacts Linux shim — Apple's Contacts framework value types (CNContact,
+// CNLabeledValue, CNPhoneNumber, CNPostalAddress, …) for Signal's vCard /
+// contact-import paths. System address-book access (CNContactStore) is deferred
+// (returns empty / .denied). See Sources/ContactsShim/Contacts.swift.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "Contacts",
+        path: "Sources/ContactsShim"
+    )
+)
+#endif
+
+// libPhoneNumber-iOS Linux shim. The upstream is ObjC (no Linux build); Signal
+// wraps it for E.164 phone-number parsing/formatting. Best-effort E.164
+// implementation; full libphonenumber metadata behavior deferred. See
+// Sources/libPhoneNumberShim/libPhoneNumber_iOS.swift.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "libPhoneNumber_iOS",
+        path: "Sources/libPhoneNumberShim"
+    )
+)
+#endif
+
+// Batch of thin Apple-framework / pod shims SignalServiceKit imports but that
+// don't exist on Linux. Each is a placeholder module so `import X` resolves;
+// concrete symbols are filled in as `cannot find type` errors surface. Behavior
+// is deferred (system UI / payments / Siri / telephony / etc. aren't available
+// on QuillOS). Sources live under Sources/AppleFrameworkShims/<Name>.
+let signalAppleFrameworkShims = [
+    // NOTE: "LocalAuthentication" is intentionally NOT here — it's a SHARED target
+    // defined explicitly below (Sources/LocalAuthenticationShim), also depended on by
+    // WireGuard's PrivateDataConfirmation. SSK depends on it via its explicit list
+    // instead of this loop (the loop would create a duplicate target named the same).
+    "ContactsUI", "Intents", "PassKit", "Accelerate",
+    "QuartzCore", "ImageIO", "CoreServices", "CoreImage", "AuthenticationServices",
+    "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
+    "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio",
+    "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
+    "ObjCAssoc", "System", "notify",
+    // NOTE: "zlib" is intentionally NOT here — it's a real systemLibrary
+    // (cZlibTarget, links libz) rather than an inert Swift shim, so it's added to
+    // SignalServiceKit's dependencies explicitly below.
+]
+// NOTE: NOT gated on signalUpstreamPresent — the always-built UIKit shim depends on
+// some of these (e.g. UIKit → UserNotifications), so they must exist whenever Linux
+// builds, or the package manifest dangles that dependency. They are inert placeholder
+// modules that compile fine on CI without any signal upstream.
+#if os(Linux)
+for shimName in signalAppleFrameworkShims {
+    // Each shim may build on QuillFoundation's Core Graphics / Foundation shadow
+    // types (e.g. ImageIO's CGImageSource returns QuillFoundation's CGImage).
+    // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
+    // edge is inert for shims that do not import QuillFoundation.
+    targets.append(.target(name: shimName, dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/\(shimName)"))
+}
+#endif
+
+// SignalServiceKit — the foundation target (1412 Swift files). Compiled on
+// Linux against QuillUI's Apple-framework shim targets + LibSignalClient +
+// GRDB + SwiftProtobuf. Excluded for the first build:
+//  • Signal's ObjC core-model layer (TSMessage/TSInteraction/TSOutgoingMessage/
+//    TSGroupModel/TSYapDatabaseObject/BaseModel + OWSAsserts/OWSLogs, ~35 .m/.h).
+//    These #import <Foundation/Foundation.h> (ObjC Foundation) which does not
+//    exist on swift-corelibs-foundation; they get PORTED to Swift incrementally
+//    (the central milestone-4 challenge — hundreds of Swift files subclass them).
+//  • tests/ (260 unit-test files), Calls/ (RingRTC), Payments/ (MobileCoin).
+//  • Non-source resources SPM would reject (.proto/.crt/.cer/.pch/.py/.md/Makefile).
+#if os(Linux)
+if signalUpstreamPresent && libsignalUpstreamPresent {
+    let signalServiceKitExcludes: [String] = [
+        "tests",
+        // Calls/ and Payments/ are mixed-language: their only ObjC files are model
+        // /interaction classes ported under QuillPort (TSCall, OWSGroupCallMessage,
+        // TSPaymentModels). Exclude just those ObjC files so the dirs' Swift
+        // compiles.
+        "Calls/Individual/TSCall.h", "Calls/Individual/TSCall.m",
+        "Calls/Group/OWSGroupCallMessage.h", "Calls/Group/OWSGroupCallMessage.m",
+        "Payments/TSPaymentModels.h", "Payments/TSPaymentModels.m",
+        "Concurrency/Threading.h", "Concurrency/Threading.m",
+        "Debugging/DebuggerUtils.h", "Debugging/DebuggerUtils.m",
+        "Debugging/OWSAsserts.h", "Debugging/OWSAsserts.m",
+        "Debugging/OWSLogs.h", "Debugging/OWSLogs.m",
+        "Groups/TSGroupModel.h", "Groups/TSGroupModel.m",
+        "Messages/Interactions/OWSDisappearingConfigurationUpdateInfoMessage.h",
+        "Messages/Interactions/OWSDisappearingConfigurationUpdateInfoMessage.m",
+        "Messages/Interactions/OWSVerificationStateChangeMessage.h",
+        "Messages/Interactions/OWSVerificationStateChangeMessage.m",
+        "Messages/Interactions/Quotes/TSQuotedMessage.h",
+        "Messages/Interactions/Quotes/TSQuotedMessage.m",
+        "Messages/Interactions/TSErrorMessage.h", "Messages/Interactions/TSErrorMessage.m",
+        "Messages/Interactions/TSIncomingMessage.h", "Messages/Interactions/TSIncomingMessage.m",
+        "Messages/Interactions/TSInfoMessage.h", "Messages/Interactions/TSInfoMessage.m",
+        "Messages/Interactions/TSInteraction.h", "Messages/Interactions/TSInteraction.m",
+        "Messages/Interactions/TSMessage.h", "Messages/Interactions/TSMessage.m",
+        "Messages/Interactions/TSOutgoingMessage.h", "Messages/Interactions/TSOutgoingMessage.m",
+        "Messages/Interactions/TSUnreadIndicatorInteraction.h",
+        "Messages/Interactions/TSUnreadIndicatorInteraction.m",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeyErrorMessage.h",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeyErrorMessage.m",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeyReceivingErrorMessage.h",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeyReceivingErrorMessage.m",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeySendingErrorMessage.h",
+        "Messages/InvalidKeyMessages/TSInvalidIdentityKeySendingErrorMessage.m",
+        "Messages/OWSAddToContactsOfferMessage.h", "Messages/OWSAddToContactsOfferMessage.m",
+        "Messages/OWSAddToProfileWhitelistOfferMessage.h",
+        "Messages/OWSAddToProfileWhitelistOfferMessage.m",
+        "Messages/OWSReadTracking.h",
+        "Messages/OWSRecoverableDecryptionPlaceholder.h",
+        "Messages/OWSRecoverableDecryptionPlaceholder.m",
+        "Messages/OWSUnknownContactBlockOfferMessage.h",
+        "Messages/OWSUnknownContactBlockOfferMessage.m",
+        "Messages/OWSUnknownProtocolVersionMessage.h",
+        "Messages/OWSUnknownProtocolVersionMessage.m",
+        "Messages/Payments/OWSArchivedPaymentMessage.h",
+        "Messages/Payments/OWSIncomingArchivedPaymentMessage.h",
+        "Messages/Payments/OWSIncomingArchivedPaymentMessage.m",
+        "Messages/Payments/OWSIncomingPaymentMessage.h",
+        "Messages/Payments/OWSIncomingPaymentMessage.m",
+        "Messages/Payments/OWSOutgoingArchivedPaymentMessage.h",
+        "Messages/Payments/OWSOutgoingArchivedPaymentMessage.m",
+        "Messages/Payments/OWSOutgoingPaymentMessage.h",
+        "Messages/Payments/OWSOutgoingPaymentMessage.m",
+        "Messages/Payments/OWSPaymentMessage.h",
+        "Protos/Backups/Backup.proto", "Protos/Backups/README.md",
+        "Protos/Backups/parse-libsignal-comparator-failure.py",
+        "Protos/Makefile",
+        "Protos/Specifications/CallQualitySurvey.proto",
+        "Protos/Specifications/DeviceTransfer.proto",
+        "Protos/Specifications/FingerprintProtocol.proto",
+        "Protos/Specifications/Groups.proto",
+        "Protos/Specifications/MobileCoinExternal.proto",
+        "Protos/Specifications/Provisioning.proto",
+        "Protos/Specifications/README.md",
+        "Protos/Specifications/Registration.proto",
+        "Protos/Specifications/SessionRecord.proto",
+        "Protos/Specifications/SignalIOS.proto",
+        "Protos/Specifications/SignalService.proto",
+        "Protos/Specifications/StorageService.proto",
+        "Protos/Specifications/svr2.proto",
+        "Resources/Certificates/GIAG2.crt", "Resources/Certificates/GSR2.crt",
+        "Resources/Certificates/GSR4.crt", "Resources/Certificates/GTSR1.crt",
+        "Resources/Certificates/GTSR2.crt", "Resources/Certificates/GTSR3.crt",
+        "Resources/Certificates/GTSR4.crt", "Resources/Certificates/isrgrootx1.crt",
+        "Resources/Certificates/signal-messenger.cer",
+        "Security/OWSVerificationState.h",
+        "SignalServiceKit-Prefix.pch", "SignalServiceKit.h",
+        "Storage/BaseModel.h", "Storage/BaseModel.m",
+        "Storage/Database/SSKAccessors+SDS.h",
+        "Storage/TSYapDatabaseObject.h", "Storage/TSYapDatabaseObject.m",
+    ]
+    targets += [
+        .target(
+            name: "SignalServiceKit",
+            dependencies: [
+                "LibSignalClient",
+                "UIKit", "AVFoundation", "Network", "os", "Security", "CoreGraphics",
+                // Shared LocalAuthentication shim (Sources/LocalAuthenticationShim) —
+                // also used by WireGuard; depended on explicitly here rather than via the
+                // signalAppleFrameworkShims loop to avoid a duplicate target definition.
+                "LocalAuthentication",
+                "CryptoKit", "CommonCrypto", "SignalRingRTC", "COSUnfairLock", "Contacts",
+                "libPhoneNumber_iOS", "UniformTypeIdentifiers", "zlib", "QuillFoundation",
+                .product(name: "GRDB", package: "GRDB.swift"),
+                // Raw sqlite3 C symbols (SQLITE_OK / sqlite3_errmsg / sqlite3_step
+                // ...) used by ~12 SSK files. On Apple these arrive via the
+                // bridging header; on Linux GRDB vends them through its GRDBSQLite
+                // system-library module (link "sqlite3"). inject-foundation adds
+                // `import GRDBSQLite` to the files that need it.
+                .product(name: "GRDBSQLite", package: "GRDB.swift"),
+                .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            ] + signalAppleFrameworkShims.map { Target.Dependency.target(name: $0) },
+            path: ".upstream/signal-ios/SignalServiceKit",
+            exclude: signalServiceKitExcludes,
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        )
+    ]
+}
+#endif
+
 // CodeEdit upstream — macOS-only (it's a pure AppKit/SwiftUI Mac app
 // using NSTextView, NSDocument, NSApplicationDelegateAdaptor, Sparkle,
 // and a stack of CodeEditApp's own packages). The Linux path can't
@@ -1687,7 +2016,7 @@ targets.append(contentsOf: [
     // CYCLE-BREAK: these UI-adjacent shims re-export
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
-    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"], path: "Sources/UIKitShim"),
+    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"], path: "Sources/UIKitShim"),
     // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow + Foundation,
     // so unmodified macOS app source that `import Cocoa` recompiles unchanged.
     .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),

@@ -59,7 +59,10 @@ struct SourceHygieneTests {
         #expect(manifest.contains("] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)"))
         #expect(manifest.contains("qtRuntime: .genericQtNative"))
         #expect(manifest.contains("qtRuntime: .wireGuardQtNative"))
-        #expect(manifest.contains("let quillDataPackageDependencies: [Package.Dependency] = ["))
+        // `var` (not `let`): SwiftProtobuf/swift-crypto are appended only when the
+        // Signal upstream is present (Track B), so non-Signal builds don't get an
+        // unused-dependency warning. See Package.swift `if signalUpstreamPresent`.
+        #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
         #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))

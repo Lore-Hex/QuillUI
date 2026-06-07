@@ -463,7 +463,10 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public var tapHandler: (() -> Void)?
 }
 
-@MainActor public class UIControl: UIView {
+// `open` (not just `public`) so framework shims can subclass it cross-module —
+// e.g. UIKitShim's `UISwitch: UIControl`. UIView is already open; UIControl is
+// open on iOS too.
+@MainActor open class UIControl: UIView {
     public struct State: OptionSet, Sendable {
         public let rawValue: UInt
 
@@ -581,13 +584,11 @@ public class UIApplicationShortcutItem: NSObject {
     public var type: String = ""
 }
 
-public class UNUserNotificationCenter: NSObject {
-    public static func current() -> UNUserNotificationCenter { UNUserNotificationCenter() }
-    public func requestAuthorization(options: Any, completionHandler: @escaping (Bool, Error?) -> Void) {}
-    @MainActor public weak var delegate: UNUserNotificationCenterDelegate?
-}
-
-public protocol UNUserNotificationCenterDelegate: AnyObject {}
+// UNUserNotificationCenter / UNUserNotificationCenterDelegate moved to the
+// dedicated `UserNotifications` shim (Sources/AppleFrameworkShims/UserNotifications),
+// which the `UIKit` shim re-exports — so `import UIKit` still resolves them while
+// SignalServiceKit's `import UserNotifications` no longer collides with a second
+// declaration here (the ambiguity that blocked the notifications presenter).
 
 @MainActor public protocol UIApplicationDelegate: AnyObject {}
 
