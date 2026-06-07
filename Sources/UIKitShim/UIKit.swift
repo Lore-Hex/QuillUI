@@ -230,6 +230,10 @@ public class UINotificationFeedbackGenerator: NSObject {
         return "Mac"
         #endif
     }
+    /// Inert device-info strings (AppVersion reads these). nonisolated so
+    /// off-main-actor callers can read them (Strings are Sendable).
+    nonisolated public var systemVersion: String { "1.0" }
+    nonisolated public var model: String { "QuillOS" }
 
     #if os(Linux)
     /// Battery monitoring is unavailable on QuillOS; this notification name
