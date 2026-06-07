@@ -82,6 +82,37 @@ jobs:
               quill-chat-linux \
               gtk
 
+      - name: Package real-source GTK release artifact
+        run: |
+          scripts/package-swiftui-linux-app.sh \
+            --profile enchanted-full-source \
+            --source-dir "$QUILL_CHAT_DIR/Enchanted" \
+            --app-type EnchantedApp \
+            --product-name quill-chat-linux \
+            --workdir .build/quill-chat-linux-gtk \
+            --backend-facade gtk \
+            --artifact-dir .build/releases/quill-chat-linux-gtk \
+            --tarball .qa/quill-chat-linux-gtk-release.tar.gz \
+            --display-name "Quill Chat"
+          echo "QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run" >> "$GITHUB_ENV"
+
+      - name: Run packaged release artifact verifier
+        env:
+          QUILLUI_BACKEND_SKIP_BUILD: "1"
+        run: |
+          QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quill-chat-linux-release-artifact-visual.log \
+            scripts/linux-backend-visual-check.sh \
+              .qa/quill-chat-linux-release-artifact-gtk.png \
+              quill-chat-linux \
+              gtk
+
+          QUILLUI_BACKEND_INTERACTION_MODE=new-chat \
+          QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-release-artifact-new-chat.log \
+            scripts/linux-backend-interaction-check.sh \
+              .qa/quill-chat-linux-release-artifact-new-chat-gtk.png \
+              quill-chat-linux \
+              gtk
+
       - name: Run real-source composer-typed interaction verifier
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
@@ -127,14 +158,17 @@ jobs:
             settings-ping-interval-typed \
             settings-default-model-selected \
             settings-delete-confirmation \
+            settings-delete-confirmed \
             completions-panel \
             completions-new-sheet \
             completions-save \
             completions-edit-save \
             completions-delete \
             new-chat \
+            toolbar-model-selected \
             prompt-send \
             copy-chat \
+            copy-chat-json \
             history-selection \
             transcript-selection \
             markdown-transcript-selection \

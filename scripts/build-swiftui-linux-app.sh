@@ -12,6 +12,7 @@ PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
 BACKEND_FACADE="${QUILLUI_APP_BACKEND_FACADE:-}"
 NORMALIZED_BACKEND_FACADE=""
+ARTIFACT_PATH_FILE="${QUILLUI_APP_ARTIFACT_PATH_FILE:-}"
 RUN_AFTER_BUILD=0
 LIST_PROFILES=0
 
@@ -31,6 +32,8 @@ Options:
   --workdir PATH        Generated build work directory.
   --backend-facade NAME Select QuillUI, QuillUIGtk, or the native Qt runtime
                         for the generated entry. Allowed: swiftui, gtk, qt.
+  --artifact-path-file PATH
+                        Write the built executable path to PATH for wrappers.
   --run                Run the built executable after building.
   -h, --help           Show this help.
 
@@ -41,6 +44,7 @@ Environment aliases:
   QUILLUI_APP_PRODUCT_NAME
   QUILLUI_APP_BUILD_WORKDIR
   QUILLUI_APP_BACKEND_FACADE
+  QUILLUI_APP_ARTIFACT_PATH_FILE
 MSG
 }
 
@@ -111,6 +115,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --backend-facade)
       BACKEND_FACADE="${2:-}"
+      shift 2
+      ;;
+    --artifact-path-file)
+      ARTIFACT_PATH_FILE="${2:-}"
       shift 2
       ;;
     --run)
@@ -226,6 +234,11 @@ Generated package:
 Profile:
   $PROFILE
 MSG
+
+if [[ -n "$ARTIFACT_PATH_FILE" ]]; then
+  mkdir -p "$(dirname "$ARTIFACT_PATH_FILE")"
+  printf '%s\n' "$ARTIFACT_PATH" > "$ARTIFACT_PATH_FILE"
+fi
 
 if [[ "$RUN_AFTER_BUILD" == "1" ]]; then
   "$ARTIFACT_PATH"

@@ -554,6 +554,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:settings-delete-confirmation)
       verify_product="quill-chat-linux-mac-reference-settings-delete-confirmation"
       ;;
+    *:settings-delete-confirmed)
+      verify_product="quill-chat-linux-mac-reference-settings-panel"
+      ;;
     *:completions-panel)
       verify_product="quill-chat-linux-mac-reference-completions-panel"
       ;;
@@ -592,6 +595,12 @@ quillui_backend_quill_chat_interaction_verify_product() {
       ;;
     *:copy-chat)
       verify_product="quill-chat-linux-mac-reference-copy-chat"
+      ;;
+    *:copy-chat-json)
+      verify_product="quill-chat-linux-mac-reference-copy-chat-json"
+      ;;
+    *:toolbar-model-selected)
+      verify_product="quill-chat-linux-mac-reference-toolbar-model-selected"
       ;;
     *)
       verify_product="quill-chat-linux-toolbar-menu"

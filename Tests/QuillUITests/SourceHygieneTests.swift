@@ -2764,6 +2764,7 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-ping-interval-typed\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-default-model-selected\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-delete-confirmation\""))
+        #expect(backendProducts.contains("*:settings-delete-confirmed)"))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-completions-panel\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-completions-new-sheet\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-completions-saved\""))
@@ -2777,9 +2778,13 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-composer-send\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-new-chat\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat\""))
+        #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat-json\""))
+        #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-toolbar-model-selected\""))
         #expect(backendProducts.contains("*:composer-send)"))
         #expect(backendProducts.contains("*:new-chat)"))
         #expect(backendProducts.contains("*:copy-chat)"))
+        #expect(backendProducts.contains("*:copy-chat-json)"))
+        #expect(backendProducts.contains("*:toolbar-model-selected)"))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-tunnel-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-name-edit\""))
         #expect(backendProducts.contains("verify_product=\"quill-wireguard-qt-import-paste\""))
@@ -3345,6 +3350,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/build-swiftui-linux-app.sh"),
             encoding: .utf8
         )
+        let packageSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/package-swiftui-linux-app.sh"),
+            encoding: .utf8
+        )
         let legacyQuillChatBuildSource = try String(
             contentsOf: root.appendingPathComponent("scripts/build-quill-chat-linux.sh"),
             encoding: .utf8
@@ -3406,6 +3415,21 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=qt \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
         #expect(buildSource.contains("quillui_normalize_backend_identifier \"${BACKEND_FACADE:-swiftui}\""))
         #expect(buildSource.contains("QUILLUI_GENERATED_BACKEND_FACADE=\"$NORMALIZED_BACKEND_FACADE\""))
+        #expect(buildSource.contains("--artifact-path-file"))
+        #expect(buildSource.contains("QUILLUI_APP_ARTIFACT_PATH_FILE"))
+        #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
+        #expect(packageSource.contains("scripts/build-swiftui-linux-app.sh"))
+        #expect(packageSource.contains("QUILLUI_APP_BACKEND_FACADE:-gtk"))
+        #expect(packageSource.contains("--artifact-path-file \"$ARTIFACT_PATH_FILE\""))
+        #expect(packageSource.contains("mkdir -p \"$ARTIFACT_DIR/bin\" \"$ARTIFACT_DIR/metadata\""))
+        #expect(packageSource.contains("cp \"$ARTIFACT_PATH\" \"$ARTIFACT_DIR/bin/$PRODUCT_NAME\""))
+        #expect(packageSource.contains("ARTIFACT_BIN_DIR=\"$(dirname \"$ARTIFACT_PATH\")\""))
+        #expect(packageSource.contains("find \"$ARTIFACT_BIN_DIR\" -maxdepth 1 -type d \\( -name '*.resources' -o -name '*.bundle' \\) -print0"))
+        #expect(packageSource.contains("cp -R \"$resource_dir\" \"$ARTIFACT_DIR/bin/\""))
+        #expect(packageSource.contains("export GTK_A11Y=\"\\${GTK_A11Y:-none}\""))
+        #expect(packageSource.contains("export QUILLUI_BACKEND=\"\\${QUILLUI_BACKEND:-$NORMALIZED_BACKEND_FACADE}\""))
+        #expect(packageSource.contains("metadata/quillui-release.env"))
+        #expect(packageSource.contains("tar -C \"$(dirname \"$ARTIFACT_DIR\")\" -czf \"$TARBALL_PATH\""))
         #expect(legacyQuillChatBuildSource.contains("scripts/build-enchanted-linux.sh"))
         #expect(enchantedBuildSource.contains("--backend-facade"))
         #expect(enchantedBuildSource.contains("QUILLUI_ENCHANTED_BACKEND_FACADE"))
