@@ -198,11 +198,16 @@ if [[ ! -x "$ARTIFACT_PATH" ]]; then
   echo "Built artifact is not executable: $ARTIFACT_PATH" >&2
   exit 70
 fi
+ARTIFACT_BIN_DIR="$(dirname "$ARTIFACT_PATH")"
 
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR/bin" "$ARTIFACT_DIR/metadata"
 cp "$ARTIFACT_PATH" "$ARTIFACT_DIR/bin/$PRODUCT_NAME"
 chmod 755 "$ARTIFACT_DIR/bin/$PRODUCT_NAME"
+
+while IFS= read -r -d '' resource_dir; do
+  cp -R "$resource_dir" "$ARTIFACT_DIR/bin/"
+done < <(find "$ARTIFACT_BIN_DIR" -maxdepth 1 -type d \( -name '*.resources' -o -name '*.bundle' \) -print0)
 
 cat > "$ARTIFACT_DIR/run" <<MSG
 #!/usr/bin/env bash
