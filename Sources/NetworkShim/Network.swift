@@ -1443,3 +1443,104 @@ private extension NWEndpoint.Host {
         return false
     }
 }
+
+// MARK: - NWConnection / NWListener
+//
+// The transport endpoints SignalProxy uses (the local relay/proxy fronting the
+// censorship-circumvention path). INERT on Linux: a connection never leaves
+// `.setup` (it never actually connects), send-completions fire immediately with
+// no error (nothing is transmitted), and receive never delivers data. SignalProxy
+// is therefore a no-op on Linux until a real Network backend is wired up.
+// HONEST STATUS: the proxy never connects; these exist only so SignalProxy compiles.
+
+public final class NWConnection: @unchecked Sendable {
+    public enum State: Equatable, Sendable {
+        case setup
+        case waiting(NWError)
+        case preparing
+        case ready
+        case failed(NWError)
+        case cancelled
+    }
+
+    public final class ContentContext: @unchecked Sendable {
+        public let identifier: String
+        public init(identifier: String) { self.identifier = identifier }
+        public static let defaultMessage = ContentContext(identifier: "defaultMessage")
+        public static let finalMessage = ContentContext(identifier: "finalMessage")
+    }
+
+    public enum SendCompletion {
+        case idempotent
+        case contentProcessed((NWError?) -> Void)
+    }
+
+    public let endpoint: NWEndpoint
+    public let parameters: NWParameters
+    public var stateUpdateHandler: ((State) -> Void)?
+    public var viabilityUpdateHandler: ((Bool) -> Void)?
+    public var betterPathUpdateHandler: ((Bool) -> Void)?
+    public private(set) var state: State = .setup
+
+    public init(to endpoint: NWEndpoint, using parameters: NWParameters) {
+        self.endpoint = endpoint
+        self.parameters = parameters
+    }
+    public convenience init(host: NWEndpoint.Host, port: NWEndpoint.Port, using parameters: NWParameters) {
+        self.init(to: .hostPort(host: host, port: port), using: parameters)
+    }
+
+    /// Inert: never transitions to `.ready` (no real connection on Linux).
+    public func start(queue: DispatchQueue) {}
+    public func cancel() {
+        state = .cancelled
+        stateUpdateHandler?(.cancelled)
+    }
+    public func forceCancel() { cancel() }
+    public func restart() {}
+
+    public func send(
+        content: Data?,
+        contentContext: ContentContext = .defaultMessage,
+        isComplete: Bool = true,
+        completion: SendCompletion
+    ) {
+        // Pretend the write succeeded; nothing is actually transmitted.
+        if case let .contentProcessed(handler) = completion {
+            handler(nil)
+        }
+    }
+
+    /// Inert: no data is ever delivered (no isComplete, no error) on Linux.
+    public func receive(
+        minimumIncompleteLength: Int,
+        maximumLength: Int,
+        completion: @escaping (Data?, ContentContext?, Bool, NWError?) -> Void
+    ) {}
+}
+
+public final class NWListener: @unchecked Sendable {
+    public enum State: Equatable, Sendable {
+        case setup
+        case waiting(NWError)
+        case ready
+        case failed(NWError)
+        case cancelled
+    }
+
+    public let parameters: NWParameters
+    public var stateUpdateHandler: ((State) -> Void)?
+    public var newConnectionHandler: ((NWConnection) -> Void)?
+    public var port: NWEndpoint.Port?
+
+    public init(using parameters: NWParameters, on port: NWEndpoint.Port = .any) throws {
+        self.parameters = parameters
+        self.port = port
+    }
+
+    /// Inert: never becomes `.ready` (no real listener on Linux).
+    public func start(queue: DispatchQueue) {}
+    public func cancel() {
+        stateUpdateHandler?(.cancelled)
+    }
+}
