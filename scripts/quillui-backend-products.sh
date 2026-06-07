@@ -613,6 +613,32 @@ quillui_backend_quill_chat_interaction_verify_product() {
   printf '%s\n' "$verify_product"
 }
 
+quillui_backend_quill_chat_mac_reference_interaction_modes() {
+  printf '%s\n' \
+    settings-panel \
+    alert-settings-panel \
+    settings-endpoint-typed \
+    settings-bearer-token-typed \
+    settings-ping-interval-typed \
+    settings-default-model-selected \
+    settings-delete-confirmation \
+    settings-delete-confirmed \
+    completions-panel \
+    completions-new-sheet \
+    completions-save \
+    completions-edit-save \
+    completions-delete \
+    new-chat \
+    toolbar-model-selected \
+    prompt-send \
+    copy-chat \
+    copy-chat-json \
+    history-selection \
+    transcript-selection \
+    markdown-transcript-selection \
+    long-transcript-selection
+}
+
 quillui_backend_wireguard_interaction_verify_product() {
   local selected_backend
   local interaction_mode="$2"
@@ -1740,6 +1766,8 @@ Commands:
                                   Print the screenshot verifier product for a visual app row.
   app-interaction-verify-product PRODUCT BACKEND MODE
                                   Print the screenshot verifier product for an app interaction row.
+  quill-chat-mac-reference-interaction-modes
+                                  List Quill Chat real-source Mac-reference interaction modes.
   profile-products                List app and launch-smoke products for profile budgets.
   profile-matrix                  List PRODUCT<TAB>BACKEND rows for profile budgets.
   profile-runtime-matrix          List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for profile budgets.
@@ -1899,6 +1927,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         echo "No app interaction verifier product for $2/$3/$4." >&2
         exit 1
       fi
+      ;;
+    quill-chat-mac-reference-interaction-modes)
+      quillui_backend_quill_chat_mac_reference_interaction_modes
       ;;
     profile-products)
       quillui_backend_profile_products

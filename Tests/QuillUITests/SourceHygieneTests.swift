@@ -1632,6 +1632,8 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("quillui_backend_app_interaction_verify_product_for_product()"))
         #expect(backendProducts.contains("quillui_backend_enchanted_linux_interaction_verify_product()"))
         #expect(backendProducts.contains("quillui_backend_quill_chat_interaction_verify_product()"))
+        #expect(backendProducts.contains("quillui_backend_quill_chat_mac_reference_interaction_modes()"))
+        #expect(backendProducts.contains("quill-chat-mac-reference-interaction-modes)"))
         #expect(backendProducts.contains("quillui_backend_wireguard_interaction_verify_product()"))
         #expect(backendProducts.contains("app-interaction-verify-product)"))
         #expect(backendProducts.contains("verify_product=\"quill-enchanted-linux-$selected_backend\""))
