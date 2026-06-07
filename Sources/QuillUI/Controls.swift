@@ -3,6 +3,7 @@
 // QuillSystemSymbol, etc.) invisible on macOS even though the inner
 // branches looked correct.
 import Foundation
+import Dispatch
 import QuillPaint
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
@@ -1360,6 +1361,110 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     #else
     private var resolvedToolbarHeight: CGFloat { toolbarHeight }
     #endif
+}
+
+public struct QuillMessageList<Message: Identifiable & Hashable, RowContent: View, OverlayContent: View>: View
+where Message.ID: Hashable {
+    public var messages: [Message]
+    public var scrollToken: AnyHashable
+    public var rowVerticalPadding: CGFloat
+    public var rowHorizontalPadding: CGFloat
+    private var actions: (Message) -> [QuillMenuAction]
+    private var rowContent: (Message) -> RowContent
+    private var overlayContent: () -> OverlayContent
+
+    public init(
+        messages: [Message],
+        scrollToken: AnyHashable? = nil,
+        rowVerticalPadding: CGFloat = 10,
+        rowHorizontalPadding: CGFloat = 10,
+        actions: @escaping (Message) -> [QuillMenuAction] = { _ in [] },
+        @ViewBuilder row: @escaping (Message) -> RowContent,
+        @ViewBuilder overlay: @escaping () -> OverlayContent
+    ) {
+        self.messages = messages
+        self.scrollToken = scrollToken ?? Self.defaultScrollToken(for: messages)
+        self.rowVerticalPadding = rowVerticalPadding
+        self.rowHorizontalPadding = rowHorizontalPadding
+        self.actions = actions
+        self.rowContent = row
+        self.overlayContent = overlay
+    }
+
+    public var body: some View {
+        ZStack(alignment: .top) {
+            ScrollViewReader { scrollViewProxy in
+                ScrollView {
+                    VStack {
+                        ForEach(messages) { message in
+                            rowContent(message)
+                                .listRowInsets(EdgeInsets())
+                                .listRowSeparator(.hidden)
+                                .padding(.vertical, rowVerticalPadding)
+                                .padding(.horizontal, rowHorizontalPadding)
+                                .contentShape(Rectangle())
+                                .contextMenu {
+                                    ForEach(actions(message)) { action in
+                                        contextMenuItem(for: action)
+                                    }
+                                }
+                                .id(message)
+                        }
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id(Self.bottomSentinelID)
+                    }
+                }
+                .onAppear {
+                    scrollToBottom(scrollViewProxy)
+                }
+                .onChange(of: scrollToken) { _, _ in
+                    scrollToBottom(scrollViewProxy)
+                }
+            }
+
+            overlayContent()
+        }
+    }
+
+    private static var bottomSentinelID: String { "quill-message-list-bottom" }
+
+    private static func defaultScrollToken(for messages: [Message]) -> AnyHashable {
+        AnyHashable(messages.map { AnyHashable($0.id) })
+    }
+
+    @ViewBuilder
+    private func contextMenuItem(for action: QuillMenuAction) -> some View {
+        switch action.kind {
+        case .divider:
+            Divider()
+        case .item:
+            Button(action: { action.perform() }) {
+                if let systemImage = action.systemImage {
+                    Label(action.title, systemImage: QuillSystemSymbol.compatibleName(systemImage))
+                } else {
+                    Text(action.title)
+                }
+            }
+            .disabled(action.isDisabled)
+        }
+    }
+
+    private func scrollToBottom(_ scrollViewProxy: ScrollViewProxy) {
+        #if os(Linux)
+        scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        DispatchQueue.main.async {
+            scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        }
+        #else
+        if let last = messages.last {
+            scrollViewProxy.scrollTo(last, anchor: .bottom)
+        } else {
+            scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        }
+        #endif
+    }
 }
 
 public struct QuillDesktopChatScaffold<

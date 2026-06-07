@@ -998,12 +998,17 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/MessageListVIew.swift"),
             encoding: .utf8
         )
-        #expect(messageListTemplate.contains("private let quillMessageListBottomID"))
-        #expect(messageListTemplate.contains(".id(quillMessageListBottomID)"))
-        #expect(messageListTemplate.contains("scrollViewProxy.scrollTo(quillMessageListBottomID, anchor: .bottom)"))
-        #expect(messageListTemplate.contains("DispatchQueue.main.async"))
-        #expect(messageListTemplate.contains(".onChange(of: messages.map(\\.id))"))
-        #expect(messageListTemplate.contains("#if os(Linux)"))
+        #expect(messageListTemplate.contains("QuillMessageList("))
+        #expect(messageListTemplate.contains("scrollToken: scrollToken"))
+        #expect(messageListTemplate.contains("actions: contextMenuActions"))
+        #expect(messageListTemplate.contains("private var scrollToken: AnyHashable"))
+        #expect(messageListTemplate.contains("messages.map(\\.id).map(\\.uuidString).joined(separator: \"|\")"))
+        #expect(messageListTemplate.contains("private func contextMenuActions(for message: MessageSD) -> [QuillMenuAction]"))
+        #expect(messageListTemplate.contains("QuillMenuAction(title: \"Copy\", systemImage: \"doc.on.doc\")"))
+        #expect(!messageListTemplate.contains("private let quillMessageListBottomID"))
+        #expect(!messageListTemplate.contains("ScrollViewReader"))
+        #expect(!messageListTemplate.contains("DispatchQueue.main.async"))
+        #expect(!messageListTemplate.contains(".onChange(of: messages.map(\\.id))"))
 
         let unreachableRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/UnreachableAPIView.swift.pl"),
