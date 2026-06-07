@@ -185,7 +185,26 @@ public class UINotificationFeedbackGenerator: NSObject {
         return "Mac"
         #endif
     }
+
+    #if os(Linux)
+    /// Battery monitoring is unavailable on QuillOS; this notification name
+    /// exists (inert -- never posted) so SignalServiceKit's
+    /// DeviceBatteryLevelManager compiles. `nonisolated` so the file-scope
+    /// Notification.Name extension that aliases it can be evaluated off the main
+    /// actor. Raw value matches Apple's.
+    nonisolated public static let batteryLevelDidChangeNotification = Notification.Name("UIDeviceBatteryLevelDidChangeNotification")
+    #endif
 }
+
+#if os(Linux)
+public extension Notification.Name {
+    /// ProcessInfo low-power-mode-changed notification (Foundation on Apple). Its
+    /// sole SignalServiceKit consumer (DeviceBatteryLevelManager) imports UIKit,
+    /// so the inert Linux shim lives here; never posted on QuillOS. Raw value
+    /// matches Apple's. Linux-gated because macOS Foundation already defines it.
+    static let NSProcessInfoPowerStateDidChange = Notification.Name("NSProcessInfoPowerStateDidChangeNotification")
+}
+#endif
 
 public enum UIUserInterfaceIdiom: Int, Sendable {
     case unspecified = -1, phone = 0, pad = 1, tv = 2, carPlay = 3, mac = 5, vision = 6
