@@ -22,6 +22,17 @@ public struct SymbolEffectOptions: Sendable {
     public static func `repeat`(_ count: Int) -> SymbolEffectOptions { SymbolEffectOptions() }
 }
 
+public struct ListStyleType: Sendable {
+    private let id: String
+    public static let automatic = ListStyleType(id: "automatic")
+    public static let plain = ListStyleType(id: "plain")
+    public static let grouped = ListStyleType(id: "grouped")
+    public static let inset = ListStyleType(id: "inset")
+    public static let insetGrouped = ListStyleType(id: "insetGrouped")
+    public static let sidebar = ListStyleType(id: "sidebar")
+    public static let bordered = ListStyleType(id: "bordered")
+}
+
 public struct AccessibilityChildBehavior: Hashable, Sendable {
     private let rawValue: String
     private init(_ rawValue: String) { self.rawValue = rawValue }
@@ -39,6 +50,7 @@ extension View {
     public func accessibilityLabel<S>(_ label: S) -> some View { self }
     public func accessibilityValue<S>(_ value: S) -> some View { self }
     public func listRowInsets(_ insets: EdgeInsets?) -> some View { self }
+    public func listStyle(_ style: ListStyleType) -> some View { self }
     public func symbolEffect<Value: Equatable>(_ effect: SymbolEffect, options: SymbolEffectOptions = .default, value: Value) -> some View {
         animation(.easeInOut(duration: 0.2), value: value)
     }
