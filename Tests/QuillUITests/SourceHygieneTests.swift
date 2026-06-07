@@ -2106,6 +2106,8 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("Quill WireGuard GTK {scenario}"))
         #expect(screenshotVerifier.contains("validate_quill_wireguard_gtk_native"))
         #expect(screenshotVerifier.contains("validate_quill_wireguard_gtk_import"))
+        #expect(screenshotVerifier.contains("divider_min_x = left + int(app_width * 0.24)"))
+        #expect(screenshotVerifier.contains("divider_max_x = left + int(app_width * 0.58)"))
         #expect(screenshotVerifier.contains("Quill WireGuard {backend.upper()} import error"))
         #expect(screenshotVerifier.contains("validate_quill_wireguard_import_error"))
         #expect(screenshotVerifier.contains("wireguard_error_text_pixel"))
