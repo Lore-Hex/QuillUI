@@ -429,6 +429,70 @@ struct QuillUITests {
         #expect([Message]().quillMessageListScrollToken(content: \.content) == AnyHashable("|"))
     }
 
+    @Test("QuillEditableMessageList centralizes chat message menu actions")
+    @MainActor
+    func quillEditableMessageListBuildsMessageActions() {
+        struct Message: Identifiable, Hashable {
+            var id: String
+            var role: String
+            var content: String
+        }
+
+        let messages = [
+            Message(id: "u1", role: "user", content: "Hello"),
+            Message(id: "a1", role: "assistant", content: "World")
+        ]
+        var editedMessage: Message?
+        var selectedText = ""
+        var spokenText = ""
+        var extraID = ""
+        let clipboard = QuillClipboard()
+        let editBinding = Binding<Message?>(
+            get: { editedMessage },
+            set: { editedMessage = $0 }
+        )
+
+        let list = QuillEditableMessageList(
+            messages: messages,
+            editingMessage: editBinding,
+            content: \.content,
+            isUserMessage: { $0.role == "user" },
+            selectText: { selectedText = $0.content },
+            readAloud: { spokenText = $0.content },
+            additionalActions: { message in
+                [
+                    QuillMenuAction(title: "Extra") {
+                        extraID = message.id
+                    }
+                ]
+            },
+            clipboard: clipboard
+        ) { message in
+            Text(message.content)
+        } overlay: {
+            EmptyView()
+        }
+
+        #expect(list.scrollToken == AnyHashable("u1|a1|World"))
+
+        let userActions = list.contextMenuActions(for: messages[0])
+        #expect(userActions.map(\.title) == ["Copy", "Select Text", "Read Aloud", "Extra", "Edit"])
+        userActions.forEach { $0.perform() }
+        #expect(clipboard.string() == "Hello")
+        #expect(selectedText == "Hello")
+        #expect(spokenText == "Hello")
+        #expect(extraID == "u1")
+        #expect(editedMessage == messages[0])
+
+        let editingActions = list.contextMenuActions(for: messages[0])
+        #expect(editingActions.map(\.title).contains("Unselect"))
+        editingActions.first { $0.title == "Unselect" }?.perform()
+        #expect(editedMessage == nil)
+
+        let assistantActions = list.contextMenuActions(for: messages[1])
+        #expect(!assistantActions.map(\.title).contains("Edit"))
+    }
+
     // MARK: - Backend registry
 
     @Test("Backend registry exposes SwiftUI GTK and Qt")

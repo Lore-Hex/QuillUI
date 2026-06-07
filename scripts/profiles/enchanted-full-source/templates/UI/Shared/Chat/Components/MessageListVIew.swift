@@ -17,10 +17,13 @@ struct MessageListView: View {
     func stopReadingAloud() { Task { await speechSynthesizer.stopSpeaking() } }
 
     var body: some View {
-        QuillMessageList(
+        QuillEditableMessageList(
             messages: messages,
-            scrollToken: messages.quillMessageListScrollToken(content: \.content),
-            actions: contextMenuActions
+            editingMessage: $editMessage,
+            content: \.content,
+            isUserMessage: { $0.role == "user" },
+            selectText: selectTextAction,
+            readAloud: readAloudAction
         ) { message in
             ChatMessageView(
                 message: message,
@@ -45,27 +48,19 @@ struct MessageListView: View {
 #endif
     }
 
-    private func contextMenuActions(for message: MessageSD) -> [QuillMenuAction] {
+    private var selectTextAction: ((MessageSD) -> Void)? {
 #if os(iOS) || os(visionOS)
-        let selectTextAction: (() -> Void)? = { messageSelected = message }
-        let readAloudAction: (() -> Void)? = { onReadAloud(message.content) }
+        { messageSelected = $0 }
 #else
-        let selectTextAction: (() -> Void)? = nil
-        let readAloudAction: (() -> Void)? = nil
+        nil
 #endif
+    }
 
-        return QuillMenuAction.chatMessageActions(
-            content: message.content,
-            isUserMessage: message.role == "user",
-            isEditing: editMessage?.id == message.id,
-            selectText: selectTextAction,
-            readAloud: readAloudAction,
-            onEdit: {
-                withAnimation { editMessage = message }
-            },
-            onUnselect: {
-                withAnimation { editMessage = nil }
-            }
-        )
+    private var readAloudAction: ((MessageSD) -> Void)? {
+#if os(iOS) || os(visionOS)
+        { onReadAloud($0.content) }
+#else
+        nil
+#endif
     }
 }

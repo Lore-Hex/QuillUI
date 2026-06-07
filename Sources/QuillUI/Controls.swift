@@ -1867,6 +1867,90 @@ where Message.ID: Hashable {
     }
 }
 
+public struct QuillEditableMessageList<Message: Identifiable & Hashable, RowContent: View, OverlayContent: View>: View
+where Message.ID: Hashable {
+    public var messages: [Message]
+    @Binding public var editingMessage: Message?
+    public var scrollToken: AnyHashable
+    public var rowVerticalPadding: CGFloat
+    public var rowHorizontalPadding: CGFloat
+    public var clipboard: QuillClipboard
+    private var content: (Message) -> String
+    private var isUserMessage: (Message) -> Bool
+    private var selectText: ((Message) -> Void)?
+    private var readAloud: ((Message) -> Void)?
+    private var additionalActions: (Message) -> [QuillMenuAction]
+    private var rowContent: (Message) -> RowContent
+    private var overlayContent: () -> OverlayContent
+
+    public init(
+        messages: [Message],
+        editingMessage: Binding<Message?>,
+        scrollToken: AnyHashable? = nil,
+        rowVerticalPadding: CGFloat = 10,
+        rowHorizontalPadding: CGFloat = 10,
+        content: @escaping (Message) -> String,
+        isUserMessage: @escaping (Message) -> Bool,
+        selectText: ((Message) -> Void)? = nil,
+        readAloud: ((Message) -> Void)? = nil,
+        additionalActions: @escaping (Message) -> [QuillMenuAction] = { _ in [] },
+        clipboard: QuillClipboard = .shared,
+        @ViewBuilder row: @escaping (Message) -> RowContent,
+        @ViewBuilder overlay: @escaping () -> OverlayContent
+    ) {
+        self.messages = messages
+        self._editingMessage = editingMessage
+        self.scrollToken = scrollToken ?? messages.quillMessageListScrollToken(content: content)
+        self.rowVerticalPadding = rowVerticalPadding
+        self.rowHorizontalPadding = rowHorizontalPadding
+        self.content = content
+        self.isUserMessage = isUserMessage
+        self.selectText = selectText
+        self.readAloud = readAloud
+        self.additionalActions = additionalActions
+        self.clipboard = clipboard
+        self.rowContent = row
+        self.overlayContent = overlay
+    }
+
+    public var body: some View {
+        QuillMessageList(
+            messages: messages,
+            scrollToken: scrollToken,
+            rowVerticalPadding: rowVerticalPadding,
+            rowHorizontalPadding: rowHorizontalPadding,
+            actions: contextMenuActions(for:),
+            row: rowContent,
+            overlay: overlayContent
+        )
+    }
+
+    public func contextMenuActions(for message: Message) -> [QuillMenuAction] {
+        let selectTextAction = selectText.map { selectText in
+            { selectText(message) }
+        }
+        let readAloudAction = readAloud.map { readAloud in
+            { readAloud(message) }
+        }
+
+        return QuillMenuAction.chatMessageActions(
+            content: content(message),
+            isUserMessage: isUserMessage(message),
+            isEditing: editingMessage?.id == message.id,
+            selectText: selectTextAction,
+            readAloud: readAloudAction,
+            additionalActions: additionalActions(message),
+            onEdit: {
+                withAnimation { editingMessage = message }
+            },
+            onUnselect: {
+                withAnimation { editingMessage = nil }
+            },
+            clipboard: clipboard
+        )
+    }
+}
+
 private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable {
     var proxy: ScrollViewProxy
 }
