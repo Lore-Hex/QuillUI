@@ -2464,6 +2464,90 @@ def validate_quill_enchanted_linux_qt_selected_chat(image: Screenshot) -> str:
     )
 
 
+def validate_quill_enchanted_linux_qt_settings(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(960 <= app_width <= 1220, f"Generated Enchanted Qt settings window width is unexpected: {app_width}px")
+    require(660 <= app_height <= 820, f"Generated Enchanted Qt settings window height is unexpected: {app_height}px")
+
+    sidebar_width = min(360, max(300, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
+    panel_pixels = pixel_count(
+        image,
+        detail_left + 60,
+        top + 90,
+        right - 50,
+        bottom - 90,
+        settings_panel_background_pixel,
+    )
+    field_pixels = pixel_count(
+        image,
+        detail_left + 110,
+        top + 180,
+        right - 110,
+        bottom - 120,
+        form_field_pixel,
+    )
+    settings_text_pixels = dark_pixel_count(
+        image,
+        detail_left + 80,
+        top + 105,
+        right - 80,
+        bottom - 110,
+    )
+    bottom_nav_pixels = dark_pixel_count(image, left + 20, bottom - 130, detail_left - 20, bottom - 20)
+    empty_wordmark_pixels = pixel_count(
+        image,
+        detail_left + int((right - detail_left) * 0.25),
+        top + 130,
+        detail_left + int((right - detail_left) * 0.75),
+        min(bottom - 180, top + 430),
+        cool_wordmark_pixel,
+    ) + pixel_count(
+        image,
+        detail_left + int((right - detail_left) * 0.25),
+        top + 130,
+        detail_left + int((right - detail_left) * 0.75),
+        min(bottom - 180, top + 430),
+        warm_wordmark_pixel,
+    )
+    prompt_card_row = best_prompt_card_row(
+        image,
+        top + 180,
+        min(bottom - 120, top + 470),
+        detail_left + 20,
+        right - 20,
+        min_width=110,
+        predicate=generic_qt_card_pixel,
+    )
+
+    require(panel_pixels >= 80_000, f"Generated Enchanted Qt settings panel was not detected: pixels={panel_pixels}")
+    require(field_pixels >= 25_000, f"Generated Enchanted Qt settings fields were not detected: pixels={field_pixels}")
+    require(
+        settings_text_pixels >= 1_200,
+        f"Generated Enchanted Qt settings labels and controls were not detected: pixels={settings_text_pixels}",
+    )
+    require(bottom_nav_pixels >= 300, f"Generated Enchanted Qt settings bottom nav was not detected: pixels={bottom_nav_pixels}")
+    require(
+        empty_wordmark_pixels <= 3_000,
+        "Generated Enchanted Qt settings state still shows the empty-state wordmark: "
+        f"pixels={empty_wordmark_pixels}",
+    )
+    require(prompt_card_row is None, f"Generated Enchanted Qt settings state still shows prompt cards: {prompt_card_row}")
+
+    return (
+        "Quill Enchanted generated Qt settings snapshot: "
+        f"app={app_width}x{app_height}, "
+        f"panel_pixels={panel_pixels}, "
+        f"field_pixels={field_pixels}, "
+        f"settings_text_pixels={settings_text_pixels}, "
+        f"bottom_nav_pixels={bottom_nav_pixels}, "
+        f"empty_wordmark_pixels={empty_wordmark_pixels}, "
+        "prompt_card_row=absent"
+    )
+
+
 def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -2532,6 +2616,7 @@ def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
 ENCHANTED_LINUX_SNAPSHOT_VALIDATORS: dict[str, Callable[[Screenshot], str]] = {
     "quill-enchanted-linux-qt": validate_quill_enchanted_linux_qt_snapshot,
     "quill-enchanted-linux-qt-selected-chat": validate_quill_enchanted_linux_qt_selected_chat,
+    "quill-enchanted-linux-qt-settings": validate_quill_enchanted_linux_qt_settings,
     "quill-enchanted-linux-gtk": validate_quill_enchanted_linux_gtk_snapshot,
 }
 
