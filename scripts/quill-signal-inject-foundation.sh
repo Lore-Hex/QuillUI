@@ -71,6 +71,11 @@ SECURITY_TYPES='\bSec[A-Z][A-Za-z]+|\berrSec[A-Za-z]+|\bkSec[A-Za-z]+'
 # umbrella). On Linux it needs an explicit `import CFNetwork`.
 CFNETWORK_TYPES='\bkCFProxy[A-Za-z]+|\bCFNetworkCopy[A-Za-z]+|\bCFHost[A-Za-z]*|\bCFStreamError\b|\bDarwinBoolean\b'
 
+# AVFoundation: the AVSpeech* surface (HydratedMessageBody builds an
+# AVSpeechUtterance for accessibility read-aloud). The shim defines them but the
+# file imports only UIKit/Foundation -> needs an explicit `import AVFoundation`.
+AVFOUNDATION_TYPES='\bAVSpeechUtterance\b|\bAVSpeechSynthesizer\b|\bAVSpeechSynthesisVoice\b'
+
 # Symbols QuillFoundation provides (Linux-gated) but swift-corelibs does NOT,
 # used by files importing only Foundation -> they need an explicit
 # `import QuillFoundation`: the Darwin time-scale constants (NSEC_PER_SEC etc,
@@ -138,6 +143,7 @@ while IFS= read -r f; do
     if inject_if_needed "$f" "CFNetwork" "$CFNETWORK_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "QuillFoundation" "$TIMECONST_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "GRDBSQLite" "$SQLITE_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "AVFoundation" "$AVFOUNDATION_TYPES"; then touched=1; fi
     if inject_gated_if_needed "$f" "FoundationNetworking" "$FOUNDATIONNETWORKING_TYPES"; then touched=1; fi
     injected=$((injected + touched))
 done < <(find "$ROOT" -name '*.swift' -not -path '*/QuillPort/*')
