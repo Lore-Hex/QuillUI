@@ -65,6 +65,13 @@ public struct QuillPrompt: Identifiable, Hashable, Sendable {
     public var title: String
     public var systemImage: String
 
+    public static let quillChatMacReferencePromptTitles = [
+        "How to center div in HTML?",
+        "How to do personal taxes in USA?",
+        "Explain supercomputers like I'm five years old",
+        "Write a text message asking a friend to be my plus-one at a wedding"
+    ]
+
     public init(id: String? = nil, title: String, systemImage: String) {
         self.id = id ?? title
         self.title = title
@@ -1709,6 +1716,61 @@ public struct QuillChatEmptyState: View {
         return colors[min(index, colors.count - 1)]
     }
     #endif
+}
+
+public struct QuillSelectedPromptEmptyState<Item>: View {
+    public var brandTitle: String
+    public var source: [Item]
+    public var preferredTitles: [String]
+    public var fallbackCount: Int
+    public var layout: QuillPromptGridLayout
+    public var sendPrompt: (String) -> Void
+    private var id: (Item) -> String
+    private var title: (Item) -> String
+    private var systemImage: (Item) -> String
+
+    public init(
+        brandTitle: String,
+        source: [Item],
+        preferredTitles: [String] = QuillPrompt.quillChatMacReferencePromptTitles,
+        fallbackCount: Int = 4,
+        layout: QuillPromptGridLayout = .wideDesktopCards,
+        id: @escaping (Item) -> String,
+        title: @escaping (Item) -> String,
+        systemImage: @escaping (Item) -> String,
+        sendPrompt: @escaping (String) -> Void
+    ) {
+        self.brandTitle = brandTitle
+        self.source = source
+        self.preferredTitles = preferredTitles
+        self.fallbackCount = fallbackCount
+        self.layout = layout
+        self.id = id
+        self.title = title
+        self.systemImage = systemImage
+        self.sendPrompt = sendPrompt
+    }
+
+    public var prompts: [QuillPrompt] {
+        QuillPrompt.selectedPrompts(
+            from: source,
+            preferredTitles: preferredTitles,
+            fallbackCount: fallbackCount,
+            id: id,
+            title: title,
+            systemImage: systemImage
+        )
+    }
+
+    public var body: some View {
+        QuillChatEmptyState(
+            brandTitle: brandTitle,
+            prompts: prompts,
+            layout: layout
+        ) { prompt in
+            sendPrompt(prompt.title)
+        }
+    }
 }
 
 public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Content: View>: View {

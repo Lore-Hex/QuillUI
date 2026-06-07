@@ -116,6 +116,27 @@ struct QuillUITests {
             systemImage: { $0.icon }
         )
         #expect(emptyFallback.isEmpty)
+
+        #expect(QuillPrompt.quillChatMacReferencePromptTitles == [
+            "How to center div in HTML?",
+            "How to do personal taxes in USA?",
+            "Explain supercomputers like I'm five years old",
+            "Write a text message asking a friend to be my plus-one at a wedding"
+        ])
+
+        var sentPrompt = ""
+        let emptyState = QuillSelectedPromptEmptyState(
+            brandTitle: "Quill",
+            source: samples,
+            preferredTitles: ["Beta", "Alpha"],
+            id: { $0.id },
+            title: { $0.prompt },
+            systemImage: { $0.icon },
+            sendPrompt: { sentPrompt = $0 }
+        )
+        #expect(emptyState.prompts.map(\.title) == ["Beta", "Alpha"])
+        emptyState.sendPrompt("Beta")
+        #expect(sentPrompt == "Beta")
     }
 
     @Test("QuillPrompt builds selected-model prompt senders")
