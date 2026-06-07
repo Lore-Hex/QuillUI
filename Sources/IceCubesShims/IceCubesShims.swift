@@ -1,5 +1,12 @@
 #if os(Linux)
 import Foundation
+import SwiftOpenUI
+
+// Scoped `@Observable` for the vendored IceCubes targets (auto-imported via
+// `-import-module IceCubesShims`). Deliberately NOT in the shared SwiftUI shim:
+// re-exporting Observation there changes `@Observable` resolution for other
+// ports' real source and broke Enchanted's runtime composer-send smoke.
+@_exported import Observation
 
 // Linux compile shims for the REAL Dimillian/IceCubesApp `Models` source.
 // These types are absent from swift-corelibs-foundation / the SwiftUI mirror
@@ -78,6 +85,68 @@ public extension AttributedString {
 
     init(markdown: String, options: MarkdownParsingOptions) throws {
         self = AttributedString(stringLiteral: markdown)
+    }
+}
+
+// `@AppStorage` for the vendored IceCubes targets, backed by SwiftOpenUI's
+// StateStorage/Binding (UserDefaults-persisted). IceCubes-scoped (not the
+// shared QuillUI AppStorage) so it resolves via -import-module without the
+// SwiftUI shim having to `@_exported import QuillUI`.
+public protocol IceCubesAppStorageValue {
+    static func readAppStorageValue(forKey key: String) -> Self?
+    static func writeAppStorageValue(_ value: Self, forKey key: String)
+}
+extension String: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> String? { UserDefaults.standard.string(forKey: key) }
+    public static func writeAppStorageValue(_ value: String, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension Bool: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Bool? { UserDefaults.standard.object(forKey: key) != nil ? UserDefaults.standard.bool(forKey: key) : nil }
+    public static func writeAppStorageValue(_ value: Bool, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension Int: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Int? { UserDefaults.standard.object(forKey: key) != nil ? UserDefaults.standard.integer(forKey: key) : nil }
+    public static func writeAppStorageValue(_ value: Int, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension Double: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Double? { UserDefaults.standard.object(forKey: key) != nil ? UserDefaults.standard.double(forKey: key) : nil }
+    public static func writeAppStorageValue(_ value: Double, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+@propertyWrapper
+public struct AppStorage<Value>: AnyStateStorageProvider {
+    private let writeValue: (Value) -> Void
+    public let storage: StateStorage<Value>
+    public init(wrappedValue d: Value, _ key: String) where Value: IceCubesAppStorageValue {
+        writeValue = { Value.writeAppStorageValue($0, forKey: key) }
+        storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? d)
+    }
+    public init(wrappedValue d: Value, _ key: String) where Value: RawRepresentable, Value.RawValue: IceCubesAppStorageValue {
+        writeValue = { Value.RawValue.writeAppStorageValue($0.rawValue, forKey: key) }
+        if let rv = Value.RawValue.readAppStorageValue(forKey: key), let v = Value(rawValue: rv) { storage = StateStorage(v) } else { storage = StateStorage(d) }
+    }
+    public var wrappedValue: Value {
+        get { storage.value }
+        nonmutating set { writeValue(newValue); storage.setValue(newValue) }
+    }
+    public var projectedValue: Binding<Value> {
+        Binding(get: { storage.value }, set: { nv in writeValue(nv); storage.setValue(nv) })
+    }
+    public var anyStorage: AnyStateStorage { storage }
+}
+
+// Stub for the Models SwiftData `TagGroup` (excluded on Linux — SwiftData is
+// Apple-only). Env references it only as a navigation payload type, so a plain
+// class with the same surface suffices.
+public final class TagGroup: Equatable {
+    public var title: String
+    public var symbolName: String
+    public var tags: [String]
+    public var creationDate: Date
+    public init(title: String, symbolName: String, tags: [String]) {
+        self.title = title; self.symbolName = symbolName; self.tags = tags; self.creationDate = Date()
+    }
+    public static func == (l: TagGroup, r: TagGroup) -> Bool {
+        l.title == r.title && l.symbolName == r.symbolName && l.tags == r.tags && l.creationDate == r.creationDate
     }
 }
 #endif

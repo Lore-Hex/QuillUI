@@ -43,6 +43,11 @@ public class UIApplication: NSObject {
         return false
         #endif
     }
+    // Async form used by SwiftUI/UIKit real source (`await UIApplication.shared.open(url)`).
+    // Disambiguate to the completion-handler overload to avoid recursing into itself.
+    @MainActor @discardableResult public func open(_ url: URL) async -> Bool {
+        open(url, options: [:], completionHandler: nil)
+    }
     @MainActor public func registerForRemoteNotifications() {}
     public enum LaunchOptionsKey: Hashable { case remoteNotification }
     @MainActor public var connectedScenes: Set<UIScene> = []
