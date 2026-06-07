@@ -21,8 +21,6 @@ private final class QuillGTKHoverActionBox {
 extension OnHoverView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = quillGTKHoverWidgetPointer(gtkRenderView(content))
-        let controller = gtk_event_controller_motion_new()
-        gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)
         let box = QuillGTKHoverActionBox(action)
         let retainedBox = Unmanaged.passRetained(box).toOpaque()
         let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
@@ -32,33 +30,56 @@ extension OnHoverView: GTKRenderable {
             Unmanaged<QuillGTKHoverActionBox>.fromOpaque(userData).release()
         }
 
-        g_signal_connect_data(
-            gpointer(controller),
-            "enter",
-            unsafeBitCast({ (_: gpointer?, _: Double, _: Double, userData: gpointer?) in
-                guard let userData else { return }
-                Unmanaged<QuillGTKHoverActionBox>.fromOpaque(userData).takeUnretainedValue().update(true)
-            } as @convention(c) (gpointer?, Double, Double, gpointer?) -> Void, to: GCallback.self),
-            retainedBox,
-            nil,
-            GConnectFlags(rawValue: 0)
-        )
-
-        g_signal_connect_data(
-            gpointer(controller),
-            "leave",
-            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                guard let userData else { return }
-                Unmanaged<QuillGTKHoverActionBox>.fromOpaque(userData).takeUnretainedValue().update(false)
-            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-            retainedBox,
-            nil,
-            GConnectFlags(rawValue: 0)
-        )
-
-        gtk_widget_add_controller(widget, controller)
+        quillGTKInstallHoverControllers(on: widget, retainedBox: retainedBox)
         return OpaquePointer(widget)
     }
+}
+
+private func quillGTKInstallHoverControllers(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    retainedBox: UnsafeMutableRawPointer
+) {
+    quillGTKInstallHoverController(on: widget, retainedBox: retainedBox)
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        quillGTKInstallHoverControllers(on: current, retainedBox: retainedBox)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private func quillGTKInstallHoverController(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    retainedBox: UnsafeMutableRawPointer
+) {
+    let controller = gtk_event_controller_motion_new()
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)
+
+    g_signal_connect_data(
+        gpointer(controller),
+        "enter",
+        unsafeBitCast({ (_: gpointer?, _: Double, _: Double, userData: gpointer?) in
+            guard let userData else { return }
+            Unmanaged<QuillGTKHoverActionBox>.fromOpaque(userData).takeUnretainedValue().update(true)
+        } as @convention(c) (gpointer?, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        retainedBox,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+
+    g_signal_connect_data(
+        gpointer(controller),
+        "leave",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            Unmanaged<QuillGTKHoverActionBox>.fromOpaque(userData).takeUnretainedValue().update(false)
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        retainedBox,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+
+    gtk_widget_add_controller(widget, controller)
 }
 
 private func quillGTKHoverWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
