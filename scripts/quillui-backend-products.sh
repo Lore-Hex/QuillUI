@@ -596,6 +596,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:copy-chat)
       verify_product="quill-chat-linux-mac-reference-copy-chat"
       ;;
+    *:toolbar-model-selected)
+      verify_product="quill-chat-linux-mac-reference-toolbar-model-selected"
+      ;;
     *)
       verify_product="quill-chat-linux-toolbar-menu"
       if quillui_is_quill_chat_mac_reference_product quill-chat-linux; then

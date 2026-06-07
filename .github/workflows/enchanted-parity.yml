@@ -134,6 +134,7 @@ jobs:
             completions-edit-save \
             completions-delete \
             new-chat \
+            toolbar-model-selected \
             prompt-send \
             copy-chat \
             history-selection \

@@ -149,6 +149,10 @@ Recently cleared:
   row: it selects a seeded transcript first, clicks the compose action, and
   verifies the empty chat wordmark, prompt cards, unreachable alert, and
   composer return.
+- Toolbar model selection is covered by the same verifier via the
+  `toolbar-model-selected` row: it opens the top-right model menu, selects the
+  seeded non-image model, sends a starter prompt, and asserts the newest
+  QuillData conversation persisted that selected model.
 
 ## Non-Goals For The First Release
 

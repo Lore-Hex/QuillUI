@@ -569,6 +569,38 @@ copy_quill_chat_transcript() {
   sleep "${QUILLUI_BACKEND_COPY_CHAT_SLEEP:-1.5}"
 }
 
+select_quill_chat_toolbar_model_and_send_prompt() {
+  local menu_x
+  local menu_y
+  local model_x
+  local model_y
+  local prompt_x
+  local prompt_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    menu_x="${QUILLUI_BACKEND_MODEL_MENU_CLICK_X:-1887}"
+    menu_y="${QUILLUI_BACKEND_MODEL_MENU_CLICK_Y:-57}"
+    model_x="${QUILLUI_BACKEND_MODEL_MENU_SELECT_X:-1810}"
+    model_y="${QUILLUI_BACKEND_MODEL_MENU_SELECT_Y:-134}"
+    prompt_x="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_X:-820}"
+    prompt_y="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_Y:-610}"
+  else
+    menu_x="${QUILLUI_BACKEND_MODEL_MENU_CLICK_X:-$((window_x + window_width - 134))}"
+    menu_y="${QUILLUI_BACKEND_MODEL_MENU_CLICK_Y:-$((window_y + 54))}"
+    model_x="${QUILLUI_BACKEND_MODEL_MENU_SELECT_X:-$((window_x + window_width - 240))}"
+    model_y="${QUILLUI_BACKEND_MODEL_MENU_SELECT_Y:-$((window_y + 118))}"
+    prompt_x="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_X:-$((window_x + 820))}"
+    prompt_y="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_Y:-$((window_y + 610))}"
+  fi
+
+  click_at "$menu_x" "$menu_y"
+  sleep 0.8
+  click_at "$model_x" "$model_y"
+  sleep 1
+  click_at "$prompt_x" "$prompt_y"
+  sleep 3
+}
+
 open_quill_chat_settings_delete_confirmation() {
   local settings_x
   local settings_y
@@ -794,6 +826,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       copy-chat)
         copy_quill_chat_transcript
+        ;;
+      toolbar-model-selected)
+        select_quill_chat_toolbar_model_and_send_prompt
         ;;
       history-selection)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
@@ -1145,6 +1180,61 @@ verify_quill_chat_delete_confirmed_if_needed() {
   return 65
 }
 
+quill_chat_latest_conversation_uses_model() {
+  local database_path="$1"
+  local expected_model="$2"
+
+  python3 - "$database_path" "$expected_model" <<'PY'
+import json
+import sqlite3
+import sys
+
+database_path = sys.argv[1]
+expected_model = sys.argv[2]
+connection = sqlite3.connect(database_path)
+latest = None
+for (table,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'"):
+    if not table.endswith("_ConversationSD"):
+        continue
+    for (_key, payload) in connection.execute(f'SELECT * FROM "{table}"'):
+        item = json.loads(bytes(payload).decode("utf-8"))
+        timestamp = float(item.get("createdAt") or item.get("updatedAt") or 0)
+        model_name = (item.get("model") or {}).get("name")
+        if latest is None or timestamp > latest[0]:
+            latest = (timestamp, model_name, item.get("name"))
+connection.close()
+if latest and latest[1] == expected_model:
+    print(latest)
+    raise SystemExit(0)
+print(latest)
+raise SystemExit(1)
+PY
+}
+
+verify_quill_chat_toolbar_model_selected_if_needed() {
+  [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "toolbar-model-selected" ]] || return 0
+
+  local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+  local selected_model="${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}"
+  if [[ ! -f "$database_path" ]]; then
+    echo "QuillData database for toolbar model selection was not found: $database_path" >&2
+    return 65
+  fi
+
+  local attempt
+  for attempt in {1..20}; do
+    if quill_chat_latest_conversation_uses_model "$database_path" "$selected_model" >/tmp/quill-chat-toolbar-model-selected.txt 2>&1; then
+      printf 'Toolbar model selection verified through QuillData: %s\n' "$selected_model"
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "Toolbar model selection did not persist the expected chat model: $selected_model" >&2
+  cat /tmp/quill-chat-toolbar-model-selected.txt >&2 || true
+  return 65
+}
+
 VERIFY_PRODUCT=""
 quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" VERIFY_PRODUCT
 if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
@@ -1157,6 +1247,11 @@ if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_
     delete_status=$?
     quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
     exit "$delete_status"
+  }
+  verify_quill_chat_toolbar_model_selected_if_needed || {
+    model_status=$?
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
+    exit "$model_status"
   }
 else
   verify_status=$?

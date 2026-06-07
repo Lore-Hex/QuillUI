@@ -2237,6 +2237,15 @@ def validate_quill_chat_mac_reference_composer_send(image: Screenshot) -> str:
     )
 
 
+def validate_quill_chat_mac_reference_toolbar_model_selected(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference_sent_message(
+        image,
+        "toolbar model-selected",
+        minimum_message_pixels=350,
+        minimum_right_aligned_message_pixels=220,
+    )
+
+
 def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -3910,6 +3919,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_prompt_send(image))
     elif product == "quill-chat-linux-mac-reference-composer-send":
         print(validate_quill_chat_mac_reference_composer_send(image))
+    elif product == "quill-chat-linux-mac-reference-toolbar-model-selected":
+        print(validate_quill_chat_mac_reference_toolbar_model_selected(image))
     elif product == "quill-chat-linux-mac-reference-new-chat":
         print(validate_quill_chat_mac_reference(image))
     elif product == "quill-chat-linux-mac-reference-copy-chat":
