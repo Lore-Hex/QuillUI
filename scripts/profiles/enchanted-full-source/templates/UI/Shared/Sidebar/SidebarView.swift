@@ -12,7 +12,6 @@ struct SidebarView: View {
     var onConversationTap: (_ conversation: ConversationSD) -> ()
     var onConversationDelete: (_ conversation: ConversationSD) -> ()
     var onDeleteDailyConversations: (_ date: Date) -> ()
-    var onNewConversationTap: () -> () = {}
     @State var showSettings = false
     @State var showCompletions = false
     @State var showKeyboardShortcuts = false

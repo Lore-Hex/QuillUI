@@ -49,7 +49,6 @@ struct ChatView: View {
     var body: some View {
         QuillDesktopChatScaffold(
             title: "Enchanted",
-            sidebarWidth: 320,
             hasSelection: selectedConversation != nil,
             showsStatus: !reachable,
             modelActions: modelMenuActions,
@@ -61,8 +60,7 @@ struct ChatView: View {
                 conversations: conversations,
                 onConversationTap: onConversationTap,
                 onConversationDelete: onConversationDelete,
-                onDeleteDailyConversations: onDeleteDailyConversations,
-                onNewConversationTap: onNewConversationTap
+                onDeleteDailyConversations: onDeleteDailyConversations
             )
         } selectedContent: {
             MessageListView(
