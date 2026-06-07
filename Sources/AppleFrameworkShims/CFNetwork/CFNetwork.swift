@@ -35,7 +35,7 @@ public func CFNetworkCopySystemProxySettings() -> Unmanaged<CFDictionary>? { nil
 
 /// Never reached at runtime (the settings guard short-circuits on the nil above),
 /// but must type-check: returns an empty proxy list.
-public func CFNetworkCopyProxiesForURL(_ url: CFURL, _ proxySettings: CFDictionary) -> Unmanaged<CFArray> {
+public func CFNetworkCopyProxiesForURL(_ url: URL, _ proxySettings: CFDictionary) -> Unmanaged<CFArray> {
     // swift-corelibs has no NSArray<->CFArray toll-free bridge, so build the
     // (empty) CFArray via the C constructor.
     Unmanaged.passRetained(CFArrayCreate(nil, nil, 0, nil))

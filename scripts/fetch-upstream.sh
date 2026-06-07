@@ -393,6 +393,41 @@ open(path, "w").write(s)
 PY
     fi
 
+    # swift-corelibs has no URL<->CFURL bridge, so `someURL as CFURL` ("URL is not
+    # convertible to CFURL") fails. The receivers are our own shims now changed to
+    # take URL (CGImageSourceCreateWithURL / CFNetworkCopyProxiesForURL /
+    # AudioServicesCreateSystemSoundID); drop the casts at their call sites.
+    # (CGImageDestinationCreateWithURL is left -- that shim isn't provided yet.)
+    echo "==> patching signal-ios drop `as CFURL` at URL-shim call sites"
+    python3 - "$UPSTREAM_DIR/signal-ios/SignalServiceKit" <<'PY'
+import sys, os
+root = sys.argv[1]
+subs = [
+    ("CGImageSourceCreateWithURL(fileUrl as CFURL", "CGImageSourceCreateWithURL(fileUrl"),
+    ("CGImageSourceCreateWithURL(fileUrlForSpritesheet() as CFURL", "CGImageSourceCreateWithURL(fileUrlForSpritesheet()"),
+    ("CFNetworkCopyProxiesForURL(chatURL as CFURL", "CFNetworkCopyProxiesForURL(chatURL"),
+    ("AudioServicesCreateSystemSoundID(url as CFURL", "AudioServicesCreateSystemSoundID(url"),
+]
+n = 0
+for dp, _d, fs in os.walk(root):
+    if "/QuillPort" in dp:
+        continue
+    for f in fs:
+        if not f.endswith(".swift"):
+            continue
+        p = os.path.join(dp, f)
+        if os.path.islink(p):
+            continue
+        s = open(p, encoding="utf-8").read()
+        o = s
+        for a, b in subs:
+            s = s.replace(a, b)
+        if s != o:
+            open(p, "w", encoding="utf-8").write(s)
+            n += 1
+print("  dropped as-CFURL at", n, "files")
+PY
+
     # MessageProcessingPipelineStage was an `@objc protocol` with `optional func`
     # members on Apple. The lowering pass strips `@objc` (-> plain `public
     # protocol`), which makes `optional` invalid ("'optional' can only be applied

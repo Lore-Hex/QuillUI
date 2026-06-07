@@ -45,7 +45,9 @@ public func CGImageSourceCreateWithData(_ data: CFData, _ options: CFDictionary?
 
 public func CGImageSourceCreateWithDataProvider(_ provider: CGDataProvider, _ options: CFDictionary?) -> CGImageSource? { nil }
 
-public func CGImageSourceCreateWithURL(_ url: CFURL, _ options: CFDictionary?) -> CGImageSource? { nil }
+// Takes URL (not CFURL): swift-corelibs has no URL<->CFURL bridge, so callers
+// can't write `url as CFURL`; the fetch-patch drops that cast and passes the URL.
+public func CGImageSourceCreateWithURL(_ url: URL, _ options: CFDictionary?) -> CGImageSource? { nil }
 
 public func CGImageSourceGetCount(_ isrc: CGImageSource) -> Int { 0 }
 

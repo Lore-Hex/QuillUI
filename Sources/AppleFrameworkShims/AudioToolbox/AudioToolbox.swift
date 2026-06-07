@@ -22,7 +22,7 @@ public let kSystemSoundID_Vibrate: SystemSoundID = 0x0000_0FFF
 /// `kAudioServicesNoError == ...` guard passes and playback is simply a no-op.
 @discardableResult
 public func AudioServicesCreateSystemSoundID(
-    _ inFileURL: CFURL,
+    _ inFileURL: URL,
     _ outSystemSoundID: UnsafeMutablePointer<SystemSoundID>
 ) -> Int32 {
     outSystemSoundID.pointee = 1
