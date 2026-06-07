@@ -956,6 +956,24 @@ final class RSSReaderModel: ObservableObject {
         return mergeImportedFeeds([Feed(title: displayTitle, url: trimmedURL)]) > 0
     }
 
+    /// Unsubscribe from a feed by id — the NetNewsWire "Delete Feed" action.
+    /// Removes it from the subscribed list; if the removed feed was the current
+    /// selection, the selection moves to the first remaining feed (or nil when
+    /// the list becomes empty). Persists the new list. Returns true if a feed
+    /// was removed (false if no subscribed feed had that id).
+    @discardableResult
+    func removeFeed(id: Feed.ID) -> Bool {
+        guard let index = subscribedFeeds.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+        subscribedFeeds.remove(at: index)
+        if selectedFeedID == id {
+            selectedFeedID = subscribedFeeds.first?.id
+        }
+        persistFeedList()
+        return true
+    }
+
     /// Serialize the current subscribed feed list as OPML 2.0.
     /// The result round-trips through `importOPML(xml:)` to the
     /// same feed list (modulo the optional list title).
