@@ -26,6 +26,14 @@ case "$HARNESS_MODE" in
     VERIFY_PRODUCT="quill-enchanted-linux-qt-settings"
     CLICK_NAVIGATION="settings"
     ;;
+  completions-click)
+    VERIFY_PRODUCT="quill-enchanted-linux-qt-utility"
+    CLICK_NAVIGATION="completions"
+    ;;
+  shortcuts-click)
+    VERIFY_PRODUCT="quill-enchanted-linux-qt-utility"
+    CLICK_NAVIGATION="shortcuts"
+    ;;
   *)
     echo "Unsupported generic Qt Enchanted harness mode: $HARNESS_MODE" >&2
     exit 64

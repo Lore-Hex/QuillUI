@@ -419,6 +419,41 @@ def dark_pixel_count(image: Screenshot, x0: int, y0: int, x1: int, y1: int) -> i
     )
 
 
+def dark_row_segment_count(
+    image: Screenshot,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    *,
+    min_row_pixels: int,
+    min_height: int,
+) -> int:
+    count = 0
+    start: int | None = None
+    last = 0
+
+    for y in range(max(0, y0), min(image.height, y1)):
+        row_pixels = sum(
+            1
+            for x in range(max(0, x0), min(image.width, x1))
+            if sum(image.rgb(x, y)) < 420
+        )
+        if row_pixels >= min_row_pixels:
+            if start is None:
+                start = y
+            last = y
+        elif start is not None:
+            if last - start + 1 >= min_height:
+                count += 1
+            start = None
+
+    if start is not None and last - start + 1 >= min_height:
+        count += 1
+
+    return count
+
+
 def pixel_count(
     image: Screenshot,
     x0: int,
@@ -487,6 +522,11 @@ def mac_window_control_pixel(rgb: tuple[int, int, int]) -> bool:
 def colorful_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return max(rgb) - min(rgb) >= 35 and 180 <= sum(rgb) <= 650
+
+
+def mac_reference_completion_action_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return blue >= 180 and blue - red >= 40 and blue - green >= 40 and max(rgb) - min(rgb) >= 40
 
 
 def cool_wordmark_pixel(rgb: tuple[int, int, int]) -> bool:
@@ -1474,6 +1514,74 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
         f"Mac-reference completions list dividers were not detected: rows={row_divider_count}",
     )
 
+    if panel_kind == "root-overlay":
+        close_roi = (
+            left + int(app_width * 0.71),
+            top + int(app_height * 0.275),
+            left + int(app_width * 0.79),
+            top + int(app_height * 0.335),
+        )
+        new_completion_roi = (
+            left + int(app_width * 0.70),
+            top + int(app_height * 0.33),
+            left + int(app_width * 0.80),
+            top + int(app_height * 0.405),
+        )
+        row_action_roi = (
+            left + int(app_width * 0.725),
+            top + int(app_height * 0.37),
+            left + int(app_width * 0.79),
+            top + int(app_height * 0.53),
+        )
+    else:
+        close_roi = (
+            max(list_x0, list_x1 - 180),
+            top + 8,
+            list_x1,
+            top + 70,
+        )
+        new_completion_roi = (
+            max(list_x0, list_x1 - 240),
+            list_y0 + int(app_height * 0.03),
+            list_x1,
+            list_y0 + int(app_height * 0.09),
+        )
+        row_action_roi = (
+            max(list_x0, list_x1 - 180),
+            list_y0 + int(app_height * 0.08),
+            list_x1,
+            list_y1,
+        )
+
+    close_pixels = dark_pixel_count(image, *close_roi)
+    require(
+        close_pixels >= 60,
+        f"Mac-reference completions Close control was not detected: pixels={close_pixels}, roi={close_roi}",
+    )
+
+    new_completion_pixels = pixel_count(
+        image,
+        *new_completion_roi,
+        mac_reference_completion_action_pixel,
+    )
+    require(
+        new_completion_pixels >= 120,
+        "Mac-reference completions New Completion action was not detected: "
+        f"pixels={new_completion_pixels}, roi={new_completion_roi}",
+    )
+
+    row_action_segments = dark_row_segment_count(
+        image,
+        *row_action_roi,
+        min_row_pixels=2,
+        min_height=4,
+    )
+    require(
+        row_action_segments >= 4,
+        "Mac-reference completions row edit/delete actions were not detected: "
+        f"segments={row_action_segments}, roi={row_action_roi}",
+    )
+
     wordmark_pixels = pixel_count(
         image,
         left + int(app_width * 0.50),
@@ -1494,6 +1602,9 @@ def validate_quill_chat_mac_reference_completions_panel(image: Screenshot) -> st
         f"title_pixels={title_pixels}, "
         f"text_pixels={panel_dark_pixels}, "
         f"divider_rows={row_divider_count}, "
+        f"close_pixels={close_pixels}, "
+        f"new_completion_pixels={new_completion_pixels}, "
+        f"row_action_segments={row_action_segments}, "
         f"wordmark_pixels={wordmark_pixels}"
     )
 
@@ -2548,6 +2659,69 @@ def validate_quill_enchanted_linux_qt_settings(image: Screenshot) -> str:
     )
 
 
+def validate_quill_enchanted_linux_qt_utility(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(960 <= app_width <= 1220, f"Generated Enchanted Qt utility window width is unexpected: {app_width}px")
+    require(660 <= app_height <= 820, f"Generated Enchanted Qt utility window height is unexpected: {app_height}px")
+
+    sidebar_width = min(360, max(300, int(app_width * 0.30)))
+    detail_left = left + sidebar_width
+    panel_pixels = pixel_count(
+        image,
+        detail_left + 80,
+        top + 130,
+        right - 80,
+        bottom - 170,
+        settings_panel_background_pixel,
+    )
+    utility_text_pixels = dark_pixel_count(
+        image,
+        detail_left + 110,
+        top + 150,
+        right - 110,
+        bottom - 190,
+    )
+    field_pixels = pixel_count(
+        image,
+        detail_left + 110,
+        top + 170,
+        right - 110,
+        bottom - 180,
+        form_field_pixel,
+    )
+    bottom_nav_pixels = dark_pixel_count(image, left + 20, bottom - 130, detail_left - 20, bottom - 20)
+    prompt_card_row = best_prompt_card_row(
+        image,
+        top + 180,
+        min(bottom - 120, top + 470),
+        detail_left + 20,
+        right - 20,
+        min_width=110,
+        predicate=generic_qt_card_pixel,
+    )
+
+    require(panel_pixels >= 35_000, f"Generated Enchanted Qt utility panel was not detected: pixels={panel_pixels}")
+    require(
+        utility_text_pixels >= 500,
+        f"Generated Enchanted Qt utility panel text was not detected: pixels={utility_text_pixels}",
+    )
+    require(field_pixels <= 15_000, f"Generated Enchanted Qt utility panel unexpectedly shows settings fields: {field_pixels}")
+    require(bottom_nav_pixels >= 300, f"Generated Enchanted Qt utility bottom nav was not detected: pixels={bottom_nav_pixels}")
+    require(prompt_card_row is None, f"Generated Enchanted Qt utility state still shows prompt cards: {prompt_card_row}")
+
+    return (
+        "Quill Enchanted generated Qt utility snapshot: "
+        f"app={app_width}x{app_height}, "
+        f"panel_pixels={panel_pixels}, "
+        f"utility_text_pixels={utility_text_pixels}, "
+        f"field_pixels={field_pixels}, "
+        f"bottom_nav_pixels={bottom_nav_pixels}, "
+        "prompt_card_row=absent"
+    )
+
+
 def validate_quill_enchanted_linux_gtk_snapshot(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -2617,6 +2791,7 @@ ENCHANTED_LINUX_SNAPSHOT_VALIDATORS: dict[str, Callable[[Screenshot], str]] = {
     "quill-enchanted-linux-qt": validate_quill_enchanted_linux_qt_snapshot,
     "quill-enchanted-linux-qt-selected-chat": validate_quill_enchanted_linux_qt_selected_chat,
     "quill-enchanted-linux-qt-settings": validate_quill_enchanted_linux_qt_settings,
+    "quill-enchanted-linux-qt-utility": validate_quill_enchanted_linux_qt_utility,
     "quill-enchanted-linux-gtk": validate_quill_enchanted_linux_gtk_snapshot,
 }
 

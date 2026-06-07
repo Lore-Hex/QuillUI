@@ -479,6 +479,10 @@ struct SourceHygieneTests {
     @Test("Linux Apple compatibility shims avoid generated app warnings")
     func linuxAppleCompatibilityShimsAvoidGeneratedAppWarnings() throws {
         let root = try packageRoot()
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
         let appKit = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillAppKit/QuillAppKit.swift"),
             encoding: .utf8
@@ -494,6 +498,7 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\"], path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
     }
 
@@ -2414,10 +2419,15 @@ struct SourceHygieneTests {
         #expect(genericQtHarness.contains("selected-chat|list-selection)"))
         #expect(genericQtHarness.contains("settings)"))
         #expect(genericQtHarness.contains("settings-click)"))
+        #expect(genericQtHarness.contains("completions-click)"))
+        #expect(genericQtHarness.contains("shortcuts-click)"))
         #expect(genericQtHarness.contains("VERIFY_PRODUCT=\"quill-enchanted-linux-qt-selected-chat\""))
         #expect(genericQtHarness.contains("VERIFY_PRODUCT=\"quill-enchanted-linux-qt-settings\""))
+        #expect(genericQtHarness.contains("VERIFY_PRODUCT=\"quill-enchanted-linux-qt-utility\""))
         #expect(genericQtHarness.contains("ACTIVE_NAVIGATION=\"settings\""))
         #expect(genericQtHarness.contains("CLICK_NAVIGATION=\"settings\""))
+        #expect(genericQtHarness.contains("CLICK_NAVIGATION=\"completions\""))
+        #expect(genericQtHarness.contains("CLICK_NAVIGATION=\"shortcuts\""))
         #expect(genericQtHarness.contains("static const char selectedChatPayload[]"))
         #expect(genericQtHarness.contains("QUILLUI_GENERIC_QT_ACTIVE_NAVIGATION=\"$active_navigation\""))
         #expect(genericQtHarness.contains("QUILLUI_GENERIC_QT_AUTOMATION_CLICK_NAVIGATION=\"$click_navigation\""))
@@ -2540,9 +2550,20 @@ struct SourceHygieneTests {
         #expect(genericQtHost.contains("settingsValue(payload, \"appearanceLabel\", QStringLiteral(\"Appearance\"))"))
         #expect(genericQtHost.contains("settingsValue(payload, \"initialsLabel\", QStringLiteral(\"Initials\"))"))
         #expect(genericQtHost.contains("void populateSettingsContent("))
-        #expect(genericQtHost.contains("activeNavigationIdentifier(payload) == QStringLiteral(\"settings\")"))
+        #expect(genericQtHost.contains("QFrame *utilityPaneWidget("))
+        #expect(genericQtHost.contains("QString defaultNavigationSubtitle(const QString &navigationAction)"))
+        #expect(genericQtHost.contains("Prompt completions use the shared Enchanted profile."))
+        #expect(genericQtHost.contains("Keyboard shortcuts use the shared QuillKit shortcut surface."))
+        #expect(genericQtHost.contains("No completions yet."))
+        #expect(genericQtHost.contains("No shortcuts yet."))
+        #expect(genericQtHost.contains("void populateUtilityContent("))
+        #expect(genericQtHost.contains("void populateNavigationContent("))
+        #expect(genericQtHost.contains("const QString activeNavigation = activeNavigationIdentifier(payload)"))
+        #expect(genericQtHost.contains("if (chatMode && !activeNavigation.isEmpty())"))
         #expect(genericQtHost.contains("button->property(\"navigationAction\").toString()"))
-        #expect(genericQtHost.contains("populateSettingsContent(detailPane.contentLayout, payload, style)"))
+        #expect(genericQtHost.contains("populateNavigationContent(\n                    detailPane.contentLayout"))
+        #expect(genericQtHost.contains("button->property(\"navigationTitle\").toString()"))
+        #expect(genericQtHost.contains("button->property(\"navigationSubtitle\").toString()"))
         #expect(genericQtHost.contains("QTimer::singleShot(250, &root"))
         #expect(genericQtHost.contains("button->click()"))
         #expect(genericQtHost.contains("headerIconButton(\n        QStringLiteral(\"chevron.down\")"))
@@ -3153,12 +3174,17 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt\": validate_quill_enchanted_linux_qt_snapshot"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt-selected-chat\": validate_quill_enchanted_linux_qt_selected_chat"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt-settings\": validate_quill_enchanted_linux_qt_settings"))
+        #expect(screenshotVerifier.contains("\"quill-enchanted-linux-qt-utility\": validate_quill_enchanted_linux_qt_utility"))
         #expect(screenshotVerifier.contains("\"quill-enchanted-linux-gtk\": validate_quill_enchanted_linux_gtk_snapshot"))
         #expect(screenshotVerifier.contains("empty_wordmark_pixels <= 3_000"))
         #expect(screenshotVerifier.contains("def validate_quill_enchanted_linux_qt_settings"))
+        #expect(screenshotVerifier.contains("def validate_quill_enchanted_linux_qt_utility"))
         #expect(screenshotVerifier.contains("panel_pixels >= 80_000"))
+        #expect(screenshotVerifier.contains("panel_pixels >= 35_000"))
         #expect(screenshotVerifier.contains("field_pixels >= 25_000"))
+        #expect(screenshotVerifier.contains("field_pixels <= 15_000"))
         #expect(screenshotVerifier.contains("settings_text_pixels >= 1_200"))
+        #expect(screenshotVerifier.contains("utility_text_pixels >= 500"))
         #expect(screenshotVerifier.contains("prompt_card_row=absent"))
         #expect(screenshotVerifier.contains("composer_accessory_pixels >= 20"))
         #expect(screenshotVerifier.contains("enchanted_user_bubble_pixel"))
@@ -3642,6 +3668,41 @@ struct SourceHygieneTests {
             #expect(source.contains("text-shadow: none;"))
             #expect(!source.contains("border: none; background: none; padding: 0;"))
         }
+    }
+
+    @Test("GTK patcher preserves fixed-frame and list viewport sizing contracts")
+    func gtkPatcherPreservesFixedFrameAndListViewportSizingContracts() throws {
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        #expect(patcher.contains("fixed_frame_child_sizing = \"SwiftUI proposes the clamped fixed-frame size to children\""))
+        #expect(patcher.contains("gtkPixelSize(layout.childPlacement.size.width)"))
+        #expect(patcher.contains("gtkPixelSize(layout.childPlacement.size.height)"))
+        #expect(patcher.contains("fixed_frame_expanding_child_sizing = \"Expanding fixed-frame children receive the proposed frame size\""))
+        #expect(patcher.contains("childExpH ? gtkPixelSize(layout.childPlacement.size.width) : -1"))
+        #expect(patcher.contains("childExpV ? gtkPixelSize(layout.childPlacement.size.height) : -1"))
+        #expect(patcher.contains("fixed_frame_box_clipping = \"Fixed-frame clipping uses a normal GtkBox allocation\""))
+        #expect(patcher.contains("let slot: UnsafeMutablePointer<GtkWidget> = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!"))
+        #expect(patcher.contains("gtk_box_append(boxPointer(slot), child)"))
+        #expect(patcher.contains("padded_view_child_fill = \"PaddedView must let expanding content fill its margin wrapper\""))
+        #expect(patcher.contains("gtk_widget_set_halign(child, GTK_ALIGN_FILL)"))
+        #expect(patcher.contains("gtk_widget_set_valign(child, GTK_ALIGN_FILL)"))
+        #expect(patcher.contains("gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)"))
+        #expect(patcher.contains("gtk_widget_set_halign(row, GTK_ALIGN_FILL)"))
+        #expect(patcher.contains("gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)"))
+    }
+
+    @Test("Completions screenshot verifier requires trailing controls")
+    func completionsScreenshotVerifierRequiresTrailingControls() throws {
+        let verifier = try packageSource("scripts/verify-backend-screenshot.py")
+
+        #expect(verifier.contains("def mac_reference_completion_action_pixel"))
+        #expect(verifier.contains("def dark_row_segment_count"))
+        #expect(verifier.contains("Mac-reference completions Close control was not detected"))
+        #expect(verifier.contains("Mac-reference completions New Completion action was not detected"))
+        #expect(verifier.contains("Mac-reference completions row edit/delete actions were not detected"))
+        #expect(verifier.contains("close_pixels >= 60"))
+        #expect(verifier.contains("new_completion_pixels >= 120"))
+        #expect(verifier.contains("row_action_segments >= 4"))
     }
 
     @Test("Vendored GTK renderer preserves SwiftUI scroll row width contract")
