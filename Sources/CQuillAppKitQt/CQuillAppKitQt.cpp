@@ -44,6 +44,26 @@ int quill_appkit_qt_app_init(void) {
         QFont::insertSubstitutions("SF Pro Text", {"Inter", "Helvetica Neue", "Nimbus Sans", "DejaVu Sans"});
         QFont::insertSubstitutions("SF Pro", {"Inter", "Helvetica Neue", "Nimbus Sans", "DejaVu Sans"});
         QFont::insertSubstitutions(".AppleSystemUIFont", {"Inter", "Helvetica Neue", "Nimbus Sans", "DejaVu Sans"});
+
+        // macOS-like control painting via a Qt stylesheet (an approximation — the
+        // QuillPaint Mac* painters give true pixel parity in a later rung). macOS
+        // push buttons: a rounded white bezel with a subtle top-down gradient and
+        // a hairline border; label text in the macOS near-black (#1D1D1F). Scoped
+        // to this AppKit-bridge QApplication, so it never touches the generic-Qt
+        // app products (which use their own Qt runtime/process).
+        g_app->setStyleSheet(R"QSS(
+QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F4F4F6);
+    border: 1px solid #C3C3C8;
+    border-radius: 6px;
+    padding: 3px 12px;
+    color: #1D1D1F;
+}
+QPushButton:hover { background-color: #FAFAFB; }
+QPushButton:pressed { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #E6E6EB, stop:1 #DCDCE2); }
+QPushButton:disabled { color: #AEAEB2; border-color: #DBDBE0; }
+QLabel { color: #1D1D1F; }
+)QSS");
     }
     return QApplication::instance() != nullptr ? 1 : 0;
 }
