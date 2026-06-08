@@ -310,7 +310,8 @@ if [[ "$BACKEND_FACADE" == "qt" ]]; then
   QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     "${quillui_build_args[@]}"
 else
-  swift build "${quillui_build_args[@]}"
+  QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+    "${quillui_build_args[@]}"
 fi
 
 cat <<MSG

@@ -217,7 +217,10 @@ if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" ]]; then
     --scratch-path "$WORK_ROOT/.build-check" \
     --show-bin-path)"
 else
-  BIN_DIR="$(swift build \
+  "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
+    --backend gtk \
+    --scratch-path "$WORK_ROOT/.build-check"
+  BIN_DIR="$(QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     --disable-index-store \
     --package-path "$WORK_ROOT/package" \
     --scratch-path "$WORK_ROOT/.build-check" \
