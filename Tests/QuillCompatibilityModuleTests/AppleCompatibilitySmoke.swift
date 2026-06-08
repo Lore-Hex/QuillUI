@@ -58,6 +58,14 @@ enum AppleCompatibilitySmoke {
         var operations: Set<String>
     }
 
+    struct AppKitWorkspaceOpenResult {
+        var directOpenSucceeded: Bool
+        var configurationOpenSucceeded: Bool
+        var configurationCompletionSucceeded: Bool
+        var openedURLs: [URL]
+        var operations: Set<String>
+    }
+
     struct AppKitAudioResult {
         var dataSoundCreated: Bool
         var playSucceeded: Bool
@@ -66,6 +74,21 @@ enum AppleCompatibilitySmoke {
         var stopCount: Int
         var stoppedAfterStop: Bool
         var operations: Set<String>
+    }
+
+    private final class WorkspaceOpenRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storedURLs: [URL] = []
+
+        var urls: [URL] {
+            lock.withLock { storedURLs }
+        }
+
+        func append(_ url: URL) {
+            lock.withLock {
+                storedURLs.append(url)
+            }
+        }
     }
 
     struct AppKitGeometryResult {
@@ -754,6 +777,32 @@ enum AppleCompatibilitySmoke {
             unknownSchemeApplicationMissing: missingSchemeApplication == nil,
             bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
             windowTabbingRoundTrip: windowTabbingRoundTrip,
+            operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        )
+    }
+
+    static func runAppKitWorkspaceOpenSmoke() -> AppKitWorkspaceOpenResult {
+        let recorder = WorkspaceOpenRecorder()
+        QuillCompatibilityDiagnostics.shared.clear()
+        QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "appkit-workspace-test") { url in
+            recorder.append(url)
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        let url = URL(string: "https://example.com/quill-appkit-workspace")!
+        let directOpenSucceeded = NSWorkspace.shared.open(url)
+        let configuration = NSWorkspace.OpenConfiguration()
+        var configurationCompletionSucceeded = false
+        NSWorkspace.shared.open(url, configuration: configuration) { _, error in
+            configurationCompletionSucceeded = error == nil
+        }
+
+        return AppKitWorkspaceOpenResult(
+            directOpenSucceeded: directOpenSucceeded,
+            configurationOpenSucceeded: recorder.urls.count == 2,
+            configurationCompletionSucceeded: configurationCompletionSucceeded,
+            openedURLs: recorder.urls,
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
         )
     }

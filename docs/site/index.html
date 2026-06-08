@@ -142,8 +142,8 @@
             <td>92</td>
             <td>0</td>
             <td>21</td>
-            <td>35</td>
-            <td>21</td>
+            <td>36</td>
+            <td>20</td>
             <td>15</td>
         </tr>
         <tr>
@@ -586,7 +586,7 @@
 <tr><td><code>NSPasteboard.setData(_:forType:)</code> / <code>data(forType:)</code></td><td>Usable</td><td>In-memory data storage.</td></tr>
 <tr><td><code>NSPasteboard.writeObjects(_:)</code> / <code>readObjects(...)</code></td><td>Partial</td><td>Current pasteboard item paths only.</td></tr>
 <tr><td><code>NSPasteboardItem.setString</code>, <code>setData</code>, <code>setPropertyList</code> and getters</td><td>Usable</td><td>In-memory item storage.</td></tr>
-<tr><td><code>NSWorkspace.open(_:)</code> and overloads</td><td>Fallback</td><td>Delegates where host support exists, otherwise records diagnostic/no-op.</td></tr>
+<tr><td><code>NSWorkspace.open(_:)</code> and overloads</td><td>Partial</td><td>Routes through shared <code>QuillWorkspace.open</code>; native GTK/Qt launchers can inject a backend and headless Linux no-ops with diagnostics.</td></tr>
 <tr><td><code>NSWorkspace.selectFile</code>, <code>activateFileViewerSelecting</code></td><td>Fallback</td><td>Opens containing directories through <code>xdg-open</code> when a Linux desktop session is available; records diagnostics and no-ops in headless environments.</td></tr>
 <tr><td><code>NSWorkspace.icon(forFile:)</code>, <code>icon(forContentType:)</code></td><td>Fallback</td><td>Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet.</td></tr>
 <tr><td><code>NSWorkspace.urlForApplication(...)</code></td><td>Partial</td><td>Uses <code>xdg-mime</code> plus XDG application directories for existing <code>.desktop</code> files; bundle identifiers only resolve when they already map to a Linux desktop entry.</td></tr>

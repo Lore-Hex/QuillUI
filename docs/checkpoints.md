@@ -3355,3 +3355,14 @@ overlay lookup, because the target intentionally imports QuillUI's shadow
 Apple modules (`UIKit`, `AppKit`, and friends) rather than Apple SDK overlays.
 This keeps clean Swift 6.3 Linux scratches from looking for unavailable
 `_Testing_UIKit`/`_Testing_AppKit` modules.
+
+## Checkpoint 203: NSWorkspace Open Uses QuillWorkspace
+
+Status: implemented locally; guarded by Linux compatibility tests, source
+hygiene, and CI follow-up.
+
+`NSWorkspace.open(_:)` and its configuration overload now use the same
+`QuillWorkspace.open` service as UIKit URL opening. This removes a second
+AppKit-local `xdg-open` launcher, gives GTK/Qt/native backends one injectable
+URL-open hook, and keeps headless Linux from spawning desktop launchers unless
+an explicit compatibility backend is installed.

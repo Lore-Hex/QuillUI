@@ -180,7 +180,7 @@ platform fallbacks.
 | `NSPasteboard.setData(_:forType:)` / `data(forType:)` | Usable | In-memory data storage. |
 | `NSPasteboard.writeObjects(_:)` / `readObjects(...)` | Partial | Current pasteboard item paths only. |
 | `NSPasteboardItem.setString`, `setData`, `setPropertyList` and getters | Usable | In-memory item storage. |
-| `NSWorkspace.open(_:)` and overloads | Fallback | Delegates where host support exists, otherwise records diagnostic/no-op. |
+| `NSWorkspace.open(_:)` and overloads | Partial | Routes through shared `QuillWorkspace.open`; native GTK/Qt launchers can inject a backend and headless Linux no-ops with diagnostics. |
 | `NSWorkspace.selectFile`, `activateFileViewerSelecting` | Fallback | Opens containing directories through `xdg-open` when a Linux desktop session is available; records diagnostics and no-ops in headless environments. |
 | `NSWorkspace.icon(forFile:)`, `icon(forContentType:)` | Fallback | Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet. |
 | `NSWorkspace.urlForApplication(...)` | Partial | Uses `xdg-mime` plus XDG application directories for existing `.desktop` files; bundle identifiers only resolve when they already map to a Linux desktop entry. |

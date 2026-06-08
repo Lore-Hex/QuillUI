@@ -433,6 +433,14 @@ public enum QuillWorkspace {
         }
 
         #if os(Linux)
+        guard Self.linuxDesktopOpenAvailable else {
+            recordOpenUnavailable(
+                url,
+                reason: "xdg-open requires /usr/bin/xdg-open plus DISPLAY or WAYLAND_DISPLAY on Linux."
+            )
+            return false
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
         process.arguments = [url.absoluteString]
@@ -453,12 +461,32 @@ public enum QuillWorkspace {
         #endif
     }
 
+    #if os(Linux)
+    private static var linuxDesktopOpenAvailable: Bool {
+        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/xdg-open") else {
+            return false
+        }
+
+        let env = ProcessInfo.processInfo.environment
+        return env["DISPLAY"]?.isEmpty == false || env["WAYLAND_DISPLAY"]?.isEmpty == false
+    }
+    #endif
+
     private static func recordOpen(_ url: URL, didOpen: Bool, backendName: String) {
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillKit",
             operation: "openURL",
             severity: didOpen ? .info : .unsupported,
             message: "URL open for \(url.absoluteString) was handled by \(backendName)."
+        )
+    }
+
+    private static func recordOpenUnavailable(_ url: URL, reason: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "openURL",
+            severity: .unsupported,
+            message: "URL open for \(url.absoluteString) was not attempted: \(reason)"
         )
     }
 }

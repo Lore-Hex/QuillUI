@@ -380,6 +380,17 @@ struct CompatibilityModuleTests {
         ])))
     }
 
+    @Test("AppKit workspace open routes through QuillWorkspace")
+    func appKitWorkspaceOpenRoutesThroughQuillWorkspace() {
+        let result = AppleCompatibilitySmoke.runAppKitWorkspaceOpenSmoke()
+        let expectedURL = URL(string: "https://example.com/quill-appkit-workspace")!
+        #expect(result.directOpenSucceeded)
+        #expect(result.configurationOpenSucceeded)
+        #expect(result.configurationCompletionSucceeded)
+        #expect(result.openedURLs == [expectedURL, expectedURL])
+        #expect(result.operations.contains("openURL"))
+    }
+
     @Test("AppKit rect string helpers round-trip common geometry formats")
     func appKitRectStringHelpersRoundTripCommonFormats() {
         let result = AppleCompatibilitySmoke.runAppKitGeometrySmoke()

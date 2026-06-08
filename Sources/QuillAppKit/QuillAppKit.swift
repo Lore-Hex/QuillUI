@@ -2342,30 +2342,23 @@ private extension NSWorkspace {
 
     @discardableResult
     func _xdgOpen(_ target: String, operation: String) -> Bool {
-        guard _canOpenDesktopTarget else {
+        let url = _workspaceOpenURL(for: target)
+        let didOpen = QuillWorkspace.open(url)
+        if !didOpen {
             _recordFallback(
                 operation: operation,
-                message: "\(operation) requires xdg-open plus DISPLAY or WAYLAND_DISPLAY on Linux; '\(target)' was not opened in this process."
+                message: "\(operation) could not open '\(target)' through QuillWorkspace."
             )
-            return false
         }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = ["xdg-open", target]
-        p.standardOutput = Pipe()
-        p.standardError = Pipe()
-        do {
-            try p.run()
-            // Don't waitUntilExit() — xdg-open forks the real handler
-            // and may stay attached. Detach instead.
-            return true
-        } catch {
-            _recordFallback(
-                operation: operation,
-                message: "\(operation) could not launch xdg-open for '\(target)': \(error.localizedDescription)"
-            )
-            return false
+
+        return didOpen
+    }
+    func _workspaceOpenURL(for target: String) -> URL {
+        if let url = URL(string: target), url.scheme?.isEmpty == false {
+            return url
         }
+
+        return URL(fileURLWithPath: target)
     }
     func _xdgMimeQueryDefault(_ url: URL) -> String? {
         guard _hasCommand("xdg-mime") else { return nil }
@@ -2380,11 +2373,6 @@ private extension NSWorkspace {
     func _xdgMimeForFile(_ path: String) -> String? {
         guard _hasCommand("xdg-mime") else { return nil }
         return _runForOutput(["xdg-mime", "query", "filetype", path])
-    }
-    var _canOpenDesktopTarget: Bool {
-        guard _hasCommand("xdg-open") else { return false }
-        let env = ProcessInfo.processInfo.environment
-        return env["DISPLAY"]?.isEmpty == false || env["WAYLAND_DISPLAY"]?.isEmpty == false
     }
     func _desktopApplicationURL(forDesktopID id: String) -> URL? {
         if id.hasPrefix("/"), FileManager.default.fileExists(atPath: id) {
