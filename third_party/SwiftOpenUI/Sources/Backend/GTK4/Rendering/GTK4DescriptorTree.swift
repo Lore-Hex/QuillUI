@@ -714,6 +714,7 @@ private func gtkUpdateIntent(old: GTK4DescriptorNode,
         return oldSlider.range == newSlider.range && oldSlider.step == newSlider.step
             ? .sliderValue : .sliderConfiguration
     case .text:          return .textContent
+    case .onAppear:      return .none
     case .task:          return .none
     case .vStack:        return .vStackLayout
     case .zStack:        return .zStackLayout

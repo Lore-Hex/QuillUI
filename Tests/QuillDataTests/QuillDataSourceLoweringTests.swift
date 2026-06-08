@@ -2484,9 +2484,12 @@ struct QuillDataSourceLoweringTests {
         let root = try packageRoot()
         let viewHost = root
             .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift")
+        let descriptorTree = root
+            .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift")
         let renderer = root
             .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
         let viewHostSource = try String(contentsOf: viewHost, encoding: .utf8)
+        let descriptorTreeSource = try String(contentsOf: descriptorTree, encoding: .utf8)
         let rendererSource = try String(contentsOf: renderer, encoding: .utf8)
 
         #expect(viewHostSource.contains("private var taskLifecycleSuspended = true"))
@@ -2496,6 +2499,8 @@ struct QuillDataSourceLoweringTests {
         #expect(viewHostSource.contains("if !taskLifecycleSuspended {"))
         #expect(viewHostSource.contains("appearedOnAppearIdentities = appearedOnAppearIdentities.intersection(liveIdentities)"))
         #expect(viewHostSource.contains("for (identity, payload) in taskPayloadsByIdentity where activeTasksByIdentity[identity] == nil"))
+        #expect(descriptorTreeSource.contains("case onAppear"))
+        #expect(descriptorTreeSource.contains("case .onAppear:      return .none"))
         #expect(rendererSource.contains("extension TaskView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("extension OnAppearView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("gtkAttachStandaloneTaskLifecycle("))
