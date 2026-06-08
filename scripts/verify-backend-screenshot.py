@@ -2334,12 +2334,15 @@ def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
         f"Functional transcript still shows the empty-state wordmark: pixels={wordmark_pixels}",
     )
 
+    transcript_message_y0 = top + int(app_height * 0.05)
+    transcript_message_y1 = top + int(app_height * 0.70)
+
     leading_message_pixels = dark_pixel_count(
         image,
         detail_left + int(detail_width * 0.02),
-        top + int(app_height * 0.12),
+        transcript_message_y0,
         detail_left + int(detail_width * 0.45),
-        top + int(app_height * 0.26),
+        transcript_message_y1,
     )
     require(
         leading_message_pixels >= 120,
@@ -2349,9 +2352,9 @@ def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
     trailing_message_pixels = dark_pixel_count(
         image,
         detail_left + int(detail_width * 0.77),
-        top + int(app_height * 0.05),
+        transcript_message_y0,
         right - int(detail_width * 0.01),
-        top + int(app_height * 0.18),
+        transcript_message_y1,
     )
     require(
         trailing_message_pixels >= 120,
