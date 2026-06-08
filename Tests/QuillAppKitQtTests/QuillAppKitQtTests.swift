@@ -8,6 +8,7 @@ import QuillUIKit
 // QuillWireGuardConformanceUI in the qt graph when the .upstream checkout is
 // present (purist render path). Internal types → @testable.
 @testable import QuillWireGuardConformanceUI
+import NetworkExtension   // NETunnelProviderManager — feed fakes to the real TunnelsManager
 #endif
 
 /// M1 slice 1 (issue #231): prove the AppKit shadow's NSApplication/NSWindow are
@@ -703,5 +704,51 @@ struct QuillAppKitQtTests {
         let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
         #expect(size > 300)
         window.closeQtWindow()
+    }
+
+    // THE PAYOFF: render the REAL WireGuard main window — the verbatim upstream
+    // TunnelsListTableViewController — via QuillAppKit→Qt. NETunnelProviderManager
+    // is plain-instantiable on Linux, so we feed fake managers to the REAL
+    // TunnelsManager (no mock) and hand it to the verbatim VC. This rung renders the
+    // window CHROME (the bezel scroll box + the add/remove/action button bar from
+    // loadView); a follow-up materializes the tunnel rows.
+    @Test("The LITERAL upstream TunnelsListTableViewController renders its main-window chrome via Qt")
+    func rendersLiteralTunnelsListVCChromeToPNG() throws {
+        #if canImport(QuillWireGuardConformanceUI)
+        guard QuillQt.ensureInitialized() else { return }
+
+        func fakeManager(_ name: String) -> NETunnelProviderManager {
+            let manager = NETunnelProviderManager()
+            manager.localizedDescription = name
+            manager.isEnabled = true
+            return manager
+        }
+        // The REAL upstream model, driven by fake managers — no mock class.
+        let tunnelsManager = TunnelsManager(tunnelProviders: [
+            fakeManager("home"), fakeManager("office"), fakeManager("edge")
+        ])
+        let vc = TunnelsListTableViewController(tunnelsManager: tunnelsManager)
+        #expect(!vc.isViewLoaded)
+        let content = vc.view                          // triggers the real loadView()
+        #expect(vc.isViewLoaded)
+        // loadView builds containerView = scrollView + buttonBar + fillerButton.
+        #expect(content.subviews.count == 3)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 260, height: 420),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+        window.contentView = content
+        content.realizeQtSubtree()
+        content.layoutQtSubtree(width: 260, height: 420)
+        window.showAsQtWindowWithContent()
+
+        let out = "/tmp/quillappkitqt-tunnels-list-chrome.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 300)
+        window.closeQtWindow()
+        #endif
     }
 }

@@ -2405,7 +2405,7 @@ let packageTestTargets: [Target] = {
         // The qt AppKit test target also renders the LITERAL upstream WireGuard
         // VC (ButtonedDetailViewController) when the upstream checkout is present.
         let akqtTestDeps: [Target.Dependency] = wireguardUpstreamPresent
-            ? ["QuillAppKitQt", "AppKit", "QuillWireGuardConformanceUI"]
+            ? ["QuillAppKitQt", "AppKit", "QuillWireGuardConformanceUI", "NetworkExtension"]
             : ["QuillAppKitQt", "AppKit"]
         return [
             // Runs inside the stripped Qt graph itself. This keeps
