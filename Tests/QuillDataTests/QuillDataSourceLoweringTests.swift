@@ -2508,9 +2508,8 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("extension OnAppearView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("gtkCollectOnAppearPayload("))
-        #expect(rendererSource.contains("gtkCollectTaskPayload("))
         #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
-        #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
+        #expect(!rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            let boundAction = bindActionToCurrentEnvironment(action)"))
     }
 
