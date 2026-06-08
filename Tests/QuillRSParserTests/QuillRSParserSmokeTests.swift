@@ -79,9 +79,7 @@ struct QuillRSParserSmokeTests {
 
     @Test("FeedType detection routes RSS / Atom correctly")
     func feedTypeDetection() {
-        // Upstream feedType() has a 128-byte minimum — padded with
-        // <description> filler to clear the threshold without
-        // affecting parse semantics.
+        // Longer fixtures preserve the normal real-feed path.
         let filler = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod"
         let rss = "<?xml version=\"1.0\"?><rss><channel><title>X</title><description>\(filler)</description></channel></rss>"
         let atom = "<?xml version=\"1.0\"?><feed xmlns=\"http://www.w3.org/2005/Atom\"><title>X</title><subtitle>\(filler)</subtitle></feed>"
@@ -92,5 +90,28 @@ struct QuillRSParserSmokeTests {
         // Top-level free function in upstream RSParser, not a FeedType init.
         #expect(feedType(rssData) == .rss)
         #expect(feedType(atomData) == .atom)
+    }
+
+    @Test("FeedType detection recognizes explicit feed markers below the inconclusive-data threshold")
+    func shortFeedTypeDetection() {
+        let rss = "<?xml version=\"1.0\"?><rss><channel><title>X</title></channel></rss>"
+        let atom = "<?xml version=\"1.0\"?><feed><title>X</title></feed>"
+        let jsonFeed = "{\"version\":\"https://jsonfeed.org/version/1\",\"items\":[]}"
+
+        #expect(Data(rss.utf8).count < 128)
+        #expect(Data(atom.utf8).count < 128)
+        #expect(Data(jsonFeed.utf8).count < 128)
+
+        #expect(feedType(ParserData(url: "https://example.test/rss", data: Data(rss.utf8))) == .rss)
+        #expect(feedType(ParserData(url: "https://example.test/atom", data: Data(atom.utf8))) == .atom)
+        #expect(feedType(ParserData(url: "https://example.test/feed.json", data: Data(jsonFeed.utf8))) == .jsonFeed)
+    }
+
+    @Test("FeedType keeps short inconclusive payloads unknown")
+    func shortInconclusivePayloadsRemainUnknown() {
+        let text = Data("not enough bytes and no feed markers".utf8)
+
+        #expect(text.count < 128)
+        #expect(feedType(ParserData(url: "https://example.test/short", data: text)) == .unknown)
     }
 }

@@ -3,7 +3,7 @@ import Testing
 import QuillPaint
 @testable import QuillPaintCoreGraphics
 
-#if canImport(CoreGraphics) && canImport(ImageIO)
+#if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
 import CoreGraphics
 
 @Suite("Mac reference renderer (CoreGraphics backend)")

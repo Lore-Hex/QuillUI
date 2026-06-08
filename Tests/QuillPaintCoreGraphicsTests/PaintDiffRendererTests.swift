@@ -3,7 +3,7 @@ import Testing
 import QuillPaint
 @testable import QuillPaintCoreGraphics
 
-#if canImport(CoreGraphics)
+#if canImport(CoreGraphics) && !os(Linux)
 import CoreGraphics
 
 @Suite("PaintDiffRenderer")
