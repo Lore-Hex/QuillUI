@@ -98,6 +98,17 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         let hostPointer = Unmanaged.passUnretained(self).toOpaque()
         g_signal_connect_data(
             gpointer(box),
+            "realize",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let host = Unmanaged<GTKViewHost>.fromOpaque(userData!).takeUnretainedValue()
+                host.resumeTasksAfterAppear()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            hostPointer,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(box),
             "map",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
                 let host = Unmanaged<GTKViewHost>.fromOpaque(userData!).takeUnretainedValue()
@@ -145,6 +156,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 payloads: taskPayloads
             )
         )
+        resumeTasksIfAlreadyMapped()
     }
 
     func updateOnAppearLifecycle(
@@ -157,6 +169,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 payloads: onAppearPayloads
             )
         )
+        resumeTasksIfAlreadyMapped()
     }
 
     private func reconcileOnAppearPayloads(
@@ -244,6 +257,11 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         lock.unlock()
 
         actionsToRun.forEach { $0() }
+    }
+
+    private func resumeTasksIfAlreadyMapped() {
+        guard gtk_widget_get_mapped(container) != 0 else { return }
+        resumeTasksAfterAppear()
     }
 
     public func scheduleRebuild() {
