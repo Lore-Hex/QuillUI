@@ -2,6 +2,7 @@
 #define QUILL_OBJC_COREFOUNDATION_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stddef.h>
 

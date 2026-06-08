@@ -677,12 +677,12 @@ app progress can be audited with the same status ladder.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `Key.space`, `Key.escape`, `.character(_:)` | Compile-only | Covers current hot-key declarations. |
-| `_Modifiers` / `KeyCombo.init?` | Compile-only | Stores key/modifier payloads. |
-| `HotKey.init(...)` | Partial | Stores identifier, combo, and handler. |
-| `HotKey.register()` / `unregister()` | Compile-only | No-op; no native hot key is installed. |
-| `HotKey.trigger()` | Usable | Test helper invokes the stored handler. |
-| Global Carbon/AppKit hot-key registration, event routing, conflict detection | Incomplete | Required for Magnet parity. |
+| `Key.space`, `Key.escape`, `.character(_:)` | Usable | Covers current hot-key declarations with stable key names for the shared registry. |
+| `_Modifiers` / `KeyCombo.init?` | Usable | Stores key/modifier payloads and lowers common modifier masks into QuillKit gesture descriptors. |
+| `HotKey.init(...)` | Usable | Stores identifier, combo, handler, and registration state. |
+| `HotKey.register()` / `unregister()` | Partial | Registers in QuillKit's process-local compatibility registry with duplicate identifier/gesture detection. |
+| `HotKey.trigger()` / `HotKey.trigger(identifier:)` / `HotKey.trigger(keyCombo:)` | Usable | Direct test helper invokes the stored handler; registry triggers route only through registered hot keys. |
+| Native global Carbon/AppKit hot-key hooks and desktop event routing | Incomplete | Required for true OS-global Magnet parity. |
 
 ### Sparkle
 

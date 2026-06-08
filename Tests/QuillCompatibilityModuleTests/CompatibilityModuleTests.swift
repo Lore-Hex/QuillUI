@@ -23,6 +23,7 @@ import IOKit.usb
 import WrappingHStack
 import Vortex
 import KeyboardShortcuts
+import Magnet
 @_spi(QuillTesting) import QuillUI
 
 @Suite("Linux compatibility import modules", .serialized)
@@ -640,6 +641,43 @@ struct CompatibilityModuleTests {
         #expect(!KeyboardShortcuts.trigger(name, type: .keyDown))
 
         KeyboardShortcuts.resetAll()
+    }
+
+    @Test("Magnet hot keys use the shared QuillKit registry")
+    func magnetHotKeysUseSharedQuillKitRegistry() {
+        QuillHotkeyService.shared.unregisterAll()
+        QuillCompatibilityDiagnostics.shared.clear()
+        var handledEvents: [String] = []
+        let combo = KeyCombo(key: .character("p"), cocoaModifiers: [.command, .shift])!
+
+        let hotKey = HotKey(identifier: "togglePanelMode", keyCombo: combo) { key in
+            handledEvents.append(key.identifier)
+        }
+
+        #expect(!HotKey.trigger(identifier: "togglePanelMode"))
+        hotKey.register()
+        #expect(hotKey.isRegistered)
+        #expect(HotKey.trigger(identifier: "togglePanelMode"))
+        #expect(HotKey.trigger(keyCombo: combo))
+        #expect(handledEvents == ["togglePanelMode", "togglePanelMode"])
+
+        let duplicate = HotKey(identifier: "duplicatePanelMode", keyCombo: combo) { key in
+            handledEvents.append(key.identifier)
+        }
+        duplicate.register()
+        #expect(!duplicate.isRegistered)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "registerHotKey" && $0.severity == .warning
+        })
+
+        hotKey.unregister()
+        #expect(!hotKey.isRegistered)
+        #expect(!HotKey.trigger(identifier: "togglePanelMode"))
+        #expect(!HotKey.trigger(keyCombo: combo))
+
+        hotKey.trigger()
+        #expect(handledEvents == ["togglePanelMode", "togglePanelMode", "togglePanelMode"])
+        QuillHotkeyService.shared.unregisterAll()
     }
 
     @Test("MarkdownUI and Splash cover Enchanted markdown theme contracts")
