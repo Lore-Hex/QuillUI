@@ -214,9 +214,11 @@ __attribute__((objc_root_class))
 @property NSInteger hour;
 @property NSInteger minute;
 @property NSInteger second;
+@property NSInteger weekday;
 - (NSInteger)year;
 - (NSInteger)month;
 - (NSInteger)day;
+- (NSInteger)weekday;
 @end
 
 typedef NS_ENUM(NSInteger, NSDateFormatterStyle) {
@@ -264,10 +266,14 @@ static NSString * const NSCalendarIdentifierGregorian = @"gregorian";
 static NSString * const NSGregorianCalendar = @"gregorian";
 
 @interface NSCalendar : NSObject
++ (instancetype)currentCalendar;
 - (instancetype)initWithCalendarIdentifier:(NSCalendarIdentifier)identifier;
 - (void)setTimeZone:(NSTimeZone *)timeZone;
+@property (nonatomic, strong) NSTimeZone *timeZone;
+@property NSUInteger firstWeekday;
 - (NSDate *)dateFromComponents:(NSDateComponents *)components;
 - (NSDateComponents *)components:(NSCalendarUnit)unitFlags fromDate:(NSDate *)date;
+- (NSRange)rangeOfUnit:(NSCalendarUnit)smaller inUnit:(NSCalendarUnit)larger forDate:(NSDate *)date;
 @end
 
 @interface NSBundle : NSObject

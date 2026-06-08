@@ -27,6 +27,7 @@ mkdir -p "$WORK_ROOT/logs" "$WORK_ROOT/home" "$WORK_ROOT/module-cache"
 
 default_packages=(
   CAPortal
+  CalendarUtils
   CurrencyFormat
   DateUtils
   EDSunriseSet
@@ -78,6 +79,7 @@ for package_name in "${packages[@]}"; do
     CLANG_MODULE_CACHE_PATH="$WORK_ROOT/module-cache" \
     swift build \
       --disable-sandbox \
+      --jobs 1 \
       --package-path "$package_dir" \
       --scratch-path "$WORK_ROOT/.build/$package_name" \
       "${swift_build_flags[@]}" \

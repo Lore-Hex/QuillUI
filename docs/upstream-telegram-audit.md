@@ -17,8 +17,8 @@ repeatable source checkout plus Linux compile ratchet:
   (`<Foundation/Foundation.h>`, `<AppKit/AppKit.h>`, `<Cocoa/Cocoa.h>`) so
   mixed Objective-C package islands can compile without Telegram source edits.
 - `scripts/generated-telegram-package-check.sh` compiles the first unchanged
-  SwiftPM package islands on Linux: `CAPortal`, `CurrencyFormat`, `DateUtils`,
-  `EDSunriseSet`, `FoundationUtils`, `GZIP`, `MergeLists`,
+  SwiftPM package islands on Linux: `CAPortal`, `CalendarUtils`,
+  `CurrencyFormat`, `DateUtils`, `EDSunriseSet`, `FoundationUtils`, `GZIP`, `MergeLists`,
   `NumberPluralization`, and `TGCurrencyFormatter`.
 
 Current Linux blocker classes:
