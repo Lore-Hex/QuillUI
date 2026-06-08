@@ -2116,7 +2116,18 @@ where Message.ID: Hashable {
             rowVerticalPadding: rowVerticalPadding,
             rowHorizontalPadding: rowHorizontalPadding,
             actions: contextMenuActions(for:),
-            row: rowContent,
+            row: { message in
+                #if os(Linux)
+                QuillDesktopMessageHoverActionRow(
+                    isUserMessage: isUserMessage(message),
+                    actions: contextMenuActions(for: message)
+                ) {
+                    rowContent(message)
+                }
+                #else
+                rowContent(message)
+                #endif
+            },
             overlay: overlayContent
         )
     }
@@ -2165,9 +2176,80 @@ public struct QuillMessageInteractionAvailability: OptionSet, Sendable {
     public static var platformDefaults: QuillMessageInteractionAvailability {
         #if os(iOS) || os(visionOS)
         return .all
+        #elseif os(Linux)
+        return [.readAloud]
         #else
         return []
         #endif
+    }
+}
+
+struct QuillDesktopMessageHoverActionRow<Content: View>: View {
+    var isUserMessage: Bool
+    var actions: [QuillMenuAction]
+    var content: Content
+
+    init(
+        isUserMessage: Bool,
+        actions: [QuillMenuAction],
+        @ViewBuilder content: () -> Content
+    ) {
+        self.isUserMessage = isUserMessage
+        self.actions = actions
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            content
+            HStack(spacing: 0) {
+                if isUserMessage {
+                    Spacer()
+                }
+                actionBar
+                if !isUserMessage {
+                    Spacer()
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    var actionBar: some View {
+        QuillMessageHoverActionBar(actions: visibleActions)
+    }
+
+    var visibleActions: [QuillMenuAction] {
+        Array(actions.filter { $0.kind == .item && !$0.isDisabled }.prefix(4))
+    }
+}
+
+private struct QuillMessageHoverActionBar: View {
+    var actions: [QuillMenuAction]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(actions) { action in
+                Button(action: { action.perform() }) {
+                    if let systemImage = action.systemImage {
+                        Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 13, height: 13)
+                    } else {
+                        Text(action.title.prefix(1).uppercased())
+                            .font(.system(size: 11, weight: .semibold))
+                            .frame(width: 13, height: 13)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(hex: "#2C2C2E"))
+                .padding(8)
+                .contentShape(Rectangle())
+            }
+        }
+        .frame(height: 32)
     }
 }
 

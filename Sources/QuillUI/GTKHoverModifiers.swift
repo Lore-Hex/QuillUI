@@ -20,18 +20,30 @@ private final class QuillGTKHoverActionBox {
 
 extension OnHoverView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
+        let container = gtk_overlay_new()!
         let widget = quillGTKHoverWidgetPointer(gtkRenderView(content))
         let box = QuillGTKHoverActionBox(action)
         let retainedBox = Unmanaged.passRetained(box).toOpaque()
-        let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+        let object = UnsafeMutableRawPointer(container).assumingMemoryBound(to: GObject.self)
+
+        gtk_widget_set_hexpand(container, 1)
+        gtk_widget_set_halign(container, GTK_ALIGN_FILL)
+        gtk_widget_set_hexpand(widget, 1)
+        gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        if gtk_widget_get_vexpand(widget) != 0 {
+            gtk_widget_set_vexpand(container, 1)
+            gtk_widget_set_valign(container, GTK_ALIGN_FILL)
+            gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+        }
+        gtk_overlay_set_child(OpaquePointer(container), widget)
 
         g_object_set_data_full(object, "quill-hover-action", retainedBox) { userData in
             guard let userData else { return }
             Unmanaged<QuillGTKHoverActionBox>.fromOpaque(userData).release()
         }
 
-        quillGTKInstallHoverControllers(on: widget, retainedBox: retainedBox)
-        return OpaquePointer(widget)
+        quillGTKInstallHoverControllers(on: container, retainedBox: retainedBox)
+        return OpaquePointer(container)
     }
 }
 

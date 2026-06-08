@@ -707,6 +707,9 @@ struct QuillUITests {
         #if os(iOS) || os(visionOS)
         #expect(platformDefaultTitles.contains("Select Text"))
         #expect(platformDefaultTitles.contains("Read Aloud"))
+        #elseif os(Linux)
+        #expect(!platformDefaultTitles.contains("Select Text"))
+        #expect(platformDefaultTitles.contains("Read Aloud"))
         #else
         #expect(!platformDefaultTitles.contains("Select Text"))
         #expect(!platformDefaultTitles.contains("Read Aloud"))
