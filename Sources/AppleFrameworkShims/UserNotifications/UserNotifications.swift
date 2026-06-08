@@ -4,16 +4,16 @@
 // SignalServiceKit's `UserNotificationsPresenter` builds local-notification
 // requests (content + trigger + category/action surface) and hands them to
 // `UNUserNotificationCenter`. None of that exists in swift-corelibs, so this
-// module mirrors exactly the types/initializers/members that presenter uses.
+// module mirrors the common types/initializers/members while routing state into
+// QuillKit's process-local notification compatibility backend.
 //
-// HONEST STATUS: inert. The center accepts requests and silently drops them —
-// `add(_:)` is a no-op, the delivered/pending lists are always empty, and
-// `requestAuthorization` reports NOT granted (Linux has no iOS notification
-// service). Nothing is ever presented. Wiring these to a real desktop
-// notification daemon (e.g. libnotify / org.freedesktop.Notifications) is a
-// separate, later milestone — this only unblocks compilation.
+// HONEST STATUS: emulated. Requests, categories, settings, and delivered/pending
+// lists are tracked deterministically, but nothing is presented by a desktop
+// notification daemon yet. Wiring this to libnotify / org.freedesktop.Notifications
+// is a later backend milestone.
 //
 import Foundation
+import QuillKit
 
 // MARK: - Option sets / enums
 
@@ -63,7 +63,7 @@ public final class UNNotificationSound: @unchecked Sendable {
     public let name: UNNotificationSoundName?
     public init(named name: UNNotificationSoundName) { self.name = name }
     private init() { self.name = nil }
-    nonisolated(unsafe) public static let `default` = UNNotificationSound()
+    public static let `default` = UNNotificationSound()
 }
 
 // MARK: - Content
@@ -216,41 +216,173 @@ public final class UNNotificationSettings: @unchecked Sendable {
     }
 }
 
-// MARK: - Center (inert)
+// MARK: - QuillKit mapping
+
+private extension UNAuthorizationStatus {
+    init(_ status: QuillNotificationAuthorizationStatus) {
+        switch status {
+        case .notDetermined:
+            self = .notDetermined
+        case .denied:
+            self = .denied
+        case .authorized:
+            self = .authorized
+        case .provisional:
+            self = .provisional
+        case .ephemeral:
+            self = .ephemeral
+        }
+    }
+}
+
+private extension QuillNotificationRequestRecord {
+    init(_ request: UNNotificationRequest) {
+        self.init(
+            identifier: request.identifier,
+            title: request.content.title,
+            subtitle: request.content.subtitle,
+            body: request.content.body,
+            categoryIdentifier: request.content.categoryIdentifier,
+            threadIdentifier: request.content.threadIdentifier
+        )
+    }
+}
+
+// MARK: - Center
 
 public protocol UNUserNotificationCenterDelegate: AnyObject {}
 
 public final class UNUserNotificationCenter: @unchecked Sendable {
-    nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+    private static let _shared = UNUserNotificationCenter()
     public static func current() -> UNUserNotificationCenter { _shared }
 
     public weak var delegate: UNUserNotificationCenterDelegate?
+    private let lock = NSLock()
+    private var categories: Set<UNNotificationCategory> = []
+    private var pendingRequestsByIdentifier: [String: UNNotificationRequest] = [:]
+    private var deliveredNotificationsByIdentifier: [String: UNNotification] = [:]
 
-    /// Linux has no iOS notification service: report NOT granted (honest).
-    public func requestAuthorization(options: UNAuthorizationOptions = []) async throws -> Bool { false }
+    public func requestAuthorization(options: UNAuthorizationOptions = []) async throws -> Bool {
+        QuillNotificationService.shared.requestAuthorization(optionsRawValue: options.rawValue)
+    }
 
     /// Callback-style variant (some call sites use the completion-handler form).
     public func requestAuthorization(
         options: UNAuthorizationOptions = [],
         completionHandler: @escaping (Bool, Error?) -> Void
     ) {
-        completionHandler(false, nil)
+        completionHandler(QuillNotificationService.shared.requestAuthorization(optionsRawValue: options.rawValue), nil)
     }
 
-    public func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {}
+    public func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {
+        lock.withLock {
+            self.categories = categories
+        }
+        QuillNotificationService.shared.setCategories(Set(categories.map(\.identifier)))
+    }
 
-    /// No-op: the request is silently dropped (nothing is presented on Linux).
-    public func add(_ request: UNNotificationRequest) async throws {}
+    public func getNotificationCategories(completionHandler: @escaping (Set<UNNotificationCategory>) -> Void) {
+        completionHandler(lock.withLock { categories })
+    }
+
+    public func notificationCategories() async -> Set<UNNotificationCategory> {
+        lock.withLock { categories }
+    }
+
+    public func add(_ request: UNNotificationRequest) async throws {
+        store(request)
+    }
+
+    public func add(
+        _ request: UNNotificationRequest,
+        withCompletionHandler completionHandler: ((Error?) -> Void)? = nil
+    ) {
+        store(request)
+        completionHandler?(nil)
+    }
+
+    private func store(_ request: UNNotificationRequest) {
+        let deliverImmediately = request.trigger == nil
+        lock.withLock {
+            if deliverImmediately {
+                pendingRequestsByIdentifier.removeValue(forKey: request.identifier)
+                deliveredNotificationsByIdentifier[request.identifier] = UNNotification(request: request, date: Date())
+            } else {
+                deliveredNotificationsByIdentifier.removeValue(forKey: request.identifier)
+                pendingRequestsByIdentifier[request.identifier] = request
+            }
+        }
+        QuillNotificationService.shared.addRequest(
+            QuillNotificationRequestRecord(request),
+            deliverImmediately: deliverImmediately
+        )
+    }
 
     public func getNotificationSettings(completionHandler: @escaping (UNNotificationSettings) -> Void) {
-        completionHandler(UNNotificationSettings())
+        completionHandler(UNNotificationSettings(
+            authorizationStatus: UNAuthorizationStatus(QuillNotificationService.shared.authorizationStatus)
+        ))
     }
 
-    public func deliveredNotifications() async -> [UNNotification] { [] }
-    public func pendingNotificationRequests() async -> [UNNotificationRequest] { [] }
+    public func deliveredNotifications() async -> [UNNotification] {
+        deliveredNotificationSnapshot()
+    }
 
-    public func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {}
-    public func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {}
-    public func removeAllDeliveredNotifications() {}
-    public func removeAllPendingNotificationRequests() {}
+    public func getDeliveredNotifications(completionHandler: @escaping ([UNNotification]) -> Void) {
+        completionHandler(deliveredNotificationSnapshot())
+    }
+
+    private func deliveredNotificationSnapshot() -> [UNNotification] {
+        lock.withLock {
+            deliveredNotificationsByIdentifier.values.sorted { lhs, rhs in
+                lhs.request.identifier < rhs.request.identifier
+            }
+        }
+    }
+
+    public func pendingNotificationRequests() async -> [UNNotificationRequest] {
+        pendingNotificationRequestSnapshot()
+    }
+
+    public func getPendingNotificationRequests(completionHandler: @escaping ([UNNotificationRequest]) -> Void) {
+        completionHandler(pendingNotificationRequestSnapshot())
+    }
+
+    private func pendingNotificationRequestSnapshot() -> [UNNotificationRequest] {
+        lock.withLock {
+            pendingRequestsByIdentifier.values.sorted { $0.identifier < $1.identifier }
+        }
+    }
+
+    public func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+        lock.withLock {
+            for identifier in identifiers {
+                deliveredNotificationsByIdentifier.removeValue(forKey: identifier)
+            }
+        }
+        QuillNotificationService.shared.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    public func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
+        lock.withLock {
+            for identifier in identifiers {
+                pendingRequestsByIdentifier.removeValue(forKey: identifier)
+            }
+        }
+        QuillNotificationService.shared.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
+    public func removeAllDeliveredNotifications() {
+        lock.withLock {
+            deliveredNotificationsByIdentifier.removeAll()
+        }
+        QuillNotificationService.shared.removeAllDeliveredNotifications()
+    }
+
+    public func removeAllPendingNotificationRequests() {
+        lock.withLock {
+            pendingRequestsByIdentifier.removeAll()
+        }
+        QuillNotificationService.shared.removeAllPendingNotificationRequests()
+    }
 }

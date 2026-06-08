@@ -1737,7 +1737,10 @@ for shimName in signalAppleFrameworkShims {
     // types (e.g. ImageIO's CGImageSource returns QuillFoundation's CGImage).
     // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
     // edge is inert for shims that do not import QuillFoundation.
-    targets.append(.target(name: shimName, dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/\(shimName)"))
+    let dependencies: [Target.Dependency] = shimName == "UserNotifications"
+        ? ["QuillFoundation", "QuillKit"]
+        : ["QuillFoundation"]
+    targets.append(.target(name: shimName, dependencies: dependencies, path: "Sources/AppleFrameworkShims/\(shimName)"))
 }
 #endif
 

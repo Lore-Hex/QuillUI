@@ -233,7 +233,7 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | `UIImage`, `UIColor`, `UIFont`, `UIScreen` aliases | Partial | Map to AppKit types when importable, otherwise to QuillFoundation fallbacks. |
 | `UIApplication.shared` | Usable | Singleton shape exists. |
 | `UIApplication.open(_:options:completionHandler:)` | Partial | Uses `NSWorkspace` when AppKit is available; otherwise completion is `false`. |
-| `UIApplication.registerForRemoteNotifications()` | Compile-only | No-op. |
+| `UIApplication.registerForRemoteNotifications()` / `unregisterForRemoteNotifications()` / `isRegisteredForRemoteNotifications` | Partial | Routes through `QuillNotificationService` process-local registration state; no native APNs/device-token registration exists on Linux. |
 | `UIApplication.setAlternateIconName(_:completionHandler:)` | Fallback | Calls completion with nil, no icon change. |
 | `UIApplication.connectedScenes`, `applicationState`, `alternateIconName` | Compile-only | Static/default metadata only. |
 | `UIScene.delegate` | Compile-only | Property only. |
@@ -255,7 +255,8 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | `UIPasteboard.general` string/data helpers | Partial | In-memory pasteboard bridge. |
 | `UIControl.setTitle(_:for:)` and value/action helpers | Compile-only | Property shape only. |
 | `UIImageView`, `UILabel`, `UIKeyCommand` initializers | Compile-only | Source compatibility only. |
-| `UNUserNotificationCenter.requestAuthorization(...)` | Fallback | Callback shape exists; no platform notification registration. |
+| `UNUserNotificationCenter.requestAuthorization(...)` | Partial | Routes through `QuillNotificationService`; authorization status is configurable and process-local. |
+| `UNUserNotificationCenter.setNotificationCategories`, `add`, delivered/pending request lists, removal helpers | Partial | Tracks categories, immediate deliveries, scheduled pending requests, and removals in memory; no native desktop notification is presented yet. |
 | UIKit layout engine, rendering, event delivery, accessibility, text input, collection/table data-source parity | Incomplete | Required for UIKit Parity. |
 
 ## WebKit
@@ -399,11 +400,11 @@ subset lives in `QuillUIKit`.
 | `AVSpeechSynthesizer.continueSpeaking()` / `pauseSpeaking(at:)` | Compile-only | Return false. |
 | `AVSpeechUtterance.init(string:)` | Usable | Stores source-visible utterance text and metadata. |
 | `AVSpeechSynthesisVoice` initializers, `speechVoices()`, and voice metadata | Partial | Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands. |
-| `AVAudioSession.sharedInstance()`, `setCategory`, `setActive` | Fallback | No native audio-session effect. |
+| `AVAudioSession.sharedInstance()`, `setCategory`, `setMode`, `setActive`, category/mode/options/active readback | Partial | Routes through shared `QuillAudioSessionService` process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet. |
 | `AVPlayer.init(url:)` | Compile-only | Stores URL/player shape only. |
-| `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Fallback | Records diagnostics and toggles `isRunning`; no audio I/O. |
-| `AVAudioEngine.attach(_:)` / `connect(...)` | Compile-only | No real graph processing. |
-| `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Fallback | Records diagnostic, no audio tap stream. |
+| `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Partial | Routes through `QuillAudioEngineService`; tracks prepared/running state, no audio I/O. |
+| `AVAudioEngine.attach(_:)` / `connect(...)` | Partial | Tracks process-local graph attachment and connection counts; no real graph processing. |
+| `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Partial | Tracks process-local tap registration/removal; no audio tap stream. |
 | `AVAudioFormat`, `AVAudioPCMBuffer`, `AVAudioTime` initializers | Compile-only | Data containers only. |
 | Real synthesis, playback, capture, engine graph processing, media decoding | Incomplete | Required for AVFoundation Parity. |
 

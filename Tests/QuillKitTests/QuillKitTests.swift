@@ -154,6 +154,8 @@ struct QuillKitTests {
         #expect(statuses[.speechRecognition] == .emulated)
         #expect(statuses[.localAuthentication] == .emulated)
         #expect(statuses[.globalShortcuts] == .emulated)
+        #expect(statuses[.audioSession] == .emulated)
+        #expect(statuses[.notifications] == .emulated)
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.secureStorage] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -254,6 +256,131 @@ struct QuillKitTests {
         let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
         #expect(operations.contains("localAuthentication.canEvaluatePolicy"))
         #expect(operations.contains("localAuthentication.evaluatePolicy"))
+    }
+
+    @Test("notification service tracks authorization, categories, and queues")
+    func notificationServiceTracksAuthorizationCategoriesAndQueues() {
+        let service = QuillNotificationService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.authorizationStatus == .notDetermined)
+        #expect(service.requestAuthorization(optionsRawValue: 0) == false)
+        #expect(service.authorizationStatus == .denied)
+
+        service.configureAuthorization(status: .notDetermined, requestResult: true)
+        #expect(service.requestAuthorization(optionsRawValue: 5))
+        #expect(service.authorizationStatus == .authorized)
+
+        service.setCategories(["reply", "mark-read"])
+        #expect(service.categoryIdentifiers == ["mark-read", "reply"])
+
+        service.addRequest(
+            QuillNotificationRequestRecord(
+                identifier: "later",
+                title: "Later",
+                body: "Queued",
+                categoryIdentifier: "reply",
+                threadIdentifier: "chat"
+            ),
+            deliverImmediately: false
+        )
+        service.addRequest(
+            QuillNotificationRequestRecord(identifier: "now", title: "Now", body: "Delivered"),
+            deliverImmediately: true
+        )
+        #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
+        #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
+
+        #expect(service.remoteNotificationsRegistered == false)
+        #expect(service.remoteNotificationRegistrationCount == 0)
+        service.registerForRemoteNotifications()
+        service.registerForRemoteNotifications()
+        #expect(service.remoteNotificationsRegistered)
+        #expect(service.remoteNotificationRegistrationCount == 2)
+        service.unregisterForRemoteNotifications()
+        #expect(service.remoteNotificationsRegistered == false)
+
+        service.removePendingNotificationRequests(withIdentifiers: ["later"])
+        service.removeDeliveredNotifications(withIdentifiers: ["now"])
+        #expect(service.pendingRequestRecords.isEmpty)
+        #expect(service.deliveredNotificationRecords.isEmpty)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("notifications.requestAuthorization"))
+        #expect(operations.contains("notifications.setCategories"))
+        #expect(operations.contains("notifications.addRequest"))
+        #expect(operations.contains("notifications.registerForRemoteNotifications"))
+    }
+
+    @Test("audio session service tracks category mode options and active state")
+    func audioSessionServiceTracksCategoryModeOptionsAndActiveState() {
+        let service = QuillAudioSessionService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.category == .ambient)
+        #expect(service.mode == .spokenAudio)
+        #expect(service.categoryOptionsRawValue == 0)
+        #expect(service.isActive == false)
+
+        service.setCategory(.playAndRecord, mode: .videoChat, optionsRawValue: 12)
+        #expect(service.category == .playAndRecord)
+        #expect(service.mode == .videoChat)
+        #expect(service.categoryOptionsRawValue == 12)
+
+        service.setActive(true, optionsRawValue: 1)
+        #expect(service.isActive)
+        #expect(service.setActiveOptionsRawValue == 1)
+        service.setActive(false)
+        #expect(service.isActive == false)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioSession.setCategory"))
+        #expect(operations.contains("audioSession.setActive"))
+    }
+
+    @Test("audio engine service tracks lifecycle graph and taps")
+    func audioEngineServiceTracksLifecycleGraphAndTaps() {
+        let service = QuillAudioEngineService()
+        let engineID = UUID()
+        let nodeID = UUID()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.registerEngine(engineID)
+        #expect(service.state(for: engineID) == QuillAudioEngineState(engineID: engineID))
+
+        service.prepare(engineID: engineID)
+        service.start(engineID: engineID)
+        service.attachNode(engineID: engineID)
+        service.connect(engineID: engineID)
+        service.installTap(engineID: engineID, nodeID: nodeID, bus: 0)
+
+        var state = service.state(for: engineID)
+        #expect(state.isPrepared)
+        #expect(state.isRunning)
+        #expect(state.attachedNodeCount == 1)
+        #expect(state.connectionCount == 1)
+        #expect(state.tapCount == 1)
+
+        service.removeTap(engineID: engineID, nodeID: nodeID, bus: 0)
+        service.stop(engineID: engineID)
+        state = service.state(for: engineID)
+        #expect(state.tapCount == 0)
+        #expect(state.isRunning == false)
+
+        service.reset(engineID: engineID)
+        #expect(service.state(for: engineID) == QuillAudioEngineState(engineID: engineID))
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioEngine.prepare"))
+        #expect(operations.contains("audioEngine.start"))
+        #expect(operations.contains("audioEngine.attach"))
+        #expect(operations.contains("audioEngine.connect"))
+        #expect(operations.contains("audioEngine.installTap"))
+        #expect(operations.contains("audioEngine.removeTap"))
+        #expect(operations.contains("audioEngine.stop"))
+        #expect(operations.contains("audioEngine.reset"))
     }
 
     @Test("speech backend invokes lifecycle callbacks in order")

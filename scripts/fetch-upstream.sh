@@ -1152,6 +1152,11 @@ subs = [
     # CFNetwork shim's CFHostCreateWithName takes String -> drop the cast. (The shim also
     # no longer redeclares CFStreamError, so CoreFoundation's is used by both sides.)
     ('"uptime.signal.org" as CFString', '"uptime.signal.org"'),
+    # Math+OWS.fuzzyEquals (in `extension CGFloat`): unqualified `abs(self - other)`
+    # resolves to a static member on swift-corelibs ("static member 'abs' cannot be used
+    # on instance of type 'CGFloat'"). Use FloatingPoint.magnitude (the absolute value),
+    # which is unambiguous and identical for CGFloat.
+    ("return abs(self - other) < tolerance", "return (self - other).magnitude < tolerance"),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):

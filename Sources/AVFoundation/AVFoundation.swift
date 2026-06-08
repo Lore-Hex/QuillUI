@@ -140,10 +140,62 @@ public final class AVAudioSession: @unchecked Sendable {
         public static let notifyOthersOnDeactivation = SetActiveOptions(rawValue: 1 << 0)
     }
 
-    public init() {}
-    public static func sharedInstance() -> AVAudioSession { AVAudioSession() }
-    public func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws {}
-    public func setActive(_ active: Bool, options: SetActiveOptions = []) throws {}
+    private static let shared = AVAudioSession()
+    private let service: QuillAudioSessionService
+
+    public init() {
+        service = .shared
+    }
+
+    private init(service: QuillAudioSessionService = .shared) {
+        self.service = service
+    }
+
+    public static func sharedInstance() -> AVAudioSession { shared }
+
+    public var category: Category {
+        Category(rawValue: service.category.rawValue) ?? .ambient
+    }
+
+    public var mode: Mode {
+        Mode(rawValue: service.mode.rawValue) ?? .spokenAudio
+    }
+
+    public var categoryOptions: CategoryOptions {
+        CategoryOptions(rawValue: service.categoryOptionsRawValue)
+    }
+
+    public var isActive: Bool {
+        service.isActive
+    }
+
+    public func setCategory(_ category: Category) throws {
+        try setCategory(category, mode: mode, options: categoryOptions)
+    }
+
+    public func setCategory(_ category: Category, mode: Mode) throws {
+        try setCategory(category, mode: mode, options: [])
+    }
+
+    public func setCategory(_ category: Category, options: CategoryOptions = []) throws {
+        try setCategory(category, mode: mode, options: options)
+    }
+
+    public func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws {
+        service.setCategory(
+            QuillAudioSessionCategory(rawValue: category.rawValue) ?? .ambient,
+            mode: QuillAudioSessionMode(rawValue: mode.rawValue) ?? .spokenAudio,
+            optionsRawValue: options.rawValue
+        )
+    }
+
+    public func setMode(_ mode: Mode) throws {
+        try setCategory(category, mode: mode, options: categoryOptions)
+    }
+
+    public func setActive(_ active: Bool, options: SetActiveOptions = []) throws {
+        service.setActive(active, optionsRawValue: options.rawValue)
+    }
 }
 
 public final class AVPlayer: @unchecked Sendable {
@@ -158,53 +210,69 @@ public final class AVPlayer: @unchecked Sendable {
 // by a diagnostic record. Real audio I/O comes when a Linux
 // audio backend (PipeWire, ALSA, JACK) is wired up.
 public final class AVAudioEngine: @unchecked Sendable {
-    public init() {}
-    public lazy var inputNode: AVAudioInputNode = AVAudioInputNode()
-    public lazy var outputNode: AVAudioOutputNode = AVAudioOutputNode()
-    public lazy var mainMixerNode: AVAudioMixerNode = AVAudioMixerNode()
+    private let engineID = UUID()
+    private let service = QuillAudioEngineService.shared
 
-    public var isRunning: Bool = false
+    public init() {
+        service.registerEngine(engineID)
+    }
+
+    public lazy var inputNode: AVAudioInputNode = {
+        let node = AVAudioInputNode()
+        node.quillEngineID = engineID
+        return node
+    }()
+    public lazy var outputNode: AVAudioOutputNode = {
+        let node = AVAudioOutputNode()
+        node.quillEngineID = engineID
+        return node
+    }()
+    public lazy var mainMixerNode: AVAudioMixerNode = {
+        let node = AVAudioMixerNode()
+        node.quillEngineID = engineID
+        return node
+    }()
+
+    public var isRunning: Bool {
+        service.state(for: engineID).isRunning
+    }
 
     public func prepare() {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "AVFoundation",
-            operation: "AVAudioEngine.prepare",
-            message: "AVAudioEngine.prepare is a no-op on Linux until a real audio backend lands."
-        )
+        service.prepare(engineID: engineID)
     }
 
     public func start() throws {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "AVFoundation",
-            operation: "AVAudioEngine.start",
-            message: "AVAudioEngine.start is a no-op on Linux until a real audio backend lands."
-        )
-        isRunning = true
+        service.start(engineID: engineID)
     }
 
     public func stop() {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "AVFoundation",
-            operation: "AVAudioEngine.stop",
-            message: "AVAudioEngine.stop is a no-op on Linux until a real audio backend lands."
-        )
-        isRunning = false
+        service.stop(engineID: engineID)
     }
 
     public func reset() {
-        isRunning = false
+        service.reset(engineID: engineID)
     }
 
-    public func attach(_ node: AVAudioNode) {}
+    public func attach(_ node: AVAudioNode) {
+        node.quillEngineID = engineID
+        service.attachNode(engineID: engineID)
+    }
 
     public func connect(
         _ source: AVAudioNode,
         to destination: AVAudioNode,
         format: AVAudioFormat?
-    ) {}
+    ) {
+        source.quillEngineID = engineID
+        destination.quillEngineID = engineID
+        service.connect(engineID: engineID)
+    }
 }
 
 public class AVAudioNode: @unchecked Sendable {
+    fileprivate let quillNodeID = UUID()
+    fileprivate var quillEngineID: UUID?
+
     public init() {}
 
     public func installTap(
@@ -213,14 +281,20 @@ public class AVAudioNode: @unchecked Sendable {
         format: AVAudioFormat?,
         block tapBlock: @escaping (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "AVFoundation",
-            operation: "AVAudioNode.installTap",
-            message: "AVAudioNode.installTap is a no-op on Linux until a real audio backend lands."
+        QuillAudioEngineService.shared.installTap(
+            engineID: quillEngineID,
+            nodeID: quillNodeID,
+            bus: bus
         )
     }
 
-    public func removeTap(onBus bus: Int) {}
+    public func removeTap(onBus bus: Int) {
+        QuillAudioEngineService.shared.removeTap(
+            engineID: quillEngineID,
+            nodeID: quillNodeID,
+            bus: bus
+        )
+    }
 
     public func outputFormat(forBus bus: Int) -> AVAudioFormat {
         AVAudioFormat()

@@ -631,7 +631,7 @@
 <tr><td><code>UIImage</code>, <code>UIColor</code>, <code>UIFont</code>, <code>UIScreen</code> aliases</td><td>Partial</td><td>Map to AppKit types when importable, otherwise to QuillFoundation fallbacks.</td></tr>
 <tr><td><code>UIApplication.shared</code></td><td>Usable</td><td>Singleton shape exists.</td></tr>
 <tr><td><code>UIApplication.open(_:options:completionHandler:)</code></td><td>Partial</td><td>Uses <code>NSWorkspace</code> when AppKit is available; otherwise completion is <code>false</code>.</td></tr>
-<tr><td><code>UIApplication.registerForRemoteNotifications()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>UIApplication.registerForRemoteNotifications()</code> / <code>unregisterForRemoteNotifications()</code> / <code>isRegisteredForRemoteNotifications</code></td><td>Partial</td><td>Routes through <code>QuillNotificationService</code> process-local registration state; no native APNs/device-token registration exists on Linux.</td></tr>
 <tr><td><code>UIApplication.setAlternateIconName(_:completionHandler:)</code></td><td>Fallback</td><td>Calls completion with nil, no icon change.</td></tr>
 <tr><td><code>UIApplication.connectedScenes</code>, <code>applicationState</code>, <code>alternateIconName</code></td><td>Compile-only</td><td>Static/default metadata only.</td></tr>
 <tr><td><code>UIScene.delegate</code></td><td>Compile-only</td><td>Property only.</td></tr>
@@ -653,7 +653,8 @@
 <tr><td><code>UIPasteboard.general</code> string/data helpers</td><td>Partial</td><td>In-memory pasteboard bridge.</td></tr>
 <tr><td><code>UIControl.setTitle(_:for:)</code> and value/action helpers</td><td>Compile-only</td><td>Property shape only.</td></tr>
 <tr><td><code>UIImageView</code>, <code>UILabel</code>, <code>UIKeyCommand</code> initializers</td><td>Compile-only</td><td>Source compatibility only.</td></tr>
-<tr><td><code>UNUserNotificationCenter.requestAuthorization(...)</code></td><td>Fallback</td><td>Callback shape exists; no platform notification registration.</td></tr>
+<tr><td><code>UNUserNotificationCenter.requestAuthorization(...)</code></td><td>Partial</td><td>Routes through <code>QuillNotificationService</code>; authorization status is configurable and process-local.</td></tr>
+<tr><td><code>UNUserNotificationCenter.setNotificationCategories</code>, <code>add</code>, delivered/pending request lists, removal helpers</td><td>Partial</td><td>Tracks categories, immediate deliveries, scheduled pending requests, and removals in memory; no native desktop notification is presented yet.</td></tr>
 <tr><td>UIKit layout engine, rendering, event delivery, accessibility, text input, collection/table data-source parity</td><td>Incomplete</td><td>Required for UIKit Parity.</td></tr>
 </table>
 <br>
@@ -805,11 +806,11 @@
 <tr><td><code>AVSpeechSynthesizer.continueSpeaking()</code> / <code>pauseSpeaking(at:)</code></td><td>Compile-only</td><td>Return false.</td></tr>
 <tr><td><code>AVSpeechUtterance.init(string:)</code></td><td>Usable</td><td>Stores source-visible utterance text and metadata.</td></tr>
 <tr><td><code>AVSpeechSynthesisVoice</code> initializers, <code>speechVoices()</code>, and voice metadata</td><td>Partial</td><td>Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands.</td></tr>
-<tr><td><code>AVAudioSession.sharedInstance()</code>, <code>setCategory</code>, <code>setActive</code></td><td>Fallback</td><td>No native audio-session effect.</td></tr>
+<tr><td><code>AVAudioSession.sharedInstance()</code>, <code>setCategory</code>, <code>setMode</code>, <code>setActive</code>, category/mode/options/active readback</td><td>Partial</td><td>Routes through shared <code>QuillAudioSessionService</code> process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet.</td></tr>
 <tr><td><code>AVPlayer.init(url:)</code></td><td>Compile-only</td><td>Stores URL/player shape only.</td></tr>
-<tr><td><code>AVAudioEngine.prepare()</code> / <code>start()</code> / <code>stop()</code> / <code>reset()</code></td><td>Fallback</td><td>Records diagnostics and toggles <code>isRunning</code>; no audio I/O.</td></tr>
-<tr><td><code>AVAudioEngine.attach(_:)</code> / <code>connect(...)</code></td><td>Compile-only</td><td>No real graph processing.</td></tr>
-<tr><td><code>AVAudioNode.installTap(...)</code> / <code>removeTap(onBus:)</code></td><td>Fallback</td><td>Records diagnostic, no audio tap stream.</td></tr>
+<tr><td><code>AVAudioEngine.prepare()</code> / <code>start()</code> / <code>stop()</code> / <code>reset()</code></td><td>Partial</td><td>Routes through <code>QuillAudioEngineService</code>; tracks prepared/running state, no audio I/O.</td></tr>
+<tr><td><code>AVAudioEngine.attach(_:)</code> / <code>connect(...)</code></td><td>Partial</td><td>Tracks process-local graph attachment and connection counts; no real graph processing.</td></tr>
+<tr><td><code>AVAudioNode.installTap(...)</code> / <code>removeTap(onBus:)</code></td><td>Partial</td><td>Tracks process-local tap registration/removal; no audio tap stream.</td></tr>
 <tr><td><code>AVAudioFormat</code>, <code>AVAudioPCMBuffer</code>, <code>AVAudioTime</code> initializers</td><td>Compile-only</td><td>Data containers only.</td></tr>
 <tr><td>Real synthesis, playback, capture, engine graph processing, media decoding</td><td>Incomplete</td><td>Required for AVFoundation Parity.</td></tr>
 </table>

@@ -35,6 +35,7 @@ public enum QuillKitCapability: String, CaseIterable, Sendable {
     case launchAtLogin
     case updater
     case certificateTrust
+    case audioSession
     case photoPicker
     case secureStorage
     case notifications
@@ -54,11 +55,13 @@ public enum QuillKitCapabilities {
         switch capability {
         case .clipboard, .speechSynthesis, .speechRecognition, .localAuthentication:
             return .emulated
-        case .globalShortcuts:
+        case .globalShortcuts, .audioSession:
+            return .emulated
+        case .notifications:
             return .emulated
         case .haptics, .accessibility, .syntheticKeyboard,
              .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker,
-             .secureStorage, .notifications, .networkExtension, .vpnTunnel:
+             .secureStorage, .networkExtension, .vpnTunnel:
             return .unavailable(reason: "No native Linux backend has been attached yet.")
         }
         #else
@@ -1254,6 +1257,467 @@ public final class QuillHotkeyService: @unchecked Sendable {
         )
         registration.unregister()
         return handler()
+    }
+}
+
+public enum QuillNotificationAuthorizationStatus: Int, Sendable {
+    case notDetermined = 0
+    case denied = 1
+    case authorized = 2
+    case provisional = 3
+    case ephemeral = 4
+}
+
+public struct QuillNotificationRequestRecord: Equatable, Sendable {
+    public var identifier: String
+    public var title: String
+    public var subtitle: String
+    public var body: String
+    public var categoryIdentifier: String
+    public var threadIdentifier: String
+
+    public init(
+        identifier: String,
+        title: String = "",
+        subtitle: String = "",
+        body: String = "",
+        categoryIdentifier: String = "",
+        threadIdentifier: String = ""
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.subtitle = subtitle
+        self.body = body
+        self.categoryIdentifier = categoryIdentifier
+        self.threadIdentifier = threadIdentifier
+    }
+}
+
+public final class QuillNotificationService: @unchecked Sendable {
+    public static let shared = QuillNotificationService()
+
+    private let lock = NSLock()
+    private var currentAuthorizationStatus: QuillNotificationAuthorizationStatus = .notDetermined
+    private var nextAuthorizationRequestResult = false
+    private var categoryIdentifiersValue: Set<String> = []
+    private var pendingRequestsByIdentifier: [String: QuillNotificationRequestRecord] = [:]
+    private var deliveredNotificationsByIdentifier: [String: QuillNotificationRequestRecord] = [:]
+    private var remoteNotificationsRegisteredValue = false
+    private var remoteNotificationRegistrationCountValue = 0
+
+    public init() {}
+
+    public var authorizationStatus: QuillNotificationAuthorizationStatus {
+        lock.withLock { currentAuthorizationStatus }
+    }
+
+    public var categoryIdentifiers: [String] {
+        lock.withLock { categoryIdentifiersValue.sorted() }
+    }
+
+    public var pendingRequestRecords: [QuillNotificationRequestRecord] {
+        lock.withLock {
+            pendingRequestsByIdentifier.values.sorted { $0.identifier < $1.identifier }
+        }
+    }
+
+    public var deliveredNotificationRecords: [QuillNotificationRequestRecord] {
+        lock.withLock {
+            deliveredNotificationsByIdentifier.values.sorted { $0.identifier < $1.identifier }
+        }
+    }
+
+    public var remoteNotificationsRegistered: Bool {
+        lock.withLock { remoteNotificationsRegisteredValue }
+    }
+
+    public var remoteNotificationRegistrationCount: Int {
+        lock.withLock { remoteNotificationRegistrationCountValue }
+    }
+
+    public func configureAuthorization(
+        status: QuillNotificationAuthorizationStatus,
+        requestResult: Bool
+    ) {
+        lock.withLock {
+            currentAuthorizationStatus = status
+            nextAuthorizationRequestResult = requestResult
+        }
+    }
+
+    public func reset() {
+        lock.withLock {
+            currentAuthorizationStatus = .notDetermined
+            nextAuthorizationRequestResult = false
+            categoryIdentifiersValue.removeAll()
+            pendingRequestsByIdentifier.removeAll()
+            deliveredNotificationsByIdentifier.removeAll()
+            remoteNotificationsRegisteredValue = false
+            remoteNotificationRegistrationCountValue = 0
+        }
+    }
+
+    @discardableResult
+    public func requestAuthorization(optionsRawValue: UInt) -> Bool {
+        let granted = lock.withLock { () -> Bool in
+            let granted = nextAuthorizationRequestResult
+            currentAuthorizationStatus = granted ? .authorized : .denied
+            return granted
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.requestAuthorization",
+            severity: granted ? .info : .unsupported,
+            message: "Notification authorization is handled by the QuillKit compatibility backend for options raw value \(optionsRawValue)."
+        )
+        return granted
+    }
+
+    public func setCategories(_ identifiers: Set<String>) {
+        lock.withLock {
+            categoryIdentifiersValue = identifiers
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.setCategories",
+            severity: .info,
+            message: "Stored \(identifiers.count) notification categories in the process-local compatibility backend."
+        )
+    }
+
+    public func addRequest(
+        _ record: QuillNotificationRequestRecord,
+        deliverImmediately: Bool
+    ) {
+        lock.withLock {
+            if deliverImmediately {
+                pendingRequestsByIdentifier.removeValue(forKey: record.identifier)
+                deliveredNotificationsByIdentifier[record.identifier] = record
+            } else {
+                deliveredNotificationsByIdentifier.removeValue(forKey: record.identifier)
+                pendingRequestsByIdentifier[record.identifier] = record
+            }
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.addRequest",
+            severity: .info,
+            message: "Stored notification request '\(record.identifier)' in the process-local compatibility backend."
+        )
+    }
+
+    public func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+        lock.withLock {
+            for identifier in identifiers {
+                deliveredNotificationsByIdentifier.removeValue(forKey: identifier)
+            }
+        }
+    }
+
+    public func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
+        lock.withLock {
+            for identifier in identifiers {
+                pendingRequestsByIdentifier.removeValue(forKey: identifier)
+            }
+        }
+    }
+
+    public func removeAllDeliveredNotifications() {
+        lock.withLock {
+            deliveredNotificationsByIdentifier.removeAll()
+        }
+    }
+
+    public func removeAllPendingNotificationRequests() {
+        lock.withLock {
+            pendingRequestsByIdentifier.removeAll()
+        }
+    }
+
+    public func registerForRemoteNotifications() {
+        lock.withLock {
+            remoteNotificationsRegisteredValue = true
+            remoteNotificationRegistrationCountValue += 1
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.registerForRemoteNotifications",
+            severity: .info,
+            message: "Remote notification registration is tracked by the QuillKit compatibility backend."
+        )
+    }
+
+    public func unregisterForRemoteNotifications() {
+        lock.withLock {
+            remoteNotificationsRegisteredValue = false
+        }
+    }
+}
+
+public enum QuillAudioSessionCategory: Int, Sendable {
+    case ambient = 0
+    case soloAmbient = 1
+    case playback = 2
+    case record = 3
+    case playAndRecord = 4
+    case multiRoute = 5
+}
+
+public enum QuillAudioSessionMode: Int, Sendable {
+    case videoChat = 0
+    case videoRecording = 1
+    case measurement = 2
+    case moviePlayback = 3
+    case spokenAudio = 4
+}
+
+public final class QuillAudioSessionService: @unchecked Sendable {
+    public static let shared = QuillAudioSessionService()
+
+    private let lock = NSLock()
+    private var categoryValue: QuillAudioSessionCategory = .ambient
+    private var modeValue: QuillAudioSessionMode = .spokenAudio
+    private var categoryOptionsRawValueValue: UInt = 0
+    private var activeValue = false
+    private var setActiveOptionsRawValueValue: UInt = 0
+
+    public init() {}
+
+    public var category: QuillAudioSessionCategory {
+        lock.withLock { categoryValue }
+    }
+
+    public var mode: QuillAudioSessionMode {
+        lock.withLock { modeValue }
+    }
+
+    public var categoryOptionsRawValue: UInt {
+        lock.withLock { categoryOptionsRawValueValue }
+    }
+
+    public var isActive: Bool {
+        lock.withLock { activeValue }
+    }
+
+    public var setActiveOptionsRawValue: UInt {
+        lock.withLock { setActiveOptionsRawValueValue }
+    }
+
+    public func reset() {
+        lock.withLock {
+            categoryValue = .ambient
+            modeValue = .spokenAudio
+            categoryOptionsRawValueValue = 0
+            activeValue = false
+            setActiveOptionsRawValueValue = 0
+        }
+    }
+
+    public func setCategory(
+        _ category: QuillAudioSessionCategory,
+        mode: QuillAudioSessionMode,
+        optionsRawValue: UInt = 0
+    ) {
+        lock.withLock {
+            categoryValue = category
+            modeValue = mode
+            categoryOptionsRawValueValue = optionsRawValue
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "audioSession.setCategory",
+            severity: .info,
+            message: "Audio session category and mode are tracked by the QuillKit compatibility backend."
+        )
+    }
+
+    public func setActive(_ active: Bool, optionsRawValue: UInt = 0) {
+        lock.withLock {
+            activeValue = active
+            setActiveOptionsRawValueValue = optionsRawValue
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "audioSession.setActive",
+            severity: .info,
+            message: "Audio session active state is tracked by the QuillKit compatibility backend."
+        )
+    }
+}
+
+public struct QuillAudioEngineState: Equatable, Sendable {
+    public var engineID: UUID
+    public var isPrepared: Bool
+    public var isRunning: Bool
+    public var attachedNodeCount: Int
+    public var connectionCount: Int
+    public var tapCount: Int
+
+    public init(
+        engineID: UUID,
+        isPrepared: Bool = false,
+        isRunning: Bool = false,
+        attachedNodeCount: Int = 0,
+        connectionCount: Int = 0,
+        tapCount: Int = 0
+    ) {
+        self.engineID = engineID
+        self.isPrepared = isPrepared
+        self.isRunning = isRunning
+        self.attachedNodeCount = attachedNodeCount
+        self.connectionCount = connectionCount
+        self.tapCount = tapCount
+    }
+}
+
+public final class QuillAudioEngineService: @unchecked Sendable {
+    public static let shared = QuillAudioEngineService()
+
+    private let lock = NSLock()
+    private var statesByEngineID: [UUID: QuillAudioEngineState] = [:]
+    private var tapsByNodeAndBus: Set<String> = []
+
+    public init() {}
+
+    public var engineStates: [QuillAudioEngineState] {
+        lock.withLock {
+            statesByEngineID.values.sorted { lhs, rhs in
+                lhs.engineID.uuidString < rhs.engineID.uuidString
+            }
+        }
+    }
+
+    public func resetAll() {
+        lock.withLock {
+            statesByEngineID.removeAll()
+            tapsByNodeAndBus.removeAll()
+        }
+    }
+
+    public func state(for engineID: UUID) -> QuillAudioEngineState {
+        lock.withLock {
+            state(for: engineID, in: &statesByEngineID)
+        }
+    }
+
+    public func registerEngine(_ engineID: UUID) {
+        lock.withLock {
+            _ = state(for: engineID, in: &statesByEngineID)
+        }
+    }
+
+    public func prepare(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.prepare") {
+            $0.isPrepared = true
+        }
+    }
+
+    public func start(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.start") {
+            $0.isPrepared = true
+            $0.isRunning = true
+        }
+    }
+
+    public func stop(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.stop") {
+            $0.isRunning = false
+        }
+    }
+
+    public func reset(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.reset") {
+            $0.isPrepared = false
+            $0.isRunning = false
+            $0.attachedNodeCount = 0
+            $0.connectionCount = 0
+            $0.tapCount = 0
+        }
+        lock.withLock {
+            tapsByNodeAndBus.removeAll()
+        }
+    }
+
+    public func attachNode(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.attach") {
+            $0.attachedNodeCount += 1
+        }
+    }
+
+    public func connect(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.connect") {
+            $0.connectionCount += 1
+        }
+    }
+
+    public func installTap(engineID: UUID?, nodeID: UUID, bus: Int) {
+        let key = "\(nodeID.uuidString):\(bus)"
+        let didInsert = lock.withLock {
+            tapsByNodeAndBus.insert(key).inserted
+        }
+
+        if let engineID, didInsert {
+            update(engineID: engineID, operation: "audioEngine.installTap") {
+                $0.tapCount += 1
+            }
+        } else {
+            record(operation: "audioEngine.installTap")
+        }
+    }
+
+    public func removeTap(engineID: UUID?, nodeID: UUID, bus: Int) {
+        let key = "\(nodeID.uuidString):\(bus)"
+        let didRemove = lock.withLock {
+            tapsByNodeAndBus.remove(key) != nil
+        }
+
+        if let engineID, didRemove {
+            update(engineID: engineID, operation: "audioEngine.removeTap") {
+                $0.tapCount = max(0, $0.tapCount - 1)
+            }
+        } else {
+            record(operation: "audioEngine.removeTap")
+        }
+    }
+
+    private func update(
+        engineID: UUID,
+        operation: String,
+        mutate: (inout QuillAudioEngineState) -> Void
+    ) {
+        lock.withLock {
+            var current = state(for: engineID, in: &statesByEngineID)
+            mutate(&current)
+            statesByEngineID[engineID] = current
+        }
+        record(operation: operation)
+    }
+
+    private func state(
+        for engineID: UUID,
+        in states: inout [UUID: QuillAudioEngineState]
+    ) -> QuillAudioEngineState {
+        if let state = states[engineID] {
+            return state
+        }
+        let state = QuillAudioEngineState(engineID: engineID)
+        states[engineID] = state
+        return state
+    }
+
+    private func record(operation: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: operation,
+            severity: .info,
+            message: "Audio engine state is tracked by the QuillKit compatibility backend."
+        )
     }
 }
 
