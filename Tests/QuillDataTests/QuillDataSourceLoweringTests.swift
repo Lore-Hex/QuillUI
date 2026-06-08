@@ -2479,8 +2479,8 @@ struct QuillDataSourceLoweringTests {
         }
     }
 
-    @Test("vendored SwiftOpenUI starts GTK task modifiers after map")
-    func vendoredSwiftOpenUIStartsGTKTasksAfterMap() throws {
+    @Test("vendored SwiftOpenUI starts GTK lifecycle modifiers after map")
+    func vendoredSwiftOpenUIStartsGTKLifecycleAfterMap() throws {
         let root = try packageRoot()
         let viewHost = root
             .appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift")
@@ -2490,14 +2490,20 @@ struct QuillDataSourceLoweringTests {
         let rendererSource = try String(contentsOf: renderer, encoding: .utf8)
 
         #expect(viewHostSource.contains("private var taskLifecycleSuspended = true"))
+        #expect(viewHostSource.contains("private var onAppearPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4OnAppearPayload]"))
+        #expect(viewHostSource.contains("private var appearedOnAppearIdentities: Set<GTK4DescriptorIdentity>"))
         #expect(viewHostSource.contains("host.resumeTasksAfterAppear()"))
         #expect(viewHostSource.contains("if !taskLifecycleSuspended {"))
+        #expect(viewHostSource.contains("appearedOnAppearIdentities = appearedOnAppearIdentities.intersection(liveIdentities)"))
         #expect(viewHostSource.contains("for (identity, payload) in taskPayloadsByIdentity where activeTasksByIdentity[identity] == nil"))
         #expect(rendererSource.contains("extension TaskView: GTKRenderable, GTKDescribable"))
+        #expect(rendererSource.contains("extension OnAppearView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("gtkAttachStandaloneTaskLifecycle("))
+        #expect(rendererSource.contains("gtkCollectOnAppearPayload("))
+        #expect(rendererSource.contains("gtkCollectTaskPayload("))
         #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
-        #expect(!rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
-        #expect(!rendererSource.contains("gtkCollectTaskPayload(GTK4TaskPayload(\n            priority: priority"))
+        #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
+        #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            let boundAction = bindActionToCurrentEnvironment(action)"))
     }
 
     private func runScript(

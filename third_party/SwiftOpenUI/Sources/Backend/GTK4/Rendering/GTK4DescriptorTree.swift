@@ -17,6 +17,7 @@ public enum GTK4DescriptorKind: Equatable {
     case divider
     case offset
     case opacity
+    case onAppear
     case rotation
     case safeAreaInset
     case safeAreaPadding
@@ -205,6 +206,14 @@ public final class GTK4TaskPayload {
         action: @escaping @Sendable () async -> Void
     ) {
         self.priority = priority
+        self.action = action
+    }
+}
+
+public final class GTK4OnAppearPayload {
+    public let action: () -> Void
+
+    public init(action: @escaping () -> Void) {
         self.action = action
     }
 }
@@ -489,6 +498,7 @@ public protocol GTKDescribable {
 
 private final class GTK4DescriptorPayloadCollector {
     var canvasPayloads: [GTK4CanvasPayload] = []
+    var onAppearPayloads: [GTK4OnAppearPayload] = []
     var taskPayloads: [GTK4TaskPayload] = []
 }
 
@@ -510,11 +520,18 @@ public func gtkCollectTaskPayload(_ payload: GTK4TaskPayload) {
     collector.taskPayloads.append(payload)
 }
 
+public func gtkCollectOnAppearPayload(_ payload: GTK4OnAppearPayload) {
+    guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
+    let collector = Unmanaged<GTK4DescriptorPayloadCollector>.fromOpaque(raw).takeUnretainedValue()
+    collector.onAppearPayloads.append(payload)
+}
+
 public func gtkDescribeCapturingCanvasPayloads(
     _ describe: () -> GTK4DescriptorNode
 ) -> (
     descriptor: GTK4DescriptorNode,
     canvasPayloads: [GTK4CanvasPayload],
+    onAppearPayloads: [GTK4OnAppearPayload],
     taskPayloads: [GTK4TaskPayload]
 ) {
     let collector = GTK4DescriptorPayloadCollector()
@@ -524,7 +541,7 @@ public func gtkDescribeCapturingCanvasPayloads(
     let descriptor = describe()
     pthread_setspecific(gtkDescriptorPayloadCollectorKey, previous)
     retained.release()
-    return (descriptor, collector.canvasPayloads, collector.taskPayloads)
+    return (descriptor, collector.canvasPayloads, collector.onAppearPayloads, collector.taskPayloads)
 }
 
 /// Build a GTK4-local descriptor tree without creating widgets.
@@ -1319,6 +1336,20 @@ public func gtkTaskPayloadsByIdentity(
     return result
 }
 
+public func gtkOnAppearPayloadsByIdentity(
+    descriptorRoot: GTK4IdentifiedDescriptorNode,
+    payloads: [GTK4OnAppearPayload]
+) -> [GTK4DescriptorIdentity: GTK4OnAppearPayload] {
+    let identities = gtkCollectOnAppearDescriptorIdentities(from: descriptorRoot)
+    guard identities.count == payloads.count else { return [:] }
+
+    var result: [GTK4DescriptorIdentity: GTK4OnAppearPayload] = [:]
+    for (identity, payload) in zip(identities, payloads) {
+        result[identity] = payload
+    }
+    return result
+}
+
 private func gtkCollectCanvasDescriptorIdentities(
     from node: GTK4IdentifiedDescriptorNode
 ) -> [GTK4DescriptorIdentity] {
@@ -1341,6 +1372,19 @@ private func gtkCollectTaskDescriptorIdentities(
     }
     for child in node.children {
         result.append(contentsOf: gtkCollectTaskDescriptorIdentities(from: child))
+    }
+    return result
+}
+
+private func gtkCollectOnAppearDescriptorIdentities(
+    from node: GTK4IdentifiedDescriptorNode
+) -> [GTK4DescriptorIdentity] {
+    var result: [GTK4DescriptorIdentity] = []
+    if node.descriptor.kind == .onAppear {
+        result.append(node.identity)
+    }
+    for child in node.children {
+        result.append(contentsOf: gtkCollectOnAppearDescriptorIdentities(from: child))
     }
     return result
 }

@@ -1569,9 +1569,9 @@ extension SwiftOpenUI.Button: WebRenderable {
         switch env.buttonStyle {
         case .plain:
             styleCSS = "padding: 0; cursor: \(cursorStyle); border: none; background: none; color: inherit; font: inherit; display: flex; align-items: center; justify-content: center; opacity: \(disabled ? 0.4 : 1.0);"
-        case .bordered:
+        case .bordered, .quillPaintMacBordered:
             styleCSS = "padding: 6px 12px; cursor: \(cursorStyle); border: 1px solid currentColor; background: none; color: inherit; font: inherit; border-radius: 4px; display: flex; align-items: center; justify-content: center; opacity: \(disabled ? 0.4 : 1.0);"
-        case .borderedProminent:
+        case .borderedProminent, .quillPaintMacDefault:
             styleCSS = "padding: 8px 16px; cursor: \(cursorStyle); border: none; background: #007AFF; color: white; font: inherit; border-radius: 6px; display: flex; align-items: center; justify-content: center; opacity: \(disabled ? 0.4 : 1.0);"
         case .automatic:
             styleCSS = "padding: 6px 12px; cursor: \(cursorStyle); border: none; background: none; color: inherit; font: inherit; display: flex; align-items: center; justify-content: center; opacity: \(disabled ? 0.4 : 1.0);"

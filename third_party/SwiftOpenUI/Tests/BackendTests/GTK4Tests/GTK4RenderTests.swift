@@ -1853,6 +1853,11 @@ final class GTK4RenderTests: XCTestCase {
         let widget = widgetFromOpaque(gtkRenderView(
             GTKTaskOnceProbeView(tick: tick, counter: counter)
         ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
         XCTAssertNotNil(widget)
         XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
                       "Initial .task should run")
@@ -1867,6 +1872,60 @@ final class GTK4RenderTests: XCTestCase {
 
         XCTAssertEqual(counter.value, 1,
                        ".task should not re-run for unrelated rebuilds of the same descriptor identity")
+    }
+
+    func testOnAppearRunsOnceAcrossUnrelatedStateRebuilds() throws {
+        try requireGTK()
+
+        let tick = State(wrappedValue: 0)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKOnAppearOnceProbeView(tick: tick, counter: counter)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial onAppear should run")
+
+        for value in 1...5 {
+            tick.storage.setValue(value)
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertEqual(counter.value, 1,
+                       "onAppear should not re-run for unrelated rebuilds of the same descriptor identity")
+    }
+
+    func testOnAppearRunsAgainAfterConditionalReinsert() throws {
+        try requireGTK()
+
+        let show = State(wrappedValue: true)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKConditionalOnAppearProbeView(show: show, counter: counter)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial conditional onAppear should run")
+
+        show.storage.setValue(false)
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(counter.value, 1,
+                       "Removing the view should not fire onAppear")
+
+        show.storage.setValue(true)
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertTrue(counter.waitForCount(2, timeout: 1.0),
+                      "Reinserting the view should fire onAppear again")
     }
 
     func testTapGestureRendersWithEnvironmentBinding() throws {
@@ -2338,6 +2397,16 @@ private func drainGTKMainContext(maxIterations: Int = 20) {
     }
 }
 
+private func presentGTKWidget(
+    _ widget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let window = gtk_window_new()!
+    gtk_window_set_child(windowPointer(window), widget)
+    gtk_window_present(windowPointer(window))
+    drainGTKMainContext(maxIterations: 100)
+    return window
+}
+
 private struct GTKTaskOnceProbeView: View {
     @State private var tick: Int
     let counter: GTKTaskRunCounter
@@ -2353,6 +2422,46 @@ private struct GTKTaskOnceProbeView: View {
             .task {
                 counter.increment()
             }
+    }
+}
+
+private struct GTKOnAppearOnceProbeView: View {
+    @State private var tick: Int
+    let counter: GTKTaskRunCounter
+
+    init(tick: State<Int>, counter: GTKTaskRunCounter) {
+        self._tick = tick
+        self.counter = counter
+    }
+
+    var body: some View {
+        Text("tick \(tick)")
+            .frame(width: tick.isMultiple(of: 2) ? 80 : 96)
+            .onAppear {
+                counter.increment()
+            }
+    }
+}
+
+private struct GTKConditionalOnAppearProbeView: View {
+    @State private var show: Bool
+    let counter: GTKTaskRunCounter
+
+    init(show: State<Bool>, counter: GTKTaskRunCounter) {
+        self._show = show
+        self.counter = counter
+    }
+
+    var body: some View {
+        VStack {
+            if show {
+                Text("appearing")
+                    .onAppear {
+                        counter.increment()
+                    }
+            }
+            Text("stable")
+        }
     }
 }
 

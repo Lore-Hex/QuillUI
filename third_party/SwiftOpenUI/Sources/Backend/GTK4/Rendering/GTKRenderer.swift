@@ -3069,6 +3069,12 @@ private func gtkAttachStandaloneTaskLifecycle(
 
 extension TaskView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
+        gtkCollectTaskPayload(
+            GTK4TaskPayload(
+                priority: priority,
+                action: bindTaskActionToCurrentEnvironment(action)
+            )
+        )
         return GTK4DescriptorNode(
             kind: .task,
             typeName: "TaskView",
@@ -3078,29 +3084,36 @@ extension TaskView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        gtkAttachStandaloneTaskLifecycle(
-            to: widget,
-            priority: priority,
-            action: bindTaskActionToCurrentEnvironment(action)
-        )
+        if GTKViewHost.getCurrentRebuilding() == nil {
+            gtkAttachStandaloneTaskLifecycle(
+                to: widget,
+                priority: priority,
+                action: bindTaskActionToCurrentEnvironment(action)
+            )
+        }
         return opaqueFromWidget(widget)
     }
 }
 
-extension OnAppearView: GTKRenderable {
+extension OnAppearView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        gtkCollectOnAppearPayload(
+            GTK4OnAppearPayload(action: bindActionToCurrentEnvironment(action))
+        )
+        return GTK4DescriptorNode(
+            kind: .onAppear,
+            typeName: "OnAppearView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
 
-        // During a rebuild, the ViewHost container is already mapped.
-        // Skip attaching the signal since the appear already happened.
-        let isRebuild: Bool
-        if let host = GTKViewHost.getCurrentRebuilding() {
-            isRebuild = gtk_widget_get_mapped(host.container) != 0
-        } else {
-            isRebuild = false
-        }
-
-        if !isRebuild {
+        // Stateful hosts reconcile `onAppear` by descriptor identity so actions
+        // run once per appearance even when the subtree rebuilds.  Stateless
+        // standalone renders still use the native map signal.
+        if GTKViewHost.getCurrentRebuilding() == nil {
             let boundAction = bindActionToCurrentEnvironment(action)
             let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
             g_signal_connect_data(
@@ -6637,6 +6650,10 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
         let canvasPayloads = gtkCanvasPayloadsByIdentity(
             descriptorRoot: identified,
             payloads: described.canvasPayloads
+        )
+        host.updateOnAppearLifecycle(
+            descriptorRoot: identified,
+            onAppearPayloads: described.onAppearPayloads
         )
         host.updateTaskLifecycle(
             descriptorRoot: identified,

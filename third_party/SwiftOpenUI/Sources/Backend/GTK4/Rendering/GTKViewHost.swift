@@ -33,6 +33,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     private var interactiveUpdateDepth = 0
     private var rebuildDeferredDuringInteraction = false
     private var pendingAnimation: Animation?
+    private var onAppearPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4OnAppearPayload] = [:]
+    private var appearedOnAppearIdentities: Set<GTK4DescriptorIdentity> = []
     private var taskPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload] = [:]
     private var activeTasksByIdentity: [GTK4DescriptorIdentity: Task<Void, Never>] = [:]
     private var taskLifecycleSuspended = true
@@ -124,6 +126,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         isContainerAlive = false
         scheduled = false
         taskLifecycleSuspended = true
+        onAppearPayloadsByIdentity.removeAll()
+        appearedOnAppearIdentities.removeAll()
         taskPayloadsByIdentity.removeAll()
         tasksToCancel = Array(activeTasksByIdentity.values)
         activeTasksByIdentity.removeAll()
@@ -141,6 +145,41 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 payloads: taskPayloads
             )
         )
+    }
+
+    func updateOnAppearLifecycle(
+        descriptorRoot: GTK4IdentifiedDescriptorNode,
+        onAppearPayloads: [GTK4OnAppearPayload]
+    ) {
+        reconcileOnAppearPayloads(
+            gtkOnAppearPayloadsByIdentity(
+                descriptorRoot: descriptorRoot,
+                payloads: onAppearPayloads
+            )
+        )
+    }
+
+    private func reconcileOnAppearPayloads(
+        _ newPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4OnAppearPayload]
+    ) {
+        let actionsToRun: [() -> Void]
+
+        lock.lock()
+        onAppearPayloadsByIdentity = newPayloadsByIdentity
+
+        let liveIdentities = Set(newPayloadsByIdentity.keys)
+        appearedOnAppearIdentities = appearedOnAppearIdentities.intersection(liveIdentities)
+
+        if taskLifecycleSuspended {
+            actionsToRun = []
+        } else {
+            let newAppearances = liveIdentities.subtracting(appearedOnAppearIdentities)
+            appearedOnAppearIdentities.formUnion(newAppearances)
+            actionsToRun = newAppearances.compactMap { newPayloadsByIdentity[$0]?.action }
+        }
+        lock.unlock()
+
+        actionsToRun.forEach { $0() }
     }
 
     private func reconcileTaskPayloads(
@@ -179,6 +218,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         let tasksToCancel: [Task<Void, Never>]
         lock.lock()
         taskLifecycleSuspended = true
+        appearedOnAppearIdentities.removeAll()
         tasksToCancel = Array(activeTasksByIdentity.values)
         activeTasksByIdentity.removeAll()
         lock.unlock()
@@ -187,6 +227,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     }
 
     private func resumeTasksAfterAppear() {
+        let actionsToRun: [() -> Void]
+
         lock.lock()
         guard isContainerAlive else {
             lock.unlock()
@@ -196,7 +238,12 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         for (identity, payload) in taskPayloadsByIdentity where activeTasksByIdentity[identity] == nil {
             startTaskLocked(identity: identity, payload: payload)
         }
+        let newAppearances = Set(onAppearPayloadsByIdentity.keys).subtracting(appearedOnAppearIdentities)
+        appearedOnAppearIdentities.formUnion(newAppearances)
+        actionsToRun = newAppearances.compactMap { onAppearPayloadsByIdentity[$0]?.action }
         lock.unlock()
+
+        actionsToRun.forEach { $0() }
     }
 
     public func scheduleRebuild() {
@@ -347,6 +394,10 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                     let result = gtkApplyHookMutation(action: action)
                     if gtkHookMutationSucceeded(result) {
                         // Success — update retained state, skip full rebuild
+                        updateOnAppearLifecycle(
+                            descriptorRoot: newIdentified,
+                            onAppearPayloads: described.onAppearPayloads
+                        )
                         lastRetainedDescriptor = gtkRetainDescriptorTree(newIdentified)
                         retainedExecutor = action.resultingNode
                         return
@@ -518,6 +569,10 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             let canvasPayloads = gtkCanvasPayloadsByIdentity(
                 descriptorRoot: identified,
                 payloads: described.canvasPayloads
+            )
+            updateOnAppearLifecycle(
+                descriptorRoot: identified,
+                onAppearPayloads: described.onAppearPayloads
             )
             updateTaskLifecycle(
                 descriptorRoot: identified,
