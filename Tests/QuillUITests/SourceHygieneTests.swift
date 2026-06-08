@@ -2518,8 +2518,20 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/IOKit/hidsystem/IOHIDLib.h"),
             encoding: .utf8
         )
+        let securityHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Security/Security.h"),
+            encoding: .utf8
+        )
+        let commonCryptoHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/CommonCrypto/CommonCrypto.h"),
+            encoding: .utf8
+        )
         let objcModuleMap = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
+            encoding: .utf8
+        )
+        let apiCredentialsOverlay = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/ApiCredentials/Sources/ApiCredentials/QuillSecurityOverlay.swift"),
             encoding: .utf8
         )
         let telegramSystemOverlay = try String(
@@ -2540,6 +2552,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("UPSTREAM_DIR=\"$(quillui_resolve_telegram_source_dir \"$ROOT_DIR\")\""))
         #expect(telegramPackageCheck.contains("QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES"))
         #expect(telegramPackageCheck.contains("--jobs 1"))
+        #expect(telegramPackageCheck.contains("ApiCredentials"))
         #expect(telegramPackageCheck.contains("CAPortal"))
         #expect(telegramPackageCheck.contains("CalendarUtils"))
         #expect(telegramPackageCheck.contains("CrashHandler"))
@@ -2601,12 +2614,19 @@ struct SourceHygieneTests {
         #expect(carbonHeader.contains("UCKeyTranslate"))
         #expect(avFoundationHeader.contains("@interface AVURLAsset : NSObject"))
         #expect(ioHIDHeader.contains("IOHIDRequestAccess"))
+        #expect(securityHeader.contains("import Security"))
+        #expect(commonCryptoHeader.contains("import CommonCrypto"))
         #expect(objcModuleMap.contains("module Foundation"))
         #expect(objcModuleMap.contains("module AppKit"))
         #expect(objcModuleMap.contains("module Cocoa"))
+        #expect(objcModuleMap.contains("module Security"))
+        #expect(objcModuleMap.contains("module CommonCrypto"))
         #expect(!objcModuleMap.contains("module CoreFoundation {"))
         #expect(objcPreludeHeader.contains("#include <string>"))
         #expect(objcPreludeHeader.contains("#include <pthread.h>"))
+        #expect(apiCredentialsOverlay.contains("func SecStaticCodeCreateWithPath"))
+        #expect(apiCredentialsOverlay.contains("func CC_SHA1"))
+        #expect(apiCredentialsOverlay.contains("containerURL(forSecurityApplicationGroupIdentifier"))
         #expect(telegramSystemOverlay.contains("func sysctlbyname"))
         #expect(telegramSystemOverlay.contains("oldlenp?.pointee = 0"))
     }

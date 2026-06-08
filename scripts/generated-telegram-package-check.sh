@@ -26,6 +26,7 @@ rm -rf "$WORK_ROOT"
 mkdir -p "$WORK_ROOT/logs" "$WORK_ROOT/home" "$WORK_ROOT/module-cache" "$WORK_ROOT/overlaid-packages"
 
 default_packages=(
+  ApiCredentials
   CAPortal
   CalendarUtils
   CrashHandler

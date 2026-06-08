@@ -3,14 +3,24 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 typedef signed long CFIndex;
+typedef uint32_t CFOptionFlags;
 typedef uint32_t CFStringEncoding;
 typedef const void *CFAllocatorRef;
 typedef const struct __CFData *CFDataRef;
 typedef const struct __CFDictionary *CFDictionaryRef;
 typedef const struct __CFString *CFStringRef;
 typedef const struct __CFURL *CFURLRef;
+
+#if defined(__OBJC__)
+@class NSDictionary;
+@class NSURL;
+
+typedef NSDictionary *CFDictionary;
+typedef NSURL *CFURL;
+#endif
 
 #ifndef QUILL_OBJC_UINT8_TYPEDEF
 #define QUILL_OBJC_UINT8_TYPEDEF

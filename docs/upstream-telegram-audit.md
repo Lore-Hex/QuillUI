@@ -17,15 +17,16 @@ repeatable source checkout plus Linux compile ratchet:
   (`<Foundation/Foundation.h>`, `<AppKit/AppKit.h>`, `<Cocoa/Cocoa.h>`) so
   mixed Objective-C package islands can compile without Telegram source edits.
 - `scripts/generated-telegram-package-check.sh` compiles the first SwiftPM
-  package islands on Linux: `CAPortal`, `CalendarUtils`, `CrashHandler`,
-  `CurrencyFormat`, `DateUtils`, `DetectSpeech`, `EDSunriseSet`,
-  `EmojiSuggestions`, `FastBlur`, `FoundationUtils`, `GZIP`, `HackUtils`,
-  `HotKey`, `KeyboardKey`, `MergeLists`, `NumberPluralization`, `RingBuffer`,
-  `TGCurrencyFormatter`, `TGPassportMRZ`, and `TelegramSystem`.
+  package islands on Linux: `ApiCredentials`, `CAPortal`, `CalendarUtils`,
+  `CrashHandler`, `CurrencyFormat`, `DateUtils`, `DetectSpeech`,
+  `EDSunriseSet`, `EmojiSuggestions`, `FastBlur`, `FoundationUtils`, `GZIP`,
+  `HackUtils`, `HotKey`, `KeyboardKey`, `MergeLists`, `NumberPluralization`,
+  `RingBuffer`, `TGCurrencyFormatter`, `TGPassportMRZ`, and `TelegramSystem`.
 - `Sources/QuillTelegramBuildOverlays` provides generic generated build overlays
   for Swift-only ambient Apple symbols that cannot be supplied by C headers.
-  `TelegramSystem` currently uses this for a Linux `sysctlbyname` fallback while
-  leaving the upstream checkout untouched.
+  `ApiCredentials` uses this for Security/CommonCrypto and app-group container
+  fallbacks, and `TelegramSystem` uses it for a Linux `sysctlbyname` fallback,
+  while leaving the upstream checkout untouched.
 
 Current Linux blocker classes:
 
@@ -35,7 +36,6 @@ Current Linux blocker classes:
 - AppKit/CoreText/Cocoa UI packages that need QuillAppKit/QuillKit shims before
   they can compile (`Colors`, `Strings`, `TGUIKit`, `TelegramMedia`, and the
   main `Telegram-Mac` surface).
-- Security/CommonCrypto signing APIs used by `ApiCredentials`.
 - Higher-level Telegram packages that depend on telegram-ios submodules not
   present in the shallow upstream checkout.
 
