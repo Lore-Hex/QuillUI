@@ -7,6 +7,17 @@ import Foundation
 
 public typealias _CombineScheduler = OpenCombine.Scheduler
 
+public extension NotificationCenter {
+    typealias Publisher = OCombine.Publisher
+
+    func publisher(
+        for name: Notification.Name,
+        object: AnyObject? = nil
+    ) -> OCombine.Publisher {
+        ocombine.publisher(for: name, object: object)
+    }
+}
+
 public extension AnyPublisher where Failure == Never {
     init() {
         self.init(Empty<Output, Never>())
