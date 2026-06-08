@@ -3096,6 +3096,22 @@ private func gtkAttachStandaloneTaskLifecycle(
     )
 }
 
+private func gtkScheduleOnAppear(_ action: @escaping () -> Void, on widget: UnsafeMutablePointer<GtkWidget>) {
+    let rawWidget = UnsafeMutableRawPointer(widget)
+    g_object_ref(rawWidget)
+
+    let box = Unmanaged.passRetained(ClosureBox {
+        action()
+        g_object_unref(rawWidget)
+    }).toOpaque()
+
+    g_idle_add({ userData -> gboolean in
+        let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeRetainedValue()
+        box.closure()
+        return 0
+    }, box)
+}
+
 extension TaskView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         return GTK4DescriptorNode(

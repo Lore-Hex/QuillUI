@@ -671,8 +671,9 @@ app progress can be audited with the same status ladder.
 | `getShortcut(for:)` / `setShortcut(_:for:)` | Usable | Stores shortcuts in `UserDefaults` with locking. |
 | `reset(_:)` / `resetAll()` | Usable | Restores defaults or clears stored shortcut values. |
 | `KeyboardShortcuts.Recorder.body` | Partial | Renders a text label for current settings screens. |
-| `View.onKeyboardShortcut(...)` | Compile-only | Returns `self`; actions are not registered. |
-| Native recorder UI, global shortcut registration, event delivery, conflict handling | Incomplete | Required for KeyboardShortcuts parity. |
+| `View.onKeyboardShortcut(...)` | Partial | Registers key-down handlers through QuillKit's process-local hot-key registry and keeps direct test/helper triggering for key-up handlers. |
+| `KeyboardShortcuts.trigger(_ shortcut:)` | Usable | Test/helper entry point dispatches registered key-down shortcuts through the shared QuillKit registry. |
+| Native recorder UI and desktop-global shortcut capture | Incomplete | Required for full KeyboardShortcuts parity. |
 
 ### Magnet
 

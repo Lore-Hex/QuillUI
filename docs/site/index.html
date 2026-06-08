@@ -1102,8 +1102,9 @@
 <tr><td><code>getShortcut(for:)</code> / <code>setShortcut(_:for:)</code></td><td>Usable</td><td>Stores shortcuts in <code>UserDefaults</code> with locking.</td></tr>
 <tr><td><code>reset(_:)</code> / <code>resetAll()</code></td><td>Usable</td><td>Restores defaults or clears stored shortcut values.</td></tr>
 <tr><td><code>KeyboardShortcuts.Recorder.body</code></td><td>Partial</td><td>Renders a text label for current settings screens.</td></tr>
-<tr><td><code>View.onKeyboardShortcut(...)</code></td><td>Compile-only</td><td>Returns <code>self</code>; actions are not registered.</td></tr>
-<tr><td>Native recorder UI, global shortcut registration, event delivery, conflict handling</td><td>Incomplete</td><td>Required for KeyboardShortcuts parity.</td></tr>
+<tr><td><code>View.onKeyboardShortcut(...)</code></td><td>Partial</td><td>Registers key-down handlers through QuillKit's process-local hot-key registry and keeps direct test/helper triggering for key-up handlers.</td></tr>
+<tr><td><code>KeyboardShortcuts.trigger(_ shortcut:)</code></td><td>Usable</td><td>Test/helper entry point dispatches registered key-down shortcuts through the shared QuillKit registry.</td></tr>
+<tr><td>Native recorder UI and desktop-global shortcut capture</td><td>Incomplete</td><td>Required for full KeyboardShortcuts parity.</td></tr>
 </table>
 <br>
 <h3 id="magnet">Magnet</h3>
