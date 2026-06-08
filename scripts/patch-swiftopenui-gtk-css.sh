@@ -4983,5 +4983,142 @@ if "gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)" not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader ID target wrapper shape was not recognized")
     text = text.replace(old_id_view_scroll_target, new_id_view_scroll_target, 1)
 
+if "gtkSwiftVerticalScrollViewMarker" not in text:
+    if 'let gtkSwiftLayoutHelperMarker = "gtk-swift-layout-helper"\n' in text:
+        scroll_marker_constants = '''let gtkSwiftLayoutHelperMarker = "gtk-swift-layout-helper"
+'''
+        scroll_marker_replacement = '''let gtkSwiftLayoutHelperMarker = "gtk-swift-layout-helper"
+/// Marker string for SwiftUI ScrollView widgets that should receive
+/// ScrollViewReader target adjustments.
+let gtkSwiftScrollViewMarker = "gtk-swift-scroll-view"
+/// Marker string for vertical SwiftUI ScrollViews.
+let gtkSwiftVerticalScrollViewMarker = "gtk-swift-vertical-scroll-view"
+'''
+        text = text.replace(scroll_marker_constants, scroll_marker_replacement, 1)
+    elif 'let gtkSwiftDividerMarker = "gtk-swift-divider"\n' in text:
+        scroll_marker_constants = '''let gtkSwiftDividerMarker = "gtk-swift-divider"
+'''
+        scroll_marker_replacement = '''let gtkSwiftDividerMarker = "gtk-swift-divider"
+let gtkSwiftScrollViewMarker = "gtk-swift-scroll-view"
+let gtkSwiftVerticalScrollViewMarker = "gtk-swift-vertical-scroll-view"
+'''
+        text = text.replace(scroll_marker_constants, scroll_marker_replacement, 1)
+    else:
+        raise SystemExit("SwiftOpenUI ScrollViewReader scroll-view marker constant shape was not recognized")
+
+    scroll_marker_helper_anchor = '''private func gtkSetLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: String) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, key, UnsafeMutableRawPointer(bitPattern: 1))
+}
+
+'''
+    scroll_marker_helper = '''private func gtkMarkSwiftUIScrollView(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    hasVerticalAxis: Bool
+) {
+    gtkSetLayoutMarker(widget, key: gtkSwiftScrollViewMarker)
+    if hasVerticalAxis {
+        gtkSetLayoutMarker(widget, key: gtkSwiftVerticalScrollViewMarker)
+    }
+}
+
+private func gtkIsSwiftUIVerticalScrollView(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    gtkHasLayoutMarker(widget, key: gtkSwiftVerticalScrollViewMarker)
+}
+
+'''
+    if scroll_marker_helper_anchor not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader scroll-view marker helper shape was not recognized")
+    text = text.replace(scroll_marker_helper_anchor, scroll_marker_helper_anchor + scroll_marker_helper, 1)
+
+if "gtkMarkSwiftUIScrollView(scrolled, hasVerticalAxis: axes.contains(.vertical))" not in text:
+    scroll_view_create_anchor = '''        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+'''
+    scroll_view_create_replacement = '''        let scrolled = gtk_scrolled_window_new()!
+        gtkMarkSwiftUIScrollView(scrolled, hasVerticalAxis: axes.contains(.vertical))
+        let scrolledOp = OpaquePointer(scrolled)
+'''
+    if scroll_view_create_anchor not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader scroll-view marker install shape was not recognized")
+    text = text.replace(scroll_view_create_anchor, scroll_view_create_replacement, 1)
+
+if "var fallbackVerticalApplied = false" not in text:
+    old_apply_parent = '''    var parent = gtk_widget_get_parent(target)
+    while let scrolled = parent {
+'''
+    new_apply_parent = '''    var fallbackVerticalApplied = false
+    var parent = gtk_widget_get_parent(target)
+    while let scrolled = parent {
+'''
+    if old_apply_parent not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll parent shape was not recognized")
+    text = text.replace(old_apply_parent, new_apply_parent, 1)
+
+    old_apply_coordinates = '''            var targetX = 0.0
+            var targetY = 0.0
+            guard gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY) != 0 else {
+                parent = gtk_widget_get_parent(scrolled)
+                continue
+            }
+
+            let anchorPoint = anchor ?? .top
+            let requiresVerticalAnchor = anchorPoint.y > 0.0
+'''
+    new_apply_coordinates = '''            let anchorPoint = anchor ?? .top
+            let requiresVerticalAnchor = anchorPoint.y > 0.0
+            let isSwiftUIVerticalScrollView = gtkIsSwiftUIVerticalScrollView(scrolled)
+            var targetX = 0.0
+            var targetY = 0.0
+            let hasTargetCoordinates = gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY) != 0
+            if !hasTargetCoordinates && anchorPoint.y < 1.0 {
+                parent = gtk_widget_get_parent(scrolled)
+                continue
+            }
+
+'''
+    if old_apply_coordinates not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll coordinate shape was not recognized")
+    text = text.replace(old_apply_coordinates, new_apply_coordinates, 1)
+
+    old_apply_horizontal = '''            if let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+'''
+    new_apply_horizontal = '''            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+'''
+    if old_apply_horizontal not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll horizontal shape was not recognized")
+    text = text.replace(old_apply_horizontal, new_apply_horizontal, 1)
+
+    old_apply_return = '''            if requiresVerticalAnchor {
+                if verticalApplied { return true }
+            } else if verticalApplied || horizontalApplied {
+                return true
+            }
+'''
+    new_apply_return = '''            if requiresVerticalAnchor {
+                if verticalApplied && isSwiftUIVerticalScrollView { return true }
+                if verticalApplied { fallbackVerticalApplied = true }
+            } else if verticalApplied || horizontalApplied {
+                return true
+            }
+'''
+    if old_apply_return not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll return shape was not recognized")
+    text = text.replace(old_apply_return, new_apply_return, 1)
+
+    old_apply_footer = '''    }
+    return false
+}
+'''
+    new_apply_footer = '''    }
+    return fallbackVerticalApplied
+}
+'''
+    if old_apply_footer not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll footer shape was not recognized")
+    text = text.replace(old_apply_footer, new_apply_footer, 1)
+elif "isSwiftUIVerticalScrollView" not in text or "return fallbackVerticalApplied" not in text:
+    raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll shape was not recognized")
+
 path.write_text(text)
 PY
