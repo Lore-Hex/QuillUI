@@ -3267,3 +3267,16 @@ The legacy `SMLoginItemSetEnabled(_:_:)` shim now updates shared
 enabled/not-registered state, while diagnostics retain the helper identifier for
 debugging. Native desktop autostart persistence and privileged helper management
 remain backend work.
+
+## Checkpoint 196: LocalAuthentication Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, LocalAuthentication
+tests, Linux target build, source hygiene, and CI follow-up.
+
+The Linux `LocalAuthentication` shim now depends on QuillKit and maps
+`LAContext.canEvaluatePolicy`, `evaluatePolicy`, and `biometryType` through
+shared `QuillLocalAuthenticationService` state. Ports can configure policy
+availability, biometry type, evaluation success, and LA-shaped error codes in a
+single reusable service instead of accepting an unconfigurable always-denied
+stub. Native biometric/passcode prompts and OS authentication context remain
+backend work.

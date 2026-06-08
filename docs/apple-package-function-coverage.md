@@ -62,7 +62,7 @@ is `Usable` or `Parity`.
 | `Combine` | `AnyPublisher.init()` where `Failure == Never`. | OpenCombine coverage, merge behavior, backpressure, schedulers, demand, cancellation, operators, and seeded edge-case parity remain partial or incomplete. |
 | `os` | `Logger.init(...)`. | Logging calls, `os_log`, dyld inspection, unfair-lock semantics, signposts, persistence, and tooling parity are partial, compile-only, or incomplete. |
 | `IOKit` | None yet beyond compile/fallback shapes. | USB/device discovery, notifications, registry traversal, matching, iterators, and object lifetime behavior are incomplete. |
-| Re-export-only Apple shims | Imports compile for current app source. | `MessageUI`, `SafariServices`, `MobileCoreServices`, `LocalAuthentication`, and `CoreSpotlight` do not implement standalone framework behavior yet. |
+| Re-export-only Apple shims | Imports compile for current app source. | `MessageUI`, `SafariServices`, `MobileCoreServices`, and `CoreSpotlight` do not implement standalone framework behavior yet; `LocalAuthentication` now has QuillKit-backed configurable compatibility state but no native biometric/passcode backend. |
 
 ## SwiftUI
 
@@ -546,7 +546,7 @@ scope. They do not implement standalone Apple framework behavior yet.
 | `MessageUI` | Compile-only | Re-exports `QuillFoundation` and `QuillUIKit`; mail composer behavior is incomplete. |
 | `SafariServices` | Compile-only | Re-exports `QuillFoundation` and `QuillUIKit`; Safari view services are incomplete. |
 | `MobileCoreServices` | Compile-only | Re-exports `QuillFoundation`; legacy UTI constants beyond shared fallbacks are incomplete. |
-| `LocalAuthentication` | Compile-only | Re-exports `QuillShims`; biometric/passcode auth is incomplete. |
+| `LocalAuthentication` | Partial | `LAContext.canEvaluatePolicy`, `evaluatePolicy`, `biometryType`, `LAPolicy`, `LABiometryType`, and `LAError` route through configurable QuillKit compatibility state; biometric/passcode auth remains non-native. |
 | `CoreSpotlight` | Compile-only | Re-exports `QuillShims`; indexing/search APIs are incomplete. |
 
 ## Third-Party and App-Support Package Clones

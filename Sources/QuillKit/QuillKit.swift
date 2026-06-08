@@ -26,6 +26,7 @@ public enum QuillKitCapability: String, CaseIterable, Sendable {
     case clipboard
     case speechSynthesis
     case speechRecognition
+    case localAuthentication
     case haptics
     case accessibility
     case syntheticKeyboard
@@ -51,7 +52,7 @@ public enum QuillKitCapabilities {
     public static func status(for capability: QuillKitCapability) -> QuillKitCapabilityStatus {
         #if os(Linux)
         switch capability {
-        case .clipboard, .speechSynthesis, .speechRecognition:
+        case .clipboard, .speechSynthesis, .speechRecognition, .localAuthentication:
             return .emulated
         case .globalShortcuts:
             return .emulated
@@ -658,6 +659,104 @@ public final class QuillLaunchService: @unchecked Sendable {
 
     public func unregister() {
         lock.withLock { enabled = false }
+    }
+}
+
+public enum QuillLocalAuthenticationPolicy: Int, Sendable {
+    case deviceOwnerAuthenticationWithBiometrics = 1
+    case deviceOwnerAuthentication = 2
+}
+
+public enum QuillBiometryType: Int, Sendable {
+    case none = 0
+    case touchID = 1
+    case faceID = 2
+    case opticID = 4
+}
+
+public enum QuillLocalAuthenticationErrorCode: Int, Sendable {
+    case authenticationFailed = -1
+    case userCancel = -2
+    case userFallback = -3
+    case systemCancel = -4
+    case passcodeNotSet = -5
+    case biometryNotAvailable = -106
+    case biometryNotEnrolled = -107
+    case biometryLockout = -108
+    case notInteractive = -1004
+}
+
+public final class QuillLocalAuthenticationService: @unchecked Sendable {
+    public static let shared = QuillLocalAuthenticationService()
+
+    private let lock = NSLock()
+    private var canEvaluatePolicyValue = false
+    private var canEvaluateErrorCode: QuillLocalAuthenticationErrorCode?
+    private var evaluationSucceeds = false
+    private var evaluationErrorCode: QuillLocalAuthenticationErrorCode = .authenticationFailed
+    private var currentBiometryType: QuillBiometryType = .none
+
+    public init() {}
+
+    public var biometryType: QuillBiometryType {
+        lock.withLock { currentBiometryType }
+    }
+
+    public func configure(
+        canEvaluatePolicy: Bool,
+        biometryType: QuillBiometryType = .none,
+        canEvaluateError: QuillLocalAuthenticationErrorCode? = nil,
+        evaluationSucceeds: Bool,
+        evaluationError: QuillLocalAuthenticationErrorCode = .authenticationFailed
+    ) {
+        lock.withLock {
+            canEvaluatePolicyValue = canEvaluatePolicy
+            canEvaluateErrorCode = canEvaluateError
+            self.evaluationSucceeds = evaluationSucceeds
+            evaluationErrorCode = evaluationError
+            currentBiometryType = biometryType
+        }
+    }
+
+    public func reset() {
+        lock.withLock {
+            canEvaluatePolicyValue = false
+            canEvaluateErrorCode = nil
+            evaluationSucceeds = false
+            evaluationErrorCode = .authenticationFailed
+            currentBiometryType = .none
+        }
+    }
+
+    public func canEvaluatePolicy(
+        _ policy: QuillLocalAuthenticationPolicy
+    ) -> (canEvaluate: Bool, error: QuillLocalAuthenticationErrorCode?) {
+        let state = lock.withLock {
+            (canEvaluatePolicyValue, canEvaluateErrorCode)
+        }
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "localAuthentication.canEvaluatePolicy",
+            severity: state.0 ? .info : .unsupported,
+            message: "Local authentication policy \(policy.rawValue) is evaluated by the QuillKit compatibility backend."
+        )
+        return state
+    }
+
+    public func evaluatePolicy(
+        _ policy: QuillLocalAuthenticationPolicy,
+        localizedReason: String
+    ) -> (success: Bool, error: QuillLocalAuthenticationErrorCode?) {
+        let state = lock.withLock {
+            (evaluationSucceeds, evaluationErrorCode)
+        }
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "localAuthentication.evaluatePolicy",
+            severity: state.0 ? .info : .unsupported,
+            message: "Local authentication policy \(policy.rawValue) for '\(localizedReason)' is evaluated by the QuillKit compatibility backend."
+        )
+        return (state.0, state.0 ? nil : state.1)
     }
 }
 

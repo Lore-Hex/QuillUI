@@ -1926,7 +1926,7 @@ targets.append(contentsOf: [
     .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
     // LocalAuthentication shim — LAContext/LAPolicy/LAError so WireGuard's
     // PrivateDataConfirmation (key-reveal gate) recompiles; no auth backend on Linux.
-    .target(name: "LocalAuthentication", dependencies: [], path: "Sources/LocalAuthenticationShim"),
+    .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
     .testTarget(name: "LocalAuthenticationTests", dependencies: ["LocalAuthentication"], path: "Tests/LocalAuthenticationTests"),
     // WireGuardKitGo Linux stub — the wireguard-go cgo bridge (Go engine not built here);
     // lets WireGuardKit's WireGuardAdapter recompile. Compile-faithful, never runs on Linux.

@@ -456,7 +456,7 @@
 <tr><td><code>Combine</code></td><td><code>AnyPublisher.init()</code> where <code>Failure == Never</code>.</td><td>OpenCombine coverage, merge behavior, backpressure, schedulers, demand, cancellation, operators, and seeded edge-case parity remain partial or incomplete.</td></tr>
 <tr><td><code>os</code></td><td><code>Logger.init(...)</code>.</td><td>Logging calls, <code>os_log</code>, dyld inspection, unfair-lock semantics, signposts, persistence, and tooling parity are partial, compile-only, or incomplete.</td></tr>
 <tr><td><code>IOKit</code></td><td>None yet beyond compile/fallback shapes.</td><td>USB/device discovery, notifications, registry traversal, matching, iterators, and object lifetime behavior are incomplete.</td></tr>
-<tr><td>Re-export-only Apple shims</td><td>Imports compile for current app source.</td><td><code>MessageUI</code>, <code>SafariServices</code>, <code>MobileCoreServices</code>, <code>LocalAuthentication</code>, and <code>CoreSpotlight</code> do not implement standalone framework behavior yet.</td></tr>
+<tr><td>Re-export-only Apple shims</td><td>Imports compile for current app source.</td><td><code>MessageUI</code>, <code>SafariServices</code>, <code>MobileCoreServices</code>, and <code>CoreSpotlight</code> do not implement standalone framework behavior yet; <code>LocalAuthentication</code> now has QuillKit-backed configurable compatibility state but no native biometric/passcode backend.</td></tr>
 </table>
 <br>
 <h2 id="swiftui">SwiftUI</h2>
@@ -967,7 +967,7 @@
 <tr><td><code>MessageUI</code></td><td>Compile-only</td><td>Re-exports <code>QuillFoundation</code> and <code>QuillUIKit</code>; mail composer behavior is incomplete.</td></tr>
 <tr><td><code>SafariServices</code></td><td>Compile-only</td><td>Re-exports <code>QuillFoundation</code> and <code>QuillUIKit</code>; Safari view services are incomplete.</td></tr>
 <tr><td><code>MobileCoreServices</code></td><td>Compile-only</td><td>Re-exports <code>QuillFoundation</code>; legacy UTI constants beyond shared fallbacks are incomplete.</td></tr>
-<tr><td><code>LocalAuthentication</code></td><td>Compile-only</td><td>Re-exports <code>QuillShims</code>; biometric/passcode auth is incomplete.</td></tr>
+<tr><td><code>LocalAuthentication</code></td><td>Partial</td><td><code>LAContext.canEvaluatePolicy</code>, <code>evaluatePolicy</code>, <code>biometryType</code>, <code>LAPolicy</code>, <code>LABiometryType</code>, and <code>LAError</code> route through configurable QuillKit compatibility state; biometric/passcode auth remains non-native.</td></tr>
 <tr><td><code>CoreSpotlight</code></td><td>Compile-only</td><td>Re-exports <code>QuillShims</code>; indexing/search APIs are incomplete.</td></tr>
 </table>
 <br>

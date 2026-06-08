@@ -152,6 +152,7 @@ struct QuillKitTests {
         #expect(statuses[.clipboard] == .emulated)
         #expect(statuses[.speechSynthesis] == .emulated)
         #expect(statuses[.speechRecognition] == .emulated)
+        #expect(statuses[.localAuthentication] == .emulated)
         #expect(statuses[.globalShortcuts] == .emulated)
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -206,6 +207,53 @@ struct QuillKitTests {
         #expect(service.canCheckForUpdates == false)
         #expect(service.updateCheckCount == 0)
         #expect(service.lastCheckDate == nil)
+    }
+
+    @Test("local authentication service exposes configurable policy state")
+    func localAuthenticationServiceExposesConfigurablePolicyState() {
+        let service = QuillLocalAuthenticationService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.biometryType == .none)
+        let unavailable = service.canEvaluatePolicy(.deviceOwnerAuthentication)
+        #expect(unavailable.canEvaluate == false)
+        #expect(unavailable.error == nil)
+        let denied = service.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "unlock")
+        #expect(denied.success == false)
+        #expect(denied.error == .authenticationFailed)
+
+        service.configure(
+            canEvaluatePolicy: true,
+            biometryType: .faceID,
+            evaluationSucceeds: true
+        )
+        #expect(service.biometryType == .faceID)
+        let available = service.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)
+        #expect(available.canEvaluate)
+        #expect(available.error == nil)
+        let granted = service.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "unlock")
+        #expect(granted.success)
+        #expect(granted.error == nil)
+
+        service.configure(
+            canEvaluatePolicy: false,
+            biometryType: .touchID,
+            canEvaluateError: .passcodeNotSet,
+            evaluationSucceeds: false,
+            evaluationError: .userCancel
+        )
+        #expect(service.biometryType == .touchID)
+        let passcodeMissing = service.canEvaluatePolicy(.deviceOwnerAuthentication)
+        #expect(passcodeMissing.canEvaluate == false)
+        #expect(passcodeMissing.error == .passcodeNotSet)
+        let cancelled = service.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "unlock")
+        #expect(cancelled.success == false)
+        #expect(cancelled.error == .userCancel)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("localAuthentication.canEvaluatePolicy"))
+        #expect(operations.contains("localAuthentication.evaluatePolicy"))
     }
 
     @Test("speech backend invokes lifecycle callbacks in order")
