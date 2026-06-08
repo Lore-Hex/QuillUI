@@ -666,4 +666,43 @@ struct QuillAppKitQtTests {
         table.quillMaterializeRowsIntoSubtree()
         #expect(table.quillMaterializedCells.count == 3)
     }
+
+    // Toward rendering scroll/table VCs (the real WireGuard tunnel-list + log view
+    // wire `clipView.documentView = tableView; scrollView.contentView = clipView`).
+    // NSClipView.documentView must enter the view tree so the Qt render pass reaches
+    // the document — otherwise the whole scrolled content is dropped.
+    @Test("NSClipView.documentView enters the view tree so a scroll→clip→document chain renders via Qt")
+    func clipViewDocumentViewRendersViaQt() throws {
+        guard QuillQt.ensureInitialized() else { return }
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 240, height: 120))
+        let clipView = NSClipView()
+        let document = NSTextField(labelWithString: "Document content")
+        clipView.documentView = document        // the fix: document joins clipView.subviews
+        scrollView.contentView = clipView        // clipView joins scrollView.subviews
+
+        #expect(document.superview === clipView)
+        #expect(clipView.superview === scrollView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 120),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.contentView = scrollView
+        scrollView.realizeQtSubtree()
+        scrollView.layoutQtSubtree(width: 240, height: 120)
+        // The document is reachable + rendered (non-zero size), not dropped.
+        #expect(document.frame.width > 0)
+        #expect(document.frame.height > 0)
+
+        window.showAsQtWindowWithContent()
+        let out = "/tmp/quillappkitqt-clipview.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        // A single small label on a mostly-empty 240×120 canvas; the frame
+        // assertions above are the real "document rendered" proof, this is a
+        // non-empty-file floor.
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 300)
+        window.closeQtWindow()
+    }
 }
