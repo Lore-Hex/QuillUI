@@ -56,9 +56,11 @@ public enum QuillKitCapabilities {
             return .emulated
         case .globalShortcuts:
             return .emulated
+        case .notifications:
+            return .emulated
         case .haptics, .accessibility, .syntheticKeyboard,
              .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker,
-             .secureStorage, .notifications, .networkExtension, .vpnTunnel:
+             .secureStorage, .networkExtension, .vpnTunnel:
             return .unavailable(reason: "No native Linux backend has been attached yet.")
         }
         #else
@@ -1254,6 +1256,172 @@ public final class QuillHotkeyService: @unchecked Sendable {
         )
         registration.unregister()
         return handler()
+    }
+}
+
+public enum QuillNotificationAuthorizationStatus: Int, Sendable {
+    case notDetermined = 0
+    case denied = 1
+    case authorized = 2
+    case provisional = 3
+    case ephemeral = 4
+}
+
+public struct QuillNotificationRequestRecord: Equatable, Sendable {
+    public var identifier: String
+    public var title: String
+    public var subtitle: String
+    public var body: String
+    public var categoryIdentifier: String
+    public var threadIdentifier: String
+
+    public init(
+        identifier: String,
+        title: String = "",
+        subtitle: String = "",
+        body: String = "",
+        categoryIdentifier: String = "",
+        threadIdentifier: String = ""
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.subtitle = subtitle
+        self.body = body
+        self.categoryIdentifier = categoryIdentifier
+        self.threadIdentifier = threadIdentifier
+    }
+}
+
+public final class QuillNotificationService: @unchecked Sendable {
+    public static let shared = QuillNotificationService()
+
+    private let lock = NSLock()
+    private var currentAuthorizationStatus: QuillNotificationAuthorizationStatus = .notDetermined
+    private var nextAuthorizationRequestResult = false
+    private var categoryIdentifiersValue: Set<String> = []
+    private var pendingRequestsByIdentifier: [String: QuillNotificationRequestRecord] = [:]
+    private var deliveredNotificationsByIdentifier: [String: QuillNotificationRequestRecord] = [:]
+
+    public init() {}
+
+    public var authorizationStatus: QuillNotificationAuthorizationStatus {
+        lock.withLock { currentAuthorizationStatus }
+    }
+
+    public var categoryIdentifiers: [String] {
+        lock.withLock { categoryIdentifiersValue.sorted() }
+    }
+
+    public var pendingRequestRecords: [QuillNotificationRequestRecord] {
+        lock.withLock {
+            pendingRequestsByIdentifier.values.sorted { $0.identifier < $1.identifier }
+        }
+    }
+
+    public var deliveredNotificationRecords: [QuillNotificationRequestRecord] {
+        lock.withLock {
+            deliveredNotificationsByIdentifier.values.sorted { $0.identifier < $1.identifier }
+        }
+    }
+
+    public func configureAuthorization(
+        status: QuillNotificationAuthorizationStatus,
+        requestResult: Bool
+    ) {
+        lock.withLock {
+            currentAuthorizationStatus = status
+            nextAuthorizationRequestResult = requestResult
+        }
+    }
+
+    public func reset() {
+        lock.withLock {
+            currentAuthorizationStatus = .notDetermined
+            nextAuthorizationRequestResult = false
+            categoryIdentifiersValue.removeAll()
+            pendingRequestsByIdentifier.removeAll()
+            deliveredNotificationsByIdentifier.removeAll()
+        }
+    }
+
+    @discardableResult
+    public func requestAuthorization(optionsRawValue: UInt) -> Bool {
+        let granted = lock.withLock { () -> Bool in
+            let granted = nextAuthorizationRequestResult
+            currentAuthorizationStatus = granted ? .authorized : .denied
+            return granted
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.requestAuthorization",
+            severity: granted ? .info : .unsupported,
+            message: "Notification authorization is handled by the QuillKit compatibility backend for options raw value \(optionsRawValue)."
+        )
+        return granted
+    }
+
+    public func setCategories(_ identifiers: Set<String>) {
+        lock.withLock {
+            categoryIdentifiersValue = identifiers
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.setCategories",
+            severity: .info,
+            message: "Stored \(identifiers.count) notification categories in the process-local compatibility backend."
+        )
+    }
+
+    public func addRequest(
+        _ record: QuillNotificationRequestRecord,
+        deliverImmediately: Bool
+    ) {
+        lock.withLock {
+            if deliverImmediately {
+                pendingRequestsByIdentifier.removeValue(forKey: record.identifier)
+                deliveredNotificationsByIdentifier[record.identifier] = record
+            } else {
+                deliveredNotificationsByIdentifier.removeValue(forKey: record.identifier)
+                pendingRequestsByIdentifier[record.identifier] = record
+            }
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.addRequest",
+            severity: .info,
+            message: "Stored notification request '\(record.identifier)' in the process-local compatibility backend."
+        )
+    }
+
+    public func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+        lock.withLock {
+            for identifier in identifiers {
+                deliveredNotificationsByIdentifier.removeValue(forKey: identifier)
+            }
+        }
+    }
+
+    public func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
+        lock.withLock {
+            for identifier in identifiers {
+                pendingRequestsByIdentifier.removeValue(forKey: identifier)
+            }
+        }
+    }
+
+    public func removeAllDeliveredNotifications() {
+        lock.withLock {
+            deliveredNotificationsByIdentifier.removeAll()
+        }
+    }
+
+    public func removeAllPendingNotificationRequests() {
+        lock.withLock {
+            pendingRequestsByIdentifier.removeAll()
+        }
     }
 }
 

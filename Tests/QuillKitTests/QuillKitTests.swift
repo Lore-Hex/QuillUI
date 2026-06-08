@@ -154,6 +154,7 @@ struct QuillKitTests {
         #expect(statuses[.speechRecognition] == .emulated)
         #expect(statuses[.localAuthentication] == .emulated)
         #expect(statuses[.globalShortcuts] == .emulated)
+        #expect(statuses[.notifications] == .emulated)
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.secureStorage] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -254,6 +255,51 @@ struct QuillKitTests {
         let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
         #expect(operations.contains("localAuthentication.canEvaluatePolicy"))
         #expect(operations.contains("localAuthentication.evaluatePolicy"))
+    }
+
+    @Test("notification service tracks authorization, categories, and queues")
+    func notificationServiceTracksAuthorizationCategoriesAndQueues() {
+        let service = QuillNotificationService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.authorizationStatus == .notDetermined)
+        #expect(service.requestAuthorization(optionsRawValue: 0) == false)
+        #expect(service.authorizationStatus == .denied)
+
+        service.configureAuthorization(status: .notDetermined, requestResult: true)
+        #expect(service.requestAuthorization(optionsRawValue: 5))
+        #expect(service.authorizationStatus == .authorized)
+
+        service.setCategories(["reply", "mark-read"])
+        #expect(service.categoryIdentifiers == ["mark-read", "reply"])
+
+        service.addRequest(
+            QuillNotificationRequestRecord(
+                identifier: "later",
+                title: "Later",
+                body: "Queued",
+                categoryIdentifier: "reply",
+                threadIdentifier: "chat"
+            ),
+            deliverImmediately: false
+        )
+        service.addRequest(
+            QuillNotificationRequestRecord(identifier: "now", title: "Now", body: "Delivered"),
+            deliverImmediately: true
+        )
+        #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
+        #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
+
+        service.removePendingNotificationRequests(withIdentifiers: ["later"])
+        service.removeDeliveredNotifications(withIdentifiers: ["now"])
+        #expect(service.pendingRequestRecords.isEmpty)
+        #expect(service.deliveredNotificationRecords.isEmpty)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("notifications.requestAuthorization"))
+        #expect(operations.contains("notifications.setCategories"))
+        #expect(operations.contains("notifications.addRequest"))
     }
 
     @Test("speech backend invokes lifecycle callbacks in order")

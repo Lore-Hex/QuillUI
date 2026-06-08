@@ -3280,3 +3280,15 @@ availability, biometry type, evaluation success, and LA-shaped error codes in a
 single reusable service instead of accepting an unconfigurable always-denied
 stub. Native biometric/passcode prompts and OS authentication context remain
 backend work.
+
+## Checkpoint 197: UserNotifications Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+The Linux `UserNotifications` shim now depends on QuillKit and routes
+authorization requests, settings, categories, pending requests, delivered
+notifications, and removal helpers through shared `QuillNotificationService`
+state. The backend is process-local and deterministic, so ports can read back
+notification state without app-local rewrites. Native libnotify or
+org.freedesktop.Notifications presentation remains backend work.

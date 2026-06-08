@@ -733,6 +733,101 @@ struct CompatibilityModuleTests {
         try SMAppService.mainApp.unregister()
     }
 
+    @Test("UserNotifications routes through QuillKit")
+    func userNotificationsRoutesThroughQuillKit() async throws {
+        let service = QuillNotificationService.shared
+        let center = UNUserNotificationCenter.current()
+        service.reset()
+        center.setNotificationCategories([])
+        center.removeAllDeliveredNotifications()
+        center.removeAllPendingNotificationRequests()
+        service.configureAuthorization(status: .notDetermined, requestResult: true)
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let granted = try await center.requestAuthorization(options: [.alert, .sound])
+        #expect(granted)
+        #expect(service.authorizationStatus == .authorized)
+
+        var authorizationStatus: UNAuthorizationStatus?
+        center.getNotificationSettings { settings in
+            authorizationStatus = settings.authorizationStatus
+        }
+        #expect(authorizationStatus == .authorized)
+
+        let replyCategory = UNNotificationCategory(
+            identifier: "reply",
+            actions: [
+                UNTextInputNotificationAction(
+                    identifier: "reply.send",
+                    title: "Reply",
+                    textInputButtonTitle: "Send",
+                    textInputPlaceholder: "Message"
+                )
+            ],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        center.setNotificationCategories([replyCategory])
+        var categoryIdentifiers: Set<String> = []
+        center.getNotificationCategories { categories in
+            categoryIdentifiers = Set(categories.map(\.identifier))
+        }
+        #expect(categoryIdentifiers == ["reply"])
+        #expect(service.categoryIdentifiers == ["reply"])
+
+        let immediateContent = UNMutableNotificationContent()
+        immediateContent.title = "Ready"
+        immediateContent.body = "Delivered now"
+        immediateContent.categoryIdentifier = "reply"
+        immediateContent.threadIdentifier = "chat"
+        try await center.add(UNNotificationRequest(
+            identifier: "now",
+            content: immediateContent,
+            trigger: nil
+        ))
+
+        let pendingContent = UNMutableNotificationContent()
+        pendingContent.title = "Later"
+        pendingContent.body = "Queued"
+        var pendingAddCompleted = false
+        center.add(UNNotificationRequest(
+            identifier: "later",
+            content: pendingContent,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        )) { error in
+            pendingAddCompleted = true
+            #expect(error == nil)
+        }
+        #expect(pendingAddCompleted)
+
+        #expect((await center.deliveredNotifications()).map(\.request.identifier) == ["now"])
+        #expect((await center.pendingNotificationRequests()).map(\.identifier) == ["later"])
+        var deliveredIdentifiers: [String] = []
+        center.getDeliveredNotifications { notifications in
+            deliveredIdentifiers = notifications.map(\.request.identifier)
+        }
+        var pendingIdentifiers: [String] = []
+        center.getPendingNotificationRequests { requests in
+            pendingIdentifiers = requests.map(\.identifier)
+        }
+        #expect(deliveredIdentifiers == ["now"])
+        #expect(pendingIdentifiers == ["later"])
+        #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
+        #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
+
+        center.removeDeliveredNotifications(withIdentifiers: ["now"])
+        center.removePendingNotificationRequests(withIdentifiers: ["later"])
+        #expect((await center.deliveredNotifications()).isEmpty)
+        #expect((await center.pendingNotificationRequests()).isEmpty)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("notifications.requestAuthorization"))
+        #expect(operations.contains("notifications.setCategories"))
+        #expect(operations.contains("notifications.addRequest"))
+
+        service.reset()
+    }
+
     @Test("Magnet hot keys use the shared QuillKit registry")
     func magnetHotKeysUseSharedQuillKitRegistry() {
         QuillHotkeyService.shared.unregisterAll()
