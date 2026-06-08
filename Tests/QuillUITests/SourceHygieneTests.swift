@@ -2474,7 +2474,17 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("docs/upstream-telegram-audit.md"),
             encoding: .utf8
         )
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let objcFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Foundation/Foundation.h"),
+            encoding: .utf8
+        )
 
+        #expect(manifest.contains(".library(name: \"QuillObjCCompatibility\", targets: [\"QuillObjCCompatibility\"])"))
+        #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
         #expect(fetchUpstream.contains("telegram)"))
         #expect(fetchUpstream.contains("fetch_repo telegram-swift https://github.com/overtake/TelegramSwift.git master"))
         #expect(telegramSourceResolver.contains("quillui_resolve_telegram_source_dir()"))
@@ -2487,13 +2497,23 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES"))
         #expect(telegramPackageCheck.contains("CAPortal"))
         #expect(telegramPackageCheck.contains("CurrencyFormat"))
+        #expect(telegramPackageCheck.contains("DateUtils"))
         #expect(telegramPackageCheck.contains("FoundationUtils"))
         #expect(telegramPackageCheck.contains("MergeLists"))
-        #expect(telegramPackageCheck.contains("Objective-C package shims"))
+        #expect(telegramPackageCheck.contains("NumberPluralization"))
+        #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
+        #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
+        #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
+        #expect(telegramPackageCheck.contains("-fblocks"))
+        #expect(telegramPackageCheck.contains("deeper Foundation/AppKit runtime surface"))
         #expect(telegramPackageCheck.contains("sysctlbyname"))
         #expect(telegramAudit.contains("Telegram Swift is not a SwiftUI app"))
         #expect(telegramAudit.contains("scripts/fetch-upstream.sh telegram"))
+        #expect(telegramAudit.contains("QuillObjCCompatibility"))
         #expect(telegramAudit.contains("QuillAppKit/QuillKit shims"))
+        #expect(objcFoundationHeader.contains("@interface NSString : NSObject"))
+        #expect(objcFoundationHeader.contains("typedef NS_ENUM(NSInteger, NSDateFormatterStyle)"))
+        #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")

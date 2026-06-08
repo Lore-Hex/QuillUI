@@ -28,8 +28,11 @@ mkdir -p "$WORK_ROOT/logs" "$WORK_ROOT/home" "$WORK_ROOT/module-cache"
 default_packages=(
   CAPortal
   CurrencyFormat
+  DateUtils
   FoundationUtils
   MergeLists
+  NumberPluralization
+  TGCurrencyFormatter
 )
 
 if [[ -n "${QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES:-}" ]]; then
@@ -48,6 +51,16 @@ printf 'Telegram source: %s\n' "$UPSTREAM_DIR"
 printf 'Swift platform: %s\n' "$(uname -s)"
 printf 'Package compile set: %s\n' "${packages[*]}"
 
+objc_include_dir="$ROOT_DIR/Sources/QuillObjCCompatibility/include"
+swift_build_flags=()
+if [[ "$(uname -s)" == "Linux" ]]; then
+  swift_build_flags+=(
+    -Xcc "-I$objc_include_dir"
+    -Xcc "-fobjc-runtime=gnustep-2.0"
+    -Xcc "-fblocks"
+  )
+fi
+
 for package_name in "${packages[@]}"; do
   package_dir="$UPSTREAM_DIR/packages/$package_name"
   log_path="$WORK_ROOT/logs/$package_name.log"
@@ -64,6 +77,7 @@ for package_name in "${packages[@]}"; do
       --disable-sandbox \
       --package-path "$package_dir" \
       --scratch-path "$WORK_ROOT/.build/$package_name" \
+      "${swift_build_flags[@]}" \
       >"$log_path" 2>&1
   then
     printf 'ok %s\n' "$package_name"
@@ -85,7 +99,7 @@ $(printf -- '- `%s`\n' "${packages[@]}")
 
 Known next blocker classes from the broader upstream package audit:
 
-- Objective-C package shims that import Apple \`Foundation/Foundation.h\` or \`Cocoa/Cocoa.h\`.
+- Objective-C package shims that need deeper Foundation/AppKit runtime surface beyond the current header overlay.
 - AppKit/CoreText/Cocoa packages that belong behind QuillAppKit or QuillKit compatibility.
 - Darwin-only system probes such as \`sysctlbyname\` in \`TelegramSystem\`.
 - Missing telegram-ios submodule package dependencies for higher-level Telegram modules.

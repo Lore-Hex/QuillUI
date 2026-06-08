@@ -235,6 +235,7 @@ var products: [Product] = [
     .library(name: "QuillKit", targets: ["QuillKit"]),
     .library(name: "QuillChatKit", targets: ["QuillChatKit"]),
     .library(name: "QuillFoundation", targets: ["QuillFoundation"]),
+    .library(name: "QuillObjCCompatibility", targets: ["QuillObjCCompatibility"]),
     .library(name: "QuillRS", targets: ["QuillRS"]),
     .library(name: "QuillUIKit", targets: ["QuillUIKit"]),
     .library(name: "QuillWebKit", targets: ["QuillWebKit"]),
@@ -640,6 +641,11 @@ var targets: [Target] = [
     cSQLiteTarget,
     cCairoTarget,
     cZlibTarget,
+    .target(
+        name: "QuillObjCCompatibility",
+        path: "Sources/QuillObjCCompatibility",
+        publicHeadersPath: "include"
+    ),
     // Cassowary constraint solver (vendored nucleic/kiwi, C++), exposed to Swift via a
     // pure-C ABI. Backs Auto Layout (NSLayoutConstraint) for the AppKit→Qt compatibility
     // layer — issue #231, milestone M0. Default graph only (no Qt dependency).

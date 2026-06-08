@@ -13,15 +13,19 @@ repeatable source checkout plus Linux compile ratchet:
 - `scripts/quillui-telegram-source.sh` resolves an explicit
   `QUILLUI_APP_SOURCE_DIR`, `TELEGRAM_SWIFT_SOURCE_DIR`, `TELEGRAM_SOURCE_DIR`,
   or the default `.upstream/telegram-swift`.
+- `QuillObjCCompatibility` provides Apple-style Objective-C include paths
+  (`<Foundation/Foundation.h>`, `<AppKit/AppKit.h>`, `<Cocoa/Cocoa.h>`) so
+  mixed Objective-C package islands can compile without Telegram source edits.
 - `scripts/generated-telegram-package-check.sh` compiles the first unchanged
-  SwiftPM package islands on Linux: `CAPortal`, `CurrencyFormat`,
-  `FoundationUtils`, and `MergeLists`.
+  SwiftPM package islands on Linux: `CAPortal`, `CurrencyFormat`, `DateUtils`,
+  `FoundationUtils`, `MergeLists`, `NumberPluralization`, and
+  `TGCurrencyFormatter`.
 
 Current Linux blocker classes:
 
-- Objective-C packages importing Apple `Foundation/Foundation.h` or
-  `Cocoa/Cocoa.h` (`DateUtils`, `NumberPluralization`, `TGCurrencyFormatter`,
-  `Svg`, `GZIP`, and similar packages).
+- Objective-C packages that need deeper runtime declarations and/or behavior
+  beyond the current header overlay (`NSDateComponents`, `NSCalendar`, image
+  objects, gzip data APIs, and similar surfaces).
 - AppKit/CoreText/Cocoa UI packages that need QuillAppKit/QuillKit shims before
   they can compile (`Colors`, `Strings`, `TGUIKit`, `TelegramMedia`, and the
   main `Telegram-Mac` surface).
