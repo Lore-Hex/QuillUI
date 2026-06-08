@@ -17,23 +17,50 @@ public extension AVSpeechSynthesizerDelegate {
 
 public final class AVSpeechSynthesizer: @unchecked Sendable {
     public weak var delegate: AVSpeechSynthesizerDelegate?
-    public init() {}
+    private let backend: QuillSpeechBackend
+    private let lock = NSLock()
+    private var paused = false
+
+    public init() {
+        backend = .shared
+    }
+
+    public var isSpeaking: Bool { backend.isSpeaking }
+
+    public var isPaused: Bool {
+        lock.withLock { paused }
+    }
+
     public func speak(_ utterance: AVSpeechUtterance) {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "AVFoundation",
-            operation: "speechSynthesis",
-            severity: .info,
-            message: "AVSpeechSynthesizer.speak is emulated on Linux until a native speech backend is attached."
-        )
-        delegate?.speechSynthesizer(self, didStart: utterance)
-        delegate?.speechSynthesizer(self, didFinish: utterance)
+        lock.withLock {
+            paused = false
+        }
+        backend.speak(utterance.speechString) { [weak self] in
+            guard let self else { return }
+            delegate?.speechSynthesizer(self, didStart: utterance)
+        } onFinish: { [weak self] in
+            guard let self else { return }
+            delegate?.speechSynthesizer(self, didFinish: utterance)
+        }
     }
     @discardableResult
-    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool { true }
+    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool {
+        lock.withLock {
+            paused = false
+        }
+        return backend.stop()
+    }
     @discardableResult
-    public func continueSpeaking() -> Bool { false }
+    public func continueSpeaking() -> Bool {
+        false
+    }
     @discardableResult
-    public func pauseSpeaking(at boundary: AVSpeechBoundary) -> Bool { false }
+    public func pauseSpeaking(at boundary: AVSpeechBoundary) -> Bool {
+        lock.withLock {
+            paused = false
+        }
+        return false
+    }
 }
 
 public enum AVSpeechBoundary: Int, Sendable {
@@ -42,7 +69,10 @@ public enum AVSpeechBoundary: Int, Sendable {
 }
 
 public final class AVSpeechUtterance: @unchecked Sendable {
-    public init(string: String) {}
+    public let speechString: String
+    public init(string: String) {
+        speechString = string
+    }
     public var voice: AVSpeechSynthesisVoice?
     public var rate: Float = 0.5
     public var pitchMultiplier: Float = 1.0
@@ -70,10 +100,26 @@ public final class AVSpeechSynthesisVoice: @unchecked Sendable {
     /// IDs. The Linux stub returns a voice with the requested
     /// identifier and empty defaults.
     public convenience init?(identifier: String) {
-        self.init(identifier: identifier, name: identifier, quality: .low)
+        if let voice = QuillSpeechBackend.shared.voices().first(where: { $0.identifier == identifier }) {
+            self.init(
+                identifier: voice.identifier,
+                name: voice.name,
+                quality: VoiceQuality(rawValue: voice.quality) ?? .low
+            )
+        } else {
+            self.init(identifier: identifier, name: identifier, quality: .low)
+        }
     }
 
-    public static func speechVoices() -> [AVSpeechSynthesisVoice] { [] }
+    public static func speechVoices() -> [AVSpeechSynthesisVoice] {
+        QuillSpeechBackend.shared.voices().map { voice in
+            AVSpeechSynthesisVoice(
+                identifier: voice.identifier,
+                name: voice.name,
+                quality: VoiceQuality(rawValue: voice.quality) ?? .low
+            )
+        }
+    }
     public static func currentLanguageCode() -> String { "en-US" }
 }
 

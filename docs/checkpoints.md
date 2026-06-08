@@ -3229,3 +3229,16 @@ moving another app-facing package out of isolated in-memory behavior and into
 the reusable QuillKit compatibility layer. The pass also restores the missing
 `gtkScheduleOnAppear` helper in the vendored GTK renderer so Linux builds no
 longer fail before reaching the compatibility targets.
+
+## Checkpoint 193: AVFoundation Speech Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux AVFoundation
+target build, Linux compatibility test, and CI follow-up.
+
+AVFoundation speech synthesis now routes through QuillKit's shared speech
+backend instead of carrying a separate local fallback. `AVSpeechUtterance`
+stores source-visible text, `AVSpeechSynthesisVoice` resolves QuillKit voice
+metadata, `AVSpeechSynthesizer.isSpeaking` reflects backend state, and
+`stopSpeaking(at:)` clears that state. This keeps Enchanted and future apps on a
+single reusable speech abstraction while native Linux synthesis remains a
+backend TODO.

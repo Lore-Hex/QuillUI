@@ -179,15 +179,32 @@ struct QuillKitTests {
     func speechBackendInvokesCallbacksInOrder() {
         let backend = QuillSpeechBackend()
         let callbacks = LockedValue<[String]>([])
+        backend.configureSpeechSynthesisVoices([
+            QuillSpeechVoice(identifier: "quill.test.voice", name: "Test Voice", quality: 1)
+        ])
+
+        #expect(backend.voices() == [
+            QuillSpeechVoice(identifier: "quill.test.voice", name: "Test Voice", quality: 1)
+        ])
+        #expect(!backend.isSpeaking)
 
         backend.speak("hello") {
+            #expect(backend.isSpeaking)
             callbacks.update { $0.append("start") }
         } onFinish: {
+            #expect(!backend.isSpeaking)
             callbacks.update { $0.append("finish") }
         }
 
         #expect(callbacks.value == ["start", "finish"])
+        #expect(!backend.isSpeaking)
         #expect(backend.stop())
+        backend.resetSpeechSynthesis()
+        #if os(Linux)
+        #expect(backend.voices() == [.linuxDefault])
+        #else
+        #expect(backend.voices().isEmpty)
+        #endif
     }
 
     @Test("speech recognition backend exposes configurable authorization availability and results")

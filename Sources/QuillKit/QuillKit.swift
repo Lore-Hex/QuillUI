@@ -465,15 +465,18 @@ public final class QuillSpeechBackend: @unchecked Sendable {
 
     private let lock = NSLock()
     private var speaking = false
+    private var synthesisVoices: [QuillSpeechVoice]
     private var recognitionAuthorizationStatus: QuillSpeechRecognitionAuthorizationStatus
     private var recognitionIsAvailable: Bool
     private var recognitionResult: QuillSpeechRecognitionResult?
 
     public init() {
         #if os(Linux)
+        synthesisVoices = [QuillSpeechVoice.linuxDefault]
         recognitionAuthorizationStatus = .denied
         recognitionIsAvailable = false
         #else
+        synthesisVoices = []
         recognitionAuthorizationStatus = .authorized
         recognitionIsAvailable = true
         #endif
@@ -481,11 +484,28 @@ public final class QuillSpeechBackend: @unchecked Sendable {
     }
 
     public func voices() -> [QuillSpeechVoice] {
-        #if os(Linux)
-        [QuillSpeechVoice.linuxDefault]
-        #else
-        []
-        #endif
+        lock.withLock { synthesisVoices }
+    }
+
+    public func configureSpeechSynthesisVoices(_ voices: [QuillSpeechVoice]) {
+        lock.withLock {
+            synthesisVoices = voices
+        }
+    }
+
+    public func resetSpeechSynthesis() {
+        lock.withLock {
+            speaking = false
+            #if os(Linux)
+            synthesisVoices = [QuillSpeechVoice.linuxDefault]
+            #else
+            synthesisVoices = []
+            #endif
+        }
+    }
+
+    public var isSpeaking: Bool {
+        lock.withLock { speaking }
     }
 
     public func speak(_ text: String, onStart: @escaping @Sendable () -> Void, onFinish: @escaping @Sendable () -> Void) {
