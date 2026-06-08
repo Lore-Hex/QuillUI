@@ -60,6 +60,14 @@ public final class UIFont: Equatable, @unchecked Sendable {
     public func withSize(_ size: CGFloat) -> UIFont {
         UIFont(descriptor: fontDescriptor, size: size)
     }
+    // UIFont.lineHeight / .capHeight — real font metrics. There is no font engine
+    // on Linux, so these are typographic approximations derived from pointSize
+    // (system-font ratios: lineHeight ≈ 1.2·pointSize, capHeight ≈ 0.7·pointSize).
+    // SSK uses lineHeight for text-height measurement (String+SSK.height(for:)) and
+    // capHeight for vertical image-attachment centering; both degrade to approximate
+    // layout on Linux (HONEST STATUS: no exact glyph metrics).
+    public var lineHeight: CGFloat { pointSize * 1.2 }
+    public var capHeight: CGFloat { pointSize * 0.7 }
     public struct Weight: Equatable, Sendable {
         public let rawValue: CGFloat
         public init(rawValue: CGFloat) { self.rawValue = rawValue }
