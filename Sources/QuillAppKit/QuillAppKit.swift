@@ -4004,6 +4004,12 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public var tableColumns: [NSTableColumn] = []
     public var rowHeight: CGFloat = 17
     public var intercellSpacing: NSSize = NSSize(width: 3, height: 2)
+    /// Cells materialized into the live view tree by the Qt render pass
+    /// (NSTableView.quillMaterializeRowsIntoSubtree) — the shadow keeps cell views
+    /// in private caches, so rendering needs them promoted to `subviews`. Tracked
+    /// so a re-render clears the prior set instead of duplicating rows. Render-only.
+    public var quillMaterializedCells: [NSView] = []
+    public var quillMaterializedConstraints: [NSLayoutConstraint] = []
     public var allowsMultipleSelection: Bool = false
     public var allowsEmptySelection: Bool = true
     public var allowsColumnSelection: Bool = false
