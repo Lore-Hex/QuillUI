@@ -939,6 +939,16 @@ var targets: [Target] = [
         path: "Sources/QuillRSTree",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire ActivityLog module.
+    // Upstream FeedFinder and account refresh paths now depend on this
+    // Foundation-only activity lifecycle model, so keep the module name
+    // upstream-shaped (`ActivityLog`) to allow later imports to stay verbatim.
+    .target(
+        name: "ActivityLog",
+        path: "Sources/QuillActivityLog",
+        resources: [.process("Resources")],
+        swiftSettings: appSwiftSettings
+    ),
     // Vendored Ranchero-Software/NetNewsWire FeedFinder module
     // (Sources/FeedFinder → Sources/QuillFeedFinder). Brings up the
     // network-free part of FeedFinder: HTMLFeedFinder (detects feeds in
@@ -950,7 +960,7 @@ var targets: [Target] = [
     // Downloader + RSCore's Data.isProbablyHTML are brought up.
     .target(
         name: "QuillFeedFinder",
-        dependencies: ["QuillRSCoreShim", "QuillRSParser", "RSWeb"],
+        dependencies: ["QuillRSCoreShim", "QuillRSParser", "RSWeb", "ActivityLog"],
         path: "Sources/QuillFeedFinder",
         swiftSettings: appSwiftSettings
     ),
@@ -2577,6 +2587,15 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillRSTreeTests",
             dependencies: ["QuillRSTree"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Pins the vendored upstream NetNewsWire ActivityLog module:
+        // lifecycle transitions, owner/kind lookup, id-based completion,
+        // stale-running cleanup, notification posting, and completed-log
+        // trimming. This is the next reusable FeedFinder/account dependency.
+        .testTarget(
+            name: "QuillActivityLogTests",
+            dependencies: ["ActivityLog"],
             swiftSettings: appSwiftSettings
         ),
         // Pins the vendored FeedFinder HTML feed-detection: HTMLFeedFinder
