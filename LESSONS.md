@@ -1282,6 +1282,13 @@ several CI/packaging lessons worth keeping:
   coercion: swift-corelibs has no bridge; since `CGGradient.init` already takes
   `colors: Any?`, fetch-patch-drop the explicit `] as CFArray` cast (unique occurrence).
   (c) `extra argument 'mask'` = add the `clip(to:mask:)` overload (inert).
+- **50-error tail, fetch-patch-only wins (no shim):** QuotedReplyManager (50->0, #445):
+  `CGImageSourceCreateWithData` shim changed to take `Data` (like CreateWithURL took URL)
+  + drop `as CFData`/`as CFDictionary` at its 2 call sites. DebugLogger (50->0): pure
+  fetch-patch -- `kCFURLContentModificationDateKey as URLResourceKey` ->
+  `URLResourceKey.contentModificationDateKey` (CF URL key constants absent on corelibs;
+  use the native URLResourceKey case), and `ProcessInfo()` -> `ProcessInfo.processInfo`
+  (corelibs ProcessInfo has no PUBLIC init -- use the shared singleton).
 
 ---
 
