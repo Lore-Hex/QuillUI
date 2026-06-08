@@ -30,6 +30,7 @@ default_packages=(
   CalendarUtils
   CurrencyFormat
   DateUtils
+  DetectSpeech
   EDSunriseSet
   EmojiSuggestions
   FastBlur

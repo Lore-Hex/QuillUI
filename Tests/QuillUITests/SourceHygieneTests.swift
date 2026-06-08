@@ -2502,6 +2502,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Accelerate/Accelerate.h"),
             encoding: .utf8
         )
+        let audioToolboxHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AudioToolbox/AudioToolbox.h"),
+            encoding: .utf8
+        )
+        let avFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AVFoundation/AVFoundation.h"),
+            encoding: .utf8
+        )
         let objcModuleMap = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
             encoding: .utf8
@@ -2524,6 +2532,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("CalendarUtils"))
         #expect(telegramPackageCheck.contains("CurrencyFormat"))
         #expect(telegramPackageCheck.contains("DateUtils"))
+        #expect(telegramPackageCheck.contains("DetectSpeech"))
         #expect(telegramPackageCheck.contains("EDSunriseSet"))
         #expect(telegramPackageCheck.contains("EmojiSuggestions"))
         #expect(telegramPackageCheck.contains("FastBlur"))
@@ -2552,6 +2561,8 @@ struct SourceHygieneTests {
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCharacterSet : NSObject"))
         #expect(objcFoundationHeader.contains("@protocol NSFastEnumeration"))
+        #expect(objcFoundationHeader.contains("typedef uint32_t UInt32"))
+        #expect(objcFoundationHeader.contains("clang assume_nonnull begin"))
         #expect(objcFoundationHeader.contains("typedef NS_ENUM(NSInteger, NSDateFormatterStyle)"))
         #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
         #expect(objcCoreFoundationHeader.contains("CFStringGetBytes"))
@@ -2564,6 +2575,9 @@ struct SourceHygieneTests {
         #expect(machHeader.contains("vm_remap"))
         #expect(accelerateHeader.contains("vImage_Buffer"))
         #expect(accelerateHeader.contains("vImageBoxConvolve_ARGB8888"))
+        #expect(audioToolboxHeader.contains("AudioComponentDescription"))
+        #expect(audioToolboxHeader.contains("AUVoiceIOMutedSpeechActivityEventListener"))
+        #expect(avFoundationHeader.contains("@interface AVURLAsset : NSObject"))
         #expect(objcModuleMap.contains("module Foundation"))
         #expect(objcModuleMap.contains("module AppKit"))
         #expect(objcModuleMap.contains("module Cocoa"))

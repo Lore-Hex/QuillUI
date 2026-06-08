@@ -69,6 +69,21 @@ typedef unsigned short unichar;
 typedef uint8_t UInt8;
 #endif
 
+#ifndef QUILL_OBJC_UINT16_TYPEDEF
+#define QUILL_OBJC_UINT16_TYPEDEF
+typedef uint16_t UInt16;
+#endif
+
+#ifndef QUILL_OBJC_UINT32_TYPEDEF
+#define QUILL_OBJC_UINT32_TYPEDEF
+typedef uint32_t UInt32;
+#endif
+
+#ifndef QUILL_OBJC_UINT64_TYPEDEF
+#define QUILL_OBJC_UINT64_TYPEDEF
+typedef uint64_t UInt64;
+#endif
+
 #include <CoreFoundation/CoreFoundation.h>
 
 typedef struct _NSRange {
@@ -88,11 +103,11 @@ static inline NSRange NSMakeRange(NSUInteger location, NSUInteger length) {
 }
 
 #ifndef NS_ASSUME_NONNULL_BEGIN
-#define NS_ASSUME_NONNULL_BEGIN
+#define NS_ASSUME_NONNULL_BEGIN _Pragma("clang assume_nonnull begin")
 #endif
 
 #ifndef NS_ASSUME_NONNULL_END
-#define NS_ASSUME_NONNULL_END
+#define NS_ASSUME_NONNULL_END _Pragma("clang assume_nonnull end")
 #endif
 
 #ifndef NS_SWIFT_NAME
@@ -160,6 +175,7 @@ typedef struct {
 __attribute__((objc_root_class))
 @interface NSObject
 + (instancetype)alloc;
++ (instancetype)new;
 + (Class)class;
 - (instancetype)init;
 - (Class)class;
@@ -372,9 +388,29 @@ NSString *NSStringFromClass(Class aClass);
 void NSLog(NSString *format, ...);
 
 typedef long dispatch_once_t;
+typedef void *dispatch_queue_t;
+typedef void (^dispatch_block_t)(void);
+
+#ifndef DISPATCH_QUEUE_SERIAL
+#define DISPATCH_QUEUE_SERIAL NULL
+#endif
+
 static inline void dispatch_once(dispatch_once_t *predicate, void (^block)(void)) {
     if (predicate != NULL && *predicate == 0) {
         *predicate = 1;
+        block();
+    }
+}
+
+static inline dispatch_queue_t dispatch_queue_create(const char *label, void *attr) {
+    (void)label;
+    (void)attr;
+    return NULL;
+}
+
+static inline void dispatch_async(dispatch_queue_t queue, dispatch_block_t block) {
+    (void)queue;
+    if (block != NULL) {
         block();
     }
 }
