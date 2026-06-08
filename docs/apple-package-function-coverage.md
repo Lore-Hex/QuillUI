@@ -484,7 +484,8 @@ subset lives in `QuillUIKit`.
 | `SMAppService.mainApp` | Partial | Backed by current `QuillLaunchService`. |
 | `SMAppService.status` | Partial | Mirrors current launch-service state. |
 | `SMAppService.register()` / `unregister()` | Usable | Registers/unregisters through the current Quill launch-service abstraction. |
-| Full login item parity, privileged helpers, platform service managers | Incomplete | Required for ServiceManagement Parity. |
+| `SMLoginItemSetEnabled(_:_:)` | Partial | Enables/disables shared `QuillLaunchService` state and records the helper identifier; no native autostart file is installed yet. |
+| Full login item persistence, privileged helpers, platform service managers | Incomplete | Required for ServiceManagement Parity. |
 
 ## AsyncAlgorithms
 

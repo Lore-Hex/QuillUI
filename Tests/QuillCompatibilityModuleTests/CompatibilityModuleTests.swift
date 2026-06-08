@@ -26,6 +26,7 @@ import Vortex
 import KeyboardShortcuts
 import Magnet
 import Sparkle
+import ServiceManagement
 @_spi(QuillTesting) import QuillUI
 
 @Suite("Linux compatibility import modules", .serialized)
@@ -708,6 +709,27 @@ struct CompatibilityModuleTests {
         #expect(QuillUpdateService.shared.canCheckForUpdates == false)
 
         QuillUpdateService.shared.reset()
+    }
+
+    @Test("ServiceManagement legacy login item toggle routes through QuillKit")
+    func serviceManagementLegacyLoginItemToggleRoutesThroughQuillKit() throws {
+        try SMAppService.mainApp.unregister()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        #expect(SMAppService.mainApp.status == .notRegistered)
+        #expect(SMLoginItemSetEnabled("co.lorehex.quill.helper" as NSString, true))
+        #expect(QuillLaunchService.shared.isEnabled)
+        #expect(SMAppService.mainApp.status == .enabled)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "SMLoginItemSetEnabled" &&
+                $0.message.contains("co.lorehex.quill.helper")
+        })
+
+        #expect(SMLoginItemSetEnabled("co.lorehex.quill.helper" as NSString, false))
+        #expect(QuillLaunchService.shared.isEnabled == false)
+        #expect(SMAppService.mainApp.status == .notRegistered)
+
+        try SMAppService.mainApp.unregister()
     }
 
     @Test("Magnet hot keys use the shared QuillKit registry")

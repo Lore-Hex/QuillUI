@@ -3255,3 +3255,15 @@ state. The service tracks configurability, check count, and last check time
 with diagnostics, keeping updater behavior reusable across Enchanted, CodeEdit,
 and later app ports. Native appcast fetch, signing, installer, update UI, and
 relaunch behavior remain backend work.
+
+## Checkpoint 195: Legacy ServiceManagement Uses QuillKit
+
+Status: implemented locally; guarded by Linux ServiceManagement target build,
+Linux compatibility test, and CI follow-up.
+
+The legacy `SMLoginItemSetEnabled(_:_:)` shim now updates shared
+`QuillLaunchService` state instead of hard-returning `false`. Modern
+`SMAppService` and legacy login-helper calls therefore report the same
+enabled/not-registered state, while diagnostics retain the helper identifier for
+debugging. Native desktop autostart persistence and privileged helper management
+remain backend work.

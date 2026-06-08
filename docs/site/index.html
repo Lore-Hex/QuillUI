@@ -899,7 +899,8 @@
 <tr><td><code>SMAppService.mainApp</code></td><td>Partial</td><td>Backed by current <code>QuillLaunchService</code>.</td></tr>
 <tr><td><code>SMAppService.status</code></td><td>Partial</td><td>Mirrors current launch-service state.</td></tr>
 <tr><td><code>SMAppService.register()</code> / <code>unregister()</code></td><td>Usable</td><td>Registers/unregisters through the current Quill launch-service abstraction.</td></tr>
-<tr><td>Full login item parity, privileged helpers, platform service managers</td><td>Incomplete</td><td>Required for ServiceManagement Parity.</td></tr>
+<tr><td><code>SMLoginItemSetEnabled(_:_:)</code></td><td>Partial</td><td>Enables/disables shared <code>QuillLaunchService</code> state and records the helper identifier; no native autostart file is installed yet.</td></tr>
+<tr><td>Full login item persistence, privileged helpers, platform service managers</td><td>Incomplete</td><td>Required for ServiceManagement Parity.</td></tr>
 </table>
 <br>
 <h2 id="asyncalgorithms">AsyncAlgorithms</h2>
