@@ -2470,6 +2470,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/generated-telegram-package-check.sh"),
             encoding: .utf8
         )
+        let telegramManifestPatcher = try String(
+            contentsOf: root.appendingPathComponent("scripts/patch-telegram-package-manifest.py"),
+            encoding: .utf8
+        )
         let telegramAudit = try String(
             contentsOf: root.appendingPathComponent("docs/upstream-telegram-audit.md"),
             encoding: .utf8
@@ -2560,8 +2564,11 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("UPSTREAM_DIR=\"$(quillui_resolve_telegram_source_dir \"$ROOT_DIR\")\""))
         #expect(telegramPackageCheck.contains("QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES"))
         #expect(telegramPackageCheck.contains("--jobs 1"))
+        #expect(telegramPackageCheck.contains("--skip-update"))
         #expect(telegramPackageCheck.contains("ApiCredentials"))
         #expect(telegramPackageCheck.contains("CAPortal"))
+        #expect(telegramPackageCheck.contains("ColorPalette"))
+        #expect(telegramPackageCheck.contains("Colors"))
         #expect(telegramPackageCheck.contains("CalendarUtils"))
         #expect(telegramPackageCheck.contains("CrashHandler"))
         #expect(telegramPackageCheck.contains("CurrencyFormat"))
@@ -2585,7 +2592,13 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/Prelude.h"))
         #expect(telegramPackageCheck.contains("overlay_root=\"$ROOT_DIR/Sources/QuillTelegramBuildOverlays\""))
-        #expect(telegramPackageCheck.contains("cp -R \"$overlay_dir\"/. \"$overlaid_package_dir\""))
+        #expect(telegramPackageCheck.contains("package_mirror_root=\"$WORK_ROOT/overlaid-packages\""))
+        #expect(telegramPackageCheck.contains("CACHE_HOME=\"${QUILLUI_GENERATED_TELEGRAM_PACKAGE_HOME"))
+        #expect(telegramPackageCheck.contains("HOME=\"$CACHE_HOME\""))
+        #expect(telegramPackageCheck.contains("find \"$UPSTREAM_DIR/packages\""))
+        #expect(telegramPackageCheck.contains("patch-telegram-package-manifest.py"))
+        #expect(telegramPackageCheck.contains("cp -R \"$overlay_dir\"/. \"$mirror_package_dir\""))
+        #expect(telegramPackageCheck.contains("ln -s \"$UPSTREAM_DIR/submodules\" \"$package_mirror_root/submodules\""))
         #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
         #expect(telegramPackageCheck.contains("-fblocks"))
         #expect(telegramPackageCheck.contains("-fobjc-arc"))
@@ -2596,6 +2609,13 @@ struct SourceHygieneTests {
         #expect(telegramAudit.contains("QuillObjCCompatibility"))
         #expect(telegramAudit.contains("QuillAppKit/QuillKit shims"))
         #expect(telegramAudit.contains("Sources/QuillTelegramBuildOverlays"))
+        #expect(telegramAudit.contains("mirrored package tree"))
+        #expect(telegramAudit.contains("local QuillUI Apple-module products"))
+        #expect(telegramManifestPatcher.contains("IMPORT_TO_PRODUCT"))
+        #expect(telegramManifestPatcher.contains("\"AppKit\": \"AppKit\""))
+        #expect(telegramManifestPatcher.contains("\"Cocoa\": \"Cocoa\""))
+        #expect(telegramManifestPatcher.contains(".package(name: \"QuillUI\""))
+        #expect(telegramManifestPatcher.contains(".product(name:"))
         #expect(objcFoundationHeader.contains("@interface NSString : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
