@@ -1081,6 +1081,64 @@ SWIFT
             echo "created QuillPushAccountShim.swift"
         fi
     fi
+
+    # MediaUI: a few Linux gaps for the non-excluded files.
+    #  - MediaUITransferableImage.swift: the DataRepresentation export closure param
+    #    cannot be inferred against the Linux CoreTransferable shim's generic
+    #    DataRepresentation<Item>; annotate it explicitly.
+    #  - MediaUIAttachmentImageView.swift: uses UIImage/UIPasteboard but imports only
+    #    SwiftUI (UIKit arrives via SwiftUI's re-export on iOS, not on the Linux shim)
+    #    -> inject a canImport(UIKit) block.
+    #  - MediaUIZoomableContainer.swift is target-excluded (UIScrollView pinch-zoom via
+    #    UIViewRepresentable); drop in a passthrough so MediaUIAttachmentImageView's
+    #    wrapper call site still compiles. All idempotent.
+    local mudir="$UPSTREAM_DIR/icecubes/Packages/MediaUI/Sources/MediaUI"
+    if [[ -d "$mudir" ]]; then
+        echo "==> patching IceCubes MediaUI for the Linux CoreTransferable / UIKit gaps"
+        python3 - "$mudir" <<'PY'
+import sys, os
+directory = sys.argv[1]
+
+tx = os.path.join(directory, "MediaUITransferableImage.swift")
+if os.path.isfile(tx):
+    s = open(tx).read()
+    s2 = s.replace(
+        "DataRepresentation(exportedContentType: .jpeg) { transferable in",
+        "DataRepresentation(exportedContentType: .jpeg) { (transferable: MediaUIImageTransferable) in",
+    )
+    if s2 != s:
+        open(tx, "w").write(s2)
+        print("patched MediaUITransferableImage.swift")
+
+iv = os.path.join(directory, "MediaUIAttachmentImageView.swift")
+if os.path.isfile(iv):
+    s = open(iv).read()
+    if "import UIKit" not in s:
+        s = s.replace("import SwiftUI",
+                      "import SwiftUI\n#if canImport(UIKit)\nimport UIKit\n#endif", 1)
+        open(iv, "w").write(s)
+        print("patched MediaUIAttachmentImageView.swift")
+PY
+
+        shim="$mudir/QuillMediaUIZoomableStub.swift"
+        if [[ ! -f "$shim" ]]; then
+            cat > "$shim" <<'SWIFT'
+#if os(Linux)
+import SwiftUI
+
+// MediaUIZoomableContainer.swift is excluded on Linux (UIScrollView pinch-zoom via
+// UIViewRepresentable). MediaUIAttachmentImageView wraps its image in one for zoom;
+// this passthrough preserves that call site without the zoom behaviour on GTK.
+struct MediaUIZoomableContainer<Content: View>: View {
+    let content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    var body: some View { content }
+}
+#endif
+SWIFT
+            echo "created QuillMediaUIZoomableStub.swift"
+        fi
+    fi
 }
 
 patch_signal_ios() {
