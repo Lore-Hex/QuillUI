@@ -13,6 +13,7 @@
 // belt-and-suspenders so the file is empty if it ever compiles on Apple.
 #if os(Linux)
 import Foundation
+import QuillKit
 
 /// The authentication policy passed to `LAContext`. WireGuard and SSK both pass
 /// `.deviceOwnerAuthentication` (passcode-or-biometric).
@@ -75,8 +76,9 @@ open class LAContext {
     public var interactionNotAllowed: Bool = false
     public var localizedFallbackTitle: String?
     public var touchIDAuthenticationAllowableReuseDuration: TimeInterval = 0
-    /// No biometrics on Linux -> none.
-    public var biometryType: LABiometryType { .none }
+    public var biometryType: LABiometryType {
+        LABiometryType(QuillLocalAuthenticationService.shared.biometryType)
+    }
 
     // `error` is NSErrorPointer-shaped (UnsafeMutablePointer<NSError?>?) rather than
     // `inout NSError?` so callers can pass BOTH `&authError` (ScreenLock / OWSPaymentsLock /
@@ -85,16 +87,73 @@ open class LAContext {
     // literal nil. Inert: always "cannot evaluate" on Linux.
     @discardableResult
     open func canEvaluatePolicy(_ policy: LAPolicy, error: UnsafeMutablePointer<NSError?>?) -> Bool {
-        _ = policy
-        error?.pointee = nil
-        return false
+        let result = QuillLocalAuthenticationService.shared.canEvaluatePolicy(
+            QuillLocalAuthenticationPolicy(policy)
+        )
+        error?.pointee = result.error.map { LAError($0) as NSError }
+        return result.canEvaluate
     }
 
-    /// Evaluates `policy`, invoking `reply` with the result. Always denies on Linux.
+    /// Evaluates `policy`, invoking `reply` with the configured compatibility result.
     open func evaluatePolicy(_ policy: LAPolicy,
                              localizedReason: String,
                              reply: @escaping (Bool, Error?) -> Void) {
-        reply(false, LAError(.authenticationFailed))
+        let result = QuillLocalAuthenticationService.shared.evaluatePolicy(
+            QuillLocalAuthenticationPolicy(policy),
+            localizedReason: localizedReason
+        )
+        reply(result.success, result.error.map(LAError.init))
+    }
+}
+
+private extension QuillLocalAuthenticationPolicy {
+    init(_ policy: LAPolicy) {
+        switch policy {
+        case .deviceOwnerAuthenticationWithBiometrics:
+            self = .deviceOwnerAuthenticationWithBiometrics
+        case .deviceOwnerAuthentication:
+            self = .deviceOwnerAuthentication
+        }
+    }
+}
+
+private extension LABiometryType {
+    init(_ biometryType: QuillBiometryType) {
+        switch biometryType {
+        case .none:
+            self = .none
+        case .touchID:
+            self = .touchID
+        case .faceID:
+            self = .faceID
+        case .opticID:
+            self = .opticID
+        }
+    }
+}
+
+private extension LAError {
+    init(_ code: QuillLocalAuthenticationErrorCode) {
+        switch code {
+        case .authenticationFailed:
+            self.init(LAError.Code.authenticationFailed)
+        case .userCancel:
+            self.init(LAError.Code.userCancel)
+        case .userFallback:
+            self.init(LAError.Code.userFallback)
+        case .systemCancel:
+            self.init(LAError.Code.systemCancel)
+        case .passcodeNotSet:
+            self.init(LAError.Code.passcodeNotSet)
+        case .biometryNotAvailable:
+            self.init(LAError.Code.biometryNotAvailable)
+        case .biometryNotEnrolled:
+            self.init(LAError.Code.biometryNotEnrolled)
+        case .biometryLockout:
+            self.init(LAError.Code.biometryLockout)
+        case .notInteractive:
+            self.init(LAError.Code.notInteractive)
+        }
     }
 }
 #endif

@@ -266,7 +266,7 @@ public struct CGAffineTransform: Equatable, Sendable {
 // rasterization is unavailable on Linux, so this is an INERT no-op context:
 // nothing is drawn, and the renderer returns a blank placeholder image of the
 // requested size. Color / gradient / path / image arguments are typed `Any?`
-// to avoid coupling to RSColor.cgColor (which returns Any?) and the optional
+// to avoid coupling drawing to a concrete raster backend and the optional
 // CGGradient/CGPath value-holders. A real raster backend (Cairo/Skia) is a
 // later milestone. HONEST STATUS: avatars render blank on Linux.
 
@@ -596,6 +596,15 @@ open class RSImage: NSObject, @unchecked Sendable {
 }
 public typealias UIImage = RSImage
 
+public struct RSCGColor: Sendable {
+    public var components: [CGFloat]?
+    public var numberOfComponents: Int { components?.count ?? 0 }
+
+    public init(components: [CGFloat]?) {
+        self.components = components
+    }
+}
+
 public class RSColor: NSObject, @unchecked Sendable {
     // Phase B: real RGBA storage so callers get sensible values back
     // from .redComponent / .cgColor / etc. Stored under underscore-
@@ -639,8 +648,8 @@ public class RSColor: NSObject, @unchecked Sendable {
     public static let black = RSColor(red: 0, green: 0, blue: 0, alpha: 1)
     public static let orange = RSColor(red: 1.0, green: 0.5, blue: 0.0, alpha: 1)
 
-    /// Returns a 4-tuple [R, G, B, A]. Matches CGColor.components shape.
-    public var cgColor: Any? { [_red, _green, _blue, _alpha] }
+    /// Returns a 4-tuple [R, G, B, A]. Matches the CGColor.components shape.
+    public var cgColor: RSCGColor { RSCGColor(components: [_red, _green, _blue, _alpha]) }
     public var components: [CGFloat]? { [_red, _green, _blue, _alpha] }
     public var numberOfComponents: Int { 4 }
 
@@ -657,6 +666,20 @@ public class RSColor: NSObject, @unchecked Sendable {
         green.pointee = _green
         blue.pointee = _blue
         alpha.pointee = _alpha
+        return true
+    }
+
+    @discardableResult
+    public func getRed(
+        _ red: UnsafeMutablePointer<CGFloat>?,
+        green: UnsafeMutablePointer<CGFloat>?,
+        blue: UnsafeMutablePointer<CGFloat>?,
+        alpha: UnsafeMutablePointer<CGFloat>?
+    ) -> Bool {
+        red?.pointee = _red
+        green?.pointee = _green
+        blue?.pointee = _blue
+        alpha?.pointee = _alpha
         return true
     }
 
@@ -684,6 +707,25 @@ public class RSColor: NSObject, @unchecked Sendable {
         saturation.pointee = maxV == 0 ? 0 : delta / maxV
         brightness.pointee = maxV
         alpha.pointee = _alpha
+        return true
+    }
+
+    @discardableResult
+    public func getHue(
+        _ hue: UnsafeMutablePointer<CGFloat>?,
+        saturation: UnsafeMutablePointer<CGFloat>?,
+        brightness: UnsafeMutablePointer<CGFloat>?,
+        alpha: UnsafeMutablePointer<CGFloat>?
+    ) -> Bool {
+        var h: CGFloat = 0
+        var s: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        _ = getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        hue?.pointee = h
+        saturation?.pointee = s
+        brightness?.pointee = b
+        alpha?.pointee = a
         return true
     }
 }
@@ -787,6 +829,13 @@ public class RSScreen: NSObject, @unchecked Sendable {
     public var deviceDescription: [String: Any] { [:] }
 }
 public typealias UIScreen = RSScreen
+
+public func arc4random_uniform(_ upperBound: UInt32) -> UInt32 {
+    guard upperBound > 0 else {
+        return 0
+    }
+    return UInt32.random(in: 0..<upperBound)
+}
 #endif
 
 // MARK: - CGImage luminance (Linux shim for the netnewswire port)

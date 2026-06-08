@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <math.h>
+#include <stdio.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -161,6 +162,7 @@ static inline NSRange NSMakeRange(NSUInteger location, NSUInteger length) {
 @class NSNumberFormatter;
 @class NSCharacterSet;
 @class NSURL;
+@class NSXMLParser;
 
 typedef struct {
     unsigned long state;
@@ -181,6 +183,7 @@ __attribute__((objc_root_class))
 - (instancetype)init;
 - (Class)class;
 - (BOOL)respondsToSelector:(SEL)aSelector;
+- (BOOL)isEqual:(id)object;
 - (void)doesNotRecognizeSelector:(SEL)aSelector;
 @property (nonatomic, readonly) NSString *description;
 @end
@@ -219,6 +222,10 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 + (instancetype)stringWithString:(NSString *)string;
 - (void)appendString:(NSString *)string;
 - (void)appendFormat:(NSString *)format, ...;
+- (NSUInteger)replaceOccurrencesOfString:(NSString *)target
+                               withString:(NSString *)replacement
+                                  options:(NSUInteger)options
+                                    range:(NSRange)searchRange;
 @end
 
 @interface NSNumber : NSObject
@@ -269,6 +276,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 + (instancetype)dataWithContentsOfFile:(NSString *)path;
 @property (nonatomic, readonly) const void *bytes;
 @property (nonatomic, readonly) NSUInteger length;
+- (void)getBytes:(void *)buffer range:(NSRange)range;
 @end
 
 @interface NSMutableData : NSData
@@ -276,11 +284,13 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 + (instancetype)dataWithCapacity:(NSUInteger)capacity;
 @property (nonatomic) NSUInteger length;
 @property (nonatomic, readonly) void *mutableBytes;
+- (void)appendBytes:(const void *)bytes length:(NSUInteger)length;
 @end
 
 @interface NSDate : NSObject
 + (instancetype)date;
 - (NSDate *)dateByAddingTimeInterval:(NSTimeInterval)seconds;
+- (NSTimeInterval)timeIntervalSinceNow;
 @end
 
 @interface NSDateComponents : NSObject
@@ -325,8 +335,22 @@ typedef NS_ENUM(NSInteger, NSDateFormatterStyle) {
 
 @interface NSCharacterSet : NSObject
 + (instancetype)characterSetWithCharactersInString:(NSString *)string;
++ (instancetype)alphanumericCharacterSet;
 - (NSCharacterSet *)invertedSet;
 - (BOOL)characterIsMember:(unichar)aCharacter;
+@end
+
+@protocol NSXMLParserDelegate
+@optional
+- (void)parser:(NSXMLParser *)parser didStartElement:(NSString *)elementName namespaceURI:(NSString *)namespaceURI qualifiedName:(NSString *)qName attributes:(NSDictionary<NSString *, NSString *> *)attributeDict;
+- (void)parser:(NSXMLParser *)parser didEndElement:(NSString *)elementName namespaceURI:(NSString *)namespaceURI qualifiedName:(NSString *)qName;
+- (void)parser:(NSXMLParser *)parser foundCharacters:(NSString *)string;
+@end
+
+@interface NSXMLParser : NSObject
+@property (nonatomic, weak) id<NSXMLParserDelegate> delegate;
+- (instancetype)initWithData:(NSData *)data;
+- (BOOL)parse;
 @end
 
 @interface NSTimeZone : NSObject

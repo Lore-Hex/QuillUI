@@ -26,6 +26,7 @@ public enum QuillKitCapability: String, CaseIterable, Sendable {
     case clipboard
     case speechSynthesis
     case speechRecognition
+    case localAuthentication
     case haptics
     case accessibility
     case syntheticKeyboard
@@ -51,10 +52,12 @@ public enum QuillKitCapabilities {
     public static func status(for capability: QuillKitCapability) -> QuillKitCapabilityStatus {
         #if os(Linux)
         switch capability {
-        case .clipboard:
+        case .clipboard, .speechSynthesis, .speechRecognition, .localAuthentication:
             return .emulated
-        case .speechSynthesis, .speechRecognition, .haptics, .accessibility, .syntheticKeyboard,
-             .globalShortcuts, .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker,
+        case .globalShortcuts:
+            return .emulated
+        case .haptics, .accessibility, .syntheticKeyboard,
+             .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker,
              .secureStorage, .notifications, .networkExtension, .vpnTunnel:
             return .unavailable(reason: "No native Linux backend has been attached yet.")
         }
@@ -92,7 +95,7 @@ public struct QuillCompatibilityEvent: Equatable, Sendable {
 public final class QuillCompatibilityDiagnostics: @unchecked Sendable {
     public static let shared = QuillCompatibilityDiagnostics()
 
-    private let lock = NSLock()
+    private let lock = NSRecursiveLock()
     private var storedEvents: [QuillCompatibilityEvent] = []
 
     public init() {}
@@ -124,6 +127,26 @@ public final class QuillCompatibilityDiagnostics: @unchecked Sendable {
     public func clear() {
         lock.withLock {
             storedEvents.removeAll()
+        }
+    }
+
+    public func captureIsolatedEvents<Result>(
+        _ body: () throws -> Result
+    ) rethrows -> (result: Result, events: [QuillCompatibilityEvent]) {
+        lock.lock()
+        let previousEvents = storedEvents
+        storedEvents.removeAll()
+
+        do {
+            let result = try body()
+            let capturedEvents = storedEvents
+            storedEvents = previousEvents
+            lock.unlock()
+            return (result, capturedEvents)
+        } catch {
+            storedEvents = previousEvents
+            lock.unlock()
+            throw error
         }
     }
 }
@@ -414,20 +437,96 @@ public struct QuillSpeechVoice: Hashable, Sendable {
     )
 }
 
+public enum QuillSpeechRecognitionAuthorizationStatus: Equatable, Sendable {
+    case authorized
+    case denied
+    case restricted
+    case notDetermined
+}
+
+public struct QuillSpeechRecognitionResult: Equatable, Sendable {
+    public var formattedString: String
+    public var isFinal: Bool
+
+    public init(formattedString: String, isFinal: Bool = true) {
+        self.formattedString = formattedString
+        self.isFinal = isFinal
+    }
+}
+
+public struct QuillSpeechRecognitionError: Error, Equatable, Sendable, CustomStringConvertible {
+    public var reason: String
+
+    public init(reason: String) {
+        self.reason = reason
+    }
+
+    public var description: String { reason }
+}
+
+public final class QuillSpeechRecognitionTask: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    public init() {}
+
+    public var isCancelled: Bool {
+        lock.withLock { cancelled }
+    }
+
+    public func cancel() {
+        lock.withLock {
+            cancelled = true
+        }
+    }
+}
+
 public final class QuillSpeechBackend: @unchecked Sendable {
     public static let shared = QuillSpeechBackend()
 
     private let lock = NSLock()
     private var speaking = false
+    private var synthesisVoices: [QuillSpeechVoice]
+    private var recognitionAuthorizationStatus: QuillSpeechRecognitionAuthorizationStatus
+    private var recognitionIsAvailable: Bool
+    private var recognitionResult: QuillSpeechRecognitionResult?
 
-    public init() {}
+    public init() {
+        #if os(Linux)
+        synthesisVoices = [QuillSpeechVoice.linuxDefault]
+        recognitionAuthorizationStatus = .denied
+        recognitionIsAvailable = false
+        #else
+        synthesisVoices = []
+        recognitionAuthorizationStatus = .authorized
+        recognitionIsAvailable = true
+        #endif
+        recognitionResult = nil
+    }
 
     public func voices() -> [QuillSpeechVoice] {
-        #if os(Linux)
-        [QuillSpeechVoice.linuxDefault]
-        #else
-        []
-        #endif
+        lock.withLock { synthesisVoices }
+    }
+
+    public func configureSpeechSynthesisVoices(_ voices: [QuillSpeechVoice]) {
+        lock.withLock {
+            synthesisVoices = voices
+        }
+    }
+
+    public func resetSpeechSynthesis() {
+        lock.withLock {
+            speaking = false
+            #if os(Linux)
+            synthesisVoices = [QuillSpeechVoice.linuxDefault]
+            #else
+            synthesisVoices = []
+            #endif
+        }
+    }
+
+    public var isSpeaking: Bool {
+        lock.withLock { speaking }
     }
 
     public func speak(_ text: String, onStart: @escaping @Sendable () -> Void, onFinish: @escaping @Sendable () -> Void) {
@@ -449,6 +548,111 @@ public final class QuillSpeechBackend: @unchecked Sendable {
     public func stop() -> Bool {
         lock.withLock { speaking = false }
         return true
+    }
+
+    public var speechRecognitionAuthorizationStatus: QuillSpeechRecognitionAuthorizationStatus {
+        lock.withLock { recognitionAuthorizationStatus }
+    }
+
+    public var isSpeechRecognitionAvailable: Bool {
+        get { lock.withLock { recognitionIsAvailable } }
+        set {
+            lock.withLock {
+                recognitionIsAvailable = newValue
+            }
+        }
+    }
+
+    public func configureSpeechRecognition(
+        authorizationStatus: QuillSpeechRecognitionAuthorizationStatus,
+        isAvailable: Bool,
+        result: QuillSpeechRecognitionResult?
+    ) {
+        lock.withLock {
+            recognitionAuthorizationStatus = authorizationStatus
+            recognitionIsAvailable = isAvailable
+            recognitionResult = result
+        }
+    }
+
+    public func resetSpeechRecognition() {
+        lock.withLock {
+            #if os(Linux)
+            recognitionAuthorizationStatus = .denied
+            recognitionIsAvailable = false
+            #else
+            recognitionAuthorizationStatus = .authorized
+            recognitionIsAvailable = true
+            #endif
+            recognitionResult = nil
+        }
+    }
+
+    public func requestSpeechRecognitionAuthorization(
+        _ handler: @escaping (QuillSpeechRecognitionAuthorizationStatus) -> Void
+    ) {
+        let status = lock.withLock { recognitionAuthorizationStatus }
+        #if os(Linux)
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "speechRecognitionAuthorization",
+            severity: status == .authorized ? .info : .unsupported,
+            message: "Speech recognition authorization is provided by the QuillKit compatibility backend."
+        )
+        #endif
+        handler(status)
+    }
+
+    @discardableResult
+    public func recognitionTask(
+        shouldReportPartialResults: Bool,
+        resultHandler: @escaping (QuillSpeechRecognitionResult?, QuillSpeechRecognitionError?) -> Void
+    ) -> QuillSpeechRecognitionTask {
+        let task = QuillSpeechRecognitionTask()
+        let state = lock.withLock {
+            (
+                status: recognitionAuthorizationStatus,
+                available: recognitionIsAvailable,
+                result: recognitionResult
+            )
+        }
+
+        guard state.status == .authorized else {
+            #if os(Linux)
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillKit",
+                operation: "speechRecognitionTask",
+                message: "Speech recognition requires authorized compatibility state."
+            )
+            #endif
+            resultHandler(nil, QuillSpeechRecognitionError(reason: "Speech recognition is not authorized."))
+            return task
+        }
+
+        guard state.available else {
+            #if os(Linux)
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillKit",
+                operation: "speechRecognitionTask",
+                message: "Speech recognition is unavailable until a native Linux backend is attached."
+            )
+            #endif
+            resultHandler(nil, QuillSpeechRecognitionError(reason: "Speech recognition is unavailable."))
+            return task
+        }
+
+        #if os(Linux)
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "speechRecognitionTask",
+            severity: .info,
+            message: shouldReportPartialResults
+                ? "Speech recognition delivered a configured compatibility result with partial reporting enabled."
+                : "Speech recognition delivered a configured compatibility result."
+        )
+        #endif
+        resultHandler(state.result, nil)
+        return task
     }
 }
 
@@ -478,6 +682,104 @@ public final class QuillLaunchService: @unchecked Sendable {
     }
 }
 
+public enum QuillLocalAuthenticationPolicy: Int, Sendable {
+    case deviceOwnerAuthenticationWithBiometrics = 1
+    case deviceOwnerAuthentication = 2
+}
+
+public enum QuillBiometryType: Int, Sendable {
+    case none = 0
+    case touchID = 1
+    case faceID = 2
+    case opticID = 4
+}
+
+public enum QuillLocalAuthenticationErrorCode: Int, Sendable {
+    case authenticationFailed = -1
+    case userCancel = -2
+    case userFallback = -3
+    case systemCancel = -4
+    case passcodeNotSet = -5
+    case biometryNotAvailable = -106
+    case biometryNotEnrolled = -107
+    case biometryLockout = -108
+    case notInteractive = -1004
+}
+
+public final class QuillLocalAuthenticationService: @unchecked Sendable {
+    public static let shared = QuillLocalAuthenticationService()
+
+    private let lock = NSLock()
+    private var canEvaluatePolicyValue = false
+    private var canEvaluateErrorCode: QuillLocalAuthenticationErrorCode?
+    private var evaluationSucceeds = false
+    private var evaluationErrorCode: QuillLocalAuthenticationErrorCode = .authenticationFailed
+    private var currentBiometryType: QuillBiometryType = .none
+
+    public init() {}
+
+    public var biometryType: QuillBiometryType {
+        lock.withLock { currentBiometryType }
+    }
+
+    public func configure(
+        canEvaluatePolicy: Bool,
+        biometryType: QuillBiometryType = .none,
+        canEvaluateError: QuillLocalAuthenticationErrorCode? = nil,
+        evaluationSucceeds: Bool,
+        evaluationError: QuillLocalAuthenticationErrorCode = .authenticationFailed
+    ) {
+        lock.withLock {
+            canEvaluatePolicyValue = canEvaluatePolicy
+            canEvaluateErrorCode = canEvaluateError
+            self.evaluationSucceeds = evaluationSucceeds
+            evaluationErrorCode = evaluationError
+            currentBiometryType = biometryType
+        }
+    }
+
+    public func reset() {
+        lock.withLock {
+            canEvaluatePolicyValue = false
+            canEvaluateErrorCode = nil
+            evaluationSucceeds = false
+            evaluationErrorCode = .authenticationFailed
+            currentBiometryType = .none
+        }
+    }
+
+    public func canEvaluatePolicy(
+        _ policy: QuillLocalAuthenticationPolicy
+    ) -> (canEvaluate: Bool, error: QuillLocalAuthenticationErrorCode?) {
+        let state = lock.withLock {
+            (canEvaluatePolicyValue, canEvaluateErrorCode)
+        }
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "localAuthentication.canEvaluatePolicy",
+            severity: state.0 ? .info : .unsupported,
+            message: "Local authentication policy \(policy.rawValue) is evaluated by the QuillKit compatibility backend."
+        )
+        return state
+    }
+
+    public func evaluatePolicy(
+        _ policy: QuillLocalAuthenticationPolicy,
+        localizedReason: String
+    ) -> (success: Bool, error: QuillLocalAuthenticationErrorCode?) {
+        let state = lock.withLock {
+            (evaluationSucceeds, evaluationErrorCode)
+        }
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "localAuthentication.evaluatePolicy",
+            severity: state.0 ? .info : .unsupported,
+            message: "Local authentication policy \(policy.rawValue) for '\(localizedReason)' is evaluated by the QuillKit compatibility backend."
+        )
+        return (state.0, state.0 ? nil : state.1)
+    }
+}
+
 public struct QuillCertificate: Hashable, Sendable {
     public var data: Data
 
@@ -496,15 +798,85 @@ public enum QuillTrust {
     }
 }
 
+public struct QuillHotKeyGesture: Hashable, Sendable {
+    public var key: String
+    public var modifiers: [String]
+
+    public init(key: String, modifiers: [String] = []) {
+        self.key = key
+        self.modifiers = Array(Set(modifiers)).sorted()
+    }
+}
+
+public struct QuillHotKeyDescriptor: Hashable, Sendable {
+    public var identifier: String
+    public var gesture: QuillHotKeyGesture
+
+    public init(identifier: String, key: String, modifiers: [String] = []) {
+        self.identifier = identifier
+        self.gesture = QuillHotKeyGesture(key: key, modifiers: modifiers)
+    }
+
+    public init(identifier: String, gesture: QuillHotKeyGesture) {
+        self.identifier = identifier
+        self.gesture = gesture
+    }
+}
+
 public final class QuillHotKeyRegistration: @unchecked Sendable {
+    fileprivate let token = UUID()
+    public let descriptor: QuillHotKeyDescriptor?
     private let action: @Sendable () -> Void
+    private let service: QuillHotkeyService?
+    private let lock = NSLock()
+    private var standaloneIsRegistered = true
 
     public init(action: @escaping @Sendable () -> Void) {
+        self.descriptor = nil
+        self.service = nil
         self.action = action
     }
 
-    public func unregister() {}
-    public func trigger() { action() }
+    fileprivate init(
+        descriptor: QuillHotKeyDescriptor,
+        service: QuillHotkeyService,
+        action: @escaping @Sendable () -> Void
+    ) {
+        self.descriptor = descriptor
+        self.service = service
+        self.action = action
+    }
+
+    public var isRegistered: Bool {
+        if let service {
+            return service.isRegistered(self)
+        }
+        return lock.withLock { standaloneIsRegistered }
+    }
+
+    public func unregister() {
+        if let service {
+            service.unregister(self)
+            return
+        }
+        lock.withLock {
+            standaloneIsRegistered = false
+        }
+    }
+
+    @discardableResult
+    public func trigger() -> Bool {
+        if let service {
+            return service.trigger(self)
+        }
+
+        let shouldTrigger = lock.withLock { standaloneIsRegistered }
+        guard shouldTrigger else {
+            return false
+        }
+        action()
+        return true
+    }
 }
 
 public enum QuillKeyBase: CaseIterable, Sendable {
@@ -663,11 +1035,45 @@ public final class QuillPanelManager: @unchecked Sendable {
 public final class QuillUpdateService: @unchecked Sendable {
     public static let shared = QuillUpdateService()
 
-    public private(set) var canCheckForUpdates = false
+    private let lock = NSLock()
+    private var updateChecksAreEnabled = false
+    private var updateCheckCountValue = 0
+    private var lastUpdateCheckDate: Date?
 
     public init() {}
 
+    public var canCheckForUpdates: Bool {
+        lock.withLock { updateChecksAreEnabled }
+    }
+
+    public var updateCheckCount: Int {
+        lock.withLock { updateCheckCountValue }
+    }
+
+    public var lastCheckDate: Date? {
+        lock.withLock { lastUpdateCheckDate }
+    }
+
+    public func configure(canCheckForUpdates: Bool) {
+        lock.withLock {
+            updateChecksAreEnabled = canCheckForUpdates
+        }
+    }
+
+    public func reset() {
+        lock.withLock {
+            updateChecksAreEnabled = false
+            updateCheckCountValue = 0
+            lastUpdateCheckDate = nil
+        }
+    }
+
     public func checkForUpdates() {
+        lock.withLock {
+            updateCheckCountValue += 1
+            lastUpdateCheckDate = Date()
+        }
+
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillKit",
             operation: "checkForUpdates",
@@ -685,19 +1091,168 @@ public final class QuillUpdateService: @unchecked Sendable {
 public final class QuillHotkeyService: @unchecked Sendable {
     public static let shared = QuillHotkeyService()
 
-    public init() {}
+    private struct HotKeyRecord {
+        var descriptor: QuillHotKeyDescriptor
+        var action: @Sendable () -> Void
+    }
+
+    private let lock = NSLock()
+    private let diagnostics: QuillCompatibilityDiagnostics
+    private var recordsByToken: [UUID: HotKeyRecord] = [:]
+    private var tokensByIdentifier: [String: UUID] = [:]
+    private var tokensByGesture: [QuillHotKeyGesture: UUID] = [:]
+
+    public init(diagnostics: QuillCompatibilityDiagnostics = .shared) {
+        self.diagnostics = diagnostics
+    }
+
+    @discardableResult
+    public func register(
+        descriptor: QuillHotKeyDescriptor,
+        action: @escaping @Sendable () -> Void
+    ) -> QuillHotKeyRegistration {
+        let registration = QuillHotKeyRegistration(
+            descriptor: descriptor,
+            service: self,
+            action: action
+        )
+
+        let conflict = lock.withLock { () -> String? in
+            if tokensByIdentifier[descriptor.identifier] != nil {
+                return "identifier '\(descriptor.identifier)' is already registered"
+            }
+            if tokensByGesture[descriptor.gesture] != nil {
+                let modifiers = descriptor.gesture.modifiers.joined(separator: "+")
+                return "gesture '\(descriptor.gesture.key)' with modifiers \(modifiers) is already registered"
+            }
+
+            recordsByToken[registration.token] = HotKeyRecord(
+                descriptor: descriptor,
+                action: action
+            )
+            tokensByIdentifier[descriptor.identifier] = registration.token
+            tokensByGesture[descriptor.gesture] = registration.token
+            return nil
+        }
+
+        if let conflict {
+            diagnostics.record(
+                subsystem: "QuillKit",
+                operation: "registerHotKey",
+                severity: .warning,
+                message: "Hot key registration skipped because \(conflict)."
+            )
+        } else {
+            #if os(Linux)
+            diagnostics.record(
+                subsystem: "QuillKit",
+                operation: "registerHotKey",
+                severity: .info,
+                message: "Hot key '\(descriptor.identifier)' is registered in the process-local compatibility registry."
+            )
+            #endif
+        }
+
+        return registration
+    }
+
+    public func unregister(_ registration: QuillHotKeyRegistration) {
+        lock.withLock {
+            guard let record = recordsByToken.removeValue(forKey: registration.token) else {
+                return
+            }
+            tokensByIdentifier.removeValue(forKey: record.descriptor.identifier)
+            tokensByGesture.removeValue(forKey: record.descriptor.gesture)
+        }
+    }
+
+    public func isRegistered(_ registration: QuillHotKeyRegistration) -> Bool {
+        lock.withLock {
+            recordsByToken[registration.token] != nil
+        }
+    }
+
+    @discardableResult
+    public func trigger(_ registration: QuillHotKeyRegistration) -> Bool {
+        let action = lock.withLock {
+            recordsByToken[registration.token]?.action
+        }
+
+        guard let action else {
+            return false
+        }
+
+        action()
+        return true
+    }
+
+    @discardableResult
+    public func trigger(identifier: String) -> Bool {
+        let action = lock.withLock { () -> (@Sendable () -> Void)? in
+            guard let token = tokensByIdentifier[identifier] else {
+                return nil
+            }
+            return recordsByToken[token]?.action
+        }
+
+        guard let action else {
+            return false
+        }
+
+        action()
+        return true
+    }
+
+    @discardableResult
+    public func trigger(key: String, modifiers: [String] = []) -> Bool {
+        let gesture = QuillHotKeyGesture(key: key, modifiers: modifiers)
+        let action = lock.withLock { () -> (@Sendable () -> Void)? in
+            guard let token = tokensByGesture[gesture] else {
+                return nil
+            }
+            return recordsByToken[token]?.action
+        }
+
+        guard let action else {
+            return false
+        }
+
+        action()
+        return true
+    }
+
+    public var registeredHotKeys: [QuillHotKeyDescriptor] {
+        lock.withLock {
+            recordsByToken.values.map(\.descriptor).sorted { lhs, rhs in
+                lhs.identifier < rhs.identifier
+            }
+        }
+    }
+
+    public func unregisterAll() {
+        lock.withLock {
+            recordsByToken.removeAll()
+            tokensByIdentifier.removeAll()
+            tokensByGesture.removeAll()
+        }
+    }
 
     @discardableResult
     public func registerSingleUseSpace<ModifierSet>(
         modifiers: ModifierSet,
         handler: () -> AnyObject?
     ) -> AnyObject? {
+        let registration = register(
+            descriptor: QuillHotKeyDescriptor(identifier: "single-use-space", key: "space", modifiers: ["single-use"]),
+            action: {}
+        )
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillKit",
             operation: "registerSingleUseSpace",
-            severity: .unsupported,
-            message: "Global hotkey registration needs a native Linux key-event backend."
+            severity: .info,
+            message: "Single-use space hotkey is tracked in the process-local compatibility registry."
         )
+        registration.unregister()
         return handler()
     }
 }

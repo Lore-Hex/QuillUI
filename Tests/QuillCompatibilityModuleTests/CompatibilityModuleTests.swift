@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import Combine
 import UIKit
+import AVFoundation
 import QuillKit
 import QuillFoundation
 import ActivityIndicatorView
@@ -23,6 +24,9 @@ import IOKit.usb
 import WrappingHStack
 import Vortex
 import KeyboardShortcuts
+import Magnet
+import Sparkle
+import ServiceManagement
 @_spi(QuillTesting) import QuillUI
 
 @Suite("Linux compatibility import modules", .serialized)
@@ -53,7 +57,7 @@ struct CompatibilityModuleTests {
 
     @Test("QuillUI fallback modifiers record diagnostics")
     func quillUIFallbackModifiersRecordDiagnostics() {
-        QuillCompatibilityDiagnostics.shared.clear()
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
 
         _ = Text("Fallback")
             .symbolEffect(.variableColor, value: true)
@@ -203,8 +207,9 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: typedContent)).contains("TextContentTypeView"))
         #expect(typedContent.contentType == .URL)
 #endif
+        }
 
-        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        let operations = Set(captured.events.map(\.operation))
         #expect(operations.isSuperset(of: Set([
             "symbolEffect",
             "matchedGeometryEffect",
@@ -610,6 +615,7 @@ struct CompatibilityModuleTests {
         let overrideShortcut = KeyboardShortcuts.Shortcut(.space, modifiers: [.command, .shift])
         let name = KeyboardShortcuts.Name("togglePanelMode1", default: defaultShortcut)
 
+        QuillHotkeyService.shared.unregisterAll()
         KeyboardShortcuts.reset(name)
         KeyboardShortcuts.resetAllHandlers()
         #expect(KeyboardShortcuts.getShortcut(for: name) == defaultShortcut)
@@ -628,18 +634,140 @@ struct CompatibilityModuleTests {
         }
         #expect(KeyboardShortcuts.trigger(name, type: .keyDown))
         #expect(handledEvents == ["down"])
+        #expect(KeyboardShortcuts.trigger(defaultShortcut))
+        #expect(handledEvents == ["down", "down"])
+
+        KeyboardShortcuts.setShortcut(overrideShortcut, for: name)
+        #expect(!KeyboardShortcuts.trigger(defaultShortcut))
+        #expect(KeyboardShortcuts.trigger(overrideShortcut))
+        #expect(QuillHotkeyService.shared.trigger(key: "space", modifiers: ["command", "shift"]))
+        #expect(handledEvents == ["down", "down", "down", "down"])
         #expect(!KeyboardShortcuts.trigger(name, type: .keyUp))
 
         _ = Text("Shortcut").onKeyboardShortcut(name, type: .keyUp) {
             handledEvents.append("up")
         }
         #expect(KeyboardShortcuts.trigger(name, type: .keyUp))
-        #expect(handledEvents == ["down", "up"])
+        #expect(handledEvents == ["down", "down", "down", "down", "up"])
 
         KeyboardShortcuts.resetAllHandlers()
         #expect(!KeyboardShortcuts.trigger(name, type: .keyDown))
+        #expect(!KeyboardShortcuts.trigger(overrideShortcut))
 
         KeyboardShortcuts.resetAll()
+        QuillHotkeyService.shared.unregisterAll()
+    }
+
+    @Test("AVFoundation speech synthesis routes through QuillKit")
+    func avFoundationSpeechSynthesisRoutesThroughQuillKit() {
+        QuillSpeechBackend.shared.resetSpeechSynthesis()
+        QuillSpeechBackend.shared.configureSpeechSynthesisVoices([
+            QuillSpeechVoice(identifier: "quill.test.voice", name: "Test Voice", quality: 1)
+        ])
+
+        let utterance = AVSpeechUtterance(string: "hello linux")
+        let voice = AVSpeechSynthesisVoice(identifier: "quill.test.voice")
+        utterance.voice = voice
+
+        #expect(utterance.speechString == "hello linux")
+        #expect(voice?.name == "Test Voice")
+        #expect(voice?.quality == .enhanced)
+        #expect(AVSpeechSynthesisVoice.speechVoices().map(\.identifier) == ["quill.test.voice"])
+
+        let synthesizer = AVSpeechSynthesizer()
+        synthesizer.speak(utterance)
+        #expect(!synthesizer.isSpeaking)
+        #expect(!synthesizer.isPaused)
+        #expect(synthesizer.stopSpeaking(at: .immediate))
+
+        QuillSpeechBackend.shared.resetSpeechSynthesis()
+    }
+
+    @Test("Sparkle updater routes through QuillKit")
+    func sparkleUpdaterRoutesThroughQuillKit() {
+        QuillUpdateService.shared.reset()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let updater = SPUUpdater()
+        #expect(updater.canCheckForUpdates == false)
+        #expect(QuillUpdateService.shared.canCheckForUpdates == false)
+
+        updater.canCheckForUpdates = true
+        #expect(updater.canCheckForUpdates)
+        #expect(QuillUpdateService.shared.canCheckForUpdates)
+
+        updater.checkForUpdates()
+        #expect(QuillUpdateService.shared.updateCheckCount == 1)
+        #expect(QuillUpdateService.shared.lastCheckDate != nil)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "checkForUpdates"
+        })
+
+        QuillUpdateService.shared.reset()
+        let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        #expect(controller.updater.canCheckForUpdates)
+        controller.updater.canCheckForUpdates = false
+        #expect(QuillUpdateService.shared.canCheckForUpdates == false)
+
+        QuillUpdateService.shared.reset()
+    }
+
+    @Test("ServiceManagement legacy login item toggle routes through QuillKit")
+    func serviceManagementLegacyLoginItemToggleRoutesThroughQuillKit() throws {
+        try SMAppService.mainApp.unregister()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        #expect(SMAppService.mainApp.status == .notRegistered)
+        #expect(SMLoginItemSetEnabled("co.lorehex.quill.helper" as NSString, true))
+        #expect(QuillLaunchService.shared.isEnabled)
+        #expect(SMAppService.mainApp.status == .enabled)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "SMLoginItemSetEnabled" &&
+                $0.message.contains("co.lorehex.quill.helper")
+        })
+
+        #expect(SMLoginItemSetEnabled("co.lorehex.quill.helper" as NSString, false))
+        #expect(QuillLaunchService.shared.isEnabled == false)
+        #expect(SMAppService.mainApp.status == .notRegistered)
+
+        try SMAppService.mainApp.unregister()
+    }
+
+    @Test("Magnet hot keys use the shared QuillKit registry")
+    func magnetHotKeysUseSharedQuillKitRegistry() {
+        QuillHotkeyService.shared.unregisterAll()
+        QuillCompatibilityDiagnostics.shared.clear()
+        var handledEvents: [String] = []
+        let combo = KeyCombo(key: .character("p"), cocoaModifiers: [.command, .shift])!
+
+        let hotKey = HotKey(identifier: "togglePanelMode", keyCombo: combo) { key in
+            handledEvents.append(key.identifier)
+        }
+
+        #expect(!HotKey.trigger(identifier: "togglePanelMode"))
+        hotKey.register()
+        #expect(hotKey.isRegistered)
+        #expect(HotKey.trigger(identifier: "togglePanelMode"))
+        #expect(HotKey.trigger(keyCombo: combo))
+        #expect(handledEvents == ["togglePanelMode", "togglePanelMode"])
+
+        let duplicate = HotKey(identifier: "duplicatePanelMode", keyCombo: combo) { key in
+            handledEvents.append(key.identifier)
+        }
+        duplicate.register()
+        #expect(!duplicate.isRegistered)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "registerHotKey" && $0.severity == .warning
+        })
+
+        hotKey.unregister()
+        #expect(!hotKey.isRegistered)
+        #expect(!HotKey.trigger(identifier: "togglePanelMode"))
+        #expect(!HotKey.trigger(keyCombo: combo))
+
+        hotKey.trigger()
+        #expect(handledEvents == ["togglePanelMode", "togglePanelMode", "togglePanelMode"])
+        QuillHotkeyService.shared.unregisterAll()
     }
 
     @Test("MarkdownUI and Splash cover Enchanted markdown theme contracts")

@@ -17,3 +17,23 @@ module Cocoa {
   header "Cocoa/Cocoa.h"
   export *
 }
+
+module Security {
+  header "Security/Security.h"
+  export *
+}
+
+module CommonCrypto {
+  header "CommonCrypto/CommonCrypto.h"
+  export *
+}
+
+module CoreText {
+  header "CoreText/CoreText.h"
+  export *
+}
+
+module QuartzCore {
+  header "QuartzCore/QuartzCore.h"
+  export *
+}

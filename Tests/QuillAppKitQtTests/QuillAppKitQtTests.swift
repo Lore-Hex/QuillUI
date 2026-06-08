@@ -604,4 +604,66 @@ struct QuillAppKitQtTests {
         window.closeQtWindow()
         #endif
     }
+
+    // Toward rendering the real WireGuard table VCs (tunnel list, log view):
+    // NSTableView keeps its cell views in private caches, never in `subviews`, so
+    // the Qt render pass can't reach them. quillMaterializeRowsIntoSubtree() pulls
+    // each row's real cell (via the data-source/delegate path) into the view tree
+    // so realize + layout render them. Proven here on a synthetic 3-row table; the
+    // real VCs reuse this verbatim once their app deps are in the qt graph.
+    @Test("NSTableView materializes its data-source rows into the Qt-rendered view tree")
+    func tableViewMaterializesRowsForRender() throws {
+        guard QuillQt.ensureInitialized() else { return }
+
+        final class RowSource: NSTableViewDataSource {
+            func numberOfRows(in tableView: NSTableView) -> Int { 3 }
+        }
+        final class RowDelegate: NSTableViewDelegate {
+            func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+                NSTextField(labelWithString: "Tunnel \(row)")
+            }
+        }
+        let source = RowSource()
+        let rowDelegate = RowDelegate()
+        let table = NSTableView(frame: NSRect(x: 0, y: 0, width: 220, height: 200))
+        table.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name")))
+        table.dataSource = source
+        table.delegate = rowDelegate
+        table.rowHeight = 28
+
+        table.quillMaterializeRowsIntoSubtree()
+        #expect(table.numberOfRows == 3)
+        #expect(table.quillMaterializedCells.count == 3)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 220),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+        window.contentView = table
+        table.realizeQtSubtree()
+        table.layoutQtSubtree(width: 220, height: 200)
+
+        // The teeth: all 3 rows solved to real, non-zero frames AND are stacked
+        // vertically (not overlapping) — the materialized cells actually rendered.
+        let cells = table.quillMaterializedCells
+        for cell in cells {
+            #expect(cell.frame.width > 0)
+            #expect(cell.frame.height > 0)
+        }
+        #expect(cells[1].frame.minY > cells[0].frame.minY)
+        #expect(cells[2].frame.minY > cells[1].frame.minY)
+
+        window.showAsQtWindowWithContent()
+        let out = "/tmp/quillappkitqt-table-rows.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 500)
+        window.closeQtWindow()
+
+        // Idempotent: re-materializing must not duplicate rows (checked after the
+        // grab so it doesn't disturb the already-rendered tree).
+        table.quillMaterializeRowsIntoSubtree()
+        #expect(table.quillMaterializedCells.count == 3)
+    }
 }

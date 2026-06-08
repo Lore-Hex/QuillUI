@@ -3185,3 +3185,98 @@ explicit sheet presentation environment modes, and the transient GTK window path
 stays as a fallback when no root overlay is available. This moves Quill Chat's
 Settings and Completions sheets toward macOS-style in-window presentation
 without adding Enchanted source edits.
+
+## Checkpoint 190: QuillKit Hot-Key Registry
+
+Status: implemented locally; guarded by QuillKit tests, source hygiene, Linux
+`Magnet` target build, and CI follow-up.
+
+QuillKit now owns a process-local hot-key registry with normalized gestures,
+registration state, unregister behavior, identifier and gesture triggering, and
+duplicate detection diagnostics. The Linux `Magnet` shim registers through that
+shared service instead of returning from empty `register()` / `unregister()`
+methods, while still leaving true desktop-global event capture as the remaining
+native-backend gap. The pass also fixes the ObjC CoreFoundation compatibility
+header by including the standard C definition for `NULL`, unblocking current
+Linux CI before it reaches the Swift test graph.
+
+## Checkpoint 191: QuillKit Speech Recognition State
+
+Status: implemented locally; guarded by QuillKit tests, Linux `Speech` target
+build, and CI follow-up.
+
+Speech recognition compatibility is now owned by QuillKit instead of hard-coded
+inside the `Speech` module. The shared backend exposes configurable
+authorization, availability, configured recognition results, explicit
+recognition errors, and cancellable task state. The Linux `Speech` shim routes
+`SFSpeechRecognizer.authorizationStatus()`, `requestAuthorization`,
+`isAvailable`, `recognitionTask`, request buffer appends, and task cancellation
+through that backend. Native microphone capture and real transcription remain
+the next backend work, but Enchanted-style source can now exercise speech flows
+without app-local rewrites or a permanently denied shim.
+
+## Checkpoint 192: KeyboardShortcuts Shared Hot-Key Registry
+
+Status: implemented locally; guarded by Linux `KeyboardShortcuts` target build,
+Linux compatibility test, GTK renderer build fix, and CI follow-up.
+
+The Linux `KeyboardShortcuts` shim now depends on QuillKit and registers
+key-down `View.onKeyboardShortcut` handlers in the shared process-local
+hot-key registry. Shortcut changes re-register the active handler, handler
+reset unregisters the registry entry, and the public trigger helper can dispatch
+by shortcut as well as by name. This keeps Enchanted source unchanged while
+moving another app-facing package out of isolated in-memory behavior and into
+the reusable QuillKit compatibility layer. The pass also restores the missing
+`gtkScheduleOnAppear` helper in the vendored GTK renderer so Linux builds no
+longer fail before reaching the compatibility targets.
+
+## Checkpoint 193: AVFoundation Speech Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux AVFoundation
+target build, Linux compatibility test, and CI follow-up.
+
+AVFoundation speech synthesis now routes through QuillKit's shared speech
+backend instead of carrying a separate local fallback. `AVSpeechUtterance`
+stores source-visible text, `AVSpeechSynthesisVoice` resolves QuillKit voice
+metadata, `AVSpeechSynthesizer.isSpeaking` reflects backend state, and
+`stopSpeaking(at:)` clears that state. This keeps Enchanted and future apps on a
+single reusable speech abstraction while native Linux synthesis remains a
+backend TODO.
+
+## Checkpoint 194: Sparkle Updater Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux Sparkle target
+build, Linux compatibility test, and CI follow-up.
+
+The Sparkle compatibility target now depends on QuillKit and routes
+`SPUUpdater.canCheckForUpdates`, `SPUUpdater.checkForUpdates()`, and
+`SPUStandardUpdaterController.updater` through shared `QuillUpdateService`
+state. The service tracks configurability, check count, and last check time
+with diagnostics, keeping updater behavior reusable across Enchanted, CodeEdit,
+and later app ports. Native appcast fetch, signing, installer, update UI, and
+relaunch behavior remain backend work.
+
+## Checkpoint 195: Legacy ServiceManagement Uses QuillKit
+
+Status: implemented locally; guarded by Linux ServiceManagement target build,
+Linux compatibility test, and CI follow-up.
+
+The legacy `SMLoginItemSetEnabled(_:_:)` shim now updates shared
+`QuillLaunchService` state instead of hard-returning `false`. Modern
+`SMAppService` and legacy login-helper calls therefore report the same
+enabled/not-registered state, while diagnostics retain the helper identifier for
+debugging. Native desktop autostart persistence and privileged helper management
+remain backend work.
+
+## Checkpoint 196: LocalAuthentication Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, LocalAuthentication
+tests, Linux target build, source hygiene, and CI follow-up.
+
+The Linux `LocalAuthentication` shim now depends on QuillKit and maps
+`LAContext.canEvaluatePolicy`, `evaluatePolicy`, and `biometryType` through
+shared `QuillLocalAuthenticationService` state. Ports can configure policy
+availability, biometry type, evaluation success, and LA-shaped error codes in a
+single reusable service instead of accepting an unconfigurable always-denied
+stub. Native biometric/passcode prompts and OS authentication context remain
+backend work.

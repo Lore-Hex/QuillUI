@@ -1936,7 +1936,7 @@ targets.append(contentsOf: [
     .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
     // LocalAuthentication shim — LAContext/LAPolicy/LAError so WireGuard's
     // PrivateDataConfirmation (key-reveal gate) recompiles; no auth backend on Linux.
-    .target(name: "LocalAuthentication", dependencies: [], path: "Sources/LocalAuthenticationShim"),
+    .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
     .testTarget(name: "LocalAuthenticationTests", dependencies: ["LocalAuthentication"], path: "Tests/LocalAuthenticationTests"),
     // WireGuardKitGo Linux stub — the wireguard-go cgo bridge (Go engine not built here);
     // lets WireGuardKit's WireGuardAdapter recompile. Compile-faithful, never runs on Linux.
@@ -2053,9 +2053,9 @@ targets.append(contentsOf: [
     .target(name: "ActivityIndicatorView", dependencies: ["SwiftUI"], path: "Sources/ActivityIndicatorView"),
     .target(name: "WrappingHStack", dependencies: ["SwiftUI"], path: "Sources/WrappingHStack"),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
-    .target(name: "KeyboardShortcuts", dependencies: ["SwiftUI"], path: "Sources/KeyboardShortcuts"),
+    .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),
     .target(name: "PhotosUI", dependencies: ["SwiftUI"], path: "Sources/PhotosUI"),
-    .target(name: "Magnet", dependencies: ["AppKit"], path: "Sources/Magnet"),
+    .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),
     // Linux `import Combine` resolves to this re-export over
     // OpenCombine — Apple's Combine isn't part of swift-corelibs.
     .target(
@@ -2069,7 +2069,7 @@ targets.append(contentsOf: [
     ),
     // Combine-dependent shims.
     .target(name: "OllamaKit", dependencies: ["Combine", "QuillKit"], path: "Sources/OllamaKit"),
-    .target(name: "Sparkle", dependencies: ["Combine"], path: "Sources/Sparkle"),
+    .target(name: "Sparkle", dependencies: ["Combine", "QuillKit"], path: "Sources/Sparkle"),
     // IOKit: header-only C target. `module.modulemap` exposes
     // `IOKit` and its `IOKit.usb` submodule; `dummy.c` is an empty
     // translation unit so SwiftPM treats this as a buildable C
