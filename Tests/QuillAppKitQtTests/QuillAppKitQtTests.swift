@@ -2,13 +2,12 @@ import Testing
 import AppKit
 import QuillUIKit
 @testable import QuillAppKitQt
-#if canImport(QuillButtonedDetailConformance)
-// The VERBATIM upstream WireGuard VC, compiled into the qt graph when the
-// .upstream checkout is present (purist render path). Internal type → @testable.
-@testable import QuillButtonedDetailConformance
-#endif
-#if canImport(QuillUnusableTunnelDetailConformance)
-@testable import QuillUnusableTunnelDetailConformance
+#if canImport(QuillWireGuardConformanceUI)
+// The verbatim upstream WireGuard VCs (ButtonedDetail, UnusableTunnel, and the
+// TunnelsListTableViewController main window) + the model all compile into
+// QuillWireGuardConformanceUI in the qt graph when the .upstream checkout is
+// present (purist render path). Internal types → @testable.
+@testable import QuillWireGuardConformanceUI
 #endif
 
 /// M1 slice 1 (issue #231): prove the AppKit shadow's NSApplication/NSWindow are
@@ -457,7 +456,7 @@ struct QuillAppKitQtTests {
     // layout pass: the button must solve to a non-zero size, not collapse to 0×0.
     @Test("The LITERAL upstream ButtonedDetailViewController renders to a non-empty PNG via Qt")
     func rendersLiteralButtonedDetailVCToPNG() throws {
-        #if canImport(QuillButtonedDetailConformance)
+        #if canImport(QuillWireGuardConformanceUI)
         guard QuillQt.ensureInitialized() else { return }
 
         let vc = ButtonedDetailViewController()   // the VERBATIM upstream type
@@ -564,7 +563,7 @@ struct QuillAppKitQtTests {
     // real file, including its setCustomSpacing(30, after: infoLabel).
     @Test("The LITERAL upstream UnusableTunnelDetailViewController renders to a non-empty PNG via Qt")
     func rendersLiteralUnusableTunnelDetailVCToPNG() throws {
-        #if canImport(QuillUnusableTunnelDetailConformance)
+        #if canImport(QuillWireGuardConformanceUI)
         guard QuillQt.ensureInitialized() else { return }
 
         let vc = UnusableTunnelDetailViewController()   // the VERBATIM upstream type
