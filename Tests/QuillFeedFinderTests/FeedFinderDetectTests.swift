@@ -21,6 +21,16 @@ struct FeedFinderDetectTests {
         #expect(result.first?.source == .userEntered)
     }
 
+    @Test("find(url:) returns the upstream special-case feed before downloading")
+    func findUsesSpecialCase() async throws {
+        let result = try await FeedFinder.find(url: URL(string: "https://rachelbythebay.com/")!)
+
+        #expect(result.count == 1)
+        #expect(result.first?.title == "writing - rachelbythebay")
+        #expect(result.first?.urlString == "https://rachelbythebay.com/w/atom.xml")
+        #expect(result.first?.source == .userEntered)
+    }
+
     @Test("an HTML page's <head> feed link is discovered")
     func htmlHeadFeed() {
         let html = "<html><head><link rel=\"alternate\" type=\"application/rss+xml\" href=\"https://example.com/feed.xml\"></head><body><p>hi</p></body></html>"
