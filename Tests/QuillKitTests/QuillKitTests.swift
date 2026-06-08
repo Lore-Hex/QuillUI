@@ -484,6 +484,35 @@ struct QuillKitTests {
         #endif
     }
 
+    @Test("speech backend can pause and continue synthesis")
+    func speechBackendCanPauseAndContinueSynthesis() {
+        let backend = QuillSpeechBackend()
+        let callbacks = LockedValue<[String]>([])
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        backend.speak("hello") {
+            callbacks.update { $0.append("start") }
+            #expect(backend.pause())
+            #expect(backend.isPaused)
+            #expect(backend.isSpeaking)
+        } onFinish: {
+            callbacks.update { $0.append("finish") }
+        }
+
+        #expect(callbacks.value == ["start"])
+        #expect(backend.isPaused)
+        #expect(backend.isSpeaking)
+        #expect(backend.continueSpeaking())
+        #expect(callbacks.value == ["start", "finish"])
+        #expect(!backend.isPaused)
+        #expect(!backend.isSpeaking)
+        #expect(!backend.continueSpeaking())
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("speechSynthesis.pause"))
+        #expect(operations.contains("speechSynthesis.continue"))
+    }
+
     @Test("speech recognition backend exposes configurable authorization availability and results")
     func speechRecognitionBackendExposesConfigurableState() {
         let backend = QuillSpeechBackend()

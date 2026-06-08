@@ -30,6 +30,20 @@ import Sparkle
 import ServiceManagement
 @_spi(QuillTesting) import QuillUI
 
+private final class PausingSpeechDelegate: AVSpeechSynthesizerDelegate {
+    var events: [String] = []
+    var pauseResult: Bool?
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        events.append("start")
+        pauseResult = synthesizer.pauseSpeaking(at: .word)
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        events.append("finish")
+    }
+}
+
 @Suite("Linux compatibility import modules", .serialized)
 struct CompatibilityModuleTests {
     private func pngDimensions(_ data: Data) -> (width: UInt32, height: UInt32)? {
@@ -719,6 +733,20 @@ struct CompatibilityModuleTests {
         #expect(!synthesizer.isSpeaking)
         #expect(!synthesizer.isPaused)
         #expect(synthesizer.stopSpeaking(at: .immediate))
+
+        let pausingDelegate = PausingSpeechDelegate()
+        let pausingSynthesizer = AVSpeechSynthesizer()
+        pausingSynthesizer.delegate = pausingDelegate
+        pausingSynthesizer.speak(AVSpeechUtterance(string: "pause me"))
+        #expect(pausingDelegate.events == ["start"])
+        #expect(pausingDelegate.pauseResult == true)
+        #expect(pausingSynthesizer.isPaused)
+        #expect(pausingSynthesizer.isSpeaking)
+        #expect(pausingSynthesizer.continueSpeaking())
+        #expect(pausingDelegate.events == ["start", "finish"])
+        #expect(!pausingSynthesizer.isPaused)
+        #expect(!pausingSynthesizer.isSpeaking)
+        #expect(!pausingSynthesizer.continueSpeaking())
 
         QuillSpeechBackend.shared.resetSpeechSynthesis()
     }

@@ -18,8 +18,6 @@ public extension AVSpeechSynthesizerDelegate {
 public final class AVSpeechSynthesizer: @unchecked Sendable {
     public weak var delegate: AVSpeechSynthesizerDelegate?
     private let backend: QuillSpeechBackend
-    private let lock = NSLock()
-    private var paused = false
 
     public init() {
         backend = .shared
@@ -28,13 +26,10 @@ public final class AVSpeechSynthesizer: @unchecked Sendable {
     public var isSpeaking: Bool { backend.isSpeaking }
 
     public var isPaused: Bool {
-        lock.withLock { paused }
+        backend.isPaused
     }
 
     public func speak(_ utterance: AVSpeechUtterance) {
-        lock.withLock {
-            paused = false
-        }
         backend.speak(utterance.speechString) { [weak self] in
             guard let self else { return }
             delegate?.speechSynthesizer(self, didStart: utterance)
@@ -45,21 +40,15 @@ public final class AVSpeechSynthesizer: @unchecked Sendable {
     }
     @discardableResult
     public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool {
-        lock.withLock {
-            paused = false
-        }
         return backend.stop()
     }
     @discardableResult
     public func continueSpeaking() -> Bool {
-        false
+        backend.continueSpeaking()
     }
     @discardableResult
     public func pauseSpeaking(at boundary: AVSpeechBoundary) -> Bool {
-        lock.withLock {
-            paused = false
-        }
-        return false
+        backend.pause()
     }
 }
 

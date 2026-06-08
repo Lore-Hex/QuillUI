@@ -403,7 +403,7 @@ subset lives in `QuillUIKit`.
 | --- | --- | --- |
 | `AVSpeechSynthesizer.speak(_:)` | Partial | Routes through QuillKit's speech backend, records compatibility diagnostics, tracks speaking state during synchronous callbacks, and calls start/finish delegate callbacks immediately. |
 | `AVSpeechSynthesizer.stopSpeaking(at:)` | Partial | Clears QuillKit speech state and returns true without native speech output. |
-| `AVSpeechSynthesizer.continueSpeaking()` / `pauseSpeaking(at:)` | Compile-only | Return false. |
+| `AVSpeechSynthesizer.continueSpeaking()` / `pauseSpeaking(at:)` | Partial | Tracks paused speech state in `QuillSpeechBackend`; a paused compatibility utterance holds its finish callback until `continueSpeaking()`. |
 | `AVSpeechUtterance.init(string:)` | Usable | Stores source-visible utterance text and metadata. |
 | `AVSpeechSynthesisVoice` initializers, `speechVoices()`, and voice metadata | Partial | Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands. |
 | `AVAudioSession.sharedInstance()`, `setCategory`, `setMode`, `setActive`, category/mode/options/active readback | Partial | Routes through shared `QuillAudioSessionService` process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet. |

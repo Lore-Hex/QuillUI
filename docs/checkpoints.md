@@ -3327,3 +3327,14 @@ sources, prepare/play/pause/stop counts, current time, volume, loop count,
 system-sound IDs, alert plays, completion registration, and basic WAV
 duration/channel metadata for local data or file URLs. Native PipeWire/ALSA/JACK
 playback remains backend work.
+
+## Checkpoint 201: Speech Pause/Resume Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVSpeechSynthesizer.pauseSpeaking(at:)` and `continueSpeaking()` now route
+through `QuillSpeechBackend` instead of returning false. The compatibility
+backend tracks paused speech state, keeps `isSpeaking` true while paused, and
+holds the finish callback until `continueSpeaking()` resumes the utterance.
+Native speech synthesis remains backend work.

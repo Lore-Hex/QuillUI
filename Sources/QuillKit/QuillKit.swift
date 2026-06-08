@@ -490,6 +490,8 @@ public final class QuillSpeechBackend: @unchecked Sendable {
 
     private let lock = NSLock()
     private var speaking = false
+    private var paused = false
+    private var pendingSpeechFinish: (@Sendable () -> Void)?
     private var synthesisVoices: [QuillSpeechVoice]
     private var recognitionAuthorizationStatus: QuillSpeechRecognitionAuthorizationStatus
     private var recognitionIsAvailable: Bool
@@ -521,6 +523,8 @@ public final class QuillSpeechBackend: @unchecked Sendable {
     public func resetSpeechSynthesis() {
         lock.withLock {
             speaking = false
+            paused = false
+            pendingSpeechFinish = nil
             #if os(Linux)
             synthesisVoices = [QuillSpeechVoice.linuxDefault]
             #else
@@ -530,11 +534,19 @@ public final class QuillSpeechBackend: @unchecked Sendable {
     }
 
     public var isSpeaking: Bool {
-        lock.withLock { speaking }
+        lock.withLock { speaking || paused }
+    }
+
+    public var isPaused: Bool {
+        lock.withLock { paused }
     }
 
     public func speak(_ text: String, onStart: @escaping @Sendable () -> Void, onFinish: @escaping @Sendable () -> Void) {
-        lock.withLock { speaking = true }
+        lock.withLock {
+            speaking = true
+            paused = false
+            pendingSpeechFinish = nil
+        }
         onStart()
         #if os(Linux)
         QuillCompatibilityDiagnostics.shared.record(
@@ -544,13 +556,76 @@ public final class QuillSpeechBackend: @unchecked Sendable {
             message: "Speech synthesis is emulated on Linux until a native backend is attached."
         )
         #endif
-        lock.withLock { speaking = false }
-        onFinish()
+
+        let shouldFinish = lock.withLock {
+            guard !paused else {
+                pendingSpeechFinish = onFinish
+                return false
+            }
+            speaking = false
+            pendingSpeechFinish = nil
+            return true
+        }
+        if shouldFinish {
+            onFinish()
+        }
     }
 
     @discardableResult
     public func stop() -> Bool {
-        lock.withLock { speaking = false }
+        lock.withLock {
+            speaking = false
+            paused = false
+            pendingSpeechFinish = nil
+        }
+        return true
+    }
+
+    @discardableResult
+    public func pause() -> Bool {
+        let didPause = lock.withLock {
+            guard speaking else { return false }
+            speaking = false
+            paused = true
+            return true
+        }
+
+        if didPause {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillKit",
+                operation: "speechSynthesis.pause",
+                severity: .info,
+                message: "Speech synthesis pause state is tracked by the QuillKit compatibility backend."
+            )
+        }
+        return didPause
+    }
+
+    @discardableResult
+    public func continueSpeaking() -> Bool {
+        let state = lock.withLock {
+            guard paused else {
+                return (didContinue: false, finish: nil as (@Sendable () -> Void)?)
+            }
+            paused = false
+            speaking = true
+            let finish = pendingSpeechFinish
+            pendingSpeechFinish = nil
+            speaking = false
+            return (didContinue: true, finish: finish)
+        }
+
+        guard state.didContinue else {
+            return false
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "speechSynthesis.continue",
+            severity: .info,
+            message: "Speech synthesis resume state is tracked by the QuillKit compatibility backend."
+        )
+        state.finish?()
         return true
     }
 
