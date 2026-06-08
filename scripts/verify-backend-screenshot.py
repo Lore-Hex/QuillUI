@@ -2193,12 +2193,15 @@ def validate_quill_chat_mac_reference_sent_message(
         f"Mac-reference empty-state wordmark remained after {label}: pixels={wordmark_pixels}",
     )
 
+    message_y0 = top + int(app_height * 0.05)
+    message_y1 = top + int(app_height * 0.70)
+
     message_pixels = dark_pixel_count(
         image,
         detail_left + int(detail_width * 0.05),
-        top + int(app_height * 0.05),
+        message_y0,
         right - int(detail_width * 0.03),
-        top + int(app_height * 0.70),
+        message_y1,
     )
     require(
         message_pixels >= minimum_message_pixels,
@@ -2207,9 +2210,9 @@ def validate_quill_chat_mac_reference_sent_message(
     right_aligned_message_pixels = dark_pixel_count(
         image,
         detail_left + int(detail_width * 0.77),
-        top + int(app_height * 0.05),
+        message_y0,
         right - int(detail_width * 0.01),
-        top + int(app_height * 0.16),
+        message_y1,
     )
     require(
         right_aligned_message_pixels >= minimum_right_aligned_message_pixels,

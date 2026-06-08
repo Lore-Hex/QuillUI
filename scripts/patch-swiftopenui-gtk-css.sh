@@ -2931,6 +2931,54 @@ new_on_appear_rebuild = '''        let boundAction = bindActionToCurrentEnvironm
 '''
 if "gtkScheduleOnAppear(boundAction, on: widget)" not in text and old_on_appear_rebuild in text:
     text = text.replace(old_on_appear_rebuild, new_on_appear_rebuild, 1)
+elif "gtkScheduleOnAppear(boundAction, on: widget)" not in text:
+    current_on_appear_rebuild = '''        // Stateful hosts reconcile `onAppear` by descriptor identity so actions
+        // run once per appearance even when the subtree rebuilds.  Stateless
+        // standalone renders still use the native map signal.
+        if GTKViewHost.getCurrentRebuilding() == nil {
+            let boundAction = bindActionToCurrentEnvironment(action)
+            let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
+            g_signal_connect_data(
+                gpointer(widget),
+                "map",
+                unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                    let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                    box.closure()
+                } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+                box,
+                { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                    Unmanaged<ClosureBox>.fromOpaque(userData!).release()
+                },
+                GConnectFlags(rawValue: 0)
+            )
+        }
+'''
+    current_on_appear_scheduled = '''        // Stateful hosts reconcile `onAppear` by descriptor identity so actions
+        // run once per appearance even when the subtree rebuilds.  Stateless
+        // standalone renders still use the native map signal.
+        let boundAction = bindActionToCurrentEnvironment(action)
+        if GTKViewHost.getCurrentRebuilding() == nil {
+            let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
+            g_signal_connect_data(
+                gpointer(widget),
+                "map",
+                unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                    let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                    box.closure()
+                } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+                box,
+                { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                    Unmanaged<ClosureBox>.fromOpaque(userData!).release()
+                },
+                GConnectFlags(rawValue: 0)
+            )
+        } else {
+            gtkScheduleOnAppear(boundAction, on: widget)
+        }
+'''
+    if current_on_appear_rebuild not in text:
+        raise SystemExit("SwiftOpenUI OnAppear lifecycle rebuild shape was not recognized")
+    text = text.replace(current_on_appear_rebuild, current_on_appear_scheduled, 1)
 
 mapped_on_disappear_marker = "GTK OnDisappear requires a prior map before firing"
 has_on_disappear_region = (

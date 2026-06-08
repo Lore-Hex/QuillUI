@@ -576,6 +576,8 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("validate_quill_chat_mac_reference_prompt_send"))
         #expect(verifier.contains("Mac-reference {label} message content was not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_composer_send"))
+        #expect(verifier.contains("message_y0 = top + int(app_height * 0.05)"))
+        #expect(verifier.contains("message_y1 = top + int(app_height * 0.70)"))
         #expect(verifier.contains("Mac-reference {label} message did not align to the trailing edge"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_toolbar_model_selected"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-toolbar-model-selected"))
@@ -2175,6 +2177,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader scroll-range upgrade shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader bottom-anchor scroll shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader axis-specific success shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI OnAppear lifecycle rebuild shape was not recognized"))
 
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
