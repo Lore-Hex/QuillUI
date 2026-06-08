@@ -32,4 +32,35 @@ extension TSMessage {
     public func updateWithRemotelyDeletedAndRemoveRenderableContent(with transaction: DBWriteTransaction) {
         _ = transaction
     }
+
+    // Marks a view-once message complete and strips its renderable content (body
+    // / attachments). Declared in TSMessage.h, implemented in the excluded
+    // TSMessage.m, so its Swift caller (ViewOnceMessages.completeIfNecessary)
+    // can't resolve it on Linux. Like updateWithRemotelyDeleted above, the real
+    // `.m` does an SDS update; deferred (inert) until that mutation path is
+    // ported. View-once completion runs only with a real linked account (paused).
+    public func updateWithViewOnceCompleteAndRemoveRenderableContent(with transaction: DBWriteTransaction) {
+        _ = transaction
+    }
+}
+
+extension TSIncomingMessage {
+    // -markAsViewedAtTimestamp:thread:circumstance:transaction: from
+    // TSIncomingMessage.h, implemented in the excluded TSIncomingMessage.m
+    // (Swift: markAsViewed(atTimestamp:thread:circumstance:transaction:)). The
+    // real `.m` SDS-updates `viewed = YES` and notifies receiptManager
+    // (messageWasViewed:). Deferred (inert) on Linux until the SDS-mutation +
+    // receipt path is ported; the view/read pipeline runs only with a real
+    // linked account (paused). Lets ViewOnceMessages.sendSyncMessage compile.
+    public func markAsViewed(
+        atTimestamp viewedTimestamp: UInt64,
+        thread: TSThread,
+        circumstance: OWSReceiptCircumstance,
+        transaction: DBWriteTransaction
+    ) {
+        _ = viewedTimestamp
+        _ = thread
+        _ = circumstance
+        _ = transaction
+    }
 }
