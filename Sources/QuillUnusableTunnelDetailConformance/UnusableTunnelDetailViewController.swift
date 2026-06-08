@@ -1,1 +1,0 @@
-../../.upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController/UnusableTunnelDetailViewController.swift
