@@ -2731,6 +2731,7 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
                 "Combine",
                 "os",
                 "KeychainSwift",
+                "UIKit",
             ],
             path: ".upstream/icecubes/Packages/Env/Sources/Env",
             exclude: [

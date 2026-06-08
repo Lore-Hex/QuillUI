@@ -120,6 +120,20 @@ struct SourceHygieneTests {
         #expect(gtkModuleMap.contains("module CGtk4 [system]"))
     }
 
+    @Test("IceCubes Env target keeps UIKit shim dependency")
+    func iceCubesEnvTargetKeepsUIKitShimDependency() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+
+        #expect(manifest.contains("Real Dimillian/IceCubesApp Env"))
+        #expect(manifest.contains("Router → UIImage/UIApplication"))
+        #expect(manifest.contains("""
+                "KeychainSwift",
+                "UIKit",
+            ],
+"""))
+    }
+
     @Test("Linux SwiftUI compatibility exposes accessibility modifiers")
     func linuxSwiftUICompatibilityExposesAccessibilityModifiers() throws {
         let compatibility = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
