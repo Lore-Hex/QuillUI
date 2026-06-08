@@ -1298,6 +1298,33 @@ several CI/packaging lessons worth keeping:
   so same-module visibility). Inert: `DispatchQueueIsCurrentQueue` returns false so the
   `asyncIfNecessary` fast path always dispatches async (contract-safe). Clearing a
   heavily-depended-on file (Promise/DispatchQueue) cascade-clears dependents.
+- **More excluded-`.m` method PORTs (same pattern, `QuillTSMessageObjCMethods.swift`).**
+  Missing TSMessage/TSInfoMessage/TSIncomingMessage methods declared in a `.h` +
+  implemented in an excluded `.m` -> add inert (or faithful-forward) Swift extension
+  methods in the SSK-globbed PORT file: `infoMessagePreviewText` (faithful forward to
+  the Swift `_infoMessagePreviewText`), `updateWithRemotelyDeleted…`,
+  `updateWithViewOnceCompleteAndRemoveRenderableContent` (#458, ViewOnceMessages 48->0),
+  `markAsViewed(atTimestamp:thread:circumstance:transaction:)` (#458; the ObjC
+  `markAsViewedAtTimestamp:…` selector). Inert where the body needs the unported
+  SDS-mutation/receipt path (those run only with a real linked account = paused).
+- **`objc_sync_enter`/`objc_sync_exit` are absent on swift-corelibs (no ObjC runtime).**
+  They're what `@synchronized(obj)` lowers to. Port them (`QuillObjCSync.swift`, #456,
+  ModelReadCache 50->0) as a process-global **`NSRecursiveLock` table keyed by object
+  identity** — must be RE-ENTRANT (ModelReadCache.performSync documents it). Return
+  `OBJC_SYNC_SUCCESS` (0). Table is unevicted like the real runtime's; SSK only
+  synchronizes long-lived singletons.
+- **NSObject KVC (`setValue(_:forKey:)`) is absent on corelibs NSObject but PRESENT
+  (`@objc`) on macOS.** UIDevice+FeatureSupport's `ows_setOrientation` rotation hack
+  needs it. Add the inert shim method **`#if os(Linux)` ONLY** (#457) — an
+  unconditional method on an always-built shim would conflict with the macOS
+  superclass `@objc` selector. (Companion: `UINavigationController.attemptRotationToDeviceOrientation()`
+  is a harmless static add on the shim's own class, no guard needed.)
+- **The TOPFILES per-file error COUNT is cascade-inflated — judge by UNIQUE.** A file
+  reporting "48-50 errors" usually has only ~2 distinct root-cause `line:col` sites
+  (each re-emitted across batch/incremental jobs + per dependent). Dump the real work
+  with `grep -E 'FILE\.swift:[0-9]+:[0-9]+: error:' /tmp/ssk.log | sort -u` before
+  estimating effort — many "big" tail files are 1-2 fixes (ModelReadCache, UIDevice,
+  ViewOnceMessages were each ~2 unique).
 
 ---
 
