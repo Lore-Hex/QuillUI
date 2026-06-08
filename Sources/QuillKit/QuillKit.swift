@@ -53,8 +53,10 @@ public enum QuillKitCapabilities {
         switch capability {
         case .clipboard:
             return .emulated
+        case .globalShortcuts:
+            return .emulated
         case .speechSynthesis, .speechRecognition, .haptics, .accessibility, .syntheticKeyboard,
-             .globalShortcuts, .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker,
+             .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker,
              .secureStorage, .notifications, .networkExtension, .vpnTunnel:
             return .unavailable(reason: "No native Linux backend has been attached yet.")
         }
@@ -496,15 +498,85 @@ public enum QuillTrust {
     }
 }
 
+public struct QuillHotKeyGesture: Hashable, Sendable {
+    public var key: String
+    public var modifiers: [String]
+
+    public init(key: String, modifiers: [String] = []) {
+        self.key = key
+        self.modifiers = Array(Set(modifiers)).sorted()
+    }
+}
+
+public struct QuillHotKeyDescriptor: Hashable, Sendable {
+    public var identifier: String
+    public var gesture: QuillHotKeyGesture
+
+    public init(identifier: String, key: String, modifiers: [String] = []) {
+        self.identifier = identifier
+        self.gesture = QuillHotKeyGesture(key: key, modifiers: modifiers)
+    }
+
+    public init(identifier: String, gesture: QuillHotKeyGesture) {
+        self.identifier = identifier
+        self.gesture = gesture
+    }
+}
+
 public final class QuillHotKeyRegistration: @unchecked Sendable {
+    fileprivate let token = UUID()
+    public let descriptor: QuillHotKeyDescriptor?
     private let action: @Sendable () -> Void
+    private let service: QuillHotkeyService?
+    private let lock = NSLock()
+    private var standaloneIsRegistered = true
 
     public init(action: @escaping @Sendable () -> Void) {
+        self.descriptor = nil
+        self.service = nil
         self.action = action
     }
 
-    public func unregister() {}
-    public func trigger() { action() }
+    fileprivate init(
+        descriptor: QuillHotKeyDescriptor,
+        service: QuillHotkeyService,
+        action: @escaping @Sendable () -> Void
+    ) {
+        self.descriptor = descriptor
+        self.service = service
+        self.action = action
+    }
+
+    public var isRegistered: Bool {
+        if let service {
+            return service.isRegistered(self)
+        }
+        return lock.withLock { standaloneIsRegistered }
+    }
+
+    public func unregister() {
+        if let service {
+            service.unregister(self)
+            return
+        }
+        lock.withLock {
+            standaloneIsRegistered = false
+        }
+    }
+
+    @discardableResult
+    public func trigger() -> Bool {
+        if let service {
+            return service.trigger(self)
+        }
+
+        let shouldTrigger = lock.withLock { standaloneIsRegistered }
+        guard shouldTrigger else {
+            return false
+        }
+        action()
+        return true
+    }
 }
 
 public enum QuillKeyBase: CaseIterable, Sendable {
@@ -685,19 +757,168 @@ public final class QuillUpdateService: @unchecked Sendable {
 public final class QuillHotkeyService: @unchecked Sendable {
     public static let shared = QuillHotkeyService()
 
-    public init() {}
+    private struct HotKeyRecord {
+        var descriptor: QuillHotKeyDescriptor
+        var action: @Sendable () -> Void
+    }
+
+    private let lock = NSLock()
+    private let diagnostics: QuillCompatibilityDiagnostics
+    private var recordsByToken: [UUID: HotKeyRecord] = [:]
+    private var tokensByIdentifier: [String: UUID] = [:]
+    private var tokensByGesture: [QuillHotKeyGesture: UUID] = [:]
+
+    public init(diagnostics: QuillCompatibilityDiagnostics = .shared) {
+        self.diagnostics = diagnostics
+    }
+
+    @discardableResult
+    public func register(
+        descriptor: QuillHotKeyDescriptor,
+        action: @escaping @Sendable () -> Void
+    ) -> QuillHotKeyRegistration {
+        let registration = QuillHotKeyRegistration(
+            descriptor: descriptor,
+            service: self,
+            action: action
+        )
+
+        let conflict = lock.withLock { () -> String? in
+            if tokensByIdentifier[descriptor.identifier] != nil {
+                return "identifier '\(descriptor.identifier)' is already registered"
+            }
+            if tokensByGesture[descriptor.gesture] != nil {
+                let modifiers = descriptor.gesture.modifiers.joined(separator: "+")
+                return "gesture '\(descriptor.gesture.key)' with modifiers \(modifiers) is already registered"
+            }
+
+            recordsByToken[registration.token] = HotKeyRecord(
+                descriptor: descriptor,
+                action: action
+            )
+            tokensByIdentifier[descriptor.identifier] = registration.token
+            tokensByGesture[descriptor.gesture] = registration.token
+            return nil
+        }
+
+        if let conflict {
+            diagnostics.record(
+                subsystem: "QuillKit",
+                operation: "registerHotKey",
+                severity: .warning,
+                message: "Hot key registration skipped because \(conflict)."
+            )
+        } else {
+            #if os(Linux)
+            diagnostics.record(
+                subsystem: "QuillKit",
+                operation: "registerHotKey",
+                severity: .info,
+                message: "Hot key '\(descriptor.identifier)' is registered in the process-local compatibility registry."
+            )
+            #endif
+        }
+
+        return registration
+    }
+
+    public func unregister(_ registration: QuillHotKeyRegistration) {
+        lock.withLock {
+            guard let record = recordsByToken.removeValue(forKey: registration.token) else {
+                return
+            }
+            tokensByIdentifier.removeValue(forKey: record.descriptor.identifier)
+            tokensByGesture.removeValue(forKey: record.descriptor.gesture)
+        }
+    }
+
+    public func isRegistered(_ registration: QuillHotKeyRegistration) -> Bool {
+        lock.withLock {
+            recordsByToken[registration.token] != nil
+        }
+    }
+
+    @discardableResult
+    public func trigger(_ registration: QuillHotKeyRegistration) -> Bool {
+        let action = lock.withLock {
+            recordsByToken[registration.token]?.action
+        }
+
+        guard let action else {
+            return false
+        }
+
+        action()
+        return true
+    }
+
+    @discardableResult
+    public func trigger(identifier: String) -> Bool {
+        let action = lock.withLock { () -> (@Sendable () -> Void)? in
+            guard let token = tokensByIdentifier[identifier] else {
+                return nil
+            }
+            return recordsByToken[token]?.action
+        }
+
+        guard let action else {
+            return false
+        }
+
+        action()
+        return true
+    }
+
+    @discardableResult
+    public func trigger(key: String, modifiers: [String] = []) -> Bool {
+        let gesture = QuillHotKeyGesture(key: key, modifiers: modifiers)
+        let action = lock.withLock { () -> (@Sendable () -> Void)? in
+            guard let token = tokensByGesture[gesture] else {
+                return nil
+            }
+            return recordsByToken[token]?.action
+        }
+
+        guard let action else {
+            return false
+        }
+
+        action()
+        return true
+    }
+
+    public var registeredHotKeys: [QuillHotKeyDescriptor] {
+        lock.withLock {
+            recordsByToken.values.map(\.descriptor).sorted { lhs, rhs in
+                lhs.identifier < rhs.identifier
+            }
+        }
+    }
+
+    public func unregisterAll() {
+        lock.withLock {
+            recordsByToken.removeAll()
+            tokensByIdentifier.removeAll()
+            tokensByGesture.removeAll()
+        }
+    }
 
     @discardableResult
     public func registerSingleUseSpace<ModifierSet>(
         modifiers: ModifierSet,
         handler: () -> AnyObject?
     ) -> AnyObject? {
+        let registration = register(
+            descriptor: QuillHotKeyDescriptor(identifier: "single-use-space", key: "space", modifiers: ["single-use"]),
+            action: {}
+        )
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillKit",
             operation: "registerSingleUseSpace",
-            severity: .unsupported,
-            message: "Global hotkey registration needs a native Linux key-event backend."
+            severity: .info,
+            message: "Single-use space hotkey is tracked in the process-local compatibility registry."
         )
+        registration.unregister()
         return handler()
     }
 }

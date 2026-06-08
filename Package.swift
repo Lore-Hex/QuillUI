@@ -2045,7 +2045,7 @@ targets.append(contentsOf: [
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["SwiftUI"], path: "Sources/KeyboardShortcuts"),
     .target(name: "PhotosUI", dependencies: ["SwiftUI"], path: "Sources/PhotosUI"),
-    .target(name: "Magnet", dependencies: ["AppKit"], path: "Sources/Magnet"),
+    .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),
     // Linux `import Combine` resolves to this re-export over
     // OpenCombine — Apple's Combine isn't part of swift-corelibs.
     .target(

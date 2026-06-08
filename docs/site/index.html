@@ -1109,12 +1109,12 @@
 <br>
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
-<tr><td><code>Key.space</code>, <code>Key.escape</code>, <code>.character(_:)</code></td><td>Compile-only</td><td>Covers current hot-key declarations.</td></tr>
-<tr><td><code>_Modifiers</code> / <code>KeyCombo.init?</code></td><td>Compile-only</td><td>Stores key/modifier payloads.</td></tr>
-<tr><td><code>HotKey.init(...)</code></td><td>Partial</td><td>Stores identifier, combo, and handler.</td></tr>
-<tr><td><code>HotKey.register()</code> / <code>unregister()</code></td><td>Compile-only</td><td>No-op; no native hot key is installed.</td></tr>
-<tr><td><code>HotKey.trigger()</code></td><td>Usable</td><td>Test helper invokes the stored handler.</td></tr>
-<tr><td>Global Carbon/AppKit hot-key registration, event routing, conflict detection</td><td>Incomplete</td><td>Required for Magnet parity.</td></tr>
+<tr><td><code>Key.space</code>, <code>Key.escape</code>, <code>.character(_:)</code></td><td>Usable</td><td>Covers current hot-key declarations with stable key names for the shared registry.</td></tr>
+<tr><td><code>_Modifiers</code> / <code>KeyCombo.init?</code></td><td>Usable</td><td>Stores key/modifier payloads and lowers common modifier masks into QuillKit gesture descriptors.</td></tr>
+<tr><td><code>HotKey.init(...)</code></td><td>Usable</td><td>Stores identifier, combo, handler, and registration state.</td></tr>
+<tr><td><code>HotKey.register()</code> / <code>unregister()</code></td><td>Partial</td><td>Registers in QuillKit's process-local compatibility registry with duplicate identifier/gesture detection.</td></tr>
+<tr><td><code>HotKey.trigger()</code> / <code>HotKey.trigger(identifier:)</code> / <code>HotKey.trigger(keyCombo:)</code></td><td>Usable</td><td>Direct test helper invokes the stored handler; registry triggers route only through registered hot keys.</td></tr>
+<tr><td>Native global Carbon/AppKit hot-key hooks and desktop event routing</td><td>Incomplete</td><td>Required for true OS-global Magnet parity.</td></tr>
 </table>
 <br>
 <h3 id="sparkle">Sparkle</h3>

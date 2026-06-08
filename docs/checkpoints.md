@@ -3185,3 +3185,17 @@ explicit sheet presentation environment modes, and the transient GTK window path
 stays as a fallback when no root overlay is available. This moves Quill Chat's
 Settings and Completions sheets toward macOS-style in-window presentation
 without adding Enchanted source edits.
+
+## Checkpoint 190: QuillKit Hot-Key Registry
+
+Status: implemented locally; guarded by QuillKit tests, source hygiene, Linux
+`Magnet` target build, and CI follow-up.
+
+QuillKit now owns a process-local hot-key registry with normalized gestures,
+registration state, unregister behavior, identifier and gesture triggering, and
+duplicate detection diagnostics. The Linux `Magnet` shim registers through that
+shared service instead of returning from empty `register()` / `unregister()`
+methods, while still leaving true desktop-global event capture as the remaining
+native-backend gap. The pass also fixes the ObjC CoreFoundation compatibility
+header by including the standard C definition for `NULL`, unblocking current
+Linux CI before it reaches the Swift test graph.

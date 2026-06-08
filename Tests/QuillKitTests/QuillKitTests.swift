@@ -150,6 +150,7 @@ struct QuillKitTests {
         #expect(statuses.count == QuillKitCapability.allCases.count)
         #if os(Linux)
         #expect(statuses[.clipboard] == .emulated)
+        #expect(statuses[.globalShortcuts] == .emulated)
         #expect(statuses[.speechRecognition] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -199,6 +200,69 @@ struct QuillKitTests {
         registration.trigger()
         registration.unregister()
 
+        #expect(triggerCount.value == 2)
+    }
+
+    @Test("hot key service registers triggers conflicts and unregisters")
+    func hotKeyServiceRegistersTriggersConflictsAndUnregisters() {
+        let diagnostics = QuillCompatibilityDiagnostics()
+        let service = QuillHotkeyService(diagnostics: diagnostics)
+        let triggerCount = LockedValue(0)
+        let duplicateIdentifierCount = LockedValue(0)
+        let duplicateGestureCount = LockedValue(0)
+        let descriptor = QuillHotKeyDescriptor(
+            identifier: "togglePanel",
+            key: "space",
+            modifiers: ["shift", "command", "command"]
+        )
+
+        let registration = service.register(descriptor: descriptor) {
+            triggerCount.update { $0 += 1 }
+        }
+
+        #expect(registration.isRegistered)
+        #expect(registration.descriptor == QuillHotKeyDescriptor(
+            identifier: "togglePanel",
+            key: "space",
+            modifiers: ["command", "shift"]
+        ))
+        #expect(service.registeredHotKeys == [descriptor])
+        #expect(service.trigger(identifier: "togglePanel"))
+        #expect(service.trigger(key: "space", modifiers: ["command", "shift"]))
+        #expect(triggerCount.value == 2)
+
+        let duplicateIdentifier = service.register(
+            descriptor: QuillHotKeyDescriptor(
+                identifier: "togglePanel",
+                key: "escape",
+                modifiers: ["command"]
+            )
+        ) {
+            duplicateIdentifierCount.update { $0 += 1 }
+        }
+        let duplicateGesture = service.register(
+            descriptor: QuillHotKeyDescriptor(
+                identifier: "otherPanel",
+                key: "space",
+                modifiers: ["shift", "command"]
+            )
+        ) {
+            duplicateGestureCount.update { $0 += 1 }
+        }
+
+        #expect(!duplicateIdentifier.isRegistered)
+        #expect(!duplicateGesture.isRegistered)
+        #expect(!duplicateIdentifier.trigger())
+        #expect(!duplicateGesture.trigger())
+        #expect(duplicateIdentifierCount.value == 0)
+        #expect(duplicateGestureCount.value == 0)
+        #expect(diagnostics.events.filter { $0.operation == "registerHotKey" && $0.severity == .warning }.count == 2)
+
+        registration.unregister()
+        #expect(!registration.isRegistered)
+        #expect(!registration.trigger())
+        #expect(!service.trigger(identifier: "togglePanel"))
+        #expect(service.registeredHotKeys.isEmpty)
         #expect(triggerCount.value == 2)
     }
 
