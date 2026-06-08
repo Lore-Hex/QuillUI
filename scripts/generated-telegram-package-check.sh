@@ -32,6 +32,7 @@ default_packages=(
   DateUtils
   EDSunriseSet
   EmojiSuggestions
+  FastBlur
   FoundationUtils
   GZIP
   HackUtils

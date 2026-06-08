@@ -2498,6 +2498,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/mach/mach.h"),
             encoding: .utf8
         )
+        let accelerateHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Accelerate/Accelerate.h"),
+            encoding: .utf8
+        )
         let objcModuleMap = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
             encoding: .utf8
@@ -2522,6 +2526,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("DateUtils"))
         #expect(telegramPackageCheck.contains("EDSunriseSet"))
         #expect(telegramPackageCheck.contains("EmojiSuggestions"))
+        #expect(telegramPackageCheck.contains("FastBlur"))
         #expect(telegramPackageCheck.contains("FoundationUtils"))
         #expect(telegramPackageCheck.contains("GZIP"))
         #expect(telegramPackageCheck.contains("HackUtils"))
@@ -2557,6 +2562,8 @@ struct SourceHygieneTests {
         #expect(objcPreludeHeader.contains("#include <string.h>"))
         #expect(machHeader.contains("vm_allocate"))
         #expect(machHeader.contains("vm_remap"))
+        #expect(accelerateHeader.contains("vImage_Buffer"))
+        #expect(accelerateHeader.contains("vImageBoxConvolve_ARGB8888"))
         #expect(objcModuleMap.contains("module Foundation"))
         #expect(objcModuleMap.contains("module AppKit"))
         #expect(objcModuleMap.contains("module Cocoa"))
