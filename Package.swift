@@ -1251,8 +1251,15 @@ if nnwUpstreamPresent {
 // model (TunnelConfiguration parsing, keypair generation, IPv4/v6
 // helpers) compiles on Linux too — the runtime files are excluded
 // via wireGuardKitExcludes. Verified building on swift:6.2-noble.
+//
+// Collected into a shared array (not appended to `targets` directly) so BOTH the
+// default/GTK graph AND the qt graph can include this GTK-free WireGuard
+// conformance dep-tree — the qt graph's wholesale `targets =` reassignment would
+// otherwise discard these default-graph appends. Appended to `targets` for the
+// default graph immediately after the block; the qt branch appends it too.
+var wireGuardConformanceTargets: [Target] = []
 if wireguardUpstreamPresent {
-    targets += [
+    wireGuardConformanceTargets += [
         .target(
             name: "WireGuardKitC",
             path: ".upstream/wireguard-apple/Sources/WireGuardKitC",
@@ -1308,7 +1315,7 @@ if wireguardUpstreamPresent {
     // write_log_to_file / close_log). Pure POSIX C (mmap), compiles on Linux.
     // Excludes the sibling Logger.swift (compiled by the conformance Swift
     // target) + test_ringlogger.c; ringlogger.h is the public header.
-    targets.append(
+    wireGuardConformanceTargets.append(
         .target(
             name: "WireGuardRingLoggerC",
             path: ".upstream/wireguard-apple/Sources/Shared/Logging",
@@ -1322,7 +1329,7 @@ if wireguardUpstreamPresent {
     // system zlib (-lz); bzip2 is `#ifdef HAVE_BZIP2`-guarded so we don't define
     // it (no libbz2 needed). zlib.h resolves via the system include path. Same
     // shape as WireGuardRingLoggerC.
-    targets.append(
+    wireGuardConformanceTargets.append(
         .target(
             name: "WireGuardMinizipC",
             path: ".upstream/wireguard-apple/Sources/WireGuardApp/ZipArchive/3rdparty/minizip",
@@ -1338,7 +1345,7 @@ if wireguardUpstreamPresent {
     // C (no external lib). It shares the View/ dir with the conformance target's
     // .swift cells, so exclude those (the C target compiles only highlighter.c;
     // highlighter.h is its public header) — same overlap pattern as WireGuardRingLoggerC.
-    targets.append(
+    wireGuardConformanceTargets.append(
         .target(
             name: "WireGuardHighlighterC",
             path: ".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS/View",
@@ -1349,7 +1356,7 @@ if wireguardUpstreamPresent {
             publicHeadersPath: "."
         )
     )
-    targets.append(
+    wireGuardConformanceTargets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
             dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "CoreWLAN", "LocalAuthentication", "ServiceManagement", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
@@ -1575,6 +1582,10 @@ if wireguardUpstreamPresent {
     )
     #endif
 }
+// Default/GTK graph: include the WireGuard conformance dep-tree (a no-op when the
+// upstream checkout is absent — the array is empty). The qt graph appends the same
+// shared array in its own branch so it can render the real tunnel-list VC.
+targets += wireGuardConformanceTargets
 
 // ── Signal-iOS upstream-slice (Linux / QuillOS) ─────────────────────────
 // Compile the REAL signalapp/Signal-iOS against QuillUI's Linux
@@ -2365,53 +2376,35 @@ if quillUILinuxBuildBackend == .qt {
         )
     }
 
-    // --- Literal WireGuard VC render conformance (purist render path) ---
-    // Compile the VERBATIM upstream ButtonedDetailViewController.swift into the qt
-    // graph (its only import is `Cocoa`, added above) so QuillAppKitQtTests can
-    // render the REAL upstream file — not a hand-written twin — through
-    // QuillAppKit→Qt. Gated on the upstream checkout so a fresh clone still
-    // resolves the manifest.
+    // --- Real WireGuard UI render conformance (purist render path) ---
+    // Bring the whole GTK-free WireGuard conformance dep-tree into the qt graph so
+    // QuillAppKitQtTests can render the REAL upstream VCs verbatim through
+    // QuillAppKit→Qt. QuillWireGuardConformanceUI already compiles ButtonedDetail,
+    // UnusableTunnel, the model, and the TunnelsListTableViewController main window,
+    // so it SUBSUMES the earlier per-VC conformance targets (which would otherwise
+    // overlap-source the same upstream files). Gated on the upstream checkout.
     if wireguardUpstreamPresent {
-        targets.append(
-            .target(
-                name: "QuillButtonedDetailConformance",
-                dependencies: ["Cocoa"],
-                // Path scoped to the ViewController directory (NOT the whole
-                // .upstream tree): the canonical Qt product build is warning-gated
-                // (any warning = fatal), and a broad `path` makes SwiftPM flag
-                // every sibling upstream file as "unhandled". Compile the verbatim
-                // ButtonedDetailViewController.swift and explicitly exclude its
-                // sibling VCs (each a later render rung) so zero files are unhandled.
-                path: ".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController",
-                exclude: [
-                    "LogViewController.swift",
-                    "ManageTunnelsRootViewController.swift",
-                    "TunnelDetailTableViewController.swift",
-                    "TunnelEditViewController.swift",
-                    "TunnelsListTableViewController.swift",
-                    "UnusableTunnelDetailViewController.swift"
-                ],
-                sources: [
-                    "ButtonedDetailViewController.swift"
-                ],
-                swiftSettings: [.swiftLanguageMode(.v5)]
-            )
-        )
-        // Next VC up the ladder: a vertical NSStackView of a bold label + a
-        // wrapping label + a button (tr-localized). It needs TWO verbatim upstream
-        // files from DIFFERENT directories (the VC + LocalizationHelper, for tr()),
-        // which a single narrow `path` can't cover without flagging every sibling
-        // as "unhandled". So compile from a dedicated directory of relative SYMLINKS
-        // to the verbatim files — the dir holds only those two sources, so zero
-        // files are unhandled (keeps the warning-gated Qt product build clean).
-        targets.append(
-            .target(
-                name: "QuillUnusableTunnelDetailConformance",
-                dependencies: ["Cocoa"],
-                path: "Sources/QuillUnusableTunnelDetailConformance",
-                swiftSettings: [.swiftLanguageMode(.v5)]
-            )
-        )
+        // The REAL WireGuard main window: bring the whole GTK-free conformance
+        // dep-tree (model + all VCs + the verbatim TunnelsListTableViewController)
+        // into the qt graph so it renders via QuillAppKit→Qt. The 8 shims the
+        // conformance depends on are absent from the qt literal (the qt graph
+        // wholesale-reassigns `targets`), so add them here; wireGuardConformanceTargets
+        // (populated GTK-free before the graph branches) holds WireGuardKit/KitC/
+        // RingLogger/Minizip/Highlighter/UpstreamConfig + QuillWireGuardConformanceUI.
+        // Targets only — NO .library products (the qt product reassignment
+        // intentionally drops the os/Network/etc. products; re-adding would expand
+        // the warning-gated canonical product build).
+        targets += [
+            .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
+            .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
+            .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
+            .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
+            .target(name: "WireGuardKitGo", dependencies: [], path: "Sources/WireGuardKitGoShim"),
+            .target(name: "CoreWLAN", dependencies: [], path: "Sources/CoreWLAN"),
+            .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
+            .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement")
+        ]
+        targets += wireGuardConformanceTargets
     }
 }
 #endif
@@ -2422,7 +2415,7 @@ let packageTestTargets: [Target] = {
         // The qt AppKit test target also renders the LITERAL upstream WireGuard
         // VC (ButtonedDetailViewController) when the upstream checkout is present.
         let akqtTestDeps: [Target.Dependency] = wireguardUpstreamPresent
-            ? ["QuillAppKitQt", "AppKit", "QuillButtonedDetailConformance", "QuillUnusableTunnelDetailConformance"]
+            ? ["QuillAppKitQt", "AppKit", "QuillWireGuardConformanceUI"]
             : ["QuillAppKitQt", "AppKit"]
         return [
             // Runs inside the stripped Qt graph itself. This keeps

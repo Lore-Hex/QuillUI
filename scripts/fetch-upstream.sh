@@ -1157,6 +1157,14 @@ subs = [
     # on instance of type 'CGFloat'"). Use FloatingPoint.magnitude (the absolute value),
     # which is unambiguous and identical for CGFloat.
     ("return abs(self - other) < tolerance", "return (self - other).magnitude < tolerance"),
+    # LinkValidator.firstLinkPreviewURL: NSTextCheckingResult.url is absent on
+    # swift-corelibs ("no member 'url'"). Reconstruct the URL from the matched
+    # substring (the link text) via the String<->NSString bridge (which corelibs
+    # supports, unlike the CF bridges). Scheme-less bare-domain matches yield a
+    # scheme-less URL that isPermittedLinkPreviewUrl already rejects, so behavior
+    # is preserved for the https previews SSK actually uses.
+    ("guard let parsedUrl = match.url else { return }",
+     "guard let parsedUrl = URL(string: (entireMessage.text as NSString).substring(with: match.range)) else { return }"),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
