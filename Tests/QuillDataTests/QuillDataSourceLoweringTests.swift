@@ -679,7 +679,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_SCROLL_SETTLE_SLEEP"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_SCROLL_AFTER_SLEEP"))
         #expect(interactionScript.contains("move_pointer_to \"$scroll_x\" \"$scroll_y\""))
-        #expect(interactionScript.contains("xdotool click --repeat \"${QUILLUI_BACKEND_SCROLL_CLICKS:-48}\" --delay 20 5"))
+        #expect(interactionScript.contains("xdotool click --repeat \"${QUILLUI_BACKEND_SCROLL_CLICKS:-240}\" --delay 20 5"))
         #expect(interactionScript.contains("xdotool click --repeat"))
         #expect(interactionScript.contains("prompt-send"))
         #expect(interactionScript.contains("composer-send"))

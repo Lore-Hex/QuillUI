@@ -957,7 +957,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         refocus_capture_window
         move_pointer_to "$scroll_x" "$scroll_y"
         sleep "${QUILLUI_BACKEND_SCROLL_SETTLE_SLEEP:-0.2}"
-        DISPLAY="$DISPLAY_ID" xdotool click --repeat "${QUILLUI_BACKEND_SCROLL_CLICKS:-48}" --delay 20 5
+        DISPLAY="$DISPLAY_ID" xdotool click --repeat "${QUILLUI_BACKEND_SCROLL_CLICKS:-240}" --delay 20 5
         sleep "${QUILLUI_BACKEND_SCROLL_AFTER_SLEEP:-3}"
         ;;
       prompt-send)
