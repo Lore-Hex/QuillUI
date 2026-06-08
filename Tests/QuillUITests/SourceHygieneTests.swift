@@ -2890,6 +2890,60 @@ struct SourceHygieneTests {
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
     }
 
+    @Test("Enchanted SF Symbols map to bundled Material glyphs")
+    func enchantedSFSymbolsMapToMaterialGlyphs() throws {
+        let symbols = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
+        )
+        let codepoints = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
+        )
+
+        let expectedMappings: [(sf: String, material: String)] = [
+            ("checkmark.square.fill", "check_box"),
+            ("curlybraces", "data_object"),
+            ("keyboard.fill", "keyboard"),
+            ("line.3.horizontal", "menu"),
+            ("paperplane.fill", "send"),
+            ("photo", "image"),
+            ("photo.fill", "image"),
+            ("selection.pin.in.out", "select_all"),
+            ("sidebar.left", "view_sidebar"),
+            ("space", "space_bar"),
+            ("speaker.slash.fill", "volume_off"),
+            ("speaker.wave.2.fill", "volume_up"),
+            ("speaker.wave.3.fill", "volume_up"),
+            ("square", "check_box_outline_blank"),
+            ("square.fill", "stop"),
+            ("sun.max", "light_mode"),
+            ("textformat.abc", "text_fields"),
+            ("water.waves", "water_drop"),
+            ("waveform", "graphic_eq")
+        ]
+
+        for (sf, material) in expectedMappings {
+            let mappingLineExists = symbols
+                .split(separator: "\n")
+                .contains { line in
+                    line.contains("\"\(sf)\"") && line.contains("\"\(material)\"")
+                }
+            let codepointLineExists = codepoints
+                .split(separator: "\n")
+                .contains { line in
+                    line.contains("\"\(material)\"")
+                }
+
+            #expect(
+                mappingLineExists,
+                "Expected SF Symbol \(sf) to map to Material glyph \(material)"
+            )
+            #expect(
+                codepointLineExists,
+                "Expected Material glyph \(material) to have a direct-render codepoint"
+            )
+        }
+    }
+
     @Test("GTK plain button style suppresses platform chrome")
     func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")

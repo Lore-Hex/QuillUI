@@ -53,6 +53,7 @@ public enum MaterialSymbolsCodepoints {
         "undo":                0xE166,
 
         // File / folder
+        "data_object":         0xE3B5,
         "content_copy":        0xE14D,
         "create_new_folder":   0xE2CC,
         "delete":              0xE872,
@@ -67,10 +68,13 @@ public enum MaterialSymbolsCodepoints {
         // Status / feedback
         "cancel":              0xE5C9,
         "check":               0xE5CA,
+        "check_box":           0xE834,
+        "check_box_outline_blank": 0xE835,
         "check_circle":        0xE86C,
         "close":               0xE5CD,
         "help_outline":        0xE8FD,
         "info":                0xE88E,
+        "stop":                0xE047,
         "verified":            0xEF76,
         "warning":             0xE002,
 
@@ -81,6 +85,8 @@ public enum MaterialSymbolsCodepoints {
         "edit":                0xE3C9,
         "remove":              0xE15B,
         "remove_circle":       0xE15C,
+        "select_all":          0xE162,
+        "send":                0xE163,
         "settings":            0xE8B8,
         "share":               0xE80D,
 
@@ -94,17 +100,33 @@ public enum MaterialSymbolsCodepoints {
         "calendar_today":      0xE935,
         "favorite":            0xE87D,
         "favorite_border":     0xE87E,
+        "graphic_eq":          0xE1B8,
         "home":                0xE88A,
+        "image":               0xE3F4,
+        "keyboard":            0xE312,
         "label":               0xE892,
         "link":                0xE157,
         "lock":                0xE897,
         "lock_open":           0xE898,
+        "menu":                0xE5D2,
+        "mic":                 0xE029,
         "more_horiz":          0xE5D3,
         "notifications":       0xE7F4,
         "schedule":            0xE8B5,
         "star":                0xE838,
         "star_border":         0xE83A,
+        "text_fields":         0xE262,
         "visibility":          0xE8F4,
         "visibility_off":      0xE8F5,
+        "view_sidebar":        0xF114,
+        "water_drop":          0xE798,
+
+        // Media
+        "light_mode":          0xE518,
+        "pause":               0xE034,
+        "play_arrow":          0xE037,
+        "space_bar":           0xE256,
+        "volume_off":          0xE04F,
+        "volume_up":           0xE050,
     ]
 }
