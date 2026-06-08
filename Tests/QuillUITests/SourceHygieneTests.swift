@@ -2482,8 +2482,16 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Foundation/Foundation.h"),
             encoding: .utf8
         )
+        let objcCoreFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/CoreFoundation/CoreFoundation.h"),
+            encoding: .utf8
+        )
         let objcAppKitHeader = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AppKit/AppKit.h"),
+            encoding: .utf8
+        )
+        let objcPreludeHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/QuillObjCCompatibility/Prelude.h"),
             encoding: .utf8
         )
 
@@ -2505,6 +2513,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("CurrencyFormat"))
         #expect(telegramPackageCheck.contains("DateUtils"))
         #expect(telegramPackageCheck.contains("EDSunriseSet"))
+        #expect(telegramPackageCheck.contains("EmojiSuggestions"))
         #expect(telegramPackageCheck.contains("FoundationUtils"))
         #expect(telegramPackageCheck.contains("GZIP"))
         #expect(telegramPackageCheck.contains("HackUtils"))
@@ -2513,6 +2522,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
         #expect(telegramPackageCheck.contains("TGPassportMRZ"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
+        #expect(telegramPackageCheck.contains("QuillObjCCompatibility/Prelude.h"))
         #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
         #expect(telegramPackageCheck.contains("-fblocks"))
         #expect(telegramPackageCheck.contains("-fobjc-arc"))
@@ -2529,9 +2539,12 @@ struct SourceHygieneTests {
         #expect(objcFoundationHeader.contains("@protocol NSFastEnumeration"))
         #expect(objcFoundationHeader.contains("typedef NS_ENUM(NSInteger, NSDateFormatterStyle)"))
         #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
+        #expect(objcCoreFoundationHeader.contains("CFStringGetBytes"))
+        #expect(objcCoreFoundationHeader.contains("kCFStringEncodingUTF16LE"))
         #expect(objcAppKitHeader.contains("@interface NSView : NSObject"))
         #expect(objcAppKitHeader.contains("NSArray<NSView *> *subviews"))
         #expect(objcAppKitHeader.contains("NSString *className"))
+        #expect(objcPreludeHeader.contains("#include <string.h>"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")

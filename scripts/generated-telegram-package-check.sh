@@ -31,6 +31,7 @@ default_packages=(
   CurrencyFormat
   DateUtils
   EDSunriseSet
+  EmojiSuggestions
   FoundationUtils
   GZIP
   HackUtils
@@ -61,6 +62,8 @@ swift_build_flags=()
 if [[ "$(uname -s)" == "Linux" ]]; then
   swift_build_flags+=(
     -Xcc "-I$objc_include_dir"
+    -Xcc "-include"
+    -Xcc "$objc_include_dir/QuillObjCCompatibility/Prelude.h"
     -Xcc "-fobjc-runtime=gnustep-2.0"
     -Xcc "-fblocks"
     -Xcc "-fobjc-arc"

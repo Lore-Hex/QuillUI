@@ -1,0 +1,6 @@
+#ifndef QUILL_OBJC_COMPATIBILITY_PRELUDE_H
+#define QUILL_OBJC_COMPATIBILITY_PRELUDE_H
+
+#include <string.h>
+
+#endif

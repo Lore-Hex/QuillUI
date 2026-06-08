@@ -62,8 +62,14 @@ typedef long NSInteger;
 typedef unsigned long NSUInteger;
 typedef double CGFloat;
 typedef double NSTimeInterval;
-typedef uint8_t UInt8;
 typedef unsigned short unichar;
+
+#ifndef QUILL_OBJC_UINT8_TYPEDEF
+#define QUILL_OBJC_UINT8_TYPEDEF
+typedef uint8_t UInt8;
+#endif
+
+#include <CoreFoundation/CoreFoundation.h>
 
 typedef struct _NSRange {
     NSUInteger location;
@@ -111,6 +117,14 @@ static inline NSRange NSMakeRange(NSUInteger location, NSUInteger length) {
 
 #ifndef NS_OPTIONS
 #define NS_OPTIONS(_type, _name) enum _name : _type _name; enum _name : _type
+#endif
+
+#ifndef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+
+#ifndef MAX
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
 #if defined(__OBJC__)
