@@ -38,6 +38,7 @@ default_packages=(
   KeyboardKey
   MergeLists
   NumberPluralization
+  RingBuffer
   TGCurrencyFormatter
   TGPassportMRZ
 )

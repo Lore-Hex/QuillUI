@@ -20,7 +20,8 @@ repeatable source checkout plus Linux compile ratchet:
   SwiftPM package islands on Linux: `CAPortal`, `CalendarUtils`,
   `CurrencyFormat`, `DateUtils`, `EDSunriseSet`, `EmojiSuggestions`,
   `FoundationUtils`, `GZIP`, `HackUtils`, `KeyboardKey`, `MergeLists`,
-  `NumberPluralization`, `TGCurrencyFormatter`, and `TGPassportMRZ`.
+  `NumberPluralization`, `RingBuffer`, `TGCurrencyFormatter`, and
+  `TGPassportMRZ`.
 
 Current Linux blocker classes:
 
