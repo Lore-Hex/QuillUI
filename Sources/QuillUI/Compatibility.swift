@@ -309,9 +309,9 @@ public extension QuillPlatformImage {
 //
 // Unify on `RSImage` from QuillFoundation. QuillUI's previous
 // `NSImage`-specific API (`tiffRepresentation` going through
-// gdk-pixbuf, `lockFocus` / `unlockFocus` / `draw` no-op stubs)
-// lives in the extension below so callers keep working without
-// `import QuillAppKit`.
+// gdk-pixbuf) lives in the extension below; the common image no-op
+// drawing diagnostics live on `RSImage` itself so callers importing
+// only AppKit / QuillFoundation see the same behavior.
 public typealias NSImage = RSImage
 
 public extension RSImage {
@@ -367,30 +367,15 @@ public extension RSImage {
         }
     }
 
-    func lockFocus() {
-        recordCompatibilityFallback("NSImage.lockFocus")
-    }
-
-    func unlockFocus() {
-        recordCompatibilityFallback("NSImage.unlockFocus")
-    }
-
-    func draw(
-        in destinationRect: CGRect,
-        from sourceRect: CGRect,
-        operation: QuillImageCompositingOperation,
-        fraction: Double
-    ) {
-        recordCompatibilityFallback(
-            "NSImage.draw",
-            message: "NSImage.draw is currently a no-op on Linux; image compositing needs a real bitmap backend."
-        )
-    }
 }
 
+#if os(macOS) || os(iOS) || os(visionOS)
 public enum QuillImageCompositingOperation: Sendable {
     case copy
 }
+#else
+public typealias QuillImageCompositingOperation = QuillFoundation.QuillImageCompositingOperation
+#endif
 
 /// Identifies common image container formats from their magic-byte prefixes.
 /// Used by `NSImage.tiffRepresentation` to decide whether the receiver's bytes
