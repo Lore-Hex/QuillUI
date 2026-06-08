@@ -1140,6 +1140,12 @@ subs = [
      '''        // PersonNameComponentsFormatter is unavailable on swift-corelibs Foundation.
         // On Apple, .short yields the nickname, so SSK uses nicknames; match that.
         return true'''),
+    # UIImage+Attachment / OWSImageSource image-metadata: swift-corelibs CFString isn't
+    # Hashable (so [CFString: Any] can't be a dict) and there is no Dictionary<->CFDictionary
+    # bridge. Use a native [String: Any] dict and drop the `as CFDictionary` casts; the
+    # ImageIO shim's CGImageSourceCopyPropertiesAtIndex now takes Any? and returns [String: Any]?.
+    ("[CFString: Any]", "[String: Any]"),
+    ("options as CFDictionary", "options"),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
