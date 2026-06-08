@@ -52,6 +52,7 @@ default_packages=(
   NumberPluralization
   RingBuffer
   Strings
+  Svg
   TGCurrencyFormatter
   TGPassportMRZ
   TelegramSystem

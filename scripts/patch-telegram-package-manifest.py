@@ -76,7 +76,9 @@ def insert_target_products(manifest: str, products: list[str]) -> str:
                 output.append(f"{indent}    {inner}")
             output.append(f"{indent}]{trailing}")
         else:
-            output.append(line)
+            inner = inner.strip()
+            if inner:
+                output.append(f"{indent}    {inner}")
 
     return "\n".join(output) + ("\n" if manifest.endswith("\n") else "")
 

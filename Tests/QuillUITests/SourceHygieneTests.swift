@@ -2534,6 +2534,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/CoreText/CoreText.h"),
             encoding: .utf8
         )
+        let quartzCoreHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/QuartzCore/QuartzCore.h"),
+            encoding: .utf8
+        )
         let objcModuleMap = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
             encoding: .utf8
@@ -2585,6 +2589,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("NumberPluralization"))
         #expect(telegramPackageCheck.contains("RingBuffer"))
         #expect(telegramPackageCheck.contains("Strings"))
+        #expect(telegramPackageCheck.contains("Svg"))
         #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
         #expect(telegramPackageCheck.contains("TGPassportMRZ"))
         #expect(telegramPackageCheck.contains("TelegramSystem"))
@@ -2620,6 +2625,9 @@ struct SourceHygieneTests {
         #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCharacterSet : NSObject"))
+        #expect(objcFoundationHeader.contains("@protocol NSXMLParserDelegate"))
+        #expect(objcFoundationHeader.contains("- (void)getBytes:(void *)buffer range:(NSRange)range"))
+        #expect(objcFoundationHeader.contains("- (void)appendBytes:(const void *)bytes length:(NSUInteger)length"))
         #expect(objcFoundationHeader.contains("@protocol NSFastEnumeration"))
         #expect(objcFoundationHeader.contains("typedef uint32_t UInt32"))
         #expect(objcFoundationHeader.contains("clang assume_nonnull begin"))
@@ -2627,7 +2635,12 @@ struct SourceHygieneTests {
         #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
         #expect(objcCoreFoundationHeader.contains("CFStringGetBytes"))
         #expect(objcCoreFoundationHeader.contains("kCFStringEncodingUTF16LE"))
+        #expect(objcAppKitHeader.contains("CGSizeMake"))
+        #expect(objcAppKitHeader.contains("CGSizeEqualToSize"))
+        #expect(objcAppKitHeader.contains("CGContextFillRect"))
         #expect(objcAppKitHeader.contains("@interface NSView : NSObject"))
+        #expect(objcAppKitHeader.contains("@interface NSBitmapImageRep : NSObject"))
+        #expect(objcAppKitHeader.contains("@interface NSGraphicsContext : NSObject"))
         #expect(objcAppKitHeader.contains("NSArray<NSView *> *subviews"))
         #expect(objcAppKitHeader.contains("NSString *className"))
         #expect(objcAppKitHeader.contains("NSEventModifierFlagCommand"))
@@ -2646,12 +2659,14 @@ struct SourceHygieneTests {
         #expect(securityHeader.contains("import Security"))
         #expect(commonCryptoHeader.contains("import CommonCrypto"))
         #expect(coreTextHeader.contains("CTLineGetGlyphCount"))
+        #expect(quartzCoreHeader.contains("QuartzCore"))
         #expect(objcModuleMap.contains("module Foundation"))
         #expect(objcModuleMap.contains("module AppKit"))
         #expect(objcModuleMap.contains("module Cocoa"))
         #expect(objcModuleMap.contains("module Security"))
         #expect(objcModuleMap.contains("module CommonCrypto"))
         #expect(objcModuleMap.contains("module CoreText"))
+        #expect(objcModuleMap.contains("module QuartzCore"))
         #expect(!objcModuleMap.contains("module CoreFoundation {"))
         #expect(objcPreludeHeader.contains("#include <string>"))
         #expect(objcPreludeHeader.contains("#include <pthread.h>"))

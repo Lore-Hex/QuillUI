@@ -32,3 +32,8 @@ module CoreText {
   header "CoreText/CoreText.h"
   export *
 }
+
+module QuartzCore {
+  header "QuartzCore/QuartzCore.h"
+  export *
+}

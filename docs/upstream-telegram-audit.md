@@ -22,7 +22,7 @@ repeatable source checkout plus Linux compile ratchet:
   `CurrencyFormat`, `DateUtils`, `DetectSpeech`,
   `EDSunriseSet`, `EmojiSuggestions`, `FastBlur`, `FoundationUtils`, `GZIP`,
   `HackUtils`, `HotKey`, `KeyboardKey`, `MergeLists`, `NumberPluralization`,
-  `RingBuffer`, `Strings`, `TGCurrencyFormatter`, `TGPassportMRZ`, and
+  `RingBuffer`, `Strings`, `Svg`, `TGCurrencyFormatter`, `TGPassportMRZ`, and
   `TelegramSystem`.
 - `Sources/QuillTelegramBuildOverlays` provides generic generated build overlays
   for Swift-only ambient Apple symbols that cannot be supplied by C headers.
@@ -37,7 +37,7 @@ repeatable source checkout plus Linux compile ratchet:
 Current Linux blocker classes:
 
 - Objective-C packages that need deeper runtime declarations and/or behavior
-  beyond the current header overlay (image objects, SVG/CoreGraphics drawing,
+  beyond the current header overlay (image objects, CoreGraphics drawing,
   speech/media helpers, and similar surfaces).
 - AppKit/CoreText/Cocoa UI packages that need QuillAppKit/QuillKit shims before
   they can compile (`TGUIKit`, `TelegramMedia`, and the main `Telegram-Mac`
