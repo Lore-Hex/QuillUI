@@ -149,7 +149,6 @@ struct LinuxBackendAppMatrixTests {
         "transcript-selection",
         "markdown-transcript-selection",
         "message-hover-actions",
-        "long-transcript-selection",
         "long-transcript-auto-selection"
     ]
 

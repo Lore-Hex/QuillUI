@@ -957,7 +957,8 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         else
           scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
           scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
-          scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-2400}"
+          scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-4800}"
+          scroll_click_delay="${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-5}"
           scroll_key_repeats="${QUILLUI_BACKEND_SCROLL_KEY_REPEATS:-6}"
           scroll_key_delay="${QUILLUI_BACKEND_SCROLL_KEY_DELAY:-0.08}"
           refocus_capture_window
@@ -967,7 +968,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
             DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers End
             sleep "$scroll_key_delay"
           done
-          DISPLAY="$DISPLAY_ID" xdotool click --repeat "$scroll_clicks" --delay 20 5
+          DISPLAY="$DISPLAY_ID" xdotool click --repeat "$scroll_clicks" --delay "$scroll_click_delay" 5
           sleep "${QUILLUI_BACKEND_SCROLL_AFTER_SLEEP:-3}"
         fi
         ;;
