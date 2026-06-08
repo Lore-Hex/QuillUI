@@ -1973,9 +1973,9 @@ def validate_quill_chat_mac_reference_history_selection(
         assistant_message_pixels = dark_pixel_count(
             image,
             detail_left + int(detail_width * 0.02),
-            top + int(app_height * 0.12),
+            selected_message_y0,
             detail_left + int(detail_width * 0.52),
-            top + int(app_height * 0.23),
+            selected_message_y1,
         )
         require(
             assistant_message_pixels >= 500,

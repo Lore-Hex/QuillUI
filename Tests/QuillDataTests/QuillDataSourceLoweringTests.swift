@@ -580,6 +580,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("message_y1 = top + int(app_height * 0.70)"))
         #expect(verifier.contains("selected_message_y0 = top + int(app_height * 0.05)"))
         #expect(verifier.contains("selected_message_y1 = top + int(app_height * 0.70)"))
+        #expect(verifier.contains("detail_left + int(detail_width * 0.52),\n            selected_message_y1"))
         #expect(verifier.contains("Mac-reference {label} message did not align to the trailing edge"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_toolbar_model_selected"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-toolbar-model-selected"))
