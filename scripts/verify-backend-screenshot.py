@@ -1954,12 +1954,15 @@ def validate_quill_chat_mac_reference_history_selection(
 
     transcript_summary = ""
     if require_transcript:
+        selected_message_y0 = top + int(app_height * 0.05)
+        selected_message_y1 = top + int(app_height * 0.70)
+
         user_message_pixels = dark_pixel_count(
             image,
             detail_left + int(detail_width * 0.77),
-            top + int(app_height * 0.05),
+            selected_message_y0,
             right - int(detail_width * 0.01),
-            top + int(app_height * 0.16),
+            selected_message_y1,
         )
         require(
             user_message_pixels >= 220,

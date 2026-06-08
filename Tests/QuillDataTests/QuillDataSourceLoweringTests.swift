@@ -578,6 +578,8 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("validate_quill_chat_mac_reference_composer_send"))
         #expect(verifier.contains("message_y0 = top + int(app_height * 0.05)"))
         #expect(verifier.contains("message_y1 = top + int(app_height * 0.70)"))
+        #expect(verifier.contains("selected_message_y0 = top + int(app_height * 0.05)"))
+        #expect(verifier.contains("selected_message_y1 = top + int(app_height * 0.70)"))
         #expect(verifier.contains("Mac-reference {label} message did not align to the trailing edge"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_toolbar_model_selected"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-toolbar-model-selected"))
@@ -2536,7 +2538,8 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("gtkCollectOnAppearPayload("))
         #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
         #expect(!rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
-        #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            let boundAction = bindActionToCurrentEnvironment(action)"))
+        #expect(rendererSource.contains("let boundAction = bindActionToCurrentEnvironment(action)"))
+        #expect(rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))
     }
 
     private func runScript(
