@@ -44,6 +44,7 @@ default_packages=(
   MergeLists
   NumberPluralization
   RingBuffer
+  Strings
   TGCurrencyFormatter
   TGPassportMRZ
   TelegramSystem

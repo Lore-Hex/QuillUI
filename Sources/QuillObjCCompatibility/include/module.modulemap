@@ -27,3 +27,8 @@ module CommonCrypto {
   header "CommonCrypto/CommonCrypto.h"
   export *
 }
+
+module CoreText {
+  header "CoreText/CoreText.h"
+  export *
+}

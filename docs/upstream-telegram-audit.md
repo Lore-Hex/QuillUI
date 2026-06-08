@@ -21,12 +21,14 @@ repeatable source checkout plus Linux compile ratchet:
   `CrashHandler`, `CurrencyFormat`, `DateUtils`, `DetectSpeech`,
   `EDSunriseSet`, `EmojiSuggestions`, `FastBlur`, `FoundationUtils`, `GZIP`,
   `HackUtils`, `HotKey`, `KeyboardKey`, `MergeLists`, `NumberPluralization`,
-  `RingBuffer`, `TGCurrencyFormatter`, `TGPassportMRZ`, and `TelegramSystem`.
+  `RingBuffer`, `Strings`, `TGCurrencyFormatter`, `TGPassportMRZ`, and
+  `TelegramSystem`.
 - `Sources/QuillTelegramBuildOverlays` provides generic generated build overlays
   for Swift-only ambient Apple symbols that cannot be supplied by C headers.
   `ApiCredentials` uses this for Security/CommonCrypto and app-group container
-  fallbacks, and `TelegramSystem` uses it for a Linux `sysctlbyname` fallback,
-  while leaving the upstream checkout untouched.
+  fallbacks, `Strings` uses it for CoreText glyph-count and swift-corelibs
+  word-enumeration fallbacks, and `TelegramSystem` uses it for a Linux
+  `sysctlbyname` fallback, while leaving the upstream checkout untouched.
 
 Current Linux blocker classes:
 
@@ -34,8 +36,8 @@ Current Linux blocker classes:
   beyond the current header overlay (image objects, SVG/CoreGraphics drawing,
   speech/media helpers, and similar surfaces).
 - AppKit/CoreText/Cocoa UI packages that need QuillAppKit/QuillKit shims before
-  they can compile (`Colors`, `Strings`, `TGUIKit`, `TelegramMedia`, and the
-  main `Telegram-Mac` surface).
+  they can compile (`Colors`, `TGUIKit`, `TelegramMedia`, and the main
+  `Telegram-Mac` surface).
 - Higher-level Telegram packages that depend on telegram-ios submodules not
   present in the shallow upstream checkout.
 
