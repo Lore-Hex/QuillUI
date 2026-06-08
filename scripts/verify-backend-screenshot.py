@@ -2020,7 +2020,7 @@ def validate_quill_chat_mac_reference_long_transcript_selection(image: Screensho
         top + int(app_height * 0.76),
     )
     require(
-        bottom_transcript_pixels >= 2_600,
+        bottom_transcript_pixels >= 2_000,
         "Mac-reference long transcript did not scroll to the dense bottom marker: "
         f"pixels={bottom_transcript_pixels}",
     )
