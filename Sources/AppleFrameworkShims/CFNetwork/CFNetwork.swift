@@ -63,16 +63,16 @@ public struct CFHostInfoType: RawRepresentable, Equatable, Sendable {
     public static let reachability = CFHostInfoType(rawValue: 2)
 }
 
-public struct CFStreamError {
-    public var domain: Int
-    public var error: Int32
-    public init(domain: Int = 0, error: Int32 = 0) {
-        self.domain = domain
-        self.error = error
-    }
-}
+// CFStreamError is provided by swift-corelibs-foundation's CoreFoundation, so we
+// must NOT declare our own — a second `CFStreamError` makes the upstream
+// `var resolutionError = CFStreamError()` (CoreFoundation's) incompatible with a
+// shim function that takes `UnsafeMutablePointer<CFNetwork.CFStreamError>` (a
+// distinct type). Use the CoreFoundation one everywhere below.
 
-public func CFHostCreateWithName(_ allocator: CFAllocator?, _ hostname: CFString) -> Unmanaged<CFHost> {
+// hostname takes `String` (not CFString): swift-corelibs has no String<->CFString
+// toll-free bridge, so the upstream `"…" as CFString` cast can't compile; the
+// fetch-patch drops that cast and passes the String. Inert (no DNS on Linux).
+public func CFHostCreateWithName(_ allocator: CFAllocator?, _ hostname: String) -> Unmanaged<CFHost> {
     _ = (allocator, hostname)
     return Unmanaged.passRetained(CFHost())
 }

@@ -1146,6 +1146,11 @@ subs = [
     # ImageIO shim's CGImageSourceCopyPropertiesAtIndex now takes Any? and returns [String: Any]?.
     ("[CFString: Any]", "[String: Any]"),
     ("options as CFDictionary", "options"),
+    # OutageDetection resolves uptime.signal.org via CFHostCreateWithName. swift-corelibs
+    # has no String<->CFString bridge, so `"uptime.signal.org" as CFString` fails; the
+    # CFNetwork shim's CFHostCreateWithName takes String -> drop the cast. (The shim also
+    # no longer redeclares CFStreamError, so CoreFoundation's is used by both sides.)
+    ('"uptime.signal.org" as CFString', '"uptime.signal.org"'),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
