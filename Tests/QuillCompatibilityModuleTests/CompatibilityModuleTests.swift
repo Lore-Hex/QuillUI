@@ -754,6 +754,14 @@ struct CompatibilityModuleTests {
         }
         #expect(authorizationStatus == .authorized)
 
+        await UIApplication.shared.registerForRemoteNotifications()
+        let isRegisteredForRemoteNotifications = await UIApplication.shared.isRegisteredForRemoteNotifications
+        #expect(isRegisteredForRemoteNotifications)
+        #expect(service.remoteNotificationRegistrationCount == 1)
+        await UIApplication.shared.unregisterForRemoteNotifications()
+        let isRegisteredAfterUnregister = await UIApplication.shared.isRegisteredForRemoteNotifications
+        #expect(isRegisteredAfterUnregister == false)
+
         let replyCategory = UNNotificationCategory(
             identifier: "reply",
             actions: [
@@ -824,6 +832,7 @@ struct CompatibilityModuleTests {
         #expect(operations.contains("notifications.requestAuthorization"))
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
+        #expect(operations.contains("notifications.registerForRemoteNotifications"))
 
         service.reset()
     }

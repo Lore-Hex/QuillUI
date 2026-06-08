@@ -291,6 +291,15 @@ struct QuillKitTests {
         #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
         #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
 
+        #expect(service.remoteNotificationsRegistered == false)
+        #expect(service.remoteNotificationRegistrationCount == 0)
+        service.registerForRemoteNotifications()
+        service.registerForRemoteNotifications()
+        #expect(service.remoteNotificationsRegistered)
+        #expect(service.remoteNotificationRegistrationCount == 2)
+        service.unregisterForRemoteNotifications()
+        #expect(service.remoteNotificationsRegistered == false)
+
         service.removePendingNotificationRequests(withIdentifiers: ["later"])
         service.removeDeliveredNotifications(withIdentifiers: ["now"])
         #expect(service.pendingRequestRecords.isEmpty)
@@ -300,6 +309,7 @@ struct QuillKitTests {
         #expect(operations.contains("notifications.requestAuthorization"))
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
+        #expect(operations.contains("notifications.registerForRemoteNotifications"))
     }
 
     @Test("speech backend invokes lifecycle callbacks in order")

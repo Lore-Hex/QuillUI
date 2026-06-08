@@ -3288,7 +3288,8 @@ test, source hygiene, and CI follow-up.
 
 The Linux `UserNotifications` shim now depends on QuillKit and routes
 authorization requests, settings, categories, pending requests, delivered
-notifications, and removal helpers through shared `QuillNotificationService`
-state. The backend is process-local and deterministic, so ports can read back
-notification state without app-local rewrites. Native libnotify or
-org.freedesktop.Notifications presentation remains backend work.
+notifications, removal helpers, and UIKit remote-notification registration
+state through shared `QuillNotificationService`. The backend is process-local
+and deterministic, so ports can read back notification state without app-local
+rewrites. Native libnotify or org.freedesktop.Notifications presentation and
+APNs-equivalent push integration remain backend work.

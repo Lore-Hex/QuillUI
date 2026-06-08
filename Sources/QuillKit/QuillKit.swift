@@ -1301,6 +1301,8 @@ public final class QuillNotificationService: @unchecked Sendable {
     private var categoryIdentifiersValue: Set<String> = []
     private var pendingRequestsByIdentifier: [String: QuillNotificationRequestRecord] = [:]
     private var deliveredNotificationsByIdentifier: [String: QuillNotificationRequestRecord] = [:]
+    private var remoteNotificationsRegisteredValue = false
+    private var remoteNotificationRegistrationCountValue = 0
 
     public init() {}
 
@@ -1324,6 +1326,14 @@ public final class QuillNotificationService: @unchecked Sendable {
         }
     }
 
+    public var remoteNotificationsRegistered: Bool {
+        lock.withLock { remoteNotificationsRegisteredValue }
+    }
+
+    public var remoteNotificationRegistrationCount: Int {
+        lock.withLock { remoteNotificationRegistrationCountValue }
+    }
+
     public func configureAuthorization(
         status: QuillNotificationAuthorizationStatus,
         requestResult: Bool
@@ -1341,6 +1351,8 @@ public final class QuillNotificationService: @unchecked Sendable {
             categoryIdentifiersValue.removeAll()
             pendingRequestsByIdentifier.removeAll()
             deliveredNotificationsByIdentifier.removeAll()
+            remoteNotificationsRegisteredValue = false
+            remoteNotificationRegistrationCountValue = 0
         }
     }
 
@@ -1421,6 +1433,26 @@ public final class QuillNotificationService: @unchecked Sendable {
     public func removeAllPendingNotificationRequests() {
         lock.withLock {
             pendingRequestsByIdentifier.removeAll()
+        }
+    }
+
+    public func registerForRemoteNotifications() {
+        lock.withLock {
+            remoteNotificationsRegisteredValue = true
+            remoteNotificationRegistrationCountValue += 1
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.registerForRemoteNotifications",
+            severity: .info,
+            message: "Remote notification registration is tracked by the QuillKit compatibility backend."
+        )
+    }
+
+    public func unregisterForRemoteNotifications() {
+        lock.withLock {
+            remoteNotificationsRegisteredValue = false
         }
     }
 }

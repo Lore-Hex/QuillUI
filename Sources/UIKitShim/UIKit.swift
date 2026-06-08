@@ -138,7 +138,7 @@ public final class UIFontMetrics: @unchecked Sendable {
 
 // MARK: - UIApplication (macOS-shape)
 
-public class UIApplication: NSObject {
+public class UIApplication: NSObject, @unchecked Sendable {
     @MainActor public static let shared = UIApplication()
     @MainActor @discardableResult public func open(
         _ url: URL,
@@ -156,7 +156,15 @@ public class UIApplication: NSObject {
     @MainActor @discardableResult public func open(_ url: URL) async -> Bool {
         open(url, options: [:], completionHandler: nil)
     }
-    @MainActor public func registerForRemoteNotifications() {}
+    @MainActor public func registerForRemoteNotifications() {
+        QuillNotificationService.shared.registerForRemoteNotifications()
+    }
+    @MainActor public func unregisterForRemoteNotifications() {
+        QuillNotificationService.shared.unregisterForRemoteNotifications()
+    }
+    @MainActor public var isRegisteredForRemoteNotifications: Bool {
+        QuillNotificationService.shared.remoteNotificationsRegistered
+    }
     public enum LaunchOptionsKey: Hashable { case remoteNotification }
     @MainActor public var connectedScenes: Set<UIScene> = []
     @MainActor public var applicationState: UIApplicationState { .active }
@@ -283,7 +291,7 @@ public struct NSUnderlineStyle: OptionSet, Sendable {
     public static let single = NSUnderlineStyle(rawValue: 0x01)
     public static let thick = NSUnderlineStyle(rawValue: 0x02)
     public static let double = NSUnderlineStyle(rawValue: 0x09)
-    public static let patternSolid = NSUnderlineStyle(rawValue: 0x0000)
+    public static let patternSolid: NSUnderlineStyle = []
     public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
     public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
     public static let patternDashDot = NSUnderlineStyle(rawValue: 0x0300)
