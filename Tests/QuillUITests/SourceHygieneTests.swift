@@ -2582,6 +2582,8 @@ struct SourceHygieneTests {
         #expect(objcModuleMap.contains("module AppKit"))
         #expect(objcModuleMap.contains("module Cocoa"))
         #expect(!objcModuleMap.contains("module CoreFoundation {"))
+        #expect(objcPreludeHeader.contains("#include <string>"))
+        #expect(objcPreludeHeader.contains("#include <pthread.h>"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")

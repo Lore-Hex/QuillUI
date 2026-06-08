@@ -3,4 +3,12 @@
 
 #include <string.h>
 
+#ifdef __cplusplus
+#include <algorithm>
+#include <string>
+#include <vector>
+#include <pthread.h>
+#include <wchar.h>
+#endif
+
 #endif
