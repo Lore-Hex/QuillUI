@@ -3304,3 +3304,14 @@ test, source hygiene, and CI follow-up.
 set-active options are tracked in shared QuillKit state with diagnostics, and
 common category/mode overloads compile. Native PipeWire/ALSA/JACK session
 policy and real audio routing remain backend work.
+
+## Checkpoint 199: AVAudioEngine Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVAudioEngine` lifecycle, graph attachment/connection counts, and
+`AVAudioNode` tap registration now route through `QuillAudioEngineService`.
+The shim exposes deterministic process-local state for recording/playback code
+without performing real audio I/O. Native PipeWire/ALSA/JACK graph processing
+and tap buffers remain backend work.

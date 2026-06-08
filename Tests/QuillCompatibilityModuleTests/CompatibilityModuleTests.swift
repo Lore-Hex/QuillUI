@@ -717,6 +717,52 @@ struct CompatibilityModuleTests {
         #expect(operations.contains("audioSession.setActive"))
     }
 
+    @Test("AVFoundation audio engine routes graph state through QuillKit")
+    func avFoundationAudioEngineRoutesGraphStateThroughQuillKit() throws {
+        QuillAudioEngineService.shared.resetAll()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let engine = AVAudioEngine()
+        #expect(engine.isRunning == false)
+        #expect(QuillAudioEngineService.shared.engineStates.count == 1)
+
+        engine.prepare()
+        try engine.start()
+        #expect(engine.isRunning)
+
+        let extraMixer = AVAudioMixerNode()
+        engine.attach(extraMixer)
+        engine.connect(engine.inputNode, to: engine.mainMixerNode, format: nil)
+        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { _, _ in }
+
+        var state = try #require(QuillAudioEngineService.shared.engineStates.first)
+        #expect(state.isPrepared)
+        #expect(state.isRunning)
+        #expect(state.attachedNodeCount == 1)
+        #expect(state.connectionCount == 1)
+        #expect(state.tapCount == 1)
+
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        state = try #require(QuillAudioEngineService.shared.engineStates.first)
+        #expect(state.tapCount == 0)
+        #expect(state.isRunning == false)
+
+        engine.reset()
+        state = try #require(QuillAudioEngineService.shared.engineStates.first)
+        #expect(state == QuillAudioEngineState(engineID: state.engineID))
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioEngine.prepare"))
+        #expect(operations.contains("audioEngine.start"))
+        #expect(operations.contains("audioEngine.attach"))
+        #expect(operations.contains("audioEngine.connect"))
+        #expect(operations.contains("audioEngine.installTap"))
+        #expect(operations.contains("audioEngine.removeTap"))
+        #expect(operations.contains("audioEngine.stop"))
+        #expect(operations.contains("audioEngine.reset"))
+    }
+
     @Test("Sparkle updater routes through QuillKit")
     func sparkleUpdaterRoutesThroughQuillKit() {
         QuillUpdateService.shared.reset()

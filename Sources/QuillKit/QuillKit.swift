@@ -1551,6 +1551,176 @@ public final class QuillAudioSessionService: @unchecked Sendable {
     }
 }
 
+public struct QuillAudioEngineState: Equatable, Sendable {
+    public var engineID: UUID
+    public var isPrepared: Bool
+    public var isRunning: Bool
+    public var attachedNodeCount: Int
+    public var connectionCount: Int
+    public var tapCount: Int
+
+    public init(
+        engineID: UUID,
+        isPrepared: Bool = false,
+        isRunning: Bool = false,
+        attachedNodeCount: Int = 0,
+        connectionCount: Int = 0,
+        tapCount: Int = 0
+    ) {
+        self.engineID = engineID
+        self.isPrepared = isPrepared
+        self.isRunning = isRunning
+        self.attachedNodeCount = attachedNodeCount
+        self.connectionCount = connectionCount
+        self.tapCount = tapCount
+    }
+}
+
+public final class QuillAudioEngineService: @unchecked Sendable {
+    public static let shared = QuillAudioEngineService()
+
+    private let lock = NSLock()
+    private var statesByEngineID: [UUID: QuillAudioEngineState] = [:]
+    private var tapsByNodeAndBus: Set<String> = []
+
+    public init() {}
+
+    public var engineStates: [QuillAudioEngineState] {
+        lock.withLock {
+            statesByEngineID.values.sorted { lhs, rhs in
+                lhs.engineID.uuidString < rhs.engineID.uuidString
+            }
+        }
+    }
+
+    public func resetAll() {
+        lock.withLock {
+            statesByEngineID.removeAll()
+            tapsByNodeAndBus.removeAll()
+        }
+    }
+
+    public func state(for engineID: UUID) -> QuillAudioEngineState {
+        lock.withLock {
+            state(for: engineID, in: &statesByEngineID)
+        }
+    }
+
+    public func registerEngine(_ engineID: UUID) {
+        lock.withLock {
+            _ = state(for: engineID, in: &statesByEngineID)
+        }
+    }
+
+    public func prepare(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.prepare") {
+            $0.isPrepared = true
+        }
+    }
+
+    public func start(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.start") {
+            $0.isPrepared = true
+            $0.isRunning = true
+        }
+    }
+
+    public func stop(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.stop") {
+            $0.isRunning = false
+        }
+    }
+
+    public func reset(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.reset") {
+            $0.isPrepared = false
+            $0.isRunning = false
+            $0.attachedNodeCount = 0
+            $0.connectionCount = 0
+            $0.tapCount = 0
+        }
+        lock.withLock {
+            tapsByNodeAndBus.removeAll()
+        }
+    }
+
+    public func attachNode(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.attach") {
+            $0.attachedNodeCount += 1
+        }
+    }
+
+    public func connect(engineID: UUID) {
+        update(engineID: engineID, operation: "audioEngine.connect") {
+            $0.connectionCount += 1
+        }
+    }
+
+    public func installTap(engineID: UUID?, nodeID: UUID, bus: Int) {
+        let key = "\(nodeID.uuidString):\(bus)"
+        let didInsert = lock.withLock {
+            tapsByNodeAndBus.insert(key).inserted
+        }
+
+        if let engineID, didInsert {
+            update(engineID: engineID, operation: "audioEngine.installTap") {
+                $0.tapCount += 1
+            }
+        } else {
+            record(operation: "audioEngine.installTap")
+        }
+    }
+
+    public func removeTap(engineID: UUID?, nodeID: UUID, bus: Int) {
+        let key = "\(nodeID.uuidString):\(bus)"
+        let didRemove = lock.withLock {
+            tapsByNodeAndBus.remove(key) != nil
+        }
+
+        if let engineID, didRemove {
+            update(engineID: engineID, operation: "audioEngine.removeTap") {
+                $0.tapCount = max(0, $0.tapCount - 1)
+            }
+        } else {
+            record(operation: "audioEngine.removeTap")
+        }
+    }
+
+    private func update(
+        engineID: UUID,
+        operation: String,
+        mutate: (inout QuillAudioEngineState) -> Void
+    ) {
+        lock.withLock {
+            var current = state(for: engineID, in: &statesByEngineID)
+            mutate(&current)
+            statesByEngineID[engineID] = current
+        }
+        record(operation: operation)
+    }
+
+    private func state(
+        for engineID: UUID,
+        in states: inout [UUID: QuillAudioEngineState]
+    ) -> QuillAudioEngineState {
+        if let state = states[engineID] {
+            return state
+        }
+        let state = QuillAudioEngineState(engineID: engineID)
+        states[engineID] = state
+        return state
+    }
+
+    private func record(operation: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: operation,
+            severity: .info,
+            message: "Audio engine state is tracked by the QuillKit compatibility backend."
+        )
+    }
+}
+
 // Source-level compatibility names used by Apple app ports whose originals
 // wrapped AppKit, Sparkle, or hotkey platform services.
 public typealias Accessibility = QuillAccessibilityService

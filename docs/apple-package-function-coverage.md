@@ -402,9 +402,9 @@ subset lives in `QuillUIKit`.
 | `AVSpeechSynthesisVoice` initializers, `speechVoices()`, and voice metadata | Partial | Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands. |
 | `AVAudioSession.sharedInstance()`, `setCategory`, `setMode`, `setActive`, category/mode/options/active readback | Partial | Routes through shared `QuillAudioSessionService` process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet. |
 | `AVPlayer.init(url:)` | Compile-only | Stores URL/player shape only. |
-| `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Fallback | Records diagnostics and toggles `isRunning`; no audio I/O. |
-| `AVAudioEngine.attach(_:)` / `connect(...)` | Compile-only | No real graph processing. |
-| `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Fallback | Records diagnostic, no audio tap stream. |
+| `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Partial | Routes through `QuillAudioEngineService`; tracks prepared/running state, no audio I/O. |
+| `AVAudioEngine.attach(_:)` / `connect(...)` | Partial | Tracks process-local graph attachment and connection counts; no real graph processing. |
+| `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Partial | Tracks process-local tap registration/removal; no audio tap stream. |
 | `AVAudioFormat`, `AVAudioPCMBuffer`, `AVAudioTime` initializers | Compile-only | Data containers only. |
 | Real synthesis, playback, capture, engine graph processing, media decoding | Incomplete | Required for AVFoundation Parity. |
 

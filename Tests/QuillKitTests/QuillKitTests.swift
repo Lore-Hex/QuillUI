@@ -340,6 +340,49 @@ struct QuillKitTests {
         #expect(operations.contains("audioSession.setActive"))
     }
 
+    @Test("audio engine service tracks lifecycle graph and taps")
+    func audioEngineServiceTracksLifecycleGraphAndTaps() {
+        let service = QuillAudioEngineService()
+        let engineID = UUID()
+        let nodeID = UUID()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.registerEngine(engineID)
+        #expect(service.state(for: engineID) == QuillAudioEngineState(engineID: engineID))
+
+        service.prepare(engineID: engineID)
+        service.start(engineID: engineID)
+        service.attachNode(engineID: engineID)
+        service.connect(engineID: engineID)
+        service.installTap(engineID: engineID, nodeID: nodeID, bus: 0)
+
+        var state = service.state(for: engineID)
+        #expect(state.isPrepared)
+        #expect(state.isRunning)
+        #expect(state.attachedNodeCount == 1)
+        #expect(state.connectionCount == 1)
+        #expect(state.tapCount == 1)
+
+        service.removeTap(engineID: engineID, nodeID: nodeID, bus: 0)
+        service.stop(engineID: engineID)
+        state = service.state(for: engineID)
+        #expect(state.tapCount == 0)
+        #expect(state.isRunning == false)
+
+        service.reset(engineID: engineID)
+        #expect(service.state(for: engineID) == QuillAudioEngineState(engineID: engineID))
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioEngine.prepare"))
+        #expect(operations.contains("audioEngine.start"))
+        #expect(operations.contains("audioEngine.attach"))
+        #expect(operations.contains("audioEngine.connect"))
+        #expect(operations.contains("audioEngine.installTap"))
+        #expect(operations.contains("audioEngine.removeTap"))
+        #expect(operations.contains("audioEngine.stop"))
+        #expect(operations.contains("audioEngine.reset"))
+    }
+
     @Test("speech backend invokes lifecycle callbacks in order")
     func speechBackendInvokesCallbacksInOrder() {
         let backend = QuillSpeechBackend()
