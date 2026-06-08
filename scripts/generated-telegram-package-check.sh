@@ -36,6 +36,7 @@ default_packages=(
   MergeLists
   NumberPluralization
   TGCurrencyFormatter
+  TGPassportMRZ
 )
 
 if [[ -n "${QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES:-}" ]]; then
