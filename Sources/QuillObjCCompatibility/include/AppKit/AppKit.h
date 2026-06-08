@@ -31,6 +31,8 @@ typedef struct CGRect {
 @end
 
 @interface NSView : NSObject
+@property (nonatomic, readonly) NSArray<NSView *> *subviews;
+@property (nonatomic, readonly) NSString *className;
 @end
 
 @interface NSWindow : NSObject

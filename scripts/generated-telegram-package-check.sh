@@ -33,6 +33,7 @@ default_packages=(
   EDSunriseSet
   FoundationUtils
   GZIP
+  HackUtils
   MergeLists
   NumberPluralization
   TGCurrencyFormatter

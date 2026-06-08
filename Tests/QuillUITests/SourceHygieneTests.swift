@@ -2482,6 +2482,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Foundation/Foundation.h"),
             encoding: .utf8
         )
+        let objcAppKitHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AppKit/AppKit.h"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains(".library(name: \"QuillObjCCompatibility\", targets: [\"QuillObjCCompatibility\"])"))
         #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
@@ -2503,6 +2507,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("EDSunriseSet"))
         #expect(telegramPackageCheck.contains("FoundationUtils"))
         #expect(telegramPackageCheck.contains("GZIP"))
+        #expect(telegramPackageCheck.contains("HackUtils"))
         #expect(telegramPackageCheck.contains("MergeLists"))
         #expect(telegramPackageCheck.contains("NumberPluralization"))
         #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
@@ -2521,8 +2526,12 @@ struct SourceHygieneTests {
         #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCharacterSet : NSObject"))
+        #expect(objcFoundationHeader.contains("@protocol NSFastEnumeration"))
         #expect(objcFoundationHeader.contains("typedef NS_ENUM(NSInteger, NSDateFormatterStyle)"))
         #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
+        #expect(objcAppKitHeader.contains("@interface NSView : NSObject"))
+        #expect(objcAppKitHeader.contains("NSArray<NSView *> *subviews"))
+        #expect(objcAppKitHeader.contains("NSString *className"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")

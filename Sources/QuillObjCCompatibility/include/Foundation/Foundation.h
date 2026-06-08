@@ -132,10 +132,24 @@ static inline NSRange NSMakeRange(NSUInteger location, NSUInteger length) {
 @class NSNumberFormatter;
 @class NSCharacterSet;
 
+typedef struct {
+    unsigned long state;
+    __unsafe_unretained id *itemsPtr;
+    unsigned long *mutationsPtr;
+    unsigned long extra[5];
+} NSFastEnumerationState;
+
+@protocol NSFastEnumeration
+- (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)state objects:(__unsafe_unretained id [])buffer count:(NSUInteger)len;
+@end
+
 __attribute__((objc_root_class))
 @interface NSObject
 + (instancetype)alloc;
++ (Class)class;
 - (instancetype)init;
+- (Class)class;
+- (BOOL)respondsToSelector:(SEL)aSelector;
 - (void)doesNotRecognizeSelector:(SEL)aSelector;
 @property (nonatomic, readonly) NSString *description;
 @end
@@ -190,7 +204,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 - (int)intValue;
 @end
 
-@interface NSArray<ObjectType> : NSObject
+@interface NSArray<ObjectType> : NSObject <NSFastEnumeration>
 @property (nonatomic, readonly) NSUInteger count;
 @property (nonatomic, readonly) ObjectType firstObject;
 @property (nonatomic, readonly) ObjectType lastObject;
@@ -340,6 +354,8 @@ typedef NS_ENUM(NSUInteger, NSNumberFormatterStyle) {
 @end
 
 NSString *NSLocalizedString(NSString *key, NSString *comment);
+NSString *NSStringFromClass(Class aClass);
+void NSLog(NSString *format, ...);
 
 typedef long dispatch_once_t;
 static inline void dispatch_once(dispatch_once_t *predicate, void (^block)(void)) {
