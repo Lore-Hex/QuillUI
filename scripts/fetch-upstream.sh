@@ -1123,6 +1123,11 @@ subs = [
     # QuotedReplyManager sticker options: [String: Bool] doesn't coerce to CFDictionary on
     # swift-corelibs; the inert CGImageSourceCreateWithData ignores options, so nil suffices.
     ("[kCGImageSourceShouldCache: false] as CFDictionary", "nil as CFDictionary?"),
+    # DebugLogger: the CF URL key constant kCFURLContentModificationDateKey is absent on
+    # swift-corelibs; use the native URLResourceKey case (the call wants [URLResourceKey]).
+    ("kCFURLContentModificationDateKey as URLResourceKey", "URLResourceKey.contentModificationDateKey"),
+    # DebugLogger: swift-corelibs ProcessInfo has no public init -> use the shared instance.
+    ("ProcessInfo()", "ProcessInfo.processInfo"),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
