@@ -1725,26 +1725,6 @@ struct QuillDataSourceLoweringTests {
 
         // MARK: - OnAppear / OnDisappear GTK extensions
 
-        extension TaskView: GTKRenderable, GTKDescribable {
-            public func gtkDescribeNode() -> GTK4DescriptorNode {
-                return GTK4DescriptorNode(
-                    kind: .task,
-                    typeName: "TaskView",
-                    children: [gtkDescribeView(content)]
-                )
-            }
-
-            public func gtkCreateWidget() -> OpaquePointer {
-                let widget = widgetFromOpaque(gtkRenderView(content))
-                gtkAttachStandaloneTaskLifecycle(
-                    to: widget,
-                    priority: priority,
-                    action: bindTaskActionToCurrentEnvironment(action)
-                )
-                return opaqueFromWidget(widget)
-            }
-        }
-
         extension OnAppearView: GTKRenderable {
             public func gtkCreateWidget() -> OpaquePointer {
                 let widget = widgetFromOpaque(gtkRenderView(content))
@@ -2344,9 +2324,6 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("remainingTicks: Int = 180"))
         #expect(!patchedRenderer.contains("remainingTicks: Int = 4"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
-        #expect(patchedRenderer.contains("gtkCollectTaskPayload("))
-        #expect(patchedRenderer.contains("GTK4TaskPayload("))
-        #expect(patchedRenderer.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))
         #expect(!patchedRenderer.contains("gtk_widget_grab_focus(widget)"))
@@ -2561,11 +2538,9 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("extension TaskView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("extension OnAppearView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("gtkAttachStandaloneTaskLifecycle("))
-        #expect(rendererSource.contains("gtkCollectTaskPayload("))
-        #expect(rendererSource.contains("GTK4TaskPayload("))
-        #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("gtkCollectOnAppearPayload("))
         #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
+        #expect(!rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("let boundAction = bindActionToCurrentEnvironment(action)"))
         #expect(rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))
     }
