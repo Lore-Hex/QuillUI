@@ -9,6 +9,7 @@
 #   scripts/fetch-upstream.sh              # fetch every upstream
 #   scripts/fetch-upstream.sh enchanted    # fetch a specific one
 #   scripts/fetch-upstream.sh enchanted netnewswire
+#   scripts/fetch-upstream.sh telegram
 #
 # Idempotent: each upstream is `git clone --depth=1` on first run
 # and `git fetch + reset --hard FETCH_HEAD` on subsequent runs.
@@ -1276,6 +1277,9 @@ for name in "${want[@]}"; do
         codeeditsymbols)
             fetch_repo codeeditsymbols https://github.com/CodeEditApp/CodeEditSymbols.git
             patch_codeeditsymbols
+            ;;
+        telegram)
+            fetch_repo telegram-swift https://github.com/overtake/TelegramSwift.git master
             ;;
         *)
             echo "unknown upstream: $name" >&2
