@@ -97,9 +97,16 @@ public class TSQuotedMessage: NSObject, NSSecureCoding, NSCopying {
         super.init()
     }
 
-    /// Used when restoring quoted messages from backups.
-    public class func quotedMessageFromBackup(
-        targetMessageTimestamp timestamp: NSNumber?,
+    /// Used when restoring quoted messages from backups. Mirrors the ObjC factory
+    /// `+quotedMessageFromBackupWithTargetMessageTimestamp:...`, which Swift's
+    /// importer bridges to `init(fromBackupWithTargetMessageTimestamp:...)`
+    /// (stripping the `quotedMessage` type-name prefix). The sole caller,
+    /// BackupArchiveTSMessageContentsArchiver, uses that initializer form — so this
+    /// is a `convenience init`, not a class func. The target timestamp is a
+    /// nullable NSNumber (0 == "no timestamp" when nil), matching the `.h`; it
+    /// forwards to the receiving designated initializer.
+    public convenience init(
+        fromBackupWithTargetMessageTimestamp timestamp: NSNumber?,
         authorAddress: SignalServiceAddress,
         body: String?,
         bodyRanges: MessageBodyRanges?,
@@ -108,9 +115,8 @@ public class TSQuotedMessage: NSObject, NSSecureCoding, NSCopying {
         isGiftBadge: Bool,
         isTargetMessageViewOnce: Bool,
         isPoll: Bool
-    ) -> TSQuotedMessage {
-        owsAssertDebug(authorAddress.isValid)
-        return TSQuotedMessage(
+    ) {
+        self.init(
             timestamp: timestamp?.uint64Value ?? 0,
             authorAddress: authorAddress,
             body: body,
