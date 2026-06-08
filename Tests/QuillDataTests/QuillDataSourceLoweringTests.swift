@@ -781,6 +781,7 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_REPLY"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_SCREENSHOT"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XVFB_LOG"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MOCK_START_DEADLINE"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_DEADLINE"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE"))

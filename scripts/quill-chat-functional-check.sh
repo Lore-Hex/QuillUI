@@ -12,6 +12,7 @@ MOCK_LOG_PATH="${QUILLUI_FUNCTIONAL_MOCK_LOG:-/tmp/quill-chat-functional-ollama.
 RUN_HOME="${QUILLUI_FUNCTIONAL_HOME:-$OUTPUT_DIR/quill-chat-functional-home}"
 RELAUNCH_SCREENSHOT_PATH="${QUILLUI_FUNCTIONAL_RELAUNCH_SCREENSHOT:-${SCREENSHOT_PATH%.png}-relaunch.png}"
 VERIFY_RELAUNCH="${QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH:-0}"
+XVFB_LOG_PATH="${QUILLUI_FUNCTIONAL_XVFB_LOG:-$OUTPUT_DIR/quill-chat-functional-xvfb.log}"
 MESSAGE_TEXT="${QUILLUI_FUNCTIONAL_MESSAGE:-hello from linux}"
 REPLY_TEXT="${QUILLUI_FUNCTIONAL_REPLY:-Linux composer reply}"
 MODEL_NAME="${QUILLUI_FUNCTIONAL_MODEL:-llava:latest}"
@@ -117,7 +118,7 @@ while time.time() < deadline:
 raise SystemExit("mock Ollama did not start")
 PY
 
-quillui_start_xvfb "$DISPLAY_ID" "$SCREEN_SIZE" /tmp/quill-chat-functional-xvfb.log xvfb_pid
+quillui_start_xvfb "$DISPLAY_ID" "$SCREEN_SIZE" "$XVFB_LOG_PATH" xvfb_pid
 if command -v openbox >/dev/null 2>&1; then
   DISPLAY="$DISPLAY_ID" openbox >/tmp/quill-chat-functional-openbox.log 2>&1 &
   openbox_pid=$!
