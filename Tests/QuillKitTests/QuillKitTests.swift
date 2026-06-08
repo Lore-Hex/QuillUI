@@ -154,6 +154,7 @@ struct QuillKitTests {
         #expect(statuses[.speechRecognition] == .emulated)
         #expect(statuses[.localAuthentication] == .emulated)
         #expect(statuses[.globalShortcuts] == .emulated)
+        #expect(statuses[.audioSession] == .emulated)
         #expect(statuses[.notifications] == .emulated)
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -310,6 +311,33 @@ struct QuillKitTests {
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
         #expect(operations.contains("notifications.registerForRemoteNotifications"))
+    }
+
+    @Test("audio session service tracks category mode options and active state")
+    func audioSessionServiceTracksCategoryModeOptionsAndActiveState() {
+        let service = QuillAudioSessionService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.category == .ambient)
+        #expect(service.mode == .spokenAudio)
+        #expect(service.categoryOptionsRawValue == 0)
+        #expect(service.isActive == false)
+
+        service.setCategory(.playAndRecord, mode: .videoChat, optionsRawValue: 12)
+        #expect(service.category == .playAndRecord)
+        #expect(service.mode == .videoChat)
+        #expect(service.categoryOptionsRawValue == 12)
+
+        service.setActive(true, optionsRawValue: 1)
+        #expect(service.isActive)
+        #expect(service.setActiveOptionsRawValue == 1)
+        service.setActive(false)
+        #expect(service.isActive == false)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioSession.setCategory"))
+        #expect(operations.contains("audioSession.setActive"))
     }
 
     @Test("speech backend invokes lifecycle callbacks in order")

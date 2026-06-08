@@ -140,10 +140,62 @@ public final class AVAudioSession: @unchecked Sendable {
         public static let notifyOthersOnDeactivation = SetActiveOptions(rawValue: 1 << 0)
     }
 
-    public init() {}
-    public static func sharedInstance() -> AVAudioSession { AVAudioSession() }
-    public func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws {}
-    public func setActive(_ active: Bool, options: SetActiveOptions = []) throws {}
+    private static let shared = AVAudioSession()
+    private let service: QuillAudioSessionService
+
+    public init() {
+        service = .shared
+    }
+
+    private init(service: QuillAudioSessionService = .shared) {
+        self.service = service
+    }
+
+    public static func sharedInstance() -> AVAudioSession { shared }
+
+    public var category: Category {
+        Category(rawValue: service.category.rawValue) ?? .ambient
+    }
+
+    public var mode: Mode {
+        Mode(rawValue: service.mode.rawValue) ?? .spokenAudio
+    }
+
+    public var categoryOptions: CategoryOptions {
+        CategoryOptions(rawValue: service.categoryOptionsRawValue)
+    }
+
+    public var isActive: Bool {
+        service.isActive
+    }
+
+    public func setCategory(_ category: Category) throws {
+        try setCategory(category, mode: mode, options: categoryOptions)
+    }
+
+    public func setCategory(_ category: Category, mode: Mode) throws {
+        try setCategory(category, mode: mode, options: [])
+    }
+
+    public func setCategory(_ category: Category, options: CategoryOptions = []) throws {
+        try setCategory(category, mode: mode, options: options)
+    }
+
+    public func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws {
+        service.setCategory(
+            QuillAudioSessionCategory(rawValue: category.rawValue) ?? .ambient,
+            mode: QuillAudioSessionMode(rawValue: mode.rawValue) ?? .spokenAudio,
+            optionsRawValue: options.rawValue
+        )
+    }
+
+    public func setMode(_ mode: Mode) throws {
+        try setCategory(category, mode: mode, options: categoryOptions)
+    }
+
+    public func setActive(_ active: Bool, options: SetActiveOptions = []) throws {
+        service.setActive(active, optionsRawValue: options.rawValue)
+    }
 }
 
 public final class AVPlayer: @unchecked Sendable {

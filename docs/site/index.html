@@ -806,7 +806,7 @@
 <tr><td><code>AVSpeechSynthesizer.continueSpeaking()</code> / <code>pauseSpeaking(at:)</code></td><td>Compile-only</td><td>Return false.</td></tr>
 <tr><td><code>AVSpeechUtterance.init(string:)</code></td><td>Usable</td><td>Stores source-visible utterance text and metadata.</td></tr>
 <tr><td><code>AVSpeechSynthesisVoice</code> initializers, <code>speechVoices()</code>, and voice metadata</td><td>Partial</td><td>Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands.</td></tr>
-<tr><td><code>AVAudioSession.sharedInstance()</code>, <code>setCategory</code>, <code>setActive</code></td><td>Fallback</td><td>No native audio-session effect.</td></tr>
+<tr><td><code>AVAudioSession.sharedInstance()</code>, <code>setCategory</code>, <code>setMode</code>, <code>setActive</code>, category/mode/options/active readback</td><td>Partial</td><td>Routes through shared <code>QuillAudioSessionService</code> process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet.</td></tr>
 <tr><td><code>AVPlayer.init(url:)</code></td><td>Compile-only</td><td>Stores URL/player shape only.</td></tr>
 <tr><td><code>AVAudioEngine.prepare()</code> / <code>start()</code> / <code>stop()</code> / <code>reset()</code></td><td>Fallback</td><td>Records diagnostics and toggles <code>isRunning</code>; no audio I/O.</td></tr>
 <tr><td><code>AVAudioEngine.attach(_:)</code> / <code>connect(...)</code></td><td>Compile-only</td><td>No real graph processing.</td></tr>

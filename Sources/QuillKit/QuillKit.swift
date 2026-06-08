@@ -35,6 +35,7 @@ public enum QuillKitCapability: String, CaseIterable, Sendable {
     case launchAtLogin
     case updater
     case certificateTrust
+    case audioSession
     case photoPicker
     case secureStorage
     case notifications
@@ -54,7 +55,7 @@ public enum QuillKitCapabilities {
         switch capability {
         case .clipboard, .speechSynthesis, .speechRecognition, .localAuthentication:
             return .emulated
-        case .globalShortcuts:
+        case .globalShortcuts, .audioSession:
             return .emulated
         case .notifications:
             return .emulated
@@ -1454,6 +1455,99 @@ public final class QuillNotificationService: @unchecked Sendable {
         lock.withLock {
             remoteNotificationsRegisteredValue = false
         }
+    }
+}
+
+public enum QuillAudioSessionCategory: Int, Sendable {
+    case ambient = 0
+    case soloAmbient = 1
+    case playback = 2
+    case record = 3
+    case playAndRecord = 4
+    case multiRoute = 5
+}
+
+public enum QuillAudioSessionMode: Int, Sendable {
+    case videoChat = 0
+    case videoRecording = 1
+    case measurement = 2
+    case moviePlayback = 3
+    case spokenAudio = 4
+}
+
+public final class QuillAudioSessionService: @unchecked Sendable {
+    public static let shared = QuillAudioSessionService()
+
+    private let lock = NSLock()
+    private var categoryValue: QuillAudioSessionCategory = .ambient
+    private var modeValue: QuillAudioSessionMode = .spokenAudio
+    private var categoryOptionsRawValueValue: UInt = 0
+    private var activeValue = false
+    private var setActiveOptionsRawValueValue: UInt = 0
+
+    public init() {}
+
+    public var category: QuillAudioSessionCategory {
+        lock.withLock { categoryValue }
+    }
+
+    public var mode: QuillAudioSessionMode {
+        lock.withLock { modeValue }
+    }
+
+    public var categoryOptionsRawValue: UInt {
+        lock.withLock { categoryOptionsRawValueValue }
+    }
+
+    public var isActive: Bool {
+        lock.withLock { activeValue }
+    }
+
+    public var setActiveOptionsRawValue: UInt {
+        lock.withLock { setActiveOptionsRawValueValue }
+    }
+
+    public func reset() {
+        lock.withLock {
+            categoryValue = .ambient
+            modeValue = .spokenAudio
+            categoryOptionsRawValueValue = 0
+            activeValue = false
+            setActiveOptionsRawValueValue = 0
+        }
+    }
+
+    public func setCategory(
+        _ category: QuillAudioSessionCategory,
+        mode: QuillAudioSessionMode,
+        optionsRawValue: UInt = 0
+    ) {
+        lock.withLock {
+            categoryValue = category
+            modeValue = mode
+            categoryOptionsRawValueValue = optionsRawValue
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "audioSession.setCategory",
+            severity: .info,
+            message: "Audio session category and mode are tracked by the QuillKit compatibility backend."
+        )
+    }
+
+    public func setActive(_ active: Bool, optionsRawValue: UInt = 0) {
+        lock.withLock {
+            activeValue = active
+            setActiveOptionsRawValueValue = optionsRawValue
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "audioSession.setActive",
+            severity: .info,
+            message: "Audio session active state is tracked by the QuillKit compatibility backend."
+        )
     }
 }
 

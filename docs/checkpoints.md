@@ -3293,3 +3293,14 @@ state through shared `QuillNotificationService`. The backend is process-local
 and deterministic, so ports can read back notification state without app-local
 rewrites. Native libnotify or org.freedesktop.Notifications presentation and
 APNs-equivalent push integration remain backend work.
+
+## Checkpoint 198: AVAudioSession Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVAudioSession.sharedInstance()` now returns a singleton shim backed by
+`QuillAudioSessionService`. Category, mode, category options, active state, and
+set-active options are tracked in shared QuillKit state with diagnostics, and
+common category/mode overloads compile. Native PipeWire/ALSA/JACK session
+policy and real audio routing remain backend work.

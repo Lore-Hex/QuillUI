@@ -683,6 +683,40 @@ struct CompatibilityModuleTests {
         QuillSpeechBackend.shared.resetSpeechSynthesis()
     }
 
+    @Test("AVFoundation audio session routes through QuillKit")
+    func avFoundationAudioSessionRoutesThroughQuillKit() throws {
+        QuillAudioSessionService.shared.reset()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let session = AVAudioSession.sharedInstance()
+        let secondReference = AVAudioSession.sharedInstance()
+        #expect(session === secondReference)
+        #expect(session.category == .ambient)
+        #expect(session.mode == .spokenAudio)
+        #expect(session.isActive == false)
+
+        try session.setCategory(.playAndRecord, mode: .videoChat, options: [.allowBluetooth, .defaultToSpeaker])
+        #expect(secondReference.category == .playAndRecord)
+        #expect(secondReference.mode == .videoChat)
+        #expect(secondReference.categoryOptions.contains(.allowBluetooth))
+        #expect(secondReference.categoryOptions.contains(.defaultToSpeaker))
+        #expect(QuillAudioSessionService.shared.category == .playAndRecord)
+
+        try secondReference.setMode(.measurement)
+        #expect(session.mode == .measurement)
+        #expect(QuillAudioSessionService.shared.mode == .measurement)
+
+        try session.setActive(true, options: [.notifyOthersOnDeactivation])
+        #expect(secondReference.isActive)
+        #expect(QuillAudioSessionService.shared.setActiveOptionsRawValue == 1)
+        try session.setActive(false)
+        #expect(secondReference.isActive == false)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioSession.setCategory"))
+        #expect(operations.contains("audioSession.setActive"))
+    }
+
     @Test("Sparkle updater routes through QuillKit")
     func sparkleUpdaterRoutesThroughQuillKit() {
         QuillUpdateService.shared.reset()
