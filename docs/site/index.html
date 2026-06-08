@@ -444,8 +444,8 @@
 <tr><td><code>NetworkExtension</code></td><td>None yet beyond compile/fallback shapes.</td><td>Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete.</td></tr>
 <tr><td><code>CoreGraphics</code></td><td>None yet beyond compile/fallback shapes.</td><td>Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete.</td></tr>
 <tr><td><code>Security</code></td><td><code>SecRandomCopyBytes</code>, process-local <code>SecKeyCreateWithData</code>, <code>SecKeyCreateRandomKey</code>, <code>SecKeyGeneratePair</code>, <code>SecKeyCopyPublicKey</code>, <code>SecKeyGetBlockSize</code>, <code>SecKeyCopyAttributes</code>, <code>SecKeyCopyExternalRepresentation</code>, metadata-gated <code>SecKeyIsAlgorithmSupported</code>, deterministic ECDSA message/digest <code>SecKeyCreateSignature</code> and <code>SecKeyVerifySignature</code> compatibility, deterministic symmetric ECDH <code>SecKeyCopyKeyExchangeResult</code> compatibility, key-exchange parameter constants, synthesized <code>SecKey</code> references, <code>SecItemAdd</code>, <code>SecItemCopyMatching</code>, <code>SecItemUpdate</code>, <code>SecItemDelete</code> generic-password, internet-password, and key-class rows, persistent-reference returns/lookups/deletes, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, <code>kSecAttrSynchronizableAny</code>, server/security-domain/protocol/authentication/port/path endpoint identity, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and current keychain constants.</td><td>Native secure keychain persistence/access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete.</td></tr>
-<tr><td><code>AVFoundation</code> / <code>AVKit</code></td><td>None yet beyond compile/fallback shapes.</td><td>Speech synthesis, audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete.</td></tr>
-<tr><td><code>Speech</code></td><td>None yet beyond compile/fallback shapes.</td><td>Authorization, recognizer availability, recognition tasks, audio transcription, and audio bridge behavior are incomplete.</td></tr>
+<tr><td><code>AVFoundation</code> / <code>AVKit</code></td><td>Speech synthesis lifecycle callback fallback.</td><td>Audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete.</td></tr>
+<tr><td><code>Speech</code></td><td>Configurable authorization, recognizer availability, recognition-result delivery, request buffer counting, and task cancellation state.</td><td>Native microphone/audio capture, native transcription, and audio bridge behavior are incomplete.</td></tr>
 <tr><td><code>PhotosUI</code> / <code>Photos</code></td><td>None yet beyond compile-compatible shapes.</td><td>Photo-library authorization, asset fetching, picker UI, transferable item loading, and photo service behavior are incomplete.</td></tr>
 <tr><td><code>Charts</code>, <code>StoreKit</code>, <code>TipKit</code></td><td>None yet beyond compile-compatible shapes.</td><td>Chart marks/rendering/axes/scales/interaction/accessibility, product lookup, purchases, transactions, subscriptions, tip rules, persistence, display frequency, and popovers are incomplete.</td></tr>
 <tr><td><code>Observation</code></td><td>None yet at <code>Usable</code>; <code>@Observable</code> lowering is partial.</td><td>Tracking, invalidation, access lists, registrar behavior, and observation parity are incomplete.</td></tr>
@@ -826,13 +826,14 @@
 <br>
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
-<tr><td><code>SFSpeechRecognizer.init(locale:)</code></td><td>Fallback</td><td>Creates unavailable recognizer shape.</td></tr>
-<tr><td><code>SFSpeechRecognizer.authorizationStatus()</code></td><td>Fallback</td><td>Returns <code>.denied</code>.</td></tr>
-<tr><td><code>SFSpeechRecognizer.requestAuthorization(_:)</code></td><td>Fallback</td><td>Records diagnostic and returns <code>.denied</code>.</td></tr>
-<tr><td><code>SFSpeechRecognizer.recognitionTask(with:resultHandler:)</code></td><td>Fallback</td><td>Records diagnostic and returns task object only.</td></tr>
-<tr><td><code>SFSpeechAudioBufferRecognitionRequest.append(_:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
-<tr><td><code>SFSpeechRecognitionTask.cancel()</code></td><td>Compile-only</td><td>No-op.</td></tr>
-<tr><td>Real speech recognition, audio transcription, authorization bridge</td><td>Incomplete</td><td>Required for Speech Parity.</td></tr>
+<tr><td><code>SFSpeechRecognizer.init()</code> / <code>init(locale:)</code></td><td>Usable</td><td>Creates a recognizer shape backed by QuillKit speech-recognition state.</td></tr>
+<tr><td><code>SFSpeechRecognizer.authorizationStatus()</code></td><td>Partial</td><td>Returns QuillKit's configured recognition authorization state; Linux default remains <code>.denied</code>.</td></tr>
+<tr><td><code>SFSpeechRecognizer.requestAuthorization(_:)</code></td><td>Partial</td><td>Records diagnostics and returns QuillKit's configured authorization state.</td></tr>
+<tr><td><code>SFSpeechRecognizer.isAvailable</code></td><td>Partial</td><td>Reads/writes QuillKit's configured recognition availability state.</td></tr>
+<tr><td><code>SFSpeechRecognizer.recognitionTask(with:resultHandler:)</code></td><td>Partial</td><td>Records diagnostics, returns a cancellable task object, and delivers configured compatibility results or errors.</td></tr>
+<tr><td><code>SFSpeechAudioBufferRecognitionRequest.append(_:)</code></td><td>Usable</td><td>Tracks appended buffer count for source-visible request state.</td></tr>
+<tr><td><code>SFSpeechRecognitionTask.cancel()</code> / <code>isCancelled</code></td><td>Usable</td><td>Records task cancellation state.</td></tr>
+<tr><td>Native speech recognition, audio transcription, microphone capture, audio bridge behavior</td><td>Incomplete</td><td>Required for Speech Parity.</td></tr>
 </table>
 <br>
 <h2 id="photosui-and-photos">PhotosUI and Photos</h2>
@@ -1101,8 +1102,9 @@
 <tr><td><code>getShortcut(for:)</code> / <code>setShortcut(_:for:)</code></td><td>Usable</td><td>Stores shortcuts in <code>UserDefaults</code> with locking.</td></tr>
 <tr><td><code>reset(_:)</code> / <code>resetAll()</code></td><td>Usable</td><td>Restores defaults or clears stored shortcut values.</td></tr>
 <tr><td><code>KeyboardShortcuts.Recorder.body</code></td><td>Partial</td><td>Renders a text label for current settings screens.</td></tr>
-<tr><td><code>View.onKeyboardShortcut(...)</code></td><td>Compile-only</td><td>Returns <code>self</code>; actions are not registered.</td></tr>
-<tr><td>Native recorder UI, global shortcut registration, event delivery, conflict handling</td><td>Incomplete</td><td>Required for KeyboardShortcuts parity.</td></tr>
+<tr><td><code>View.onKeyboardShortcut(...)</code></td><td>Partial</td><td>Registers key-down handlers through QuillKit's process-local hot-key registry and keeps direct test/helper triggering for key-up handlers.</td></tr>
+<tr><td><code>KeyboardShortcuts.trigger(_ shortcut:)</code></td><td>Usable</td><td>Test/helper entry point dispatches registered key-down shortcuts through the shared QuillKit registry.</td></tr>
+<tr><td>Native recorder UI and desktop-global shortcut capture</td><td>Incomplete</td><td>Required for full KeyboardShortcuts parity.</td></tr>
 </table>
 <br>
 <h3 id="magnet">Magnet</h3>

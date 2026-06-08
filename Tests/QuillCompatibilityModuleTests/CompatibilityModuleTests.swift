@@ -611,6 +611,7 @@ struct CompatibilityModuleTests {
         let overrideShortcut = KeyboardShortcuts.Shortcut(.space, modifiers: [.command, .shift])
         let name = KeyboardShortcuts.Name("togglePanelMode1", default: defaultShortcut)
 
+        QuillHotkeyService.shared.unregisterAll()
         KeyboardShortcuts.reset(name)
         KeyboardShortcuts.resetAllHandlers()
         #expect(KeyboardShortcuts.getShortcut(for: name) == defaultShortcut)
@@ -629,18 +630,28 @@ struct CompatibilityModuleTests {
         }
         #expect(KeyboardShortcuts.trigger(name, type: .keyDown))
         #expect(handledEvents == ["down"])
+        #expect(KeyboardShortcuts.trigger(defaultShortcut))
+        #expect(handledEvents == ["down", "down"])
+
+        KeyboardShortcuts.setShortcut(overrideShortcut, for: name)
+        #expect(!KeyboardShortcuts.trigger(defaultShortcut))
+        #expect(KeyboardShortcuts.trigger(overrideShortcut))
+        #expect(QuillHotkeyService.shared.trigger(key: "space", modifiers: ["command", "shift"]))
+        #expect(handledEvents == ["down", "down", "down", "down"])
         #expect(!KeyboardShortcuts.trigger(name, type: .keyUp))
 
         _ = Text("Shortcut").onKeyboardShortcut(name, type: .keyUp) {
             handledEvents.append("up")
         }
         #expect(KeyboardShortcuts.trigger(name, type: .keyUp))
-        #expect(handledEvents == ["down", "up"])
+        #expect(handledEvents == ["down", "down", "down", "down", "up"])
 
         KeyboardShortcuts.resetAllHandlers()
         #expect(!KeyboardShortcuts.trigger(name, type: .keyDown))
+        #expect(!KeyboardShortcuts.trigger(overrideShortcut))
 
         KeyboardShortcuts.resetAll()
+        QuillHotkeyService.shared.unregisterAll()
     }
 
     @Test("Magnet hot keys use the shared QuillKit registry")

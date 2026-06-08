@@ -3199,3 +3199,33 @@ methods, while still leaving true desktop-global event capture as the remaining
 native-backend gap. The pass also fixes the ObjC CoreFoundation compatibility
 header by including the standard C definition for `NULL`, unblocking current
 Linux CI before it reaches the Swift test graph.
+
+## Checkpoint 191: QuillKit Speech Recognition State
+
+Status: implemented locally; guarded by QuillKit tests, Linux `Speech` target
+build, and CI follow-up.
+
+Speech recognition compatibility is now owned by QuillKit instead of hard-coded
+inside the `Speech` module. The shared backend exposes configurable
+authorization, availability, configured recognition results, explicit
+recognition errors, and cancellable task state. The Linux `Speech` shim routes
+`SFSpeechRecognizer.authorizationStatus()`, `requestAuthorization`,
+`isAvailable`, `recognitionTask`, request buffer appends, and task cancellation
+through that backend. Native microphone capture and real transcription remain
+the next backend work, but Enchanted-style source can now exercise speech flows
+without app-local rewrites or a permanently denied shim.
+
+## Checkpoint 192: KeyboardShortcuts Shared Hot-Key Registry
+
+Status: implemented locally; guarded by Linux `KeyboardShortcuts` target build,
+Linux compatibility test, GTK renderer build fix, and CI follow-up.
+
+The Linux `KeyboardShortcuts` shim now depends on QuillKit and registers
+key-down `View.onKeyboardShortcut` handlers in the shared process-local
+hot-key registry. Shortcut changes re-register the active handler, handler
+reset unregisters the registry entry, and the public trigger helper can dispatch
+by shortcut as well as by name. This keeps Enchanted source unchanged while
+moving another app-facing package out of isolated in-memory behavior and into
+the reusable QuillKit compatibility layer. The pass also restores the missing
+`gtkScheduleOnAppear` helper in the vendored GTK renderer so Linux builds no
+longer fail before reaching the compatibility targets.

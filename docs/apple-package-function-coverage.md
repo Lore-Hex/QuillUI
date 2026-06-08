@@ -50,8 +50,8 @@ is `Usable` or `Parity`.
 | `NetworkExtension` | None yet beyond compile/fallback shapes. | Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete. |
 | `CoreGraphics` | None yet beyond compile/fallback shapes. | Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete. |
 | `Security` | `SecRandomCopyBytes`, process-local `SecKeyCreateWithData`, `SecKeyCreateRandomKey`, `SecKeyGeneratePair`, `SecKeyCopyPublicKey`, `SecKeyGetBlockSize`, `SecKeyCopyAttributes`, `SecKeyCopyExternalRepresentation`, metadata-gated `SecKeyIsAlgorithmSupported`, deterministic ECDSA message/digest `SecKeyCreateSignature` and `SecKeyVerifySignature` compatibility, deterministic symmetric ECDH `SecKeyCopyKeyExchangeResult` compatibility, key-exchange parameter constants, synthesized `SecKey` references, `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, `SecItemDelete` generic-password, internet-password, and key-class rows, persistent-reference returns/lookups/deletes, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, `kSecAttrSynchronizableAny`, server/security-domain/protocol/authentication/port/path endpoint identity, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and current keychain constants. | Native secure keychain persistence/access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete. |
-| `AVFoundation` / `AVKit` | None yet beyond compile/fallback shapes. | Speech synthesis, audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete. |
-| `Speech` | None yet beyond compile/fallback shapes. | Authorization, recognizer availability, recognition tasks, audio transcription, and audio bridge behavior are incomplete. |
+| `AVFoundation` / `AVKit` | Speech synthesis lifecycle callback fallback. | Audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete. |
+| `Speech` | Configurable authorization, recognizer availability, recognition-result delivery, request buffer counting, and task cancellation state. | Native microphone/audio capture, native transcription, and audio bridge behavior are incomplete. |
 | `PhotosUI` / `Photos` | None yet beyond compile-compatible shapes. | Photo-library authorization, asset fetching, picker UI, transferable item loading, and photo service behavior are incomplete. |
 | `Charts`, `StoreKit`, `TipKit` | None yet beyond compile-compatible shapes. | Chart marks/rendering/axes/scales/interaction/accessibility, product lookup, purchases, transactions, subscriptions, tip rules, persistence, display frequency, and popovers are incomplete. |
 | `Observation` | None yet at `Usable`; `@Observable` lowering is partial. | Tracking, invalidation, access lists, registrar behavior, and observation parity are incomplete. |
@@ -418,13 +418,14 @@ subset lives in `QuillUIKit`.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `SFSpeechRecognizer.init(locale:)` | Fallback | Creates unavailable recognizer shape. |
-| `SFSpeechRecognizer.authorizationStatus()` | Fallback | Returns `.denied`. |
-| `SFSpeechRecognizer.requestAuthorization(_:)` | Fallback | Records diagnostic and returns `.denied`. |
-| `SFSpeechRecognizer.recognitionTask(with:resultHandler:)` | Fallback | Records diagnostic and returns task object only. |
-| `SFSpeechAudioBufferRecognitionRequest.append(_:)` | Compile-only | No-op. |
-| `SFSpeechRecognitionTask.cancel()` | Compile-only | No-op. |
-| Real speech recognition, audio transcription, authorization bridge | Incomplete | Required for Speech Parity. |
+| `SFSpeechRecognizer.init()` / `init(locale:)` | Usable | Creates a recognizer shape backed by QuillKit speech-recognition state. |
+| `SFSpeechRecognizer.authorizationStatus()` | Partial | Returns QuillKit's configured recognition authorization state; Linux default remains `.denied`. |
+| `SFSpeechRecognizer.requestAuthorization(_:)` | Partial | Records diagnostics and returns QuillKit's configured authorization state. |
+| `SFSpeechRecognizer.isAvailable` | Partial | Reads/writes QuillKit's configured recognition availability state. |
+| `SFSpeechRecognizer.recognitionTask(with:resultHandler:)` | Partial | Records diagnostics, returns a cancellable task object, and delivers configured compatibility results or errors. |
+| `SFSpeechAudioBufferRecognitionRequest.append(_:)` | Usable | Tracks appended buffer count for source-visible request state. |
+| `SFSpeechRecognitionTask.cancel()` / `isCancelled` | Usable | Records task cancellation state. |
+| Native speech recognition, audio transcription, microphone capture, audio bridge behavior | Incomplete | Required for Speech Parity. |
 
 ## PhotosUI and Photos
 
@@ -670,8 +671,9 @@ app progress can be audited with the same status ladder.
 | `getShortcut(for:)` / `setShortcut(_:for:)` | Usable | Stores shortcuts in `UserDefaults` with locking. |
 | `reset(_:)` / `resetAll()` | Usable | Restores defaults or clears stored shortcut values. |
 | `KeyboardShortcuts.Recorder.body` | Partial | Renders a text label for current settings screens. |
-| `View.onKeyboardShortcut(...)` | Compile-only | Returns `self`; actions are not registered. |
-| Native recorder UI, global shortcut registration, event delivery, conflict handling | Incomplete | Required for KeyboardShortcuts parity. |
+| `View.onKeyboardShortcut(...)` | Partial | Registers key-down handlers through QuillKit's process-local hot-key registry and keeps direct test/helper triggering for key-up handlers. |
+| `KeyboardShortcuts.trigger(_ shortcut:)` | Usable | Test/helper entry point dispatches registered key-down shortcuts through the shared QuillKit registry. |
+| Native recorder UI and desktop-global shortcut capture | Incomplete | Required for full KeyboardShortcuts parity. |
 
 ### Magnet
 

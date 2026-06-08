@@ -1,4 +1,5 @@
 import Foundation
+import QuillKit
 import SwiftUI
 
 public enum KeyboardShortcuts {
@@ -94,19 +95,29 @@ public enum KeyboardShortcuts {
 
     public static func setShortcut(_ shortcut: Shortcut?, for name: Name) {
         store.setShortcut(shortcut, for: name)
+        handlerStore.updateRegistrations(for: name, shortcut: getShortcut(for: name))
     }
 
     public static func reset(_ name: Name) {
         store.setShortcut(nil, for: name)
+        handlerStore.updateRegistrations(for: name, shortcut: getShortcut(for: name))
     }
 
     public static func resetAll() {
         store.removeAll()
+        handlerStore.updateAllRegistrations { name in
+            getShortcut(for: name)
+        }
     }
 
     @discardableResult
     public static func trigger(_ name: Name, type: ShortcutType = .keyDown) -> Bool {
         handlerStore.trigger(name: name, type: type)
+    }
+
+    @discardableResult
+    public static func trigger(_ shortcut: Shortcut, type: ShortcutType = .keyDown) -> Bool {
+        handlerStore.trigger(shortcut: shortcut, type: type)
     }
 
     public static func resetAllHandlers() {
@@ -118,7 +129,7 @@ public enum KeyboardShortcuts {
         type: ShortcutType,
         perform: @escaping () -> Void
     ) {
-        handlerStore.setHandler(perform, for: name, type: type)
+        handlerStore.setHandler(perform, for: name, type: type, shortcut: getShortcut(for: name))
     }
 }
 
@@ -273,19 +284,42 @@ private struct ShortcutHandlerKey: Hashable {
 
 private typealias ShortcutHandler = () -> Void
 
+private struct ShortcutHandlerEntry {
+    var handler: ShortcutHandler
+    var registration: QuillHotKeyRegistration?
+}
+
+private final class ShortcutHandlerBox: @unchecked Sendable {
+    private let handler: ShortcutHandler
+
+    init(_ handler: @escaping ShortcutHandler) {
+        self.handler = handler
+    }
+
+    func perform() {
+        handler()
+    }
+}
+
 private final class ShortcutHandlerStore: @unchecked Sendable {
     private let lock = NSLock()
-    private var handlers: [ShortcutHandlerKey: ShortcutHandler] = [:]
+    private var handlers: [ShortcutHandlerKey: ShortcutHandlerEntry] = [:]
 
     func setHandler(
         _ handler: @escaping ShortcutHandler,
         for name: KeyboardShortcuts.Name,
-        type: KeyboardShortcuts.ShortcutType
+        type: KeyboardShortcuts.ShortcutType,
+        shortcut: KeyboardShortcuts.Shortcut?
     ) {
-        lock.lock()
-        defer { lock.unlock() }
+        let key = ShortcutHandlerKey(name: name, type: type)
+        let previousRegistration = lock.withLock {
+            let previousRegistration = handlers[key]?.registration
+            handlers[key] = ShortcutHandlerEntry(handler: handler, registration: nil)
+            return previousRegistration
+        }
 
-        handlers[ShortcutHandlerKey(name: name, type: type)] = handler
+        previousRegistration?.unregister()
+        updateRegistration(for: key, shortcut: shortcut)
     }
 
     @discardableResult
@@ -293,7 +327,7 @@ private final class ShortcutHandlerStore: @unchecked Sendable {
         let handler: ShortcutHandler?
 
         lock.lock()
-        handler = handlers[ShortcutHandlerKey(name: name, type: type)]
+        handler = handlers[ShortcutHandlerKey(name: name, type: type)]?.handler
         lock.unlock()
 
         guard let handler else {
@@ -304,10 +338,137 @@ private final class ShortcutHandlerStore: @unchecked Sendable {
         return true
     }
 
-    func removeAll() {
-        lock.lock()
-        defer { lock.unlock() }
+    @discardableResult
+    func trigger(shortcut: KeyboardShortcuts.Shortcut, type: KeyboardShortcuts.ShortcutType) -> Bool {
+        guard type == .keyDown else {
+            return false
+        }
 
-        handlers.removeAll()
+        return QuillHotkeyService.shared.trigger(
+            key: shortcut.quillKey,
+            modifiers: shortcut.quillModifiers
+        )
+    }
+
+    func updateRegistrations(for name: KeyboardShortcuts.Name, shortcut: KeyboardShortcuts.Shortcut?) {
+        let matchingKeys = lock.withLock {
+            handlers.keys.filter { $0.name == name }
+        }
+
+        for key in matchingKeys {
+            updateRegistration(for: key, shortcut: shortcut)
+        }
+    }
+
+    func updateAllRegistrations(resolveShortcut: (KeyboardShortcuts.Name) -> KeyboardShortcuts.Shortcut?) {
+        let names = lock.withLock {
+            Array(Set(handlers.keys.map(\.name)))
+        }
+
+        for name in names {
+            updateRegistrations(for: name, shortcut: resolveShortcut(name))
+        }
+    }
+
+    func removeAll() {
+        let registrations = lock.withLock {
+            let registrations = handlers.values.compactMap(\.registration)
+            handlers.removeAll()
+            return registrations
+        }
+
+        for registration in registrations {
+            registration.unregister()
+        }
+    }
+
+    private func updateRegistration(
+        for key: ShortcutHandlerKey,
+        shortcut: KeyboardShortcuts.Shortcut?
+    ) {
+        let previousState = lock.withLock {
+            guard let entry = handlers[key] else {
+                return Optional<(handler: ShortcutHandler, registration: QuillHotKeyRegistration?)>.none
+            }
+            handlers[key]?.registration = nil
+            return Optional((handler: entry.handler, registration: entry.registration))
+        }
+
+        guard let previousState else {
+            return
+        }
+
+        previousState.registration?.unregister()
+
+        guard key.type == .keyDown,
+              let shortcut
+        else {
+            return
+        }
+
+        let box = ShortcutHandlerBox(previousState.handler)
+        let registration = QuillHotkeyService.shared.register(
+            descriptor: shortcut.quillDescriptor(identifier: key.name.rawValue)
+        ) {
+            box.perform()
+        }
+
+        lock.withLock {
+            handlers[key]?.registration = registration
+        }
+    }
+}
+
+private extension KeyboardShortcuts.Shortcut {
+    var quillKey: String {
+        switch key {
+        case .k:
+            return "k"
+        case .space:
+            return "space"
+        case .escape:
+            return "escape"
+        case .tab:
+            return "tab"
+        case .return:
+            return "return"
+        case .delete:
+            return "delete"
+        case .upArrow:
+            return "upArrow"
+        case .downArrow:
+            return "downArrow"
+        case .leftArrow:
+            return "leftArrow"
+        case .rightArrow:
+            return "rightArrow"
+        case .character(let character):
+            return String(character).lowercased()
+        }
+    }
+
+    var quillModifiers: [String] {
+        var values: [String] = []
+        if modifiers.contains(.command) {
+            values.append("command")
+        }
+        if modifiers.contains(.option) {
+            values.append("option")
+        }
+        if modifiers.contains(.shift) {
+            values.append("shift")
+        }
+        if modifiers.contains(.control) {
+            values.append("control")
+        }
+        return values
+    }
+
+    func quillDescriptor(identifier: String) -> QuillHotKeyDescriptor {
+        QuillHotKeyDescriptor(
+            identifier: "KeyboardShortcuts.\(identifier)",
+            key: quillKey,
+            modifiers: quillModifiers
+        )
     }
 }

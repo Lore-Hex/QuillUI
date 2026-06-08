@@ -51,11 +51,11 @@ public enum QuillKitCapabilities {
     public static func status(for capability: QuillKitCapability) -> QuillKitCapabilityStatus {
         #if os(Linux)
         switch capability {
-        case .clipboard:
+        case .clipboard, .speechSynthesis, .speechRecognition:
             return .emulated
         case .globalShortcuts:
             return .emulated
-        case .speechSynthesis, .speechRecognition, .haptics, .accessibility, .syntheticKeyboard,
+        case .haptics, .accessibility, .syntheticKeyboard,
              .deviceEvents, .launchAtLogin, .updater, .certificateTrust, .photoPicker,
              .secureStorage, .notifications, .networkExtension, .vpnTunnel:
             return .unavailable(reason: "No native Linux backend has been attached yet.")
@@ -416,13 +416,69 @@ public struct QuillSpeechVoice: Hashable, Sendable {
     )
 }
 
+public enum QuillSpeechRecognitionAuthorizationStatus: Equatable, Sendable {
+    case authorized
+    case denied
+    case restricted
+    case notDetermined
+}
+
+public struct QuillSpeechRecognitionResult: Equatable, Sendable {
+    public var formattedString: String
+    public var isFinal: Bool
+
+    public init(formattedString: String, isFinal: Bool = true) {
+        self.formattedString = formattedString
+        self.isFinal = isFinal
+    }
+}
+
+public struct QuillSpeechRecognitionError: Error, Equatable, Sendable, CustomStringConvertible {
+    public var reason: String
+
+    public init(reason: String) {
+        self.reason = reason
+    }
+
+    public var description: String { reason }
+}
+
+public final class QuillSpeechRecognitionTask: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    public init() {}
+
+    public var isCancelled: Bool {
+        lock.withLock { cancelled }
+    }
+
+    public func cancel() {
+        lock.withLock {
+            cancelled = true
+        }
+    }
+}
+
 public final class QuillSpeechBackend: @unchecked Sendable {
     public static let shared = QuillSpeechBackend()
 
     private let lock = NSLock()
     private var speaking = false
+    private var recognitionAuthorizationStatus: QuillSpeechRecognitionAuthorizationStatus
+    private var recognitionIsAvailable: Bool
+    private var recognitionResult: QuillSpeechRecognitionResult?
 
-    public init() {}
+    public init() {
+        #if os(Linux)
+        recognitionAuthorizationStatus = .denied
+        recognitionIsAvailable = false
+        #else
+        recognitionAuthorizationStatus = .authorized
+        recognitionIsAvailable = true
+        #endif
+        recognitionResult = nil
+    }
 
     public func voices() -> [QuillSpeechVoice] {
         #if os(Linux)
@@ -451,6 +507,111 @@ public final class QuillSpeechBackend: @unchecked Sendable {
     public func stop() -> Bool {
         lock.withLock { speaking = false }
         return true
+    }
+
+    public var speechRecognitionAuthorizationStatus: QuillSpeechRecognitionAuthorizationStatus {
+        lock.withLock { recognitionAuthorizationStatus }
+    }
+
+    public var isSpeechRecognitionAvailable: Bool {
+        get { lock.withLock { recognitionIsAvailable } }
+        set {
+            lock.withLock {
+                recognitionIsAvailable = newValue
+            }
+        }
+    }
+
+    public func configureSpeechRecognition(
+        authorizationStatus: QuillSpeechRecognitionAuthorizationStatus,
+        isAvailable: Bool,
+        result: QuillSpeechRecognitionResult?
+    ) {
+        lock.withLock {
+            recognitionAuthorizationStatus = authorizationStatus
+            recognitionIsAvailable = isAvailable
+            recognitionResult = result
+        }
+    }
+
+    public func resetSpeechRecognition() {
+        lock.withLock {
+            #if os(Linux)
+            recognitionAuthorizationStatus = .denied
+            recognitionIsAvailable = false
+            #else
+            recognitionAuthorizationStatus = .authorized
+            recognitionIsAvailable = true
+            #endif
+            recognitionResult = nil
+        }
+    }
+
+    public func requestSpeechRecognitionAuthorization(
+        _ handler: @escaping (QuillSpeechRecognitionAuthorizationStatus) -> Void
+    ) {
+        let status = lock.withLock { recognitionAuthorizationStatus }
+        #if os(Linux)
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "speechRecognitionAuthorization",
+            severity: status == .authorized ? .info : .unsupported,
+            message: "Speech recognition authorization is provided by the QuillKit compatibility backend."
+        )
+        #endif
+        handler(status)
+    }
+
+    @discardableResult
+    public func recognitionTask(
+        shouldReportPartialResults: Bool,
+        resultHandler: @escaping (QuillSpeechRecognitionResult?, QuillSpeechRecognitionError?) -> Void
+    ) -> QuillSpeechRecognitionTask {
+        let task = QuillSpeechRecognitionTask()
+        let state = lock.withLock {
+            (
+                status: recognitionAuthorizationStatus,
+                available: recognitionIsAvailable,
+                result: recognitionResult
+            )
+        }
+
+        guard state.status == .authorized else {
+            #if os(Linux)
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillKit",
+                operation: "speechRecognitionTask",
+                message: "Speech recognition requires authorized compatibility state."
+            )
+            #endif
+            resultHandler(nil, QuillSpeechRecognitionError(reason: "Speech recognition is not authorized."))
+            return task
+        }
+
+        guard state.available else {
+            #if os(Linux)
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillKit",
+                operation: "speechRecognitionTask",
+                message: "Speech recognition is unavailable until a native Linux backend is attached."
+            )
+            #endif
+            resultHandler(nil, QuillSpeechRecognitionError(reason: "Speech recognition is unavailable."))
+            return task
+        }
+
+        #if os(Linux)
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "speechRecognitionTask",
+            severity: .info,
+            message: shouldReportPartialResults
+                ? "Speech recognition delivered a configured compatibility result with partial reporting enabled."
+                : "Speech recognition delivered a configured compatibility result."
+        )
+        #endif
+        resultHandler(state.result, nil)
+        return task
     }
 }
 
