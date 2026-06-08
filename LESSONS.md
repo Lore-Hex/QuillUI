@@ -1289,6 +1289,15 @@ several CI/packaging lessons worth keeping:
   `URLResourceKey.contentModificationDateKey` (CF URL key constants absent on corelibs;
   use the native URLResourceKey case), and `ProcessInfo()` -> `ProcessInfo.processInfo`
   (corelibs ProcessInfo has no PUBLIC init -- use the shared singleton).
+- **C/ObjC helper from an excluded `.m` -> a Swift PORT free function.**
+  DispatchQueue+Promise (50->0, +cascades -> SSK 3830->3682): `DispatchQueueIsCurrentQueue`
+  / `_CurrentStackUsage` are declared in `Concurrency/Threading.{h,m}` (the `.m` is not
+  compiled on Linux + no bridging header). Add them as free functions in a new
+  `Sources/SignalServiceKitObjCPort/Quill*.swift` PORT file (auto-globbed into the target;
+  linked into `<SSK>/QuillPort/` by quill-signal-link-ports.sh -> compiled as part of SSK,
+  so same-module visibility). Inert: `DispatchQueueIsCurrentQueue` returns false so the
+  `asyncIfNecessary` fast path always dispatches async (contract-safe). Clearing a
+  heavily-depended-on file (Promise/DispatchQueue) cascade-clears dependents.
 
 ---
 
