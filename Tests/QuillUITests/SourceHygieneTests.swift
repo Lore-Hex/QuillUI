@@ -2494,6 +2494,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/QuillObjCCompatibility/Prelude.h"),
             encoding: .utf8
         )
+        let objcModuleMap = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains(".library(name: \"QuillObjCCompatibility\", targets: [\"QuillObjCCompatibility\"])"))
         #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
@@ -2517,6 +2521,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("FoundationUtils"))
         #expect(telegramPackageCheck.contains("GZIP"))
         #expect(telegramPackageCheck.contains("HackUtils"))
+        #expect(telegramPackageCheck.contains("KeyboardKey"))
         #expect(telegramPackageCheck.contains("MergeLists"))
         #expect(telegramPackageCheck.contains("NumberPluralization"))
         #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
@@ -2545,6 +2550,10 @@ struct SourceHygieneTests {
         #expect(objcAppKitHeader.contains("NSArray<NSView *> *subviews"))
         #expect(objcAppKitHeader.contains("NSString *className"))
         #expect(objcPreludeHeader.contains("#include <string.h>"))
+        #expect(objcModuleMap.contains("module Foundation"))
+        #expect(objcModuleMap.contains("module AppKit"))
+        #expect(objcModuleMap.contains("module Cocoa"))
+        #expect(!objcModuleMap.contains("module CoreFoundation {"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")

@@ -19,8 +19,8 @@ repeatable source checkout plus Linux compile ratchet:
 - `scripts/generated-telegram-package-check.sh` compiles the first unchanged
   SwiftPM package islands on Linux: `CAPortal`, `CalendarUtils`,
   `CurrencyFormat`, `DateUtils`, `EDSunriseSet`, `EmojiSuggestions`,
-  `FoundationUtils`, `GZIP`, `HackUtils`, `MergeLists`, `NumberPluralization`,
-  `TGCurrencyFormatter`, and `TGPassportMRZ`.
+  `FoundationUtils`, `GZIP`, `HackUtils`, `KeyboardKey`, `MergeLists`,
+  `NumberPluralization`, `TGCurrencyFormatter`, and `TGPassportMRZ`.
 
 Current Linux blocker classes:
 
@@ -31,6 +31,7 @@ Current Linux blocker classes:
   they can compile (`Colors`, `Strings`, `TGUIKit`, `TelegramMedia`, and the
   main `Telegram-Mac` surface).
 - Darwin-only system APIs such as `sysctlbyname` in `TelegramSystem`.
+- Security/CommonCrypto signing APIs used by `ApiCredentials`.
 - Higher-level Telegram packages that depend on telegram-ios submodules not
   present in the shallow upstream checkout.
 

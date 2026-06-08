@@ -2,3 +2,18 @@ module QuillObjCCompatibility {
   umbrella header "QuillObjCCompatibility/QuillObjCCompatibility.h"
   export *
 }
+
+module Foundation {
+  header "Foundation/Foundation.h"
+  export *
+}
+
+module AppKit {
+  header "AppKit/AppKit.h"
+  export *
+}
+
+module Cocoa {
+  header "Cocoa/Cocoa.h"
+  export *
+}

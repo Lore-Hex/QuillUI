@@ -35,6 +35,7 @@ default_packages=(
   FoundationUtils
   GZIP
   HackUtils
+  KeyboardKey
   MergeLists
   NumberPluralization
   TGCurrencyFormatter
