@@ -643,6 +643,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("click_at \"$scroll_x\" \"$scroll_y\""))
         #expect(interactionScript.contains("if [[ \"$INTERACTION_MODE\" == \"long-transcript-auto-selection\" ]]"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP:-9"))
+        #expect(interactionScript.contains("QuillMessageList retries Linux ScrollViewReader bottom-scroll at 5s"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers End"))
         #expect(interactionScript.contains("scroll_clicks=\"${QUILLUI_BACKEND_SCROLL_CLICKS:-4800}\""))
         #expect(interactionScript.contains("scroll_click_delay=\"${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-5}\""))

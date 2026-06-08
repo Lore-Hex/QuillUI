@@ -953,7 +953,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         click_at "$click_x" "$click_y"
         sleep 1
         if [[ "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
-          sleep "${QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP:-3}"
+          # QuillMessageList retries Linux ScrollViewReader bottom-scroll at 5s
+          # and 8s while GTK finishes laying out long transcripts.
+          sleep "${QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP:-9}"
         else
           scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
           scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
