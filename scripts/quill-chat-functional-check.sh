@@ -13,6 +13,7 @@ RUN_HOME="${QUILLUI_FUNCTIONAL_HOME:-$OUTPUT_DIR/quill-chat-functional-home}"
 RELAUNCH_SCREENSHOT_PATH="${QUILLUI_FUNCTIONAL_RELAUNCH_SCREENSHOT:-${SCREENSHOT_PATH%.png}-relaunch.png}"
 VERIFY_RELAUNCH="${QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH:-0}"
 XVFB_LOG_PATH="${QUILLUI_FUNCTIONAL_XVFB_LOG:-$OUTPUT_DIR/quill-chat-functional-xvfb.log}"
+OPENBOX_LOG_PATH="${QUILLUI_FUNCTIONAL_OPENBOX_LOG:-$OUTPUT_DIR/quill-chat-functional-openbox.log}"
 MESSAGE_TEXT="${QUILLUI_FUNCTIONAL_MESSAGE:-hello from linux}"
 REPLY_TEXT="${QUILLUI_FUNCTIONAL_REPLY:-Linux composer reply}"
 MODEL_NAME="${QUILLUI_FUNCTIONAL_MODEL:-llava:latest}"
@@ -55,6 +56,26 @@ quillui_functional_xdotool() {
   DISPLAY="$DISPLAY_ID" timeout "$timeout_seconds" xdotool "$@"
 }
 
+quillui_functional_default_display() {
+  local candidate
+  local number
+
+  if [[ -n "${QUILLUI_FUNCTIONAL_DISPLAY:-}" ]]; then
+    printf '%s\n' "$QUILLUI_FUNCTIONAL_DISPLAY"
+    return 0
+  fi
+
+  for candidate in :96 :97 :98 :99; do
+    number="${candidate#:}"
+    if [[ ! -e "/tmp/.X${number}-lock" && ! -e "/tmp/.X11-unix/X${number}" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  printf '%s\n' ":96"
+}
+
 python3 "$ROOT_DIR/scripts/mock-ollama.py" \
   --host "$MOCK_HOST" \
   --port "$MOCK_PORT" \
@@ -71,7 +92,7 @@ quillui_backend_reference_window_defaults \
   reference_window_height \
   hide_window_menubar_label
 
-DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_FUNCTIONAL_DISPLAY:-:96}")"
+DISPLAY_ID="$(quillui_normalize_x_display_id "$(quillui_functional_default_display)")"
 SCREEN_SIZE="${QUILLUI_FUNCTIONAL_SCREEN_SIZE:-${reference_window_width}x${reference_window_height}x24}"
 cleanup() {
   quillui_stop_process_if_running "$app_pid"
@@ -120,7 +141,7 @@ PY
 
 quillui_start_xvfb "$DISPLAY_ID" "$SCREEN_SIZE" "$XVFB_LOG_PATH" xvfb_pid
 if command -v openbox >/dev/null 2>&1; then
-  DISPLAY="$DISPLAY_ID" openbox >/tmp/quill-chat-functional-openbox.log 2>&1 &
+  DISPLAY="$DISPLAY_ID" openbox >"$OPENBOX_LOG_PATH" 2>&1 &
   openbox_pid=$!
   sleep 1
 fi
