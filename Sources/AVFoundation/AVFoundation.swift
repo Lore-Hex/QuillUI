@@ -18,8 +18,6 @@ public extension AVSpeechSynthesizerDelegate {
 public final class AVSpeechSynthesizer: @unchecked Sendable {
     public weak var delegate: AVSpeechSynthesizerDelegate?
     private let backend: QuillSpeechBackend
-    private let lock = NSLock()
-    private var paused = false
 
     public init() {
         backend = .shared
@@ -28,13 +26,10 @@ public final class AVSpeechSynthesizer: @unchecked Sendable {
     public var isSpeaking: Bool { backend.isSpeaking }
 
     public var isPaused: Bool {
-        lock.withLock { paused }
+        backend.isPaused
     }
 
     public func speak(_ utterance: AVSpeechUtterance) {
-        lock.withLock {
-            paused = false
-        }
         backend.speak(utterance.speechString) { [weak self] in
             guard let self else { return }
             delegate?.speechSynthesizer(self, didStart: utterance)
@@ -45,21 +40,15 @@ public final class AVSpeechSynthesizer: @unchecked Sendable {
     }
     @discardableResult
     public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool {
-        lock.withLock {
-            paused = false
-        }
         return backend.stop()
     }
     @discardableResult
     public func continueSpeaking() -> Bool {
-        false
+        backend.continueSpeaking()
     }
     @discardableResult
     public func pauseSpeaking(at boundary: AVSpeechBoundary) -> Bool {
-        lock.withLock {
-            paused = false
-        }
-        return false
+        backend.pause()
     }
 }
 
@@ -585,16 +574,149 @@ public final class AVAssetResourceLoadingRequest: @unchecked Sendable {
     public func finishLoading(with error: Error?) {}
 }
 
-// MARK: - AVAudioPlayer (inert) + audio-settings keys
+// MARK: - AVAudioPlayer + audio-settings keys
 
 public final class AVAudioPlayer: @unchecked Sendable {
-    public var duration: TimeInterval { 0 }
-    public var numberOfChannels: Int { 0 }
-    public init(data: Data) throws {}
-    public init(contentsOf url: URL) throws {}
-    @discardableResult public func prepareToPlay() -> Bool { false }
-    @discardableResult public func play() -> Bool { false }
-    public func stop() {}
+    private let playerID = UUID()
+    private let service = QuillAudioPlayerService.shared
+
+    public var duration: TimeInterval {
+        service.state(for: playerID)?.duration ?? 0
+    }
+
+    public var numberOfChannels: Int {
+        service.state(for: playerID)?.numberOfChannels ?? 0
+    }
+
+    public var isPlaying: Bool {
+        service.state(for: playerID)?.isPlaying ?? false
+    }
+
+    public var currentTime: TimeInterval {
+        get { service.state(for: playerID)?.currentTime ?? 0 }
+        set { service.setCurrentTime(newValue, playerID: playerID) }
+    }
+
+    public var deviceCurrentTime: TimeInterval {
+        Date().timeIntervalSinceReferenceDate
+    }
+
+    public var volume: Float {
+        get { service.state(for: playerID)?.volume ?? 1 }
+        set { service.setVolume(newValue, playerID: playerID) }
+    }
+
+    public var numberOfLoops: Int {
+        get { service.state(for: playerID)?.numberOfLoops ?? 0 }
+        set { service.setNumberOfLoops(newValue, playerID: playerID) }
+    }
+
+    public init(data: Data) throws {
+        let metadata = Self.audioMetadata(from: data)
+        service.registerPlayer(
+            playerID,
+            source: .data(byteCount: data.count),
+            duration: metadata.duration,
+            numberOfChannels: metadata.channels
+        )
+    }
+
+    public convenience init(data: Data, fileTypeHint utiString: String?) throws {
+        try self.init(data: data)
+    }
+
+    public init(contentsOf url: URL) throws {
+        let metadata: (duration: TimeInterval, channels: Int)
+        if url.isFileURL, let data = try? Data(contentsOf: url) {
+            metadata = Self.audioMetadata(from: data)
+        } else {
+            metadata = (0, 0)
+        }
+        service.registerPlayer(
+            playerID,
+            source: .url(url),
+            duration: metadata.duration,
+            numberOfChannels: metadata.channels
+        )
+    }
+
+    public convenience init(contentsOf url: URL, fileTypeHint utiString: String?) throws {
+        try self.init(contentsOf: url)
+    }
+
+    @discardableResult
+    public func prepareToPlay() -> Bool {
+        service.prepareToPlay(playerID: playerID)
+    }
+
+    @discardableResult
+    public func play() -> Bool {
+        service.play(playerID: playerID)
+    }
+
+    @discardableResult
+    public func play(atTime time: TimeInterval) -> Bool {
+        service.play(playerID: playerID, atTime: time)
+    }
+
+    public func pause() {
+        service.pause(playerID: playerID)
+    }
+
+    public func stop() {
+        _ = service.stop(playerID: playerID)
+    }
+
+    private static func audioMetadata(from data: Data) -> (duration: TimeInterval, channels: Int) {
+        let bytes = Array(data)
+        guard bytes.count >= 44,
+              bytes[0..<4].elementsEqual([0x52, 0x49, 0x46, 0x46]),
+              bytes[8..<12].elementsEqual([0x57, 0x41, 0x56, 0x45])
+        else {
+            return (0, 0)
+        }
+
+        var offset = 12
+        var channelCount = 0
+        var sampleRate: UInt32 = 0
+        var blockAlign: UInt16 = 0
+        var dataByteCount: UInt32 = 0
+
+        while offset + 8 <= bytes.count {
+            let chunkID = Array(bytes[offset..<(offset + 4)])
+            let chunkSize = Int(littleEndianUInt32(bytes, offset + 4))
+            let chunkStart = offset + 8
+            let chunkEnd = min(chunkStart + chunkSize, bytes.count)
+
+            if chunkID == [0x66, 0x6d, 0x74, 0x20], chunkStart + 16 <= chunkEnd {
+                channelCount = Int(littleEndianUInt16(bytes, chunkStart + 2))
+                sampleRate = littleEndianUInt32(bytes, chunkStart + 4)
+                blockAlign = littleEndianUInt16(bytes, chunkStart + 12)
+            } else if chunkID == [0x64, 0x61, 0x74, 0x61] {
+                dataByteCount = UInt32(max(0, chunkEnd - chunkStart))
+            }
+
+            offset = chunkStart + chunkSize + (chunkSize % 2)
+        }
+
+        guard sampleRate > 0, blockAlign > 0, dataByteCount > 0 else {
+            return (0, channelCount)
+        }
+
+        let duration = Double(dataByteCount) / Double(sampleRate) / Double(blockAlign)
+        return (duration, channelCount)
+    }
+
+    private static func littleEndianUInt16(_ bytes: [UInt8], _ offset: Int) -> UInt16 {
+        UInt16(bytes[offset]) | (UInt16(bytes[offset + 1]) << 8)
+    }
+
+    private static func littleEndianUInt32(_ bytes: [UInt8], _ offset: Int) -> UInt32 {
+        UInt32(bytes[offset])
+            | (UInt32(bytes[offset + 1]) << 8)
+            | (UInt32(bytes[offset + 2]) << 16)
+            | (UInt32(bytes[offset + 3]) << 24)
+    }
 }
 
 // AVAudioRecorder/AVAssetReaderTrackOutput settings dictionary keys (String on

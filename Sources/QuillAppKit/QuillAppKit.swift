@@ -2342,30 +2342,23 @@ private extension NSWorkspace {
 
     @discardableResult
     func _xdgOpen(_ target: String, operation: String) -> Bool {
-        guard _canOpenDesktopTarget else {
+        let url = _workspaceOpenURL(for: target)
+        let didOpen = QuillWorkspace.open(url)
+        if !didOpen {
             _recordFallback(
                 operation: operation,
-                message: "\(operation) requires xdg-open plus DISPLAY or WAYLAND_DISPLAY on Linux; '\(target)' was not opened in this process."
+                message: "\(operation) could not open '\(target)' through QuillWorkspace."
             )
-            return false
         }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = ["xdg-open", target]
-        p.standardOutput = Pipe()
-        p.standardError = Pipe()
-        do {
-            try p.run()
-            // Don't waitUntilExit() — xdg-open forks the real handler
-            // and may stay attached. Detach instead.
-            return true
-        } catch {
-            _recordFallback(
-                operation: operation,
-                message: "\(operation) could not launch xdg-open for '\(target)': \(error.localizedDescription)"
-            )
-            return false
+
+        return didOpen
+    }
+    func _workspaceOpenURL(for target: String) -> URL {
+        if let url = URL(string: target), url.scheme?.isEmpty == false {
+            return url
         }
+
+        return URL(fileURLWithPath: target)
     }
     func _xdgMimeQueryDefault(_ url: URL) -> String? {
         guard _hasCommand("xdg-mime") else { return nil }
@@ -2380,11 +2373,6 @@ private extension NSWorkspace {
     func _xdgMimeForFile(_ path: String) -> String? {
         guard _hasCommand("xdg-mime") else { return nil }
         return _runForOutput(["xdg-mime", "query", "filetype", path])
-    }
-    var _canOpenDesktopTarget: Bool {
-        guard _hasCommand("xdg-open") else { return false }
-        let env = ProcessInfo.processInfo.environment
-        return env["DISPLAY"]?.isEmpty == false || env["WAYLAND_DISPLAY"]?.isEmpty == false
     }
     func _desktopApplicationURL(forDesktopID id: String) -> URL? {
         if id.hasPrefix("/"), FileManager.default.fileExists(atPath: id) {
@@ -5111,17 +5099,46 @@ open class NSSharingService: NSObject, @unchecked Sendable {
 }
 
 open class NSSound: NSObject, @unchecked Sendable {
-    public init?(named: String) {}
-    public init?(contentsOf: URL, byReference: Bool) {}
-    public init?(data: Data) {}
-    public func play() -> Bool { false }
-    public func stop() -> Bool { false }
+    private let quillPlayerID = UUID()
+
+    public init?(named: String) {
+        super.init()
+        QuillAudioPlayerService.shared.registerPlayer(
+            quillPlayerID,
+            source: .named(named)
+        )
+    }
+
+    public init?(contentsOf url: URL, byReference: Bool) {
+        super.init()
+        QuillAudioPlayerService.shared.registerPlayer(
+            quillPlayerID,
+            source: .url(url)
+        )
+    }
+
+    public init?(data: Data) {
+        super.init()
+        QuillAudioPlayerService.shared.registerPlayer(
+            quillPlayerID,
+            source: .data(byteCount: data.count)
+        )
+    }
+
+    public func play() -> Bool {
+        QuillAudioPlayerService.shared.play(playerID: quillPlayerID)
+    }
+
+    public func stop() -> Bool {
+        QuillAudioPlayerService.shared.stop(playerID: quillPlayerID)
+    }
 
     /// Phase B: emits the terminal bell character (BEL, \x07) to stderr.
     /// Most terminal emulators map this to either a flash or an audible
     /// tone depending on user preference, which is the closest Linux
     /// analogue to Apple's NSSound.beep() system alert.
     public static func beep() {
+        QuillAudioPlayerService.shared.beep()
         FileHandle.standardError.write(Data([0x07]))
     }
 }

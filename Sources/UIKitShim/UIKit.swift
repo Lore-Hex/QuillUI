@@ -146,8 +146,15 @@ public class UIApplication: NSObject, @unchecked Sendable {
         completionHandler: ((Bool) -> Void)? = nil
     ) -> Bool {
         #if canImport(AppKit) && !os(Linux)
-        return NSWorkspace.shared.open(url)
+        let didOpen = NSWorkspace.shared.open(url)
+        completionHandler?(didOpen)
+        return didOpen
+        #elseif os(Linux)
+        let didOpen = QuillWorkspace.open(url)
+        completionHandler?(didOpen)
+        return didOpen
         #else
+        completionHandler?(false)
         return false
         #endif
     }

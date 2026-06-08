@@ -3315,3 +3315,54 @@ test, source hygiene, and CI follow-up.
 The shim exposes deterministic process-local state for recording/playback code
 without performing real audio I/O. Native PipeWire/ALSA/JACK graph processing
 and tap buffers remain backend work.
+
+## Checkpoint 200: Audio Playback Surfaces Use QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVAudioPlayer`, `AudioToolbox` system sounds, and `NSSound` now route through
+shared `QuillAudioPlayerService` process-local state. The service tracks player
+sources, prepare/play/pause/stop counts, current time, volume, loop count,
+system-sound IDs, alert plays, completion registration, and basic WAV
+duration/channel metadata for local data or file URLs. Native PipeWire/ALSA/JACK
+playback remains backend work.
+
+## Checkpoint 201: Speech Pause/Resume Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVSpeechSynthesizer.pauseSpeaking(at:)` and `continueSpeaking()` now route
+through `QuillSpeechBackend` instead of returning false. The compatibility
+backend tracks paused speech state, keeps `isSpeaking` true while paused, and
+holds the finish callback until `continueSpeaking()` resumes the utterance.
+Native speech synthesis remains backend work.
+
+## Checkpoint 202: UIApplication Open Uses QuillWorkspace
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`UIApplication.open(_:options:completionHandler:)` now routes through
+`QuillWorkspace.open` on Linux and calls the completion handler with the backend
+result instead of returning false. `QuillWorkspace` gained an injectable open
+backend so tests and future GTK/Qt/native desktop launchers can use the same
+service without spawning `xdg-open` in headless runs.
+
+The Linux compatibility test target also disables Swift Testing cross-import
+overlay lookup, because the target intentionally imports QuillUI's shadow
+Apple modules (`UIKit`, `AppKit`, and friends) rather than Apple SDK overlays.
+This keeps clean Swift 6.3 Linux scratches from looking for unavailable
+`_Testing_UIKit`/`_Testing_AppKit` modules.
+
+## Checkpoint 203: NSWorkspace Open Uses QuillWorkspace
+
+Status: implemented locally; guarded by Linux compatibility tests, source
+hygiene, and CI follow-up.
+
+`NSWorkspace.open(_:)` and its configuration overload now use the same
+`QuillWorkspace.open` service as UIKit URL opening. This removes a second
+AppKit-local `xdg-open` launcher, gives GTK/Qt/native backends one injectable
+URL-open hook, and keeps headless Linux from spawning desktop launchers unless
+an explicit compatibility backend is installed.

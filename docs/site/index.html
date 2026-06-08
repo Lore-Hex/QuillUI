@@ -142,18 +142,18 @@
             <td>92</td>
             <td>0</td>
             <td>21</td>
-            <td>34</td>
-            <td>22</td>
+            <td>36</td>
+            <td>20</td>
             <td>15</td>
         </tr>
         <tr>
             <td><a href="#uikit">UIKit</a></td>
-            <td>27</td>
+            <td>28</td>
             <td>0</td>
             <td>1</td>
+            <td>9</td>
             <td>6</td>
-            <td>7</td>
-            <td>12</td>
+            <td>11</td>
         </tr>
         <tr>
             <td><a href="#webkit">WebKit</a></td>
@@ -219,13 +219,22 @@
             <td>0</td>
         </tr>
         <tr>
+            <td><a href="#audiotoolbox">AudioToolbox</a></td>
+            <td>1</td>
+            <td>0</td>
+            <td>0</td>
+            <td>1</td>
+            <td>0</td>
+            <td>0</td>
+        </tr>
+        <tr>
             <td><a href="#avfoundation">AVFoundation</a></td>
-            <td>12</td>
+            <td>13</td>
             <td>0</td>
+            <td>1</td>
+            <td>9</td>
             <td>0</td>
-            <td>0</td>
-            <td>5</td>
-            <td>6</td>
+            <td>2</td>
         </tr>
         <tr>
             <td><a href="#avkit">AVKit</a></td>
@@ -238,12 +247,12 @@
         </tr>
         <tr>
             <td><a href="#speech">Speech</a></td>
-            <td>7</td>
+            <td>8</td>
             <td>0</td>
-            <td>0</td>
-            <td>0</td>
+            <td>3</td>
             <td>4</td>
-            <td>2</td>
+            <td>0</td>
+            <td>0</td>
         </tr>
         <tr>
             <td><a href="#photosui-and-photos">PhotosUI and Photos</a></td>
@@ -301,10 +310,10 @@
         </tr>
         <tr>
             <td><a href="#servicemanagement">ServiceManagement</a></td>
-            <td>4</td>
+            <td>5</td>
             <td>0</td>
             <td>1</td>
-            <td>2</td>
+            <td>3</td>
             <td>0</td>
             <td>0</td>
         </tr>
@@ -358,18 +367,18 @@
             <td>5</td>
             <td>0</td>
             <td>0</td>
+            <td>1</td>
             <td>0</td>
-            <td>0</td>
-            <td>5</td>
+            <td>4</td>
         </tr>
         <tr>
             <td><a href="#third-party-and-app-support-package-clones">Third-Party and App-Support Package Clones</a></td>
-            <td>110</td>
+            <td>111</td>
             <td>1</td>
-            <td>44</td>
-            <td>9</td>
+            <td>48</td>
+            <td>13</td>
+            <td>10</td>
             <td>11</td>
-            <td>17</td>
         </tr>
         <tr>
             <td><a href="#app-progress-summary">App Progress Summary</a></td>
@@ -577,7 +586,7 @@
 <tr><td><code>NSPasteboard.setData(_:forType:)</code> / <code>data(forType:)</code></td><td>Usable</td><td>In-memory data storage.</td></tr>
 <tr><td><code>NSPasteboard.writeObjects(_:)</code> / <code>readObjects(...)</code></td><td>Partial</td><td>Current pasteboard item paths only.</td></tr>
 <tr><td><code>NSPasteboardItem.setString</code>, <code>setData</code>, <code>setPropertyList</code> and getters</td><td>Usable</td><td>In-memory item storage.</td></tr>
-<tr><td><code>NSWorkspace.open(_:)</code> and overloads</td><td>Fallback</td><td>Delegates where host support exists, otherwise records diagnostic/no-op.</td></tr>
+<tr><td><code>NSWorkspace.open(_:)</code> and overloads</td><td>Partial</td><td>Routes through shared <code>QuillWorkspace.open</code>; native GTK/Qt launchers can inject a backend and headless Linux no-ops with diagnostics.</td></tr>
 <tr><td><code>NSWorkspace.selectFile</code>, <code>activateFileViewerSelecting</code></td><td>Fallback</td><td>Opens containing directories through <code>xdg-open</code> when a Linux desktop session is available; records diagnostics and no-ops in headless environments.</td></tr>
 <tr><td><code>NSWorkspace.icon(forFile:)</code>, <code>icon(forContentType:)</code></td><td>Fallback</td><td>Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet.</td></tr>
 <tr><td><code>NSWorkspace.urlForApplication(...)</code></td><td>Partial</td><td>Uses <code>xdg-mime</code> plus XDG application directories for existing <code>.desktop</code> files; bundle identifiers only resolve when they already map to a Linux desktop entry.</td></tr>
@@ -617,7 +626,7 @@
 <tr><td><code>NSAnimationContext.runAnimationGroup(...)</code></td><td>Fallback</td><td>Runs closure immediately.</td></tr>
 <tr><td><code>NSHapticFeedbackManager.perform(...)</code></td><td>Fallback</td><td>No haptic hardware effect.</td></tr>
 <tr><td><code>NSSharingService.perform(withItems:)</code> / <code>sharingServices(forItems:)</code></td><td>Compile-only</td><td>Sharing integration is absent.</td></tr>
-<tr><td><code>NSSound.play()</code> / <code>stop()</code> / <code>NSBeep()</code></td><td>Fallback</td><td>No native audio playback.</td></tr>
+<tr><td><code>NSSound.play()</code> / <code>stop()</code> / <code>NSBeep()</code></td><td>Partial</td><td>Routes through shared <code>QuillAudioPlayerService</code> process-local playback state; <code>beep()</code> still emits BEL for terminal-visible feedback.</td></tr>
 <tr><td><code>NSXPCConnection.resume()</code> / <code>suspend()</code> / <code>invalidate()</code> / <code>remoteObjectProxy()</code></td><td>Compile-only</td><td>XPC is not implemented.</td></tr>
 <tr><td><code>NSHumanReadableCopyright()</code>, <code>NSFullUserName()</code>, <code>NSFindPanelAction()</code></td><td>Fallback</td><td>Deterministic helper values only.</td></tr>
 </table>
@@ -630,7 +639,7 @@
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
 <tr><td><code>UIImage</code>, <code>UIColor</code>, <code>UIFont</code>, <code>UIScreen</code> aliases</td><td>Partial</td><td>Map to AppKit types when importable, otherwise to QuillFoundation fallbacks.</td></tr>
 <tr><td><code>UIApplication.shared</code></td><td>Usable</td><td>Singleton shape exists.</td></tr>
-<tr><td><code>UIApplication.open(_:options:completionHandler:)</code></td><td>Partial</td><td>Uses <code>NSWorkspace</code> when AppKit is available; otherwise completion is <code>false</code>.</td></tr>
+<tr><td><code>UIApplication.open(_:options:completionHandler:)</code></td><td>Partial</td><td>Uses <code>NSWorkspace</code> on Apple platforms and <code>QuillWorkspace.open</code> on Linux; completion receives the compatibility backend result.</td></tr>
 <tr><td><code>UIApplication.registerForRemoteNotifications()</code> / <code>unregisterForRemoteNotifications()</code> / <code>isRegisteredForRemoteNotifications</code></td><td>Partial</td><td>Routes through <code>QuillNotificationService</code> process-local registration state; no native APNs/device-token registration exists on Linux.</td></tr>
 <tr><td><code>UIApplication.setAlternateIconName(_:completionHandler:)</code></td><td>Fallback</td><td>Calls completion with nil, no icon change.</td></tr>
 <tr><td><code>UIApplication.connectedScenes</code>, <code>applicationState</code>, <code>alternateIconName</code></td><td>Compile-only</td><td>Static/default metadata only.</td></tr>
@@ -797,17 +806,25 @@
 <tr><td>Native secure keychain persistence, access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, certificate parsing, policy evaluation, platform trust store, Secure Transport parity</td><td>Incomplete</td><td>Current keychain rows are process-local compatibility storage, and current trust fallback must not be treated as production TLS trust.</td></tr>
 </table>
 <br>
+<h2 id="audiotoolbox">AudioToolbox</h2>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>AudioServicesCreateSystemSoundID</code>, <code>DisposeSystemSoundID</code>, <code>PlaySystemSound</code>, <code>PlayAlertSound</code>, completion registration</td><td>Partial</td><td>Routes through <code>QuillAudioPlayerService</code> process-local system-sound records; native PipeWire/ALSA playback is not attached yet.</td></tr>
+</table>
+<br>
 <h2 id="avfoundation">AVFoundation</h2>
 <br>
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
 <tr><td><code>AVSpeechSynthesizer.speak(_:)</code></td><td>Partial</td><td>Routes through QuillKit's speech backend, records compatibility diagnostics, tracks speaking state during synchronous callbacks, and calls start/finish delegate callbacks immediately.</td></tr>
 <tr><td><code>AVSpeechSynthesizer.stopSpeaking(at:)</code></td><td>Partial</td><td>Clears QuillKit speech state and returns true without native speech output.</td></tr>
-<tr><td><code>AVSpeechSynthesizer.continueSpeaking()</code> / <code>pauseSpeaking(at:)</code></td><td>Compile-only</td><td>Return false.</td></tr>
+<tr><td><code>AVSpeechSynthesizer.continueSpeaking()</code> / <code>pauseSpeaking(at:)</code></td><td>Partial</td><td>Tracks paused speech state in <code>QuillSpeechBackend</code>; a paused compatibility utterance holds its finish callback until <code>continueSpeaking()</code>.</td></tr>
 <tr><td><code>AVSpeechUtterance.init(string:)</code></td><td>Usable</td><td>Stores source-visible utterance text and metadata.</td></tr>
 <tr><td><code>AVSpeechSynthesisVoice</code> initializers, <code>speechVoices()</code>, and voice metadata</td><td>Partial</td><td>Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands.</td></tr>
 <tr><td><code>AVAudioSession.sharedInstance()</code>, <code>setCategory</code>, <code>setMode</code>, <code>setActive</code>, category/mode/options/active readback</td><td>Partial</td><td>Routes through shared <code>QuillAudioSessionService</code> process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet.</td></tr>
 <tr><td><code>AVPlayer.init(url:)</code></td><td>Compile-only</td><td>Stores URL/player shape only.</td></tr>
+<tr><td><code>AVAudioPlayer</code> data/URL initializers, <code>prepareToPlay</code>, <code>play</code>, <code>play(atTime:)</code>, <code>pause</code>, <code>stop</code>, state readback</td><td>Partial</td><td>Routes through shared <code>QuillAudioPlayerService</code> process-local playback state and extracts basic WAV duration/channel metadata from local data or file URLs; native playback is not attached yet.</td></tr>
 <tr><td><code>AVAudioEngine.prepare()</code> / <code>start()</code> / <code>stop()</code> / <code>reset()</code></td><td>Partial</td><td>Routes through <code>QuillAudioEngineService</code>; tracks prepared/running state, no audio I/O.</td></tr>
 <tr><td><code>AVAudioEngine.attach(_:)</code> / <code>connect(...)</code></td><td>Partial</td><td>Tracks process-local graph attachment and connection counts; no real graph processing.</td></tr>
 <tr><td><code>AVAudioNode.installTap(...)</code> / <code>removeTap(onBus:)</code></td><td>Partial</td><td>Tracks process-local tap registration/removal; no audio tap stream.</td></tr>

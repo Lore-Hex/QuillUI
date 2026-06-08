@@ -11,6 +11,7 @@ import SwiftData
 import Combine
 import UIKit
 import AVFoundation
+import AudioToolbox
 import QuillKit
 import QuillFoundation
 import ActivityIndicatorView
@@ -29,6 +30,39 @@ import Sparkle
 import ServiceManagement
 @_spi(QuillTesting) import QuillUI
 
+private final class PausingSpeechDelegate: AVSpeechSynthesizerDelegate {
+    var events: [String] = []
+    var pauseResult: Bool?
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        events.append("start")
+        pauseResult = synthesizer.pauseSpeaking(at: .word)
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        events.append("finish")
+    }
+}
+
+private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue: Value
+
+    init(_ value: Value) {
+        storedValue = value
+    }
+
+    var value: Value {
+        lock.withLock { storedValue }
+    }
+
+    func update(_ body: (inout Value) -> Void) {
+        lock.withLock {
+            body(&storedValue)
+        }
+    }
+}
+
 @Suite("Linux compatibility import modules", .serialized)
 struct CompatibilityModuleTests {
     private func pngDimensions(_ data: Data) -> (width: UInt32, height: UInt32)? {
@@ -41,6 +75,45 @@ struct CompatibilityModuleTests {
         let height = (UInt32(bytes[20]) << 24) | (UInt32(bytes[21]) << 16)
                    | (UInt32(bytes[22]) << 8)  |  UInt32(bytes[23])
         return (width, height)
+    }
+
+    private func wavData(sampleRate: UInt32 = 8_000, channels: UInt16 = 2, frames: UInt32 = 8_000) -> Data {
+        let bitsPerSample: UInt16 = 16
+        let blockAlign = channels * bitsPerSample / 8
+        let byteRate = sampleRate * UInt32(blockAlign)
+        let dataByteCount = frames * UInt32(blockAlign)
+        let riffByteCount = UInt32(36) + dataByteCount
+        var data = Data()
+
+        func appendASCII(_ string: String) {
+            data.append(contentsOf: string.utf8)
+        }
+        func appendUInt16(_ value: UInt16) {
+            data.append(UInt8(value & 0xff))
+            data.append(UInt8((value >> 8) & 0xff))
+        }
+        func appendUInt32(_ value: UInt32) {
+            data.append(UInt8(value & 0xff))
+            data.append(UInt8((value >> 8) & 0xff))
+            data.append(UInt8((value >> 16) & 0xff))
+            data.append(UInt8((value >> 24) & 0xff))
+        }
+
+        appendASCII("RIFF")
+        appendUInt32(riffByteCount)
+        appendASCII("WAVE")
+        appendASCII("fmt ")
+        appendUInt32(16)
+        appendUInt16(1)
+        appendUInt16(channels)
+        appendUInt32(sampleRate)
+        appendUInt32(byteRate)
+        appendUInt16(blockAlign)
+        appendUInt16(bitsPerSample)
+        appendASCII("data")
+        appendUInt32(dataByteCount)
+        data.append(contentsOf: repeatElement(UInt8(0), count: Int(dataByteCount)))
+        return data
     }
 
     @Test("SwiftUI and SwiftData module aliases expose Quill APIs")
@@ -290,6 +363,32 @@ struct CompatibilityModuleTests {
             "NSWorkspace.urlForApplication(withBundleIdentifier:)",
             "NSWorkspace.urlForApplication(toOpen:)"
         ])))
+    }
+
+    @Test("AppKit audio compatibility routes NSSound through QuillKit")
+    func appKitAudioCompatibilityRoutesNSSoundThroughQuillKit() {
+        let result = AppleCompatibilitySmoke.runAppKitAudioSmoke()
+        #expect(result.dataSoundCreated)
+        #expect(result.playSucceeded)
+        #expect(result.stopSucceeded)
+        #expect(result.playCount == 1)
+        #expect(result.stopCount == 1)
+        #expect(result.stoppedAfterStop)
+        #expect(result.operations.isSuperset(of: Set([
+            "audioPlayer.play",
+            "audioPlayer.stop"
+        ])))
+    }
+
+    @Test("AppKit workspace open routes through QuillWorkspace")
+    func appKitWorkspaceOpenRoutesThroughQuillWorkspace() {
+        let result = AppleCompatibilitySmoke.runAppKitWorkspaceOpenSmoke()
+        let expectedURL = URL(string: "https://example.com/quill-appkit-workspace")!
+        #expect(result.directOpenSucceeded)
+        #expect(result.configurationOpenSucceeded)
+        #expect(result.configurationCompletionSucceeded)
+        #expect(result.openedURLs == [expectedURL, expectedURL])
+        #expect(result.operations.contains("openURL"))
     }
 
     @Test("AppKit rect string helpers round-trip common geometry formats")
@@ -680,6 +779,20 @@ struct CompatibilityModuleTests {
         #expect(!synthesizer.isPaused)
         #expect(synthesizer.stopSpeaking(at: .immediate))
 
+        let pausingDelegate = PausingSpeechDelegate()
+        let pausingSynthesizer = AVSpeechSynthesizer()
+        pausingSynthesizer.delegate = pausingDelegate
+        pausingSynthesizer.speak(AVSpeechUtterance(string: "pause me"))
+        #expect(pausingDelegate.events == ["start"])
+        #expect(pausingDelegate.pauseResult == true)
+        #expect(pausingSynthesizer.isPaused)
+        #expect(pausingSynthesizer.isSpeaking)
+        #expect(pausingSynthesizer.continueSpeaking())
+        #expect(pausingDelegate.events == ["start", "finish"])
+        #expect(!pausingSynthesizer.isPaused)
+        #expect(!pausingSynthesizer.isSpeaking)
+        #expect(!pausingSynthesizer.continueSpeaking())
+
         QuillSpeechBackend.shared.resetSpeechSynthesis()
     }
 
@@ -763,6 +876,72 @@ struct CompatibilityModuleTests {
         #expect(operations.contains("audioEngine.reset"))
     }
 
+    @Test("AVFoundation audio player and system sounds route through QuillKit")
+    func avFoundationAudioPlayerAndSystemSoundsRouteThroughQuillKit() throws {
+        QuillAudioPlayerService.shared.resetAll()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let data = wavData()
+        let player = try AVAudioPlayer(data: data)
+        #expect(player.numberOfChannels == 2)
+        #expect(abs(player.duration - 1) < 0.0001)
+        #expect(player.prepareToPlay())
+        player.currentTime = 0.25
+        player.volume = 1.25
+        player.numberOfLoops = 2
+        #expect(player.play(atTime: 0.5))
+        #expect(player.isPlaying)
+        #expect(player.currentTime == 0.5)
+        #expect(player.volume == 1)
+        player.pause()
+        #expect(player.isPlaying == false)
+        #expect(player.play())
+        player.stop()
+        #expect(player.isPlaying == false)
+
+        let playerState = try #require(QuillAudioPlayerService.shared.playerStates.first {
+            if case .data(byteCount: data.count) = $0.source {
+                return true
+            }
+            return false
+        })
+        #expect(playerState.isPrepared)
+        #expect(playerState.playCount == 2)
+        #expect(playerState.pauseCount == 1)
+        #expect(playerState.stopCount == 1)
+        #expect(playerState.numberOfLoops == 2)
+
+        let soundURL = URL(fileURLWithPath: "/tmp/quill-system-sound.wav")
+        var soundID: SystemSoundID = 0
+        #expect(AudioServicesCreateSystemSoundID(soundURL, &soundID) == kAudioServicesNoError)
+        AudioServicesPlaySystemSound(soundID)
+        AudioServicesPlayAlertSound(soundID)
+        #expect(AudioServicesAddSystemSoundCompletion(soundID, nil, nil, { _, _ in }, nil) == kAudioServicesNoError)
+        AudioServicesRemoveSystemSoundCompletion(soundID)
+        #expect(AudioServicesDisposeSystemSoundID(soundID) == kAudioServicesNoError)
+
+        let systemSound = try #require(QuillAudioPlayerService.shared.systemSoundRecords.first {
+            $0.soundID == soundID
+        })
+        #expect(systemSound.url == soundURL)
+        #expect(systemSound.playCount == 1)
+        #expect(systemSound.alertPlayCount == 1)
+        #expect(systemSound.completionRegistrationCount == 0)
+        #expect(systemSound.isDisposed)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioPlayer.prepareToPlay"))
+        #expect(operations.contains("audioPlayer.play"))
+        #expect(operations.contains("audioPlayer.pause"))
+        #expect(operations.contains("audioPlayer.stop"))
+        #expect(operations.contains("audioSystemSound.create"))
+        #expect(operations.contains("audioSystemSound.play"))
+        #expect(operations.contains("audioSystemSound.playAlert"))
+        #expect(operations.contains("audioSystemSound.addCompletion"))
+        #expect(operations.contains("audioSystemSound.removeCompletion"))
+        #expect(operations.contains("audioSystemSound.dispose"))
+    }
+
     @Test("Sparkle updater routes through QuillKit")
     func sparkleUpdaterRoutesThroughQuillKit() {
         QuillUpdateService.shared.reset()
@@ -823,6 +1002,12 @@ struct CompatibilityModuleTests {
         center.removeAllPendingNotificationRequests()
         service.configureAuthorization(status: .notDetermined, requestResult: true)
         QuillCompatibilityDiagnostics.shared.clear()
+        let openedURLs = CompatibilityLockedValue<[URL]>([])
+        QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "ui-application-test") { url in
+            openedURLs.update { $0.append(url) }
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
 
         let granted = try await center.requestAuthorization(options: [.alert, .sound])
         #expect(granted)
@@ -833,6 +1018,15 @@ struct CompatibilityModuleTests {
             authorizationStatus = settings.authorizationStatus
         }
         #expect(authorizationStatus == .authorized)
+
+        let openURL = URL(string: "https://example.com/quill-chat")!
+        let completionResult = CompatibilityLockedValue<Bool?>(nil)
+        let didOpen = await UIApplication.shared.open(openURL, options: [:]) { result in
+            completionResult.update { $0 = result }
+        }
+        #expect(didOpen)
+        #expect(completionResult.value == true)
+        #expect(openedURLs.value == [openURL])
 
         await UIApplication.shared.registerForRemoteNotifications()
         let isRegisteredForRemoteNotifications = await UIApplication.shared.isRegisteredForRemoteNotifications
@@ -913,6 +1107,7 @@ struct CompatibilityModuleTests {
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
         #expect(operations.contains("notifications.registerForRemoteNotifications"))
+        #expect(operations.contains("openURL"))
 
         service.reset()
     }

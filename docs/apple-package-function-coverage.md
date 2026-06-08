@@ -180,7 +180,7 @@ platform fallbacks.
 | `NSPasteboard.setData(_:forType:)` / `data(forType:)` | Usable | In-memory data storage. |
 | `NSPasteboard.writeObjects(_:)` / `readObjects(...)` | Partial | Current pasteboard item paths only. |
 | `NSPasteboardItem.setString`, `setData`, `setPropertyList` and getters | Usable | In-memory item storage. |
-| `NSWorkspace.open(_:)` and overloads | Fallback | Delegates where host support exists, otherwise records diagnostic/no-op. |
+| `NSWorkspace.open(_:)` and overloads | Partial | Routes through shared `QuillWorkspace.open`; native GTK/Qt launchers can inject a backend and headless Linux no-ops with diagnostics. |
 | `NSWorkspace.selectFile`, `activateFileViewerSelecting` | Fallback | Opens containing directories through `xdg-open` when a Linux desktop session is available; records diagnostics and no-ops in headless environments. |
 | `NSWorkspace.icon(forFile:)`, `icon(forContentType:)` | Fallback | Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet. |
 | `NSWorkspace.urlForApplication(...)` | Partial | Uses `xdg-mime` plus XDG application directories for existing `.desktop` files; bundle identifiers only resolve when they already map to a Linux desktop entry. |
@@ -220,7 +220,7 @@ platform fallbacks.
 | `NSAnimationContext.runAnimationGroup(...)` | Fallback | Runs closure immediately. |
 | `NSHapticFeedbackManager.perform(...)` | Fallback | No haptic hardware effect. |
 | `NSSharingService.perform(withItems:)` / `sharingServices(forItems:)` | Compile-only | Sharing integration is absent. |
-| `NSSound.play()` / `stop()` / `NSBeep()` | Fallback | No native audio playback. |
+| `NSSound.play()` / `stop()` / `NSBeep()` | Partial | Routes through shared `QuillAudioPlayerService` process-local playback state; `beep()` still emits BEL for terminal-visible feedback. |
 | `NSXPCConnection.resume()` / `suspend()` / `invalidate()` / `remoteObjectProxy()` | Compile-only | XPC is not implemented. |
 | `NSHumanReadableCopyright()`, `NSFullUserName()`, `NSFindPanelAction()` | Fallback | Deterministic helper values only. |
 
@@ -232,7 +232,7 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | --- | --- | --- |
 | `UIImage`, `UIColor`, `UIFont`, `UIScreen` aliases | Partial | Map to AppKit types when importable, otherwise to QuillFoundation fallbacks. |
 | `UIApplication.shared` | Usable | Singleton shape exists. |
-| `UIApplication.open(_:options:completionHandler:)` | Partial | Uses `NSWorkspace` when AppKit is available; otherwise completion is `false`. |
+| `UIApplication.open(_:options:completionHandler:)` | Partial | Uses `NSWorkspace` on Apple platforms and `QuillWorkspace.open` on Linux; completion receives the compatibility backend result. |
 | `UIApplication.registerForRemoteNotifications()` / `unregisterForRemoteNotifications()` / `isRegisteredForRemoteNotifications` | Partial | Routes through `QuillNotificationService` process-local registration state; no native APNs/device-token registration exists on Linux. |
 | `UIApplication.setAlternateIconName(_:completionHandler:)` | Fallback | Calls completion with nil, no icon change. |
 | `UIApplication.connectedScenes`, `applicationState`, `alternateIconName` | Compile-only | Static/default metadata only. |
@@ -391,17 +391,24 @@ subset lives in `QuillUIKit`.
 | `SecTrustEvaluateWithError(_:_:)` | Fallback | Records diagnostic and returns true. |
 | Native secure keychain persistence, access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, certificate parsing, policy evaluation, platform trust store, Secure Transport parity | Incomplete | Current keychain rows are process-local compatibility storage, and current trust fallback must not be treated as production TLS trust. |
 
+## AudioToolbox
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `AudioServicesCreateSystemSoundID`, `DisposeSystemSoundID`, `PlaySystemSound`, `PlayAlertSound`, completion registration | Partial | Routes through `QuillAudioPlayerService` process-local system-sound records; native PipeWire/ALSA playback is not attached yet. |
+
 ## AVFoundation
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
 | `AVSpeechSynthesizer.speak(_:)` | Partial | Routes through QuillKit's speech backend, records compatibility diagnostics, tracks speaking state during synchronous callbacks, and calls start/finish delegate callbacks immediately. |
 | `AVSpeechSynthesizer.stopSpeaking(at:)` | Partial | Clears QuillKit speech state and returns true without native speech output. |
-| `AVSpeechSynthesizer.continueSpeaking()` / `pauseSpeaking(at:)` | Compile-only | Return false. |
+| `AVSpeechSynthesizer.continueSpeaking()` / `pauseSpeaking(at:)` | Partial | Tracks paused speech state in `QuillSpeechBackend`; a paused compatibility utterance holds its finish callback until `continueSpeaking()`. |
 | `AVSpeechUtterance.init(string:)` | Usable | Stores source-visible utterance text and metadata. |
 | `AVSpeechSynthesisVoice` initializers, `speechVoices()`, and voice metadata | Partial | Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands. |
 | `AVAudioSession.sharedInstance()`, `setCategory`, `setMode`, `setActive`, category/mode/options/active readback | Partial | Routes through shared `QuillAudioSessionService` process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet. |
 | `AVPlayer.init(url:)` | Compile-only | Stores URL/player shape only. |
+| `AVAudioPlayer` data/URL initializers, `prepareToPlay`, `play`, `play(atTime:)`, `pause`, `stop`, state readback | Partial | Routes through shared `QuillAudioPlayerService` process-local playback state and extracts basic WAV duration/channel metadata from local data or file URLs; native playback is not attached yet. |
 | `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Partial | Routes through `QuillAudioEngineService`; tracks prepared/running state, no audio I/O. |
 | `AVAudioEngine.attach(_:)` / `connect(...)` | Partial | Tracks process-local graph attachment and connection counts; no real graph processing. |
 | `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Partial | Tracks process-local tap registration/removal; no audio tap stream. |

@@ -155,6 +155,7 @@ struct QuillKitTests {
         #expect(statuses[.localAuthentication] == .emulated)
         #expect(statuses[.globalShortcuts] == .emulated)
         #expect(statuses[.audioSession] == .emulated)
+        #expect(statuses[.audioPlayback] == .emulated)
         #expect(statuses[.notifications] == .emulated)
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -176,6 +177,26 @@ struct QuillKitTests {
         #expect(service.isEnabled == false)
         service.unregister()
         #expect(service.isEnabled == false)
+    }
+
+    @Test("workspace open uses configurable backend")
+    func workspaceOpenUsesConfigurableBackend() {
+        let openedURLs = LockedValue<[URL]>([])
+        let url = URL(string: "https://example.com/quill")!
+        QuillCompatibilityDiagnostics.shared.clear()
+        QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "test-opener") { openedURL in
+            openedURLs.update { $0.append(openedURL) }
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        #expect(QuillWorkspace.open(url))
+        #expect(openedURLs.value == [url])
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "openURL"
+                && $0.severity == .info
+                && $0.message.contains("test-opener")
+        })
     }
 
     @Test("update service tracks configuration and checks")
@@ -383,6 +404,74 @@ struct QuillKitTests {
         #expect(operations.contains("audioEngine.reset"))
     }
 
+    @Test("audio player service tracks playback properties and system sounds")
+    func audioPlayerServiceTracksPlaybackPropertiesAndSystemSounds() {
+        let service = QuillAudioPlayerService()
+        let playerID = UUID()
+        let soundURL = URL(fileURLWithPath: "/tmp/quill-tone.wav")
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.registerPlayer(
+            playerID,
+            source: .data(byteCount: 128),
+            duration: 2.5,
+            numberOfChannels: 2
+        )
+        #expect(service.prepareToPlay(playerID: playerID))
+        service.setCurrentTime(0.75, playerID: playerID)
+        service.setVolume(1.5, playerID: playerID)
+        service.setNumberOfLoops(-1, playerID: playerID)
+        #expect(service.play(playerID: playerID, atTime: 1.25))
+
+        var playerState = service.state(for: playerID)
+        #expect(playerState?.duration == 2.5)
+        #expect(playerState?.numberOfChannels == 2)
+        #expect(playerState?.isPrepared == true)
+        #expect(playerState?.isPlaying == true)
+        #expect(playerState?.playCount == 1)
+        #expect(playerState?.currentTime == 1.25)
+        #expect(playerState?.volume == 1)
+        #expect(playerState?.numberOfLoops == -1)
+
+        service.pause(playerID: playerID)
+        _ = service.stop(playerID: playerID)
+        playerState = service.state(for: playerID)
+        #expect(playerState?.isPlaying == false)
+        #expect(playerState?.pauseCount == 1)
+        #expect(playerState?.stopCount == 1)
+
+        let soundID = service.createSystemSoundID(url: soundURL)
+        service.playSystemSound(soundID)
+        service.playSystemSound(soundID, alert: true)
+        service.addSystemSoundCompletion(soundID)
+        service.removeSystemSoundCompletion(soundID)
+        service.disposeSystemSoundID(soundID)
+        service.beep()
+
+        let systemSound = service.systemSoundRecords.first { $0.soundID == soundID }
+        #expect(systemSound?.url == soundURL)
+        #expect(systemSound?.playCount == 1)
+        #expect(systemSound?.alertPlayCount == 1)
+        #expect(systemSound?.completionRegistrationCount == 0)
+        #expect(systemSound?.isDisposed == true)
+        #expect(service.playerStates.contains {
+            $0.source == .beep && $0.isPlaying && $0.playCount == 1
+        })
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioPlayer.prepareToPlay"))
+        #expect(operations.contains("audioPlayer.play"))
+        #expect(operations.contains("audioPlayer.pause"))
+        #expect(operations.contains("audioPlayer.stop"))
+        #expect(operations.contains("audioSystemSound.create"))
+        #expect(operations.contains("audioSystemSound.play"))
+        #expect(operations.contains("audioSystemSound.playAlert"))
+        #expect(operations.contains("audioSystemSound.addCompletion"))
+        #expect(operations.contains("audioSystemSound.removeCompletion"))
+        #expect(operations.contains("audioSystemSound.dispose"))
+        #expect(operations.contains("audioSystemSound.beep"))
+    }
+
     @Test("speech backend invokes lifecycle callbacks in order")
     func speechBackendInvokesCallbacksInOrder() {
         let backend = QuillSpeechBackend()
@@ -413,6 +502,35 @@ struct QuillKitTests {
         #else
         #expect(backend.voices().isEmpty)
         #endif
+    }
+
+    @Test("speech backend can pause and continue synthesis")
+    func speechBackendCanPauseAndContinueSynthesis() {
+        let backend = QuillSpeechBackend()
+        let callbacks = LockedValue<[String]>([])
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        backend.speak("hello") {
+            callbacks.update { $0.append("start") }
+            #expect(backend.pause())
+            #expect(backend.isPaused)
+            #expect(backend.isSpeaking)
+        } onFinish: {
+            callbacks.update { $0.append("finish") }
+        }
+
+        #expect(callbacks.value == ["start"])
+        #expect(backend.isPaused)
+        #expect(backend.isSpeaking)
+        #expect(backend.continueSpeaking())
+        #expect(callbacks.value == ["start", "finish"])
+        #expect(!backend.isPaused)
+        #expect(!backend.isSpeaking)
+        #expect(!backend.continueSpeaking())
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("speechSynthesis.pause"))
+        #expect(operations.contains("speechSynthesis.continue"))
     }
 
     @Test("speech recognition backend exposes configurable authorization availability and results")

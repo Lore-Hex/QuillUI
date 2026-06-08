@@ -461,7 +461,7 @@ quillParityTestDependencies.append("SwiftUI")
 let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "QuillShims", "SwiftUI",
     "AsyncAlgorithms", "Carbon", "CoreGraphics", "Security",
-    "AVFoundation", "Speech", "ApplicationServices",
+    "AVFoundation", "AudioToolbox", "Speech", "ApplicationServices",
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
@@ -470,6 +470,12 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
     "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
 ] + quillLinuxShimTestDependencies
+let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = appSwiftSettings + [
+    // Swift Testing declares platform cross-import overlays such as
+    // _Testing_UIKit on Apple SDKs. This Linux-only target intentionally imports
+    // QuillUI's shadow Apple modules, so disable those SDK overlay lookups here.
+    .unsafeFlags(["-Xfrontend", "-disable-cross-import-overlays"])
+]
 #endif
 #if os(Linux)
 func quillLinuxBackendDependencies(
@@ -1737,9 +1743,13 @@ for shimName in signalAppleFrameworkShims {
     // types (e.g. ImageIO's CGImageSource returns QuillFoundation's CGImage).
     // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
     // edge is inert for shims that do not import QuillFoundation.
-    let dependencies: [Target.Dependency] = shimName == "UserNotifications"
-        ? ["QuillFoundation", "QuillKit"]
-        : ["QuillFoundation"]
+    let dependencies: [Target.Dependency]
+    switch shimName {
+    case "AudioToolbox", "UserNotifications":
+        dependencies = ["QuillFoundation", "QuillKit"]
+    default:
+        dependencies = ["QuillFoundation"]
+    }
     targets.append(.target(name: shimName, dependencies: dependencies, path: "Sources/AppleFrameworkShims/\(shimName)"))
 }
 #endif
@@ -2687,7 +2697,7 @@ let packageTestTargets: [Target] = {
     tests.append(.testTarget(
         name: "QuillCompatibilityModuleTests",
         dependencies: quillLinuxCompatibilityModuleTestDependencies,
-        swiftSettings: appSwiftSettings
+        swiftSettings: quillLinuxCompatibilityModuleTestSwiftSettings
     ))
     tests.append(.testTarget(
         name: "OllamaKitTests",
