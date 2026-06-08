@@ -2891,6 +2891,59 @@ elif "gtkResolvePendingScrollTo(id: AnyHashable(id), widget: widget)" in text:
 '''
     text = text.replace(old_patched_id_view, new_id_view, 1)
 
+old_task_view = '''extension TaskView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        return GTK4DescriptorNode(
+            kind: .task,
+            typeName: "TaskView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+        gtkAttachStandaloneTaskLifecycle(
+            to: widget,
+            priority: priority,
+            action: bindTaskActionToCurrentEnvironment(action)
+        )
+        return opaqueFromWidget(widget)
+    }
+}
+'''
+new_task_view = '''extension TaskView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        gtkCollectTaskPayload(
+            GTK4TaskPayload(
+                priority: priority,
+                action: bindTaskActionToCurrentEnvironment(action)
+            )
+        )
+        return GTK4DescriptorNode(
+            kind: .task,
+            typeName: "TaskView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+        if GTKViewHost.getCurrentRebuilding() == nil {
+            gtkAttachStandaloneTaskLifecycle(
+                to: widget,
+                priority: priority,
+                action: bindTaskActionToCurrentEnvironment(action)
+            )
+        }
+        return opaqueFromWidget(widget)
+    }
+}
+'''
+if "gtkCollectTaskPayload(" not in text and old_task_view in text:
+    text = text.replace(old_task_view, new_task_view, 1)
+elif "gtkCollectTaskPayload(" not in text:
+    raise SystemExit("SwiftOpenUI TaskView lifecycle shape was not recognized")
+
 old_on_appear_rebuild = '''        if !isRebuild {
             let boundAction = bindActionToCurrentEnvironment(action)
             let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
