@@ -16,12 +16,16 @@ repeatable source checkout plus Linux compile ratchet:
 - `QuillObjCCompatibility` provides Apple-style Objective-C include paths
   (`<Foundation/Foundation.h>`, `<AppKit/AppKit.h>`, `<Cocoa/Cocoa.h>`) so
   mixed Objective-C package islands can compile without Telegram source edits.
-- `scripts/generated-telegram-package-check.sh` compiles the first unchanged
-  SwiftPM package islands on Linux: `CAPortal`, `CalendarUtils`,
-  `CrashHandler`, `CurrencyFormat`, `DateUtils`, `DetectSpeech`, `EDSunriseSet`,
+- `scripts/generated-telegram-package-check.sh` compiles the first SwiftPM
+  package islands on Linux: `CAPortal`, `CalendarUtils`, `CrashHandler`,
+  `CurrencyFormat`, `DateUtils`, `DetectSpeech`, `EDSunriseSet`,
   `EmojiSuggestions`, `FastBlur`, `FoundationUtils`, `GZIP`, `HackUtils`,
   `HotKey`, `KeyboardKey`, `MergeLists`, `NumberPluralization`, `RingBuffer`,
-  `TGCurrencyFormatter`, and `TGPassportMRZ`.
+  `TGCurrencyFormatter`, `TGPassportMRZ`, and `TelegramSystem`.
+- `Sources/QuillTelegramBuildOverlays` provides generic generated build overlays
+  for Swift-only ambient Apple symbols that cannot be supplied by C headers.
+  `TelegramSystem` currently uses this for a Linux `sysctlbyname` fallback while
+  leaving the upstream checkout untouched.
 
 Current Linux blocker classes:
 
@@ -31,7 +35,6 @@ Current Linux blocker classes:
 - AppKit/CoreText/Cocoa UI packages that need QuillAppKit/QuillKit shims before
   they can compile (`Colors`, `Strings`, `TGUIKit`, `TelegramMedia`, and the
   main `Telegram-Mac` surface).
-- Darwin-only system APIs such as `sysctlbyname` in `TelegramSystem`.
 - Security/CommonCrypto signing APIs used by `ApiCredentials`.
 - Higher-level Telegram packages that depend on telegram-ios submodules not
   present in the shallow upstream checkout.

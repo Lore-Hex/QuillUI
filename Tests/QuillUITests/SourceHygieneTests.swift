@@ -2522,6 +2522,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
             encoding: .utf8
         )
+        let telegramSystemOverlay = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/TelegramSystem/Sources/TelegramSystem/QuillDarwinSysctlOverlay.swift"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains(".library(name: \"QuillObjCCompatibility\", targets: [\"QuillObjCCompatibility\"])"))
         #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
@@ -2555,17 +2559,21 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("RingBuffer"))
         #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
         #expect(telegramPackageCheck.contains("TGPassportMRZ"))
+        #expect(telegramPackageCheck.contains("TelegramSystem"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/Prelude.h"))
+        #expect(telegramPackageCheck.contains("overlay_root=\"$ROOT_DIR/Sources/QuillTelegramBuildOverlays\""))
+        #expect(telegramPackageCheck.contains("cp -R \"$overlay_dir\"/. \"$overlaid_package_dir\""))
         #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
         #expect(telegramPackageCheck.contains("-fblocks"))
         #expect(telegramPackageCheck.contains("-fobjc-arc"))
         #expect(telegramPackageCheck.contains("deeper Foundation/AppKit runtime surface"))
-        #expect(telegramPackageCheck.contains("sysctlbyname"))
+        #expect(telegramPackageCheck.contains("Generic build overlays applied"))
         #expect(telegramAudit.contains("Telegram Swift is not a SwiftUI app"))
         #expect(telegramAudit.contains("scripts/fetch-upstream.sh telegram"))
         #expect(telegramAudit.contains("QuillObjCCompatibility"))
         #expect(telegramAudit.contains("QuillAppKit/QuillKit shims"))
+        #expect(telegramAudit.contains("Sources/QuillTelegramBuildOverlays"))
         #expect(objcFoundationHeader.contains("@interface NSString : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
@@ -2599,6 +2607,8 @@ struct SourceHygieneTests {
         #expect(!objcModuleMap.contains("module CoreFoundation {"))
         #expect(objcPreludeHeader.contains("#include <string>"))
         #expect(objcPreludeHeader.contains("#include <pthread.h>"))
+        #expect(telegramSystemOverlay.contains("func sysctlbyname"))
+        #expect(telegramSystemOverlay.contains("oldlenp?.pointee = 0"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")
