@@ -3493,8 +3493,12 @@ open class NSButton: NSControl {
     /// still yields to required size/edge constraints. Faithful text metrics
     /// (QuillTypography) refine this estimate in a later paint-fidelity rung.
     open override var intrinsicContentSize: NSSize {
-        let estimatedTextWidth = CGFloat(storedTitle.count) * 7.0
-        let width = max(60, estimatedTextWidth + 28) // ~14pt of bezel inset per side
+        // Estimate the title width (Inter ≈7.5pt/char at the 13pt system size) plus
+        // the macOS push-button bezel insets — the Qt control stylesheet adds ~12pt
+        // padding + a 1pt border on each side, so the box must be generous enough
+        // that titles don't clip inside the rounded bezel.
+        let estimatedTextWidth = CGFloat(storedTitle.count) * 7.5
+        let width = max(72, estimatedTextWidth + 34)
         return NSSize(width: width, height: 32)
     }
 }
