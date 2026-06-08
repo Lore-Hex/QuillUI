@@ -10,6 +10,7 @@
 //
 import Foundation
 import CoreFoundation
+import QuillKit
 
 public typealias SystemSoundID = UInt32
 
@@ -18,34 +19,40 @@ public typealias SystemSoundID = UInt32
 public let kAudioServicesNoError: Int32 = 0
 public let kSystemSoundID_Vibrate: SystemSoundID = 0x0000_0FFF
 
-/// Inert: registers a placeholder sound id and reports success, so the caller's
-/// `kAudioServicesNoError == ...` guard passes and playback is simply a no-op.
 @discardableResult
 public func AudioServicesCreateSystemSoundID(
     _ inFileURL: URL,
     _ outSystemSoundID: UnsafeMutablePointer<SystemSoundID>
 ) -> Int32 {
-    outSystemSoundID.pointee = 1
+    outSystemSoundID.pointee = QuillAudioPlayerService.shared.createSystemSoundID(url: inFileURL)
     return kAudioServicesNoError
 }
 
 @discardableResult
 public func AudioServicesDisposeSystemSoundID(_ inSystemSoundID: SystemSoundID) -> Int32 {
-    kAudioServicesNoError
+    QuillAudioPlayerService.shared.disposeSystemSoundID(inSystemSoundID)
+    return kAudioServicesNoError
 }
 
-/// Playback no-ops (nothing is audible on Linux yet).
-public func AudioServicesPlaySystemSound(_ inSystemSoundID: SystemSoundID) {}
-public func AudioServicesPlayAlertSound(_ inSystemSoundID: SystemSoundID) {}
+public func AudioServicesPlaySystemSound(_ inSystemSoundID: SystemSoundID) {
+    QuillAudioPlayerService.shared.playSystemSound(inSystemSoundID)
+}
+
+public func AudioServicesPlayAlertSound(_ inSystemSoundID: SystemSoundID) {
+    QuillAudioPlayerService.shared.playSystemSound(inSystemSoundID, alert: true)
+}
 
 public func AudioServicesAddSystemSoundCompletion(
     _ inSystemSoundID: SystemSoundID,
     _ inRunLoop: CFRunLoop?,
-    _ inRunLoopMode: CFString?,
+    _ inRunLoopMode: CoreFoundation.CFString?,
     _ inCompletionRoutine: @convention(c) (SystemSoundID, UnsafeMutableRawPointer?) -> Void,
     _ inClientData: UnsafeMutableRawPointer?
 ) -> Int32 {
-    kAudioServicesNoError
+    QuillAudioPlayerService.shared.addSystemSoundCompletion(inSystemSoundID)
+    return kAudioServicesNoError
 }
 
-public func AudioServicesRemoveSystemSoundCompletion(_ inSystemSoundID: SystemSoundID) {}
+public func AudioServicesRemoveSystemSoundCompletion(_ inSystemSoundID: SystemSoundID) {
+    QuillAudioPlayerService.shared.removeSystemSoundCompletion(inSystemSoundID)
+}

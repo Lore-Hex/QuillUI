@@ -220,7 +220,7 @@ platform fallbacks.
 | `NSAnimationContext.runAnimationGroup(...)` | Fallback | Runs closure immediately. |
 | `NSHapticFeedbackManager.perform(...)` | Fallback | No haptic hardware effect. |
 | `NSSharingService.perform(withItems:)` / `sharingServices(forItems:)` | Compile-only | Sharing integration is absent. |
-| `NSSound.play()` / `stop()` / `NSBeep()` | Fallback | No native audio playback. |
+| `NSSound.play()` / `stop()` / `NSBeep()` | Partial | Routes through shared `QuillAudioPlayerService` process-local playback state; `beep()` still emits BEL for terminal-visible feedback. |
 | `NSXPCConnection.resume()` / `suspend()` / `invalidate()` / `remoteObjectProxy()` | Compile-only | XPC is not implemented. |
 | `NSHumanReadableCopyright()`, `NSFullUserName()`, `NSFindPanelAction()` | Fallback | Deterministic helper values only. |
 
@@ -391,6 +391,12 @@ subset lives in `QuillUIKit`.
 | `SecTrustEvaluateWithError(_:_:)` | Fallback | Records diagnostic and returns true. |
 | Native secure keychain persistence, access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, certificate parsing, policy evaluation, platform trust store, Secure Transport parity | Incomplete | Current keychain rows are process-local compatibility storage, and current trust fallback must not be treated as production TLS trust. |
 
+## AudioToolbox
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `AudioServicesCreateSystemSoundID`, `DisposeSystemSoundID`, `PlaySystemSound`, `PlayAlertSound`, completion registration | Partial | Routes through `QuillAudioPlayerService` process-local system-sound records; native PipeWire/ALSA playback is not attached yet. |
+
 ## AVFoundation
 
 | API or function | Linux status | Notes |
@@ -402,6 +408,7 @@ subset lives in `QuillUIKit`.
 | `AVSpeechSynthesisVoice` initializers, `speechVoices()`, and voice metadata | Partial | Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands. |
 | `AVAudioSession.sharedInstance()`, `setCategory`, `setMode`, `setActive`, category/mode/options/active readback | Partial | Routes through shared `QuillAudioSessionService` process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet. |
 | `AVPlayer.init(url:)` | Compile-only | Stores URL/player shape only. |
+| `AVAudioPlayer` data/URL initializers, `prepareToPlay`, `play`, `play(atTime:)`, `pause`, `stop`, state readback | Partial | Routes through shared `QuillAudioPlayerService` process-local playback state and extracts basic WAV duration/channel metadata from local data or file URLs; native playback is not attached yet. |
 | `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Partial | Routes through `QuillAudioEngineService`; tracks prepared/running state, no audio I/O. |
 | `AVAudioEngine.attach(_:)` / `connect(...)` | Partial | Tracks process-local graph attachment and connection counts; no real graph processing. |
 | `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Partial | Tracks process-local tap registration/removal; no audio tap stream. |

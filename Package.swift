@@ -461,7 +461,7 @@ quillParityTestDependencies.append("SwiftUI")
 let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "QuillShims", "SwiftUI",
     "AsyncAlgorithms", "Carbon", "CoreGraphics", "Security",
-    "AVFoundation", "Speech", "ApplicationServices",
+    "AVFoundation", "AudioToolbox", "Speech", "ApplicationServices",
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
@@ -1727,9 +1727,13 @@ for shimName in signalAppleFrameworkShims {
     // types (e.g. ImageIO's CGImageSource returns QuillFoundation's CGImage).
     // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
     // edge is inert for shims that do not import QuillFoundation.
-    let dependencies: [Target.Dependency] = shimName == "UserNotifications"
-        ? ["QuillFoundation", "QuillKit"]
-        : ["QuillFoundation"]
+    let dependencies: [Target.Dependency]
+    switch shimName {
+    case "AudioToolbox", "UserNotifications":
+        dependencies = ["QuillFoundation", "QuillKit"]
+    default:
+        dependencies = ["QuillFoundation"]
+    }
     targets.append(.target(name: shimName, dependencies: dependencies, path: "Sources/AppleFrameworkShims/\(shimName)"))
 }
 #endif

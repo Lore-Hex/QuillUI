@@ -36,6 +36,7 @@ public enum QuillKitCapability: String, CaseIterable, Sendable {
     case updater
     case certificateTrust
     case audioSession
+    case audioPlayback
     case photoPicker
     case secureStorage
     case notifications
@@ -55,7 +56,7 @@ public enum QuillKitCapabilities {
         switch capability {
         case .clipboard, .speechSynthesis, .speechRecognition, .localAuthentication:
             return .emulated
-        case .globalShortcuts, .audioSession:
+        case .globalShortcuts, .audioSession, .audioPlayback:
             return .emulated
         case .notifications:
             return .emulated
@@ -1717,6 +1718,298 @@ public final class QuillAudioEngineService: @unchecked Sendable {
             operation: operation,
             severity: .info,
             message: "Audio engine state is tracked by the QuillKit compatibility backend."
+        )
+    }
+}
+
+public enum QuillAudioPlayerSource: Equatable, Sendable {
+    case data(byteCount: Int)
+    case url(URL)
+    case named(String)
+    case beep
+}
+
+public struct QuillAudioPlayerState: Equatable, Sendable {
+    public var playerID: UUID
+    public var source: QuillAudioPlayerSource
+    public var duration: TimeInterval
+    public var numberOfChannels: Int
+    public var isPrepared: Bool
+    public var isPlaying: Bool
+    public var playCount: Int
+    public var pauseCount: Int
+    public var stopCount: Int
+    public var currentTime: TimeInterval
+    public var volume: Float
+    public var numberOfLoops: Int
+
+    public init(
+        playerID: UUID,
+        source: QuillAudioPlayerSource,
+        duration: TimeInterval = 0,
+        numberOfChannels: Int = 0,
+        isPrepared: Bool = false,
+        isPlaying: Bool = false,
+        playCount: Int = 0,
+        pauseCount: Int = 0,
+        stopCount: Int = 0,
+        currentTime: TimeInterval = 0,
+        volume: Float = 1,
+        numberOfLoops: Int = 0
+    ) {
+        self.playerID = playerID
+        self.source = source
+        self.duration = duration
+        self.numberOfChannels = numberOfChannels
+        self.isPrepared = isPrepared
+        self.isPlaying = isPlaying
+        self.playCount = playCount
+        self.pauseCount = pauseCount
+        self.stopCount = stopCount
+        self.currentTime = currentTime
+        self.volume = volume
+        self.numberOfLoops = numberOfLoops
+    }
+}
+
+public struct QuillSystemSoundRecord: Equatable, Sendable {
+    public var soundID: UInt32
+    public var url: URL?
+    public var isDisposed: Bool
+    public var playCount: Int
+    public var alertPlayCount: Int
+    public var completionRegistrationCount: Int
+
+    public init(
+        soundID: UInt32,
+        url: URL? = nil,
+        isDisposed: Bool = false,
+        playCount: Int = 0,
+        alertPlayCount: Int = 0,
+        completionRegistrationCount: Int = 0
+    ) {
+        self.soundID = soundID
+        self.url = url
+        self.isDisposed = isDisposed
+        self.playCount = playCount
+        self.alertPlayCount = alertPlayCount
+        self.completionRegistrationCount = completionRegistrationCount
+    }
+}
+
+public final class QuillAudioPlayerService: @unchecked Sendable {
+    public static let shared = QuillAudioPlayerService()
+
+    private let lock = NSLock()
+    private var statesByPlayerID: [UUID: QuillAudioPlayerState] = [:]
+    private var systemSoundsByID: [UInt32: QuillSystemSoundRecord] = [:]
+    private var nextSystemSoundID: UInt32 = 1
+
+    public init() {}
+
+    public var playerStates: [QuillAudioPlayerState] {
+        lock.withLock {
+            statesByPlayerID.values.sorted { lhs, rhs in
+                lhs.playerID.uuidString < rhs.playerID.uuidString
+            }
+        }
+    }
+
+    public var systemSoundRecords: [QuillSystemSoundRecord] {
+        lock.withLock {
+            systemSoundsByID.values.sorted { lhs, rhs in
+                lhs.soundID < rhs.soundID
+            }
+        }
+    }
+
+    public func resetAll() {
+        lock.withLock {
+            statesByPlayerID.removeAll()
+            systemSoundsByID.removeAll()
+            nextSystemSoundID = 1
+        }
+    }
+
+    public func registerPlayer(
+        _ playerID: UUID,
+        source: QuillAudioPlayerSource,
+        duration: TimeInterval = 0,
+        numberOfChannels: Int = 0
+    ) {
+        lock.withLock {
+            statesByPlayerID[playerID] = QuillAudioPlayerState(
+                playerID: playerID,
+                source: source,
+                duration: max(0, duration),
+                numberOfChannels: max(0, numberOfChannels)
+            )
+        }
+    }
+
+    public func state(for playerID: UUID) -> QuillAudioPlayerState? {
+        lock.withLock { statesByPlayerID[playerID] }
+    }
+
+    @discardableResult
+    public func prepareToPlay(playerID: UUID) -> Bool {
+        updatePlayer(playerID, operation: "audioPlayer.prepareToPlay") {
+            $0.isPrepared = true
+        }
+    }
+
+    @discardableResult
+    public func play(playerID: UUID, atTime startTime: TimeInterval? = nil) -> Bool {
+        updatePlayer(playerID, operation: "audioPlayer.play") {
+            if let startTime {
+                $0.currentTime = max(0, startTime)
+            }
+            $0.isPrepared = true
+            $0.isPlaying = true
+            $0.playCount += 1
+        }
+    }
+
+    public func pause(playerID: UUID) {
+        _ = updatePlayer(playerID, operation: "audioPlayer.pause") {
+            $0.isPlaying = false
+            $0.pauseCount += 1
+        }
+    }
+
+    @discardableResult
+    public func stop(playerID: UUID) -> Bool {
+        updatePlayer(playerID, operation: "audioPlayer.stop") {
+            $0.isPlaying = false
+            $0.stopCount += 1
+        }
+    }
+
+    public func setCurrentTime(_ currentTime: TimeInterval, playerID: UUID) {
+        updatePlayerWithoutDiagnostics(playerID) {
+            $0.currentTime = max(0, currentTime)
+        }
+    }
+
+    public func setVolume(_ volume: Float, playerID: UUID) {
+        updatePlayerWithoutDiagnostics(playerID) {
+            $0.volume = min(max(volume, 0), 1)
+        }
+    }
+
+    public func setNumberOfLoops(_ numberOfLoops: Int, playerID: UUID) {
+        updatePlayerWithoutDiagnostics(playerID) {
+            $0.numberOfLoops = numberOfLoops
+        }
+    }
+
+    public func createSystemSoundID(url: URL) -> UInt32 {
+        let soundID = lock.withLock {
+            let soundID = nextAvailableSystemSoundID()
+            systemSoundsByID[soundID] = QuillSystemSoundRecord(soundID: soundID, url: url)
+            return soundID
+        }
+        record(operation: "audioSystemSound.create")
+        return soundID
+    }
+
+    public func disposeSystemSoundID(_ soundID: UInt32) {
+        updateSystemSound(soundID, operation: "audioSystemSound.dispose") {
+            $0.isDisposed = true
+        }
+    }
+
+    public func playSystemSound(_ soundID: UInt32, alert: Bool = false) {
+        updateSystemSound(soundID, operation: alert ? "audioSystemSound.playAlert" : "audioSystemSound.play") {
+            if alert {
+                $0.alertPlayCount += 1
+            } else {
+                $0.playCount += 1
+            }
+        }
+    }
+
+    public func addSystemSoundCompletion(_ soundID: UInt32) {
+        updateSystemSound(soundID, operation: "audioSystemSound.addCompletion") {
+            $0.completionRegistrationCount += 1
+        }
+    }
+
+    public func removeSystemSoundCompletion(_ soundID: UInt32) {
+        updateSystemSound(soundID, operation: "audioSystemSound.removeCompletion") {
+            $0.completionRegistrationCount = 0
+        }
+    }
+
+    public func beep() {
+        let playerID = UUID()
+        registerPlayer(playerID, source: .beep)
+        _ = play(playerID: playerID)
+        record(operation: "audioSystemSound.beep")
+    }
+
+    @discardableResult
+    private func updatePlayer(
+        _ playerID: UUID,
+        operation: String,
+        mutate: (inout QuillAudioPlayerState) -> Void
+    ) -> Bool {
+        let didUpdate = updatePlayerWithoutDiagnostics(playerID, mutate: mutate)
+        if didUpdate {
+            record(operation: operation)
+        }
+        return didUpdate
+    }
+
+    @discardableResult
+    private func updatePlayerWithoutDiagnostics(
+        _ playerID: UUID,
+        mutate: (inout QuillAudioPlayerState) -> Void
+    ) -> Bool {
+        lock.withLock {
+            guard var state = statesByPlayerID[playerID] else {
+                return false
+            }
+            mutate(&state)
+            statesByPlayerID[playerID] = state
+            return true
+        }
+    }
+
+    private func updateSystemSound(
+        _ soundID: UInt32,
+        operation: String,
+        mutate: (inout QuillSystemSoundRecord) -> Void
+    ) {
+        lock.withLock {
+            var record = systemSoundsByID[soundID] ?? QuillSystemSoundRecord(soundID: soundID)
+            mutate(&record)
+            systemSoundsByID[soundID] = record
+        }
+        record(operation: operation)
+    }
+
+    private func nextAvailableSystemSoundID() -> UInt32 {
+        while systemSoundsByID[nextSystemSoundID] != nil || nextSystemSoundID == 0 {
+            nextSystemSoundID &+= 1
+            if nextSystemSoundID == 0 {
+                nextSystemSoundID = 1
+            }
+        }
+        let soundID = nextSystemSoundID
+        nextSystemSoundID &+= 1
+        if nextSystemSoundID == 0 {
+            nextSystemSoundID = 1
+        }
+        return soundID
+    }
+
+    private func record(operation: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: operation,
+            severity: .info,
+            message: "Audio playback state is tracked by the QuillKit compatibility backend."
         )
     }
 }

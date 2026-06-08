@@ -3315,3 +3315,15 @@ test, source hygiene, and CI follow-up.
 The shim exposes deterministic process-local state for recording/playback code
 without performing real audio I/O. Native PipeWire/ALSA/JACK graph processing
 and tap buffers remain backend work.
+
+## Checkpoint 200: Audio Playback Surfaces Use QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVAudioPlayer`, `AudioToolbox` system sounds, and `NSSound` now route through
+shared `QuillAudioPlayerService` process-local state. The service tracks player
+sources, prepare/play/pause/stop counts, current time, volume, loop count,
+system-sound IDs, alert plays, completion registration, and basic WAV
+duration/channel metadata for local data or file URLs. Native PipeWire/ALSA/JACK
+playback remains backend work.
