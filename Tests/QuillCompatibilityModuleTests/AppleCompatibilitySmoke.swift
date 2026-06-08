@@ -58,6 +58,16 @@ enum AppleCompatibilitySmoke {
         var operations: Set<String>
     }
 
+    struct AppKitAudioResult {
+        var dataSoundCreated: Bool
+        var playSucceeded: Bool
+        var stopSucceeded: Bool
+        var playCount: Int
+        var stopCount: Int
+        var stoppedAfterStop: Bool
+        var operations: Set<String>
+    }
+
     struct AppKitGeometryResult {
         var stringRoundTrip: Bool
         var bracedFormatParsed: Bool
@@ -744,6 +754,28 @@ enum AppleCompatibilitySmoke {
             unknownSchemeApplicationMissing: missingSchemeApplication == nil,
             bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
             windowTabbingRoundTrip: windowTabbingRoundTrip,
+            operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        )
+    }
+
+    static func runAppKitAudioSmoke() -> AppKitAudioResult {
+        QuillAudioPlayerService.shared.resetAll()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let sound = NSSound(data: Data([1, 2, 3]))
+        let playSucceeded = sound?.play() ?? false
+        let stopSucceeded = sound?.stop() ?? false
+        let state = QuillAudioPlayerService.shared.playerStates.first {
+            $0.source == .data(byteCount: 3)
+        }
+
+        return AppKitAudioResult(
+            dataSoundCreated: sound != nil,
+            playSucceeded: playSucceeded,
+            stopSucceeded: stopSucceeded,
+            playCount: state?.playCount ?? 0,
+            stopCount: state?.stopCount ?? 0,
+            stoppedAfterStop: state?.isPlaying == false,
             operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
         )
     }

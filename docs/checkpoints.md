@@ -3338,3 +3338,20 @@ through `QuillSpeechBackend` instead of returning false. The compatibility
 backend tracks paused speech state, keeps `isSpeaking` true while paused, and
 holds the finish callback until `continueSpeaking()` resumes the utterance.
 Native speech synthesis remains backend work.
+
+## Checkpoint 202: UIApplication Open Uses QuillWorkspace
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`UIApplication.open(_:options:completionHandler:)` now routes through
+`QuillWorkspace.open` on Linux and calls the completion handler with the backend
+result instead of returning false. `QuillWorkspace` gained an injectable open
+backend so tests and future GTK/Qt/native desktop launchers can use the same
+service without spawning `xdg-open` in headless runs.
+
+The Linux compatibility test target also disables Swift Testing cross-import
+overlay lookup, because the target intentionally imports QuillUI's shadow
+Apple modules (`UIKit`, `AppKit`, and friends) rather than Apple SDK overlays.
+This keeps clean Swift 6.3 Linux scratches from looking for unavailable
+`_Testing_UIKit`/`_Testing_AppKit` modules.

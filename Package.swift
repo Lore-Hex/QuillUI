@@ -470,6 +470,12 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
     "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
 ] + quillLinuxShimTestDependencies
+let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = appSwiftSettings + [
+    // Swift Testing declares platform cross-import overlays such as
+    // _Testing_UIKit on Apple SDKs. This Linux-only target intentionally imports
+    // QuillUI's shadow Apple modules, so disable those SDK overlay lookups here.
+    .unsafeFlags(["-Xfrontend", "-disable-cross-import-overlays"])
+]
 #endif
 #if os(Linux)
 func quillLinuxBackendDependencies(
@@ -2672,7 +2678,7 @@ let packageTestTargets: [Target] = {
     tests.append(.testTarget(
         name: "QuillCompatibilityModuleTests",
         dependencies: quillLinuxCompatibilityModuleTestDependencies,
-        swiftSettings: appSwiftSettings
+        swiftSettings: quillLinuxCompatibilityModuleTestSwiftSettings
     ))
     tests.append(.testTarget(
         name: "OllamaKitTests",

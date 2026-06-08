@@ -44,6 +44,25 @@ private final class PausingSpeechDelegate: AVSpeechSynthesizerDelegate {
     }
 }
 
+private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue: Value
+
+    init(_ value: Value) {
+        storedValue = value
+    }
+
+    var value: Value {
+        lock.withLock { storedValue }
+    }
+
+    func update(_ body: (inout Value) -> Void) {
+        lock.withLock {
+            body(&storedValue)
+        }
+    }
+}
+
 @Suite("Linux compatibility import modules", .serialized)
 struct CompatibilityModuleTests {
     private func pngDimensions(_ data: Data) -> (width: UInt32, height: UInt32)? {
@@ -343,6 +362,21 @@ struct CompatibilityModuleTests {
             "NSWorkspace.icon(forContentType:)",
             "NSWorkspace.urlForApplication(withBundleIdentifier:)",
             "NSWorkspace.urlForApplication(toOpen:)"
+        ])))
+    }
+
+    @Test("AppKit audio compatibility routes NSSound through QuillKit")
+    func appKitAudioCompatibilityRoutesNSSoundThroughQuillKit() {
+        let result = AppleCompatibilitySmoke.runAppKitAudioSmoke()
+        #expect(result.dataSoundCreated)
+        #expect(result.playSucceeded)
+        #expect(result.stopSucceeded)
+        #expect(result.playCount == 1)
+        #expect(result.stopCount == 1)
+        #expect(result.stoppedAfterStop)
+        #expect(result.operations.isSuperset(of: Set([
+            "audioPlayer.play",
+            "audioPlayer.stop"
         ])))
     }
 
@@ -957,6 +991,12 @@ struct CompatibilityModuleTests {
         center.removeAllPendingNotificationRequests()
         service.configureAuthorization(status: .notDetermined, requestResult: true)
         QuillCompatibilityDiagnostics.shared.clear()
+        let openedURLs = CompatibilityLockedValue<[URL]>([])
+        QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "ui-application-test") { url in
+            openedURLs.update { $0.append(url) }
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
 
         let granted = try await center.requestAuthorization(options: [.alert, .sound])
         #expect(granted)
@@ -967,6 +1007,15 @@ struct CompatibilityModuleTests {
             authorizationStatus = settings.authorizationStatus
         }
         #expect(authorizationStatus == .authorized)
+
+        let openURL = URL(string: "https://example.com/quill-chat")!
+        let completionResult = CompatibilityLockedValue<Bool?>(nil)
+        let didOpen = await UIApplication.shared.open(openURL, options: [:]) { result in
+            completionResult.update { $0 = result }
+        }
+        #expect(didOpen)
+        #expect(completionResult.value == true)
+        #expect(openedURLs.value == [openURL])
 
         await UIApplication.shared.registerForRemoteNotifications()
         let isRegisteredForRemoteNotifications = await UIApplication.shared.isRegisteredForRemoteNotifications
@@ -1047,6 +1096,7 @@ struct CompatibilityModuleTests {
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
         #expect(operations.contains("notifications.registerForRemoteNotifications"))
+        #expect(operations.contains("openURL"))
 
         service.reset()
     }

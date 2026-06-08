@@ -639,7 +639,7 @@
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
 <tr><td><code>UIImage</code>, <code>UIColor</code>, <code>UIFont</code>, <code>UIScreen</code> aliases</td><td>Partial</td><td>Map to AppKit types when importable, otherwise to QuillFoundation fallbacks.</td></tr>
 <tr><td><code>UIApplication.shared</code></td><td>Usable</td><td>Singleton shape exists.</td></tr>
-<tr><td><code>UIApplication.open(_:options:completionHandler:)</code></td><td>Partial</td><td>Uses <code>NSWorkspace</code> when AppKit is available; otherwise completion is <code>false</code>.</td></tr>
+<tr><td><code>UIApplication.open(_:options:completionHandler:)</code></td><td>Partial</td><td>Uses <code>NSWorkspace</code> on Apple platforms and <code>QuillWorkspace.open</code> on Linux; completion receives the compatibility backend result.</td></tr>
 <tr><td><code>UIApplication.registerForRemoteNotifications()</code> / <code>unregisterForRemoteNotifications()</code> / <code>isRegisteredForRemoteNotifications</code></td><td>Partial</td><td>Routes through <code>QuillNotificationService</code> process-local registration state; no native APNs/device-token registration exists on Linux.</td></tr>
 <tr><td><code>UIApplication.setAlternateIconName(_:completionHandler:)</code></td><td>Fallback</td><td>Calls completion with nil, no icon change.</td></tr>
 <tr><td><code>UIApplication.connectedScenes</code>, <code>applicationState</code>, <code>alternateIconName</code></td><td>Compile-only</td><td>Static/default metadata only.</td></tr>

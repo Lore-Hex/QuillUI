@@ -232,7 +232,7 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | --- | --- | --- |
 | `UIImage`, `UIColor`, `UIFont`, `UIScreen` aliases | Partial | Map to AppKit types when importable, otherwise to QuillFoundation fallbacks. |
 | `UIApplication.shared` | Usable | Singleton shape exists. |
-| `UIApplication.open(_:options:completionHandler:)` | Partial | Uses `NSWorkspace` when AppKit is available; otherwise completion is `false`. |
+| `UIApplication.open(_:options:completionHandler:)` | Partial | Uses `NSWorkspace` on Apple platforms and `QuillWorkspace.open` on Linux; completion receives the compatibility backend result. |
 | `UIApplication.registerForRemoteNotifications()` / `unregisterForRemoteNotifications()` / `isRegisteredForRemoteNotifications` | Partial | Routes through `QuillNotificationService` process-local registration state; no native APNs/device-token registration exists on Linux. |
 | `UIApplication.setAlternateIconName(_:completionHandler:)` | Fallback | Calls completion with nil, no icon change. |
 | `UIApplication.connectedScenes`, `applicationState`, `alternateIconName` | Compile-only | Static/default metadata only. |

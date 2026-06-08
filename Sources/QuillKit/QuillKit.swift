@@ -401,14 +401,44 @@ private enum QuillLinuxClipboardBridge {
 #endif
 
 public enum QuillWorkspace {
+    public struct OpenBackend: Sendable {
+        public var name: String
+        public var open: @Sendable (URL) -> Bool
+
+        public init(name: String, open: @escaping @Sendable (URL) -> Bool) {
+            self.name = name
+            self.open = open
+        }
+    }
+
+    private final class Storage: @unchecked Sendable {
+        let lock = NSLock()
+        var openBackend: OpenBackend?
+    }
+
+    private static let storage = Storage()
+
+    public static func installOpenBackend(_ backend: OpenBackend?) {
+        storage.lock.withLock {
+            storage.openBackend = backend
+        }
+    }
+
     @discardableResult
     public static func open(_ url: URL) -> Bool {
+        if let backend = storage.lock.withLock({ storage.openBackend }) {
+            let didOpen = backend.open(url)
+            recordOpen(url, didOpen: didOpen, backendName: backend.name)
+            return didOpen
+        }
+
         #if os(Linux)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
         process.arguments = [url.absoluteString]
         do {
             try process.run()
+            recordOpen(url, didOpen: true, backendName: "xdg-open")
             return true
         } catch {
             QuillCompatibilityDiagnostics.shared.record(
@@ -421,6 +451,15 @@ public enum QuillWorkspace {
         #else
         return false
         #endif
+    }
+
+    private static func recordOpen(_ url: URL, didOpen: Bool, backendName: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "openURL",
+            severity: didOpen ? .info : .unsupported,
+            message: "URL open for \(url.absoluteString) was handled by \(backendName)."
+        )
     }
 }
 

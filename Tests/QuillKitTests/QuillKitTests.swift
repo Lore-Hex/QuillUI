@@ -179,6 +179,26 @@ struct QuillKitTests {
         #expect(service.isEnabled == false)
     }
 
+    @Test("workspace open uses configurable backend")
+    func workspaceOpenUsesConfigurableBackend() {
+        let openedURLs = LockedValue<[URL]>([])
+        let url = URL(string: "https://example.com/quill")!
+        QuillCompatibilityDiagnostics.shared.clear()
+        QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "test-opener") { openedURL in
+            openedURLs.update { $0.append(openedURL) }
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        #expect(QuillWorkspace.open(url))
+        #expect(openedURLs.value == [url])
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "openURL"
+                && $0.severity == .info
+                && $0.message.contains("test-opener")
+        })
+    }
+
     @Test("update service tracks configuration and checks")
     func updateServiceTracksConfigurationAndChecks() {
         let service = QuillUpdateService()
