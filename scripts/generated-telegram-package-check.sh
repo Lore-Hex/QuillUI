@@ -28,13 +28,21 @@ mkdir -p "$WORK_ROOT/logs" "$WORK_ROOT/home" "$WORK_ROOT/module-cache"
 default_packages=(
   CAPortal
   CalendarUtils
+  CrashHandler
   CurrencyFormat
   DateUtils
+  DetectSpeech
   EDSunriseSet
+  EmojiSuggestions
+  FastBlur
   FoundationUtils
   GZIP
+  HackUtils
+  HotKey
+  KeyboardKey
   MergeLists
   NumberPluralization
+  RingBuffer
   TGCurrencyFormatter
   TGPassportMRZ
 )
@@ -60,6 +68,8 @@ swift_build_flags=()
 if [[ "$(uname -s)" == "Linux" ]]; then
   swift_build_flags+=(
     -Xcc "-I$objc_include_dir"
+    -Xcc "-include"
+    -Xcc "$objc_include_dir/QuillObjCCompatibility/Prelude.h"
     -Xcc "-fobjc-runtime=gnustep-2.0"
     -Xcc "-fblocks"
     -Xcc "-fobjc-arc"

@@ -2482,6 +2482,46 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Foundation/Foundation.h"),
             encoding: .utf8
         )
+        let objcCoreFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/CoreFoundation/CoreFoundation.h"),
+            encoding: .utf8
+        )
+        let objcAppKitHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AppKit/AppKit.h"),
+            encoding: .utf8
+        )
+        let objcPreludeHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/QuillObjCCompatibility/Prelude.h"),
+            encoding: .utf8
+        )
+        let machHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/mach/mach.h"),
+            encoding: .utf8
+        )
+        let accelerateHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Accelerate/Accelerate.h"),
+            encoding: .utf8
+        )
+        let audioToolboxHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AudioToolbox/AudioToolbox.h"),
+            encoding: .utf8
+        )
+        let carbonHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Carbon/Carbon.h"),
+            encoding: .utf8
+        )
+        let avFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AVFoundation/AVFoundation.h"),
+            encoding: .utf8
+        )
+        let ioHIDHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/IOKit/hidsystem/IOHIDLib.h"),
+            encoding: .utf8
+        )
+        let objcModuleMap = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains(".library(name: \"QuillObjCCompatibility\", targets: [\"QuillObjCCompatibility\"])"))
         #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
@@ -2498,16 +2538,25 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("--jobs 1"))
         #expect(telegramPackageCheck.contains("CAPortal"))
         #expect(telegramPackageCheck.contains("CalendarUtils"))
+        #expect(telegramPackageCheck.contains("CrashHandler"))
         #expect(telegramPackageCheck.contains("CurrencyFormat"))
         #expect(telegramPackageCheck.contains("DateUtils"))
+        #expect(telegramPackageCheck.contains("DetectSpeech"))
         #expect(telegramPackageCheck.contains("EDSunriseSet"))
+        #expect(telegramPackageCheck.contains("EmojiSuggestions"))
+        #expect(telegramPackageCheck.contains("FastBlur"))
         #expect(telegramPackageCheck.contains("FoundationUtils"))
         #expect(telegramPackageCheck.contains("GZIP"))
+        #expect(telegramPackageCheck.contains("HackUtils"))
+        #expect(telegramPackageCheck.contains("HotKey"))
+        #expect(telegramPackageCheck.contains("KeyboardKey"))
         #expect(telegramPackageCheck.contains("MergeLists"))
         #expect(telegramPackageCheck.contains("NumberPluralization"))
+        #expect(telegramPackageCheck.contains("RingBuffer"))
         #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
         #expect(telegramPackageCheck.contains("TGPassportMRZ"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
+        #expect(telegramPackageCheck.contains("QuillObjCCompatibility/Prelude.h"))
         #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
         #expect(telegramPackageCheck.contains("-fblocks"))
         #expect(telegramPackageCheck.contains("-fobjc-arc"))
@@ -2521,8 +2570,35 @@ struct SourceHygieneTests {
         #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCharacterSet : NSObject"))
+        #expect(objcFoundationHeader.contains("@protocol NSFastEnumeration"))
+        #expect(objcFoundationHeader.contains("typedef uint32_t UInt32"))
+        #expect(objcFoundationHeader.contains("clang assume_nonnull begin"))
         #expect(objcFoundationHeader.contains("typedef NS_ENUM(NSInteger, NSDateFormatterStyle)"))
         #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
+        #expect(objcCoreFoundationHeader.contains("CFStringGetBytes"))
+        #expect(objcCoreFoundationHeader.contains("kCFStringEncodingUTF16LE"))
+        #expect(objcAppKitHeader.contains("@interface NSView : NSObject"))
+        #expect(objcAppKitHeader.contains("NSArray<NSView *> *subviews"))
+        #expect(objcAppKitHeader.contains("NSString *className"))
+        #expect(objcAppKitHeader.contains("NSEventModifierFlagCommand"))
+        #expect(objcAppKitHeader.contains("@interface NSWorkspace : NSObject"))
+        #expect(objcPreludeHeader.contains("#include <string.h>"))
+        #expect(machHeader.contains("vm_allocate"))
+        #expect(machHeader.contains("vm_remap"))
+        #expect(accelerateHeader.contains("vImage_Buffer"))
+        #expect(accelerateHeader.contains("vImageBoxConvolve_ARGB8888"))
+        #expect(audioToolboxHeader.contains("AudioComponentDescription"))
+        #expect(audioToolboxHeader.contains("AUVoiceIOMutedSpeechActivityEventListener"))
+        #expect(carbonHeader.contains("kVK_Return"))
+        #expect(carbonHeader.contains("UCKeyTranslate"))
+        #expect(avFoundationHeader.contains("@interface AVURLAsset : NSObject"))
+        #expect(ioHIDHeader.contains("IOHIDRequestAccess"))
+        #expect(objcModuleMap.contains("module Foundation"))
+        #expect(objcModuleMap.contains("module AppKit"))
+        #expect(objcModuleMap.contains("module Cocoa"))
+        #expect(!objcModuleMap.contains("module CoreFoundation {"))
+        #expect(objcPreludeHeader.contains("#include <string>"))
+        #expect(objcPreludeHeader.contains("#include <pthread.h>"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")
