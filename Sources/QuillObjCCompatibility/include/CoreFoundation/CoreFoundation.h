@@ -7,7 +7,10 @@
 typedef signed long CFIndex;
 typedef uint32_t CFStringEncoding;
 typedef const void *CFAllocatorRef;
+typedef const struct __CFData *CFDataRef;
+typedef const struct __CFDictionary *CFDictionaryRef;
 typedef const struct __CFString *CFStringRef;
+typedef const struct __CFURL *CFURLRef;
 
 #ifndef QUILL_OBJC_UINT8_TYPEDEF
 #define QUILL_OBJC_UINT8_TYPEDEF
@@ -52,5 +55,14 @@ CFStringRef CFStringCreateWithBytes(
     CFStringEncoding encoding,
     bool isExternalRepresentation
 );
+
+static inline const UInt8 *CFDataGetBytePtr(CFDataRef theData) {
+    (void)theData;
+    return NULL;
+}
+
+static inline void CFRelease(const void *cf) {
+    (void)cf;
+}
 
 #endif

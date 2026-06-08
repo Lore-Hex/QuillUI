@@ -38,6 +38,7 @@ default_packages=(
   FoundationUtils
   GZIP
   HackUtils
+  HotKey
   KeyboardKey
   MergeLists
   NumberPluralization

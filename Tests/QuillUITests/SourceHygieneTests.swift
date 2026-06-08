@@ -2506,8 +2506,16 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AudioToolbox/AudioToolbox.h"),
             encoding: .utf8
         )
+        let carbonHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Carbon/Carbon.h"),
+            encoding: .utf8
+        )
         let avFoundationHeader = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AVFoundation/AVFoundation.h"),
+            encoding: .utf8
+        )
+        let ioHIDHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/IOKit/hidsystem/IOHIDLib.h"),
             encoding: .utf8
         )
         let objcModuleMap = try String(
@@ -2540,6 +2548,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("FoundationUtils"))
         #expect(telegramPackageCheck.contains("GZIP"))
         #expect(telegramPackageCheck.contains("HackUtils"))
+        #expect(telegramPackageCheck.contains("HotKey"))
         #expect(telegramPackageCheck.contains("KeyboardKey"))
         #expect(telegramPackageCheck.contains("MergeLists"))
         #expect(telegramPackageCheck.contains("NumberPluralization"))
@@ -2571,6 +2580,8 @@ struct SourceHygieneTests {
         #expect(objcAppKitHeader.contains("@interface NSView : NSObject"))
         #expect(objcAppKitHeader.contains("NSArray<NSView *> *subviews"))
         #expect(objcAppKitHeader.contains("NSString *className"))
+        #expect(objcAppKitHeader.contains("NSEventModifierFlagCommand"))
+        #expect(objcAppKitHeader.contains("@interface NSWorkspace : NSObject"))
         #expect(objcPreludeHeader.contains("#include <string.h>"))
         #expect(machHeader.contains("vm_allocate"))
         #expect(machHeader.contains("vm_remap"))
@@ -2578,7 +2589,10 @@ struct SourceHygieneTests {
         #expect(accelerateHeader.contains("vImageBoxConvolve_ARGB8888"))
         #expect(audioToolboxHeader.contains("AudioComponentDescription"))
         #expect(audioToolboxHeader.contains("AUVoiceIOMutedSpeechActivityEventListener"))
+        #expect(carbonHeader.contains("kVK_Return"))
+        #expect(carbonHeader.contains("UCKeyTranslate"))
         #expect(avFoundationHeader.contains("@interface AVURLAsset : NSObject"))
+        #expect(ioHIDHeader.contains("IOHIDRequestAccess"))
         #expect(objcModuleMap.contains("module Foundation"))
         #expect(objcModuleMap.contains("module AppKit"))
         #expect(objcModuleMap.contains("module Cocoa"))

@@ -160,6 +160,7 @@ static inline NSRange NSMakeRange(NSUInteger location, NSUInteger length) {
 @class NSValue;
 @class NSNumberFormatter;
 @class NSCharacterSet;
+@class NSURL;
 
 typedef struct {
     unsigned long state;
@@ -193,6 +194,8 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 @property (nonatomic, readonly) NSUInteger length;
 + (instancetype)stringWithFormat:(NSString *)format, ...;
 - (instancetype)initWithFormat:(NSString *)format, ...;
+- (instancetype)initWithData:(NSData *)data encoding:(NSUInteger)encoding;
++ (instancetype)stringWithCharacters:(const unichar *)characters length:(NSUInteger)length;
 - (BOOL)hasSuffix:(NSString *)str;
 - (BOOL)hasPrefix:(NSString *)str;
 - (NSRange)rangeOfString:(NSString *)str;
@@ -213,6 +216,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 
 @interface NSMutableString : NSString
 + (instancetype)stringWithCapacity:(NSUInteger)capacity;
++ (instancetype)stringWithString:(NSString *)string;
 - (void)appendString:(NSString *)string;
 - (void)appendFormat:(NSString *)format, ...;
 @end
@@ -230,6 +234,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 + (NSNumber *)numberWithUnsignedInteger:(NSUInteger)value;
 + (NSNumber *)numberWithUnsignedLong:(unsigned long)value;
 + (NSNumber *)numberWithUnsignedLongLong:(unsigned long long)value;
++ (NSNumber *)numberWithUnsignedShort:(unsigned short)value;
 - (BOOL)boolValue;
 - (int)intValue;
 @end
@@ -251,6 +256,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 
 @interface NSDictionary<KeyType, ObjectType> : NSObject
 + (instancetype)dictionaryWithObjects:(const ObjectType [])objects forKeys:(const KeyType [])keys count:(NSUInteger)cnt;
+- (ObjectType)objectForKey:(KeyType)key;
 - (ObjectType)objectForKeyedSubscript:(KeyType)key;
 - (void)enumerateKeysAndObjectsUsingBlock:(void (^)(KeyType key, ObjectType obj, BOOL *stop))block;
 @end
@@ -360,6 +366,12 @@ static NSString * const NSGregorianCalendar = @"gregorian";
 - (NSString *)pathForResource:(NSString *)name ofType:(NSString *)ext;
 @end
 
+@interface NSURL : NSObject
++ (instancetype)fileURLWithPath:(NSString *)path;
++ (instancetype)URLWithString:(NSString *)URLString;
+@property (nonatomic, readonly) NSString *path;
+@end
+
 typedef NS_OPTIONS(NSUInteger, NSJSONReadingOptions) {
     NSJSONReadingMutableContainers = 1UL << 0,
     NSJSONReadingMutableLeaves = 1UL << 1,
@@ -387,6 +399,8 @@ NSString *NSLocalizedString(NSString *key, NSString *comment);
 NSString *NSStringFromClass(Class aClass);
 void NSLog(NSString *format, ...);
 
+static const NSUInteger NSUTF8StringEncoding = 4;
+
 typedef long dispatch_once_t;
 typedef void *dispatch_queue_t;
 typedef void (^dispatch_block_t)(void);
@@ -408,6 +422,16 @@ static inline dispatch_queue_t dispatch_queue_create(const char *label, void *at
     return NULL;
 }
 
+static inline dispatch_queue_t dispatch_get_global_queue(long identifier, unsigned long flags) {
+    (void)identifier;
+    (void)flags;
+    return NULL;
+}
+
+static inline dispatch_queue_t dispatch_get_main_queue(void) {
+    return NULL;
+}
+
 static inline void dispatch_async(dispatch_queue_t queue, dispatch_block_t block) {
     (void)queue;
     if (block != NULL) {
@@ -415,8 +439,16 @@ static inline void dispatch_async(dispatch_queue_t queue, dispatch_block_t block
     }
 }
 
+#ifndef QOS_CLASS_USER_INITIATED
+#define QOS_CLASS_USER_INITIATED 0x19
+#endif
+
 #ifndef NSAssert
 #define NSAssert(condition, desc, ...) ((void)0)
+#endif
+
+#ifndef NSParameterAssert
+#define NSParameterAssert(condition) ((void)0)
 #endif
 
 #endif
