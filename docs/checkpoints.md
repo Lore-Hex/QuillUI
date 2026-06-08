@@ -3199,3 +3199,18 @@ methods, while still leaving true desktop-global event capture as the remaining
 native-backend gap. The pass also fixes the ObjC CoreFoundation compatibility
 header by including the standard C definition for `NULL`, unblocking current
 Linux CI before it reaches the Swift test graph.
+
+## Checkpoint 191: QuillKit Speech Recognition State
+
+Status: implemented locally; guarded by QuillKit tests, Linux `Speech` target
+build, and CI follow-up.
+
+Speech recognition compatibility is now owned by QuillKit instead of hard-coded
+inside the `Speech` module. The shared backend exposes configurable
+authorization, availability, configured recognition results, explicit
+recognition errors, and cancellable task state. The Linux `Speech` shim routes
+`SFSpeechRecognizer.authorizationStatus()`, `requestAuthorization`,
+`isAvailable`, `recognitionTask`, request buffer appends, and task cancellation
+through that backend. Native microphone capture and real transcription remain
+the next backend work, but Enchanted-style source can now exercise speech flows
+without app-local rewrites or a permanently denied shim.

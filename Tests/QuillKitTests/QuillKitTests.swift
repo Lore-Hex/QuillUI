@@ -150,8 +150,9 @@ struct QuillKitTests {
         #expect(statuses.count == QuillKitCapability.allCases.count)
         #if os(Linux)
         #expect(statuses[.clipboard] == .emulated)
+        #expect(statuses[.speechSynthesis] == .emulated)
+        #expect(statuses[.speechRecognition] == .emulated)
         #expect(statuses[.globalShortcuts] == .emulated)
-        #expect(statuses[.speechRecognition] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.secureStorage] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -187,6 +188,52 @@ struct QuillKitTests {
 
         #expect(callbacks.value == ["start", "finish"])
         #expect(backend.stop())
+    }
+
+    @Test("speech recognition backend exposes configurable authorization availability and results")
+    func speechRecognitionBackendExposesConfigurableState() {
+        let backend = QuillSpeechBackend()
+        let deliveredStatuses = LockedValue<[QuillSpeechRecognitionAuthorizationStatus]>([])
+        let deliveredResults = LockedValue<[QuillSpeechRecognitionResult?]>([])
+        let deliveredErrors = LockedValue<[QuillSpeechRecognitionError?]>([])
+
+        backend.configureSpeechRecognition(
+            authorizationStatus: .authorized,
+            isAvailable: true,
+            result: QuillSpeechRecognitionResult(formattedString: "hello linux", isFinal: false)
+        )
+        backend.requestSpeechRecognitionAuthorization { status in
+            deliveredStatuses.update { $0.append(status) }
+        }
+
+        let task = backend.recognitionTask(shouldReportPartialResults: true) { result, error in
+            deliveredResults.update { $0.append(result) }
+            deliveredErrors.update { $0.append(error) }
+        }
+
+        #expect(deliveredStatuses.value == [.authorized])
+        #expect(deliveredResults.value == [
+            QuillSpeechRecognitionResult(formattedString: "hello linux", isFinal: false)
+        ])
+        #expect(deliveredErrors.value == [nil])
+        #expect(!task.isCancelled)
+        task.cancel()
+        #expect(task.isCancelled)
+
+        backend.configureSpeechRecognition(
+            authorizationStatus: .denied,
+            isAvailable: true,
+            result: QuillSpeechRecognitionResult(formattedString: "ignored")
+        )
+        _ = backend.recognitionTask(shouldReportPartialResults: false) { result, error in
+            deliveredResults.update { $0.append(result) }
+            deliveredErrors.update { $0.append(error) }
+        }
+
+        #expect(deliveredResults.value.count == 2)
+        #expect(deliveredResults.value[1] == nil)
+        let lastError = deliveredErrors.value.last ?? nil
+        #expect(lastError?.reason == "Speech recognition is not authorized.")
     }
 
     @Test("hot key registration invokes actions when triggered")

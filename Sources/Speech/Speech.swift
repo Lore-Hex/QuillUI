@@ -10,21 +10,28 @@ public enum SFSpeechRecognizerAuthorizationStatus: Equatable, Sendable {
 }
 
 public final class SFSpeechRecognizer: @unchecked Sendable {
-    public var isAvailable: Bool = false
+    public var isAvailable: Bool {
+        get { QuillSpeechBackend.shared.isSpeechRecognitionAvailable }
+        set { QuillSpeechBackend.shared.isSpeechRecognitionAvailable = newValue }
+    }
 
     public init?() {}
+    public init?(locale: Locale) {}
 
     public static func authorizationStatus() -> SFSpeechRecognizerAuthorizationStatus {
-        .denied
+        QuillSpeechBackend.shared.speechRecognitionAuthorizationStatus.speechAuthorizationStatus
     }
 
     public static func requestAuthorization(_ handler: @escaping (SFSpeechRecognizerAuthorizationStatus) -> Void) {
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "Speech",
             operation: "requestAuthorization",
-            message: "Speech recognition is unavailable until a native Linux backend is attached."
+            severity: .info,
+            message: "Speech authorization is routed through the QuillKit compatibility backend."
         )
-        handler(.denied)
+        QuillSpeechBackend.shared.requestSpeechRecognitionAuthorization { status in
+            handler(status.speechAuthorizationStatus)
+        }
     }
 
     public func recognitionTask(
@@ -34,23 +41,48 @@ public final class SFSpeechRecognizer: @unchecked Sendable {
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "Speech",
             operation: "recognitionTask",
-            message: "Speech recognition requests are not executed by the compatibility shim."
+            severity: .info,
+            message: "Speech recognition is routed through the QuillKit compatibility backend."
         )
-        return SFSpeechRecognitionTask()
+        let task = QuillSpeechBackend.shared.recognitionTask(
+            shouldReportPartialResults: request.shouldReportPartialResults
+        ) { result, error in
+            let speechResult = result.map {
+                SFSpeechRecognitionResult(isFinal: $0.isFinal, formattedString: $0.formattedString)
+            }
+            resultHandler(speechResult, error)
+        }
+        return SFSpeechRecognitionTask(task: task)
     }
 }
 
 public final class SFSpeechAudioBufferRecognitionRequest: @unchecked Sendable {
     public var shouldReportPartialResults = false
+    public private(set) var appendedBufferCount = 0
 
     public init() {}
 
-    public func append(_ audioPCMBuffer: AVAudioPCMBuffer) {}
+    public func append(_ audioPCMBuffer: AVAudioPCMBuffer) {
+        appendedBufferCount += 1
+    }
 }
 
 public final class SFSpeechRecognitionTask: @unchecked Sendable {
-    public init() {}
-    public func cancel() {}
+    private let task: QuillSpeechRecognitionTask
+
+    public init() {
+        self.task = QuillSpeechRecognitionTask()
+    }
+
+    init(task: QuillSpeechRecognitionTask) {
+        self.task = task
+    }
+
+    public var isCancelled: Bool { task.isCancelled }
+
+    public func cancel() {
+        task.cancel()
+    }
 }
 
 public final class SFSpeechRecognitionResult: @unchecked Sendable {
@@ -68,5 +100,20 @@ public struct SFTranscription: Sendable {
 
     public init(formattedString: String) {
         self.formattedString = formattedString
+    }
+}
+
+private extension QuillSpeechRecognitionAuthorizationStatus {
+    var speechAuthorizationStatus: SFSpeechRecognizerAuthorizationStatus {
+        switch self {
+        case .authorized:
+            return .authorized
+        case .denied:
+            return .denied
+        case .restricted:
+            return .restricted
+        case .notDetermined:
+            return .notDetermined
+        }
     }
 }
