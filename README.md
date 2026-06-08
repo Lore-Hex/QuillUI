@@ -1,5 +1,7 @@
 # QuillUI
 
+![Enchanted — a real, unmodified SwiftUI + SwiftData app — running on Linux via QuillUI](docs/enchanted-on-linux.png)
+
 QuillUI is an open-source compatibility layer for Apple Swift app source on
 Linux desktops.
 
