@@ -1679,6 +1679,7 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-markdown-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-long-transcript-selection\""))
+        #expect(backendProducts.contains("*:long-transcript-selection|*:long-transcript-auto-selection)"))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-prompt-send\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-composer-send\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-new-chat\""))

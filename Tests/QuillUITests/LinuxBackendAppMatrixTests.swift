@@ -149,7 +149,8 @@ struct LinuxBackendAppMatrixTests {
         "transcript-selection",
         "markdown-transcript-selection",
         "message-hover-actions",
-        "long-transcript-selection"
+        "long-transcript-selection",
+        "long-transcript-auto-selection"
     ]
 
     private static func expectedVisualVerifierProduct(product: String, backend: String) -> String {
@@ -574,6 +575,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(productsScript.contains("*:copy-chat-json)"))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-message-hover-actions\""))
         #expect(productsScript.contains("*:message-hover-actions)"))
+        #expect(productsScript.contains("*:long-transcript-selection|*:long-transcript-auto-selection)"))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-toolbar-model-selected\""))
         #expect(productsScript.contains("*:toolbar-model-selected)"))
         #expect(productsScript.contains("verify_product=\"quill-wireguard-qt-tunnel-selection\""))

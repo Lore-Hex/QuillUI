@@ -584,7 +584,7 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:message-hover-actions)
       verify_product="quill-chat-linux-mac-reference-message-hover-actions"
       ;;
-    *:long-transcript-selection)
+    *:long-transcript-selection|*:long-transcript-auto-selection)
       verify_product="quill-chat-linux-mac-reference-long-transcript-selection"
       ;;
     *:prompt-send)
@@ -640,7 +640,8 @@ quillui_backend_quill_chat_mac_reference_interaction_modes() {
     transcript-selection \
     markdown-transcript-selection \
     message-hover-actions \
-    long-transcript-selection
+    long-transcript-selection \
+    long-transcript-auto-selection
 }
 
 quillui_backend_wireguard_interaction_verify_product() {
