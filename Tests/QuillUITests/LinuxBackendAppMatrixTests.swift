@@ -538,6 +538,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(interactionScript.contains("unsupported_backend_interaction_mode()"))
         #expect(interactionScript.contains("backend_label_for_message()"))
         #expect(interactionScript.contains("hover_quill_chat_message_actions()"))
+        #expect(interactionScript.contains("refocus_capture_window()"))
+        #expect(interactionScript.contains("move_pointer_to \"$reset_x\" \"$reset_y\""))
         #expect(interactionScript.contains("message-hover-actions)"))
         #expect(interactionScript.contains("[[ \"$PRODUCT\" == \"quill-enchanted\" && ( \"$SELECTED_BACKEND\" == \"gtk\" || \"$SELECTED_BACKEND\" == \"qt\" ) ]]"))
         #expect(interactionScript.contains("run_list_selection_or_header_interaction \"Enchanted $(backend_label_for_message \"$SELECTED_BACKEND\")\" click_enchanted_list_selection"))

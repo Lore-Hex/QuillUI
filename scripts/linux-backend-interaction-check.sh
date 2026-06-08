@@ -252,6 +252,18 @@ click_at() {
   DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y" click 1
 }
 
+move_pointer_to() {
+  local x="$1"
+  local y="$2"
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y"
+}
+
+refocus_capture_window() {
+  [[ -n "${window_id:-}" ]] || return 0
+  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+}
+
 generic_backend_list_selection_y() {
   # All generic backend apps select a list row at +350 from the window top, which
   # clears the validator's >=220 center floor with margin.
@@ -571,6 +583,11 @@ select_quill_chat_markdown_transcript() {
 hover_quill_chat_message_actions() {
   local hover_x
   local hover_y
+  local reset_x
+  local reset_y
+  local entry_x
+  local nudge_x
+  local settle_sleep
 
   select_quill_chat_markdown_transcript
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -581,8 +598,21 @@ hover_quill_chat_message_actions() {
     hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-$((window_y + (window_height * 14 / 100)))}"
   fi
 
-  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$hover_x" "$hover_y"
-  sleep "${QUILLUI_BACKEND_MESSAGE_HOVER_SLEEP:-1}"
+  reset_x="${QUILLUI_BACKEND_MESSAGE_HOVER_RESET_X:-$((window_x + (window_width * 55 / 100)))}"
+  reset_y="${QUILLUI_BACKEND_MESSAGE_HOVER_RESET_Y:-$((window_y + (window_height * 34 / 100)))}"
+  entry_x="${QUILLUI_BACKEND_MESSAGE_HOVER_ENTRY_X:-$((hover_x - 36))}"
+  nudge_x="${QUILLUI_BACKEND_MESSAGE_HOVER_NUDGE_X:-$((hover_x - 2))}"
+  settle_sleep="${QUILLUI_BACKEND_MESSAGE_HOVER_SETTLE_SLEEP:-0.15}"
+
+  refocus_capture_window
+  move_pointer_to "$reset_x" "$reset_y"
+  sleep "$settle_sleep"
+  move_pointer_to "$entry_x" "$hover_y"
+  sleep "$settle_sleep"
+  move_pointer_to "$nudge_x" "$hover_y"
+  sleep "$settle_sleep"
+  move_pointer_to "$hover_x" "$hover_y"
+  sleep "${QUILLUI_BACKEND_MESSAGE_HOVER_SLEEP:-2}"
 }
 
 copy_quill_chat_transcript() {
