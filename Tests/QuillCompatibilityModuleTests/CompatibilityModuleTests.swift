@@ -57,7 +57,7 @@ struct CompatibilityModuleTests {
 
     @Test("QuillUI fallback modifiers record diagnostics")
     func quillUIFallbackModifiersRecordDiagnostics() {
-        QuillCompatibilityDiagnostics.shared.clear()
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
 
         _ = Text("Fallback")
             .symbolEffect(.variableColor, value: true)
@@ -207,8 +207,9 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: typedContent)).contains("TextContentTypeView"))
         #expect(typedContent.contentType == .URL)
 #endif
+        }
 
-        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        let operations = Set(captured.events.map(\.operation))
         #expect(operations.isSuperset(of: Set([
             "symbolEffect",
             "matchedGeometryEffect",

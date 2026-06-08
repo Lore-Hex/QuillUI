@@ -95,7 +95,7 @@ public struct QuillCompatibilityEvent: Equatable, Sendable {
 public final class QuillCompatibilityDiagnostics: @unchecked Sendable {
     public static let shared = QuillCompatibilityDiagnostics()
 
-    private let lock = NSLock()
+    private let lock = NSRecursiveLock()
     private var storedEvents: [QuillCompatibilityEvent] = []
 
     public init() {}
@@ -127,6 +127,26 @@ public final class QuillCompatibilityDiagnostics: @unchecked Sendable {
     public func clear() {
         lock.withLock {
             storedEvents.removeAll()
+        }
+    }
+
+    public func captureIsolatedEvents<Result>(
+        _ body: () throws -> Result
+    ) rethrows -> (result: Result, events: [QuillCompatibilityEvent]) {
+        lock.lock()
+        let previousEvents = storedEvents
+        storedEvents.removeAll()
+
+        do {
+            let result = try body()
+            let capturedEvents = storedEvents
+            storedEvents = previousEvents
+            lock.unlock()
+            return (result, capturedEvents)
+        } catch {
+            storedEvents = previousEvents
+            lock.unlock()
+            throw error
         }
     }
 }
