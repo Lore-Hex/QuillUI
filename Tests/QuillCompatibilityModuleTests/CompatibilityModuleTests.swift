@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import Combine
 import UIKit
+import AVFoundation
 import QuillKit
 import QuillFoundation
 import ActivityIndicatorView
@@ -652,6 +653,31 @@ struct CompatibilityModuleTests {
 
         KeyboardShortcuts.resetAll()
         QuillHotkeyService.shared.unregisterAll()
+    }
+
+    @Test("AVFoundation speech synthesis routes through QuillKit")
+    func avFoundationSpeechSynthesisRoutesThroughQuillKit() {
+        QuillSpeechBackend.shared.resetSpeechSynthesis()
+        QuillSpeechBackend.shared.configureSpeechSynthesisVoices([
+            QuillSpeechVoice(identifier: "quill.test.voice", name: "Test Voice", quality: 1)
+        ])
+
+        let utterance = AVSpeechUtterance(string: "hello linux")
+        let voice = AVSpeechSynthesisVoice(identifier: "quill.test.voice")
+        utterance.voice = voice
+
+        #expect(utterance.speechString == "hello linux")
+        #expect(voice?.name == "Test Voice")
+        #expect(voice?.quality == .enhanced)
+        #expect(AVSpeechSynthesisVoice.speechVoices().map(\.identifier) == ["quill.test.voice"])
+
+        let synthesizer = AVSpeechSynthesizer()
+        synthesizer.speak(utterance)
+        #expect(!synthesizer.isSpeaking)
+        #expect(!synthesizer.isPaused)
+        #expect(synthesizer.stopSpeaking(at: .immediate))
+
+        QuillSpeechBackend.shared.resetSpeechSynthesis()
     }
 
     @Test("Magnet hot keys use the shared QuillKit registry")

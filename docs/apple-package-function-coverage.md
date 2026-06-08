@@ -394,11 +394,11 @@ subset lives in `QuillUIKit`.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `AVSpeechSynthesizer.speak(_:)` | Fallback | Records diagnostic and calls start/finish delegate callbacks immediately. |
-| `AVSpeechSynthesizer.stopSpeaking(at:)` | Fallback | Returns true without native speech output. |
+| `AVSpeechSynthesizer.speak(_:)` | Partial | Routes through QuillKit's speech backend, records compatibility diagnostics, tracks speaking state during synchronous callbacks, and calls start/finish delegate callbacks immediately. |
+| `AVSpeechSynthesizer.stopSpeaking(at:)` | Partial | Clears QuillKit speech state and returns true without native speech output. |
 | `AVSpeechSynthesizer.continueSpeaking()` / `pauseSpeaking(at:)` | Compile-only | Return false. |
-| `AVSpeechUtterance.init(string:)` | Compile-only | Stores utterance metadata. |
-| `AVSpeechSynthesisVoice` initializers and voice metadata | Compile-only | Static metadata only. |
+| `AVSpeechUtterance.init(string:)` | Usable | Stores source-visible utterance text and metadata. |
+| `AVSpeechSynthesisVoice` initializers, `speechVoices()`, and voice metadata | Partial | Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands. |
 | `AVAudioSession.sharedInstance()`, `setCategory`, `setActive` | Fallback | No native audio-session effect. |
 | `AVPlayer.init(url:)` | Compile-only | Stores URL/player shape only. |
 | `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Fallback | Records diagnostics and toggles `isRunning`; no audio I/O. |

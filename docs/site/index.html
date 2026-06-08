@@ -800,11 +800,11 @@
 <br>
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
-<tr><td><code>AVSpeechSynthesizer.speak(_:)</code></td><td>Fallback</td><td>Records diagnostic and calls start/finish delegate callbacks immediately.</td></tr>
-<tr><td><code>AVSpeechSynthesizer.stopSpeaking(at:)</code></td><td>Fallback</td><td>Returns true without native speech output.</td></tr>
+<tr><td><code>AVSpeechSynthesizer.speak(_:)</code></td><td>Partial</td><td>Routes through QuillKit's speech backend, records compatibility diagnostics, tracks speaking state during synchronous callbacks, and calls start/finish delegate callbacks immediately.</td></tr>
+<tr><td><code>AVSpeechSynthesizer.stopSpeaking(at:)</code></td><td>Partial</td><td>Clears QuillKit speech state and returns true without native speech output.</td></tr>
 <tr><td><code>AVSpeechSynthesizer.continueSpeaking()</code> / <code>pauseSpeaking(at:)</code></td><td>Compile-only</td><td>Return false.</td></tr>
-<tr><td><code>AVSpeechUtterance.init(string:)</code></td><td>Compile-only</td><td>Stores utterance metadata.</td></tr>
-<tr><td><code>AVSpeechSynthesisVoice</code> initializers and voice metadata</td><td>Compile-only</td><td>Static metadata only.</td></tr>
+<tr><td><code>AVSpeechUtterance.init(string:)</code></td><td>Usable</td><td>Stores source-visible utterance text and metadata.</td></tr>
+<tr><td><code>AVSpeechSynthesisVoice</code> initializers, <code>speechVoices()</code>, and voice metadata</td><td>Partial</td><td>Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands.</td></tr>
 <tr><td><code>AVAudioSession.sharedInstance()</code>, <code>setCategory</code>, <code>setActive</code></td><td>Fallback</td><td>No native audio-session effect.</td></tr>
 <tr><td><code>AVPlayer.init(url:)</code></td><td>Compile-only</td><td>Stores URL/player shape only.</td></tr>
 <tr><td><code>AVAudioEngine.prepare()</code> / <code>start()</code> / <code>stop()</code> / <code>reset()</code></td><td>Fallback</td><td>Records diagnostics and toggles <code>isRunning</code>; no audio I/O.</td></tr>
