@@ -1,13 +1,15 @@
 # NetNewsWire Port Audit
 
 Initial audit date: 2026-05-08.
+Refresh audit date: 2026-06-08.
 
 Upstream:
 
 - Official site: https://netnewswire.com/
 - Repository: https://github.com/Ranchero-Software/NetNewsWire
 - Local audit clone: `.upstream/netnewswire`
-- Audited commit: `d97acdc`
+- Initial audited commit: `d97acdc`
+- Current local upstream commit: `7fc1e65`
 - License: MIT per the upstream GitHub repository metadata.
 
 ## Why NetNewsWire Is App Target 3
@@ -47,12 +49,38 @@ The source is mostly Swift, but the actual desktop shell is AppKit-heavy rather 
 
 These are likely the best first reuse targets because they are already Swift packages and not tied to the AppKit main window:
 
+- `ActivityLog`: in-memory activity lifecycle model used by feed finding, refresh, and account work.
 - `RSParser`: feed, HTML metadata, OPML, JSON, XML, and date parsing.
 - `FeedFinder`: feed discovery over web pages.
 - `Articles`: article/status/author model types.
 - `RSTree`: tree data structures for the feed/sidebar model.
 - `RSWeb`: downloading and web helpers.
 - `ArticlesDatabase`, `SyncDatabase`, `RSDatabase`: useful references for QuillData/SQLite work, but likely need compatibility work because they use `FMDatabase`/ObjC SQLite wrappers.
+
+## Current Quill Module Bring-Up
+
+As of the 2026-06-08 refresh, the useful path is still staged module reuse rather than a whole-app source drop. The important change since the first audit is that upstream NetNewsWire's package graph now includes more small SwiftPM modules (`ActivityLog`, `HTMLMetadata`, `Images`, `Secrets`) around the original parser/web/account/database core. That makes compile progress measurable module by module.
+
+Vendored/Quill-backed slices now in the main package:
+
+- `QuillRSCoreShim`: Foundation-safe `RSCore` surface used by parser/web/feed code.
+- `QuillRSParser`: real upstream parser slice for RSS, Atom, JSON Feed, RSS-in-JSON, OPML, and HTML metadata scanning.
+- `QuillArticles`: upstream article/author/status value types.
+- `QuillRSTree`: upstream tree data structures without the AppKit outline-view extension.
+- `ActivityLog`: upstream-shaped activity lifecycle module, including localization resources and upstream tests.
+- `RSWeb`: upstream-shaped web helper module with HTTP value types plus a source-compatible one-shot `Downloader`.
+- `QuillFeedFinder`: upstream feed discovery flow, now including async `find(url:)`, activity logging, direct-feed detection, HTML-head discovery, candidate verification, and the special-case Rachel-by-the-Bay feed path.
+- `QuillAccount`: early account leaf types (`AccountBehavior`, identifiers, unread-count provider, errors).
+
+Current Linux evidence:
+
+- `QuillFeedFinder` focused tests pass on macOS and Linux.
+- `QuillRSParser` focused tests pass on macOS and Linux.
+- `QuillActivityLog` focused tests pass on macOS and Linux.
+- `QuillNetNewsWireCore` focused tests pass on macOS.
+- `quill-netnewswire` builds in Linux Docker with both `QUILLUI_LINUX_BACKEND=gtk` and `QUILLUI_LINUX_BACKEND=qt`.
+
+What this does not mean: the full upstream Mac app does not compile unchanged on Linux yet. The remaining hard work is the database/account/sync stack plus the AppKit/WebKit UI shell. The right next step is `ArticlesDatabase`/`RSDatabase` compatibility through a QuillData-backed adapter, not more shell UI.
 
 The first Linux experiment below checked `RSParser`, `Articles`, and `RSTree`.
 
