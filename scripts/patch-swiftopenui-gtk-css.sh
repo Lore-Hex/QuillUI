@@ -2494,7 +2494,11 @@ new_apply_scroll = '''private func gtkApplyScrollTo(_ target: UnsafeMutablePoint
 '''
 if old_apply_scroll in text:
     text = text.replace(old_apply_scroll, new_apply_scroll)
-elif "private func gtkApplyScrollTo(" in text and "var applied = false" not in text:
+elif (
+    "private func gtkApplyScrollTo(" in text
+    and "var applied = false" not in text
+    and "let requiresVerticalAnchor = anchorPoint.y > 0.0" not in text
+):
     raise SystemExit("SwiftOpenUI ScrollViewReader scroll-range upgrade shape was not recognized")
 if "anchorPoint.y >= 1.0" not in text:
     old_bottom_anchor_scroll = '''                    let currentValue = gtk_adjustment_get_value(vadjustment)
@@ -2614,7 +2618,10 @@ private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePoi
         1,
     )
 
-if "gtkScheduleIdleScrollTo(_ target" not in text:
+if (
+    "gtkScheduleIdleScrollTo(_ target" not in text
+    and "gtkScheduleIdleScrollTo(id: AnyHashable? = nil, _ target" not in text
+):
     idle_helper_marker = '''private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     gtkApplyScrollTo(widget, anchor: anchor)
     gtkScheduleScrollTo(widget, anchor: anchor)
@@ -2669,7 +2676,13 @@ new_idle_helper = '''private func gtkScheduleIdleScrollTo(_ target: UnsafeMutabl
 '''
 if old_idle_helper in text:
     text = text.replace(old_idle_helper, new_idle_helper, 1)
-elif "gtkScheduleIdleScrollTo(_ target" in text and "g_object_ref(gpointer(target))" not in text:
+elif (
+    (
+        "gtkScheduleIdleScrollTo(_ target" in text
+        or "gtkScheduleIdleScrollTo(id: AnyHashable? = nil, _ target" in text
+    )
+    and "g_object_ref(gpointer(target))" not in text
+):
     raise SystemExit("SwiftOpenUI ScrollViewReader idle scroll ownership shape was not recognized")
 
 old_resolve_pending = '''private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
@@ -2686,7 +2699,10 @@ new_resolve_pending = '''private func gtkResolvePendingScrollTo(id: AnyHashable,
 '''
 if old_resolve_pending in text:
     text = text.replace(old_resolve_pending, new_resolve_pending, 1)
-elif "gtkScheduleIdleScrollTo(widget, anchor: request.anchor)" not in text:
+elif (
+    "gtkScheduleIdleScrollTo(widget, anchor: request.anchor)" not in text
+    and "gtkScheduleIdleScrollTo(id: id, widget, anchor: request.anchor)" not in text
+):
     raise SystemExit("SwiftOpenUI ScrollViewReader pending scroll shape was not recognized")
 
 old_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
@@ -4655,7 +4671,10 @@ private func gtkScheduleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anch
         raise SystemExit("SwiftOpenUI ScrollViewReader apply result footer shape was not recognized")
     text = text.replace(old_apply_footer, new_apply_footer, 1)
 
-if "let applied = gtkApplyScrollTo(context.target, anchor: context.anchor)" not in text:
+if (
+    "let applied = gtkApplyScrollTo(context.target, anchor: context.anchor)" not in text
+    and "let applied = gtkApplyScrollTo(target, anchor: context.anchor)" not in text
+):
     old_scroll_retry_tick = '''        gtkApplyScrollTo(context.target, anchor: context.anchor)
         context.remainingTicks -= 1
         if context.remainingTicks > 0 { return 1 }
@@ -4670,6 +4689,218 @@ if "let applied = gtkApplyScrollTo(context.target, anchor: context.anchor)" not 
     if old_scroll_retry_tick not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader retry tick shape was not recognized")
     text = text.replace(old_scroll_retry_tick, new_scroll_retry_tick, 1)
+
+if "let requiresVerticalAnchor = anchorPoint.y > 0.0" not in text:
+    old_scroll_axis_success = '''            let anchorPoint = anchor ?? .top
+            var applied = false
+            if let vadjustment = gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(vadjustment)
+                let upper = gtk_adjustment_get_upper(vadjustment)
+                let pageSize = gtk_adjustment_get_page_size(vadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(vadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetHeight = max(1.0, Double(gtk_widget_get_height(target)))
+                    if anchorPoint.y >= 1.0 {
+                        gtk_adjustment_set_value(vadjustment, maxValue)
+                    } else {
+                        let desired = currentValue + targetY - ((pageSize - targetHeight) * anchorPoint.y)
+                        gtk_adjustment_set_value(
+                            vadjustment,
+                            gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                        )
+                    }
+                    applied = true
+                }
+            }
+
+            if let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(hadjustment)
+                let upper = gtk_adjustment_get_upper(hadjustment)
+                let pageSize = gtk_adjustment_get_page_size(hadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(hadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetWidth = max(1.0, Double(gtk_widget_get_width(target)))
+                    let desired = currentValue + targetX - ((pageSize - targetWidth) * anchorPoint.x)
+                    gtk_adjustment_set_value(
+                        hadjustment,
+                        gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                    )
+                    applied = true
+                }
+            }
+            if applied { return true }
+'''
+    new_scroll_axis_success = '''            let anchorPoint = anchor ?? .top
+            let requiresVerticalAnchor = anchorPoint.y > 0.0
+            var verticalApplied = false
+            var horizontalApplied = false
+            if let vadjustment = gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(vadjustment)
+                let upper = gtk_adjustment_get_upper(vadjustment)
+                let pageSize = gtk_adjustment_get_page_size(vadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(vadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetHeight = max(1.0, Double(gtk_widget_get_height(target)))
+                    if anchorPoint.y >= 1.0 {
+                        gtk_adjustment_set_value(vadjustment, maxValue)
+                    } else {
+                        let desired = currentValue + targetY - ((pageSize - targetHeight) * anchorPoint.y)
+                        gtk_adjustment_set_value(
+                            vadjustment,
+                            gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                        )
+                    }
+                    verticalApplied = true
+                }
+            }
+
+            if let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(hadjustment)
+                let upper = gtk_adjustment_get_upper(hadjustment)
+                let pageSize = gtk_adjustment_get_page_size(hadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(hadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetWidth = max(1.0, Double(gtk_widget_get_width(target)))
+                    let desired = currentValue + targetX - ((pageSize - targetWidth) * anchorPoint.x)
+                    gtk_adjustment_set_value(
+                        hadjustment,
+                        gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                    )
+                    horizontalApplied = true
+                }
+            }
+            if requiresVerticalAnchor {
+                if verticalApplied { return true }
+            } else if verticalApplied || horizontalApplied {
+                return true
+            }
+'''
+    if old_scroll_axis_success not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader axis-specific success shape was not recognized")
+    text = text.replace(old_scroll_axis_success, new_scroll_axis_success, 1)
+
+if "let targetID: AnyHashable?" not in text:
+    old_scroll_id_context = '''private final class GTKScrollToContext {
+    let target: UnsafeMutablePointer<GtkWidget>
+    let anchor: UnitPoint?
+    var remainingTicks: Int
+    var remainingTotalTicks: Int
+
+    init(target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?, remainingTicks: Int = 180, remainingTotalTicks: Int = 600) {
+        self.target = target
+        self.anchor = anchor
+        self.remainingTicks = remainingTicks
+        self.remainingTotalTicks = remainingTotalTicks
+    }
+}
+'''
+    new_scroll_id_context = '''private final class GTKScrollToContext {
+    let target: UnsafeMutablePointer<GtkWidget>
+    let targetID: AnyHashable?
+    let anchor: UnitPoint?
+    var remainingTicks: Int
+    var remainingTotalTicks: Int
+
+    init(target: UnsafeMutablePointer<GtkWidget>, targetID: AnyHashable? = nil, anchor: UnitPoint?, remainingTicks: Int = 180, remainingTotalTicks: Int = 600) {
+        self.target = target
+        self.targetID = targetID
+        self.anchor = anchor
+        self.remainingTicks = remainingTicks
+        self.remainingTotalTicks = remainingTotalTicks
+    }
+}
+'''
+    if old_scroll_id_context not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader ID-refresh context shape was not recognized")
+    text = text.replace(old_scroll_id_context, new_scroll_id_context, 1)
+
+if "private func gtkScheduleScrollTo(id: AnyHashable? = nil, _ target" not in text:
+    text = text.replace(
+        '''private func gtkScheduleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
+    let context = GTKScrollToContext(target: target, anchor: anchor)
+''',
+        '''private func gtkScheduleScrollTo(id: AnyHashable? = nil, _ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
+    let context = GTKScrollToContext(target: target, targetID: id, anchor: anchor)
+''',
+        1,
+    )
+    text = text.replace(
+        '''        guard gtk_swift_is_widget(context.target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        let applied = gtkApplyScrollTo(context.target, anchor: context.anchor)
+''',
+        '''        let target = context.targetID.flatMap { gtkScrollTargetRegistry[$0] } ?? context.target
+        guard gtk_swift_is_widget(target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        let applied = gtkApplyScrollTo(target, anchor: context.anchor)
+''',
+        1,
+    )
+elif "context.targetID.flatMap { gtkScrollTargetRegistry[$0] } ?? context.target" not in text:
+    raise SystemExit("SwiftOpenUI ScrollViewReader ID-refresh retry shape was not recognized")
+
+if "private func gtkScheduleIdleScrollTo(id: AnyHashable? = nil, _ target" not in text:
+    text = text.replace(
+        '''private func gtkScheduleIdleScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
+    let context = GTKScrollToContext(target: target, anchor: anchor)
+''',
+        '''private func gtkScheduleIdleScrollTo(id: AnyHashable? = nil, _ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
+    let context = GTKScrollToContext(target: target, targetID: id, anchor: anchor)
+''',
+        1,
+    )
+    text = text.replace(
+        '''        guard gtk_swift_is_widget(context.target) != 0 else { return 0 }
+        gtkApplyOrScheduleScrollTo(context.target, anchor: context.anchor)
+''',
+        '''        let target = context.targetID.flatMap { gtkScrollTargetRegistry[$0] } ?? context.target
+        guard gtk_swift_is_widget(target) != 0 else { return 0 }
+        gtkApplyOrScheduleScrollTo(id: context.targetID, target, anchor: context.anchor)
+''',
+        1,
+    )
+elif "gtkApplyOrScheduleScrollTo(id: context.targetID, target, anchor: context.anchor)" not in text:
+    raise SystemExit("SwiftOpenUI ScrollViewReader ID-refresh idle shape was not recognized")
+
+if "private func gtkApplyOrScheduleScrollTo(id: AnyHashable? = nil, _ widget" not in text:
+    text = text.replace(
+        '''private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    gtkApplyScrollTo(widget, anchor: anchor)
+    gtkScheduleScrollTo(widget, anchor: anchor)
+}
+''',
+        '''private func gtkApplyOrScheduleScrollTo(id: AnyHashable? = nil, _ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    gtkApplyScrollTo(widget, anchor: anchor)
+    gtkScheduleScrollTo(id: id, widget, anchor: anchor)
+}
+''',
+        1,
+    )
+elif "gtkScheduleScrollTo(id: id, widget, anchor: anchor)" not in text:
+    raise SystemExit("SwiftOpenUI ScrollViewReader ID-refresh schedule shape was not recognized")
+
+text = text.replace(
+    "gtkScheduleIdleScrollTo(widget, anchor: request.anchor)",
+    "gtkScheduleIdleScrollTo(id: id, widget, anchor: request.anchor)",
+)
 
 if "gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)" not in text:
     old_id_view_scroll_target = '''extension IdView: GTKRenderable {

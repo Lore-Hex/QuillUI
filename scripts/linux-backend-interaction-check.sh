@@ -954,7 +954,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
         scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
-        scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-1200}"
+        scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-2400}"
         refocus_capture_window
         move_pointer_to "$scroll_x" "$scroll_y"
         sleep "${QUILLUI_BACKEND_SCROLL_SETTLE_SLEEP:-0.2}"
