@@ -63,6 +63,12 @@ private func nbDigits(_ s: String) -> String {
     String(s.unicodeScalars.filter { CharacterSet.decimalDigits.contains($0) })
 }
 
+// libPhoneNumber global region-code sentinels (Google libphonenumber values).
+// SSK's PhoneNumberUtil.getFilteredRegionCodeForCallingCode compares against
+// these to drop unknown / non-geographic results.
+public let NB_UNKNOWN_REGION = "ZZ"
+public let NB_REGION_CODE_FOR_NON_GEO_ENTITY = "001"
+
 public final class NBPhoneNumber: NSObject {
     public var countryCode: NSNumber?
     public var nationalNumber: NSNumber?

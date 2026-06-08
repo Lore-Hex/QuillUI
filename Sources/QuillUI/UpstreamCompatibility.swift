@@ -1629,13 +1629,6 @@ public extension View {
         onChange(of: value) { _, _ in action() }
     }
 
-    func onChange<V: Equatable>(
-        of value: V,
-        _ action: @escaping (V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value) { _, newValue in action(newValue) }
-    }
-
     func confirmationDialog<Actions: View, Message: View>(
         _ title: String,
         isPresented: Binding<Bool>,

@@ -56,7 +56,11 @@ public func CGImageSourceGetCount(_ isrc: CGImageSource) -> Int { 0 }
 
 public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CGImage? { nil }
 
-public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CFDictionary? { nil }
+// options takes `Any?` (not CFDictionary?) so SSK callers can pass a native
+// [String: Any] / [String: Bool] without an `as CFDictionary` bridge (absent on
+// swift-corelibs). Returns [String: Any]? (not CFDictionary?) so the callers'
+// `as? [String: Any]` / `as? [String: AnyObject]` resolve. Inert (nil) on Linux.
+public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: Any?) -> [String: Any]? { nil }
 
 // MARK: - kCGImageSource* / kCGImageProperty* constants
 //

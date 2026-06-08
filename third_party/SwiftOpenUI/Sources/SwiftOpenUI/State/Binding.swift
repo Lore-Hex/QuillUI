@@ -43,6 +43,12 @@ public struct Binding<Value> {
     /// Projects self so `$bindingName` returns a `Binding<Value>` (SwiftUI parity).
     public var projectedValue: Binding<Value> { self }
 
+    /// Allows SwiftUI's binding-collection closure spelling:
+    /// `ForEach($items) { $item in ... }`.
+    public init(projectedValue: Binding<Value>) {
+        self = projectedValue
+    }
+
     /// Creates a binding with an immutable value (SwiftUI-compatible).
     public static func constant(_ value: Value) -> Binding<Value> {
         Binding(get: { value }, set: { _ in })

@@ -41,6 +41,7 @@ extension View {
     ///     // side effects based on the transition
     /// }
     /// ```
+    @_disfavoredOverload
     public func onChange<V: Equatable>(
         of value: V,
         _ action: @escaping (V, V) -> Void

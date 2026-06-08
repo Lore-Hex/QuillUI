@@ -127,6 +127,8 @@ private func gtkTextInputFocusDescriptorContent(
     return "\(typeName)|label:\(label)"
 }
 
+public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil
+
 // MARK: - GTK rendering protocol
 
 /// Protocol that views implement (via extensions) to provide GTK widget creation.
@@ -590,90 +592,117 @@ extension Button: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let button: UnsafeMutablePointer<GtkWidget>
+        let childWidget: UnsafeMutablePointer<GtkWidget>
+        var buttonWantsHExpand = false
+        var buttonWantsVExpand = false
 
+        button = gtk_button_new()!
         if let textLabel = label as? Text {
-            // Simple text label — use native label button
-            button = gtk_button_new_with_label(textLabel.content)!
+            childWidget = widgetFromOpaque(textLabel.gtkCreateWidget())
         } else {
-            // Custom label view — render it and set as button child
-            button = gtk_button_new()!
-            let childWidget = widgetFromOpaque(gtkRenderView(label))
+            childWidget = widgetFromOpaque(gtkRenderView(label))
+            if gtk_widget_get_hexpand(childWidget) != 0 {
+                buttonWantsHExpand = true
+                gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+            }
+            if gtk_widget_get_vexpand(childWidget) != 0 {
+                buttonWantsVExpand = true
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+            }
+        }
+
+        let buttonStyleType = getCurrentEnvironment().buttonStyle
+        let handledByQuillPaint: Bool
+        switch buttonStyleType {
+        case .quillPaintMacDefault:
+            handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), true) ?? false
+        case .quillPaintMacBordered:
+            handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+        default:
+            handledByQuillPaint = false
+        }
+
+        if !handledByQuillPaint {
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
-            // Remove GTK default button border/padding so custom-styled
-            // labels (with .background/.frame) render cleanly.
-            applyCSSToWidget(button, properties: """
-                border: none;
-                outline: none;
-                padding: 0;
-                min-height: 0;
-                min-width: 0;
-                """)
-        }
-
-        gtk_widget_set_hexpand(button, 0)
-        gtk_widget_set_halign(button, GTK_ALIGN_START)
-
-        // Apply button style from environment
-        let buttonStyleType = getCurrentEnvironment().buttonStyle
-        switch buttonStyleType {
-        case .plain:
-            gtk_widget_add_css_class(button, "flat")
-            applyCSSToWidget(button, properties: """
-                background: transparent;
-                background-color: transparent;
-                background-image: none;
-                border: none;
-                border-radius: 0;
-                box-shadow: none;
-                outline: none;
-                padding: 0;
-                min-height: 0;
-                min-width: 0;
-                text-shadow: none;
-                """)
-        case .borderedProminent, .quillPaintMacDefault:
-            // Concrete macOS-like accent blue with explicit overrides of
-            // GTK's default button gradient and inset shadow, both of which
-            // stack on top of `background-color` and render it invisible
-            // otherwise. App-configurable tint via a future `.tint()`
-            // modifier; theme-aware tint via `@theme_selected_bg_color` /
-            // `@accent_bg_color` is a future refinement — a previous attempt
-            // at a CSS cascade `background-color: X; background-color: Y;`
-            // made the button vanish (GTK CSS doesn't skip undefined-named-
-            // color declarations gracefully), so that's parked.
-            //
-            // Disabled state: use a faded translucent blue with muted text
-            // so .disabled() has a visual signal. Without this override, our
-            // base rules apply even when the button is insensitive, so a
-            // .borderedProminent + .disabled() button looks identical to the
-            // enabled version (only click handling differs).
-            applyCSSToWidget(
-                button,
-                properties: """
-                    background-color: #3584e4;
-                    background-image: none;
-                    color: white;
+            if !(label is Text) {
+                // Remove GTK default button border/padding so custom-styled
+                // labels (with .background/.frame) render cleanly.
+                applyCSSToWidget(button, properties: """
                     border: none;
-                    border-radius: 6px;
-                    padding: 6px 12px;
-                    box-shadow: none;
-                    text-shadow: none;
+                    outline: none;
+                    padding: 0;
                     min-height: 0;
-                    """,
-                disabledProperties: """
-                    background-color: rgba(53, 132, 228, 0.4);
-                    color: rgba(255, 255, 255, 0.7);
-                    """
-            )
-        case .bordered, .quillPaintMacBordered:
-            applyCSSToWidget(button, properties: """
-                border: 1px solid @borders; border-radius: 6px;
-                padding: 6px 12px;
-                """)
-        case .automatic:
-            break // default GTK button styling
+                    min-width: 0;
+                    """)
+            }
         }
+
+        if !handledByQuillPaint {
+            switch buttonStyleType {
+            case .plain:
+                gtk_widget_add_css_class(button, "flat")
+                applyCSSToWidget(button, properties: """
+                    background: transparent;
+                    background-color: transparent;
+                    background-image: none;
+                    border: none;
+                    border-radius: 0;
+                    box-shadow: none;
+                    outline: none;
+                    padding: 0;
+                    min-height: 0;
+                    min-width: 0;
+                    text-shadow: none;
+                    """)
+            case .borderedProminent, .quillPaintMacDefault:
+                // Concrete macOS-like accent blue with explicit overrides of
+                // GTK's default button gradient and inset shadow, both of which
+                // stack on top of `background-color` and render it invisible
+                // otherwise. App-configurable tint via a future `.tint()`
+                // modifier; theme-aware tint via `@theme_selected_bg_color` /
+                // `@accent_bg_color` is a future refinement — a previous attempt
+                // at a CSS cascade `background-color: X; background-color: Y;`
+                // made the button vanish (GTK CSS doesn't skip undefined-named-
+                // color declarations gracefully), so that's parked.
+                //
+                // Disabled state: use a faded translucent blue with muted text
+                // so .disabled() has a visual signal. Without this override, our
+                // base rules apply even when the button is insensitive, so a
+                // .borderedProminent + .disabled() button looks identical to the
+                // enabled version (only click handling differs).
+                applyCSSToWidget(
+                    button,
+                    properties: """
+                        background-color: #3584e4;
+                        background-image: none;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        padding: 6px 12px;
+                        box-shadow: none;
+                        text-shadow: none;
+                        min-height: 0;
+                        """,
+                    disabledProperties: """
+                        background-color: rgba(53, 132, 228, 0.4);
+                        color: rgba(255, 255, 255, 0.7);
+                        """
+                )
+            case .bordered, .quillPaintMacBordered:
+                applyCSSToWidget(button, properties: """
+                    border: 1px solid @borders; border-radius: 6px;
+                    padding: 6px 12px;
+                    """)
+            case .automatic:
+                break // default GTK button styling
+            }
+        }
+
+        gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)
+        gtk_widget_set_vexpand(button, buttonWantsVExpand ? 1 : 0)
+        gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)
+        gtk_widget_set_valign(button, buttonWantsVExpand ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
 
         let boundAction = bindActionToCurrentEnvironment(action)
         let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()

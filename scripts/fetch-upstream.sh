@@ -1123,6 +1123,34 @@ subs = [
     # QuotedReplyManager sticker options: [String: Bool] doesn't coerce to CFDictionary on
     # swift-corelibs; the inert CGImageSourceCreateWithData ignores options, so nil suffices.
     ("[kCGImageSourceShouldCache: false] as CFDictionary", "nil as CFDictionary?"),
+    # DebugLogger: the CF URL key constant kCFURLContentModificationDateKey is absent on
+    # swift-corelibs; use the native URLResourceKey case (the call wants [URLResourceKey]).
+    ("kCFURLContentModificationDateKey as URLResourceKey", "URLResourceKey.contentModificationDateKey"),
+    # DebugLogger: swift-corelibs ProcessInfo has no public init -> use the shared instance.
+    ("ProcessInfo()", "ProcessInfo.processInfo"),
+    # SignalAccount.shouldUseNicknames probes PersonNameComponentsFormatter's .short style,
+    # which is unavailable on swift-corelibs Foundation (no public init / no .style). On
+    # Apple .short yields the nickname (so SSK uses nicknames); return that result directly.
+    ('''        var nameComponents = PersonNameComponents()
+        nameComponents.givenName = "givenName"
+        nameComponents.nickname = "nickname"
+        let nameFormatter = PersonNameComponentsFormatter()
+        nameFormatter.style = .short
+        return nameFormatter.string(from: nameComponents) == "nickname"''',
+     '''        // PersonNameComponentsFormatter is unavailable on swift-corelibs Foundation.
+        // On Apple, .short yields the nickname, so SSK uses nicknames; match that.
+        return true'''),
+    # UIImage+Attachment / OWSImageSource image-metadata: swift-corelibs CFString isn't
+    # Hashable (so [CFString: Any] can't be a dict) and there is no Dictionary<->CFDictionary
+    # bridge. Use a native [String: Any] dict and drop the `as CFDictionary` casts; the
+    # ImageIO shim's CGImageSourceCopyPropertiesAtIndex now takes Any? and returns [String: Any]?.
+    ("[CFString: Any]", "[String: Any]"),
+    ("options as CFDictionary", "options"),
+    # OutageDetection resolves uptime.signal.org via CFHostCreateWithName. swift-corelibs
+    # has no String<->CFString bridge, so `"uptime.signal.org" as CFString` fails; the
+    # CFNetwork shim's CFHostCreateWithName takes String -> drop the cast. (The shim also
+    # no longer redeclares CFStreamError, so CoreFoundation's is used by both sides.)
+    ('"uptime.signal.org" as CFString', '"uptime.signal.org"'),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):

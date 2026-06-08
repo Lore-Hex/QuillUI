@@ -2003,11 +2003,22 @@ where Message.ID: Hashable {
                                 .id(message)
                         }
 
+                        #if os(Linux)
+                        Text(Self.bottomSentinelID)
+                            .font(.system(size: 1))
+                            .foregroundColor(.clear)
+                            .frame(height: 1)
+                            .id(Self.bottomSentinelID)
+                        #else
                         Color.clear
                             .frame(height: 1)
                             .id(Self.bottomSentinelID)
+                        #endif
                     }
+                    .frame(maxWidth: .infinity)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .id(scrollToken)
                 .onAppear {
                     scrollToBottom(scrollViewProxy)
                 }
@@ -2045,10 +2056,25 @@ where Message.ID: Hashable {
 
     private func scrollToBottom(_ scrollViewProxy: ScrollViewProxy) {
         #if os(Linux)
-        scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
         let deferredProxy = QuillUncheckedSendableScrollViewProxy(proxy: scrollViewProxy)
+        let deferredLastMessage = messages.last.map { QuillUncheckedSendableScrollTarget(value: $0) }
+        if let last = messages.last {
+            scrollViewProxy.scrollTo(last, anchor: .bottom)
+        }
+        scrollViewProxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
         DispatchQueue.main.async {
+            if let deferredLastMessage {
+                deferredProxy.proxy.scrollTo(deferredLastMessage.value, anchor: .bottom)
+            }
             deferredProxy.proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+        }
+        for delayMilliseconds in [50, 150, 350, 750, 1_500, 3_000, 5_000, 8_000] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(delayMilliseconds)) {
+                if let deferredLastMessage {
+                    deferredProxy.proxy.scrollTo(deferredLastMessage.value, anchor: .bottom)
+                }
+                deferredProxy.proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+            }
         }
         #else
         if let last = messages.last {
@@ -2160,6 +2186,10 @@ where Message.ID: Hashable {
 
 private struct QuillUncheckedSendableScrollViewProxy: @unchecked Sendable {
     var proxy: ScrollViewProxy
+}
+
+private struct QuillUncheckedSendableScrollTarget<Value>: @unchecked Sendable {
+    var value: Value
 }
 
 public struct QuillMessageInteractionAvailability: OptionSet, Sendable {

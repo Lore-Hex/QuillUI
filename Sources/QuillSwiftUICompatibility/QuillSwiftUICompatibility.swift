@@ -19,6 +19,44 @@ public macro Preview<Content>(_ name: String? = nil, @ViewBuilder body: () -> Co
 #endif
 
 #if os(Linux)
+public struct EditActions: OptionSet, Sendable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let move = EditActions(rawValue: 1 << 0)
+    public static let delete = EditActions(rawValue: 1 << 1)
+    public static let all: EditActions = [.move, .delete]
+}
+
+public extension ForEach where Data: Identifiable, ID == Data.ID {
+    init(
+        _ data: Binding<[Data]>,
+        editActions: EditActions,
+        @ViewBuilder content: @escaping (Binding<Data>) -> Content
+    ) {
+        self.init(data.wrappedValue) { element in
+            let elementID = element.id
+            return content(Binding<Data>(
+                get: {
+                    data.wrappedValue.first { $0.id == elementID } ?? element
+                },
+                set: { newValue in
+                    var values = data.wrappedValue
+                    if let index = values.firstIndex(where: { $0.id == elementID }) {
+                        values[index] = newValue
+                    } else {
+                        values.append(newValue)
+                    }
+                    data.wrappedValue = values
+                }
+            ))
+        }
+    }
+}
+
 /// Canonical Linux image type exposed through the SwiftUI shim.
 ///
 /// SwiftOpenUI keeps its renderer image as a byte-backed value type, but the

@@ -40,6 +40,19 @@ public final class INInteraction: NSObject {
 
     /// Async form. Inert on Linux (never throws).
     public func donate() async throws {}
+
+    /// Delete donated interactions. On iOS these remove Siri/intents donations;
+    /// inert on Linux (no donation store), so they just call back with no error.
+    /// SSK: RecipientHidingManager deletes a thread's intents on hide.
+    public static func delete(with groupIdentifier: String, completion: ((Error?) -> Void)? = nil) {
+        completion?(nil)
+    }
+    public static func delete(with identifiers: [String], completion: ((Error?) -> Void)? = nil) {
+        completion?(nil)
+    }
+    public static func deleteAll(completion: ((Error?) -> Void)? = nil) {
+        completion?(nil)
+    }
 }
 
 public enum INInteractionDirection: Int, Sendable {

@@ -24,7 +24,7 @@ private func recordUIKitFallback(operation: String, api: String) {
     )
 }
 
-#if canImport(AppKit)
+#if canImport(AppKit) && !os(Linux)
 import AppKit
 public typealias UIImage = NSImage
 public typealias UIColor = NSColor
@@ -137,7 +137,7 @@ public class UIApplication: NSObject {
         options: [AnyHashable: Any] = [:],
         completionHandler: ((Bool) -> Void)? = nil
     ) -> Bool {
-        #if canImport(AppKit)
+        #if canImport(AppKit) && !os(Linux)
         return NSWorkspace.shared.open(url)
         #else
         return false
@@ -371,6 +371,19 @@ public class UINotificationFeedbackGenerator: NSObject {
         get { false }
         set { _ = newValue }
     }
+
+    /// KVC setter used only by UIDevice+FeatureSupport.ows_setOrientation's
+    /// programmatic-rotation hack (`setValue(_:forKey:"orientation")`). On Apple
+    /// this resolves to NSObject's Objective-C KVC; swift-corelibs-foundation's
+    /// NSObject has no KVC ("value of type 'UIDevice' has no member 'setValue'"),
+    /// so this inert stand-in lets SSK compile. Programmatic device rotation is
+    /// meaningless on QuillOS (the GTK/Qt window manager owns orientation), so it
+    /// is a no-op. Linux-only: on macOS the real NSObject KVC is used (an
+    /// unconditional method here would conflict with the @objc superclass one).
+    public func setValue(_ value: Any?, forKey key: String) {
+        _ = value
+        _ = key
+    }
     #endif
 }
 
@@ -519,7 +532,7 @@ private func quillEstimatedTextRect(_ s: String, proposed: CGSize, attributes: [
     let lineHeight = fontSize * 1.2
     let singleLineWidth = CGFloat(s.count) * charWidth
     let width = min(proposed.width, max(singleLineWidth, charWidth))
-    let lines = width > 0 ? (singleLineWidth / width).rounded(.up) : 1
+    let lines = width > 0 ? CGFloat(ceil(Double(singleLineWidth / width))) : 1
     let height = min(proposed.height, max(lines, 1) * lineHeight)
     return CGRect(x: 0, y: 0, width: width, height: max(height, lineHeight))
 }
@@ -654,7 +667,7 @@ open class NSTextStorage: NSMutableAttributedString {
 
 // MARK: - UI* extras Ice Cubes references
 
-#if canImport(AppKit)
+#if canImport(AppKit) && !os(Linux)
 // On macOS, NSEvent.ModifierFlags is the analogue.
 public typealias UIKeyModifierFlags = NSEvent.ModifierFlags
 #endif
