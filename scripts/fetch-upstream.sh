@@ -1128,6 +1128,18 @@ subs = [
     ("kCFURLContentModificationDateKey as URLResourceKey", "URLResourceKey.contentModificationDateKey"),
     # DebugLogger: swift-corelibs ProcessInfo has no public init -> use the shared instance.
     ("ProcessInfo()", "ProcessInfo.processInfo"),
+    # SignalAccount.shouldUseNicknames probes PersonNameComponentsFormatter's .short style,
+    # which is unavailable on swift-corelibs Foundation (no public init / no .style). On
+    # Apple .short yields the nickname (so SSK uses nicknames); return that result directly.
+    ('''        var nameComponents = PersonNameComponents()
+        nameComponents.givenName = "givenName"
+        nameComponents.nickname = "nickname"
+        let nameFormatter = PersonNameComponentsFormatter()
+        nameFormatter.style = .short
+        return nameFormatter.string(from: nameComponents) == "nickname"''',
+     '''        // PersonNameComponentsFormatter is unavailable on swift-corelibs Foundation.
+        // On Apple, .short yields the nickname, so SSK uses nicknames; match that.
+        return true'''),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
