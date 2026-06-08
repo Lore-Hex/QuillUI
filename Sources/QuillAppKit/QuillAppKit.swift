@@ -2990,7 +2990,23 @@ open class NSBox: NSView {
 }
 
 open class NSClipView: NSView {
-    public var documentView: NSView?
+    public var documentView: NSView? {
+        didSet {
+            // AppKit keeps the documentView inside the clip view's subview tree.
+            // The shadow must too, so the Qt render pass (which walks `subviews`)
+            // reaches it — VCs like WireGuard's TunnelsList/LogView set
+            // `clipView.documentView = tableView` DIRECTLY, bypassing
+            // NSScrollView.documentView's setter, so without this the document
+            // (the whole table) is dropped from the rendered tree. Mirrors
+            // NSScrollView.documentView's wiring.
+            if oldValue !== documentView {
+                oldValue?.removeFromSuperview()
+            }
+            if let documentView, documentView.superview !== self {
+                addSubview(documentView)
+            }
+        }
+    }
     public var documentRect: NSRect = .zero
     public var documentVisibleRect: NSRect = .zero
 }
