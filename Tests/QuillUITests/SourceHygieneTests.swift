@@ -2506,6 +2506,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("MergeLists"))
         #expect(telegramPackageCheck.contains("NumberPluralization"))
         #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
+        #expect(telegramPackageCheck.contains("TGPassportMRZ"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
         #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
         #expect(telegramPackageCheck.contains("-fblocks"))
@@ -2519,6 +2520,7 @@ struct SourceHygieneTests {
         #expect(objcFoundationHeader.contains("@interface NSString : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSCharacterSet : NSObject"))
         #expect(objcFoundationHeader.contains("typedef NS_ENUM(NSInteger, NSDateFormatterStyle)"))
         #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
     }

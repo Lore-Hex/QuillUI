@@ -19,7 +19,7 @@ repeatable source checkout plus Linux compile ratchet:
 - `scripts/generated-telegram-package-check.sh` compiles the first unchanged
   SwiftPM package islands on Linux: `CAPortal`, `CalendarUtils`,
   `CurrencyFormat`, `DateUtils`, `EDSunriseSet`, `FoundationUtils`, `GZIP`, `MergeLists`,
-  `NumberPluralization`, and `TGCurrencyFormatter`.
+  `NumberPluralization`, `TGCurrencyFormatter`, and `TGPassportMRZ`.
 
 Current Linux blocker classes:
 

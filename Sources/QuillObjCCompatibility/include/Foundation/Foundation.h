@@ -63,6 +63,7 @@ typedef unsigned long NSUInteger;
 typedef double CGFloat;
 typedef double NSTimeInterval;
 typedef uint8_t UInt8;
+typedef unsigned short unichar;
 
 typedef struct _NSRange {
     NSUInteger location;
@@ -129,6 +130,7 @@ static inline NSRange NSMakeRange(NSUInteger location, NSUInteger length) {
 @class NSError;
 @class NSValue;
 @class NSNumberFormatter;
+@class NSCharacterSet;
 
 __attribute__((objc_root_class))
 @interface NSObject
@@ -137,6 +139,10 @@ __attribute__((objc_root_class))
 - (void)doesNotRecognizeSelector:(SEL)aSelector;
 @property (nonatomic, readonly) NSString *description;
 @end
+
+typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
+    NSStringEnumerationByComposedCharacterSequences = 1UL << 1
+};
 
 @interface NSString : NSObject
 @property (nonatomic, readonly) const char *UTF8String;
@@ -147,12 +153,22 @@ __attribute__((objc_root_class))
 - (BOOL)hasPrefix:(NSString *)str;
 - (NSRange)rangeOfString:(NSString *)str;
 - (NSString *)substringToIndex:(NSUInteger)to;
+- (NSString *)substringWithRange:(NSRange)range;
 - (NSString *)lowercaseString;
+- (NSArray *)componentsSeparatedByString:(NSString *)separator;
+- (NSString *)stringByTrimmingCharactersInSet:(NSCharacterSet *)set;
+- (NSString *)stringByAppendingString:(NSString *)string;
 - (NSString *)stringByReplacingOccurrencesOfString:(NSString *)target withString:(NSString *)replacement;
+- (NSInteger)integerValue;
+- (unichar)characterAtIndex:(NSUInteger)index;
 - (BOOL)isEqualToString:(NSString *)string;
+- (void)enumerateSubstringsInRange:(NSRange)range
+                           options:(NSStringEnumerationOptions)opts
+                        usingBlock:(void (^)(NSString *substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop))block;
 @end
 
 @interface NSMutableString : NSString
++ (instancetype)stringWithCapacity:(NSUInteger)capacity;
 - (void)appendString:(NSString *)string;
 - (void)appendFormat:(NSString *)format, ...;
 @end
@@ -175,12 +191,22 @@ __attribute__((objc_root_class))
 @end
 
 @interface NSArray<ObjectType> : NSObject
+@property (nonatomic, readonly) NSUInteger count;
+@property (nonatomic, readonly) ObjectType firstObject;
+@property (nonatomic, readonly) ObjectType lastObject;
++ (instancetype)array;
++ (instancetype)arrayWithObject:(ObjectType)object;
+- (ObjectType)objectAtIndexedSubscript:(NSUInteger)idx;
 @end
 
 @interface NSMutableArray<ObjectType> : NSArray<ObjectType>
++ (instancetype)array;
++ (instancetype)arrayWithCapacity:(NSUInteger)capacity;
+- (void)addObject:(ObjectType)object;
 @end
 
 @interface NSDictionary<KeyType, ObjectType> : NSObject
++ (instancetype)dictionaryWithObjects:(const ObjectType [])objects forKeys:(const KeyType [])keys count:(NSUInteger)cnt;
 - (ObjectType)objectForKeyedSubscript:(KeyType)key;
 - (void)enumerateKeysAndObjectsUsingBlock:(void (^)(KeyType key, ObjectType obj, BOOL *stop))block;
 @end
@@ -230,11 +256,13 @@ typedef NS_ENUM(NSInteger, NSDateFormatterStyle) {
 };
 
 @interface NSDateFormatter : NSObject
+@property (nonatomic, copy) NSString *dateFormat;
 - (void)setLocale:(NSLocale *)locale;
 - (void)setDateStyle:(NSDateFormatterStyle)style;
 - (void)setTimeStyle:(NSDateFormatterStyle)style;
 - (void)setTimeZone:(NSTimeZone *)timeZone;
 - (NSString *)stringFromDate:(NSDate *)date;
+- (NSDate *)dateFromString:(NSString *)string;
 - (NSString *)AMSymbol;
 - (NSString *)PMSymbol;
 + (NSString *)dateFormatFromTemplate:(NSString *)templateName options:(NSUInteger)opts locale:(NSLocale *)locale;
@@ -242,6 +270,13 @@ typedef NS_ENUM(NSInteger, NSDateFormatterStyle) {
 
 @interface NSLocale : NSObject
 + (instancetype)currentLocale;
++ (instancetype)localeWithLocaleIdentifier:(NSString *)identifier;
+@end
+
+@interface NSCharacterSet : NSObject
++ (instancetype)characterSetWithCharactersInString:(NSString *)string;
+- (NSCharacterSet *)invertedSet;
+- (BOOL)characterIsMember:(unichar)aCharacter;
 @end
 
 @interface NSTimeZone : NSObject
