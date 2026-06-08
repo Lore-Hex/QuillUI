@@ -35,7 +35,6 @@ default_packages=(
   ApiCredentials
   CAPortal
   ColorPalette
-  Colors
   CalendarUtils
   CrashHandler
   CurrencyFormat

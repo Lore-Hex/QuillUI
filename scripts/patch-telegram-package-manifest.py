@@ -8,7 +8,6 @@ IMPORT_TO_PRODUCT = {
     "AppKit": "AppKit",
     "Cocoa": "Cocoa",
     "CoreGraphics": "CoreGraphics",
-    "Security": "Security",
 }
 
 
