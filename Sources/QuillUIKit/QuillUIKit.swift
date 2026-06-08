@@ -449,6 +449,7 @@ public class UIPasteboard: NSObject {
     @MainActor public static let general = UIPasteboard()
     public var url: URL?
     public var string: String?
+    public var image: UIImage?
 }
 
 @MainActor public class SLComposeServiceViewController: UIViewController {

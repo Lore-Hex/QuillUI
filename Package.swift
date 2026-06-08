@@ -2732,6 +2732,7 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
         .target(name: "Nuke", dependencies: ["SwiftUI"], path: "Sources/NukeShim"),
         .target(name: "NukeUI", dependencies: ["Nuke", "SwiftUI", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")], path: "Sources/NukeUIShim"),
         .target(name: "EmojiText", dependencies: ["SwiftUI"], path: "Sources/EmojiTextShim"),
+        .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferableShim"),
         // Real Dimillian/IceCubesApp DesignSystem. Vendored on Linux/GTK; theme/
         // color/font system + reusable views. `-default-isolation MainActor` makes
         // the module @MainActor (as all SwiftUI is) — clears the concurrency tail.
@@ -2749,6 +2750,23 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
             name: "AppAccount",
             dependencies: ["Models", "Env", "NetworkClient", "DesignSystem", "SwiftUI", "UIKit", "IceCubesShims", "Combine", "KeychainSwift", "EmojiText"],
             path: ".upstream/icecubes/Packages/AppAccount/Sources/AppAccount",
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims", "-default-isolation", "MainActor"]),
+                .swiftLanguageMode(.v5)
+            ]
+        ),
+        .target(
+            name: "MediaUI",
+            dependencies: ["Models", "DesignSystem", "Env", "SwiftUI", "UIKit", "IceCubesShims", "Nuke", "NukeUI", "CoreTransferable"],
+            path: ".upstream/icecubes/Packages/MediaUI/Sources/MediaUI",
+            exclude: [
+                // Apple-only frameworks / UIKit interop with no meaningful GTK form:
+                "MediaUIAttachmentVideoView.swift", // AVKit (VideoPlayer)
+                "MediaUIView.swift",                // AVFoundation + Photos + QuickLook
+                "MediaUIZoomableContainer.swift",   // UIScrollView pinch-zoom via UIViewRepresentable
+                "QuickLookToolbarItem.swift",       // QuickLook preview (+ Nuke ImagePipeline) — QL is excluded
+                "ShareToolbarItem.swift",           // `: ToolbarContent` (SwiftOpenUI's ToolbarContent is a concrete struct, not a protocol)
+            ],
             swiftSettings: [
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims", "-default-isolation", "MainActor"]),
                 .swiftLanguageMode(.v5)

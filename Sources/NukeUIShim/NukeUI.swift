@@ -8,8 +8,11 @@ import Nuke
 public struct LazyImageState {
     public var image: Image?
     public var imageContainer: ImageContainer?
-    public init(image: Image? = nil, imageContainer: ImageContainer? = nil) {
+    public var isLoading: Bool
+    public var error: Error?
+    public init(image: Image? = nil, imageContainer: ImageContainer? = nil, isLoading: Bool = false, error: Error? = nil) {
         self.image = image; self.imageContainer = imageContainer
+        self.isLoading = isLoading; self.error = error
     }
 }
 
@@ -28,9 +31,9 @@ public struct LazyImage<Content: View>: View {
         AsyncImage(url: url) { phase in
             switch phase {
             case .success(let image):
-                content(LazyImageState(image: image, imageContainer: ImageContainer(image: image, type: nil)))
+                content(LazyImageState(image: image, imageContainer: ImageContainer(image: image, type: nil), isLoading: false))
             default:
-                content(LazyImageState(image: nil, imageContainer: nil))
+                content(LazyImageState(image: nil, imageContainer: nil, isLoading: true))
             }
         }
     }
