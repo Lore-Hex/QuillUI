@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-import QuillRSParser
 @testable import QuillFeedFinder
 
 /// Pins the network-free detection core `FeedFinder.feedSpecifiers(forResponseData:url:)`:
