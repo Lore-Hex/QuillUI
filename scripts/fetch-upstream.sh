@@ -1171,6 +1171,22 @@ subs = [
     # NSSecureCoding-conforming archived type is a class, so map each to AnyClass.
     ("NSKeyedUnarchiver.unarchivedObject(ofClasses: classes, from: $0)",
      "NSKeyedUnarchiver.unarchivedObject(ofClasses: classes.compactMap { $0 as? AnyClass }, from: $0)"),
+    # OWSFileSystem.freeSpaceInBytes: the URLResourceKey
+    # .volumeAvailableCapacityForImportantUsageKey (and its resource-value property) are
+    # absent on swift-corelibs. Fall back to .volumeAvailableCapacityKey /
+    # .volumeAvailableCapacity (total available, Int) -- corelibs has these. The guard
+    # (>= 0) and UInt64(result) conversion are valid for Int too.
+    ("[.volumeAvailableCapacityForImportantUsageKey]", "[.volumeAvailableCapacityKey]"),
+    ("resourceValues.volumeAvailableCapacityForImportantUsage", "resourceValues.volumeAvailableCapacity"),
+    # OWSFormat: PersonNameComponentsFormatter.localizedString(from:style:options:) is
+    # unavailable on swift-corelibs-foundation. Build a simplified display name from the
+    # components (given + family) -- HONEST: style nuance (.short/.abbreviated) is lost.
+    ('''let value = PersonNameComponentsFormatter.localizedString(
+            from: nameComponents,
+            style: style,
+            options: [],
+        )''',
+     '''let value = [nameComponents.givenName, nameComponents.familyName].compactMap { $0 }.joined(separator: " ")'''),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
