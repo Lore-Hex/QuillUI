@@ -1165,6 +1165,12 @@ subs = [
     # is preserved for the https previews SSK actually uses.
     ("guard let parsedUrl = match.url else { return }",
      "guard let parsedUrl = URL(string: (entireMessage.text as NSString).substring(with: match.range)) else { return }"),
+    # KeyValueStore.getObject(ofClasses:): NSKeyedUnarchiver.unarchivedObject(ofClasses:)
+    # expects [AnyClass] but `classes` is typed [any NSSecureCoding.Type]. On Apple the
+    # ObjC metatypes bridge implicitly; swift-corelibs requires an explicit cast. Every
+    # NSSecureCoding-conforming archived type is a class, so map each to AnyClass.
+    ("NSKeyedUnarchiver.unarchivedObject(ofClasses: classes, from: $0)",
+     "NSKeyedUnarchiver.unarchivedObject(ofClasses: classes.compactMap { $0 as? AnyClass }, from: $0)"),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
