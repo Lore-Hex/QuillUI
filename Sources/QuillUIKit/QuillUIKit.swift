@@ -374,6 +374,12 @@ public class UIWindow: UIView {}
     public func popViewController(animated: Bool) -> UIViewController? { nil }
     public var topViewController: UIViewController?
     public var modalPresentationStyle: Int = 0
+
+    /// Inert: UIDevice+FeatureSupport.ows_setOrientation calls this to nudge the
+    /// rotation delegate chain after a programmatic orientation change. On QuillOS
+    /// the GTK/Qt window manager owns orientation, so there is nothing to rotate;
+    /// this no-op stand-in lets SSK's orientation hack compile.
+    public static func attemptRotationToDeviceOrientation() {}
 }
 
 @MainActor public class UINavigationBar: UIView {

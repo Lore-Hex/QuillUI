@@ -371,6 +371,19 @@ public class UINotificationFeedbackGenerator: NSObject {
         get { false }
         set { _ = newValue }
     }
+
+    /// KVC setter used only by UIDevice+FeatureSupport.ows_setOrientation's
+    /// programmatic-rotation hack (`setValue(_:forKey:"orientation")`). On Apple
+    /// this resolves to NSObject's Objective-C KVC; swift-corelibs-foundation's
+    /// NSObject has no KVC ("value of type 'UIDevice' has no member 'setValue'"),
+    /// so this inert stand-in lets SSK compile. Programmatic device rotation is
+    /// meaningless on QuillOS (the GTK/Qt window manager owns orientation), so it
+    /// is a no-op. Linux-only: on macOS the real NSObject KVC is used (an
+    /// unconditional method here would conflict with the @objc superclass one).
+    public func setValue(_ value: Any?, forKey key: String) {
+        _ = value
+        _ = key
+    }
     #endif
 }
 
