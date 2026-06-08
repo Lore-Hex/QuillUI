@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 typedef signed long CFIndex;
 typedef uint32_t CFStringEncoding;
