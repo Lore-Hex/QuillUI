@@ -120,6 +120,20 @@ struct SourceHygieneTests {
         #expect(gtkModuleMap.contains("module CGtk4 [system]"))
     }
 
+    @Test("IceCubes Env target keeps UIKit shim dependency")
+    func iceCubesEnvTargetKeepsUIKitShimDependency() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+
+        #expect(manifest.contains("Real Dimillian/IceCubesApp Env"))
+        #expect(manifest.contains("Router → UIImage/UIApplication"))
+        #expect(manifest.contains("""
+                "KeychainSwift",
+                "UIKit",
+            ],
+"""))
+    }
+
     @Test("Linux SwiftUI compatibility exposes accessibility modifiers")
     func linuxSwiftUICompatibilityExposesAccessibilityModifiers() throws {
         let compatibility = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
@@ -1679,6 +1693,7 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-markdown-transcript-selection\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-long-transcript-selection\""))
+        #expect(backendProducts.contains("*:long-transcript-selection|*:long-transcript-auto-selection)"))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-prompt-send\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-composer-send\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-new-chat\""))
@@ -2438,6 +2453,74 @@ struct SourceHygieneTests {
         #expect(!generatedEnchantedSource.contains("QUILLUI_GENERATED_INCLUDE_GTK_BACKEND"))
         #expect(!source.contains("package(url: \"https://github.com/codelynx/SwiftOpenUI\""))
         #expect(!source.contains(".product(name: \"BackendGTK4\", package: \"SwiftOpenUI\")"))
+    }
+
+    @Test("Telegram upstream source tooling is tracked")
+    func telegramUpstreamSourceToolingIsTracked() throws {
+        let root = try packageRoot()
+        let fetchUpstream = try String(
+            contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
+            encoding: .utf8
+        )
+        let telegramSourceResolver = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-telegram-source.sh"),
+            encoding: .utf8
+        )
+        let telegramPackageCheck = try String(
+            contentsOf: root.appendingPathComponent("scripts/generated-telegram-package-check.sh"),
+            encoding: .utf8
+        )
+        let telegramAudit = try String(
+            contentsOf: root.appendingPathComponent("docs/upstream-telegram-audit.md"),
+            encoding: .utf8
+        )
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let objcFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Foundation/Foundation.h"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains(".library(name: \"QuillObjCCompatibility\", targets: [\"QuillObjCCompatibility\"])"))
+        #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
+        #expect(fetchUpstream.contains("telegram)"))
+        #expect(fetchUpstream.contains("fetch_repo telegram-swift https://github.com/overtake/TelegramSwift.git master"))
+        #expect(telegramSourceResolver.contains("quillui_resolve_telegram_source_dir()"))
+        #expect(telegramSourceResolver.contains("QUILLUI_APP_SOURCE_DIR"))
+        #expect(telegramSourceResolver.contains("TELEGRAM_SWIFT_SOURCE_DIR"))
+        #expect(telegramSourceResolver.contains("TELEGRAM_SOURCE_DIR"))
+        #expect(telegramSourceResolver.contains(".upstream/telegram-swift"))
+        #expect(telegramPackageCheck.contains("source \"$ROOT_DIR/scripts/quillui-telegram-source.sh\""))
+        #expect(telegramPackageCheck.contains("UPSTREAM_DIR=\"$(quillui_resolve_telegram_source_dir \"$ROOT_DIR\")\""))
+        #expect(telegramPackageCheck.contains("QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES"))
+        #expect(telegramPackageCheck.contains("--jobs 1"))
+        #expect(telegramPackageCheck.contains("CAPortal"))
+        #expect(telegramPackageCheck.contains("CalendarUtils"))
+        #expect(telegramPackageCheck.contains("CurrencyFormat"))
+        #expect(telegramPackageCheck.contains("DateUtils"))
+        #expect(telegramPackageCheck.contains("EDSunriseSet"))
+        #expect(telegramPackageCheck.contains("FoundationUtils"))
+        #expect(telegramPackageCheck.contains("GZIP"))
+        #expect(telegramPackageCheck.contains("MergeLists"))
+        #expect(telegramPackageCheck.contains("NumberPluralization"))
+        #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
+        #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
+        #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
+        #expect(telegramPackageCheck.contains("-fblocks"))
+        #expect(telegramPackageCheck.contains("-fobjc-arc"))
+        #expect(telegramPackageCheck.contains("deeper Foundation/AppKit runtime surface"))
+        #expect(telegramPackageCheck.contains("sysctlbyname"))
+        #expect(telegramAudit.contains("Telegram Swift is not a SwiftUI app"))
+        #expect(telegramAudit.contains("scripts/fetch-upstream.sh telegram"))
+        #expect(telegramAudit.contains("QuillObjCCompatibility"))
+        #expect(telegramAudit.contains("QuillAppKit/QuillKit shims"))
+        #expect(objcFoundationHeader.contains("@interface NSString : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
+        #expect(objcFoundationHeader.contains("typedef NS_ENUM(NSInteger, NSDateFormatterStyle)"))
+        #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")

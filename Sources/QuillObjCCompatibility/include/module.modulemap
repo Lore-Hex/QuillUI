@@ -1,0 +1,4 @@
+module QuillObjCCompatibility {
+  umbrella header "QuillObjCCompatibility/QuillObjCCompatibility.h"
+  export *
+}
