@@ -29,7 +29,9 @@ default_packages=(
   CAPortal
   CurrencyFormat
   DateUtils
+  EDSunriseSet
   FoundationUtils
+  GZIP
   MergeLists
   NumberPluralization
   TGCurrencyFormatter
@@ -58,6 +60,7 @@ if [[ "$(uname -s)" == "Linux" ]]; then
     -Xcc "-I$objc_include_dir"
     -Xcc "-fobjc-runtime=gnustep-2.0"
     -Xcc "-fblocks"
+    -Xcc "-fobjc-arc"
   )
 fi
 

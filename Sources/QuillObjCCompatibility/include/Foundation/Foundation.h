@@ -6,7 +6,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <math.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifndef __has_feature
 #define __has_feature(x) 0
@@ -32,6 +34,14 @@
 #define NULL ((void *)0)
 #endif
 
+#ifdef __nullable
+#undef __nullable
+#endif
+
+#ifdef __nonnull
+#undef __nonnull
+#endif
+
 #ifndef _Nullable
 #define _Nullable
 #endif
@@ -40,13 +50,8 @@
 #define _Nonnull
 #endif
 
-#ifndef __nullable
 #define __nullable
-#endif
-
-#ifndef __nonnull
 #define __nonnull
-#endif
 
 #ifndef __unused
 #define __unused __attribute__((unused))
@@ -56,6 +61,8 @@ typedef signed char BOOL;
 typedef long NSInteger;
 typedef unsigned long NSUInteger;
 typedef double CGFloat;
+typedef double NSTimeInterval;
+typedef uint8_t UInt8;
 
 typedef struct _NSRange {
     NSUInteger location;
@@ -127,6 +134,8 @@ __attribute__((objc_root_class))
 @interface NSObject
 + (instancetype)alloc;
 - (instancetype)init;
+- (void)doesNotRecognizeSelector:(SEL)aSelector;
+@property (nonatomic, readonly) NSString *description;
 @end
 
 @interface NSString : NSObject
@@ -187,10 +196,27 @@ __attribute__((objc_root_class))
 @end
 
 @interface NSMutableData : NSData
++ (instancetype)dataWithLength:(NSUInteger)length;
++ (instancetype)dataWithCapacity:(NSUInteger)capacity;
+@property (nonatomic) NSUInteger length;
+@property (nonatomic, readonly) void *mutableBytes;
 @end
 
 @interface NSDate : NSObject
 + (instancetype)date;
+- (NSDate *)dateByAddingTimeInterval:(NSTimeInterval)seconds;
+@end
+
+@interface NSDateComponents : NSObject
+@property NSInteger year;
+@property NSInteger month;
+@property NSInteger day;
+@property NSInteger hour;
+@property NSInteger minute;
+@property NSInteger second;
+- (NSInteger)year;
+- (NSInteger)month;
+- (NSInteger)day;
 @end
 
 typedef NS_ENUM(NSInteger, NSDateFormatterStyle) {
@@ -218,6 +244,30 @@ typedef NS_ENUM(NSInteger, NSDateFormatterStyle) {
 
 @interface NSTimeZone : NSObject
 + (instancetype)localTimeZone;
++ (instancetype)timeZoneWithAbbreviation:(NSString *)abbreviation;
+@property (nonatomic, readonly) NSString *name;
+@end
+
+typedef NS_OPTIONS(NSUInteger, NSCalendarUnit) {
+    NSCalendarUnitEra = 1UL << 1,
+    NSCalendarUnitYear = 1UL << 2,
+    NSCalendarUnitMonth = 1UL << 3,
+    NSCalendarUnitDay = 1UL << 4,
+    NSCalendarUnitHour = 1UL << 5,
+    NSCalendarUnitMinute = 1UL << 6,
+    NSCalendarUnitSecond = 1UL << 7,
+    NSCalendarUnitWeekday = 1UL << 9
+};
+
+typedef NSString *NSCalendarIdentifier;
+static NSString * const NSCalendarIdentifierGregorian = @"gregorian";
+static NSString * const NSGregorianCalendar = @"gregorian";
+
+@interface NSCalendar : NSObject
+- (instancetype)initWithCalendarIdentifier:(NSCalendarIdentifier)identifier;
+- (void)setTimeZone:(NSTimeZone *)timeZone;
+- (NSDate *)dateFromComponents:(NSDateComponents *)components;
+- (NSDateComponents *)components:(NSCalendarUnit)unitFlags fromDate:(NSDate *)date;
 @end
 
 @interface NSBundle : NSObject
