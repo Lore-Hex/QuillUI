@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import QuillKit
 
-@Suite("QuillKit platform services")
+@Suite("QuillKit platform services", .serialized)
 struct QuillKitTests {
     @Test("clipboard stores strings and data by type")
     func clipboardStoresValuesByType() {
@@ -173,6 +173,39 @@ struct QuillKitTests {
         #expect(service.isEnabled == false)
         service.unregister()
         #expect(service.isEnabled == false)
+    }
+
+    @Test("update service tracks configuration and checks")
+    func updateServiceTracksConfigurationAndChecks() {
+        let service = QuillUpdateService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.canCheckForUpdates == false)
+        #expect(service.updateCheckCount == 0)
+        #expect(service.lastCheckDate == nil)
+
+        service.configure(canCheckForUpdates: true)
+        #expect(service.canCheckForUpdates)
+        service.checkForUpdates()
+        #expect(service.updateCheckCount == 1)
+        #expect(service.lastCheckDate != nil)
+        let checkDiagnosticsAfterFirstRun = QuillCompatibilityDiagnostics.shared.events.filter {
+            $0.operation == "checkForUpdates"
+        }.count
+
+        service.configure(canCheckForUpdates: false)
+        #expect(service.canCheckForUpdates == false)
+        service.checkForUpdates()
+        #expect(service.updateCheckCount == 2)
+        #expect(QuillCompatibilityDiagnostics.shared.events.filter {
+            $0.operation == "checkForUpdates"
+        }.count >= checkDiagnosticsAfterFirstRun + 1)
+
+        service.reset()
+        #expect(service.canCheckForUpdates == false)
+        #expect(service.updateCheckCount == 0)
+        #expect(service.lastCheckDate == nil)
     }
 
     @Test("speech backend invokes lifecycle callbacks in order")
@@ -367,8 +400,12 @@ struct QuillKitTests {
         #expect(hotkeyInvoked)
 
         let updater = QuillUpdater()
+        updater.reset()
         #expect(updater.canCheckForUpdates == false)
+        updater.configure(canCheckForUpdates: true)
+        #expect(updater.canCheckForUpdates)
         updater.checkForUpdates()
+        #expect(updater.updateCheckCount == 1)
 
         #expect(HotkeyService.shared === QuillHotkeyService.shared)
 

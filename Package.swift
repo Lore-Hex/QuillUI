@@ -2059,7 +2059,7 @@ targets.append(contentsOf: [
     ),
     // Combine-dependent shims.
     .target(name: "OllamaKit", dependencies: ["Combine", "QuillKit"], path: "Sources/OllamaKit"),
-    .target(name: "Sparkle", dependencies: ["Combine"], path: "Sources/Sparkle"),
+    .target(name: "Sparkle", dependencies: ["Combine", "QuillKit"], path: "Sources/Sparkle"),
     // IOKit: header-only C target. `module.modulemap` exposes
     // `IOKit` and its `IOKit.usb` submodule; `dummy.c` is an empty
     // translation unit so SwiftPM treats this as a buildable C

@@ -899,7 +899,8 @@
 <tr><td><code>SMAppService.mainApp</code></td><td>Partial</td><td>Backed by current <code>QuillLaunchService</code>.</td></tr>
 <tr><td><code>SMAppService.status</code></td><td>Partial</td><td>Mirrors current launch-service state.</td></tr>
 <tr><td><code>SMAppService.register()</code> / <code>unregister()</code></td><td>Usable</td><td>Registers/unregisters through the current Quill launch-service abstraction.</td></tr>
-<tr><td>Full login item parity, privileged helpers, platform service managers</td><td>Incomplete</td><td>Required for ServiceManagement Parity.</td></tr>
+<tr><td><code>SMLoginItemSetEnabled(_:_:)</code></td><td>Partial</td><td>Enables/disables shared <code>QuillLaunchService</code> state and records the helper identifier; no native autostart file is installed yet.</td></tr>
+<tr><td>Full login item persistence, privileged helpers, platform service managers</td><td>Incomplete</td><td>Required for ServiceManagement Parity.</td></tr>
 </table>
 <br>
 <h2 id="asyncalgorithms">AsyncAlgorithms</h2>
@@ -1123,9 +1124,9 @@
 <br>
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
-<tr><td><code>SPUUpdater.canCheckForUpdates</code></td><td>Fallback</td><td>Always false.</td></tr>
-<tr><td><code>SPUUpdater.checkForUpdates()</code></td><td>Compile-only</td><td>No-op.</td></tr>
-<tr><td><code>SPUStandardUpdaterController.updater</code></td><td>Compile-only</td><td>Exposes an updater object for source compatibility.</td></tr>
+<tr><td><code>SPUUpdater.canCheckForUpdates</code></td><td>Partial</td><td>Reads and writes shared <code>QuillUpdateService</code> state.</td></tr>
+<tr><td><code>SPUUpdater.checkForUpdates()</code></td><td>Partial</td><td>Records a shared QuillKit update-check attempt and diagnostic; no appcast fetch is performed yet.</td></tr>
+<tr><td><code>SPUStandardUpdaterController.updater</code></td><td>Partial</td><td>Exposes an updater object backed by shared QuillKit update state.</td></tr>
 <tr><td>Appcast fetching, signature checks, update UI, installer/relaunch behavior</td><td>Incomplete</td><td>Required for Sparkle parity.</td></tr>
 </table>
 <br>

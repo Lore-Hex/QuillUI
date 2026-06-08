@@ -916,11 +916,45 @@ public final class QuillPanelManager: @unchecked Sendable {
 public final class QuillUpdateService: @unchecked Sendable {
     public static let shared = QuillUpdateService()
 
-    public private(set) var canCheckForUpdates = false
+    private let lock = NSLock()
+    private var updateChecksAreEnabled = false
+    private var updateCheckCountValue = 0
+    private var lastUpdateCheckDate: Date?
 
     public init() {}
 
+    public var canCheckForUpdates: Bool {
+        lock.withLock { updateChecksAreEnabled }
+    }
+
+    public var updateCheckCount: Int {
+        lock.withLock { updateCheckCountValue }
+    }
+
+    public var lastCheckDate: Date? {
+        lock.withLock { lastUpdateCheckDate }
+    }
+
+    public func configure(canCheckForUpdates: Bool) {
+        lock.withLock {
+            updateChecksAreEnabled = canCheckForUpdates
+        }
+    }
+
+    public func reset() {
+        lock.withLock {
+            updateChecksAreEnabled = false
+            updateCheckCountValue = 0
+            lastUpdateCheckDate = nil
+        }
+    }
+
     public func checkForUpdates() {
+        lock.withLock {
+            updateCheckCountValue += 1
+            lastUpdateCheckDate = Date()
+        }
+
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillKit",
             operation: "checkForUpdates",

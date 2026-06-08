@@ -484,7 +484,8 @@ subset lives in `QuillUIKit`.
 | `SMAppService.mainApp` | Partial | Backed by current `QuillLaunchService`. |
 | `SMAppService.status` | Partial | Mirrors current launch-service state. |
 | `SMAppService.register()` / `unregister()` | Usable | Registers/unregisters through the current Quill launch-service abstraction. |
-| Full login item parity, privileged helpers, platform service managers | Incomplete | Required for ServiceManagement Parity. |
+| `SMLoginItemSetEnabled(_:_:)` | Partial | Enables/disables shared `QuillLaunchService` state and records the helper identifier; no native autostart file is installed yet. |
+| Full login item persistence, privileged helpers, platform service managers | Incomplete | Required for ServiceManagement Parity. |
 
 ## AsyncAlgorithms
 
@@ -690,9 +691,9 @@ app progress can be audited with the same status ladder.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `SPUUpdater.canCheckForUpdates` | Fallback | Always false. |
-| `SPUUpdater.checkForUpdates()` | Compile-only | No-op. |
-| `SPUStandardUpdaterController.updater` | Compile-only | Exposes an updater object for source compatibility. |
+| `SPUUpdater.canCheckForUpdates` | Partial | Reads and writes shared `QuillUpdateService` state. |
+| `SPUUpdater.checkForUpdates()` | Partial | Records a shared QuillKit update-check attempt and diagnostic; no appcast fetch is performed yet. |
+| `SPUStandardUpdaterController.updater` | Partial | Exposes an updater object backed by shared QuillKit update state. |
 | Appcast fetching, signature checks, update UI, installer/relaunch behavior | Incomplete | Required for Sparkle parity. |
 
 ### Tidemark

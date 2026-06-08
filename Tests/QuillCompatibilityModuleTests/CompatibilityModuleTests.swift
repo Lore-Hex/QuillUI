@@ -25,6 +25,8 @@ import WrappingHStack
 import Vortex
 import KeyboardShortcuts
 import Magnet
+import Sparkle
+import ServiceManagement
 @_spi(QuillTesting) import QuillUI
 
 @Suite("Linux compatibility import modules", .serialized)
@@ -678,6 +680,56 @@ struct CompatibilityModuleTests {
         #expect(synthesizer.stopSpeaking(at: .immediate))
 
         QuillSpeechBackend.shared.resetSpeechSynthesis()
+    }
+
+    @Test("Sparkle updater routes through QuillKit")
+    func sparkleUpdaterRoutesThroughQuillKit() {
+        QuillUpdateService.shared.reset()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let updater = SPUUpdater()
+        #expect(updater.canCheckForUpdates == false)
+        #expect(QuillUpdateService.shared.canCheckForUpdates == false)
+
+        updater.canCheckForUpdates = true
+        #expect(updater.canCheckForUpdates)
+        #expect(QuillUpdateService.shared.canCheckForUpdates)
+
+        updater.checkForUpdates()
+        #expect(QuillUpdateService.shared.updateCheckCount == 1)
+        #expect(QuillUpdateService.shared.lastCheckDate != nil)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "checkForUpdates"
+        })
+
+        QuillUpdateService.shared.reset()
+        let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        #expect(controller.updater.canCheckForUpdates)
+        controller.updater.canCheckForUpdates = false
+        #expect(QuillUpdateService.shared.canCheckForUpdates == false)
+
+        QuillUpdateService.shared.reset()
+    }
+
+    @Test("ServiceManagement legacy login item toggle routes through QuillKit")
+    func serviceManagementLegacyLoginItemToggleRoutesThroughQuillKit() throws {
+        try SMAppService.mainApp.unregister()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        #expect(SMAppService.mainApp.status == .notRegistered)
+        #expect(SMLoginItemSetEnabled("co.lorehex.quill.helper" as NSString, true))
+        #expect(QuillLaunchService.shared.isEnabled)
+        #expect(SMAppService.mainApp.status == .enabled)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "SMLoginItemSetEnabled" &&
+                $0.message.contains("co.lorehex.quill.helper")
+        })
+
+        #expect(SMLoginItemSetEnabled("co.lorehex.quill.helper" as NSString, false))
+        #expect(QuillLaunchService.shared.isEnabled == false)
+        #expect(SMAppService.mainApp.status == .notRegistered)
+
+        try SMAppService.mainApp.unregister()
     }
 
     @Test("Magnet hot keys use the shared QuillKit registry")
