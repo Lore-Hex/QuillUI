@@ -28,6 +28,7 @@ mkdir -p "$WORK_ROOT/logs" "$WORK_ROOT/home" "$WORK_ROOT/module-cache"
 default_packages=(
   CAPortal
   CalendarUtils
+  CrashHandler
   CurrencyFormat
   DateUtils
   DetectSpeech

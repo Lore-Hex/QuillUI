@@ -2530,6 +2530,7 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("--jobs 1"))
         #expect(telegramPackageCheck.contains("CAPortal"))
         #expect(telegramPackageCheck.contains("CalendarUtils"))
+        #expect(telegramPackageCheck.contains("CrashHandler"))
         #expect(telegramPackageCheck.contains("CurrencyFormat"))
         #expect(telegramPackageCheck.contains("DateUtils"))
         #expect(telegramPackageCheck.contains("DetectSpeech"))
