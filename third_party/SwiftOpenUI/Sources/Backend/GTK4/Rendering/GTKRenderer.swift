@@ -3105,8 +3105,8 @@ extension OnAppearView: GTKRenderable, GTKDescribable {
         // Stateful hosts reconcile `onAppear` by descriptor identity so actions
         // run once per appearance even when the subtree rebuilds.  Stateless
         // standalone renders still use the native map signal.
+        let boundAction = bindActionToCurrentEnvironment(action)
         if GTKViewHost.getCurrentRebuilding() == nil {
-            let boundAction = bindActionToCurrentEnvironment(action)
             let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
             g_signal_connect_data(
                 gpointer(widget),
@@ -3121,6 +3121,8 @@ extension OnAppearView: GTKRenderable, GTKDescribable {
                 },
                 GConnectFlags(rawValue: 0)
             )
+        } else {
+            gtkScheduleOnAppear(boundAction, on: widget)
         }
 
         return opaqueFromWidget(widget)
