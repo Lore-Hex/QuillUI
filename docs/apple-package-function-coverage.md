@@ -690,9 +690,9 @@ app progress can be audited with the same status ladder.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `SPUUpdater.canCheckForUpdates` | Fallback | Always false. |
-| `SPUUpdater.checkForUpdates()` | Compile-only | No-op. |
-| `SPUStandardUpdaterController.updater` | Compile-only | Exposes an updater object for source compatibility. |
+| `SPUUpdater.canCheckForUpdates` | Partial | Reads and writes shared `QuillUpdateService` state. |
+| `SPUUpdater.checkForUpdates()` | Partial | Records a shared QuillKit update-check attempt and diagnostic; no appcast fetch is performed yet. |
+| `SPUStandardUpdaterController.updater` | Partial | Exposes an updater object backed by shared QuillKit update state. |
 | Appcast fetching, signature checks, update UI, installer/relaunch behavior | Incomplete | Required for Sparkle parity. |
 
 ### Tidemark

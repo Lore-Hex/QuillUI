@@ -436,6 +436,7 @@ enum AppleCompatibilitySmoke {
         try service.unregister()
         let launchServiceDisabled = service.status == .notRegistered
 
+        QuillUpdateService.shared.reset()
         let updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
 
         return AppleServiceResult(

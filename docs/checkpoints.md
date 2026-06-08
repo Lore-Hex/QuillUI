@@ -3242,3 +3242,16 @@ metadata, `AVSpeechSynthesizer.isSpeaking` reflects backend state, and
 `stopSpeaking(at:)` clears that state. This keeps Enchanted and future apps on a
 single reusable speech abstraction while native Linux synthesis remains a
 backend TODO.
+
+## Checkpoint 194: Sparkle Updater Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux Sparkle target
+build, Linux compatibility test, and CI follow-up.
+
+The Sparkle compatibility target now depends on QuillKit and routes
+`SPUUpdater.canCheckForUpdates`, `SPUUpdater.checkForUpdates()`, and
+`SPUStandardUpdaterController.updater` through shared `QuillUpdateService`
+state. The service tracks configurability, check count, and last check time
+with diagnostics, keeping updater behavior reusable across Enchanted, CodeEdit,
+and later app ports. Native appcast fetch, signing, installer, update UI, and
+relaunch behavior remain backend work.
