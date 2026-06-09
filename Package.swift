@@ -825,6 +825,21 @@ var targets: [Target] = [
     .target(name: "Secrets", dependencies: ["QuillFoundation"], path: "Sources/SecretsShim"),
     .target(name: "Tidemark", dependencies: ["QuillRS"], path: "Sources/TidemarkShim"),
     .target(name: "Zip", dependencies: ["QuillRS"], path: "Sources/ZipShim"),
+    // Pure-Swift replacements for NetNewsWire's RSDatabase ObjC/FMBD island.
+    // The module names intentionally match upstream so imported NNW source can
+    // keep `import RSDatabase` / `import RSDatabaseObjC` unchanged on Linux.
+    .target(
+        name: "RSDatabaseObjC",
+        dependencies: ["CSQLite"],
+        path: "Sources/RSDatabaseObjC",
+        swiftSettings: appSwiftSettings
+    ),
+    .target(
+        name: "RSDatabase",
+        dependencies: ["RSDatabaseObjC"],
+        path: "Sources/RSDatabaseShim",
+        swiftSettings: appSwiftSettings
+    ),
     .target(name: "SwiftData", dependencies: ["QuillData"], path: "Sources/SwiftData"),
     .target(
         name: "QuillEnchantedShared",
@@ -1206,17 +1221,6 @@ if nnwUpstreamPresent {
             dependencies: ["RSWeb", "RSParser", "RSCore", "QuillShims"],
             path: ".upstream/netnewswire/Modules/NewsBlur/Sources/NewsBlur",
             swiftSettings: nnwSwiftSettings
-        ),
-        .target(
-            name: "RSDatabase",
-            dependencies: ["RSDatabaseObjC"],
-            path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabase",
-            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal"])]
-        ),
-        .target(
-            name: "RSDatabaseObjC",
-            path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabaseObjC",
-            publicHeadersPath: "include"
         ),
         .target(
             name: "NetNewsWireLogic",
@@ -2572,6 +2576,14 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillNetNewsWireCoreTests",
             dependencies: ["QuillNetNewsWireCore", "QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Pins the pure-Swift FMDB/RSDatabase compatibility layer that lets
+        // NetNewsWire database modules move off ObjC on Linux without changing
+        // their import names.
+        .testTarget(
+            name: "RSDatabaseCompatibilityTests",
+            dependencies: ["RSDatabase", "RSDatabaseObjC"],
             swiftSettings: appSwiftSettings
         ),
         // Pins QuillRSCoreShim against RFC 1321 MD5 test vectors
