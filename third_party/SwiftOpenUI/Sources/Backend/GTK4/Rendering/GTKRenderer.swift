@@ -148,6 +148,34 @@ public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePoin
 public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil
 public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
 
+private final class GTKTextBindingIdleUpdate {
+    let binding: Binding<String>
+    let value: String
+
+    init(binding: Binding<String>, value: String) {
+        self.binding = binding
+        self.value = value
+    }
+
+    func apply() {
+        if binding.wrappedValue != value {
+            binding.wrappedValue = value
+        }
+    }
+}
+
+private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
+    let context = Unmanaged.passRetained(
+        GTKTextBindingIdleUpdate(binding: binding, value: value)
+    ).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKTextBindingIdleUpdate>.fromOpaque(userData).takeRetainedValue()
+        context.apply()
+        return 0
+    }, context)
+}
+
 // MARK: - GTK rendering protocol
 
 /// Protocol that views implement (via extensions) to provide GTK widget creation.
@@ -395,10 +423,7 @@ extension TextField: GTKRenderable, GTKDescribable {
         // all changes (typing, paste, programmatic).
         let binding = text
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            // Avoid feedback loop: only set if value actually changed
-            if binding.wrappedValue != newText {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(binding, value: newText)
         }).toOpaque()
 
         g_signal_connect_data(
@@ -421,9 +446,7 @@ extension TextField: GTKRenderable, GTKDescribable {
         // GtkEntry also emits "changed" as a GtkEditable; keep this in sync with
         // SecureField so user edits always reach SwiftUI bindings before dismissal.
         let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
-            if binding.wrappedValue != newText {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(binding, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),

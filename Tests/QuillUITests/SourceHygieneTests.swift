@@ -3228,9 +3228,14 @@ struct SourceHygieneTests {
             #expect(source.contains("quill_gtk_toggle_paint_hook?("))
         }
 
+        #expect(renderer.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(renderer.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
         #expect(renderer.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
         #expect(renderer.contains("gtk_editable_get_text(OpaquePointer(editable))"))
         #expect(patcher.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
+        #expect(patcher.contains("SwiftOpenUI TextField idle binding helper insertion marker was not recognized"))
+        #expect(patcher.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(patcher.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
         #expect(patcher.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
         #expect(patcher.contains("gtk_editable_get_text(OpaquePointer(editable))"))
 

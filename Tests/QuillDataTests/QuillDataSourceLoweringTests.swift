@@ -2272,6 +2272,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader fallback scroll return shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI OnAppear lifecycle rebuild shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI TextField idle binding helper insertion marker was not recognized"))
+        #expect(patchScript.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
         #expect(patchScript.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
         #expect(patchScript.contains("gtk_editable_get_text(OpaquePointer(editable))"))
 

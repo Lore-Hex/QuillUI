@@ -5311,6 +5311,41 @@ if "quill_gtk_toggle_paint_hook" not in text:
         1,
     )
 
+if "private final class GTKTextBindingIdleUpdate" not in text:
+    text_binding_helper = '''private final class GTKTextBindingIdleUpdate {
+    let binding: Binding<String>
+    let value: String
+
+    init(binding: Binding<String>, value: String) {
+        self.binding = binding
+        self.value = value
+    }
+
+    func apply() {
+        if binding.wrappedValue != value {
+            binding.wrappedValue = value
+        }
+    }
+}
+
+private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
+    let context = Unmanaged.passRetained(
+        GTKTextBindingIdleUpdate(binding: binding, value: value)
+    ).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKTextBindingIdleUpdate>.fromOpaque(userData).takeRetainedValue()
+        context.apply()
+        return 0
+    }, context)
+}
+
+'''
+    helper_marker = "// MARK: - GTK rendering protocol\n"
+    if helper_marker not in text:
+        raise SystemExit("SwiftOpenUI TextField idle binding helper insertion marker was not recognized")
+    text = text.replace(helper_marker, text_binding_helper + helper_marker, 1)
+
 if "case .quillPaintMacDefault:" not in text:
     extension_index = text.find("extension Button: GTKRenderable")
     if extension_index == -1:
@@ -5456,9 +5491,7 @@ if (
     text_field_changed_signal = '''        // GtkEntry also emits "changed" as a GtkEditable; keep this in sync with
         // SecureField so user edits always reach SwiftUI bindings before dismissal.
         let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
-            if binding.wrappedValue != newText {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(binding, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),
@@ -5477,6 +5510,49 @@ if (
 
 '''
     text = text[:style_index] + text_field_changed_signal + text[style_index:]
+    text_field_end = text.find("\nextension ", text_field_index + 1)
+    if text_field_end == -1:
+        text_field_end = len(text)
+
+text_field_section = text[text_field_index:text_field_end]
+direct_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            // Avoid feedback loop: only set if value actually changed
+            if binding.wrappedValue != newText {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+'''
+idle_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+'''
+if direct_update in text_field_section:
+    text = (
+        text[:text_field_index]
+        + text_field_section.replace(direct_update, idle_update, 1)
+        + text[text_field_end:]
+    )
+    text_field_end = text.find("\nextension ", text_field_index + 1)
+    if text_field_end == -1:
+        text_field_end = len(text)
+    text_field_section = text[text_field_index:text_field_end]
+
+direct_changed_update = '''        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            if binding.wrappedValue != newText {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+'''
+idle_changed_update = '''        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+'''
+if direct_changed_update in text_field_section:
+    text = (
+        text[:text_field_index]
+        + text_field_section.replace(direct_changed_update, idle_changed_update, 1)
+        + text[text_field_end:]
+    )
     text_field_end = text.find("\nextension ", text_field_index + 1)
     if text_field_end == -1:
         text_field_end = len(text)
