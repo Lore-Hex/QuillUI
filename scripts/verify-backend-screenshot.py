@@ -1800,9 +1800,9 @@ def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> s
     )
     edited_row_name_roi = (
         left + int(app_width * 0.235),
-        top + int(app_height * 0.36),
-        left + int(app_width * 0.40),
-        top + int(app_height * 0.405),
+        top + int(app_height * 0.49),
+        left + int(app_width * 0.45),
+        top + int(app_height * 0.57),
     )
 
     dismissed_save_pixels = pixel_count(
