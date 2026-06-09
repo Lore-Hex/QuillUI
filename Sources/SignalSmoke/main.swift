@@ -64,6 +64,20 @@ catch { print("signal-smoke MIGRATE FAILED: \(error)") }
 // LinkingProvisioningMessage end to end. No network, no account.
 print("signal-smoke PROVISION SELFTEST: \(quillProvisioningRoundTripSelfTest())")
 
+// Device-name crypto self-test: a secondary device must send an ENCRYPTED
+// device name in its registration. Exercises the REAL OWSDeviceNames
+// encrypt/decrypt pair (ephemeral-ECDH + HMAC-SHA256 + AES-CTR) over an
+// in-memory identity keypair. No network, no account.
+print("signal-smoke DEVICENAME SELFTEST: \(quillDeviceNameRoundTripSelfTest())")
+
+// Registration self-test: build the verify-secondary-device request body a
+// freshly-linked device PUTs to v1/devices/link -- aci+pni EC signed prekeys,
+// aci+pni Kyber last-resort prekeys (from LibSignalClient primitives), random
+// registration IDs, and AccountAttributes -- then JSON-encode it. Mirrors the
+// REAL ProvisioningRequestFactory.verifySecondaryDeviceRequest body shape. No
+// network, no account.
+print("signal-smoke REGISTER SELFTEST: \(quillBuildLinkRequestSelfTest())")
+
 // Provisioning: open Signal's provisioning socket and produce the sgnl://linkdevice
 // QR URL (the user would scan it). No account is linked. Hold conn + listener
 // alive past the Task so the connection isn't torn down before the address arrives.
