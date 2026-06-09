@@ -215,6 +215,14 @@ public class EnvironmentObjectStorage<ObjectType: ObservableObject>: AnyStateSto
 private func wirePublished<T: ObservableObject>(
     object: T, token: ObjectIdentifier, host: AnyViewHost?
 ) {
+    wirePublishedObject(object, token: token, host: host)
+}
+
+func wirePublishedObject(
+    _ object: AnyObject,
+    token: ObjectIdentifier,
+    host: AnyViewHost?
+) {
     var mirror: Mirror? = Mirror(reflecting: object)
     while let m = mirror {
         for child in m.children {

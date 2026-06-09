@@ -204,6 +204,66 @@ gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
 }
 
+static inline void
+gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
+    gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+}
+
+static inline gpointer
+gtk_swift_legacy_capture_controller(void) {
+    GtkEventController *controller = gtk_event_controller_legacy_new();
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+    return controller;
+}
+
+static inline void
+gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller) {
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(controller));
+}
+
+static inline void
+gtk_swift_remove_event_controller(GtkWidget *widget, gpointer controller) {
+    gtk_widget_remove_controller(widget, GTK_EVENT_CONTROLLER(controller));
+}
+
+static inline gboolean
+gtk_swift_event_is_primary_button_press(gpointer event) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL
+        && gdk_event_get_event_type(gdk_event) == GDK_BUTTON_PRESS
+        && gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY;
+}
+
+static inline gboolean
+gtk_swift_event_get_position(gpointer event, double *x, double *y) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL ? gdk_event_get_position(gdk_event, x, y) : FALSE;
+}
+
+static inline GtkWidget *
+gtk_swift_widget_root_widget(GtkWidget *widget) {
+    GtkRoot *root = gtk_widget_get_root(widget);
+    return root != NULL ? GTK_WIDGET(root) : NULL;
+}
+
+static inline gboolean
+gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (root == NULL || widget == NULL) {
+        return FALSE;
+    }
+    double local_x = 0;
+    double local_y = 0;
+    if (!gtk_widget_translate_coordinates(root, widget, x, y, &local_x, &local_y)) {
+        return FALSE;
+    }
+    return local_x >= 0
+        && local_y >= 0
+        && local_x < gtk_widget_get_width(widget)
+        && local_y < gtk_widget_get_height(widget);
+}
+
 // --- Scale (Slider) type check ---
 
 static inline gboolean
