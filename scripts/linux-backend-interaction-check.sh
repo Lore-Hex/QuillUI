@@ -458,10 +458,21 @@ refresh_capture_window_for_sheet_interaction() {
 open_quill_chat_completions_panel() {
   local click_x
   local click_y
+  local reset_x
+  local reset_y
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    # Enchanted persists the selected sidebar utility across relaunches. In the
+    # CI mode sequence, completions-save can leave "Completions" selected but
+    # without the overlay open; clicking the already-selected row is then a no-op.
+    # Select a seeded history row first so the following Completions click opens
+    # the panel without introducing another modal utility surface.
+    reset_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-$((window_x + 190))}"
+    reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 1244))}"
+    click_at "$reset_x" "$reset_y"
+    sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.35}"
   else
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
