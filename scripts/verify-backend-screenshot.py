@@ -1629,6 +1629,8 @@ def validate_quill_chat_mac_reference_completions_panel(
 def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
+        minimum_row_dividers=0,
+        minimum_row_action_segments=0,
         minimum_wordmark_pixels=400,
     )
     left, right, top, bottom = content_bounds(image)

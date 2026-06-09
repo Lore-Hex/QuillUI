@@ -3409,6 +3409,8 @@ struct SourceHygieneTests {
         #expect(verifier.contains("row_action_segments >= minimum_row_action_segments"))
         #expect(verifier.contains("minimum_wordmark_pixels: int = 650"))
         #expect(verifier.contains("wordmark_pixels >= minimum_wordmark_pixels"))
+        #expect(verifier.contains("minimum_row_dividers=0"))
+        #expect(verifier.contains("minimum_row_action_segments=0"))
         #expect(verifier.contains("minimum_wordmark_pixels=400"))
         #expect(verifier.contains("minimum_wordmark_pixels=350"))
         #expect(verifier.contains("cancel_pixels >= 90"))
