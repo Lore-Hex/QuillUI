@@ -1187,6 +1187,19 @@ subs = [
             options: [],
         )''',
      '''let value = [nameComponents.givenName, nameComponents.familyName].compactMap { $0 }.joined(separator: " ")'''),
+    # AttachmentValidationBackfillMigrator.Filter.operator: existential `any
+    # SQLSpecificExpressible` can't conform to itself on Swift 6, so the generic GRDB
+    # `==` won't coerce. The sole caller passes a concrete Column -> narrow the lhs to
+    # Column so `==` instantiates with T==Column (which conforms).
+    ('''        let `operator`: (_ lhs: SQLSpecificExpressible, _ rhs: SQLExpressible?) -> SQLExpression''',
+     '''        // QuillOS/Linux Swift 6: the existential `any SQLSpecificExpressible` cannot
+        // conform to itself, so passing the generic GRDB `==` to a closure typed with an
+        // existential lhs is rejected (`type 'any SQLSpecificExpressible' cannot conform
+        // to 'SQLSpecificExpressible'`). The sole caller passes a concrete `Column`
+        // (line ~318: `columnFilter.operator(Column(columnFilter.column), value)`), so
+        // narrow the lhs to `Column`; `==` then instantiates with T == Column, which
+        // conforms. Faithful (all column filters use a Column), macOS-unaffected.
+        let `operator`: (_ lhs: Column, _ rhs: SQLExpressible?) -> SQLExpression'''),
     # Timer target/selector cluster: swift-corelibs Timer has only block-based
     # init/scheduledTimer + no perform/selector dispatch. Gate each site #if os(Linux)
     # to the block-based timer (NSTimer+OWS proxy is inert -- ObjC-only/dead on Linux).
