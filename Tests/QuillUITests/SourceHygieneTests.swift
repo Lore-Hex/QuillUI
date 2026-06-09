@@ -3342,6 +3342,8 @@ struct SourceHygieneTests {
             #expect(source.contains("gtkDisableButtonChildTargeting(childWidget)"))
             #expect(source.contains("private final class GTKButtonActionBox"))
             #expect(source.contains("private func gtkScheduleButtonAction"))
+            #expect(source.contains("private func gtkScheduleSheetDismissal"))
+            #expect(source.contains("gtkScheduleSheetDismissal {"))
             #expect(source.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
             #expect(source.contains("gtkScheduleButtonAction(box, source: \"gesture\")"))
             #expect(source.contains("gtk_swift_add_capture_gesture"))

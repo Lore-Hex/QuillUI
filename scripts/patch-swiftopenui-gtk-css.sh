@@ -2215,8 +2215,32 @@ private func gtkSheetDefaultHeight() -> gint {
             if let dialogPtr = g_object_get_data(gobject, windowKey) {
 ''',
             item_overlay_dismiss,
-            1,
-        )
+        1,
+    )
+
+sheet_dismissal_scheduler = '''private func gtkScheduleSheetDismissal(_ action: @escaping () -> Void) {
+    let box = Unmanaged.passRetained(ClosureBox(action)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        Unmanaged<ClosureBox>.fromOpaque(userData).takeRetainedValue().closure()
+        return 0
+    }, box)
+}
+'''
+if "private func gtkScheduleSheetDismissal" not in text:
+    marker = "\n\nextension SheetModifierView: GTKRenderable"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI sheet dismissal scheduler insertion shape was not recognized")
+    text = text.replace(marker, "\n\n" + sheet_dismissal_scheduler + marker, 1)
+
+text = text.replace(
+    "                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }",
+    """                env.dismiss = DismissAction {
+                    gtkScheduleSheetDismissal {
+                        gtk_window_destroy(dialogWin)
+                    }
+                }""",
+)
 
 if 'gtkDebugLog("sheet bool presented=' not in text:
     text = text.replace(
@@ -2572,9 +2596,11 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 }
             } else {
                 env.dismiss = DismissAction {
-                    binding.wrappedValue = false
-                    lifecycleScope.runDisappearActions()
-                    userOnDismiss?()
+                    gtkScheduleSheetDismissal {
+                        binding.wrappedValue = false
+                        lifecycleScope.runDisappearActions()
+                        userOnDismiss?()
+                    }
                 }
             }
             setCurrentEnvironment(env)
@@ -2602,10 +2628,12 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 }
             } else {
                 env.dismiss = DismissAction {
-                    gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)
-                    binding.wrappedValue = false
-                    lifecycleScope.runDisappearActions()
-                    userOnDismiss?()
+                    gtkScheduleSheetDismissal {
+                        gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)
+                        binding.wrappedValue = false
+                        lifecycleScope.runDisappearActions()
+                        userOnDismiss?()
+                    }
                 }
             }
             setCurrentEnvironment(env)
@@ -2642,9 +2670,11 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 }
             } else {
                 env.dismiss = DismissAction {
-                    itemBinding.wrappedValue = nil
-                    lifecycleScope.runDisappearActions()
-                    userOnDismiss?()
+                    gtkScheduleSheetDismissal {
+                        itemBinding.wrappedValue = nil
+                        lifecycleScope.runDisappearActions()
+                        userOnDismiss?()
+                    }
                 }
             }
             setCurrentEnvironment(env)
@@ -2685,15 +2715,17 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 }
             } else {
                 env.dismiss = DismissAction {
-                    gtkRemoveSheetRootOverlay(
-                        anchor: anchor,
-                        overlayKey: overlayKey,
-                        activeKey: activeKey,
-                        itemIDKey: itemIDKey
-                    )
-                    itemBinding.wrappedValue = nil
-                    lifecycleScope.runDisappearActions()
-                    userOnDismiss?()
+                    gtkScheduleSheetDismissal {
+                        gtkRemoveSheetRootOverlay(
+                            anchor: anchor,
+                            overlayKey: overlayKey,
+                            activeKey: activeKey,
+                            itemIDKey: itemIDKey
+                        )
+                        itemBinding.wrappedValue = nil
+                        lifecycleScope.runDisappearActions()
+                        userOnDismiss?()
+                    }
                 }
             }
             setCurrentEnvironment(env)

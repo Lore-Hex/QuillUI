@@ -3803,6 +3803,15 @@ private class SheetInfo {
     }
 }
 
+private func gtkScheduleSheetDismissal(_ action: @escaping () -> Void) {
+    let box = Unmanaged.passRetained(ClosureBox(action)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        Unmanaged<ClosureBox>.fromOpaque(userData).takeRetainedValue().closure()
+        return 0
+    }, box)
+}
+
 extension SheetModifierView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
@@ -3881,7 +3890,11 @@ extension SheetModifierView: GTKRenderable {
                     gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
                 }
             } else {
-                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }
+                env.dismiss = DismissAction {
+                    gtkScheduleSheetDismissal {
+                        gtk_window_destroy(dialogWin)
+                    }
+                }
             }
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(info.render())
@@ -4030,7 +4043,11 @@ extension ItemSheetModifierView: GTKRenderable {
                     gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
                 }
             } else {
-                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }
+                env.dismiss = DismissAction {
+                    gtkScheduleSheetDismissal {
+                        gtk_window_destroy(dialogWin)
+                    }
+                }
             }
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(info.render())
