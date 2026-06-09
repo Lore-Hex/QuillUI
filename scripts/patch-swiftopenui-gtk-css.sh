@@ -2264,6 +2264,33 @@ private func gtkShouldRenderSheetInWindow() -> Bool {
     return mode == "overlay" || mode == "in-window" || mode == "inline"
 }
 
+private var gtkRootSheetOverlayStack: [OpaquePointer] = []
+
+private func gtkCurrentRootSheetOverlay() -> OpaquePointer? {
+    gtkRootSheetOverlayStack.last
+}
+
+private func gtkWithRootSheetOverlay<T>(_ rootOverlay: OpaquePointer, _ body: () -> T) -> T {
+    gtkRootSheetOverlayStack.append(rootOverlay)
+    defer { _ = gtkRootSheetOverlayStack.popLast() }
+    return body()
+}
+
+private func gtkSheetRootOverlay(for anchor: UnsafeMutablePointer<GtkWidget>) -> OpaquePointer? {
+    if let rootOverlay = gtkCurrentRootSheetOverlay() {
+        return rootOverlay
+    }
+    if let root = gtk_widget_get_root(anchor).map({ gpointer($0) }),
+       let rootOverlay = gtkRootPresentationOverlay(for: root) {
+        return rootOverlay
+    }
+    if let root = GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
+       let rootOverlay = gtkRootPresentationOverlay(for: root) {
+        return rootOverlay
+    }
+    return nil
+}
+
 private func gtkRemoveSheetRootOverlay(
     anchor: UnsafeMutablePointer<GtkWidget>,
     overlayKey: String,
@@ -2526,9 +2553,7 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
         }
 
         if gtkShouldRenderSheetInRootOverlay(),
-           let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
-                ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
-           let rootOverlay = gtkRootPresentationOverlay(for: root) {
+           let rootOverlay = gtkSheetRootOverlay(for: anchor) {
             guard g_object_get_data(gobject, activeKey) == nil else {
                 return opaqueFromWidget(widget)
             }
@@ -2553,7 +2578,9 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) })
+            let sheetWidget = widgetFromOpaque(gtkWithRootSheetOverlay(rootOverlay) {
+                gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) }
+            })
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
@@ -2594,9 +2621,7 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
         }
 
         if gtkShouldRenderSheetInRootOverlay(),
-           let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
-                ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
-           let rootOverlay = gtkRootPresentationOverlay(for: root) {
+           let rootOverlay = gtkSheetRootOverlay(for: anchor) {
             let currentIdHash = currentItem.id.hashValue
             gtkDebugLog("sheet item root present activeKey=\(activeKey) itemID=\(currentIdHash)")
             if g_object_get_data(gobject, activeKey) != nil {
@@ -2639,7 +2664,9 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) })
+            let sheetWidget = widgetFromOpaque(gtkWithRootSheetOverlay(rootOverlay) {
+                gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }
+            })
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
