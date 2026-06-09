@@ -34,7 +34,7 @@ public struct PKMerchantCapability: OptionSet, Sendable {
     public static let capabilityDebit = PKMerchantCapability(rawValue: 1 << 3)
 }
 
-public final class PKPaymentSummaryItem: @unchecked Sendable {
+open class PKPaymentSummaryItem: @unchecked Sendable {
     public var label: String
     public var amount: NSDecimalNumber
     public init(label: String, amount: NSDecimalNumber) {
