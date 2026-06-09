@@ -145,6 +145,7 @@ private func gtkTextInputFocusDescriptorContent(
 
 public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil
 public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
+public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil
 
 // MARK: - GTK rendering protocol
 
@@ -4264,6 +4265,9 @@ extension SecureField: GTKRenderable, GTKDescribable {
         }
 
         gtkApplyEnabledState(to: entry)
+        if let paintedEntry = quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true) {
+            return paintedEntry
+        }
         return opaqueFromWidget(entry)
     }
 }
@@ -4328,6 +4332,12 @@ extension TextEditor: GTKRenderable, GTKDescribable {
         gtk_widget_set_hexpand(scrolled, 1)
 
         gtkApplyEnabledState(to: textView)
+        if let paintedEditor = quill_gtk_text_editor_paint_hook?(
+            OpaquePointer(scrolled),
+            OpaquePointer(textView)
+        ) {
+            return paintedEditor
+        }
         return opaqueFromWidget(scrolled)
     }
 }

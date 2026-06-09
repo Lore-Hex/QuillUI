@@ -64,6 +64,7 @@ struct QuillDataSourceLoweringTests {
         #expect(lowererWrapper.contains(".build/quill-source-lower-package"))
         #expect(lowererWrapper.contains("ln -s \"$ROOT_DIR/Sources/QuillSourceLowering\""))
         #expect(lowererWrapper.contains("--package-path \"$TOOL_PACKAGE_DIR\""))
+        #expect(lowererWrapper.contains("--disable-index-store"))
         #expect(!lowererWrapper.contains("--package-path \"$ROOT_DIR\""))
 
         let result = try runScript(
@@ -1417,8 +1418,39 @@ struct QuillDataSourceLoweringTests {
         extension TextField: GTKRenderable {
             public func gtkCreateWidget() -> OpaquePointer {
                 let entry = gtk_entry_new()!
-                applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
+                // Apply text field style from environment
+                let textFieldStyleType = getCurrentEnvironment().textFieldStyle
+                switch textFieldStyleType {
+                case .plain:
+                    applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
+                case .automatic, .roundedBorder:
+                    break // default GTK entry styling
+                }
+
+                gtkApplyEnabledState(to: entry)
                 return opaqueFromWidget(entry)
+            }
+        }
+
+        extension SecureField: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let entry = gtk_password_entry_new()!
+
+                gtkApplyEnabledState(to: entry)
+                return opaqueFromWidget(entry)
+            }
+        }
+
+        extension TextEditor: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let textView = gtk_text_view_new()!
+                let scrolled = gtk_scrolled_window_new()!
+                gtk_scrolled_window_set_child(OpaquePointer(scrolled), textView)
+                gtk_widget_set_vexpand(scrolled, 1)
+                gtk_widget_set_hexpand(scrolled, 1)
+
+                gtkApplyEnabledState(to: textView)
+                return opaqueFromWidget(scrolled)
             }
         }
 
@@ -2231,6 +2263,13 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if gtk_widget_get_hexpand(childWidget) != 0"))
         #expect(patchedRenderer.contains("gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)"))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)"))
+        #expect(patchedRenderer.contains("public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil"))
+        #expect(patchedRenderer.contains("public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil"))
+        #expect(patchedRenderer.contains("var useQuillPaintTextField = false"))
+        #expect(patchedRenderer.contains("quill_gtk_text_field_paint_hook?("))
+        #expect(patchedRenderer.contains("extension SecureField: GTKRenderable"))
+        #expect(patchedRenderer.contains("quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true)"))
+        #expect(patchedRenderer.contains("quill_gtk_text_editor_paint_hook?("))
         #expect(patchedRenderer.contains("if maxWidth != nil {"))
         #expect(patchedRenderer.contains("if maxHeight != nil {"))
         #expect(!patchedRenderer.contains("if let xw = maxWidth, xw != nil"))

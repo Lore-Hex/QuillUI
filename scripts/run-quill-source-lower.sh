@@ -71,6 +71,7 @@ swift_run_args=(
   run
   --package-path "$TOOL_PACKAGE_DIR"
   --scratch-path "$TOOL_SCRATCH_PATH"
+  --disable-index-store
   --disable-sandbox
 )
 if [[ "${QUILLUI_SWIFT_JOBS:-}" =~ ^[0-9]+$ && "${QUILLUI_SWIFT_JOBS:-}" -gt 0 ]]; then

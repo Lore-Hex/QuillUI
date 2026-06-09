@@ -3182,8 +3182,8 @@ struct SourceHygieneTests {
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
     }
 
-    @Test("GTK QuillPaint hooks cover button and text field chrome")
-    func gtkQuillPaintHooksCoverButtonAndTextFieldChrome() throws {
+    @Test("GTK QuillPaint hooks cover button and text input chrome")
+    func gtkQuillPaintHooksCoverButtonAndTextInputChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
         let smallPatcher = try packageSource("scripts/patch-swiftopenui-quillpaint.py")
@@ -3194,8 +3194,12 @@ struct SourceHygieneTests {
         for source in [renderer, patcher, smallPatcher] {
             #expect(source.contains("quill_gtk_button_paint_hook"))
             #expect(source.contains("quill_gtk_text_field_paint_hook"))
+            #expect(source.contains("quill_gtk_text_editor_paint_hook"))
             #expect(source.contains("var useQuillPaintTextField = false"))
             #expect(source.contains("textFieldStyleType == .roundedBorder"))
+            #expect(source.contains("extension SecureField: GTKRenderable"))
+            #expect(source.contains("quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true)"))
+            #expect(source.contains("extension TextEditor: GTKRenderable"))
         }
 
         #expect(gtkBackend.contains("installQuillButtonHook()"))
@@ -3203,11 +3207,14 @@ struct SourceHygieneTests {
         #expect(gtkButton.contains("setupQuillButtonChrome(button: button, label: label, isDefault: isDefault)"))
         #expect(gtkButton.contains("MacButtonPaint()"))
         #expect(gtkTextField.contains("setupQuillTextFieldChrome(entry: entry)"))
+        #expect(gtkTextField.contains("setupQuillTextEditorChrome(scrolledWindow: scrolledWindow, textView: textView)"))
         #expect(gtkTextField.contains("MacTextFieldPaint()"))
         #expect(gtkTextField.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), entryWidget)"))
+        #expect(gtkTextField.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), scrolledWidget)"))
         #expect(gtkTextField.contains("gtk_swift_drawing_area_set_draw_func("))
         #expect(gtkTextField.contains("CairoPaintContext(cr: cr)"))
-        #expect(gtkTextField.contains("entry.quill-paint-text-field"))
+        #expect(gtkTextField.contains(".quill-paint-text-field text placeholder"))
+        #expect(gtkTextField.contains("textview.quill-paint-text-editor"))
     }
 
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
