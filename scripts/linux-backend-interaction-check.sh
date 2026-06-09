@@ -515,6 +515,8 @@ open_quill_chat_new_completion_sheet() {
 save_quill_chat_new_completion() {
   local name_x
   local name_y
+  local instruction_x
+  local instruction_y
   local save_x
   local save_y
 
@@ -522,11 +524,15 @@ save_quill_chat_new_completion() {
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
     name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 435))}"
+    instruction_x="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}"
+    instruction_y="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 515))}"
     save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1358))}"
     save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 382))}"
   else
     name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + window_width / 2))}"
     name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 260))}"
+    instruction_x="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + window_width / 2))}"
+    instruction_y="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 330))}"
     save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + window_width - 130))}"
     save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 46))}"
   fi
@@ -536,6 +542,12 @@ save_quill_chat_new_completion() {
   DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
   sleep 0.2
   type_text "${QUILLUI_BACKEND_COMPLETION_NAME_TEXT:-Linux Saved Completion}"
+  sleep 0.5
+  click_at "$instruction_x" "$instruction_y"
+  sleep 0.5
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+  sleep 0.2
+  type_text "${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_TEXT:-Reply with a concise Linux validation response.}"
   sleep 0.5
   click_at "$save_x" "$save_y"
   sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
