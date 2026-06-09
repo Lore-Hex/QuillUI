@@ -1489,14 +1489,12 @@ PY
 patch_netnewswire() {
     local articles_table="$UPSTREAM_DIR/netnewswire/Modules/ArticlesDatabase/Sources/ArticlesDatabase/ArticlesTable.swift"
     if [[ ! -f "$articles_table" ]]; then
-        return
-    fi
-    if grep -q "QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch" "$articles_table"; then
+        echo "==> netnewswire ArticlesTable.swift not found; skipping Linux lowering"
+    elif grep -q "QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch" "$articles_table"; then
         echo "==> netnewswire ArticlesTable.swift already patched for Linux"
-        return
-    fi
-    echo "==> patching netnewswire ArticlesTable.swift for Linux selector/word-enumeration lowering"
-    python3 - "$articles_table" <<'PY'
+    else
+        echo "==> patching netnewswire ArticlesTable.swift for Linux selector/word-enumeration lowering"
+        python3 - "$articles_table" <<'PY'
 import sys
 
 path = sys.argv[1]
@@ -1580,6 +1578,47 @@ src = src.replace(old_search, new_search, 1)
 open(path, "w").write(src)
 print("patched NetNewsWire ArticlesTable.swift selector + word-tokenizer lowering")
 PY
+    fi
+
+    local error_log_database="$UPSTREAM_DIR/netnewswire/Modules/ErrorLog/Sources/ErrorLog/ErrorLogDatabase.swift"
+    if [[ ! -f "$error_log_database" ]]; then
+        echo "==> netnewswire ErrorLogDatabase.swift not found; skipping Linux lowering"
+    elif grep -q "QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch" "$error_log_database"; then
+        echo "==> netnewswire ErrorLogDatabase.swift already patched for Linux"
+    else
+        echo "==> patching netnewswire ErrorLogDatabase.swift for Linux selector lowering"
+        python3 - "$error_log_database" <<'PY'
+import sys
+
+path = sys.argv[1]
+src = open(path).read()
+
+old_observer = '			NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidEncounterError(_:)), name: .appDidEncounterError, object: nil)'
+new_observer = '''#if os(Linux)
+			// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+			_ = NotificationCenter.default.addObserver(forName: .appDidEncounterError, object: nil, queue: nil) { [weak self] notification in
+				self?.handleAppDidEncounterError(notification)
+			}
+#else
+			NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidEncounterError(_:)), name: .appDidEncounterError, object: nil)
+#endif'''
+if old_observer not in src:
+    raise SystemExit("ErrorLogDatabase observer pattern not found")
+src = src.replace(old_observer, new_observer, 1)
+
+old_method = '	@objc nonisolated func handleAppDidEncounterError(_ notification: Notification) {'
+new_method = '''#if !os(Linux)
+	@objc
+#endif
+	nonisolated func handleAppDidEncounterError(_ notification: Notification) {'''
+if old_method not in src:
+    raise SystemExit("ErrorLogDatabase selector method not found")
+src = src.replace(old_method, new_method, 1)
+
+open(path, "w").write(src)
+print("patched NetNewsWire ErrorLogDatabase.swift selector lowering")
+PY
+    fi
 }
 
 want=("$@")

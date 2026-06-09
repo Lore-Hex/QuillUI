@@ -1284,6 +1284,24 @@ if nnwUpstreamPresent {
             path: ".upstream/netnewswire/Modules/SyncDatabase/Sources/SyncDatabase",
             swiftSettings: nnwSwiftSettings
         ),
+        .target(
+            name: "ErrorLog",
+            dependencies: ["RSCore", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/ErrorLog/Sources/ErrorLog",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "FeedFinder",
+            dependencies: ["RSWeb", "RSParser", "RSCore", "ActivityLog", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/FeedFinder/Sources/FeedFinder",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "NewsBlur",
+            dependencies: ["Secrets", "RSWeb", "RSParser", "RSCore", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/NewsBlur/Sources/NewsBlur",
+            swiftSettings: nnwSwiftSettings
+        ),
     ]
 }
 #endif
