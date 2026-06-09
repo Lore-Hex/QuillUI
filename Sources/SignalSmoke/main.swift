@@ -57,3 +57,32 @@ quillNetSem.wait()
 
 do { print("signal-smoke MIGRATE: \(try quillSmokeSchemaMigration())") }
 catch { print("signal-smoke MIGRATE FAILED: \(error)") }
+
+// Provisioning: open Signal's provisioning socket and produce the sgnl://linkdevice
+// QR URL (the user would scan it). No account is linked. Hold conn + listener
+// alive past the Task so the connection isn't torn down before the address arrives.
+let quillEphemeral = PrivateKey.generate()
+let quillPubB64 = quillEphemeral.publicKey.serialize().base64EncodedString()
+let quillProvSem = DispatchSemaphore(value: 0)
+var quillProvConn: ProvisioningConnection?
+var quillProvListener: QuillProvisioningListener?
+Task {
+    do {
+        let conn = try await quillNet.connectProvisioning()
+        quillProvConn = conn
+        let listener = QuillProvisioningListener(
+            pubKeyB64: quillPubB64,
+            onURL: { url in print("signal-smoke PROVISION QR URL: \(url)"); quillProvSem.signal() },
+            onEnvelope: { env in print("signal-smoke PROVISION: received envelope \(env.count) bytes") }
+        )
+        quillProvListener = listener
+        conn.start(listener: listener)
+        print("signal-smoke PROVISION: provisioning socket connected; awaiting address...")
+    } catch {
+        print("signal-smoke PROVISION FAILED: \(error)")
+        quillProvSem.signal()
+    }
+}
+_ = quillProvSem.wait(timeout: .now() + 30)
+_ = quillProvConn
+_ = quillProvListener
