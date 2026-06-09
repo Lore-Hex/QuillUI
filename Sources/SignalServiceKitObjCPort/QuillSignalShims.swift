@@ -20,8 +20,16 @@ public func LocalizationNotNeeded(_ s: String) -> String { s }
 // memory construct). On Linux ARC handles this, so the pool is a no-op that just
 // runs the body. The `invoking:` label covers both `autoreleasepool { … }`
 // (trailing closure) and `autoreleasepool(invoking: { … })`.
+//
+// Signature is typed-throws (`throws(Failure)`), matching the real Swift
+// ObjectiveC overlay's typed-throws migration. A single generic subsumes every
+// call form: a non-throwing body infers `Failure == Never` (callable without
+// `try`), an untyped-throwing body infers `Failure == any Error` (the old
+// `rethrows` behavior), and a typed-throwing body — e.g. TimeGatedBatch's
+// `{ () throws(E) -> … }` — propagates its precise error `E` through to the
+// enclosing `throws(E)` function instead of being widened to `any Error`.
 
-public func autoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Result {
+public func autoreleasepool<Result, Failure: Error>(invoking body: () throws(Failure) -> Result) throws(Failure) -> Result {
     try body()
 }
 
