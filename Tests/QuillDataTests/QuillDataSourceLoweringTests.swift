@@ -2452,6 +2452,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkRootPresentationOverlay(for: root)"))
         #expect(patchedRenderer.contains("gtk_overlay_add_overlay(rootOverlay, panel)"))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
+        #expect(patchedRenderer.contains("if gtkShouldRenderSheetInWindow() {\n            let sheetBuilder = sheetContent"))
+        #expect(!patchedRenderer.contains("if gtkShouldRenderSheetInWindow() || gtkShouldRenderSheetInRootOverlay()"))
         #expect(patchedRenderer.contains("remainingTicks: Int = 180"))
         #expect(!patchedRenderer.contains("remainingTicks: Int = 4"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))

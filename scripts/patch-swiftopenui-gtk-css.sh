@@ -2556,7 +2556,7 @@ if "gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)" not 
         raise SystemExit("SwiftOpenUI bool sheet overlay insertion shape was not recognized")
     text = text.replace(bool_marker, bool_sheet_overlay + bool_marker, 1)
 
-item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() || gtkShouldRenderSheetInRootOverlay() {
+item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let sheetBuilder = sheetContent
             let itemBinding = item
             let userOnDismiss = onDismiss
@@ -2638,6 +2638,17 @@ if "let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(curre
     if item_marker not in text:
         raise SystemExit("SwiftOpenUI item sheet overlay insertion shape was not recognized")
     text = text.replace(item_marker, item_sheet_overlay + item_marker, 1)
+
+legacy_item_sheet_window_or_root_condition = (
+    "        if gtkShouldRenderSheetInWindow() "
+    + "|| gtkShouldRenderSheetInRootOverlay() {\n"
+)
+text = text.replace(
+    legacy_item_sheet_window_or_root_condition
+    + "            let sheetBuilder = sheetContent\n",
+    "        if gtkShouldRenderSheetInWindow() {\n"
+    "            let sheetBuilder = sheetContent\n",
+)
 
 text = text.replace(
     'gtk_window_set_default_size(dialogWin, 400, 300)',
