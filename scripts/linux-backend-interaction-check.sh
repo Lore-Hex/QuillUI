@@ -904,7 +904,13 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         click_at "$model_x" "$model_y"
         sleep 0.5
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Down Return
-        sleep "$post_click_sleep"
+        sleep "${QUILLUI_BACKEND_MODEL_PICKER_SELECTION_SLEEP:-0.35}"
+        # GTK picker popovers can remain mapped just long enough to cover the
+        # Mac-reference detail landmarks. Dismiss/refocus before the final root
+        # capture so the screenshot verifies the settled settings panel state.
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape
+        sleep "${QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP:-$post_click_sleep}"
+        refocus_capture_window
         ;;
       settings-delete-confirmation)
         open_quill_chat_settings_delete_confirmation
