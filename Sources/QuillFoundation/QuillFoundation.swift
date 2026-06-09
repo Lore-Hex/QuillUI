@@ -259,6 +259,15 @@ public struct CGAffineTransform: Equatable, Sendable {
     }
 }
 
+// CGPoint.applying(_:) — apply an affine transform to a point. swift-corelibs
+// ships CGPoint but not this method (it lives in CoreGraphics on Apple); SSK's
+// UIView+OWS.applyingInverse needs it. Faithful CGPointApplyAffineTransform math.
+public extension CGPoint {
+    func applying(_ t: CGAffineTransform) -> CGPoint {
+        CGPoint(x: t.a * x + t.c * y + t.tx, y: t.b * x + t.d * y + t.ty)
+    }
+}
+
 // MARK: - CoreGraphics drawing shim (Linux)
 //
 // SignalServiceKit's avatar/thumbnail rendering (AvatarBuilder, UIImage+OWS)
