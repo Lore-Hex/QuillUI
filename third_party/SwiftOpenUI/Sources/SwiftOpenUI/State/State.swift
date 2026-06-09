@@ -10,6 +10,12 @@ public protocol AnyStateStorage: AnyObject {
     var host: AnyViewHost? { get set }
     /// Copy the stored value from another storage of the same concrete type.
     func restoreValue(from other: AnyStateStorage)
+    /// Forward writes from stale widget closures to the current render storage.
+    func forwardMutations(to other: AnyStateStorage)
+}
+
+public extension AnyStateStorage {
+    func forwardMutations(to other: AnyStateStorage) {}
 }
 
 /// A property wrapper that stores mutable state for a view.
@@ -47,7 +53,10 @@ public struct State<Value>: AnyStateStorageProvider {
 public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
     private let lock = NSLock()
     var _value: Value  // internal for restoreValue cross-storage access
-    public weak var host: AnyViewHost?
+    private var forwardedStorage: StateStorage<Value>?
+    public weak var host: AnyViewHost? {
+        didSet { wireObservableStateValue() }
+    }
     public private(set) var generation: UInt64 = 0
 
     public init(_ value: Value) {
@@ -63,9 +72,15 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
 
     public func setValue(_ newValue: Value) {
         lock.lock()
+        if let forwarded = forwardedStorage {
+            lock.unlock()
+            forwarded.setValue(newValue)
+            return
+        }
         _value = newValue
         generation += 1
         lock.unlock()
+        wireObservableStateValue()
         // @State always rebuilds its declaring host — no dependency gating.
         // The declaring host is the only host notified, and it may pass
         // the value to children via Binding. Skipping its rebuild would
@@ -73,10 +88,27 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
         host?.scheduleRebuild()
     }
 
+    public func forwardMutations(to other: AnyStateStorage) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let typed = other as? StateStorage<Value>, typed !== self else {
+            forwardedStorage = nil
+            return
+        }
+        forwardedStorage = typed
+    }
+
     public func restoreValue(from other: AnyStateStorage) {
         if let typed = other as? StateStorage<Value> {
             // Direct access without lock — called only during render pass (single-threaded)
             _value = typed._value
+            forwardedStorage = nil
+            wireObservableStateValue()
         }
+    }
+
+    private func wireObservableStateValue() {
+        guard let object = _value as? any ObservableObject else { return }
+        wirePublishedObject(object, token: ObjectIdentifier(self), host: host)
     }
 }

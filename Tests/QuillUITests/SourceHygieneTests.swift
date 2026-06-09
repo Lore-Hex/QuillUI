@@ -2983,10 +2983,25 @@ struct SourceHygieneTests {
         #expect(historyList.contains("public var emptySubtitle: String"))
         #expect(historyList.contains("emptyTitle: String = \"No saved chats yet\""))
         #expect(historyList.contains("emptySubtitle: String = \"Start a chat and it will be saved locally.\""))
+        #expect(historyList.contains("private enum QuillConversationInitialSelection"))
+        #expect(historyList.contains("\"QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START\""))
+        #expect(historyList.contains("\"QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START\""))
+        #expect(historyList.contains("\"QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START\""))
+        #expect(historyList.contains("@State private var didApplyInitialSelection = false"))
+        #expect(historyList.contains(".onAppear { applyInitialSelectionIfNeeded() }"))
+        #expect(historyList.contains("QuillConversationInitialSelection.index(count: sortedItems.count)"))
+        #expect(historyList.contains("QuillConversationInitialSelection.index(count: items.count)"))
         #expect(historyList.contains(".accessibilityElement(children: .combine)"))
         #expect(historyList.contains(".accessibilityLabel(item.title)"))
         #expect(historyList.contains(".accessibilityValue(item.lastMessage)"))
         #expect(historyList.contains(".help(accessibilitySummary(for: item))"))
+        #expect(historyList.contains("""
+                        .help(accessibilitySummary(for: item))
+                        #if os(Linux)
+                        .onTapGesture { onSelect(item) }
+                        #endif
+                        .onHover { hovering in
+"""))
         #expect(historyList.contains("if sortedItems.isEmpty"))
         #expect(historyList.contains("private var emptyHistory: some View"))
         #expect(historyList.contains("Text(emptyTitle)"))
@@ -3002,13 +3017,23 @@ struct SourceHygieneTests {
         #expect(historyList.contains("let lastMessage = lastMessagePreview(for: item)"))
         #expect(historyList.contains("VStack(alignment: .leading, spacing: listSpacing)"))
         #expect(historyList.contains("ForEach(sortedItems) { item in"))
+        #expect(historyList.contains("Button(action: { onSelect(item) })"))
         #expect(historyList.contains("VStack(alignment: .leading, spacing: rowTextSpacing)"))
         #expect(historyList.contains(".font(.system(size: rowFontSize))"))
         #expect(historyList.contains("Text(lastMessage)"))
         #expect(historyList.contains(".font(.system(size: rowPreviewFontSize))"))
         #expect(historyList.contains(".lineLimit(2)"))
         #expect(historyList.contains(".padding(rowPadding)"))
+        #expect(historyList.contains("""
+                            .padding(rowPadding)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(rowBackgroundColor(for: rowState))
+                            .cornerRadius(rowCornerRadius)
+                        }
+                        .contentShape(Rectangle())
+"""))
         #expect(historyList.contains(".cornerRadius(rowCornerRadius)"))
+        #expect(historyList.contains(".buttonStyle(.plain)"))
         #expect(historyList.contains("private var listSpacing: CGFloat { 8 }"))
         #expect(historyList.contains("private var rowFontSize: CGFloat { 15 }"))
         #expect(historyList.contains("private var rowPreviewFontSize: CGFloat { 12 }"))
@@ -3038,6 +3063,20 @@ struct SourceHygieneTests {
         #expect(historyList.contains("Text(dateTitle(group.date))"))
         #expect(historyList.contains("ForEach(group.items) { item in"))
         #expect(historyList.contains("private func groupedRow(for item: QuillConversationHistoryItem) -> some View"))
+        #expect(historyList.contains("return Button(action: { onSelect(item) })"))
+        #expect(historyList.contains("""
+            .padding(.vertical, groupedRowVerticalPadding)
+            .frame(maxWidth: .infinity, minHeight: groupedRowMinHeight, alignment: .leading)
+        }
+        .contentShape(Rectangle())
+"""))
+        #expect(historyList.contains("""
+        .help(item.title)
+        #if os(Linux)
+        .onTapGesture { onSelect(item) }
+        #endif
+        .onHover { hovering in
+"""))
         #expect(historyList.contains("let textState = PaintControlState(isHovered: isHovered, isSelected: false)"))
         #expect(historyList.contains("MacListRowPaint.primaryTextColor(for: textState)"))
         #expect(historyList.contains("Button(role: .destructive, action: { onDeleteDay(date) })"))
@@ -3201,6 +3240,23 @@ struct SourceHygieneTests {
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
 
         for source in [renderer, patcher] {
+            #expect(source.contains("private func gtkDisableButtonChildTargeting"))
+            #expect(source.contains("private func gtkDebugLog(_ message: String)"))
+            #expect(source.contains("gtk_widget_set_can_target(widget, 0)"))
+            #expect(source.contains("gtkDisableButtonChildTargeting(childWidget)"))
+            #expect(source.contains("private final class GTKButtonActionBox"))
+            #expect(source.contains("private func gtkScheduleButtonAction"))
+            #expect(source.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
+            #expect(source.contains("gtkScheduleButtonAction(box, source: \"gesture\")"))
+            #expect(source.contains("gtk_swift_add_capture_gesture"))
+            #expect(source.contains("gtk_swift_add_capture_gesture(button, gesture)"))
+            #expect(source.contains("gtk_swift_legacy_capture_controller"))
+            #expect(source.contains("gtk_swift_event_is_primary_button_press"))
+            #expect(source.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
+            #expect(source.contains("GTKButtonRootEventContext"))
+            #expect(source.contains("gtkInstallButtonRootEventFallback"))
+            #expect(source.contains("gtkScheduleButtonAction(context.box, source: \"root-legacy\")"))
+            #expect(source.contains("gtk_swift_widget_contains_root_point"))
             #expect(source.contains("gtk_widget_add_css_class(button, \"flat\")"))
             #expect(source.contains("background: transparent;"))
             #expect(source.contains("background-color: transparent;"))
@@ -3290,6 +3346,27 @@ struct SourceHygieneTests {
         #expect(renderer.contains("SwiftUI lays repeated vertical rows against the parent's"))
         #expect(renderer.contains("gtk_widget_set_hexpand(widget, 1)"))
         #expect(renderer.contains("gtk_widget_set_halign(widget, GTK_ALIGN_FILL)"))
+    }
+
+    @Test("Vendored GTK ScrollViewReader uses deferred ID adjustment scrolling")
+    func vendoredGTKScrollViewReaderUsesDeferredIDAdjustmentScrolling() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>]"))
+        #expect(renderer.contains("private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest]"))
+        #expect(renderer.contains("let gtkSwiftVerticalScrollViewMarker = \"gtk-swift-vertical-scroll-view\""))
+        #expect(renderer.contains("private func gtkMarkSwiftUIScrollView"))
+        #expect(renderer.contains("gtkMarkSwiftUIScrollView(scrolled, hasVerticalAxis: axes.contains(.vertical))"))
+        #expect(renderer.contains("private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>)"))
+        #expect(renderer.contains("gtkResolvePendingScrollTo(id: id, widget: widget)"))
+        #expect(renderer.contains("@discardableResult\nprivate func gtkApplyScrollTo"))
+        #expect(renderer.contains("gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY)"))
+        #expect(renderer.contains("gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled))"))
+        #expect(renderer.contains("gtk_adjustment_set_value(vadjustment, maxValue)"))
+        #expect(renderer.contains("gtkScheduleScrollTo(id: id, widget, anchor: anchor)"))
+        #expect(renderer.contains("gtkPendingScrollRequests[anyID] = GTKPendingScrollRequest(anchor: anchor)"))
+        #expect(renderer.contains("gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)"))
+        #expect(!renderer.contains("gtk_widget_grab_focus(widget)"))
     }
 
     private func packageRoot() throws -> URL {

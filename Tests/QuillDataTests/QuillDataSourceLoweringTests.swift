@@ -1687,6 +1687,26 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        // MARK: - Gesture GTK extensions
+
+        extension TapGestureView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let widget = widgetFromOpaque(gtkRenderView(content))
+                let gesture = gtk_gesture_click_new()!
+                gtk_swift_add_gesture(widget, gesture)
+                return opaqueFromWidget(widget)
+            }
+        }
+
+        extension LongPressGestureView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let widget = widgetFromOpaque(gtkRenderView(content))
+                let gesture = gtk_gesture_long_press_new()!
+                gtk_swift_add_gesture(widget, gesture)
+                return opaqueFromWidget(widget)
+            }
+        }
+
         // MARK: - OnAppear / OnDisappear GTK extensions
 
         extension OnAppearView: GTKRenderable {
@@ -2202,7 +2222,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity)"))
         #expect(patchedRenderer.contains("expandsToFillHeight: childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
         #expect(patchedRenderer.contains("expandsToFillHeight: gtk_widget_get_vexpand(child) != 0 || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
-        #expect(patchedRenderer.contains("retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()"))
+        #expect(patchedRenderer.contains("let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()"))
+        #expect(patchedRenderer.contains("let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()"))
         #expect(patchedRenderer.contains("private var gtkStateCache: [String: [AnyStateStorage]] = [:]"))
         #expect(patchedRenderer.contains("private var gtkStateTypeCounters: [String: [String: Int]] = [:]"))
         #expect(patchedRenderer.contains("private func gtkStateIdentityNamespace() -> String"))
@@ -2304,6 +2325,22 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))
         #expect(!patchedRenderer.contains("gtk_widget_grab_focus(widget)"))
+        #expect(patchedRenderer.contains("private func gtkDisableButtonChildTargeting"))
+        #expect(patchedRenderer.contains("gtkDisableButtonChildTargeting(childWidget)"))
+        #expect(patchedRenderer.contains("private final class GTKButtonActionBox"))
+        #expect(patchedRenderer.contains("private func gtkScheduleButtonAction"))
+        #expect(patchedRenderer.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"gesture\")"))
+        #expect(patchedRenderer.contains("gtk_swift_add_capture_gesture(button, gesture)"))
+        #expect(patchedRenderer.contains("let legacyController = gtk_swift_legacy_capture_controller()!"))
+        #expect(patchedRenderer.contains("gtk_swift_event_is_primary_button_press(event)"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
+        #expect(patchedRenderer.contains("private final class GTKButtonRootEventContext"))
+        #expect(patchedRenderer.contains("gtkInstallButtonRootEventFallback(context)"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: \"root-legacy\")"))
+        #expect(patchedRenderer.contains("context.removeController()"))
+        #expect(patchedRenderer.contains("gtk_swift_add_event_controller(button, legacyController)"))
+        #expect(patchedRenderer.contains("gtk_swift_add_capture_gesture(widget, gesture)"))
         #expect(patchedRenderer.contains("private protocol GTKDecorativeOverlay"))
         #expect(patchedRenderer.contains("extension StrokedShape: GTKDecorativeOverlay"))
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
@@ -2329,6 +2366,16 @@ struct QuillDataSourceLoweringTests {
 
         let patchedShim = try String(contentsOf: shim, encoding: .utf8)
         #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE)"))
+        #expect(patchedShim.contains("gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture)"))
+        #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE)"))
+        #expect(patchedShim.contains("gtk_swift_legacy_capture_controller(void)"))
+        #expect(patchedShim.contains("gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller)"))
+        #expect(patchedShim.contains("gtk_swift_remove_event_controller(GtkWidget *widget, gpointer controller)"))
+        #expect(patchedShim.contains("gtk_swift_event_is_primary_button_press(gpointer event)"))
+        #expect(patchedShim.contains("gtk_swift_event_get_position(gpointer event, double *x, double *y)"))
+        #expect(patchedShim.contains("gtk_swift_widget_root_widget(GtkWidget *widget)"))
+        #expect(patchedShim.contains("gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double x, double y)"))
+        #expect(patchedShim.contains("gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY"))
         #expect(patchedShim.contains("gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE)"))
 
         let patchedState = try String(contentsOf: state, encoding: .utf8)

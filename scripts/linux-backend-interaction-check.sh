@@ -192,6 +192,9 @@ quillui_append_backend_selection_start_environment \
   "$SELECTED_BACKEND" \
   "$INTERACTION_MODE" \
   "$OUTPUT_DIR"
+if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
+  app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
+fi
 if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
   app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
 fi
@@ -249,7 +252,13 @@ fi
 click_at() {
   local x="$1"
   local y="$2"
-  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y" click 1
+  local settle_sleep="${QUILLUI_BACKEND_CLICK_SETTLE_SLEEP:-0.15}"
+  local hold_sleep="${QUILLUI_BACKEND_CLICK_HOLD_SLEEP:-0.08}"
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y"
+  sleep "$settle_sleep"
+  DISPLAY="$DISPLAY_ID" xdotool mousedown 1
+  sleep "$hold_sleep"
+  DISPLAY="$DISPLAY_ID" xdotool mouseup 1
 }
 
 move_pointer_to() {

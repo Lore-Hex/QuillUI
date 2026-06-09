@@ -321,16 +321,91 @@ pattern = re.compile(
     r"\}",
     re.S,
 )
-replacement = """gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
+bubble_replacement = """gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
     gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE);
     gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
 }
 """
 if "gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE)" not in text:
-    text, count = pattern.subn(replacement, text, count=1)
+    text, count = pattern.subn(bubble_replacement, text, count=1)
     if count != 1:
         raise SystemExit("SwiftOpenUI GTK gesture shim shape was not recognized")
+if "gtk_swift_add_capture_gesture" not in text:
+    capture_helper = """static inline void
+gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
+    gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+}
+"""
+    if bubble_replacement not in text:
+        raise SystemExit("SwiftOpenUI GTK bubble gesture shim shape was not recognized")
+    text = text.replace(bubble_replacement, bubble_replacement + "\n" + capture_helper, 1)
+if "gtk_swift_legacy_capture_controller" not in text:
+    capture_helper = """static inline void
+gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
+    gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+}
+"""
+    legacy_helpers = """static inline gpointer
+gtk_swift_legacy_capture_controller(void) {
+    GtkEventController *controller = gtk_event_controller_legacy_new();
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+    return controller;
+}
+
+static inline void
+gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller) {
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(controller));
+}
+
+static inline void
+gtk_swift_remove_event_controller(GtkWidget *widget, gpointer controller) {
+    gtk_widget_remove_controller(widget, GTK_EVENT_CONTROLLER(controller));
+}
+
+static inline gboolean
+gtk_swift_event_is_primary_button_press(gpointer event) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL
+        && gdk_event_get_event_type(gdk_event) == GDK_BUTTON_PRESS
+        && gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY;
+}
+
+static inline gboolean
+gtk_swift_event_get_position(gpointer event, double *x, double *y) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL ? gdk_event_get_position(gdk_event, x, y) : FALSE;
+}
+
+static inline GtkWidget *
+gtk_swift_widget_root_widget(GtkWidget *widget) {
+    GtkRoot *root = gtk_widget_get_root(widget);
+    return root != NULL ? GTK_WIDGET(root) : NULL;
+}
+
+static inline gboolean
+gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (root == NULL || widget == NULL) {
+        return FALSE;
+    }
+    double local_x = 0;
+    double local_y = 0;
+    if (!gtk_widget_translate_coordinates(root, widget, x, y, &local_x, &local_y)) {
+        return FALSE;
+    }
+    return local_x >= 0
+        && local_y >= 0
+        && local_x < gtk_widget_get_width(widget)
+        && local_y < gtk_widget_get_height(widget);
+}
+"""
+    if capture_helper not in text:
+        raise SystemExit("SwiftOpenUI GTK capture gesture shim shape was not recognized")
+    text = text.replace(capture_helper, capture_helper + "\n" + legacy_helpers, 1)
 path.write_text(text)
 PY
 fi
@@ -1092,6 +1167,7 @@ if "buttonWantsHExpand" not in text:
 '''
     new_button_child = '''            let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
+            gtkDisableButtonChildTargeting(childWidget)
             if gtk_widget_get_hexpand(childWidget) != 0 {
                 buttonWantsHExpand = true
                 gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
@@ -1116,6 +1192,189 @@ if "buttonWantsHExpand" not in text:
     text = text.replace(old_button_child, new_button_child, 1)
     text = text.replace(old_button_expand, new_button_expand, 1)
 
+if "private func gtkDisableButtonChildTargeting" not in text:
+    button_targeting_helper = '''private func gtkDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    gtk_widget_set_can_target(widget, 0)
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        gtkDisableButtonChildTargeting(c)
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+'''
+    button_marker = "extension Button: GTKRenderable"
+    if button_marker not in text:
+        raise SystemExit("SwiftOpenUI Button renderer marker was not recognized")
+    text = text.replace(button_marker, button_targeting_helper + button_marker, 1)
+
+if "gtkDisableButtonChildTargeting(childWidget)" not in text:
+    button_child_set = "            gtk_button_set_child(btnPtr, childWidget)\n"
+    if button_child_set not in text:
+        raise SystemExit("SwiftOpenUI Button child install shape was not recognized")
+    text = text.replace(
+        button_child_set,
+        button_child_set + "            gtkDisableButtonChildTargeting(childWidget)\n",
+        1,
+    )
+
+if "private final class GTKButtonActionBox" not in text:
+    button_action_helper = '''private final class GTKButtonActionBox {
+    let action: () -> Void
+    var lastActivationTime: TimeInterval = 0
+
+    init(_ action: @escaping () -> Void) {
+        self.action = action
+    }
+}
+
+private final class GTKButtonIdleActionContext {
+    let box: GTKButtonActionBox
+    let source: String
+
+    init(box: GTKButtonActionBox, source: String) {
+        self.box = box
+        self.source = source
+    }
+}
+
+private final class GTKButtonRootEventContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    let box: GTKButtonActionBox
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+
+    init(widget: UnsafeMutablePointer<GtkWidget>, box: GTKButtonActionBox) {
+        self.widget = widget
+        self.box = box
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {
+    let now = Date().timeIntervalSinceReferenceDate
+    if now - box.lastActivationTime < 0.08 {
+        gtkDebugLog("button duplicate \\(source)")
+        return
+    }
+    box.lastActivationTime = now
+    gtkDebugLog("button \\(source)")
+    let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKButtonIdleActionContext>.fromOpaque(userData).takeRetainedValue()
+        gtkDebugLog("button action \\(context.source)")
+        context.box.action()
+        return 0
+    }, context)
+}
+
+private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return 0 }
+            var x: Double = 0
+            var y: Double = 0
+            guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            guard gtk_swift_widget_contains_root_point(root, context.widget, x, y) != 0 else { return 0 }
+            gtkScheduleButtonAction(context.box, source: "root-legacy")
+            return 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+'''
+    button_marker = "extension Button: GTKRenderable"
+    if button_marker not in text:
+        raise SystemExit("SwiftOpenUI Button renderer marker was not recognized")
+    text = text.replace(button_marker, button_action_helper + button_marker, 1)
+
+if "private final class GTKButtonRootEventContext" not in text:
+    root_context_helper = '''private final class GTKButtonRootEventContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    let box: GTKButtonActionBox
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+
+    init(widget: UnsafeMutablePointer<GtkWidget>, box: GTKButtonActionBox) {
+        self.widget = widget
+        self.box = box
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+'''
+    schedule_marker = "private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {\n"
+    if schedule_marker not in text:
+        raise SystemExit("SwiftOpenUI Button scheduler marker was not recognized")
+    text = text.replace(schedule_marker, root_context_helper + schedule_marker, 1)
+
+if "private func gtkInstallButtonRootEventFallback" not in text:
+    root_install_helper = '''private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return 0 }
+            var x: Double = 0
+            var y: Double = 0
+            guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            guard gtk_swift_widget_contains_root_point(root, context.widget, x, y) != 0 else { return 0 }
+            gtkScheduleButtonAction(context.box, source: "root-legacy")
+            return 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+'''
+    button_marker = "extension Button: GTKRenderable"
+    if button_marker not in text:
+        raise SystemExit("SwiftOpenUI Button renderer marker was not recognized")
+    text = text.replace(button_marker, root_install_helper + button_marker, 1)
+
 # Keep these frame/layout rewrites independent from the Button idempotency guard.
 # A vendored renderer may already contain button expansion while still needing
 # the finite .frame(maxWidth:) fixes below.
@@ -1136,44 +1395,231 @@ text = text.replace(
     'if gtk_widget_get_hexpand(widget) != 0 { needsHExpand = true; gtk_widget_set_halign(widget, GTK_ALIGN_FILL) }'
 )
 
-old_button_clicked = '''        g_signal_connect_data(
+if 'gtkScheduleButtonAction(box, source: "gesture")' not in text:
+    button_extension_index = text.find("extension Button: GTKRenderable")
+    if button_extension_index == -1:
+        raise SystemExit("SwiftOpenUI Button GTKRenderable extension was not recognized")
+    button_action_start = text.find(
+        "        let boundAction = bindActionToCurrentEnvironment(action)\n",
+        button_extension_index,
+    )
+    button_action_end = text.find(
+        "        // Register keyboard shortcut if present in environment\n",
+        button_action_start,
+    )
+    if button_action_end == -1:
+        button_action_end = text.find(
+            "        return opaqueFromWidget(button)\n",
+            button_action_start,
+        )
+    if button_action_start == -1 or button_action_end == -1:
+        raise SystemExit("SwiftOpenUI Button action callback shape was not recognized")
+    button_activation = '''        let boundAction = bindActionToCurrentEnvironment(action)
+        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        let buttonRootEventContext = Unmanaged.passRetained(
+            GTKButtonRootEventContext(
+                widget: button,
+                box: Unmanaged<GTKButtonActionBox>.fromOpaque(buttonActionBox).takeUnretainedValue()
+            )
+        ).toOpaque()
+        g_signal_connect_data(
             gpointer(button),
-            "clicked",
+            "map",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeUnretainedValue()
-                box.closure()
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkInstallButtonRootEventFallback(context)
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-'''
-new_button_clicked = '''        g_signal_connect_data(
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
             gpointer(button),
             "clicked",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
                 guard let userData else { return }
-                gtkDebugLog("button clicked")
-                let retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()
-                g_idle_add({ idleData -> gboolean in
-                    let box = Unmanaged<ClosureBox>.fromOpaque(idleData!).takeRetainedValue()
-                    gtkDebugLog("button action")
-                    box.closure()
-                    return 0
-                }, retainedBox)
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "clicked")
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        let gesture = gtk_gesture_click_new()!
+        gtk_swift_gesture_single_set_button(gesture, 1)
+        g_signal_connect_data(
+            gpointer(gesture),
+            "pressed",
+            unsafeBitCast({ (_: gpointer?, _: gint, _: gdouble, _: gdouble, userData: gpointer?) in
+                guard let userData else { return }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "gesture")
+            } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_swift_add_capture_gesture(button, gesture)
+        let legacyController = gtk_swift_legacy_capture_controller()!
+        g_signal_connect_data(
+            legacyController,
+            "event",
+            unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+                guard let event, let userData else { return 0 }
+                guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "legacy")
+                return 0
+            } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_swift_add_event_controller(button, legacyController)
+        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeRetainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<GTKButtonActionBox>.fromOpaque(userData).release()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
 '''
-if "retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()" not in text:
-    if old_button_clicked not in text:
-        raise SystemExit("SwiftOpenUI Button clicked callback shape was not recognized")
-    text = text.replace(old_button_clicked, new_button_clicked, 1)
-elif 'gtkDebugLog("button clicked")' not in text:
-    text = text.replace(
-        "                let retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()\n",
-        "                gtkDebugLog(\"button clicked\")\n                let retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()\n",
-        1,
+    text = text[:button_action_start] + button_activation + text[button_action_end:]
+
+text = text.replace(
+    "        gtk_swift_add_gesture(button, gesture)\n"
+    "        g_signal_connect_data(\n"
+    "            gpointer(button),\n"
+    "            \"destroy\",\n",
+    "        gtk_swift_add_capture_gesture(button, gesture)\n"
+    "        g_signal_connect_data(\n"
+    "            gpointer(button),\n"
+    "            \"destroy\",\n",
+    1,
+)
+
+if "let buttonRootEventContext = Unmanaged.passRetained" not in text:
+    action_box_line = "        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()\n"
+    root_context_activation = '''        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        let buttonRootEventContext = Unmanaged.passRetained(
+            GTKButtonRootEventContext(
+                widget: button,
+                box: Unmanaged<GTKButtonActionBox>.fromOpaque(buttonActionBox).takeUnretainedValue()
+            )
+        ).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkInstallButtonRootEventFallback(context)
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+'''
+    if action_box_line not in text:
+        raise SystemExit("SwiftOpenUI Button action box insertion point was not recognized")
+    text = text.replace(action_box_line, root_context_activation, 1)
+
+if 'gtkScheduleButtonAction(box, source: "legacy")' not in text:
+    button_legacy_marker = (
+        "        gtk_swift_add_capture_gesture(button, gesture)\n"
+        "        g_signal_connect_data(\n"
+        "            gpointer(button),\n"
+        "            \"destroy\",\n"
     )
-    text = text.replace(
-        "                    let box = Unmanaged<ClosureBox>.fromOpaque(idleData!).takeRetainedValue()\n                    box.closure()\n",
-        "                    let box = Unmanaged<ClosureBox>.fromOpaque(idleData!).takeRetainedValue()\n                    gtkDebugLog(\"button action\")\n                    box.closure()\n",
-        1,
-    )
+    button_legacy_block = '''        gtk_swift_add_capture_gesture(button, gesture)
+        let legacyController = gtk_swift_legacy_capture_controller()!
+        g_signal_connect_data(
+            gpointer(legacyController),
+            "event",
+            unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+                guard let event, let userData else { return 0 }
+                guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "legacy")
+                return 0
+            } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_swift_add_event_controller(button, legacyController)
+        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+'''
+    if button_legacy_marker not in text:
+        raise SystemExit("SwiftOpenUI Button legacy event insertion point was not recognized")
+    text = text.replace(button_legacy_marker, button_legacy_block, 1)
+
+text = text.replace("            gpointer(legacyController),\n", "            legacyController,\n")
+
+if "context.removeController()" not in text:
+    action_destroy_marker = '''        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<GTKButtonActionBox>.fromOpaque(userData).release()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+'''
+    root_destroy_block = '''        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeRetainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+''' + action_destroy_marker
+    if action_destroy_marker not in text:
+        raise SystemExit("SwiftOpenUI Button destroy insertion point was not recognized")
+    text = text.replace(action_destroy_marker, root_destroy_block, 1)
+
+tap_extension_index = text.find("extension TapGestureView: GTKRenderable")
+if tap_extension_index != -1:
+    long_press_index = text.find("extension LongPressGestureView", tap_extension_index)
+    if long_press_index == -1:
+        raise SystemExit("SwiftOpenUI TapGesture renderer end marker was not recognized")
+    tap_block = text[tap_extension_index:long_press_index]
+    if "gtk_swift_add_capture_gesture(widget, gesture)" not in tap_block:
+        if "gtk_swift_add_gesture(widget, gesture)" not in tap_block:
+            raise SystemExit("SwiftOpenUI TapGesture gesture attach shape was not recognized")
+        tap_block = tap_block.replace(
+            "gtk_swift_add_gesture(widget, gesture)",
+            "gtk_swift_add_capture_gesture(widget, gesture)",
+            1,
+        )
+        text = text[:tap_extension_index] + tap_block + text[long_press_index:]
 
 finite_frame_width = "childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity)"
 finite_frame_height = "childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)"
@@ -2622,6 +3068,7 @@ private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePoi
 if (
     "gtkScheduleIdleScrollTo(_ target" not in text
     and "gtkScheduleIdleScrollTo(id: AnyHashable? = nil, _ target" not in text
+    and "private func gtkScheduleIdleScrollTo(" not in text
 ):
     idle_helper_marker = '''private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     gtkApplyScrollTo(widget, anchor: anchor)
@@ -2728,9 +3175,15 @@ new_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable
 '''
 if old_resolve_or_queue in text:
     text = text.replace(old_resolve_or_queue, new_resolve_or_queue)
-elif "let request = GTKPendingScrollRequest(anchor: anchor)" not in text:
+elif (
+    "let request = GTKPendingScrollRequest(anchor: anchor)" not in text
+    and "gtkPendingScrollRequests[anyID] = GTKPendingScrollRequest(anchor: anchor)" not in text
+):
     raise SystemExit("SwiftOpenUI ScrollViewReader request queue shape was not recognized")
-elif "lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>" in text:
+elif (
+    "private func gtkResolveOrQueueScrollTo" in text
+    and "lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>" in text
+):
     stale_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
     let request = GTKPendingScrollRequest(anchor: anchor)
     gtkPendingScrollRequests[id] = request
@@ -4592,6 +5045,7 @@ if "case .quillPaintMacDefault:" not in text:
         if !handledByQuillPaint {
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
+            gtkDisableButtonChildTargeting(childWidget)
             if !(label is Text) {
                 // Remove GTK default button border/padding so custom-styled
                 // labels (with .background/.frame) render cleanly.
@@ -4656,6 +5110,21 @@ if "case .quillPaintMacDefault:" not in text:
 
 '''
     text = text[:start] + replacement + text[end:]
+
+button_extension_index = text.find("extension Button: GTKRenderable")
+if button_extension_index == -1:
+    raise SystemExit("SwiftOpenUI Button GTKRenderable extension was not recognized")
+button_child_set = "            gtk_button_set_child(btnPtr, childWidget)\n"
+button_child_index = text.find(button_child_set, button_extension_index)
+if button_child_index == -1:
+    raise SystemExit("SwiftOpenUI Button child install shape was not recognized")
+button_targeting_call = "            gtkDisableButtonChildTargeting(childWidget)\n"
+button_targeting_window = text[
+    button_child_index: button_child_index + len(button_child_set) + len(button_targeting_call) + 80
+]
+if button_targeting_call not in button_targeting_window:
+    insert_index = button_child_index + len(button_child_set)
+    text = text[:insert_index] + button_targeting_call + text[insert_index:]
 
 if "remainingTotalTicks: Int" not in text:
     old_scroll_retry_context = '''private final class GTKScrollToContext {
