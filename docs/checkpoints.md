@@ -3384,3 +3384,23 @@ read/star collisions.
 Remaining NetNewsWire work is still substantial: upstream
 `ArticlesDatabase`/`RSDatabase` compatibility, account/sync modules, richer
 article rendering/WebKitGTK escape hatches, and AppKit/WebKit UI migration.
+
+## Checkpoint 205: NetNewsWire ArticlesDatabase Adapter
+
+Status: implemented locally; guarded by focused ArticlesDatabase tests,
+focused NetNewsWire tests, adjacent article/parser tests, executable build,
+source hygiene, and CI follow-up.
+
+Added `QuillArticlesDatabase`, an upstream-shaped `ArticlesDatabase` surface
+backed by QuillData article/status records. The adapter now covers feed,
+multi-feed, and article-ID fetches; unread/today/starred/search/count APIs;
+parsed-item update flows for feed-based and sync-system retention; status
+creation/marking/deletion; startup cleanup; future-date normalization; and the
+async wrappers that upstream call sites expect. `RSSArticleCacheStore` now uses
+this reusable database adapter instead of an app-local cache table, so the
+NetNewsWire shell's persisted timelines are on the same compatibility path as
+future account/database work.
+
+Remaining NetNewsWire database work is still real: this is a QuillData-backed
+adapter, not a full `RSDatabase`/`FMDatabase` SQL implementation with upstream
+migrations, FTS/search indexes, sync-account semantics, and columnar hot paths.

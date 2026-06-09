@@ -844,7 +844,7 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillData"],
+        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillArticlesDatabase", "QuillData"],
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSCore-shaped shim. Reproduces the slice of
@@ -909,6 +909,16 @@ var targets: [Target] = [
         name: "QuillArticles",
         dependencies: ["QuillRSCoreShim"],
         path: "Sources/QuillArticles",
+        swiftSettings: appSwiftSettings
+    ),
+    // QuillData-backed ArticlesDatabase-compatible surface. This is the
+    // first cross-platform replacement for upstream NetNewsWire's
+    // FMDatabase/RSDatabase-backed article store: same key public type names,
+    // but no ObjC SQLite wrapper dependency.
+    .target(
+        name: "QuillArticlesDatabase",
+        dependencies: ["QuillArticles", "QuillData", "QuillRSParser"],
+        path: "Sources/QuillArticlesDatabase",
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSWeb shim — target named `RSWeb` so vendored `import RSWeb`
@@ -2599,6 +2609,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillArticlesTests",
             dependencies: ["QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillArticlesDatabaseTests",
+            dependencies: ["QuillArticlesDatabase", "QuillArticles", "QuillRSParser"],
             swiftSettings: appSwiftSettings
         ),
         .testTarget(

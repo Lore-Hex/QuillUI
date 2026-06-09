@@ -3325,10 +3325,16 @@ struct SourceHygieneTests {
         #expect(verifier.contains("new_completion_pixels >= 120"))
         #expect(verifier.contains("minimum_row_action_segments: int = 4"))
         #expect(verifier.contains("row_action_segments >= minimum_row_action_segments"))
+        #expect(verifier.contains("minimum_wordmark_pixels: int = 650"))
+        #expect(verifier.contains("wordmark_pixels >= minimum_wordmark_pixels"))
+        #expect(verifier.contains("minimum_wordmark_pixels=400"))
+        #expect(verifier.contains("minimum_wordmark_pixels=350"))
         #expect(verifier.contains("cancel_pixels >= 90"))
         #expect(verifier.contains("save_pixels >= 90"))
         #expect(verifier.contains("saved_row_pixels >= 260"))
-        #expect(verifier.contains("edited_row_name_pixels >= 400"))
+        #expect(verifier.contains("edited_row_name_pixels >= 240"))
+        #expect(verifier.contains("top + int(app_height * 0.49)"))
+        #expect(verifier.contains("top + int(app_height * 0.57)"))
         #expect(verifier.contains("deleted_row_action_segments <= 3"))
     }
 
