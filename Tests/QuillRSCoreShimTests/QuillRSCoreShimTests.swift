@@ -74,6 +74,25 @@ struct QuillRSCoreShimTests {
         #expect(Notification.Name.lowMemory.rawValue == "LowMemoryNotification")
     }
 
+    @Test("postOnMainThread asynchronously delivers a notification")
+    func postOnMainThreadDeliversNotification() async {
+        let name = Notification.Name("QuillRSCoreShimTests.postOnMainThread.\(UUID().uuidString)")
+        var observer: NSObjectProtocol?
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            observer = NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { notification in
+                #expect(notification.name == name)
+                continuation.resume()
+            }
+
+            NotificationCenter.default.postOnMainThread(name: name, object: nil)
+        }
+
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
     @Test("Platform.isRunningUnitTests returns true under XCTest")
     func platformIsRunningUnitTestsUnderXCTest() {
         // The Quill test runner injects XCTestConfigurationFilePath

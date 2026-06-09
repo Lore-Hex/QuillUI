@@ -142,6 +142,84 @@ nonisolated extension URLSession: Transport {
 }
 
 nonisolated public extension Transport {
+    func send<P: Encodable & Sendable>(request: URLRequest, method: String, payload: P) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            send(request: request, method: method, payload: payload) { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func send<P: Encodable>(
+        request: URLRequest,
+        method: String,
+        payload: P,
+        completion: @escaping @Sendable (Result<Void, Error>) -> Void
+    ) {
+        var postRequest = request
+        postRequest.addValue("application/json; charset=utf-8", forHTTPHeaderField: HTTPRequestHeader.contentType)
+
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(payload)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        send(request: postRequest, method: method, payload: data) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    completion(.success(()))
+                case .failure(let error):
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
+
+    func send<P: Encodable, R: Decodable>(
+        request: URLRequest,
+        method: String,
+        payload: P,
+        resultType: R.Type,
+        dateDecoding: JSONDecoder.DateDecodingStrategy = .iso8601,
+        keyDecoding: JSONDecoder.KeyDecodingStrategy = .useDefaultKeys,
+        completion: @escaping @Sendable (Result<(HTTPURLResponse, R?), Error>) -> Void
+    ) {
+        var postRequest = request
+        postRequest.addValue("application/json; charset=utf-8", forHTTPHeaderField: HTTPRequestHeader.contentType)
+
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(payload)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        send(request: postRequest, method: method, payload: data) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let (response, data)):
+                    do {
+                        completion(.success(try decode(response: response, data: data, dateDecoding: dateDecoding, keyDecoding: keyDecoding)))
+                    } catch {
+                        completion(.failure(error))
+                    }
+                case .failure(let error):
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
+
     func send<R: Decodable & Sendable>(
         request: URLRequest,
         resultType: R.Type,
@@ -162,6 +240,28 @@ nonisolated public extension Transport {
     ) async throws -> (HTTPURLResponse, R?) {
         let (response, data) = try await send(request: request, method: method, payload: data)
         return try decode(response: response, data: data, dateDecoding: dateDecoding, keyDecoding: keyDecoding)
+    }
+
+    func send<P: Encodable & Sendable, R: Decodable & Sendable>(
+        request: URLRequest,
+        method: String,
+        payload: P,
+        resultType: R.Type,
+        dateDecoding: JSONDecoder.DateDecodingStrategy = .iso8601,
+        keyDecoding: JSONDecoder.KeyDecodingStrategy = .useDefaultKeys
+    ) async throws -> (HTTPURLResponse, R?) {
+        try await withCheckedThrowingContinuation { continuation in
+            send(
+                request: request,
+                method: method,
+                payload: payload,
+                resultType: resultType,
+                dateDecoding: dateDecoding,
+                keyDecoding: keyDecoding
+            ) { result in
+                continuation.resume(with: result)
+            }
+        }
     }
 }
 

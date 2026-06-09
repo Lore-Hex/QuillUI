@@ -41,6 +41,32 @@ public extension String {
         let digest = MD5.hash(Array(self.utf8))
         return MD5.hexString(digest)
     }
+
+    var escapingSpecialXMLCharacters: String {
+        var result = ""
+        result.reserveCapacity(count)
+        for character in self {
+            switch character {
+            case "&": result += "&amp;"
+            case "\"": result += "&quot;"
+            case "'": result += "&apos;"
+            case "<": result += "&lt;"
+            case ">": result += "&gt;"
+            default: result.append(character)
+            }
+        }
+        return result
+    }
+}
+
+public extension NotificationCenter {
+    nonisolated func postOnMainThread(name: Notification.Name, object: Any?, userInfo: [AnyHashable: Any]? = nil) {
+        nonisolated(unsafe) let capturedObject = object
+        nonisolated(unsafe) let capturedUserInfo = userInfo
+        Task { @MainActor in
+            NotificationCenter.default.post(name: name, object: capturedObject, userInfo: capturedUserInfo)
+        }
+    }
 }
 
 /// Mirrors `RSCore.Platform`. Articles' AuthorCache uses
@@ -50,6 +76,10 @@ public extension String {
 /// runner — return false unconditionally; tests can override
 /// the detection with the environment variable upstream uses.
 public struct Platform {
+    public nonisolated static var deviceHasiCloudAccount: Bool {
+        false
+    }
+
     public nonisolated static var isRunningUnitTests: Bool {
         // Same env signal upstream RSCore checks first; matches
         // XCTest's behavior of injecting XCTestConfigurationFilePath
@@ -59,6 +89,64 @@ public struct Platform {
         if env["XCTestConfigurationFilePath"] != nil { return true }
         if env["SWIFT_TESTING_ENABLED"] != nil { return true }
         return false
+    }
+
+    public static func dataSubfolder(forApplication appName: String?, folderName: String) -> String? {
+        let root = AppConfig.dataFolderForApplication(appName)
+        let folder = root.appendingPathComponent(folderName, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            return folder.path
+        } catch {
+            return nil
+        }
+    }
+}
+
+public final class AppConfig {
+    public static var appName: String {
+        (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String)
+            ?? ProcessInfo.processInfo.processName
+    }
+
+    public static var cacheFolder: URL {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        return ensureSubfolder(named: appName, folderURL: base)
+    }
+
+    public static var dataFolder: URL {
+        dataFolderForApplication(appName)
+    }
+
+    public static func cacheSubfolder(named name: String) -> URL {
+        ensureSubfolder(named: name, folderURL: cacheFolder)
+    }
+
+    public static func dataSubfolder(named name: String) -> URL {
+        ensureSubfolder(named: name, folderURL: dataFolder)
+    }
+
+    public static func relativeDataPath(_ absolutePath: String) -> String {
+        let prefix = dataFolder.path + "/"
+        guard absolutePath.hasPrefix(prefix) else {
+            return absolutePath
+        }
+        return String(absolutePath.dropFirst(prefix.count))
+    }
+
+    static func dataFolderForApplication(_ appName: String?) -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        let folder = base.appendingPathComponent(appName ?? Self.appName, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    private static func ensureSubfolder(named name: String, folderURL: URL) -> URL {
+        let folder = folderURL.appendingPathComponent(name, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
     }
 }
 
@@ -70,6 +158,147 @@ public extension Notification.Name {
     /// string ("LowMemoryNotification") is matched byte-for-byte
     /// so notifications posted from either side route the same.
     static let lowMemory = Notification.Name("LowMemoryNotification")
+
+    /// Posted when the app moves to the background. Linux app backends can emit
+    /// it when they gain lifecycle hooks; Account uses it to empty caches.
+    static let appDidGoToBackground = Notification.Name("AppDidGoToBackgroundNotification")
+
+    /// Posted when a coalesced model mutation batch completes.
+    static let BatchUpdateDidPerform = Notification.Name(rawValue: "BatchUpdateDidPerform")
+}
+
+public typealias BatchUpdateBlock = () -> Void
+
+@MainActor public final class BatchUpdate {
+    public static let shared = BatchUpdate()
+
+    private var count = 0
+
+    public var isPerforming: Bool {
+        count > 0
+    }
+
+    public func perform(_ batchUpdateBlock: BatchUpdateBlock) {
+        incrementCount()
+        batchUpdateBlock()
+        decrementCount()
+    }
+
+    public func start() {
+        incrementCount()
+    }
+
+    public func end() {
+        decrementCount()
+    }
+
+    private func incrementCount() {
+        count += 1
+    }
+
+    private func decrementCount() {
+        count -= 1
+        guard count < 1 else {
+            return
+        }
+        count = 0
+        NotificationCenter.default.post(name: .BatchUpdateDidPerform, object: nil)
+    }
+}
+
+public struct AppNotification {
+    public static func postLowMemory() {
+        NotificationCenter.default.post(name: .lowMemory, object: nil)
+    }
+
+    public static func postAppDidGoToBackground() {
+        NotificationCenter.default.post(name: .appDidGoToBackground, object: nil)
+    }
+}
+
+public let NSUbiquitousKeyValueStoreChangeReasonKey = "NSUbiquitousKeyValueStoreChangeReasonKey"
+public let NSUbiquitousKeyValueStoreChangedKeysKey = "NSUbiquitousKeyValueStoreChangedKeysKey"
+public let NSUbiquitousKeyValueStoreServerChange = 0
+public let NSUbiquitousKeyValueStoreInitialSyncChange = 1
+public let NSUbiquitousKeyValueStoreQuotaViolationChange = 2
+public let NSUbiquitousKeyValueStoreAccountChange = 3
+
+public final class NSUbiquitousKeyValueStore: @unchecked Sendable {
+    public static let `default` = NSUbiquitousKeyValueStore()
+    public static let didChangeExternallyNotification = Notification.Name("NSUbiquitousKeyValueStoreDidChangeExternallyNotification")
+
+    private let lock = NSLock()
+    private var storage = [String: Any]()
+
+    public init() {}
+
+    public func set(_ value: Any?, forKey key: String) {
+        lock.lock()
+        storage[key] = value
+        lock.unlock()
+    }
+
+    public func set(_ value: Bool, forKey key: String) {
+        set(value as Any, forKey: key)
+    }
+
+    public func set(_ value: Double, forKey key: String) {
+        set(value as Any, forKey: key)
+    }
+
+    public func set(_ value: Int64, forKey key: String) {
+        set(value as Any, forKey: key)
+    }
+
+    public func object(forKey key: String) -> Any? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage[key]
+    }
+
+    public func data(forKey key: String) -> Data? {
+        object(forKey: key) as? Data
+    }
+
+    public func string(forKey key: String) -> String? {
+        object(forKey: key) as? String
+    }
+
+    public func array(forKey key: String) -> [Any]? {
+        object(forKey: key) as? [Any]
+    }
+
+    public func dictionary(forKey key: String) -> [String: Any]? {
+        object(forKey: key) as? [String: Any]
+    }
+
+    public func bool(forKey key: String) -> Bool {
+        object(forKey: key) as? Bool ?? false
+    }
+
+    public func double(forKey key: String) -> Double {
+        object(forKey: key) as? Double ?? 0
+    }
+
+    public func longLong(forKey key: String) -> Int64 {
+        object(forKey: key) as? Int64 ?? 0
+    }
+
+    public func removeObject(forKey key: String) {
+        lock.lock()
+        storage[key] = nil
+        lock.unlock()
+    }
+
+    public var dictionaryRepresentation: [String: Any] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    @discardableResult public func synchronize() -> Bool {
+        true
+    }
 }
 
 /// Pure-Swift MD5 implementation (RFC 1321). The intent is to

@@ -117,4 +117,14 @@ public extension String {
 	func caseInsensitiveContains(_ string: String) -> Bool {
 		self.range(of: string, options: .caseInsensitive) != nil
 	}
+
+	/// Prepends tabs to a string.
+	///
+	/// - Parameter tabCount: The number of tabs to prepend. Must be greater than or equal to zero.
+	///
+	/// - Returns: The string with `numberOfTabs` tabs prepended.
+	func prepending(tabCount: Int) -> String {
+		let tabs = String(repeating: "\t", count: tabCount)
+		return "\(tabs)\(self)"
+	}
 }
