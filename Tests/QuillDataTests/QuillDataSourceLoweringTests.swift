@@ -1883,6 +1883,23 @@ struct QuillDataSourceLoweringTests {
 
                 let dropdownOp = OpaquePointer(dropdown)
                 gtk_drop_down_set_selected(dropdownOp, guint(selected))
+                if let onChanged = onChanged {
+                    let box = Unmanaged.passRetained(IntClosureBox(onChanged)).toOpaque()
+                    g_signal_connect_data(
+                        gpointer(dropdown),
+                        "notify::selected",
+                        unsafeBitCast({ (widget: gpointer?, _: gpointer?, userData: gpointer?) in
+                            let box = Unmanaged<IntClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                            let sel = Int(gtk_drop_down_get_selected(OpaquePointer(widget!)))
+                            box.closure(sel)
+                        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+                        box,
+                        { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                            Unmanaged<IntClosureBox>.fromOpaque(userData!).release()
+                        },
+                        GConnectFlags(rawValue: 0)
+                    )
+                }
                 return opaqueFromWidget(dropdown)
             }
         }
@@ -2487,6 +2504,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("let stringList = gtk_swift_string_list_new()!"))
         #expect(patchedRenderer.contains("gtk_swift_drop_down_new(stringList)!"))
         #expect(!patchedRenderer.contains("gtk_drop_down_new_from_strings(ptr)!"))
+        #expect(patchedRenderer.contains("guard options.indices.contains(newIndex), newIndex != clampedSelection else"))
         #expect(patchedRenderer.contains("private func gtkAttachRootSheetOverlay("))
         #expect(patchedRenderer.contains("let previousTop = gtk_widget_get_last_child(overlayWidget)"))
         #expect(patchedRenderer.contains("gtk_widget_insert_after(panel, overlayWidget, previousTop)"))

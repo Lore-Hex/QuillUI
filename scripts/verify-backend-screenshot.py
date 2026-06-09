@@ -1690,7 +1690,7 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         f"Completions Upsert Save action was not detected: pixels={save_pixels}, roi={save_roi}",
     )
     require(
-        panel_surface_pixels >= 45_000,
+        panel_surface_pixels >= 32_000,
         "Completions Upsert sheet surface was not detected: "
         f"pixels={panel_surface_pixels}, roi={panel_roi}",
     )

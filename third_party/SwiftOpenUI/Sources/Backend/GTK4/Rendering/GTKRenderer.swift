@@ -5968,7 +5968,12 @@ extension Picker: GTKRenderable {
         }
 
         if let onChanged = onChanged {
-            let box = Unmanaged.passRetained(IntClosureBox(onChanged)).toOpaque()
+            let box = Unmanaged.passRetained(IntClosureBox { newIndex in
+                guard options.indices.contains(newIndex), newIndex != clampedSelection else {
+                    return
+                }
+                onChanged(newIndex)
+            }).toOpaque()
             g_signal_connect_data(
                 gpointer(dropdown),
                 "notify::selected",

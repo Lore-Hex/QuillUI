@@ -5791,6 +5791,33 @@ if "gtk_swift_drop_down_new(stringList)" not in picker_section:
         + text[picker_end:]
     )
 
+picker_index = text.find("extension Picker: GTKRenderable")
+picker_end = text.find("\nextension ", picker_index + 1)
+if picker_end == -1:
+    picker_end = len(text)
+picker_section = text[picker_index:picker_end]
+if "guard options.indices.contains(newIndex), newIndex != clampedSelection else" not in picker_section:
+    old_picker_callback = '''        if let onChanged = onChanged {
+            let box = Unmanaged.passRetained(IntClosureBox(onChanged)).toOpaque()
+            g_signal_connect_data(
+'''
+    new_picker_callback = '''        if let onChanged = onChanged {
+            let box = Unmanaged.passRetained(IntClosureBox { newIndex in
+                guard options.indices.contains(newIndex), newIndex != clampedSelection else {
+                    return
+                }
+                onChanged(newIndex)
+            }).toOpaque()
+            g_signal_connect_data(
+'''
+    if old_picker_callback not in picker_section:
+        raise SystemExit("SwiftOpenUI Picker dropdown callback shape was not recognized")
+    text = (
+        text[:picker_index]
+        + picker_section.replace(old_picker_callback, new_picker_callback, 1)
+        + text[picker_end:]
+    )
+
 toggle_index = text.find("extension Toggle: GTKRenderable")
 if toggle_index == -1:
     raise SystemExit("SwiftOpenUI Toggle GTKRenderable extension was not recognized")
