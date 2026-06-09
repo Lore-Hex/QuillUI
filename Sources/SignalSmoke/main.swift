@@ -116,6 +116,13 @@ do {
     print("signal-smoke PERSIST: \(try quillSmokeAccountPersistRoundtrip(path: p))")
 } catch { print("signal-smoke PERSIST FAILED: \(error)") }
 
+// Faithful persistence: prove the link credentials round-trip under the REAL
+// SignalServiceKit account/identity keys + value types (NewKeyValueStore raw
+// account state + legacy-archiver identity keys), so the on-disk DB is a genuine
+// real-SSK account store and a restart recovers the reconnect username + token.
+let quillFaithfulPath = FileManager.default.temporaryDirectory.appendingPathComponent("quill-faithful-\(UUID().uuidString).sqlite").path
+print("signal-smoke FAITHFUL PERSIST: \(quillFaithfulPersistSelfTest(path: quillFaithfulPath))")
+
 // STEP 9/10: the FULL live secondary-device link flow -- strictly USER-GATED
 // behind QUILL_SIGNAL_LINK=1 (default OFF). With the flag set, it prints a QR
 // URL and WAITS for the user to scan with their phone, then registers + persists

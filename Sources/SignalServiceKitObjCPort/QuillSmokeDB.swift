@@ -110,8 +110,8 @@ public func quillSmokeAccountPersistRoundtrip(path: String) throws -> String {
 // `TSStorageManagerIdentityKeyStoreIdentityKey`.
 public func quillPersistLinkedAccount(
     path: String,
-    aci: String,
-    pni: String,
+    aciServiceIdUppercase: String,   // aci.serviceIdUppercaseString
+    pniUuid: String,                 // pni.rawUUID.uuidString
     e164: String,
     deviceId: UInt32,
     aciRegistrationId: UInt32,
@@ -126,47 +126,107 @@ public func quillPersistLinkedAccount(
     let q = try DatabaseQueue(path: path, configuration: c)
     try GRDBSchemaMigrator.quillRunSchemaMigrations(on: q)
 
-    let acct = KeyValueStore(collection: "TSStorageUserAccountCollection")
-    let aciIdentityStore = KeyValueStore(collection: "TSStorageManagerIdentityKeyStoreCollection")
-    let pniIdentityStore = KeyValueStore(collection: "TSStorageManagerPNIIdentityKeyStoreCollection")
-    let identityKeyName = "TSStorageManagerIdentityKeyStoreIdentityKey"
+    // Account state is read by the REAL TSAccountManagerImpl via NewKeyValueStore
+    // (raw column values in the `keyvalue` table -- NOT NSKeyedArchiver) in
+    // collection "TSStorageUserAccountCollection", under these EXACT key
+    // constants (TSAccountManagerImpl.Keys) and value types (Int64 for the
+    // numeric fields, the ACI's serviceIdUppercaseString for the UUID). Writing
+    // them the same way makes a real SignalServiceKit boot load this account.
+    let acct = NewKeyValueStore(collection: "TSStorageUserAccountCollection")
+    // Identity keys are read by the REAL OWSIdentityManagerImpl via the legacy
+    // KeyValueStore (NSKeyedArchiver) in collection
+    // "TSStorageManagerIdentityKeyStoreCollection" -- ACI and PNI under DIFFERENT
+    // keys in the SAME collection (not two collections).
+    let identity = KeyValueStore(collection: "TSStorageManagerIdentityKeyStoreCollection")
 
     try q.write { db in
         let tx = DBWriteTransaction(database: db)
         defer { tx.finalizeTransaction() }
-        acct.setString(aci, key: "localAciUuid", transaction: tx)
-        acct.setString(pni, key: "localPni", transaction: tx)
-        acct.setString(e164, key: "localE164", transaction: tx)
-        acct.setUInt32(deviceId, key: "deviceId", transaction: tx)
-        acct.setUInt32(aciRegistrationId, key: "TSStorageLocalRegistrationId", transaction: tx)
-        acct.setUInt32(pniRegistrationId, key: "TSStoragePniRegistrationId", transaction: tx)
-        acct.setString(serverAuthToken, key: "TSStorageServerAuthToken", transaction: tx)
-        acct.setData(profileKey, key: "localProfileKey", transaction: tx)
-        aciIdentityStore.setObject(aciIdentityKeyPair.asECKeyPair, key: identityKeyName, transaction: tx)
-        pniIdentityStore.setObject(pniIdentityKeyPair.asECKeyPair, key: identityKeyName, transaction: tx)
+        acct.writeValue(e164, forKey: "TSStorageRegisteredNumberKey", tx: tx)
+        acct.writeValue(aciServiceIdUppercase, forKey: "TSStorageRegisteredUUIDKey", tx: tx)
+        acct.writeValue(pniUuid, forKey: "TSAccountManager_RegisteredPNIKey", tx: tx)
+        acct.writeValue(Int64(deviceId), forKey: "TSAccountManager_DeviceId", tx: tx)
+        acct.writeValue(Int64(aciRegistrationId), forKey: "TSStorageLocalRegistrationId", tx: tx)
+        acct.writeValue(Int64(pniRegistrationId), forKey: "TSStorageLocalPniRegistrationId", tx: tx)
+        acct.writeValue(serverAuthToken, forKey: "TSStorageServerAuthToken", tx: tx)
+        // Secondary devices start as manual message fetchers.
+        acct.writeValue(true, forKey: "TSAccountManager_ManualMessageFetchKey", tx: tx)
+        // profileKey is stored by ProfileManager (a different collection) in real
+        // SSK; keep it under a clearly-Quill key for our own use (auxiliary, not
+        // the production location -- honest about the boundary).
+        acct.writeValue(profileKey, forKey: "QuillLocalProfileKey", tx: tx)
+        identity.setObject(aciIdentityKeyPair.asECKeyPair, key: "TSStorageManagerIdentityKeyStoreIdentityKey", transaction: tx)
+        identity.setObject(pniIdentityKeyPair.asECKeyPair, key: "TSStorageManagerIdentityKeyStorePNIIdentityKey", transaction: tx)
     }
-    return "linked account persisted (on-disk): aci=\(aci) pni=\(pni) deviceId=\(deviceId) e164=\(e164)"
+    return "linked account persisted (real SSK keys/types): aci=\(aciServiceIdUppercase) pni=\(pniUuid) deviceId=\(deviceId) e164=\(e164)"
 }
 
 // Read back the stored server username + auth token for an authenticated chat
 // reconnect, proving the persisted credentials survive a fresh open of the DB
-// file (the durability check). Server username for a linked device is
-// "<aci.serviceIdString>.<deviceId>" (upstream TSAccountManagerImpl.serverUsername).
+// file (the durability check). Reads via the SAME NewKeyValueStore keys the real
+// TSAccountManagerImpl uses. Server username for a linked device is
+// "<aci.serviceIdString>.<deviceId>" (TSAccountManagerImpl.serverUsername) -- the
+// stored ACI is its uppercase UUID, so reconstruct the Aci to get serviceIdString.
 // Returns nil if no linked account is stored.
 public func quillLoadStoredAuth(path: String) throws -> (username: String, password: String)? {
     var c = GRDB.Configuration(); c.acceptsDoubleQuotedStringLiterals = true
     let q = try DatabaseQueue(path: path, configuration: c)
-    let acct = KeyValueStore(collection: "TSStorageUserAccountCollection")
+    let acct = NewKeyValueStore(collection: "TSStorageUserAccountCollection")
     var username: String?
     var password: String?
     try q.read { db in
         let tx = DBReadTransaction(database: db)
-        guard let aci = acct.getString("localAciUuid", transaction: tx),
-              let token = acct.getString("TSStorageServerAuthToken", transaction: tx) else { return }
-        let deviceId = acct.getUInt32("deviceId", transaction: tx) ?? 1
-        username = "\(aci).\(deviceId)"
+        guard let aciStr = acct.fetchValue(String.self, forKey: "TSStorageRegisteredUUIDKey", tx: tx),
+              let token = acct.fetchValue(String.self, forKey: "TSStorageServerAuthToken", tx: tx) else { return }
+        let deviceId = acct.fetchValue(Int64.self, forKey: "TSAccountManager_DeviceId", tx: tx) ?? 1
+        let aciServiceIdString = Aci.parseFrom(aciString: aciStr)?.serviceIdString ?? aciStr.lowercased()
+        username = "\(aciServiceIdString).\(deviceId)"
         password = token
     }
     guard let username, let password else { return nil }
     return (username, password)
+}
+
+// Faithful-persistence RUNTIME self-test: exercise the real
+// quillPersistLinkedAccount + quillLoadStoredAuth round-trip on a temp DB,
+// proving the NewKeyValueStore account-state writes + legacy-KeyValueStore
+// identity writes survive a fresh reopen under the REAL SSK keys/types, and that
+// the reconnect username ("<aci.serviceIdString>.<deviceId>") + auth token are
+// recovered. This is the durable-login guarantee, exercised with NO real account.
+public func quillFaithfulPersistSelfTest(path: String) -> String {
+    do {
+        let aciId = IdentityKeyPair.generate()
+        let pniId = IdentityKeyPair.generate()
+        let aciUUID = UUID()
+        let pniUUID = UUID()
+        let deviceId: UInt32 = 3
+        let token = "deadbeefcafebabe0011223344556677"
+        let profileKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+        _ = try quillPersistLinkedAccount(
+            path: path,
+            aciServiceIdUppercase: aciUUID.uuidString,   // ACI serviceIdUppercaseString == uppercase UUID
+            pniUuid: pniUUID.uuidString,
+            e164: "+15555550123",
+            deviceId: deviceId,
+            aciRegistrationId: 1234,
+            pniRegistrationId: 5678,
+            aciIdentityKeyPair: aciId,
+            pniIdentityKeyPair: pniId,
+            profileKey: profileKey,
+            serverAuthToken: token
+        )
+        guard let auth = try quillLoadStoredAuth(path: path) else {
+            return "FAITHFUL PERSIST: reload returned nil (account not found)"
+        }
+        let expectUser = "\(aciUUID.uuidString.lowercased()).\(deviceId)"
+        guard auth.username == expectUser else {
+            return "FAITHFUL PERSIST mismatch: username \(auth.username) != \(expectUser)"
+        }
+        guard auth.password == token else {
+            return "FAITHFUL PERSIST mismatch: token did not round-trip"
+        }
+        return "FAITHFUL PERSIST: real-SSK-key round-trip OK -> would reconnect as \(auth.username)"
+    } catch {
+        return "FAITHFUL PERSIST FAILED: \(error)"
+    }
 }

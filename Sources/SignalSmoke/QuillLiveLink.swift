@@ -206,8 +206,8 @@ func quillCompleteLink(message: LinkingProvisioningMessage, net: Net, dbPath: St
     // (f) persist everything needed to reconnect without re-scanning.
     let persistMsg = try quillPersistLinkedAccount(
         path: dbPath,
-        aci: aci.rawUUID.uuidString,
-        pni: pni.rawUUID.uuidString,
+        aciServiceIdUppercase: aci.serviceIdUppercaseString,
+        pniUuid: pni.rawUUID.uuidString,
         e164: phoneNumber,
         deviceId: deviceId,
         aciRegistrationId: aciRegistrationId,
@@ -256,9 +256,24 @@ func quillPutDevicesLink(phoneNumber: String, authPassword: String, body: Data) 
         throw QuillLinkError.httpStatus(http.statusCode, String(data: data, encoding: .utf8) ?? "")
     }
 
+    // Upstream VerifySecondaryDeviceResponse = {pni: <bare uuid string>, deviceId:
+    // <bare int 1...127>}. Parse leniently: at this point the server has ALREADY
+    // linked us, so a response-shape surprise must not throw away the (single-use)
+    // scan -- extract the deviceId however it arrives.
     struct LinkResponse: Decodable { let pni: String; let deviceId: UInt32 }
-    let parsed = try JSONDecoder().decode(LinkResponse.self, from: data)
-    return (parsed.deviceId, parsed.pni)
+    if let parsed = try? JSONDecoder().decode(LinkResponse.self, from: data) {
+        return (parsed.deviceId, parsed.pni)
+    }
+    if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+        let did: UInt32?
+        if let n = obj["deviceId"] as? NSNumber { did = n.uint32Value }
+        else if let i = obj["deviceId"] as? Int { did = UInt32(i) }
+        else { did = nil }
+        if let did {
+            return (did, (obj["pni"] as? String) ?? "")
+        }
+    }
+    throw QuillLinkError.httpStatus(http.statusCode, "linked but could not parse deviceId from response: \(String(data: data, encoding: .utf8) ?? "")")
 }
 
 /// Durable-login proof: if a prior live link already persisted credentials,

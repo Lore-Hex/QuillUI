@@ -1453,6 +1453,36 @@ signal-smoke exe (each a merged PR; all crypto/parse/persist paths are real, exe
   inert when none exist. Verified build + run with flag OFF: all self-tests pass, live flow
   compiled-dormant, reconnect inert, EXIT=0.
 
+**Persistence FIDELITY (matching the real account store, not just self-consistent).** A
+self-consistent roundtrip (write key X, read key X) proves *my* reconnect survives restart,
+but for the DB to be a genuine real-SSK account store -- so a real SignalServiceKit boot
+loads the linked account -- the keys, value TYPES, and STORE must match upstream exactly:
+- **Two different stores back the `keyvalue` table.** Account state uses `NewKeyValueStore`
+  (raw column values via a `KeyValueStoreValue` protocol -- String/Int64/Bool/Data stored
+  natively, NOT archived). Identity keys use the legacy `KeyValueStore` (NSKeyedArchiver
+  blobs). Writing an account scalar with legacy `KeyValueStore.setString` is INVISIBLE to a
+  real read via `NewKeyValueStore.fetchValue(String.self)` even with the same key+table --
+  the byte format differs. Write each field with the SAME store the real reader uses.
+- **Exact account keys/types (TSAccountManagerImpl.Keys, collection
+  "TSStorageUserAccountCollection"):** `TSStorageRegisteredNumberKey`(e164 String),
+  `TSStorageRegisteredUUIDKey`(ACI as `aci.serviceIdUppercaseString` -- uppercase UUID, no
+  prefix), `TSAccountManager_RegisteredPNIKey`(pni `rawUUID.uuidString`),
+  `TSAccountManager_DeviceId`(**Int64**), `TSStorageLocalRegistrationId`(**Int64**),
+  `TSStorageLocalPniRegistrationId`(**Int64** -- note the `Local`),
+  `TSStorageServerAuthToken`(String), `TSAccountManager_ManualMessageFetchKey`(Bool true).
+- **Identity keys (OWSIdentityManagerImpl, ONE collection
+  "TSStorageManagerIdentityKeyStoreCollection", TWO keys):** ACI under
+  `TSStorageManagerIdentityKeyStoreIdentityKey`, PNI under
+  `TSStorageManagerIdentityKeyStorePNIIdentityKey` (NOT two separate collections). Stored as
+  `ECKeyPair` via the legacy archiver (the NSCoder NSData fix below makes this round-trip).
+- **Reconnect username** = `"<aci.serviceIdString>.<deviceId>"`. Stored ACI is the *uppercase*
+  UUID; reconstruct via `Aci.parseFrom(aciString:)?.serviceIdString` (lowercase) for the
+  websocket username. Runtime-verified: write via `quillPersistLinkedAccount` -> reopen ->
+  `quillLoadStoredAuth` recovers `"<lowercase-uuid>.<deviceId>"` + token (EXIT=0).
+- Caught by reading the actual upstream constants -- my first guess used invented keys
+  (`localAciUuid`, `localE164`, `TSStoragePniRegistrationId`) + UInt32 + two identity
+  collections, all wrong. ALWAYS ground persistence keys/types/store in the real source.
+
 **NSCoder NSData fix (the persistence-blocker):** swift-corelibs NSCoder's
 `encodeBytes(UInt8?,length:,forKey:)` uses an internal keyed-archive byte format that has
 NO `decodeBytes` reader; ECKeyPair's NSSecureCoding round-trip failed "Class ECKeyPair
