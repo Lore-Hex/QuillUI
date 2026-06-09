@@ -1383,6 +1383,13 @@ OWN-empty + each target->0 -> triage regressions. One batch cleared 25 of 40.
 
 ## MILESTONES: SSK compiles to 0, and the toolchain RUNS
 
+### STEP C: GRDB storage engine runs at runtime
+A bare in-memory GRDB roundtrip (open `DatabaseQueue`, CREATE/INSERT/SELECT) runs on
+QuillOS Linux from the signal-smoke exe -- SSK's SQLite persistence engine executes,
+not just crypto. The full Signal schema migration is the next frontier (its entry
+points -- migrateDatabase(databaseStorage:)/runIncrementalMigrations(databaseWriter:)/
+registerSchemaMigrations -- are internal/private/`#if TESTABLE_BUILD`).
+
 The real signalapp/Signal-iOS **SignalServiceKit compiles to 0 errors** on QuillOS
 (aarch64 Linux, swift-corelibs-foundation) against QuillUI's Apple-framework shims +
 real libsignal (~4880 -> 0 over this effort). And a **`signal-smoke` executable runs**:
