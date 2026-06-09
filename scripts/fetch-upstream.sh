@@ -1187,6 +1187,79 @@ subs = [
             options: [],
         )''',
      '''let value = [nameComponents.givenName, nameComponents.familyName].compactMap { $0 }.joined(separator: " ")'''),
+    # Timer target/selector cluster: swift-corelibs Timer has only block-based
+    # init/scheduledTimer + no perform/selector dispatch. Gate each site #if os(Linux)
+    # to the block-based timer (NSTimer+OWS proxy is inert -- ObjC-only/dead on Linux).
+    ('''        _ = target.perform(selector, with: timer)''',
+     '''        #if os(Linux)
+        // ObjC selector dispatch (perform) is unavailable on swift-corelibs (no ObjC
+        // runtime). weakScheduledTimer/weakTimer are @available(swift, obsoleted: 1) --
+        // callable only from ObjC, which is excluded on Linux -- so this proxy is never
+        // exercised on QuillOS. Inert.
+        _ = (target, selector, timer)
+        #else
+        _ = target.perform(selector, with: timer)
+        #endif'''),
+    ('''        return Timer.scheduledTimer(timeInterval: timeInterval, target: proxy, selector: Selector("timerFired(_:)"), userInfo: userInfo, repeats: repeats)''',
+     '''        #if os(Linux)
+        // corelibs Timer has no target/selector overload; use the block-based timer.
+        // proxy is strongly captured to keep it alive (the real Timer would retain it).
+        return Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: repeats) { timer in proxy.timerFired(timer) }
+        #else
+        return Timer.scheduledTimer(timeInterval: timeInterval, target: proxy, selector: Selector("timerFired(_:)"), userInfo: userInfo, repeats: repeats)
+        #endif'''),
+    ('''        return Timer(timeInterval: timeInterval, target: proxy, selector: Selector("timerFired(_:)"), userInfo: userInfo, repeats: repeats)''',
+     '''        #if os(Linux)
+        return Timer(timeInterval: timeInterval, repeats: repeats) { timer in proxy.timerFired(timer) }
+        #else
+        return Timer(timeInterval: timeInterval, target: proxy, selector: Selector("timerFired(_:)"), userInfo: userInfo, repeats: repeats)
+        #endif'''),
+    ('''        self.timer = Timer.scheduledTimer(
+            timeInterval: timeInterval,
+            target: self,
+            selector: Selector("fire"),
+            userInfo: userInfo,
+            repeats: repeats,
+        )''',
+     '''        #if os(Linux)
+        // swift-corelibs Timer has no target/selector overload (no ObjC dispatch); use
+        // the block-based scheduledTimer. self is strongly captured so the timer keeps
+        // this WeakTimer alive (matching the original, where the Timer retained the
+        // target); the weak `target` check in fire(timer:) is preserved.
+        self.timer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: repeats) { timer in
+            self.fire(timer: timer)
+        }
+        #else
+        self.timer = Timer.scheduledTimer(
+            timeInterval: timeInterval,
+            target: self,
+            selector: Selector("fire"),
+            userInfo: userInfo,
+            repeats: repeats,
+        )
+        #endif'''),
+    ('''        let timer = Timer(
+            timeInterval: StorageServiceManagerImpl.backupDebounceInterval,
+            target: self,
+            selector: Selector("backupTimerFired(_:)"),
+            userInfo: nil,
+            repeats: false,
+        )''',
+     '''        #if os(Linux)
+        // corelibs Timer has no target/selector overload; use the block-based timer.
+        // self is strongly captured to match the original (Timer retained target: self).
+        let timer = Timer(timeInterval: StorageServiceManagerImpl.backupDebounceInterval, repeats: false) { timer in
+            self.backupTimerFired(timer)
+        }
+        #else
+        let timer = Timer(
+            timeInterval: StorageServiceManagerImpl.backupDebounceInterval,
+            target: self,
+            selector: Selector("backupTimerFired(_:)"),
+            userInfo: nil,
+            repeats: false,
+        )
+        #endif'''),
     # TextCheckingDataItem transit branch: NSTextCheckingKey.airline/.flight are
     # internal on swift-corelibs and data detection is unavailable, so the transit
     # URL-building block is dead on Linux. Gate it #if !os(Linux).
