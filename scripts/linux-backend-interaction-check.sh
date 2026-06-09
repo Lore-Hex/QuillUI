@@ -24,6 +24,11 @@ INTERACTION_MODE="${QUILLUI_BACKEND_INTERACTION_MODE:-}"
 if [[ -z "$INTERACTION_MODE" ]]; then
   INTERACTION_MODE="$(quillui_backend_default_interaction_mode_for_product "$PRODUCT")"
 fi
+if [[ -z "${QUILLUI_BACKEND_INTERACTION_MAX_ATTEMPTS:-}" \
+  && "$PRODUCT" == "quill-chat-linux" \
+  && "$INTERACTION_MODE" == "settings-default-model-selected" ]]; then
+  INTERACTION_MAX_ATTEMPTS=4
+fi
 
 quillui_install_linux_backend_smoke_packages
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
@@ -153,7 +158,7 @@ retry_backend_interaction_if_transient() {
     return 1
   fi
 
-  echo "quillui: backend interaction app exited before verification (status $status, attempt $INTERACTION_ATTEMPT/$INTERACTION_MAX_ATTEMPTS); retrying once" >&2
+  echo "quillui: backend interaction app exited before verification (status $status, attempt $INTERACTION_ATTEMPT/$INTERACTION_MAX_ATTEMPTS); retrying" >&2
   rm -f "$SCREENSHOT_PATH" "$APP_LOG_PATH"
   export QUILLUI_BACKEND_INTERACTION_ATTEMPT="$((INTERACTION_ATTEMPT + 1))"
   trap - EXIT
