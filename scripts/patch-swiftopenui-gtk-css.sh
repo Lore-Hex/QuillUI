@@ -2280,6 +2280,16 @@ private func gtkSheetRootOverlay(for anchor: UnsafeMutablePointer<GtkWidget>) ->
     if let rootOverlay = gtkCurrentRootSheetOverlay() {
         return rootOverlay
     }
+    if let rootOverlay = gtkStoredRootPresentationOverlay(on: gpointer(anchor)) {
+        return rootOverlay
+    }
+    var ancestor = gtk_widget_get_parent(anchor)
+    while let current = ancestor {
+        if let rootOverlay = gtkStoredRootPresentationOverlay(on: gpointer(current)) {
+            return rootOverlay
+        }
+        ancestor = gtk_widget_get_parent(current)
+    }
     if let root = gtk_widget_get_root(anchor).map({ gpointer($0) }),
        let rootOverlay = gtkRootPresentationOverlay(for: root) {
         return rootOverlay
@@ -2583,6 +2593,8 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             })
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
             gtkAttachRootSheetOverlay(panel, to: rootOverlay)
             return opaqueFromWidget(widget)
@@ -2669,6 +2681,8 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             })
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
             gtkAttachRootSheetOverlay(panel, to: rootOverlay)
             return opaqueFromWidget(widget)
@@ -4263,23 +4277,30 @@ func gtkCreateRootPresentationContainer(
     gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
     gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
 
-    let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
-    g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))
-    let overlayObject = UnsafeMutableRawPointer(overlay).assumingMemoryBound(to: GObject.self)
-    g_object_set_data(overlayObject, gtkRootPresentationOverlayKey, gpointer(overlay))
-    let contentObject = UnsafeMutableRawPointer(contentWidget).assumingMemoryBound(to: GObject.self)
-    g_object_set_data(contentObject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: overlay)
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)
     gtkRootPresentationOverlayFallback = OpaquePointer(overlay)
     return overlay
 }
 
-func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
-    let gobject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
-    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else {
-        return gtkRootPresentationOverlayFallback
-    }
+func gtkStoreRootPresentationOverlay(
+    _ rootOverlay: OpaquePointer,
+    on widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, gtkRootPresentationOverlayKey, UnsafeMutableRawPointer(rootOverlay))
+}
+
+func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer? {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else { return nil }
     let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
     return OpaquePointer(overlay)
+}
+
+func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
+    gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback
 }
 
 '''
