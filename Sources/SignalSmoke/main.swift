@@ -12,6 +12,7 @@
 // SignalServiceKit helper. It does NOT register, link a device, or touch any
 // real Signal account. Account actions remain strictly user-gated.
 //
+import Foundation
 import SignalServiceKit
 import LibSignalClient
 
@@ -95,3 +96,8 @@ Task {
 _ = quillProvSem.wait(timeout: .now() + 30)
 _ = quillProvConn
 _ = quillProvListener
+
+do {
+    let p = FileManager.default.temporaryDirectory.appendingPathComponent("quill-persist-\(UUID().uuidString).sqlite").path
+    print("signal-smoke PERSIST: \(try quillSmokeAccountPersistRoundtrip(path: p))")
+} catch { print("signal-smoke PERSIST FAILED: \(error)") }
