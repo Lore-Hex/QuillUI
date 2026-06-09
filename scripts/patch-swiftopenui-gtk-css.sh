@@ -2298,6 +2298,9 @@ private func gtkSheetRootOverlay(for anchor: UnsafeMutablePointer<GtkWidget>) ->
        let rootOverlay = gtkRootPresentationOverlay(for: root) {
         return rootOverlay
     }
+    if let rootOverlay = gtkFallbackRootPresentationOverlay() {
+        return rootOverlay
+    }
     return nil
 }
 
@@ -4301,6 +4304,10 @@ func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer? {
 
 func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
     gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback
+}
+
+func gtkFallbackRootPresentationOverlay() -> OpaquePointer? {
+    gtkRootPresentationOverlayFallback
 }
 
 '''
