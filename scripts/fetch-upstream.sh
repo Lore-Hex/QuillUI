@@ -1187,6 +1187,33 @@ subs = [
             options: [],
         )''',
      '''let value = [nameComponents.givenName, nameComponents.familyName].compactMap { $0 }.joined(separator: " ")'''),
+    # GRDBSchemaMigrator: expose a public schema-only migration entry that calls
+    # the private _runIncrementalMigrations, so the headless smoke exe can run
+    # Signal's full schema migration on a plain DatabaseWriter (no SDSDatabaseStorage).
+    ('''        return try runIncrementalMigrations(databaseStorage: databaseStorage, runDataMigrations: runDataMigrations)
+    }
+''',
+     '''        return try runIncrementalMigrations(databaseStorage: databaseStorage, runDataMigrations: runDataMigrations)
+    }
+
+    public static func quillRunSchemaMigrations(on databaseWriter: some DatabaseWriter) throws {
+        _ = try _runIncrementalMigrations(databaseWriter: databaseWriter, runDataMigrations: false)
+    }
+'''),
+    # Bundle.bundleIdPrefix owsFailDebug()s (fatal in debug) when the Info.plist key
+    # OWSBundleIDPrefix is missing. A headless QuillOS exe has no Info.plist, and the
+    # default "org.whispersystems" is correct -- gate the failDebug out on Linux.
+    ('''        } else {
+            owsFailDebug("Missing Info.plist entry for OWSBundleIDPrefix")
+            return "org.whispersystems"
+        }''',
+     '''        } else {
+            #if !os(Linux)
+            owsFailDebug("Missing Info.plist entry for OWSBundleIDPrefix")
+            #endif
+            // Headless QuillOS has no Info.plist; the default prefix is correct.
+            return "org.whispersystems"
+        }'''),
     # AttachmentValidationBackfillMigrator.Filter.operator: existential `any
     # SQLSpecificExpressible` can't conform to itself on Swift 6, so the generic GRDB
     # `==` won't coerce. The sole caller passes a concrete Column -> narrow the lhs to

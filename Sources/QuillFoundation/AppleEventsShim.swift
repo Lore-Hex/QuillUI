@@ -42,10 +42,20 @@ open class NSAppleEventManager: @unchecked Sendable {
     open var currentAppleEvent: NSAppleEventDescriptor? { nil }
 }
 
-// Darwin-only C APIs the detectors call. Linux has no equivalents (CLOCK_UPTIME_RAW and
-// clock_gettime_nsec_np are Apple extensions; proc_pidpath is Darwin libproc), so these
-// are compile-stubs — never executed on Linux. pid_t/clockid_t come from Glibc.
+// Darwin-only C APIs the detectors call. Linux has no exact equivalents
+// (CLOCK_UPTIME_RAW and clock_gettime_nsec_np are Apple extensions; proc_pidpath
+// is Darwin libproc). pid_t/clockid_t come from Glibc.
 public let CLOCK_UPTIME_RAW: clockid_t = clockid_t(CLOCK_MONOTONIC)
-public func clock_gettime_nsec_np(_ clockId: clockid_t) -> UInt64 { 0 }
+
+// Faithful Linux port of Apple's `clock_gettime_nsec_np`: returns the value of
+// the given clock in nanoseconds (0 on error, matching Apple). Backed by the
+// POSIX `clock_gettime`. SignalServiceKit's MonotonicDate calls this on EVERY
+// DBRead/DBWriteTransaction (and owsFail()s if it returns 0), so it must be a
+// real implementation, not a stub.
+public func clock_gettime_nsec_np(_ clockId: clockid_t) -> UInt64 {
+    var ts = timespec()
+    guard clock_gettime(clockId, &ts) == 0 else { return 0 }
+    return UInt64(ts.tv_sec) &* 1_000_000_000 &+ UInt64(ts.tv_nsec)
+}
 public func proc_pidpath(_ pid: pid_t, _ buffer: UnsafeMutableRawPointer?, _ bufferSize: UInt32) -> Int32 { 0 }
 #endif

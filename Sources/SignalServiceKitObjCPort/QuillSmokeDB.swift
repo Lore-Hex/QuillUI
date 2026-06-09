@@ -27,3 +27,14 @@ public func quillSmokeGRDBRoundtrip() throws -> String {
     }
     return "GRDB in-memory roundtrip: \(value ?? "nil")"
 }
+
+// Run Signal's full SCHEMA migration on a plain in-memory DB (needs AppContext set).
+public func quillSmokeSchemaMigration() throws -> String {
+    if !quillAppContextInstalled { SetCurrentAppContext(QuillSmokeAppContext(), isRunningTests: false); quillAppContextInstalled = true }
+    var c = GRDB.Configuration(); c.acceptsDoubleQuotedStringLiterals = true
+    let q = try DatabaseQueue(configuration: c)
+    try GRDBSchemaMigrator.quillRunSchemaMigrations(on: q)
+    let n = try q.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sqlite_master WHERE type='table'") ?? 0 }
+    return "Signal schema migrated: \(n) tables"
+}
+private var quillAppContextInstalled = false
