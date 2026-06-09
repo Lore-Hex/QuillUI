@@ -456,6 +456,7 @@ refresh_capture_window_for_sheet_interaction() {
 }
 
 open_quill_chat_completions_panel() {
+  local reset_before_open="${1:-0}"
   local click_x
   local click_y
   local reset_x
@@ -467,12 +468,14 @@ open_quill_chat_completions_panel() {
     # without the overlay open; clicking the already-selected row is then a no-op.
     # Select a seeded history row first so the following Completions click opens
     # the panel without introducing another modal utility surface.
-    reset_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-$((window_x + 190))}"
-    reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 1244))}"
-    click_at "$reset_x" "$reset_y"
-    sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.35}"
+    if [[ "$reset_before_open" == "1" ]]; then
+      reset_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-$((window_x + 190))}"
+      reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
+      click_at "$reset_x" "$reset_y"
+      sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.35}"
+    fi
   else
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
@@ -536,7 +539,7 @@ edit_quill_chat_existing_completion() {
   local save_x
   local save_y
 
-  open_quill_chat_completions_panel
+  open_quill_chat_completions_panel 1
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + 1510))}"
     edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 536))}"
