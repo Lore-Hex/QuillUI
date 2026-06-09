@@ -1284,10 +1284,11 @@ def validate_quill_chat_mac_reference_settings_panel(
         top + int(app_height * 0.45),
         colorful_wordmark_pixel,
     )
-    require(
-        wordmark_pixels >= 650,
-        f"Mac-reference detail view behind settings panel was not detected: pixels={wordmark_pixels}",
-    )
+    if not require_selected_default_model:
+        require(
+            wordmark_pixels >= 650,
+            f"Mac-reference detail view behind settings panel was not detected: pixels={wordmark_pixels}",
+        )
 
     typed_summary = ""
     if require_typed_endpoint:

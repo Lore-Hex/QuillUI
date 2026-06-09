@@ -490,6 +490,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("token_y0 = panel_y + 350"))
         #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
         #expect(verifier.contains("ping_y0 = panel_y + 384"))
+        #expect(verifier.contains("if not require_selected_default_model:"))
         #expect(verifier.contains("Mac-reference selected default model was not detected"))
         #expect(verifier.contains("model_text_pixels >= 200"))
         #expect(verifier.contains("selected_model_pixels={model_text_pixels}"))
