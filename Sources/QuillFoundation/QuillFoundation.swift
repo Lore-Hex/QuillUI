@@ -679,6 +679,12 @@ public class RSColor: NSObject, @unchecked Sendable {
         self.init(red: r, green: g, blue: b, alpha: alpha)
     }
 
+    /// UIColor.setFill() sets this color as the fill color in the current UIKit
+    /// graphics context. There is no graphics context on Linux (UIGraphicsImageRenderer
+    /// is inert), so this is a no-op — UIImage+OWS's solid-color image render degrades
+    /// to a blank image. HONEST STATUS: no rasterized fills on Linux.
+    public func setFill() {}
+
     public static let clear = RSColor(red: 0, green: 0, blue: 0, alpha: 0)
     public static let white = RSColor(red: 1, green: 1, blue: 1, alpha: 1)
     public static let black = RSColor(red: 0, green: 0, blue: 0, alpha: 1)
