@@ -1381,6 +1381,41 @@ OWN-empty + each target->0 -> triage regressions. One batch cleared 25 of 40.
 
 ---
 
+## MILESTONES: SSK compiles to 0, and the toolchain RUNS
+
+The real signalapp/Signal-iOS **SignalServiceKit compiles to 0 errors** on QuillOS
+(aarch64 Linux, swift-corelibs-foundation) against QuillUI's Apple-framework shims +
+real libsignal (~4880 -> 0 over this effort). And a **`signal-smoke` executable runs**:
+it links SignalServiceKit + the 194MB `libsignal_ffi.a` Rust core and executes a pure
+libsignal primitive (`IdentityKeyPair.generate()` -> 69-byte keypair, exit 0). HONEST:
+in-memory crypto only -- no DB, no network, no account.
+
+### Smallest-milestone exe recipe (3 essential parts)
+1. **libsignal testing-gate** -- LibSignalClient's "testing endpoints" (FakeChat / OTP /
+   comparable-backup helpers) are gated `#if !os(iOS) || targetEnvironment(simulator)`
+   ("not generated in device builds, to save code size"). On Linux `!os(iOS)` is true so
+   they compile and reference `signal_testing_*` FFI symbols ABSENT from the **release**
+   `libsignal_ffi.a` -> undefined-symbol at link. Narrow the gate to
+   `#if (!os(iOS) || targetEnvironment(simulator)) && !os(Linux)` in
+   ChatServiceTypes.swift / ComparableBackup.swift / Net.swift / ChatConnection+Fake.swift
+   (durable: `patch_libsignal()` in scripts/fetch-upstream.sh, mirroring patch_signal_ios
+   -- signal/libsignal are dev-only, manually provisioned, not CI-fetched).
+2. **lld linker** -- the default bfd linker OOMs ("clang: error: unable to execute
+   command: Killed") linking the 194MB `libsignal_ffi.a`; `ld.lld` links it in ~44s. Bake
+   `linkerSettings: [.unsafeFlags(["-use-ld=lld"])]` into the exe target so a plain
+   `swift build` works (no -Xswiftc needed).
+3. **exe target** -- `.executableTarget(name: "signal-smoke", dependencies:
+   ["SignalServiceKit", "LibSignalClient"], ...)` inside the
+   `if signalUpstreamPresent && libsignalUpstreamPresent` block (Linux+upstream gated, so
+   absent from CI / fresh checkouts -- CI doesn't build SSK or the exe).
+
+An exe depending on SignalServiceKit transitively links LibSignalClient -> SignalFfi, whose
+module.modulemap does `link "signal_ffi"`; the `-L.upstream/libsignal/target/release` flag
+on LibSignalClient supplies the .a path. The .a is only needed when a downstream exe/test
+links (the SSK *target* alone compiles without resolving it).
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"

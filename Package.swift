@@ -1882,6 +1882,20 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: ".upstream/signal-ios/SignalServiceKit",
             exclude: signalServiceKitExcludes,
             swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // signal-smoke: smallest-milestone executable proving the real
+        // Signal-iOS toolchain LINKS + RUNS on QuillOS (Track B). Links
+        // SignalServiceKit + libsignal_ffi.a and runs a pure in-memory
+        // libsignal crypto primitive. `-use-ld=lld` is required: the default
+        // bfd linker OOMs ("Killed") on the 194MB libsignal_ffi.a; lld links it
+        // in ~44s. Gated like SSK (Linux + signal/libsignal upstream present),
+        // so absent from CI / fresh checkouts.
+        .executableTarget(
+            name: "signal-smoke",
+            dependencies: ["SignalServiceKit", "LibSignalClient"],
+            path: "Sources/SignalSmoke",
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
         )
     ]
 }

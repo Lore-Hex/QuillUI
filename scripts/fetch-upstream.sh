@@ -1487,6 +1487,36 @@ PY
 }
 
 want=("$@")
+patch_libsignal() {
+    # libsignal's LibSignalClient ships "testing endpoints" (FakeChat / OTP /
+    # comparable-backup test helpers) gated `#if !os(iOS) || targetEnvironment(simulator)`
+    # -- compiled for macOS/simulator test builds, EXCLUDED on iOS device builds
+    # "to save on code size". On Linux `!os(iOS)` is true, so they would compile
+    # and reference `signal_testing_*` FFI symbols that are ABSENT from the release
+    # libsignal_ffi.a (cargo build -p libsignal-ffi --release), breaking any
+    # downstream executable/test link (undefined symbol at ld time). QuillOS links
+    # the release .a, so narrow the gate to ALSO exclude Linux (behave like a device
+    # build). Idempotent + self-guarded: only rewrites the un-narrowed gate.
+    local dir="$UPSTREAM_DIR/libsignal/swift/Sources/LibSignalClient"
+    [[ -d "$dir" ]] || return 0
+    python3 - "$dir" <<'PYLS'
+import sys, os
+root = sys.argv[1]
+old = "#if !os(iOS) || targetEnvironment(simulator)"
+new = "#if (!os(iOS) || targetEnvironment(simulator)) && !os(Linux)"
+n = 0
+for f in ("ChatServiceTypes.swift", "ComparableBackup.swift", "Net.swift", "ChatConnection+Fake.swift"):
+    p = os.path.join(root, f)
+    if not os.path.exists(p):
+        continue
+    src = open(p).read()
+    if old in src:
+        open(p, "w").write(src.replace(old, new))
+        n += 1
+print(f"patch_libsignal: narrowed testing-endpoint gate on Linux in {n} file(s)")
+PYLS
+}
+
 if [[ ${#want[@]} -eq 0 ]]; then
     # Default set excludes codeedit/codeeditsymbols. CodeEditSymbols
     # 0.2.3 pulls in a SwiftLintPlugin prebuild command that SwiftPM
