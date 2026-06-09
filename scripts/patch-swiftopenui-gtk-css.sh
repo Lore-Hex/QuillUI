@@ -2307,6 +2307,18 @@ private func gtkCreateSheetOverlayPanel(
     return panel
 }
 
+private func gtkAttachRootSheetOverlay(
+    _ panel: UnsafeMutablePointer<GtkWidget>,
+    to rootOverlay: OpaquePointer
+) {
+    let overlayWidget = UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GtkWidget.self)
+    let previousTop = gtk_widget_get_last_child(overlayWidget)
+    gtk_overlay_add_overlay(rootOverlay, panel)
+    if let previousTop, previousTop != panel {
+        gtk_widget_insert_after(panel, overlayWidget, previousTop)
+    }
+}
+
 private final class GTKSheetPanelFocusBox {
     let panel: UnsafeMutablePointer<GtkWidget>
 
@@ -2545,7 +2557,7 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
-            gtk_overlay_add_overlay(rootOverlay, panel)
+            gtkAttachRootSheetOverlay(panel, to: rootOverlay)
             return opaqueFromWidget(widget)
         }
 
@@ -2605,6 +2617,7 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let itemBinding = item
             let userOnDismiss = onDismiss
             let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+            let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
             if let config = itemDismissalConfig {
@@ -2620,15 +2633,16 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                         itemIDKey: itemIDKey
                     )
                     itemBinding.wrappedValue = nil
+                    lifecycleScope.runDisappearActions()
                     userOnDismiss?()
                 }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetBuilder(currentItem)))
+            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) })
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
-            gtk_overlay_add_overlay(rootOverlay, panel)
+            gtkAttachRootSheetOverlay(panel, to: rootOverlay)
             return opaqueFromWidget(widget)
         }
 
