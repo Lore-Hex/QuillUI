@@ -342,6 +342,39 @@ gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
     if bubble_replacement not in text:
         raise SystemExit("SwiftOpenUI GTK bubble gesture shim shape was not recognized")
     text = text.replace(bubble_replacement, bubble_replacement + "\n" + capture_helper, 1)
+if "gtk_swift_root_grab_focus" not in text:
+    clear_focus_marker = """static inline void
+gtk_swift_clear_focus(GtkWidget *widget) {
+    GtkRoot *root = gtk_widget_get_root(widget);
+    if (root) {
+        gtk_root_set_focus(root, NULL);
+    }
+}
+"""
+    root_focus_helper = """static inline gboolean
+gtk_swift_root_grab_focus(GtkWidget *widget) {
+    if (widget == NULL) {
+        return FALSE;
+    }
+    GtkRoot *root = gtk_widget_get_root(widget);
+    if (root == NULL) {
+        return gtk_widget_grab_focus(widget);
+    }
+    gtk_root_set_focus(root, widget);
+    if (gtk_widget_is_focus(widget)) {
+        return TRUE;
+    }
+    return gtk_widget_grab_focus(widget);
+}
+"""
+    if clear_focus_marker in text:
+        text = text.replace(clear_focus_marker, clear_focus_marker + "\n" + root_focus_helper, 1)
+    else:
+        editable_marker = "\n// --- Editable type check ---\n"
+        if editable_marker in text:
+            text = text.replace(editable_marker, "\n" + root_focus_helper + editable_marker, 1)
+        else:
+            text = text.rstrip() + "\n\n" + root_focus_helper
 if "gtk_swift_legacy_capture_controller" not in text:
     capture_helper = """static inline void
 gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
@@ -2269,7 +2302,84 @@ private func gtkCreateSheetOverlayPanel(
     gtk_widget_set_halign(sheetWidget, GTK_ALIGN_FILL)
     gtk_widget_set_valign(sheetWidget, GTK_ALIGN_FILL)
     gtk_box_append(boxPointer(panel), sheetWidget)
+    gtkInstallSheetPanelFocusBridge(on: panel)
     return panel
+}
+
+private final class GTKSheetPanelFocusBox {
+    let panel: UnsafeMutablePointer<GtkWidget>
+
+    init(panel: UnsafeMutablePointer<GtkWidget>) {
+        self.panel = panel
+    }
+}
+
+private func gtkInstallSheetPanelFocusBridge(on panel: UnsafeMutablePointer<GtkWidget>) {
+    let gesture = gtk_gesture_click_new()!
+    let box = Unmanaged.passRetained(GTKSheetPanelFocusBox(panel: panel)).toOpaque()
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, x: Double, y: Double, userData: gpointer?) in
+            guard let userData else { return }
+            let box = Unmanaged<GTKSheetPanelFocusBox>.fromOpaque(userData).takeUnretainedValue()
+            gtkFocusSheetEditable(in: box.panel, localX: x, localY: y)
+        } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        box,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKSheetPanelFocusBox>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(panel, gesture)
+}
+
+private func gtkFocusSheetEditable(
+    in panel: UnsafeMutablePointer<GtkWidget>,
+    localX: Double,
+    localY: Double
+) {
+    guard let root = gtk_swift_widget_root_widget(panel) else { return }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_widget_translate_coordinates(panel, root, localX, localY, &rootX, &rootY) != 0 else {
+        return
+    }
+    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
+        return
+    }
+    gtk_widget_set_focusable(editable, 1)
+    _ = gtk_swift_root_grab_focus(editable)
+}
+
+private func gtkFindSheetEditable(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    rootX: Double,
+    rootY: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let found = gtkFindSheetEditable(in: current, root: root, rootX: rootX, rootY: rootY) {
+            return found
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    guard gtkSheetWidgetIsTextInput(widget),
+          gtk_swift_widget_is_topmost_at_root_point(root, widget, rootX, rootY) != 0
+    else {
+        return nil
+    }
+    return widget
+}
+
+private func gtkSheetWidgetIsTextInput(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    guard gtk_swift_is_widget(widget) != 0 else { return false }
+    if gtk_swift_widget_is_editable(widget) != 0 { return true }
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    return typeName == "GtkTextView"
 }
 
 private func gtkCreateSheetOverlay(
@@ -5093,7 +5203,8 @@ text = path.read_text()
 hook_decl = (
     "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
     "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
-    "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n\n"
+    "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
+    "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n\n"
 )
 if "quill_gtk_button_paint_hook" not in text:
     marker = "// MARK: - GTK rendering protocol\n"
@@ -5112,6 +5223,13 @@ if "quill_gtk_text_editor_paint_hook" not in text:
         "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n",
         "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
         "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
+        1,
+    )
+if "quill_gtk_toggle_paint_hook" not in text:
+    text = text.replace(
+        "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
+        "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
         1,
     )
 
@@ -5340,6 +5458,79 @@ if "quill_gtk_text_editor_paint_hook?" not in text[text_editor_index:text_editor
     if return_index == -1:
         raise SystemExit("SwiftOpenUI TextEditor return shape was not recognized")
     text = text[:return_index] + new_text_editor_return + text[return_index + len(old_text_editor_return):]
+
+toggle_index = text.find("extension Toggle: GTKRenderable")
+if toggle_index == -1:
+    raise SystemExit("SwiftOpenUI Toggle GTKRenderable extension was not recognized")
+toggle_end = text.find("\nextension ", toggle_index + 1)
+if toggle_end == -1:
+    toggle_end = len(text)
+toggle_section = text[toggle_index:toggle_end]
+
+old_check_create = '''        let check = label.isEmpty
+            ? gtk_check_button_new()!
+            : gtk_check_button_new_with_label(label)!
+'''
+new_check_create = '''        let check = label.isEmpty || quill_gtk_toggle_paint_hook != nil
+            ? gtk_check_button_new()!
+            : gtk_check_button_new_with_label(label)!
+'''
+if old_check_create in toggle_section:
+    create_index = text.find(old_check_create, toggle_index, toggle_end)
+    text = text[:create_index] + new_check_create + text[create_index + len(old_check_create):]
+    toggle_end = text.find("\nextension ", toggle_index + 1)
+    if toggle_end == -1:
+        toggle_end = len(text)
+
+toggle_section = text[toggle_index:toggle_end]
+if "quill_gtk_toggle_paint_hook?(" not in toggle_section:
+    old_check_return = '''        gtkApplyEnabledState(to: check)
+        return opaqueFromWidget(check)
+'''
+    new_check_return = '''        gtkApplyEnabledState(to: check)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(check),
+            isOn.wrappedValue,
+            false,
+            label
+        ) {
+            return paintedToggle
+        }
+        return opaqueFromWidget(check)
+'''
+    return_index = text.find(old_check_return, toggle_index, toggle_end)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI Toggle check-button return shape was not recognized")
+    text = text[:return_index] + new_check_return + text[return_index + len(old_check_return):]
+    toggle_end = text.find("\nextension ", toggle_index + 1)
+    if toggle_end == -1:
+        toggle_end = len(text)
+
+    old_switch_return = '''        if label.isEmpty {
+            gtkApplyEnabledState(to: sw)
+            return opaqueFromWidget(sw)
+        }
+
+'''
+    new_switch_return = '''        gtkApplyEnabledState(to: sw)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(sw),
+            isOn.wrappedValue,
+            true,
+            label
+        ) {
+            return paintedToggle
+        }
+
+        if label.isEmpty {
+            return opaqueFromWidget(sw)
+        }
+
+'''
+    return_index = text.find(old_switch_return, toggle_index, toggle_end)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI Toggle switch return shape was not recognized")
+    text = text[:return_index] + new_switch_return + text[return_index + len(old_switch_return):]
 
 if "remainingTotalTicks: Int" not in text:
     old_scroll_retry_context = '''private final class GTKScrollToContext {

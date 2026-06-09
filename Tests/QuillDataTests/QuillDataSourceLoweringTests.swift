@@ -1454,6 +1454,38 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        extension Toggle: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let toggleStyleType = getCurrentEnvironment().toggleStyle
+
+                if toggleStyleType == .switch {
+                    return gtkCreateSwitchWidget()
+                }
+                return gtkCreateCheckButtonWidget()
+            }
+
+            private func gtkCreateCheckButtonWidget() -> OpaquePointer {
+                let check = label.isEmpty
+                    ? gtk_check_button_new()!
+                    : gtk_check_button_new_with_label(label)!
+                gtkApplyEnabledState(to: check)
+                return opaqueFromWidget(check)
+            }
+
+            private func gtkCreateSwitchWidget() -> OpaquePointer {
+                let sw = gtk_swift_switch_new()!
+
+                if label.isEmpty {
+                    gtkApplyEnabledState(to: sw)
+                    return opaqueFromWidget(sw)
+                }
+
+                let hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8)!
+                gtkApplyEnabledState(to: hbox)
+                return opaqueFromWidget(hbox)
+            }
+        }
+
         extension FrameView: GTKRenderable {
             public func gtkCreateWidget() -> OpaquePointer {
                 let child = widgetFromOpaque(gtkRenderView(content))
@@ -2265,11 +2297,16 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)"))
         #expect(patchedRenderer.contains("public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil"))
         #expect(patchedRenderer.contains("public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil"))
+        #expect(patchedRenderer.contains("public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil"))
         #expect(patchedRenderer.contains("var useQuillPaintTextField = false"))
         #expect(patchedRenderer.contains("quill_gtk_text_field_paint_hook?("))
         #expect(patchedRenderer.contains("extension SecureField: GTKRenderable"))
         #expect(patchedRenderer.contains("quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true)"))
         #expect(patchedRenderer.contains("quill_gtk_text_editor_paint_hook?("))
+        #expect(patchedRenderer.contains("let check = label.isEmpty || quill_gtk_toggle_paint_hook != nil"))
+        #expect(patchedRenderer.contains("quill_gtk_toggle_paint_hook?("))
+        #expect(patchedRenderer.contains("false,\n            label"))
+        #expect(patchedRenderer.contains("true,\n            label"))
         #expect(patchedRenderer.contains("if maxWidth != nil {"))
         #expect(patchedRenderer.contains("if maxHeight != nil {"))
         #expect(!patchedRenderer.contains("if let xw = maxWidth, xw != nil"))
@@ -2369,6 +2406,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private func gtkRemoveSheetRootOverlay("))
         #expect(patchedRenderer.contains("gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey"))
         #expect(patchedRenderer.contains("private func gtkCreateSheetOverlayPanel("))
+        #expect(patchedRenderer.contains("gtkInstallSheetPanelFocusBridge(on: panel)"))
+        #expect(patchedRenderer.contains("gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)"))
+        #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, widget, rootX, rootY)"))
+        #expect(patchedRenderer.contains("gtk_swift_root_grab_focus(editable)"))
         #expect(patchedRenderer.contains("private func gtkCreateSheetOverlay("))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)"))
         #expect(patchedRenderer.contains("gtkRootPresentationOverlay(for: root)"))
@@ -2424,6 +2465,7 @@ struct QuillDataSourceLoweringTests {
         let patchedShim = try String(contentsOf: shim, encoding: .utf8)
         #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE)"))
         #expect(patchedShim.contains("gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture)"))
+        #expect(patchedShim.contains("gtk_swift_root_grab_focus(GtkWidget *widget)"))
         #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE)"))
         #expect(patchedShim.contains("gtk_swift_legacy_capture_controller(void)"))
         #expect(patchedShim.contains("gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller)"))

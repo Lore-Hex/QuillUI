@@ -13,6 +13,7 @@ public enum QuillGtkBackend: QuillBackend {
         #if os(Linux)
         installQuillButtonHook()
         installQuillTextFieldHook()
+        installQuillToggleHook()
         #endif
     }
 }

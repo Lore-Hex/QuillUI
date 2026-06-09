@@ -181,6 +181,22 @@ gtk_swift_clear_focus(GtkWidget *widget) {
     }
 }
 
+static inline gboolean
+gtk_swift_root_grab_focus(GtkWidget *widget) {
+    if (widget == NULL) {
+        return FALSE;
+    }
+    GtkRoot *root = gtk_widget_get_root(widget);
+    if (root == NULL) {
+        return gtk_widget_grab_focus(widget);
+    }
+    gtk_root_set_focus(root, widget);
+    if (gtk_widget_is_focus(widget)) {
+        return TRUE;
+    }
+    return gtk_widget_grab_focus(widget);
+}
+
 // --- Editable type check ---
 
 static inline gboolean

@@ -1,7 +1,6 @@
 #if os(Linux)
 import BackendGTK4
 import CGTK
-import Foundation
 import QuillPaint
 import QuillPaintCairo
 
@@ -33,6 +32,11 @@ public func setupQuillTextFieldChrome(entry: OpaquePointer) -> OpaquePointer {
     let chromeBox = QuillGTKTextInputChromeBox(stateWidget: entryWidget, chrome: chrome)
     installQuillTextInputDrawFunc(chrome: chrome, chromeBox: chromeBox)
     connectQuillTextInputRedrawSignals(stateWidget: entryWidget, chromeBox: chromeBox)
+    let focusEntry = {
+        quillTextFieldGrabEditableFocus(entryWidget)
+    }
+    installQuillTextInputFocusGesture(on: overlay, focus: focusEntry)
+    installQuillTextInputFocusGesture(on: entryWidget, focus: focusEntry)
 
     return OpaquePointer(overlay)
 }
@@ -53,6 +57,12 @@ public func setupQuillTextEditorChrome(scrolledWindow: OpaquePointer, textView: 
     let chromeBox = QuillGTKTextInputChromeBox(stateWidget: textViewWidget, chrome: chrome)
     installQuillTextInputDrawFunc(chrome: chrome, chromeBox: chromeBox)
     connectQuillTextInputRedrawSignals(stateWidget: textViewWidget, chromeBox: chromeBox)
+    let focusTextView = {
+        quillTextFieldForceFocus(textViewWidget)
+    }
+    installQuillTextInputFocusGesture(on: overlay, focus: focusTextView)
+    installQuillTextInputFocusGesture(on: scrolledWidget, focus: focusTextView)
+    installQuillTextInputFocusGesture(on: textViewWidget, focus: focusTextView)
 
     return OpaquePointer(overlay)
 }
@@ -81,6 +91,14 @@ private final class QuillGTKTextInputChromeBox {
 
     func queueDraw() {
         gtk_widget_queue_draw(chrome)
+    }
+}
+
+private final class QuillGTKTextInputFocusBox {
+    let closure: () -> Void
+
+    init(_ closure: @escaping () -> Void) {
+        self.closure = closure
     }
 }
 
@@ -337,6 +355,45 @@ private func connectQuillTextInputNotifySignal(
         },
         GConnectFlags(rawValue: 0)
     )
+}
+
+private func installQuillTextInputFocusGesture(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    focus: @escaping () -> Void
+) {
+    let gesture = gtk_gesture_click_new()!
+    let focusBox = Unmanaged.passRetained(QuillGTKTextInputFocusBox(focus)).toOpaque()
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: Double, _: Double, userData: gpointer?) in
+            guard let userData else { return }
+            Unmanaged<QuillGTKTextInputFocusBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        focusBox,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<QuillGTKTextInputFocusBox>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(widget, gesture)
+}
+
+private func quillTextFieldGrabEditableFocus(_ entry: UnsafeMutablePointer<GtkWidget>) {
+    quillTextFieldForceFocus(entry)
+    if let delegate = gtk_editable_get_delegate(OpaquePointer(entry)) {
+        quillTextFieldForceFocus(quillTextFieldGTKWidgetPointer(delegate))
+    } else {
+        quillTextFieldForceFocus(entry)
+    }
+}
+
+private func quillTextFieldForceFocus(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_can_focus(widget, 1)
+    gtk_widget_set_focusable(widget, 1)
+    _ = gtk_swift_root_grab_focus(widget)
 }
 
 private func quillTextFieldGTKWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {

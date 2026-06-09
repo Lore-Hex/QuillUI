@@ -146,6 +146,7 @@ private func gtkTextInputFocusDescriptorContent(
 public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil
 public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
 public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil
+public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
 
 // MARK: - GTK rendering protocol
 
@@ -4621,7 +4622,7 @@ extension Toggle: GTKRenderable {
     }
 
     private func gtkCreateCheckButtonWidget() -> OpaquePointer {
-        let check = label.isEmpty
+        let check = label.isEmpty || quill_gtk_toggle_paint_hook != nil
             ? gtk_check_button_new()!
             : gtk_check_button_new_with_label(label)!
         let checkPtr = checkButtonPointer(check)
@@ -4651,6 +4652,14 @@ extension Toggle: GTKRenderable {
         )
 
         gtkApplyEnabledState(to: check)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(check),
+            isOn.wrappedValue,
+            false,
+            label
+        ) {
+            return paintedToggle
+        }
         return opaqueFromWidget(check)
     }
 
@@ -4680,8 +4689,17 @@ extension Toggle: GTKRenderable {
             GConnectFlags(rawValue: 0)
         )
 
+        gtkApplyEnabledState(to: sw)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(sw),
+            isOn.wrappedValue,
+            true,
+            label
+        ) {
+            return paintedToggle
+        }
+
         if label.isEmpty {
-            gtkApplyEnabledState(to: sw)
             return opaqueFromWidget(sw)
         }
 
