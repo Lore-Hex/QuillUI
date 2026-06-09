@@ -431,7 +431,7 @@ refresh_capture_window_for_active_child_window() {
   local attempt
   local candidate_window
 
-  [[ "$capture_window" != "root" ]] || return 0
+  [[ "$capture_window" == "root" ]] || return 0
   [[ -n "$window_id" ]] || return 0
 
   for attempt in {1..20}; do
@@ -461,6 +461,8 @@ open_quill_chat_completions_panel() {
   local click_y
   local reset_x
   local reset_y
+  local reset_cancel_x
+  local reset_cancel_y
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     # Enchanted persists the selected sidebar utility across relaunches. In the
@@ -476,6 +478,13 @@ open_quill_chat_completions_panel() {
       reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}}"
       click_at "$reset_x" "$reset_y"
       sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.6}"
+      # Settings opens as a sheet in the Mac-reference build. Dismiss it before
+      # the Completions click, otherwise the click lands behind the modal and
+      # follow-up edit/delete interactions exercise the wrong screen.
+      reset_cancel_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}"
+      reset_cancel_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}"
+      click_at "$reset_cancel_x" "$reset_cancel_y"
+      sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6}"
     fi
   else
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
