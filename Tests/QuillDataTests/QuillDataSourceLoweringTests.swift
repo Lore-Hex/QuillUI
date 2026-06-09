@@ -1865,6 +1865,28 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        extension Picker: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                gtkCreateDropdownWidget()
+            }
+
+            private func gtkCreateDropdownWidget() -> OpaquePointer {
+                let cStrings: [UnsafeMutablePointer<CChar>?] = options.map { strdup($0) } + [nil]
+
+                let dropdown = cStrings.withUnsafeBufferPointer { buf -> UnsafeMutablePointer<GtkWidget> in
+                    buf.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buf.count) { ptr in
+                        gtk_drop_down_new_from_strings(ptr)!
+                    }
+                }
+
+                for cStr in cStrings { cStr.map { free($0) } }
+
+                let dropdownOp = OpaquePointer(dropdown)
+                gtk_drop_down_set_selected(dropdownOp, guint(selected))
+                return opaqueFromWidget(dropdown)
+            }
+        }
+
         final class LazyGridContext {
             init<Data, Content: View>(items: [Data], contentBuilder: @escaping (Data) -> Content,
                                       cellMinWidth: Int) {
@@ -2462,6 +2484,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.components(separatedBy: "gtkWithRootSheetOverlay(rootOverlay) {").count == 3)
         #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: panel)").count == 3)
         #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)").count == 3)
+        #expect(patchedRenderer.contains("let stringList = gtk_swift_string_list_new()!"))
+        #expect(patchedRenderer.contains("gtk_swift_drop_down_new(stringList)!"))
+        #expect(!patchedRenderer.contains("gtk_drop_down_new_from_strings(ptr)!"))
         #expect(patchedRenderer.contains("private func gtkAttachRootSheetOverlay("))
         #expect(patchedRenderer.contains("let previousTop = gtk_widget_get_last_child(overlayWidget)"))
         #expect(patchedRenderer.contains("gtk_widget_insert_after(panel, overlayWidget, previousTop)"))
@@ -2523,6 +2548,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE)"))
         #expect(patchedShim.contains("gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture)"))
         #expect(patchedShim.contains("gtk_swift_root_grab_focus(GtkWidget *widget)"))
+        #expect(patchedShim.contains("gtk_swift_drop_down_new(gpointer model)"))
+        #expect(patchedShim.contains("gtk_drop_down_new(G_LIST_MODEL(model), NULL)"))
         #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE)"))
         #expect(patchedShim.contains("gtk_swift_legacy_capture_controller(void)"))
         #expect(patchedShim.contains("gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller)"))

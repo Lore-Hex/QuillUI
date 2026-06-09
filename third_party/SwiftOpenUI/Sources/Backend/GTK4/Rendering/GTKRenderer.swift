@@ -5955,16 +5955,12 @@ extension Picker: GTKRenderable {
     }
 
     private func gtkCreateDropdownWidget() -> OpaquePointer {
-        let cStrings: [UnsafeMutablePointer<CChar>?] = options.map { strdup($0) } + [nil]
-
-        let dropdown = cStrings.withUnsafeBufferPointer { buf -> UnsafeMutablePointer<GtkWidget> in
-            buf.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buf.count) { ptr in
-                gtk_drop_down_new_from_strings(ptr)!
-            }
+        let stringList = gtk_swift_string_list_new()!
+        for option in options {
+            gtk_swift_string_list_append(stringList, option)
         }
 
-        for cStr in cStrings { cStr.map { free($0) } }
-
+        let dropdown = gtk_swift_drop_down_new(stringList)!
         let dropdownOp = OpaquePointer(dropdown)
         let clampedSelection = max(0, min(selected, options.count - 1))
         if !options.isEmpty {

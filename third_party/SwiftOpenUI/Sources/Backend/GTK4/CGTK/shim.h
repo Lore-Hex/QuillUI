@@ -593,6 +593,11 @@ gtk_swift_string_list_new(void) {
     return (gpointer)gtk_string_list_new(NULL);
 }
 
+static inline GtkWidget *
+gtk_swift_drop_down_new(gpointer model) {
+    return gtk_drop_down_new(G_LIST_MODEL(model), NULL);
+}
+
 static inline void
 gtk_swift_string_list_append(gpointer list, const char *string) {
     gtk_string_list_append(GTK_STRING_LIST(list), string);

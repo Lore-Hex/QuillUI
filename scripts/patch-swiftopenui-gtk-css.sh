@@ -375,6 +375,24 @@ gtk_swift_root_grab_focus(GtkWidget *widget) {
             text = text.replace(editable_marker, "\n" + root_focus_helper + editable_marker, 1)
         else:
             text = text.rstrip() + "\n\n" + root_focus_helper
+if "gtk_swift_drop_down_new(gpointer model)" not in text:
+    dropdown_helper = """static inline GtkWidget *
+gtk_swift_drop_down_new(gpointer model) {
+    return gtk_drop_down_new(G_LIST_MODEL(model), NULL);
+}
+"""
+    string_list_marker = """static inline gpointer
+gtk_swift_string_list_new(void) {
+    return (gpointer)gtk_string_list_new(NULL);
+}
+"""
+    if string_list_marker in text:
+        text = text.replace(string_list_marker, string_list_marker + "\n" + dropdown_helper, 1)
+    else:
+        include_marker = "#include <fontconfig/fontconfig.h>\n"
+        if include_marker not in text:
+            raise SystemExit("SwiftOpenUI GTK shim include block was not recognized")
+        text = text.replace(include_marker, include_marker + "\n" + dropdown_helper, 1)
 if "gtk_swift_legacy_capture_controller" not in text:
     capture_helper = """static inline void
 gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
@@ -5736,6 +5754,42 @@ if "quill_gtk_text_editor_paint_hook?" not in text[text_editor_index:text_editor
     if return_index == -1:
         raise SystemExit("SwiftOpenUI TextEditor return shape was not recognized")
     text = text[:return_index] + new_text_editor_return + text[return_index + len(old_text_editor_return):]
+
+picker_index = text.find("extension Picker: GTKRenderable")
+if picker_index == -1:
+    raise SystemExit("SwiftOpenUI Picker GTKRenderable extension was not recognized")
+picker_end = text.find("\nextension ", picker_index + 1)
+if picker_end == -1:
+    picker_end = len(text)
+picker_section = text[picker_index:picker_end]
+if "gtk_swift_drop_down_new(stringList)" not in picker_section:
+    old_dropdown_model = '''        let cStrings: [UnsafeMutablePointer<CChar>?] = options.map { strdup($0) } + [nil]
+
+        let dropdown = cStrings.withUnsafeBufferPointer { buf -> UnsafeMutablePointer<GtkWidget> in
+            buf.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buf.count) { ptr in
+                gtk_drop_down_new_from_strings(ptr)!
+            }
+        }
+
+        for cStr in cStrings { cStr.map { free($0) } }
+
+        let dropdownOp = OpaquePointer(dropdown)
+'''
+    new_dropdown_model = '''        let stringList = gtk_swift_string_list_new()!
+        for option in options {
+            gtk_swift_string_list_append(stringList, option)
+        }
+
+        let dropdown = gtk_swift_drop_down_new(stringList)!
+        let dropdownOp = OpaquePointer(dropdown)
+'''
+    if old_dropdown_model not in picker_section:
+        raise SystemExit("SwiftOpenUI Picker dropdown model shape was not recognized")
+    text = (
+        text[:picker_index]
+        + picker_section.replace(old_dropdown_model, new_dropdown_model, 1)
+        + text[picker_end:]
+    )
 
 toggle_index = text.find("extension Toggle: GTKRenderable")
 if toggle_index == -1:

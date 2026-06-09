@@ -3370,6 +3370,12 @@ struct SourceHygieneTests {
         #expect(patcher.contains("gtk_swift_widget_is_ancestor_or_self(picked, widget)"))
         #expect(shim.contains("GTK_PICK_NON_TARGETABLE"))
         #expect(shim.contains("gtk_swift_widget_is_ancestor_or_self(picked, widget)"))
+        #expect(renderer.contains("gtk_swift_drop_down_new(stringList)!"))
+        #expect(!renderer.contains("gtk_drop_down_new_from_strings(ptr)!"))
+        #expect(patcher.contains("gtk_swift_drop_down_new(stringList)!"))
+        #expect(patcher.contains("gtk_swift_drop_down_new(gpointer model)"))
+        #expect(shim.contains("gtk_swift_drop_down_new(gpointer model)"))
+        #expect(shim.contains("gtk_drop_down_new(G_LIST_MODEL(model), NULL)"))
     }
 
     @Test("GTK backend launches through a plain GTK main loop")
