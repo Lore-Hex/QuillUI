@@ -13,6 +13,7 @@
 //
 import Foundation
 import GRDB
+import LibSignalClient
 
 public func quillSmokeGRDBRoundtrip() throws -> String {
     var configuration = GRDB.Configuration()
@@ -90,4 +91,82 @@ public func quillSmokeAccountPersistRoundtrip(path: String) throws -> String {
         return "account persist roundtrip: scalars persisted but identity ECKeyPair did NOT reload from disk"
     }
     return "account persist roundtrip OK (on-disk, reopened): aci=\(aci) regId=\(regId) e164=\(e164) identityKeyPair reloaded + matches"
+}
+
+// LIVE-LINK persistence: write the full set of credentials a freshly-linked
+// secondary device must keep to reconnect WITHOUT re-scanning -- aci/pni/e164,
+// the assigned deviceId, both 14-bit registration IDs, the server auth token,
+// the profile key, and the ACI + PNI identity ECKeyPairs -- onto a real DB file
+// via the SAME KeyValueStore path the production account/identity managers use.
+// This is what makes the login DURABLE across restart. Uses the same no-DI
+// migrated-on-disk-DB pattern as the roundtrip above. The `IdentityKeyPair`
+// inputs are the REAL keys from the decrypted provisioning message; we convert
+// them to `ECKeyPair` (in-module here) for NSKeyedArchiver storage.
+//
+// Collections / keys mirror upstream: account scalars live in
+// `TSStorageUserAccountCollection`; the ACI identity key lives in
+// `TSStorageManagerIdentityKeyStoreCollection` and the PNI identity key in
+// `TSStorageManagerPNIIdentityKeyStoreCollection`, both under
+// `TSStorageManagerIdentityKeyStoreIdentityKey`.
+public func quillPersistLinkedAccount(
+    path: String,
+    aci: String,
+    pni: String,
+    e164: String,
+    deviceId: UInt32,
+    aciRegistrationId: UInt32,
+    pniRegistrationId: UInt32,
+    aciIdentityKeyPair: IdentityKeyPair,
+    pniIdentityKeyPair: IdentityKeyPair,
+    profileKey: Data,
+    serverAuthToken: String
+) throws -> String {
+    if !quillAppContextInstalled { SetCurrentAppContext(QuillSmokeAppContext(), isRunningTests: false); quillAppContextInstalled = true }
+    var c = GRDB.Configuration(); c.acceptsDoubleQuotedStringLiterals = true
+    let q = try DatabaseQueue(path: path, configuration: c)
+    try GRDBSchemaMigrator.quillRunSchemaMigrations(on: q)
+
+    let acct = KeyValueStore(collection: "TSStorageUserAccountCollection")
+    let aciIdentityStore = KeyValueStore(collection: "TSStorageManagerIdentityKeyStoreCollection")
+    let pniIdentityStore = KeyValueStore(collection: "TSStorageManagerPNIIdentityKeyStoreCollection")
+    let identityKeyName = "TSStorageManagerIdentityKeyStoreIdentityKey"
+
+    try q.write { db in
+        let tx = DBWriteTransaction(database: db)
+        defer { tx.finalizeTransaction() }
+        acct.setString(aci, key: "localAciUuid", transaction: tx)
+        acct.setString(pni, key: "localPni", transaction: tx)
+        acct.setString(e164, key: "localE164", transaction: tx)
+        acct.setUInt32(deviceId, key: "deviceId", transaction: tx)
+        acct.setUInt32(aciRegistrationId, key: "TSStorageLocalRegistrationId", transaction: tx)
+        acct.setUInt32(pniRegistrationId, key: "TSStoragePniRegistrationId", transaction: tx)
+        acct.setString(serverAuthToken, key: "TSStorageServerAuthToken", transaction: tx)
+        acct.setData(profileKey, key: "localProfileKey", transaction: tx)
+        aciIdentityStore.setObject(aciIdentityKeyPair.asECKeyPair, key: identityKeyName, transaction: tx)
+        pniIdentityStore.setObject(pniIdentityKeyPair.asECKeyPair, key: identityKeyName, transaction: tx)
+    }
+    return "linked account persisted (on-disk): aci=\(aci) pni=\(pni) deviceId=\(deviceId) e164=\(e164)"
+}
+
+// Read back the stored server username + auth token for an authenticated chat
+// reconnect, proving the persisted credentials survive a fresh open of the DB
+// file (the durability check). Server username for a linked device is
+// "<aci.serviceIdString>.<deviceId>" (upstream TSAccountManagerImpl.serverUsername).
+// Returns nil if no linked account is stored.
+public func quillLoadStoredAuth(path: String) throws -> (username: String, password: String)? {
+    var c = GRDB.Configuration(); c.acceptsDoubleQuotedStringLiterals = true
+    let q = try DatabaseQueue(path: path, configuration: c)
+    let acct = KeyValueStore(collection: "TSStorageUserAccountCollection")
+    var username: String?
+    var password: String?
+    try q.read { db in
+        let tx = DBReadTransaction(database: db)
+        guard let aci = acct.getString("localAciUuid", transaction: tx),
+              let token = acct.getString("TSStorageServerAuthToken", transaction: tx) else { return }
+        let deviceId = acct.getUInt32("deviceId", transaction: tx) ?? 1
+        username = "\(aci).\(deviceId)"
+        password = token
+    }
+    guard let username, let password else { return nil }
+    return (username, password)
 }

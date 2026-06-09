@@ -116,80 +116,102 @@ private func quillGenerateKyberLastResortPreKey(
     )
 }
 
+// MARK: - Real-input body builder (single source of truth)
+
+/// The fields the live link flow extracts from the decrypted
+/// `LinkingProvisioningMessage` (plus the registration IDs and the
+/// already-encrypted device name) and feeds into the verify-secondary body.
+/// The self-test below builds this with throwaway values; the live flow
+/// (QuillLiveLink.swift) builds it from REAL decrypted material.
+struct QuillLinkInputs {
+    /// The provisioning code from the decrypted message (-> "verificationCode").
+    let verificationCode: String
+    /// ACI identity keypair the primary handed us (signs the ACI prekeys + the
+    /// encrypted device name).
+    let aciIdentityKeyPair: IdentityKeyPair
+    /// PNI identity keypair (signs the PNI prekeys).
+    let pniIdentityKeyPair: IdentityKeyPair
+    /// 32-byte profile key (derives the unidentifiedAccessKey).
+    let profileKey: Aes256Key
+    /// 14-bit ACI/PNI registration IDs (we generate these locally).
+    let aciRegistrationId: UInt32
+    let pniRegistrationId: UInt32
+    /// Output of `OWSDeviceNames.encryptDeviceName(plaintext:identityKeyPair:)`
+    /// for our chosen device name, encrypted to the ACI identity. nil in the
+    /// self-test (which omits the device name).
+    let encryptedDeviceName: Data?
+}
+
+/// Assemble + JSON-encode the verify-secondary-device request body from real
+/// inputs, byte-shape-identical to upstream
+/// `ProvisioningRequestFactory.verifySecondaryDeviceRequest`. Generates fresh
+/// per-identity EC signed prekeys + Kyber last-resort prekeys signed by the
+/// provided ACI/PNI identity keypairs. NO network is touched here -- this only
+/// builds the body; the caller performs the PUT.
+func quillBuildVerifySecondaryDeviceBody(_ inputs: QuillLinkInputs) throws -> Data {
+    // A shared timestamp for all generated records (epoch millis).
+    let nowMillis = UInt64(Date().timeIntervalSince1970 * 1000)
+
+    // --- (1) Per-identity EC signed prekeys + Kyber last-resort, signed by
+    //         the REAL ACI/PNI identity keypairs -------------------------------
+    let aciSignedPreKeyRecord = try quillGenerateSignedPreKey(
+        signedBy: inputs.aciIdentityKeyPair, timestamp: nowMillis)
+    let pniSignedPreKeyRecord = try quillGenerateSignedPreKey(
+        signedBy: inputs.pniIdentityKeyPair, timestamp: nowMillis)
+    let aciKyberLastResortRecord = try quillGenerateKyberLastResortPreKey(
+        signedBy: inputs.aciIdentityKeyPair, timestamp: nowMillis)
+    let pniKyberLastResortRecord = try quillGenerateKyberLastResortPreKey(
+        signedBy: inputs.pniIdentityKeyPair, timestamp: nowMillis)
+
+    // --- (2) AccountAttributes -------------------------------------------------
+    // unidentifiedAccessKey = base64(SMKUDAccessKey(profileKey)); name =
+    // base64(encryptedDeviceName) when present (mirrors makeAccountAttributes,
+    // which base64-encodes the OWSDeviceNames output before assigning `.name`).
+    let udAccessKey = SMKUDAccessKey(profileKey: inputs.profileKey)
+    let accountAttributes = AccountAttributes(
+        isManualMessageFetchEnabled: true,
+        registrationId: inputs.aciRegistrationId,
+        pniRegistrationId: inputs.pniRegistrationId,
+        unidentifiedAccessKey: udAccessKey.keyData.base64EncodedString(),
+        unrestrictedUnidentifiedAccess: false,
+        reglockToken: nil,
+        registrationRecoveryPassword: nil,
+        encryptedDeviceName: inputs.encryptedDeviceName?.base64EncodedString(),
+        discoverableByPhoneNumber: .nobody,
+        capabilities: AccountAttributes.Capabilities(hasSVRBackups: false)
+    )
+
+    // --- (3) Assemble + JSON-encode the verify-secondary body ------------------
+    let body = QuillVerifySecondaryDeviceBody(
+        verificationCode: inputs.verificationCode,
+        accountAttributes: accountAttributes,
+        aciSignedPreKey: try QuillPreKeyParams(signedPreKey: aciSignedPreKeyRecord),
+        pniSignedPreKey: try QuillPreKeyParams(signedPreKey: pniSignedPreKeyRecord),
+        aciPqLastResortPreKey: try QuillPreKeyParams(pqPreKey: aciKyberLastResortRecord),
+        pniPqLastResortPreKey: try QuillPreKeyParams(pqPreKey: pniKyberLastResortRecord)
+    )
+    return try JSONEncoder().encode(body)
+}
+
 // MARK: - Self-test
 
-/// Fully self-contained: generates fresh ACI/PNI identities, per-identity EC
-/// signed prekeys + Kyber last-resort prekeys, random registration IDs, and a
-/// dummy provisioning code / profile key, then assembles + JSON-encodes the
-/// verify-secondary-device body. NO network is touched.
+/// Fully self-contained: generates fresh ACI/PNI identities, random
+/// registration IDs, and a dummy provisioning code / profile key, then builds +
+/// JSON-encodes the verify-secondary-device body via the SAME builder the live
+/// flow uses. NO network is touched.
 func quillBuildLinkRequestSelfTest() -> String {
     do {
-        // --- Identities the primary would have handed us -------------------
-        let aciIdentityKeyPair = IdentityKeyPair.generate()
-        let pniIdentityKeyPair = IdentityKeyPair.generate()
-
-        // --- Dummy fields (stand in for the decrypted provisioning msg) ----
-        let phoneNumber = "+15555550100"
-        _ = phoneNumber  // used for auth on the real request; body itself omits it
-        let provisioningCode = "dummy-provisioning-code"
-        let profileKey = Aes256Key()  // 32-byte random profile key
-
-        // A shared timestamp for all generated records (epoch millis).
-        let nowMillis = UInt64(Date().timeIntervalSince1970 * 1000)
-
-        // --- (1) Per-identity EC signed prekeys + Kyber last-resort --------
-        let aciSignedPreKeyRecord = try quillGenerateSignedPreKey(
-            signedBy: aciIdentityKeyPair, timestamp: nowMillis)
-        let pniSignedPreKeyRecord = try quillGenerateSignedPreKey(
-            signedBy: pniIdentityKeyPair, timestamp: nowMillis)
-        let aciKyberLastResortRecord = try quillGenerateKyberLastResortPreKey(
-            signedBy: aciIdentityKeyPair, timestamp: nowMillis)
-        let pniKyberLastResortRecord = try quillGenerateKyberLastResortPreKey(
-            signedBy: pniIdentityKeyPair, timestamp: nowMillis)
-
-        // --- (2) Request-param dicts (keyId/publicKey/signature) -----------
-        let aciSignedPreKey = try QuillPreKeyParams(signedPreKey: aciSignedPreKeyRecord)
-        let pniSignedPreKey = try QuillPreKeyParams(signedPreKey: pniSignedPreKeyRecord)
-        let aciPqLastResortPreKey = try QuillPreKeyParams(pqPreKey: aciKyberLastResortRecord)
-        let pniPqLastResortPreKey = try QuillPreKeyParams(pqPreKey: pniKyberLastResortRecord)
-
-        // --- (3) Two random registration IDs -------------------------------
-        // Signal registration IDs are 14-bit (1...0x3FFF); generate in-range.
-        let registrationId = UInt32.random(in: 1...0x3FFF)
-        let pniRegistrationId = UInt32.random(in: 1...0x3FFF)
-
-        // --- (4) AccountAttributes (fetchesMessages:true, name:nil) --------
-        // unidentifiedAccessKey is derived from the profile key on the real
-        // path; for the self-test we encode the base64 of the SMK UD access
-        // key so the field shape is exercised. name (encryptedDeviceName) is
-        // nil here -- it must be ACI-encrypted, which the self-test omits.
-        let udAccessKey = SMKUDAccessKey(profileKey: profileKey)
-        let accountAttributes = AccountAttributes(
-            isManualMessageFetchEnabled: true,
-            registrationId: registrationId,
-            pniRegistrationId: pniRegistrationId,
-            unidentifiedAccessKey: udAccessKey.keyData.base64EncodedString(),
-            unrestrictedUnidentifiedAccess: false,
-            reglockToken: nil,
-            registrationRecoveryPassword: nil,
-            encryptedDeviceName: nil,
-            discoverableByPhoneNumber: .nobody,
-            capabilities: AccountAttributes.Capabilities(hasSVRBackups: false)
+        let inputs = QuillLinkInputs(
+            verificationCode: "dummy-provisioning-code",
+            aciIdentityKeyPair: IdentityKeyPair.generate(),
+            pniIdentityKeyPair: IdentityKeyPair.generate(),
+            profileKey: Aes256Key(),
+            // Signal registration IDs are 14-bit (1...0x3FFF); generate in-range.
+            aciRegistrationId: UInt32.random(in: 1...0x3FFF),
+            pniRegistrationId: UInt32.random(in: 1...0x3FFF),
+            encryptedDeviceName: nil
         )
-
-        // --- (5) Assemble + JSON-encode the verify-secondary body ----------
-        let body = QuillVerifySecondaryDeviceBody(
-            verificationCode: provisioningCode,
-            accountAttributes: accountAttributes,
-            aciSignedPreKey: aciSignedPreKey,
-            pniSignedPreKey: pniSignedPreKey,
-            aciPqLastResortPreKey: aciPqLastResortPreKey,
-            pniPqLastResortPreKey: pniPqLastResortPreKey
-        )
-
-        let data = try JSONEncoder().encode(body)
-
-        // --- (6) Report ----------------------------------------------------
+        let data = try quillBuildVerifySecondaryDeviceBody(inputs)
         return "REGISTER: built link request: aci+pni signed prekeys + 2 kyber last-resort, regIds set, body=\(data.count) bytes"
     } catch {
         return "REGISTER build FAILED: \(error)"

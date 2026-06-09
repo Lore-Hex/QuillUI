@@ -1397,6 +1397,85 @@ it links SignalServiceKit + the 194MB `libsignal_ffi.a` Rust core and executes a
 libsignal primitive (`IdentityKeyPair.generate()` -> 69-byte keypair, exit 0). HONEST:
 in-memory crypto only -- no DB, no network, no account.
 
+### STEP D-I: the full secondary-device LINK chain runs on QuillOS
+Every piece a phone-scanned QR linking needs is verified RUNNING on Linux from the
+signal-smoke exe (each a merged PR; all crypto/parse/persist paths are real, exercised):
+- **NET** -- `Net(env:.production, userAgent:..., buildVariant:.beta)` +
+  `connectUnauthenticatedChat()` / `connectProvisioning()`. The ENTIRE TCP/TLS/WS/DNS
+  stack is Rust inside `libsignal_ffi.a` (BoringSSL+rustls+tokio); chat.signal.org's root
+  cert is pinned/compiled in, so it connects with NO system cert store and NO corelibs
+  URLSession. Hold the conn + listener alive past the spawning `Task` or the socket is
+  torn down when the local var deallocates.
+- **SCHEMA** -- `GRDBSchemaMigrator.quillRunSchemaMigrations(on:)` migrates **85 tables**
+  on a plain `DatabaseQueue` with NO DI bootstrap. Prereqs (each found by running + reading
+  the crash): `SetCurrentAppContext(QuillSmokeAppContext(), isRunningTests:false)`; a REAL
+  `clock_gettime_nsec_np` (MonotonicDate calls it on every DB tx and owsFails on 0); the
+  `OWSBundleIDPrefix` Info.plist owsFailDebug gated `#if !os(Linux)`. `runDataMigrations:false`
+  avoids DependenciesBridge/SSKEnvironment (only data migrations need them).
+- **QR / DECRYPT** -- the `sgnl://linkdevice?uuid=<addr>&pub_key=<b64(ephemeral.pub)>` URL
+  is built headless via URLComponents (DeviceProvisioningURL is app-layer). The envelope
+  delivered by `didReceiveEnvelope` is a *serialized ProvisionEnvelope proto* (not an
+  unwrapped body): `ProvisioningProtoProvisionEnvelope(serializedData:)` ->
+  `ProvisioningCipher(ourKeyPair:).decrypt(data: env.body, theirPublicKey: PublicKey(env.publicKey))`
+  -> `LinkingProvisioningMessage(plaintext:)`. Round-trip self-test (encrypt->wrap->decrypt)
+  passes.
+- **PERSIST** -- account state = rows in the `keyvalue(collection,key,value)` table created
+  by createInitialSchema, written via `KeyValueStore(collection:)` + a `q.write { db in let
+  tx = DBWriteTransaction(database: db); defer { tx.finalizeTransaction() }; ... }`. Identity
+  keys via `setObject`/`getObject(ofClass: ECKeyPair.self)`. Reopening the on-disk file
+  reloads everything incl. the archived ECKeyPair -> **login survives restart**. NSCoder fix
+  (below) was required for the ECKeyPair round-trip. Plain SQLite silently ignores Signal's
+  `PRAGMA key`, so the store works unencrypted with zero patching (encryption is a separate
+  decision; SQLCipher isn't in the build image). Account collection
+  `TSStorageUserAccountCollection`; ACI identity `TSStorageManagerIdentityKeyStoreCollection`,
+  PNI identity `TSStorageManagerPNIIdentityKeyStoreCollection`, both under key
+  `TSStorageManagerIdentityKeyStoreIdentityKey`.
+- **REGISTER** -- the verify-secondary body is byte-shape-identical to upstream
+  `ProvisioningRequestFactory.verifySecondaryDeviceRequest`: `{verificationCode,
+  accountAttributes(as dict), aciSignedPreKey, pniSignedPreKey, aciPqLastResortPreKey,
+  pniPqLastResortPreKey}`, PUT to `v1/devices/link`, auth = HTTP Basic (username=phoneNumber,
+  password=fresh 16-byte server auth token hex). Prekeys built from LibSignalClient PRIMITIVES
+  (must qualify `LibSignalClient.SignedPreKeyRecord`/`.KyberPreKeyRecord` -- ambiguous with
+  SSK's own); base64 via `base64EncodedStringWithoutPadding()` (NOT url-safe). Account
+  attributes reuse the real `AccountAttributes` Codable. Device name = base64 of
+  `OWSDeviceNames.encryptDeviceName(plaintext:identityKeyPair:)` encrypted to the **ACI**
+  identity. Self-test JSON-encodes a ~5.3KB body.
+- **LIVE FLOW (STEP 9, USER-GATED)** -- `quillRunLiveLinkFlow()` chains it all behind
+  `QUILL_SIGNAL_LINK=1` (default OFF): connectProvisioning -> print QR + "SCAN THIS WITH
+  YOUR PHONE" -> on envelope: decrypt -> build verify body from the REAL decrypted
+  aci/pni/identityKeyPairs/profileKey/provisioningCode -> PUT /v1/devices/link (URLSession
+  via FoundationNetworking; completion-handler API wrapped in withCheckedThrowingContinuation
+  -- robust on corelibs) -> persist creds to `/work/quill-signal-account.sqlite` (qs-work
+  volume, survives the container) -> `connectAuthenticatedChat(username:"<aci.serviceIdString>.<deviceId>",
+  password:serverAuthToken,...)`. Steps PUT/persist/authenticate run ONLY after a human
+  scans; with the flag off the exe instead runs `quillTryDurableReconnect()` (loads stored
+  creds + reconnects authenticated chat WITHOUT re-scan -- the "survives restart" proof),
+  inert when none exist. Verified build + run with flag OFF: all self-tests pass, live flow
+  compiled-dormant, reconnect inert, EXIT=0.
+
+**NSCoder NSData fix (the persistence-blocker):** swift-corelibs NSCoder's
+`encodeBytes(UInt8?,length:,forKey:)` uses an internal keyed-archive byte format that has
+NO `decodeBytes` reader; ECKeyPair's NSSecureCoding round-trip failed "Class ECKeyPair
+failed to decode". Fix: the `@_disfavoredOverload encodeBytes(UnsafeRawPointer?,...)` shim
+stores an **NSData** under the key (`encode(NSData(...), forKey:)`), and `decodeBytes` reads
+it back via `decodeObject(of: NSData.self, forKey:)`. NSData round-trips faithfully; this
+unblocked all ECKeyPair on-disk persistence.
+
+**Cross-check the wire body BEFORE the single-use scan.** A wrong verify-secondary body
+wastes the QR (single-use). Read upstream `ProvisioningRequestFactory` +
+`ProvisioningCoordinatorImpl` directly in the MAIN agent (repo-read in sandboxed subagents
+is unreliable -- the documented "don't waste a Workflow on repo-read" lesson) to confirm:
+exact body keys, PUT/Basic-auth, serverAuthToken = `Randomness.generateRandomBytes(16).hexadecimalString`,
+device name encrypted to the ACI identity, response `{pni, deviceId}`, authed-chat username
+`"<aci.serviceIdString>.<deviceId>"`.
+
+**Don't merge Track B onto another team's red main.** keep-main-green outranks
+landing-promptly: when main's latest completed CI run is failure for an UNRELATED reason
+(e.g. the swarm/loom GTK interaction-smoke or a QuillData regression -- signal PRs are
+signal-gated and NOT built in CI, so they're inert and can't have caused it), HOLD the
+admin-merge and keep building locally. Re-check main health each wake; merge only when its
+own run is green.
+
 ### Smallest-milestone exe recipe (3 essential parts)
 1. **libsignal testing-gate** -- LibSignalClient's "testing endpoints" (FakeChat / OTP /
    comparable-backup helpers) are gated `#if !os(iOS) || targetEnvironment(simulator)`

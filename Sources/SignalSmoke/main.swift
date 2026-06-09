@@ -115,3 +115,17 @@ do {
     let p = FileManager.default.temporaryDirectory.appendingPathComponent("quill-persist-\(UUID().uuidString).sqlite").path
     print("signal-smoke PERSIST: \(try quillSmokeAccountPersistRoundtrip(path: p))")
 } catch { print("signal-smoke PERSIST FAILED: \(error)") }
+
+// STEP 9/10: the FULL live secondary-device link flow -- strictly USER-GATED
+// behind QUILL_SIGNAL_LINK=1 (default OFF). With the flag set, it prints a QR
+// URL and WAITS for the user to scan with their phone, then registers + persists
+// + authenticates (steps that run ONLY after a real human scan). With the flag
+// unset (the default, and what CI / the self-test run exercises) it instead
+// attempts a DURABLE RECONNECT from any previously-persisted credentials --
+// which is inert when none exist, so the self-tests above are the whole run and
+// EXIT stays 0. Either way nothing initiates a link without a human scanning.
+if ProcessInfo.processInfo.environment["QUILL_SIGNAL_LINK"] == "1" {
+    quillRunLiveLinkFlow()
+} else {
+    quillTryDurableReconnect()
+}
