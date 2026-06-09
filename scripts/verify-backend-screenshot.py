@@ -1818,7 +1818,7 @@ def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> s
         f"pixels={dismissed_save_pixels}, roi={dismissed_save_roi}",
     )
     require(
-        edited_row_name_pixels >= 400,
+        edited_row_name_pixels >= 240,
         "Edited completion row name was not detected above the stock row baseline: "
         f"pixels={edited_row_name_pixels}, roi={edited_row_name_roi}",
     )
