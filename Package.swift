@@ -946,6 +946,7 @@ var targets: [Target] = [
     // resolves to it verbatim. Grows toward real RSWeb as Account needs more.
     .target(
         name: "RSWeb",
+        dependencies: ["QuillRSCoreShim"],
         path: "Sources/QuillRSWebShim",
         swiftSettings: appSwiftSettings
     ),
@@ -1302,9 +1303,84 @@ if nnwUpstreamPresent {
             path: ".upstream/netnewswire/Modules/NewsBlur/Sources/NewsBlur",
             swiftSettings: nnwSwiftSettings
         ),
+        .target(
+            name: "Account",
+            dependencies: [
+                "RSCore", "Articles", "RSParser", "RSDatabase", "RSDatabaseObjC",
+                "ArticlesDatabase", "SyncDatabase", "RSWeb", "Secrets", "ErrorLog",
+                "ActivityLog", "FeedFinder", "NewsBlur", "AuthenticationServices",
+                "QuillShims", "os"
+            ],
+            path: ".upstream/netnewswire/Modules/Account/Sources/Account",
+            exclude: ["CloudKit"],
+            swiftSettings: nnwSwiftSettings
+        ),
     ]
 }
 #endif
+
+if nnwUpstreamPresent {
+    targets += [
+        .target(
+            name: "NetNewsWireSharedCore",
+            dependencies: ["Articles", "QuillShims"],
+            path: ".upstream/netnewswire/Shared",
+            exclude: [
+                "AccountStats",
+                "AccountType+Helpers.swift",
+                "Activity/ActivityManager.swift",
+                "Article Extractor/ArticleExtractor.swift",
+                "Article Rendering/ArticleRenderer.swift",
+                "Article Rendering/WebViewConfiguration.swift",
+                "DefaultAccountNames.xcstrings",
+                "Localizable.xcstrings",
+                "Article Rendering/core.css",
+                "Article Rendering/main.js",
+                "Article Rendering/newsfoot.js",
+                "Article Rendering/stylesheet.css",
+                "Article Rendering/template.html",
+                "ArticleStyles/ArticleTheme+Notifications.swift",
+                "ArticleStyles/ArticleTheme.swift",
+                "ArticleStyles/ArticleThemeDownloader.swift",
+                "ArticleStyles/ArticleThemesManager.swift",
+                "Assets.swift",
+                "Commands",
+                "Dinosaurs",
+                "Exporters",
+                "ExtensionPoints",
+                "Extensions",
+                "IconImageCache.swift",
+                "Importers",
+                "Resources",
+                "Settings",
+                "ShareExtension",
+                "SmartFeeds",
+                "Timeline",
+                "Timer/AccountRefreshTimer.swift",
+                "Timer/ArticleStatusSyncTimer.swift",
+                "Tree",
+                "UserNotifications",
+                "Widget/WidgetDataDecoder.swift",
+                "Widget/WidgetDataEncoder.swift",
+            ],
+            sources: [
+                "Activity/ActivityType.swift",
+                "AppNotifications.swift",
+                "Article Extractor/ExtractedArticle.swift",
+                "Article Rendering/ArticleRenderingSpecialCases.swift",
+                "Article Rendering/ArticleTextSize.swift",
+                "ArticleSpecifier.swift",
+                "ArticleStyles/ArticleThemePlist.swift",
+                "HelpURL.swift",
+                "Timer/RefreshInterval.swift",
+                "UserInfoKey.swift",
+                "Widget/WidgetData.swift",
+                "Widget/WidgetDeepLinks.swift",
+            ],
+            swiftSettings: nnwSwiftSettings
+        )
+    ]
+}
 
 // NOTE: `QuillNetNewsWire` no longer comes from the upstream
 // NetNewsWireLogic block above. The Shared+Mac coupling
@@ -2784,6 +2860,17 @@ let packageTestTargets: [Target] = {
             swiftSettings: appSwiftSettings
         )
     ]
+
+    if nnwUpstreamPresent {
+        // Pins the first direct upstream NetNewsWire Shared/ compile slice.
+        // This grows toward the full Shared+Mac app target without routing
+        // through the local QuillNetNewsWireCore reader replacement.
+        tests.append(.testTarget(
+            name: "NetNewsWireSharedCoreTests",
+            dependencies: ["NetNewsWireSharedCore"],
+            swiftSettings: nnwSwiftSettings
+        ))
+    }
 
     #if os(Linux)
     // Exercises the Apple-framework compatibility modules that real

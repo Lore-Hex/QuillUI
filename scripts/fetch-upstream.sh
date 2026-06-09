@@ -1619,6 +1619,180 @@ open(path, "w").write(src)
 print("patched NetNewsWire ErrorLogDatabase.swift selector lowering")
 PY
     fi
+
+    local account_dir="$UPSTREAM_DIR/netnewswire/Modules/Account/Sources/Account"
+    if [[ ! -d "$account_dir" ]]; then
+        echo "==> netnewswire Account source not found; skipping Linux lowering"
+    elif [[ -f "$account_dir/CloudKitLinuxUnavailable.swift" ]] && grep -q "QuillUI Linux lowering: CloudKit is unavailable" "$account_dir/CloudKitLinuxUnavailable.swift"; then
+        echo "==> netnewswire Account already patched for Linux"
+    else
+        echo "==> patching netnewswire Account for Linux FoundationNetworking/selector/CloudKit lowering"
+        python3 - "$account_dir" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+account_dir = Path(sys.argv[1])
+
+for path in account_dir.rglob("*.swift"):
+    src = path.read_text()
+    if "import Foundation" in src and "import FoundationNetworking" not in src:
+        src = src.replace(
+            "import Foundation",
+            "import Foundation\n#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif",
+            1,
+        )
+    path.write_text(src)
+
+cloudkit = account_dir / "CloudKitLinuxUnavailable.swift"
+cloudkit.write_text(
+"""// QuillUI Linux lowering: CloudKit is unavailable on Linux.
+
+import Foundation
+import Articles
+import RSCore
+import RSWeb
+import Secrets
+
+public typealias CloudKitStatsProgressHandler = @MainActor @Sendable (CloudKitStats) -> Void
+
+public struct CloudKitStats: Sendable {
+    public static let empty = CloudKitStats(statusCount: 0, starredStatusCount: 0, unreadStatusCount: 0, readStatusCount: 0, staleStatusCount: 0, articleCount: 0, starredArticleCount: 0, unreadArticleCount: 0, readArticleCount: 0)
+
+    public let statusCount: Int
+    public let starredStatusCount: Int
+    public let unreadStatusCount: Int
+    public let readStatusCount: Int
+    public let staleStatusCount: Int
+    public let articleCount: Int
+    public let starredArticleCount: Int
+    public let unreadArticleCount: Int
+    public let readArticleCount: Int
+
+    public func cleanUpPlan(syncUnreadContent: Bool) -> CloudKitCleanUpPlan {
+        CloudKitCleanUpPlan(staleStatusCount: staleStatusCount, readContentCount: readArticleCount, unreadContentCount: syncUnreadContent ? 0 : unreadArticleCount)
+    }
+}
+
+public struct CloudKitCleanUpPlan: Sendable {
+    public let staleStatusCount: Int
+    public let readContentCount: Int
+    public let unreadContentCount: Int
+
+    public var totalCount: Int { readContentCount + unreadContentCount }
+    public var isEmpty: Bool { totalCount == 0 }
+}
+
+public enum CloudKitCleanUpPhase: Sendable {
+    case deletingStaleStatus
+    case deletingReadContent
+    case deletingUnreadContent
+    case completed
+}
+
+public struct CloudKitCleanUpProgress: Sendable {
+    public let phase: CloudKitCleanUpPhase
+    public let staleStatusDeleted: Int
+    public let readContentDeleted: Int
+    public let unreadContentDeleted: Int
+
+    public var totalDeleted: Int { readContentDeleted + unreadContentDeleted }
+}
+
+public enum CloudKitStatsError: LocalizedError {
+    case noiCloudAccount
+
+    public var errorDescription: String? {
+        NSLocalizedString("No iCloud account found.", comment: "CloudKit stats error")
+    }
+}
+
+@MainActor final class CloudKitAccountDelegate: AccountDelegate {
+    let behaviors: AccountBehaviors = []
+    let isOPMLImportInProgress = false
+    var progressInfo = ProgressInfo()
+    let server: String? = nil
+    var credentials: Credentials?
+    var accountSettings: AccountSettings?
+
+    init(dataFolder: String) {}
+
+    func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable: Any]) async {}
+    func refreshAll(for account: Account) async throws { throw AccountError.invalidParameter }
+    func syncArticleStatus(for account: Account) async throws -> Bool { false }
+    func sendArticleStatus(for account: Account) async throws { throw AccountError.invalidParameter }
+    func refreshArticleStatus(for account: Account) async throws { throw AccountError.invalidParameter }
+    func importOPML(for account: Account, opmlFile: URL) async throws { throw AccountError.invalidParameter }
+    func createFolder(for account: Account, name: String) async throws -> Folder { throw AccountError.invalidParameter }
+    func renameFolder(for account: Account, with folder: Folder, to name: String) async throws { throw AccountError.invalidParameter }
+    func removeFolder(for account: Account, with folder: Folder) async throws { throw AccountError.invalidParameter }
+    func createFeed(for account: Account, url: String, name: String?, container: Container, validateFeed: Bool) async throws -> Feed { throw AccountError.invalidParameter }
+    func renameFeed(for account: Account, with feed: Feed, to name: String) async throws { throw AccountError.invalidParameter }
+    func addFeed(account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func removeFeed(account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func moveFeed(account: Account, feed: Feed, sourceContainer: Container, destinationContainer: Container) async throws { throw AccountError.invalidParameter }
+    func restoreFeed(for account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func restoreFolder(for account: Account, folder: Folder) async throws { throw AccountError.invalidParameter }
+    func markArticles(for account: Account, articles: Set<Article>, statusKey: ArticleStatus.Key, flag: Bool) async throws { throw AccountError.invalidParameter }
+    func accountDidInitialize(_ account: Account) {}
+    func accountWillBeDeleted(_ account: Account) {}
+    static func validateCredentials(transport: Transport, credentials: Credentials, endpoint: URL?) async throws -> Credentials? { nil }
+    func vacuumDatabases(for account: Account) async {}
+    func suspendNetwork() {}
+    func resume(account: Account) {}
+
+    func fetchCloudKitStats(progress: @escaping CloudKitStatsProgressHandler) async throws -> CloudKitStats {
+        throw AccountError.invalidParameter
+    }
+
+    func cleanUpCloudKit(dryRun: Bool, progress: @escaping @MainActor @Sendable (CloudKitCleanUpProgress) -> Void) async throws {
+        throw AccountError.invalidParameter
+    }
+}
+"""
+)
+
+observer_pattern = re.compile(
+    r"(?P<indent>[ \t]*)NotificationCenter\.default\.addObserver\(self, selector: #selector\((?P<method>[A-Za-z0-9_]+)\(_:\)\), name: (?P<name>[^,]+), object: (?P<object>[^\n]+?)\)"
+)
+
+for path in account_dir.rglob("*.swift"):
+    if path.name == "CloudKitLinuxUnavailable.swift" or "/CloudKit/" in path.as_posix():
+        continue
+    src = path.read_text()
+
+    def replace_observer(match):
+        indent = match.group("indent")
+        method = match.group("method")
+        name = match.group("name")
+        obj = match.group("object")
+        original = match.group(0).strip()
+        return (
+            f"{indent}#if os(Linux)\n"
+            f"{indent}// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.\n"
+            f"{indent}_ = NotificationCenter.default.addObserver(forName: {name}, object: {obj}, queue: nil) {{ [weak self] notification in\n"
+            f"{indent}\tTask {{ @MainActor in\n"
+            f"{indent}\t\tself?.{method}(notification)\n"
+            f"{indent}\t}}\n"
+            f"{indent}}}\n"
+            f"{indent}#else\n"
+            f"{indent}{original}\n"
+            f"{indent}#endif"
+        )
+
+    src = observer_pattern.sub(replace_observer, src)
+    src = src.replace("@objc nonisolated final class", "nonisolated final class")
+    src = src.replace("@objc nonisolated func", "#if !os(Linux)\n\t@objc\n#endif\n\tnonisolated func")
+    src = src.replace("@objc func", "#if !os(Linux)\n\t@objc\n#endif\n\tfunc")
+    src = src.replace(
+        "saveQueue.add(self, #selector(saveToDiskIfNeeded))",
+        "saveQueue.add { [weak self] in\n\t\t\t\t\tself?.saveToDiskIfNeeded()\n\t\t\t\t}",
+    )
+    path.write_text(src)
+
+print("patched NetNewsWire Account Linux lowering")
+PY
+    fi
 }
 
 want=("$@")

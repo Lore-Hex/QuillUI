@@ -152,6 +152,22 @@ public final class FMDatabase: @unchecked Sendable {
         return resultSet.next()
     }
 
+    public func columnExists(_ columnName: String, inTableWithName tableName: String) -> Bool {
+        let sql = "pragma table_info(\(Self.quotedIdentifier(tableName)));"
+        guard let resultSet = executeQuery(sql, withArgumentsIn: []) else {
+            return false
+        }
+        defer {
+            resultSet.close()
+        }
+        while resultSet.next() {
+            if resultSet.string(forColumn: "name")?.caseInsensitiveCompare(columnName) == .orderedSame {
+                return true
+            }
+        }
+        return false
+    }
+
     public func lastErrorMessage() -> String {
         guard let handle, let message = sqlite3_errmsg(handle) else {
             return "not an error"
@@ -300,6 +316,10 @@ public final class FMDatabase: @unchecked Sendable {
 
     private static func placeholders(_ count: Int) -> String {
         Array(repeating: "?", count: count).joined(separator: ", ")
+    }
+
+    private static func quotedIdentifier(_ identifier: String) -> String {
+        "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 
     private func prepare(_ sql: String) -> OpaquePointer? {

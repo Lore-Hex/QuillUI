@@ -7,21 +7,15 @@
 // (NetNewsWire iOS, Ice Cubes iOS, etc.) can compile under Mac Catalyst /
 // macOS-as-iOS-host configurations.
 //
-// AuthenticationServices stubs live here too — they're small and the
-// flow (presentation context, callback) belongs alongside UI plumbing.
+// AuthenticationServices stubs live in the `AuthenticationServices` shim target
+// so AS* names do not collide with UIKit-shaped aliases.
 
 import QuillFoundation
 
 #if os(iOS)
-// On iOS the real UIKit / AuthenticationServices / WebKit are auto-imported.
-import AuthenticationServices
-public typealias ASPresentationAnchor = UIWindow
+// On iOS the real UIKit / WebKit are auto-imported.
 #elseif os(macOS)
 import AppKit
-import AuthenticationServices
-public typealias ASPresentationAnchor = NSWindow
-#else
-public typealias ASPresentationAnchor = NSObject
 #endif
 
 #if !os(iOS)
@@ -631,22 +625,3 @@ public extension UIColor {
 public class NonIntrinsicImageView: UIImageView {}
 
 #endif // !os(iOS)
-
-// MARK: - AuthenticationServices stubs (Linux)
-
-#if !os(iOS) && !os(macOS)
-public protocol ASWebAuthenticationPresentationContextProviding: AnyObject {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor
-}
-
-public class ASWebAuthenticationSession: NSObject {
-    public init(url: URL, callbackURLScheme: String?, completionHandler: @escaping (URL?, Error?) -> Void) {}
-    public var presentationContextProvider: ASWebAuthenticationPresentationContextProviding?
-    public func start() -> Bool { true }
-    public func cancel() {}
-}
-
-public enum ASWebAuthenticationSessionError: Error {
-    case canceledLogin
-}
-#endif
