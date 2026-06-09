@@ -1346,12 +1346,22 @@ def validate_quill_chat_mac_reference_settings_panel(
         typed_summary += f", ping_text_pixels={ping_text_pixels}"
 
     if require_selected_default_model:
+        if panel_kind == "root-overlay":
+            model_x0 = panel_segment.start + 100
+            model_x1 = min(panel_segment.end, panel_segment.start + 460)
+            model_y0 = panel_y + 280
+            model_y1 = panel_y + 370
+        else:
+            model_x0 = panel_segment.start + 310
+            model_x1 = min(panel_segment.end, panel_segment.start + 640)
+            model_y0 = panel_y + 272
+            model_y1 = panel_y + 346
         model_text_pixels = dark_pixel_count(
             image,
-            panel_segment.start + 310,
-            panel_y + 272,
-            min(panel_segment.end, panel_segment.start + 640),
-            panel_y + 346,
+            model_x0,
+            model_y0,
+            model_x1,
+            model_y1,
         )
         require(
             model_text_pixels >= 200,
