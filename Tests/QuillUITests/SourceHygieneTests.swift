@@ -3256,7 +3256,7 @@ struct SourceHygieneTests {
             #expect(source.contains("GTKButtonRootEventContext"))
             #expect(source.contains("gtkInstallButtonRootEventFallback"))
             #expect(source.contains("gtkScheduleButtonAction(context.box, source: \"root-legacy\")"))
-            #expect(source.contains("gtk_swift_widget_contains_root_point"))
+            #expect(source.contains("gtk_swift_widget_is_topmost_at_root_point"))
             #expect(source.contains("gtk_widget_add_css_class(button, \"flat\")"))
             #expect(source.contains("background: transparent;"))
             #expect(source.contains("background-color: transparent;"))
@@ -3268,6 +3268,22 @@ struct SourceHygieneTests {
             #expect(source.contains("text-shadow: none;"))
             #expect(!source.contains("border: none; background: none; padding: 0;"))
         }
+        #expect(patcher.contains("gtk_swift_widget_contains_root_point"))
+    }
+
+    @Test("GTK backend launches through a plain GTK main loop")
+    func gtkBackendLaunchesThroughPlainGTKMainLoop() throws {
+        let backend = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        for source in [backend, patcher] {
+            #expect(source.contains("gtk_init_check()"))
+            #expect(source.contains("factory(nil)"))
+            #expect(source.contains("g_main_loop_new(nil, 0)"))
+            #expect(source.contains("g_main_loop_run(loop)"))
+            #expect(!source.contains("g_application_run(applicationPointer(appPtr), 0, nil)"))
+        }
+        #expect(!backend.contains("g_application_run("))
     }
 
     @Test("GTK patcher preserves fixed-frame and list viewport sizing contracts")

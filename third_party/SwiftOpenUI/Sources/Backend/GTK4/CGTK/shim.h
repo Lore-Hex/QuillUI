@@ -264,6 +264,26 @@ gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double 
         && local_y < gtk_widget_get_height(widget);
 }
 
+static inline gboolean
+gtk_swift_widget_is_ancestor_or_self(GtkWidget *ancestor, GtkWidget *widget) {
+    while (widget != NULL) {
+        if (widget == ancestor) {
+            return TRUE;
+        }
+        widget = gtk_widget_get_parent(widget);
+    }
+    return FALSE;
+}
+
+static inline gboolean
+gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (!gtk_swift_widget_contains_root_point(root, widget, x, y)) {
+        return FALSE;
+    }
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    return picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked);
+}
+
 // --- Scale (Slider) type check ---
 
 static inline gboolean

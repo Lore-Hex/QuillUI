@@ -402,6 +402,26 @@ gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double 
         && local_x < gtk_widget_get_width(widget)
         && local_y < gtk_widget_get_height(widget);
 }
+
+static inline gboolean
+gtk_swift_widget_is_ancestor_or_self(GtkWidget *ancestor, GtkWidget *widget) {
+    while (widget != NULL) {
+        if (widget == ancestor) {
+            return TRUE;
+        }
+        widget = gtk_widget_get_parent(widget);
+    }
+    return FALSE;
+}
+
+static inline gboolean
+gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (!gtk_swift_widget_contains_root_point(root, widget, x, y)) {
+        return FALSE;
+    }
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    return picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked);
+}
 """
     if capture_helper not in text:
         raise SystemExit("SwiftOpenUI GTK capture gesture shim shape was not recognized")
@@ -1295,7 +1315,7 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
             var x: Double = 0
             var y: Double = 0
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
-            guard gtk_swift_widget_contains_root_point(root, context.widget, x, y) != 0 else { return 0 }
+            guard gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0 else { return 0 }
             gtkScheduleButtonAction(context.box, source: "root-legacy")
             return 0
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
@@ -4093,6 +4113,62 @@ if "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL" not in text:
         text = text.replace(legacy_menubar_label, new_menubar_label, 1)
     else:
         text = text.replace(old_menubar_label, new_menubar_label, 1)
+text = text.replace(
+    "/// Protocol for scenes that can render onto a GtkApplication.",
+    "/// Protocol for scenes that can render onto GTK top-level windows.",
+    1,
+)
+text = text.replace("func gtkRender(app: OpaquePointer)", "func gtkRender(app: OpaquePointer?)")
+text = text.replace("func gtkCreateWindow(app: OpaquePointer)", "func gtkCreateWindow(app: OpaquePointer?)")
+application_window = '''        let window = gtk_application_window_new(gtkApplicationPointer(app))!
+'''
+plain_window = '''        let window: UnsafeMutablePointer<GtkWidget>
+        if let app {
+            window = gtk_application_window_new(gtkApplicationPointer(app))!
+        } else {
+            window = gtk_window_new()!
+        }
+'''
+if application_window in text:
+    text = text.replace(application_window, plain_window)
+plain_lifecycle = '''        let factory: (OpaquePointer?) -> Void = { appPtr in
+            // Inject openWindow action into the environment so views
+            // can programmatically open Window scenes by id.
+            var env = getCurrentEnvironment()
+            env.openWindow = OpenWindowAction { id in
+                GTK4WindowRegistry.shared.open(id: id)
+            }
+            setCurrentEnvironment(env)
+
+            let instance = A()
+            gtkRenderScene(instance.body, app: appPtr)
+        }
+
+        // Pump Foundation RunLoop sources (Timer, etc.) periodically.
+        // GTK4's GMainLoop blocks the thread, so Foundation
+        // timers (e.g. Timer.scheduledTimer) never fire unless we
+        // explicitly spin RunLoop.main from a GLib timeout source.
+        g_timeout_add(5, { _ -> gboolean in
+            let limit = Date(timeIntervalSinceNow: 0.001)
+            _ = RunLoop.main.run(mode: .default, before: limit)
+            return 1 // G_SOURCE_CONTINUE
+        }, nil)
+
+        if gtk_init_check() == 0 {
+            return
+        }
+        factory(nil)
+
+        let loop = g_main_loop_new(nil, 0)
+        g_main_loop_run(loop)
+        g_main_loop_unref(loop)
+'''
+start = text.find("        let gtkApp = gtk_application_new")
+if start != -1:
+    end = text.find("\n    }\n}\n\n/// GTK4 rendering for Window", start)
+    if end == -1:
+        raise SystemExit("SwiftOpenUI GTK application lifecycle shape was not recognized")
+    text = text[:start] + plain_lifecycle + text[end:]
 path.write_text(text)
 PY
 

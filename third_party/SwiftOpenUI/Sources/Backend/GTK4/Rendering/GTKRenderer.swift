@@ -690,8 +690,8 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
             var x: Double = 0
             var y: Double = 0
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
-            let contains = gtk_swift_widget_contains_root_point(root, context.widget, x, y) != 0
-            guard contains else { return 0 }
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+            guard isTopmost else { return 0 }
             gtkScheduleButtonAction(context.box, source: "root-legacy")
             return 0
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
