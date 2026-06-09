@@ -95,6 +95,51 @@ quillui_find_visible_window_for_pid() {
   DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null | head -n 1 || true
 }
 
+# Poll until the app's main window is visible AND plausibly window-sized.
+#
+# The one-shot `find_visible_window_for_pid` raced slow app startup on loaded
+# CI runners: if the window had not mapped yet when the single lookup ran, the
+# caller silently fell back to screen-sized geometry and clicked coordinates
+# derived from the WRONG surface (e.g. x = screen_width - 84 on a 1180px screen
+# while the app is 640px wide) — the interaction was lost while the later
+# screenshot still captured a healthy-looking app. This is what broke the
+# `Backend launch target interaction smokes` step on main after app startup
+# got marginally slower (GTK QuillPaint chrome hooks), while remaining
+# unreproducible on fast local machines.
+#
+# The minimum-dimension gate also skips GTK's 1x1 offscreen IM/popup surfaces
+# that `--onlyvisible` can report for the same pid.
+quillui_wait_for_app_window_for_pid() {
+  local display_id="$1"
+  local pid="$2"
+  local timeout_seconds="${3:-20}"
+  local min_dimension="${4:-120}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local candidate width height key value
+
+  while true; do
+    while read -r candidate; do
+      [[ -n "$candidate" ]] || continue
+      width=0
+      height=0
+      while IFS='=' read -r key value; do
+        case "$key" in
+          WIDTH) width="$value" ;;
+          HEIGHT) height="$value" ;;
+        esac
+      done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+      if (( width >= min_dimension && height >= min_dimension )); then
+        echo "$candidate"
+        return 0
+      fi
+    done < <(DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null)
+    if (( SECONDS >= deadline )); then
+      return 1
+    fi
+    sleep 0.5
+  done
+}
+
 quillui_find_visible_window_for_pid_except() {
   local display_id="$1"
   local pid="$2"

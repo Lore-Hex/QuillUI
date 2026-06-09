@@ -232,9 +232,15 @@ window_x=0
 window_y=0
 window_width="$screen_width"
 window_height="$screen_height"
-window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
+# Poll (rather than one-shot lookup) so a slow app startup on a loaded CI
+# runner cannot silently fall through to screen-sized click geometry — that
+# race made interaction clicks miss the app entirely while the later capture
+# still photographed a healthy window (main-blocking failure, 2026-06-09).
+window_id="$(quillui_wait_for_app_window_for_pid "$DISPLAY_ID" "$app_pid" "${QUILLUI_BACKEND_WINDOW_WAIT_SECONDS:-20}")" || window_id=""
 if [[ -z "$window_id" ]]; then
   window_id="$(quillui_find_visible_window_by_name "$DISPLAY_ID" ".*")"
+  echo "interaction-check: app window for pid $app_pid never became visible+sized;" \
+    "falling back to name search -> '${window_id:-none}'" >&2
 fi
 if [[ -n "$window_id" ]]; then
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -255,6 +261,17 @@ if [[ -n "$window_id" ]]; then
       HEIGHT) window_height="$value" ;;
     esac
   done < <(DISPLAY="$DISPLAY_ID" xdotool getwindowgeometry --shell "$window_id")
+fi
+# Diagnostics: make the click-target window explicit in the step log so a
+# wrong-window/stale-geometry interaction failure is self-explaining from CI
+# output alone (this race previously produced healthy-looking screenshots
+# with mysteriously lost clicks).
+echo "interaction-check: window='${window_id:-none}'" \
+  "geometry=${window_x},${window_y} ${window_width}x${window_height}" \
+  "capture='$capture_window' mode='$INTERACTION_MODE'" >&2
+if [[ -n "$window_id" && "${QUILLUI_BACKEND_PRECLICK_SCREENSHOT:-1}" == "1" ]]; then
+  DISPLAY="$DISPLAY_ID" import -window "$capture_window" \
+    "${SCREENSHOT_PATH%.png}-preclick.png" 2>/dev/null || true
 fi
 
 click_at() {
