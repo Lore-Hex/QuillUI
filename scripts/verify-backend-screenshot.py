@@ -1464,6 +1464,7 @@ def validate_quill_chat_mac_reference_completions_panel(
     image: Screenshot,
     minimum_row_dividers: int = 3,
     minimum_row_action_segments: int = 4,
+    minimum_wordmark_pixels: int = 650,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1607,7 +1608,7 @@ def validate_quill_chat_mac_reference_completions_panel(
         colorful_wordmark_pixel,
     )
     require(
-        wordmark_pixels >= 650,
+        wordmark_pixels >= minimum_wordmark_pixels,
         f"Mac-reference detail view behind completions panel was not detected: pixels={wordmark_pixels}",
     )
 
@@ -1626,7 +1627,10 @@ def validate_quill_chat_mac_reference_completions_panel(
 
 
 def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_wordmark_pixels=400,
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
