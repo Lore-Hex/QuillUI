@@ -54,3 +54,6 @@ Task {
     quillNetSem.signal()
 }
 quillNetSem.wait()
+
+do { print("signal-smoke MIGRATE: \(try quillSmokeSchemaMigration())") }
+catch { print("signal-smoke MIGRATE FAILED: \(error)") }
