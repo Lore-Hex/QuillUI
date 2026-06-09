@@ -680,7 +680,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIGtk",
-        dependencies: ["QuillUI", "CCairo"],
+        dependencies: ["QuillUI", "QuillPaintCairo", "CCairo"],
         path: "Sources/QuillUIGtk",
         swiftSettings: appSwiftSettings
     ),
@@ -2706,7 +2706,7 @@ let packageTestTargets: [Target] = {
         // itself on the test-target scorecard.
         .testTarget(
             name: "QuillUITests",
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillInteractionSmokeSupport"],
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"],
             swiftSettings: appSwiftSettings
         )
     ]

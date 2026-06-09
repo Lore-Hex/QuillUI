@@ -3148,11 +3148,13 @@ struct SourceHygieneTests {
         #expect(controls.contains("Quill is unreachable. Plug Quill back in if it's unplugged"))
         #expect(controls.contains("QuillSheetStatusBanner(\n            message: message"))
 
-        let gtkPaintContext = try packageSource("Sources/QuillUIGtk/CairoPaintContext.swift")
-        #expect(gtkPaintContext.contains("import CCairo"))
-        #expect(gtkPaintContext.contains("cairo_select_font_face("))
-        #expect(gtkPaintContext.contains("cairo_show_text(cr, string)"))
-        #expect(!gtkPaintContext.contains("drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {\n        // TODO"))
+        let cairoPaintContext = try packageSource("Sources/QuillPaintCairo/CairoPaintContext.swift")
+        #expect(cairoPaintContext.contains("import CCairo"))
+        #expect(cairoPaintContext.contains("public convenience init(cr: OpaquePointer)"))
+        #expect(cairoPaintContext.contains("MacFontResolution.resolve(font)"))
+        #expect(cairoPaintContext.contains("cairo_select_font_face("))
+        #expect(cairoPaintContext.contains("cairo_show_text(pointer, string)"))
+        #expect(!cairoPaintContext.contains("drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {\n        // TODO"))
 
         guard let buttonStart = controls.range(of: "public struct QuillSidebarNavigationButton: View"),
               let nextSection = controls.range(of: "public struct QuillStatusBanner: View") else {
