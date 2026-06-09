@@ -2382,6 +2382,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedShim.contains("gtk_swift_widget_root_widget(GtkWidget *widget)"))
         #expect(patchedShim.contains("gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double x, double y)"))
         #expect(patchedShim.contains("gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, double x, double y)"))
+        #expect(patchedShim.contains("GTK_PICK_NON_TARGETABLE"))
         #expect(patchedShim.contains("gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY"))
         #expect(patchedShim.contains("gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE)"))
 

@@ -460,8 +460,8 @@ open_quill_chat_completions_panel() {
   local click_y
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    click_x="${QUILLUI_BACKEND_CLICK_X:-90}"
-    click_y="${QUILLUI_BACKEND_CLICK_Y:-1244}"
+    click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
+    click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 1244))}"
   else
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
@@ -477,8 +477,8 @@ open_quill_chat_new_completion_sheet() {
   open_quill_chat_completions_panel
   sleep "${QUILLUI_BACKEND_NEW_COMPLETION_PRE_CLICK_SLEEP:-1.5}"
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-1518}"
-    new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-498}"
+    new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}"
+    new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 498))}"
   else
     new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + window_width - 210))}"
     new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 270))}"
@@ -496,10 +496,10 @@ save_quill_chat_new_completion() {
 
   open_quill_chat_new_completion_sheet
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-720}"
-    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-468}"
-    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-1450}"
-    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-408}"
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 408))}"
   else
     name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + window_width / 2))}"
     name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 260))}"
@@ -527,12 +527,12 @@ edit_quill_chat_existing_completion() {
 
   open_quill_chat_completions_panel
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-1510}"
-    edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-536}"
-    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-720}"
-    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-468}"
-    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-1450}"
-    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-408}"
+    edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + 1510))}"
+    edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 536))}"
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 408))}"
   else
     edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + window_width - 170))}"
     edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 320))}"
@@ -561,8 +561,8 @@ delete_quill_chat_completion() {
 
   open_quill_chat_completions_panel
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-1545}"
-    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-536}"
+    delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1545))}"
+    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 536))}"
   else
     delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + window_width - 125))}"
     delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 320))}"

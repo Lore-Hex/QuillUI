@@ -3237,6 +3237,7 @@ struct SourceHygieneTests {
     @Test("GTK plain button style suppresses platform chrome")
     func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let shim = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h")
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
 
         for source in [renderer, patcher] {
@@ -3269,6 +3270,8 @@ struct SourceHygieneTests {
             #expect(!source.contains("border: none; background: none; padding: 0;"))
         }
         #expect(patcher.contains("gtk_swift_widget_contains_root_point"))
+        #expect(patcher.contains("GTK_PICK_NON_TARGETABLE"))
+        #expect(shim.contains("GTK_PICK_NON_TARGETABLE"))
     }
 
     @Test("GTK backend launches through a plain GTK main loop")
