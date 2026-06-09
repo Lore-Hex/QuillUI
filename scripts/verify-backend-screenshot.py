@@ -1347,10 +1347,10 @@ def validate_quill_chat_mac_reference_settings_panel(
 
     if require_selected_default_model:
         if panel_kind == "root-overlay":
-            model_x0 = panel_segment.start + 100
-            model_x1 = min(panel_segment.end, panel_segment.start + 460)
-            model_y0 = panel_y + 280
-            model_y1 = panel_y + 370
+            model_x0 = panel_segment.start + 20
+            model_x1 = min(panel_segment.end, panel_segment.start + 520)
+            model_y0 = panel_y + 340
+            model_y1 = panel_y + 430
         else:
             model_x0 = panel_segment.start + 310
             model_x1 = min(panel_segment.end, panel_segment.start + 640)
