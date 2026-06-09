@@ -3228,6 +3228,12 @@ struct SourceHygieneTests {
             #expect(source.contains("quill_gtk_toggle_paint_hook?("))
         }
 
+        #expect(renderer.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
+        #expect(renderer.contains("gtk_editable_get_text(OpaquePointer(editable))"))
+        #expect(patcher.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
+        #expect(patcher.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
+        #expect(patcher.contains("gtk_editable_get_text(OpaquePointer(editable))"))
+
         #expect(gtkBackend.contains("installQuillButtonHook()"))
         #expect(gtkBackend.contains("installQuillTextFieldHook()"))
         #expect(gtkBackend.contains("installQuillToggleHook()"))

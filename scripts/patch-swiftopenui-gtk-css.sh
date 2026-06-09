@@ -5445,6 +5445,42 @@ text_field_end = text.find("\nextension ", text_field_index + 1)
 if text_field_end == -1:
     text_field_end = len(text)
 
+if (
+    '"changed"' not in text[text_field_index:text_field_end]
+    and "gtk_entry_buffer_get_text" in text[text_field_index:text_field_end]
+):
+    style_comment = "        // Apply text field style from environment\n"
+    style_index = text.find(style_comment, text_field_index, text_field_end)
+    if style_index == -1:
+        raise SystemExit("SwiftOpenUI TextField changed-signal insert shape was not recognized")
+    text_field_changed_signal = '''        // GtkEntry also emits "changed" as a GtkEditable; keep this in sync with
+        // SecureField so user edits always reach SwiftUI bindings before dismissal.
+        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            if binding.wrappedValue != newText {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(entry),
+            "changed",
+            unsafeBitCast({ (editable: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<StringClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                let cStr = gtk_editable_get_text(OpaquePointer(editable))!
+                box.closure(String(cString: cStr))
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            changedBox,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<StringClosureBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+
+'''
+    text = text[:style_index] + text_field_changed_signal + text[style_index:]
+    text_field_end = text.find("\nextension ", text_field_index + 1)
+    if text_field_end == -1:
+        text_field_end = len(text)
+
 if "var useQuillPaintTextField = false" not in text[text_field_index:text_field_end]:
     style_var = "        let textFieldStyleType = getCurrentEnvironment().textFieldStyle\n"
     style_index = text.find(style_var, text_field_index)

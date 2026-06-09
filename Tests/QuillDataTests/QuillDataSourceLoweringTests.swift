@@ -2271,6 +2271,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader scroll-view marker install shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader fallback scroll return shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI OnAppear lifecycle rebuild shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
+        #expect(patchScript.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
+        #expect(patchScript.contains("gtk_editable_get_text(OpaquePointer(editable))"))
 
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
