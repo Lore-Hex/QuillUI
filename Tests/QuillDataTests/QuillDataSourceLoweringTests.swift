@@ -66,25 +66,17 @@ struct QuillDataSourceLoweringTests {
         #expect(lowererWrapper.contains("--package-path \"$TOOL_PACKAGE_DIR\""))
         #expect(!lowererWrapper.contains("--package-path \"$ROOT_DIR\""))
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, source.path, output.path]
-        process.environment = ProcessInfo.processInfo.environment.merging(
-            [
+        let result = try runScript(
+            script,
+            arguments: [source.path, output.path],
+            environment: [
                 "QUILLUI_SOURCE_LOWER_PACKAGE_DIR": directory
                     .appendingPathComponent("ToolPackage", isDirectory: true).path,
                 "QUILLUI_SOURCE_LOWER_SCRATCH_PATH": directory
                     .appendingPathComponent("ToolScratch", isDirectory: true).path,
             ]
-        ) { _, new in new }
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        process.waitUntilExit()
-
-        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        #expect(process.terminationStatus == 0, Comment(rawValue: log))
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
 
         let lowered = try String(
             contentsOf: output.appendingPathComponent("ConversationSD.swift"),
@@ -116,22 +108,15 @@ struct QuillDataSourceLoweringTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let script = root.appendingPathComponent("scripts/generate-hashable-identity-shims.sh")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [
-            script.path,
-            output.path,
-            "LanguageModelSD:name:id:String",
-            "ConversationSD:id"
-        ]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        process.waitUntilExit()
-
-        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        #expect(process.terminationStatus == 0, Comment(rawValue: log))
+        let result = try runScript(
+            script,
+            arguments: [
+                output.path,
+                "LanguageModelSD:name:id:String",
+                "ConversationSD:id"
+            ]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
 
         let generated = try String(contentsOf: output, encoding: .utf8)
         #expect(generated.contains("extension LanguageModelSD: Hashable"))
@@ -176,25 +161,18 @@ struct QuillDataSourceLoweringTests {
 
         let script = root.appendingPathComponent("scripts/ensure-swift-imports.sh")
         for _ in 0..<2 {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/bash")
-            process.arguments = [
-                script.path,
-                source.path,
-                "AppKit",
-                "NeedsImport.swift",
-                "AlreadyImported.swift",
-                "NoImport.swift",
-                "MissingOptional.swift"
-            ]
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-            try process.run()
-            process.waitUntilExit()
-
-            let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            #expect(process.terminationStatus == 0, Comment(rawValue: log))
+            let result = try runScript(
+                script,
+                arguments: [
+                    source.path,
+                    "AppKit",
+                    "NeedsImport.swift",
+                    "AlreadyImported.swift",
+                    "NoImport.swift",
+                    "MissingOptional.swift"
+                ]
+            )
+            #expect(result.status == 0, Comment(rawValue: result.output))
         }
 
         let lowered = try String(contentsOf: needsImport, encoding: .utf8)
@@ -234,17 +212,8 @@ struct QuillDataSourceLoweringTests {
         try "stale\n".write(to: staleOutput, atomically: true, encoding: .utf8)
 
         let script = root.appendingPathComponent("scripts/install-profile-templates.sh")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, templates.path, output.path]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        process.waitUntilExit()
-
-        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        #expect(process.terminationStatus == 0, Comment(rawValue: log))
+        let result = try runScript(script, arguments: [templates.path, output.path])
+        #expect(result.status == 0, Comment(rawValue: result.output))
 
         let copiedNested = try String(contentsOf: staleOutput, encoding: .utf8)
         #expect(copiedNested == "struct Replacement {}\n")
@@ -298,17 +267,8 @@ struct QuillDataSourceLoweringTests {
         )
 
         let script = root.appendingPathComponent("scripts/apply-profile-rewrites.sh")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, source.path, rules.path]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        process.waitUntilExit()
-
-        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        #expect(process.terminationStatus == 0, Comment(rawValue: log))
+        let result = try runScript(script, arguments: [source.path, rules.path])
+        #expect(result.status == 0, Comment(rawValue: result.output))
 
         let rewrittenNested = try String(contentsOf: nestedSource, encoding: .utf8)
         #expect(rewrittenNested.contains("Example.shared.run()"))
@@ -348,17 +308,8 @@ struct QuillDataSourceLoweringTests {
         """.write(to: list, atomically: true, encoding: .utf8)
 
         let script = root.appendingPathComponent("scripts/truncate-profile-files.sh")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path, source.path, list.path]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        process.waitUntilExit()
-
-        let log = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        #expect(process.terminationStatus == 0, Comment(rawValue: log))
+        let result = try runScript(script, arguments: [source.path, list.path])
+        #expect(result.status == 0, Comment(rawValue: result.output))
 
         #expect(try String(contentsOf: existing, encoding: .utf8).isEmpty)
         #expect(try String(contentsOf: nested, encoding: .utf8).isEmpty)
@@ -692,6 +643,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("click_at \"$scroll_x\" \"$scroll_y\""))
         #expect(interactionScript.contains("if [[ \"$INTERACTION_MODE\" == \"long-transcript-auto-selection\" ]]"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP:-9"))
+        #expect(interactionScript.contains("QuillMessageList retries Linux ScrollViewReader bottom-scroll at 5s"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers End"))
         #expect(interactionScript.contains("scroll_clicks=\"${QUILLUI_BACKEND_SCROLL_CLICKS:-4800}\""))
         #expect(interactionScript.contains("scroll_click_delay=\"${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-5}\""))
@@ -2581,13 +2534,18 @@ struct QuillDataSourceLoweringTests {
             process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
         }
         let pipe = Pipe()
+        let output = ProcessOutputCollector()
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            output.append(handle.availableData)
+        }
         process.standardOutput = pipe
         process.standardError = pipe
         try process.run()
         process.waitUntilExit()
+        pipe.fileHandleForReading.readabilityHandler = nil
+        output.append(pipe.fileHandleForReading.readDataToEndOfFile())
 
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        return (process.terminationStatus, output)
+        return (process.terminationStatus, output.string())
     }
 
     private func packageRoot() throws -> URL {
@@ -2606,4 +2564,23 @@ struct QuillDataSourceLoweringTests {
 
 private enum SourceLoweringTestError: Error {
     case packageRootNotFound
+}
+
+private final class ProcessOutputCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func append(_ newData: Data) {
+        guard !newData.isEmpty else { return }
+        lock.lock()
+        data.append(newData)
+        lock.unlock()
+    }
+
+    func string() -> String {
+        lock.lock()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        lock.unlock()
+        return output
+    }
 }

@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stddef.h>
 
 typedef signed long CFIndex;
 typedef uint32_t CFOptionFlags;

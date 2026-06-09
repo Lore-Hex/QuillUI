@@ -1,7 +1,7 @@
 import Foundation
 import QuillPaint
 
-#if canImport(CoreGraphics) && canImport(ImageIO) && canImport(UniformTypeIdentifiers)
+#if canImport(CoreGraphics) && canImport(ImageIO) && canImport(UniformTypeIdentifiers) && !os(Linux)
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers

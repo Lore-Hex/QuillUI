@@ -506,6 +506,10 @@ public enum QuillResourceLookup {
     }
 }
 
+public enum QuillImageCompositingOperation: Sendable {
+    case copy
+}
+
 open class RSImage: NSObject, @unchecked Sendable {
     public override init() {}
     public init?(data: Data) {
@@ -563,6 +567,38 @@ open class RSImage: NSObject, @unchecked Sendable {
     public static func scaledImageData(_ data: Data, maxPixelSize: Int) -> Data? { data }
     public static var smartBadgeTemplateName: String { "" }
     public func maskWithColor(color: Any) -> RSImage? { self }
+
+    public func lockFocus() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage.lockFocus",
+            severity: .warning,
+            message: "NSImage.lockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
+        )
+    }
+
+    public func unlockFocus() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage.unlockFocus",
+            severity: .warning,
+            message: "NSImage.unlockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
+        )
+    }
+
+    public func draw(
+        in destinationRect: CGRect,
+        from sourceRect: CGRect,
+        operation: QuillImageCompositingOperation,
+        fraction: Double
+    ) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage.draw",
+            severity: .warning,
+            message: "NSImage.draw is currently a no-op on Linux; image compositing needs a real bitmap backend."
+        )
+    }
 
     // MARK: UIImage source-compat surface (Linux placeholders)
     public convenience init?(contentsOfFile path: String) {

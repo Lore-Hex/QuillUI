@@ -1,7 +1,7 @@
 import Foundation
 import QuillPaint
 
-#if canImport(CoreGraphics)
+#if canImport(CoreGraphics) && !os(Linux)
 import CoreGraphics
 
 #if canImport(CoreText)
