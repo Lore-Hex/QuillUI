@@ -42,6 +42,17 @@ extension TSMessage {
     public func updateWithViewOnceCompleteAndRemoveRenderableContent(with transaction: DBWriteTransaction) {
         _ = transaction
     }
+
+    // Records when a disappearing message's expiration timer started. Declared in
+    // TSMessage.h, implemented in the excluded TSMessage.m, so its Swift caller
+    // (DisappearingMessagesExpirationJob) can't resolve it on Linux. The real `.m`
+    // does an SDS update (set `expireStartedAt`, recompute `expiresAt`). Deferred
+    // (inert) on Linux until the SDS mutation path is ported; expiration timing
+    // runs only with a real linked account (paused).
+    public func updateWithExpireStarted(at expireStartedAt: UInt64, transaction: DBWriteTransaction) {
+        _ = expireStartedAt
+        _ = transaction
+    }
 }
 
 extension TSIncomingMessage {
