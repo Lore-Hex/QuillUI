@@ -103,7 +103,8 @@ Required click-through flows:
 1. Rerun visual and interaction smoke against the packaged release artifact,
    not only the generated build directory.
 2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
-3. Wire QuillPaint into the controls that currently fail visual parity.
+3. Extend the QuillPaint GTK hook beyond buttons and rounded text fields into
+   the controls that currently fail visual parity.
 4. Turn the first Flatpak manifest scaffold into a full Flatpak build by
    closing the remaining GTK/system dependency bundle.
 5. Only then resume NetNewsWire as the next public app.

@@ -144,6 +144,7 @@ private func gtkTextInputFocusDescriptorContent(
 }
 
 public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil
+public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
 
 // MARK: - GTK rendering protocol
 
@@ -417,11 +418,12 @@ extension TextField: GTKRenderable, GTKDescribable {
 
         // Apply text field style from environment
         let textFieldStyleType = getCurrentEnvironment().textFieldStyle
+        var useQuillPaintTextField = false
         switch textFieldStyleType {
         case .plain:
             applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
         case .automatic, .roundedBorder:
-            break // default GTK entry styling
+            useQuillPaintTextField = true
         }
 
         // Wire onSubmit: GtkEntry fires "activate" on Enter key
@@ -445,6 +447,13 @@ extension TextField: GTKRenderable, GTKDescribable {
         }
 
         gtkApplyEnabledState(to: entry)
+        if useQuillPaintTextField,
+           let paintedEntry = quill_gtk_text_field_paint_hook?(
+               OpaquePointer(entry),
+               textFieldStyleType == .roundedBorder
+           ) {
+            return paintedEntry
+        }
         return opaqueFromWidget(entry)
     }
 }

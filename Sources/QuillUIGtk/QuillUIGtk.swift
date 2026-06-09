@@ -12,6 +12,7 @@ public enum QuillGtkBackend: QuillBackend {
     public static func initialize() {
         #if os(Linux)
         installQuillButtonHook()
+        installQuillTextFieldHook()
         #endif
     }
 }

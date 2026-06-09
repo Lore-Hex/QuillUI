@@ -3182,6 +3182,34 @@ struct SourceHygieneTests {
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
     }
 
+    @Test("GTK QuillPaint hooks cover button and text field chrome")
+    func gtkQuillPaintHooksCoverButtonAndTextFieldChrome() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+        let smallPatcher = try packageSource("scripts/patch-swiftopenui-quillpaint.py")
+        let gtkBackend = try packageSource("Sources/QuillUIGtk/QuillUIGtk.swift")
+        let gtkButton = try packageSource("Sources/QuillUIGtk/QuillGtkButton.swift")
+        let gtkTextField = try packageSource("Sources/QuillUIGtk/QuillGtkTextField.swift")
+
+        for source in [renderer, patcher, smallPatcher] {
+            #expect(source.contains("quill_gtk_button_paint_hook"))
+            #expect(source.contains("quill_gtk_text_field_paint_hook"))
+            #expect(source.contains("var useQuillPaintTextField = false"))
+            #expect(source.contains("textFieldStyleType == .roundedBorder"))
+        }
+
+        #expect(gtkBackend.contains("installQuillButtonHook()"))
+        #expect(gtkBackend.contains("installQuillTextFieldHook()"))
+        #expect(gtkButton.contains("setupQuillButtonChrome(button: button, label: label, isDefault: isDefault)"))
+        #expect(gtkButton.contains("MacButtonPaint()"))
+        #expect(gtkTextField.contains("setupQuillTextFieldChrome(entry: entry)"))
+        #expect(gtkTextField.contains("MacTextFieldPaint()"))
+        #expect(gtkTextField.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), entryWidget)"))
+        #expect(gtkTextField.contains("gtk_swift_drawing_area_set_draw_func("))
+        #expect(gtkTextField.contains("CairoPaintContext(cr: cr)"))
+        #expect(gtkTextField.contains("entry.quill-paint-text-field"))
+    }
+
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
     func enchantedSFSymbolsMapToMaterialGlyphs() throws {
         let symbols = try packageSource(

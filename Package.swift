@@ -2533,7 +2533,7 @@ let packageTestTargets: [Target] = {
         ),
         .testTarget(
             name: "QuillPaintCairoTests",
-            dependencies: ["QuillPaintCairo", "QuillPaint"],
+            dependencies: ["QuillPaintCairo", "QuillPaintCoreGraphics", "QuillPaint"],
             swiftSettings: appSwiftSettings
         ),
         // QuillKitTests covers QuillClipboard / diagnostics /

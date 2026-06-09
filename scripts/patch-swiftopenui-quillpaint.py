@@ -6,12 +6,22 @@ def patch_renderer(renderer_path: str) -> None:
     path = Path(renderer_path)
     text = path.read_text()
 
-    hook_decl = "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n\n"
+    hook_decl = (
+        "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
+        "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n\n"
+    )
     if "quill_gtk_button_paint_hook" not in text:
         marker = "// MARK: - GTK rendering protocol\n"
         if marker not in text:
             raise SystemExit("SwiftOpenUI GTK rendering protocol marker was not recognized")
         text = text.replace(marker, hook_decl + marker, 1)
+    elif "quill_gtk_text_field_paint_hook" not in text:
+        text = text.replace(
+            "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n",
+            "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
+            "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n",
+            1,
+        )
 
     if "case .quillPaintMacDefault:" not in text:
         extension_index = text.find("extension Button: GTKRenderable")
@@ -113,6 +123,52 @@ def patch_renderer(renderer_path: str) -> None:
 
 '''
         text = text[:start] + replacement + text[end:]
+
+    if "var useQuillPaintTextField = false" not in text:
+        old_text_field_style = '''        // Apply text field style from environment
+        let textFieldStyleType = getCurrentEnvironment().textFieldStyle
+        switch textFieldStyleType {
+        case .plain:
+            applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
+        case .automatic, .roundedBorder:
+            break // default GTK entry styling
+        }
+'''
+        new_text_field_style = '''        // Apply text field style from environment
+        let textFieldStyleType = getCurrentEnvironment().textFieldStyle
+        var useQuillPaintTextField = false
+        switch textFieldStyleType {
+        case .plain:
+            applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
+        case .automatic, .roundedBorder:
+            useQuillPaintTextField = true
+        }
+'''
+        if old_text_field_style not in text:
+            raise SystemExit("SwiftOpenUI TextField style shape was not recognized")
+        text = text.replace(old_text_field_style, new_text_field_style, 1)
+
+    if "quill_gtk_text_field_paint_hook?" not in text:
+        old_text_field_return = '''        gtkApplyEnabledState(to: entry)
+        return opaqueFromWidget(entry)
+'''
+        new_text_field_return = '''        gtkApplyEnabledState(to: entry)
+        if useQuillPaintTextField,
+           let paintedEntry = quill_gtk_text_field_paint_hook?(
+               OpaquePointer(entry),
+               textFieldStyleType == .roundedBorder
+           ) {
+            return paintedEntry
+        }
+        return opaqueFromWidget(entry)
+'''
+        text_field_index = text.find("extension TextField: GTKRenderable")
+        if text_field_index == -1:
+            raise SystemExit("SwiftOpenUI TextField GTKRenderable extension was not recognized")
+        return_index = text.find(old_text_field_return, text_field_index)
+        if return_index == -1:
+            raise SystemExit("SwiftOpenUI TextField return shape was not recognized")
+        text = text[:return_index] + new_text_field_return + text[return_index + len(old_text_field_return):]
 
     path.write_text(text)
 
