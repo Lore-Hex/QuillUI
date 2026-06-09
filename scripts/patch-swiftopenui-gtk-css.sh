@@ -2629,10 +2629,8 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             } else {
                 env.dismiss = DismissAction {
                     gtkScheduleSheetDismissal {
-                        gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)
                         binding.wrappedValue = false
                         lifecycleScope.runDisappearActions()
-                        userOnDismiss?()
                     }
                 }
             }
@@ -2716,15 +2714,8 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             } else {
                 env.dismiss = DismissAction {
                     gtkScheduleSheetDismissal {
-                        gtkRemoveSheetRootOverlay(
-                            anchor: anchor,
-                            overlayKey: overlayKey,
-                            activeKey: activeKey,
-                            itemIDKey: itemIDKey
-                        )
                         itemBinding.wrappedValue = nil
                         lifecycleScope.runDisappearActions()
-                        userOnDismiss?()
                     }
                 }
             }
