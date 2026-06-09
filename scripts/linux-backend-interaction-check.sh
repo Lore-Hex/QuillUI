@@ -902,12 +902,11 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         click_at "$settings_x" "$settings_y"
         sleep 1
         click_at "$model_x" "$model_y"
-        sleep 0.5
-        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Down Return
-        sleep "${QUILLUI_BACKEND_MODEL_PICKER_SELECTION_SLEEP:-0.35}"
-        # GTK picker popovers can remain mapped just long enough to cover the
-        # Mac-reference detail landmarks. Dismiss/refocus before the final root
-        # capture so the screenshot verifies the settled settings panel state.
+        sleep "${QUILLUI_BACKEND_MODEL_PICKER_OPEN_SLEEP:-0.5}"
+        # Keep this smoke scoped to the settings picker itself. Sending Down /
+        # Return here is unreliable under GTK focus restoration and can be
+        # handled by the sidebar, selecting a transcript behind the panel and
+        # hiding the home wordmark that the Mac-reference verifier checks.
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape
         sleep "${QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP:-$post_click_sleep}"
         refocus_capture_window
