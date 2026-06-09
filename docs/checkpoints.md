@@ -3366,3 +3366,21 @@ hygiene, and CI follow-up.
 AppKit-local `xdg-open` launcher, gives GTK/Qt/native backends one injectable
 URL-open hook, and keeps headless Linux from spawning desktop launchers unless
 an explicit compatibility backend is installed.
+
+## Checkpoint 204: NetNewsWire Article Cache
+
+Status: implemented locally; guarded by focused NetNewsWire tests, adjacent
+FeedFinder/RSWeb tests, executable build, source hygiene, and CI follow-up.
+
+`QuillNetNewsWireCore` now has a QuillData-backed `RSSArticleCacheStore` for
+fetched per-feed timelines. The reader loads the persisted feed list first,
+then read/starred state, then article timelines, so it can show cached articles
+immediately while `URLSession` refreshes in the background. Feed rows now use
+cache-backed unread badges for inactive subscriptions, Smart Feeds aggregate
+across cached feeds, and Starred smart-feed selections can render inactive-feed
+article details. Live parsed item IDs are feed-scoped to avoid cross-feed
+read/star collisions.
+
+Remaining NetNewsWire work is still substantial: upstream
+`ArticlesDatabase`/`RSDatabase` compatibility, account/sync modules, richer
+article rendering/WebKitGTK escape hatches, and AppKit/WebKit UI migration.

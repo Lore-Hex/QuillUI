@@ -71,16 +71,17 @@ Vendored/Quill-backed slices now in the main package:
 - `RSWeb`: upstream-shaped web helper module with HTTP value types plus a source-compatible one-shot `Downloader`.
 - `QuillFeedFinder`: upstream feed discovery flow, now including async `find(url:)`, activity logging, direct-feed detection, HTML-head discovery, candidate verification, and the special-case Rachel-by-the-Bay feed path.
 - `QuillAccount`: early account leaf types (`AccountBehavior`, identifiers, unread-count provider, errors).
+- `QuillNetNewsWireCore`: self-contained three-pane reader shell that now persists subscriptions, read/starred article state, and fetched per-feed article timelines through QuillData. Cached timelines restore before network refresh and feed/sidebar smart counts aggregate across the selected feed plus inactive cached feeds.
 
 Current Linux evidence:
 
 - `QuillFeedFinder` focused tests pass on macOS and Linux.
 - `QuillRSParser` focused tests pass on macOS and Linux.
 - `QuillActivityLog` focused tests pass on macOS and Linux.
-- `QuillNetNewsWireCore` focused tests pass on macOS.
+- `QuillNetNewsWireCore` focused tests pass on macOS, including article-cache restore and cache-backed smart-feed behavior.
 - `quill-netnewswire` builds in Linux Docker with both `QUILLUI_LINUX_BACKEND=gtk` and `QUILLUI_LINUX_BACKEND=qt`.
 
-What this does not mean: the full upstream Mac app does not compile unchanged on Linux yet. The remaining hard work is the database/account/sync stack plus the AppKit/WebKit UI shell. The right next step is `ArticlesDatabase`/`RSDatabase` compatibility through a QuillData-backed adapter, not more shell UI.
+What this does not mean: the full upstream Mac app does not compile unchanged on Linux yet. The remaining hard work is the database/account/sync stack plus the AppKit/WebKit UI shell. The first local article-cache slice is in place; the right next step is `ArticlesDatabase`/`RSDatabase` compatibility through a schema-native QuillData adapter and then account/sync module pressure, not more shell-only UI.
 
 The first Linux experiment below checked `RSParser`, `Articles`, and `RSTree`.
 
@@ -121,7 +122,7 @@ Treat NetNewsWire as a staged product port, not a source-drop compile:
    - article reader/detail view
 4. **Local-first data:** support direct RSS/Atom/JSON Feed subscriptions and OPML import/export before sync accounts.
 5. **Article rendering:** begin with sanitized HTML/plain text rendered through QuillUI; later evaluate GTK/WebKitGTK or an Adwaita/libadwaita web view escape hatch.
-6. **QuillData pressure:** use the article/feed/account cache as a serious benchmark for QuillData's schema-native SQLite direction.
+6. **QuillData pressure:** use the article/feed/account cache as a serious benchmark for QuillData's schema-native SQLite direction. The first JSON-backed QuillData article cache is working; move hot paths to columnar/schema-native records as the upstream database adapter comes online.
 
 ## Compatibility Strategy For AppKit-Heavy Code
 

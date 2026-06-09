@@ -183,6 +183,62 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
+    @Test("article cache restores the selected feed and inactive feed unread badges")
+    func modelRestoresArticleCacheAndInactiveBadges() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nnw-article-cache-\(UUID().uuidString).sqlite")
+        let store = try RSSArticleCacheStore(url: url)
+        try store.replaceAll(feedID: "feed-a", items: [
+            RSSItem(id: "a1", title: "A1", link: nil, pubDate: nil, descriptionHTML: "<p>A one</p>"),
+            RSSItem(id: "a2", title: "A2", link: nil, pubDate: nil, descriptionHTML: "<p>A two</p>")
+        ])
+        try store.replaceAll(feedID: "feed-b", items: [
+            RSSItem(id: "b1", title: "B1", link: nil, pubDate: nil, descriptionHTML: "<p>B one</p>"),
+            RSSItem(id: "b2", title: "B2", link: nil, pubDate: nil, descriptionHTML: "<p>B two</p>")
+        ])
+
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(id: "feed-a", title: "A", url: "not a url"),
+            Feed(id: "feed-b", title: "B", url: "not a url")
+        ])
+        model.enableArticlePersistence(store: try RSSArticleCacheStore(url: url))
+
+        #expect(model.items.map(\.id) == ["a1", "a2"])
+        #expect(model.selectedID == "a1")
+        #expect(model.isRead(id: "a1"))
+        #expect(model.unreadCount(forFeed: "feed-a") == 1)
+        #expect(model.unreadCount(forFeed: "feed-b") == 2)
+        #expect(model.count(for: .allUnread) == 3)
+    }
+
+    @MainActor
+    @Test("cached smart feeds can select and render articles from inactive feeds")
+    func smartFeedsUseCachedInactiveFeeds() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nnw-smart-cache-\(UUID().uuidString).sqlite")
+        let store = try RSSArticleCacheStore(url: url)
+        try store.replaceAll(feedID: "feed-a", items: [
+            RSSItem(id: "a1", title: "A1", link: nil, pubDate: nil, descriptionHTML: "<p>A one</p>")
+        ])
+        try store.replaceAll(feedID: "feed-b", items: [
+            RSSItem(id: "b1", title: "B1", link: nil, pubDate: nil, descriptionHTML: "<p>B one</p>")
+        ])
+
+        let model = RSSReaderModel(subscribedFeeds: [
+            Feed(id: "feed-a", title: "A", url: "not a url"),
+            Feed(id: "feed-b", title: "B", url: "not a url")
+        ])
+        model.enableArticlePersistence(store: try RSSArticleCacheStore(url: url))
+        model.toggleStarred(id: "b1")
+        model.selectSmartFeed(.starred)
+
+        #expect(model.filteredRows.map(\.id) == ["b1"])
+        model.selectItem(id: "b1")
+        #expect(model.selectedDetail?.title == "B1")
+        #expect(model.statusText == "Starred: 1 of 2")
+    }
+
+    @MainActor
     @Test("RSSReaderModel keeps selected item + status text cached")
     func readerModelDerivedState() {
         let model = RSSReaderModel()
@@ -1148,8 +1204,8 @@ struct QuillNetNewsWireCoreTests {
     }
 
     @MainActor
-    @Test("unreadCount(forFeed:) reports only for the active feed")
-    func badgePerFeedUnreadActiveOnly() {
+    @Test("unreadCount(forFeed:) reports the selected feed without a cache")
+    func badgePerFeedUnreadSelectedWithoutCache() {
         let model = RSSReaderModel(subscribedFeeds: [
             Feed(title: "Active", url: "https://active.test/feed"),
             Feed(title: "Other", url: "https://other.test/feed"),
