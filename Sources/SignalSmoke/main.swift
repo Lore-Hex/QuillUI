@@ -23,3 +23,10 @@ let serialized = keyPair.serialize()
 let ssk = LocalizationNotNeeded("signal-smoke")
 
 print("signal-smoke OK: \(ssk); libsignal IdentityKeyPair.generate() -> \(serialized.count) bytes serialized")
+
+// SignalServiceKit storage engine (GRDB) -- in-memory roundtrip.
+do {
+    print("signal-smoke DB: \(try quillSmokeGRDBRoundtrip())")
+} catch {
+    print("signal-smoke DB FAILED: \(error)")
+}
