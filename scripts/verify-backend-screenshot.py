@@ -1719,7 +1719,10 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
 
 
 def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_wordmark_pixels=350,
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1781,7 +1784,10 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
 
 
 def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_wordmark_pixels=350,
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1830,6 +1836,7 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
         image,
         minimum_row_dividers=2,
         minimum_row_action_segments=3,
+        minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
