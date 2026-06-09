@@ -2454,6 +2454,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("let previousTop = gtk_widget_get_last_child(overlayWidget)"))
         #expect(patchedRenderer.contains("gtk_widget_insert_after(panel, overlayWidget, previousTop)"))
         #expect(patchedRenderer.components(separatedBy: "gtkAttachRootSheetOverlay(panel, to: rootOverlay)").count == 3)
+        #expect(patchedRenderer.contains("sheet item root present activeKey="))
+        #expect(patchedRenderer.contains("sheet item root unavailable activeKey="))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
         #expect(patchedRenderer.contains("if gtkShouldRenderSheetInWindow() {\n            let sheetBuilder = sheetContent"))
         #expect(!patchedRenderer.contains("if gtkShouldRenderSheetInWindow() || gtkShouldRenderSheetInRootOverlay()"))

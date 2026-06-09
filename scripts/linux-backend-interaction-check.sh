@@ -167,6 +167,9 @@ retry_backend_interaction_if_transient() {
 }
 
 app_environment=()
+if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-new-sheet" ]]; then
+  app_environment+=("QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}")
+fi
 quillui_append_backend_runtime_environment \
   app_environment \
   "$PRODUCT" \

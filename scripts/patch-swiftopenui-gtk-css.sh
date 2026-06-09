@@ -2598,6 +2598,7 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
            let rootOverlay = gtkRootPresentationOverlay(for: root) {
             let currentIdHash = currentItem.id.hashValue
+            gtkDebugLog("sheet item root present activeKey=\(activeKey) itemID=\(currentIdHash)")
             if g_object_get_data(gobject, activeKey) != nil {
                 let storedHash = Int(bitPattern: g_object_get_data(gobject, itemIDKey))
                 if storedHash == currentIdHash {
@@ -2645,6 +2646,7 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             gtkAttachRootSheetOverlay(panel, to: rootOverlay)
             return opaqueFromWidget(widget)
         }
+        gtkDebugLog("sheet item root unavailable activeKey=\(activeKey)")
 
 '''
 if "let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))" in text and text.count("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)") < 2:
@@ -4216,6 +4218,7 @@ from pathlib import Path
 path = Path(sys.argv[1])
 text = path.read_text()
 root_overlay_helpers = '''private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
+private var gtkRootPresentationOverlayFallback: OpaquePointer?
 
 func gtkCreateRootPresentationContainer(
     winPtr: UnsafeMutablePointer<GtkWindow>,
@@ -4235,13 +4238,18 @@ func gtkCreateRootPresentationContainer(
 
     let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
     g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    let overlayObject = UnsafeMutableRawPointer(overlay).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(overlayObject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    let contentObject = UnsafeMutableRawPointer(contentWidget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(contentObject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    gtkRootPresentationOverlayFallback = OpaquePointer(overlay)
     return overlay
 }
 
 func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
     let gobject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
     guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else {
-        return nil
+        return gtkRootPresentationOverlayFallback
     }
     let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
     return OpaquePointer(overlay)
