@@ -58,10 +58,19 @@ quillNetSem.wait()
 do { print("signal-smoke MIGRATE: \(try quillSmokeSchemaMigration())") }
 catch { print("signal-smoke MIGRATE FAILED: \(error)") }
 
+// Provisioning crypto self-test: encrypt -> wrap -> decrypt -> parse loopback
+// over in-memory keys. Exercises the REAL ProvisioningCipher +
+// LinkingProvisioningMessage end to end. No network, no account.
+print("signal-smoke PROVISION SELFTEST: \(quillProvisioningRoundTripSelfTest())")
+
 // Provisioning: open Signal's provisioning socket and produce the sgnl://linkdevice
 // QR URL (the user would scan it). No account is linked. Hold conn + listener
 // alive past the Task so the connection isn't torn down before the address arrives.
-let quillEphemeral = PrivateKey.generate()
+// One-time ephemeral provisioning keypair. Its PUBLIC key goes in the QR URL
+// (pub_key); its PRIVATE key (carried inside the full IdentityKeyPair) decrypts
+// the ProvisionMessage the primary sends back. Decrypt needs the whole keypair,
+// so we keep the IdentityKeyPair and hand it to the listener.
+let quillEphemeral = IdentityKeyPair.generate()
 let quillPubB64 = quillEphemeral.publicKey.serialize().base64EncodedString()
 let quillProvSem = DispatchSemaphore(value: 0)
 var quillProvConn: ProvisioningConnection?
@@ -72,8 +81,8 @@ Task {
         quillProvConn = conn
         let listener = QuillProvisioningListener(
             pubKeyB64: quillPubB64,
-            onURL: { url in print("signal-smoke PROVISION QR URL: \(url)"); quillProvSem.signal() },
-            onEnvelope: { env in print("signal-smoke PROVISION: received envelope \(env.count) bytes") }
+            ourKeyPair: quillEphemeral,
+            onURL: { url in print("signal-smoke PROVISION QR URL: \(url)"); quillProvSem.signal() }
         )
         quillProvListener = listener
         conn.start(listener: listener)
