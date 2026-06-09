@@ -386,6 +386,12 @@ let appSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal"])
 ] + quillUIGTKSwiftImporterSettings
 
+#if os(Linux)
+let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
+#else
+let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
+#endif
+
 // QuillIceCubesCore consumes the real vendored Models when present (gtk-Linux);
 // gated so macOS / qt (where the Models target isn't built) keep the reimpl.
 var quillIceCubesCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillFoundation"]
@@ -922,7 +928,7 @@ var targets: [Target] = [
     // 's/^import RSCore$/import QuillRSCoreShim/'`.
     .target(
         name: "QuillArticles",
-        dependencies: ["QuillRSCoreShim"],
+        dependencies: quillArticlesDependencies,
         path: "Sources/QuillArticles",
         swiftSettings: appSwiftSettings
     ),
@@ -1244,6 +1250,44 @@ if nnwUpstreamPresent {
     ]
 }
 #endif
+
+#if os(Linux)
+if nnwUpstreamPresent {
+    targets += [
+        .target(
+            name: "RSCore",
+            dependencies: ["QuillRSCoreShim"],
+            path: "Sources/RSCoreShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "Articles",
+            dependencies: ["QuillArticles"],
+            path: "Sources/ArticlesShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "RSParser",
+            dependencies: ["QuillRSParser"],
+            path: "Sources/RSParserShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "ArticlesDatabase",
+            dependencies: ["RSCore", "RSParser", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/ArticlesDatabase/Sources/ArticlesDatabase",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "SyncDatabase",
+            dependencies: ["RSCore", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/SyncDatabase/Sources/SyncDatabase",
+            swiftSettings: nnwSwiftSettings
+        ),
+    ]
+}
+#endif
+
 // NOTE: `QuillNetNewsWire` no longer comes from the upstream
 // NetNewsWireLogic block above. The Shared+Mac coupling
 // produces ~1655 unresolved-symbol errors on macOS and the

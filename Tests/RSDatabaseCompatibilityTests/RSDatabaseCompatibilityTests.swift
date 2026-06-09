@@ -98,6 +98,9 @@ struct RSDatabaseCompatibilityTests {
         #expect(resultSet.data(forColumn: "payload") == data)
         #expect(resultSet.date(forColumn: "arrived") == date)
         #expect(resultSet.object(forColumnName: "missing") == nil)
+        #expect(resultSet.columnIsNull("missing"))
+        #expect(!resultSet.columnIsNull("title"))
+        #expect(resultSet.columnIsNull("doesNotExist"))
         #expect(resultSet.columnNameToIndexMap?["title"] != nil)
     }
 

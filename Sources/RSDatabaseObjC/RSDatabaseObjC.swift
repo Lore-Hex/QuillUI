@@ -620,6 +620,17 @@ public final class FMResultSet: @unchecked Sendable {
         }
     }
 
+    public func columnIsNull(_ columnName: String) -> Bool {
+        columnIsNull(columnIndex(forName: columnName))
+    }
+
+    public func columnIsNull(_ columnIdx: Int32) -> Bool {
+        guard let statement, isValid(columnIdx) else {
+            return true
+        }
+        return sqlite3_column_type(statement, columnIdx) == SQLITE_NULL
+    }
+
     public func kvcMagic(_ columnName: String) -> Any? {
         object(forColumnName: columnName)
     }
