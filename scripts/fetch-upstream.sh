@@ -1187,6 +1187,127 @@ subs = [
             options: [],
         )''',
      '''let value = [nameComponents.givenName, nameComponents.familyName].compactMap { $0 }.joined(separator: " ")'''),
+    # TextCheckingDataItem transit branch: NSTextCheckingKey.airline/.flight are
+    # internal on swift-corelibs and data detection is unavailable, so the transit
+    # URL-building block is dead on Linux. Gate it #if !os(Linux).
+    ('''                if matchUrl == nil {
+                    guard
+                        let components = match.components,
+                        let airline = components[.airline]?.nilIfEmpty,
+                        let flight = components[.flight]?.nilIfEmpty
+                    else {
+                        Logger.warn("Missing components.")
+                        return nil
+                    }
+                    let query = airline + " " + flight
+                    guard let urlEncodedQuery = query.encodeURIComponent else {
+                        owsFailDebug("Could not URL encode query.")
+                        return nil
+                    }
+                    let urlString = "https://www.google.com/?q=" + urlEncodedQuery
+                    guard let transitUrl = URL(string: urlString) else {
+                        owsFailDebug("Couldn't build transitUrl.")
+                        return nil
+                    }
+                    customUrl = transitUrl
+                }''',
+     '''                #if os(Linux)
+                // Transit-info data detection is unavailable on swift-corelibs
+                // Foundation: NSDataDetector yields no matches and the .airline/.flight
+                // NSTextCheckingKeys are internal there. This branch is dead on Linux,
+                // so the lookup URL is skipped; `guard let url = customUrl ?? matchUrl`
+                // below then drops the (absent) match. Transit data items are a
+                // deferred display feature on QuillOS.
+                _ = matchUrl
+                #else
+                if matchUrl == nil {
+                    guard
+                        let components = match.components,
+                        let airline = components[.airline]?.nilIfEmpty,
+                        let flight = components[.flight]?.nilIfEmpty
+                    else {
+                        Logger.warn("Missing components.")
+                        return nil
+                    }
+                    let query = airline + " " + flight
+                    guard let urlEncodedQuery = query.encodeURIComponent else {
+                        owsFailDebug("Could not URL encode query.")
+                        return nil
+                    }
+                    let urlString = "https://www.google.com/?q=" + urlEncodedQuery
+                    guard let transitUrl = URL(string: urlString) else {
+                        owsFailDebug("Couldn't build transitUrl.")
+                        return nil
+                    }
+                    customUrl = transitUrl
+                }
+                #endif'''),
+    # Contact.fullName: PersonNameComponentsFormatter.localizedString(from:style:) is
+    # unavailable on swift-corelibs-foundation. Join given+family (the .default style).
+    ('''        return PersonNameComponentsFormatter.localizedString(
+            from: components,
+            style: .default,
+        )''',
+     '''        // QuillOS/Linux: swift-corelibs-foundation has no PersonNameComponentsFormatter
+        // formatting (localizedString is @available(*, unavailable)). The .default style
+        // produces "given family", so join the available components to stay faithful.
+        return [components.givenName, components.familyName].compactMap { $0 }.joined(separator: " ")'''),
+    # OWSUrlSession server-trust delegate: NSURLAuthenticationMethodServerTrust,
+    # protectionSpace.serverTrust and URLCredential(trust:) are unavailable on
+    # swift-corelibs-foundation. Gate the Darwin cert-pinning block #if !os(Linux);
+    # on Linux corelibs URLSession does its own system-trust validation.
+    ('''        if
+            challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+            let serverTrust = challenge.protectionSpace.serverTrust
+        {
+            if endpoint.securityPolicy.evaluate(serverTrust: serverTrust, domain: challenge.protectionSpace.host) {
+                credential = URLCredential(trust: serverTrust)
+                disposition = .useCredential
+            } else {
+                disposition = .cancelAuthenticationChallenge
+            }
+        } else {
+            disposition = .performDefaultHandling
+        }''',
+     '''        #if os(Linux)
+        // Custom server-trust pinning relies on the Darwin Security framework and
+        // URLAuthenticationChallenge.serverTrust, which swift-corelibs-foundation
+        // marks unavailable. corelibs URLSession performs standard system-trust TLS
+        // validation itself, so we defer to default handling here. (Cert pinning is
+        // a hardening feature; deferred on QuillOS.)
+        disposition = .performDefaultHandling
+        #else
+        if
+            challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+            let serverTrust = challenge.protectionSpace.serverTrust
+        {
+            if endpoint.securityPolicy.evaluate(serverTrust: serverTrust, domain: challenge.protectionSpace.host) {
+                credential = URLCredential(trust: serverTrust)
+                disposition = .useCredential
+            } else {
+                disposition = .cancelAuthenticationChallenge
+            }
+        } else {
+            disposition = .performDefaultHandling
+        }
+        #endif'''),
+    # HTTPResponse.parseStringEncoding: no String<->CFString bridge on corelibs.
+    # Map common IANA charset names directly to String.Encoding.
+    ('''        let encoding = CFStringConvertIANACharSetNameToEncoding(encodingName as CFString)
+        guard encoding != kCFStringEncodingInvalidId else {
+            return nil
+        }
+        return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))''',
+     '''        // swift-corelibs-foundation lacks the String<->CFString toll-free bridge,
+        // so map the common IANA charset names directly to String.Encoding.
+        switch encodingName.lowercased() {
+        case "utf-8": return .utf8
+        case "utf-16": return .utf16
+        case "iso-8859-1", "latin1": return .isoLatin1
+        case "us-ascii", "ascii": return .ascii
+        case "windows-1252": return .windowsCP1252
+        default: return .utf8
+        }'''),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):

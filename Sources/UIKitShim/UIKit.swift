@@ -362,8 +362,11 @@ public class UINotificationFeedbackGenerator: NSObject {
 // MARK: - UIDevice / UIScreen extras commonly used by iOS-only upstream
 
 @MainActor public class UIDevice: NSObject {
-    public static let current = UIDevice()
-    public var userInterfaceIdiom: UIUserInterfaceIdiom { .mac }
+    nonisolated public static let current = UIDevice()
+    // nonisolated init so the nonisolated `current` default value (UIDevice())
+    // can be evaluated off the main actor; UIDevice has no isolated stored state.
+    nonisolated public override init() { super.init() }
+    nonisolated public var userInterfaceIdiom: UIUserInterfaceIdiom { .mac }
     public var name: String {
         #if canImport(AppKit)
         return Host.current().localizedName ?? "Mac"
@@ -468,7 +471,7 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
 /// `UISwitch: UIControl`. SSK only references it as a callback parameter type
 /// (`switchDidChange(_ sender: UISwitch)` reading `.isOn`); never instantiated here.
 @MainActor open class UISwitch: UIControl {
-    public var isOn: Bool = false
+    nonisolated(unsafe) public var isOn: Bool = false
     public func setOn(_ on: Bool, animated: Bool) { isOn = on }
 }
 

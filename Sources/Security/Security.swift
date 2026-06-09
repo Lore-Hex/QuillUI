@@ -505,7 +505,7 @@ public func SecPolicyCreateSSL(_ server: Bool, _ hostname: CFString?) -> SecPoli
     SecPolicy(isServer: server, hostname: hostname as String?)
 }
 
-public func SecTrustSetPolicies(_ trust: SecTrust, _ policies: CFTypeRef) -> OSStatus {
+public func SecTrustSetPolicies(_ trust: SecTrust, _ policies: Any) -> OSStatus {
     errSecSuccess
 }
 
