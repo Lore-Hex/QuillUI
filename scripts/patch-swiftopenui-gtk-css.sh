@@ -2314,6 +2314,14 @@ private final class GTKSheetPanelFocusBox {
     }
 }
 
+private final class GTKSheetEditableFocusTarget {
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+    }
+}
+
 private func gtkInstallSheetPanelFocusBridge(on panel: UnsafeMutablePointer<GtkWidget>) {
     let gesture = gtk_gesture_click_new()!
     let box = Unmanaged.passRetained(GTKSheetPanelFocusBox(panel: panel)).toOpaque()
@@ -2340,6 +2348,7 @@ private func gtkFocusSheetEditable(
     localX: Double,
     localY: Double
 ) {
+    guard gtk_swift_is_widget(panel) != 0 else { return }
     guard let root = gtk_swift_widget_root_widget(panel) else { return }
     var rootX = 0.0
     var rootY = 0.0
@@ -2349,8 +2358,38 @@ private func gtkFocusSheetEditable(
     guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
         return
     }
-    gtk_widget_set_focusable(editable, 1)
-    _ = gtk_swift_root_grab_focus(editable)
+    gtkFocusSheetEditableWidget(editable)
+}
+
+private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_focusable(widget, 1)
+    _ = gtk_swift_root_grab_focus(widget)
+    if let delegate = gtk_editable_get_delegate(OpaquePointer(widget)) {
+        let delegateWidget = UnsafeMutableRawPointer(delegate).assumingMemoryBound(to: GtkWidget.self)
+        gtk_widget_set_can_target(delegateWidget, 1)
+        gtk_widget_set_focusable(delegateWidget, 1)
+        _ = gtk_swift_root_grab_focus(delegateWidget)
+        gtkScheduleSheetEditableFocus(delegateWidget)
+    }
+    gtkScheduleSheetEditableFocus(widget)
+}
+
+private func gtkScheduleSheetEditableFocus(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    g_object_ref(gpointer(widget))
+    let target = GTKSheetEditableFocusTarget(widget: widget)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let target = Unmanaged<GTKSheetEditableFocusTarget>.fromOpaque(userData).takeRetainedValue()
+        defer { g_object_unref(gpointer(target.widget)) }
+        guard gtk_swift_is_widget(target.widget) != 0 else { return 0 }
+        gtk_widget_set_can_target(target.widget, 1)
+        gtk_widget_set_focusable(target.widget, 1)
+        _ = gtk_swift_root_grab_focus(target.widget)
+        return 0
+    }, Unmanaged.passRetained(target).toOpaque())
 }
 
 private func gtkFindSheetEditable(

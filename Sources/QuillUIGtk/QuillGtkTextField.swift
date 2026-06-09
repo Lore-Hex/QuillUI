@@ -102,6 +102,14 @@ private final class QuillGTKTextInputFocusBox {
     }
 }
 
+private final class QuillGTKTextInputFocusTarget {
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+    }
+}
+
 private func configureQuillTextFieldOverlay(
     _ overlay: UnsafeMutablePointer<GtkWidget>,
     entry: UnsafeMutablePointer<GtkWidget>,
@@ -390,10 +398,29 @@ private func quillTextFieldGrabEditableFocus(_ entry: UnsafeMutablePointer<GtkWi
 }
 
 private func quillTextFieldForceFocus(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
     gtk_widget_set_can_target(widget, 1)
     gtk_widget_set_can_focus(widget, 1)
     gtk_widget_set_focusable(widget, 1)
     _ = gtk_swift_root_grab_focus(widget)
+    quillTextFieldScheduleRootFocus(widget)
+}
+
+private func quillTextFieldScheduleRootFocus(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    g_object_ref(gpointer(widget))
+    let target = QuillGTKTextInputFocusTarget(widget: widget)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let target = Unmanaged<QuillGTKTextInputFocusTarget>.fromOpaque(userData).takeRetainedValue()
+        defer { g_object_unref(gpointer(target.widget)) }
+        guard gtk_swift_is_widget(target.widget) != 0 else { return 0 }
+        gtk_widget_set_can_target(target.widget, 1)
+        gtk_widget_set_can_focus(target.widget, 1)
+        gtk_widget_set_focusable(target.widget, 1)
+        _ = gtk_swift_root_grab_focus(target.widget)
+        return 0
+    }, Unmanaged.passRetained(target).toOpaque())
 }
 
 private func quillTextFieldGTKWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
