@@ -466,13 +466,13 @@ open_quill_chat_completions_panel() {
     # Enchanted persists the selected sidebar utility across relaunches. In the
     # CI mode sequence, completions-save can leave "Completions" selected but
     # without the overlay open; clicking the already-selected row is then a no-op.
-    # Select a seeded history row first so the following Completions click opens
-    # the panel without introducing another modal utility surface.
+    # Use the stable new-chat toolbar control to clear the selected utility; a
+    # history-row reset is not enough after settings-delete-confirmed clears data.
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 1244))}"
     if [[ "$reset_before_open" == "1" ]]; then
-      reset_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-$((window_x + 190))}"
-      reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
+      reset_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-$((window_x + window_width - 38))}}"
+      reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 57))}}"
       click_at "$reset_x" "$reset_y"
       sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.35}"
     fi
