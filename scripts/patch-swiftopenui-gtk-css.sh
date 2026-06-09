@@ -2303,6 +2303,7 @@ private func gtkCreateSheetOverlayPanel(
     gtk_widget_set_valign(sheetWidget, GTK_ALIGN_FILL)
     gtk_box_append(boxPointer(panel), sheetWidget)
     gtkInstallSheetPanelFocusBridge(on: panel)
+    gtkScheduleFirstSheetEditableFocus(in: panel)
     return panel
 }
 
@@ -2319,6 +2320,14 @@ private final class GTKSheetEditableFocusTarget {
 
     init(widget: UnsafeMutablePointer<GtkWidget>) {
         self.widget = widget
+    }
+}
+
+private final class GTKSheetPanelFocusTarget {
+    let panel: UnsafeMutablePointer<GtkWidget>
+
+    init(panel: UnsafeMutablePointer<GtkWidget>) {
+        self.panel = panel
     }
 }
 
@@ -2392,6 +2401,22 @@ private func gtkScheduleSheetEditableFocus(_ widget: UnsafeMutablePointer<GtkWid
     }, Unmanaged.passRetained(target).toOpaque())
 }
 
+private func gtkScheduleFirstSheetEditableFocus(in panel: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(panel) != 0 else { return }
+    g_object_ref(gpointer(panel))
+    let target = GTKSheetPanelFocusTarget(panel: panel)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let target = Unmanaged<GTKSheetPanelFocusTarget>.fromOpaque(userData).takeRetainedValue()
+        defer { g_object_unref(gpointer(target.panel)) }
+        guard gtk_swift_is_widget(target.panel) != 0 else { return 0 }
+        if let editable = gtkFindFirstSheetEditable(in: target.panel) {
+            gtkFocusSheetEditableWidget(editable)
+        }
+        return 0
+    }, Unmanaged.passRetained(target).toOpaque())
+}
+
 private func gtkFindSheetEditable(
     in widget: UnsafeMutablePointer<GtkWidget>,
     root: UnsafeMutablePointer<GtkWidget>,
@@ -2412,6 +2437,20 @@ private func gtkFindSheetEditable(
         return nil
     }
     return widget
+}
+
+private func gtkFindFirstSheetEditable(
+    in widget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let found = gtkFindFirstSheetEditable(in: current) {
+            return found
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return gtkSheetWidgetIsTextInput(widget) ? widget : nil
 }
 
 private func gtkSheetWidgetIsTextInput(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
