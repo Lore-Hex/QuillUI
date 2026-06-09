@@ -423,8 +423,14 @@ gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, do
     if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
         return TRUE;
     }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
+        return TRUE;
+    }
     picked = gtk_widget_pick(root, x, y, GTK_PICK_NON_TARGETABLE);
     if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
         return TRUE;
     }
     picked = gtk_widget_pick(
@@ -433,7 +439,10 @@ gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, do
         y,
         (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
     );
-    return picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked);
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    return picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget);
 }
 """
     if capture_helper not in text:
@@ -1391,7 +1400,7 @@ if "private func gtkInstallButtonRootEventFallback" not in text:
             var x: Double = 0
             var y: Double = 0
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
-            guard gtk_swift_widget_contains_root_point(root, context.widget, x, y) != 0 else { return 0 }
+            guard gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0 else { return 0 }
             gtkScheduleButtonAction(context.box, source: "root-legacy")
             return 0
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),

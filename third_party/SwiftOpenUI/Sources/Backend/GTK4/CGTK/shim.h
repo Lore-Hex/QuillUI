@@ -284,8 +284,14 @@ gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, do
     if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
         return TRUE;
     }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
+        return TRUE;
+    }
     picked = gtk_widget_pick(root, x, y, GTK_PICK_NON_TARGETABLE);
     if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
         return TRUE;
     }
     picked = gtk_widget_pick(
@@ -294,7 +300,10 @@ gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, do
         y,
         (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
     );
-    return picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked);
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    return picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget);
 }
 
 // --- Scale (Slider) type check ---

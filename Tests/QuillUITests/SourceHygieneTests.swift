@@ -3270,8 +3270,11 @@ struct SourceHygieneTests {
             #expect(!source.contains("border: none; background: none; padding: 0;"))
         }
         #expect(patcher.contains("gtk_swift_widget_contains_root_point"))
+        #expect(!patcher.contains("guard gtk_swift_widget_contains_root_point(root, context.widget"))
         #expect(patcher.contains("GTK_PICK_NON_TARGETABLE"))
+        #expect(patcher.contains("gtk_swift_widget_is_ancestor_or_self(picked, widget)"))
         #expect(shim.contains("GTK_PICK_NON_TARGETABLE"))
+        #expect(shim.contains("gtk_swift_widget_is_ancestor_or_self(picked, widget)"))
     }
 
     @Test("GTK backend launches through a plain GTK main loop")
