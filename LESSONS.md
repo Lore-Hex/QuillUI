@@ -1532,6 +1532,46 @@ desk-verification, pre-researched the milestone after (the receive path), and qu
 commit/build/merge/live-login command sequence into the loop prompt so it all fired in one batch
 the moment Bash recovered. A `/model` switch off the stuck model also clears it instantly.
 
+### STEP J: THE LIVE LINK ACTUALLY LINKS A REAL ACCOUNT (2026-06-10) ✅✅✅
+A real phone scanned the `sgnl://linkdevice` QR and QuillOS (real Signal-iOS SSK on aarch64
+Linux) linked as **deviceId=2** on the live account, uploaded one-time prekeys, opened an
+authenticated chat (`DEVICE IS LIVE`), and a flag-off re-run reconnected the authed chat from
+the persisted DB **WITHOUT re-scanning** (durable login survives restart). The end-to-end chain
+that finally worked: scan → decrypt envelope → `PUT v1/devices/link` (200, server assigns
+deviceId+pni) → persist (real SSK keys) → `PUT v2/keys` ×2 → `connectAuthenticatedChat`. Four
+live-only obstacles, NONE visible to any self-test, each surfaced ONLY against the real server:
+
+1. **TLS: chat.signal.org uses Signal's OWN private root CA, not a public one.** libsignal's
+   Rust transport pins it internally (so the provisioning + chat websockets connect fine), but
+   the `v1/devices/link` / `v2/keys` PUTs go through swift-corelibs `URLSession` → libcurl →
+   the SYSTEM CA store, which lacks Signal's root → `SSL certificate problem: self-signed
+   certificate in certificate chain`. The cert is upstream at
+   `SignalServiceKit/Resources/Certificates/signal-messenger.cer` (subject==issuer==`CN=Signal
+   Messenger`), pinned by `HttpSecurityPolicy.signalCaPinned`. FIX (corelibs has no SecTrust):
+   **append Signal's root to the system CA bundle libcurl actually reads**
+   (`/etc/ssl/certs/ca-certificates.crt`) — the OpenSSL env vars `SSL_CERT_FILE` /
+   `CURL_CA_BUNDLE` are IGNORED by corelibs URLSession (verified empirically). `QuillSignalTrust.swift`.
+2. **App expiry: HTTP 499 = build expired (`AppExpiry.appExpiredStatusCode = 499`).** The server
+   reads the client version from the `User-Agent` and 499s ANY past-expiry build — for ALL
+   endpoints, incl. an unauth `GET /v1/config`. A made-up `Signal-iOS/7.42.0` was years stale
+   (Signal is on **8.x** — latest prod tag `8.14.0.1637` via api.github.com tags). FIX: send a
+   CURRENT version in the exact `AppVersionImpl` format `Signal-iOS/<marketing>.<build> iOS/<os>`
+   (`currentAppVersion` is the 4-part `marketing.build`). Bump ≈ every 90 days when 499 returns.
+3. **The QR socket has a finite lifetime.** Our `done.wait(timeout:)` was 300s; turn latency +
+   a model switch ate it, the process exited, the provisioning socket closed, and the phone's
+   provision message hit a dead socket → phone shows "linking device failed" with NO envelope on
+   our side. FIX: 900s window (libsignal keepalives the socket; this just keeps OUR process alive).
+4. **A no-scan TLS/expiry PROBE is the key debugging tool.** `GET https://chat.signal.org/v1/config`
+   via the SAME URLSession path returns the cert error (trust broken) or 499 (expired) or a normal
+   4xx (both fixed) — so trust + version could be iterated to green WITHOUT burning the user's
+   single-use QR scans. **Build a no-scan probe for any single-use live action.**
+
+META-LESSON: self-tests proved every LOCAL invariant (crypto, body bytes, persistence round-trip,
+prekey counts) and were ALL green while the live link still failed four different ways. Wire
+correctness against a real server (TLS anchor, version/expiry gate, socket lifetime) is a
+SEPARATE axis that only the live target exercises. Verify to the edge locally, but the last mile
+is empirical.
+
 **NSCoder NSData fix (the persistence-blocker):** swift-corelibs NSCoder's
 `encodeBytes(UInt8?,length:,forKey:)` uses an internal keyed-archive byte format that has
 NO `decodeBytes` reader; ECKeyPair's NSSecureCoding round-trip failed "Class ECKeyPair

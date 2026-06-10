@@ -93,7 +93,13 @@ func quillRunLiveLinkFlow() {
         }
     }
     // Wait (bounded) for the link to complete, or for the user to give up.
-    _ = done.wait(timeout: .now() + 300)
+    // 15 minutes: a human scanning a QR shown in a chat transcript needs slack for
+    // turn latency / reading instructions / navigating the phone UI -- a 5-minute
+    // window expired before the scan landed once, exiting the process and closing
+    // the provisioning socket, so the phone's provision message had nowhere to go
+    // ("linking device failed"). libsignal's provisioning transport keepalives the
+    // socket; this just keeps OUR process alive long enough to receive the scan.
+    _ = done.wait(timeout: .now() + 900)
     _ = heldConn
     _ = heldListener
 }
@@ -262,7 +268,7 @@ func quillPutDevicesLink(phoneNumber: String, authPassword: String, body: Data) 
     // fingerprint that an edge WAF/CDN could gate the link endpoint on. Present a
     // coherent Signal-iOS client identity. (X-Signal-Agent is intentionally NOT
     // set -- upstream omits it for this specific endpoint.)
-    req.setValue("Signal-iOS/7.42.0 iOS/17.5", forHTTPHeaderField: "User-Agent")
+    req.setValue(quillSignalUserAgent, forHTTPHeaderField: "User-Agent")
     req.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
     let basic = Data("\(phoneNumber):\(authPassword)".utf8).base64EncodedString()
     req.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")

@@ -16,6 +16,19 @@ import Foundation
 import SignalServiceKit
 import LibSignalClient
 
+// Pin chat.signal.org to Signal's own root CA for the URLSession (libcurl/
+// OpenSSL) REST path BEFORE any networking. chat.signal.org chains to Signal's
+// private root, not a public CA; without this the v1/devices/link + v2/keys PUTs
+// fail with "self-signed certificate in certificate chain" on Linux. (libsignal's
+// websocket transport pins independently, so the unauth/provisioning sockets work
+// regardless.) See QuillSignalTrust.swift.
+quillInstallSignalCATrust()
+
+// No-scan TLS probe: confirm the corelibs URLSession REST path now trusts
+// chat.signal.org (the v1/devices/link + v2/keys PUTs go through this same path).
+// ANY HTTP response = TLS validated; a certificate error = trust not installed.
+print("signal-smoke \(quillSignalTLSProbe())")
+
 // libsignal FFI: generate a Curve25519 identity keypair (pure, in-memory).
 let keyPair = IdentityKeyPair.generate()
 let serialized = keyPair.serialize()

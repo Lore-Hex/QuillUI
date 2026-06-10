@@ -46,7 +46,7 @@ func quillPutV2Keys(
     req.timeoutInterval = 45  // upstream registerPrekeysRequest sets 45s
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
     // Same coherent Signal-iOS client identity as the v1/devices/link PUT.
-    req.setValue("Signal-iOS/7.42.0 iOS/17.5", forHTTPHeaderField: "User-Agent")
+    req.setValue(quillSignalUserAgent, forHTTPHeaderField: "User-Agent")
     req.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
     let basic = Data("\(username):\(password)".utf8).base64EncodedString()
     req.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")
