@@ -6,9 +6,7 @@
 //
 
 import Foundation
-#if canImport(Darwin)
 import os
-#endif
 import QuillRSCoreShim
 
 /// Caches `Author` values by `authorID` so articles by the same author share
@@ -25,7 +23,7 @@ public final class AuthorCache: Sendable {
 			// Swift toolchain has no Objective-C runtime, so the
 			// upstream #selector path fails to compile there. The
 			// block form has identical semantics on Darwin.
-			NotificationCenter.default.addObserver(
+			_ = NotificationCenter.default.addObserver(
 				forName: .lowMemory,
 				object: nil,
 				queue: nil
