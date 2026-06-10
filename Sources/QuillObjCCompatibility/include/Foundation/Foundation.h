@@ -1315,6 +1315,7 @@ Class NSClassFromString(NSString *aClassName);
 SEL NSSelectorFromString(NSString *aSelectorName);
 NSString *NSStringFromSelector(SEL aSelector);
 NSString *NSHomeDirectory(void);
+NSString *NSTemporaryDirectory(void);
 void NSLog(NSString *format, ...);
 
 /* glibc 2.36+ declares the arc4random family in <stdlib.h>; a static inline
