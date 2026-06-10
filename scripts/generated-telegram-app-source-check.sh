@@ -144,7 +144,18 @@ for entry in sorted(os.listdir(mirror_root)):
     for product in PRODUCT_RE.findall(open(manifest, encoding="utf-8").read()):
         mirror_products.setdefault(product, entry)
 
-quill_products = set(PRODUCT_RE.findall(open(os.path.join(quill_root, "Package.swift"), encoding="utf-8").read()))
+quill_manifest = open(os.path.join(quill_root, "Package.swift"), encoding="utf-8").read()
+quill_products = set(PRODUCT_RE.findall(quill_manifest))
+TARGET_RE = re.compile(r'\.target\(\s*name:\s*"([A-Za-z0-9_]+)"')
+quill_targets = set(TARGET_RE.findall(quill_manifest))
+
+
+def mirror_target_names(package):
+    manifest = os.path.join(mirror_root, package, "Package.swift")
+    try:
+        return set(TARGET_RE.findall(open(manifest, encoding="utf-8").read()))
+    except OSError:
+        return set()
 
 # The lowering and umbrella imports rely on these even when no app file
 # imports them directly.
@@ -158,6 +169,16 @@ for module in sorted(imports):
         continue
     if module in mirror_products:
         package = mirror_products[module]
+        conflicts = mirror_target_names(package) & quill_targets
+        if conflicts:
+            # SwiftPM requires globally-unique target names; a mirrored package
+            # whose targets collide with the QuillUI root (e.g. upstream Zip vs
+            # Sources/ZipShim) cannot join the graph.
+            if module in quill_products:
+                target_products.append((module, "QuillUI"))
+            else:
+                missing.append(f"{module} (mirror {package} target-name conflict: {', '.join(sorted(conflicts))})")
+            continue
         packages[package] = True
         target_products.append((module, package))
     elif module in quill_products:
