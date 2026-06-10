@@ -48,7 +48,11 @@ repeatable source checkout plus Linux compile ratchet:
 - Apple framework shim products are exported as generated upstream packages need
   them; `NaturalLanguage`, `CoreSpotlight`, `Vision`, media framework shims, and
   Objective-C compatibility headers are exposed for the Telegram packages that
-  import them.
+  import them. The shims must NOT `@_exported import CoreFoundation`: corelibs'
+  stub `CFString`/`CFArray` classes would leak into every `import Cocoa` scope
+  and collide with the bridged typealiases (this broke the WireGuard Linux
+  build). Mirrored sources that call CF functions get a per-file
+  `import CoreFoundation` from `scripts/lower-telegram-linux-source.py` instead.
 - Objective-C package islands compile through `QuillObjCCompatibility`, with
   mirror-only lowering for nullability and macOS xattr signatures. Current
   coverage includes the media packages that import ImageIO, AVFoundation,
