@@ -3079,7 +3079,20 @@ extension BlurView: GTKRenderable {
 
 // MARK: - Style modifier GTK extensions
 
-extension ButtonStyleModifier: GTKRenderable {
+extension ButtonStyleModifier: GTKRenderable, GTKDescribable {
+    /// Describe through to the styled content (the modifier's widget IS the
+    /// content's widget). Without this the describe pass terminates here as a
+    /// childless composite, which disqualifies every ancestor host from the
+    /// narrow mutation path — e.g. each keystroke in a sheet whose buttons are
+    /// styled forces a full teardown that destroys the focused text field.
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "ButtonStyleModifier",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env.buttonStyle = style
@@ -3644,7 +3657,22 @@ private class DisappearBox {
     }
 }
 
-extension OnDisappearView: GTKRenderable {
+extension OnDisappearView: GTKRenderable, GTKDescribable {
+    /// Describe through to the content (the wrapper's widget IS the content's
+    /// widget; the disappear callback rides the existing widget's unmap
+    /// signal, which the narrow mutation path leaves untouched). Without this
+    /// the describe pass terminates here as a childless composite, so every
+    /// ancestor host — e.g. a sheet whose root view chains
+    /// .onAppear/.onDisappear — falls off the narrow path and tears down its
+    /// widgets on every rebuild.
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "OnDisappearView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
 
@@ -3826,6 +3854,25 @@ private func gtkScheduleSheetDismissal(_ action: @escaping () -> Void) {
     }, box)
 }
 
+extension SheetModifierView: GTKDescribable {
+    /// Describe through to the anchor content; the sheet panel lives on the
+    /// root overlay (or a dialog window), not in this widget tree.
+    /// Presentation state is encoded in props so flipping isPresented diffs
+    /// the descriptor and forces the full rebuild that runs the
+    /// present/dismiss path — while steady-state rebuilds stay narrow and
+    /// never tear the anchor subtree down.
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "SheetModifierView",
+            props: .text(GTK4TextDescriptor(
+                content: isPresented.wrappedValue ? "presented" : "dismissed"
+            )),
+            children: [gtkDescribeView(content)]
+        )
+    }
+}
+
 extension SheetModifierView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
@@ -3967,6 +4014,27 @@ extension SheetModifierView: GTKRenderable {
         }, info)
 
         return opaqueFromWidget(widget)
+    }
+}
+
+extension ItemSheetModifierView: GTKDescribable {
+    /// Same contract as SheetModifierView: describe the anchor content and
+    /// encode the presented item's identity in props so item changes (present,
+    /// dismiss, or switch) force the full rebuild that drives the sheet, and
+    /// steady-state rebuilds stay narrow.
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        let itemState: String
+        if let currentItem = item.wrappedValue {
+            itemState = "item-\(currentItem.id.hashValue)"
+        } else {
+            itemState = "dismissed"
+        }
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "ItemSheetModifierView",
+            props: .text(GTK4TextDescriptor(content: itemState)),
+            children: [gtkDescribeView(content)]
+        )
     }
 }
 
@@ -5235,7 +5303,19 @@ private func gtkApplyEnabledState(to widget: UnsafeMutablePointer<GtkWidget>) {
     }
 }
 
-extension _ViewModifierContent: GTKRenderable {
+extension _ViewModifierContent: GTKRenderable, GTKDescribable {
+    /// Describe through to the wrapped view (this placeholder's widget IS the
+    /// wrapped view's widget). Without this, every custom ViewModifier in a
+    /// host's subtree terminates the describe pass as a childless composite
+    /// and knocks the host off the narrow mutation path.
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "_ViewModifierContent",
+            children: [gtkDescribeAnyView(wrapped.wrapped)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         gtkRenderAnyView(wrapped.wrapped)
     }
