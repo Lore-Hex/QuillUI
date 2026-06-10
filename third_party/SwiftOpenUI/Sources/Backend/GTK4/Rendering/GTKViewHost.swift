@@ -47,6 +47,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     /// and can't see @Observable mutations, so it would wrongly declare the inputs
     /// unchanged and leave observation permanently unsubscribed.
     private var observationDidFire = false
+    var stateIdentityNamespace = "root"
     var capturedEnvironment: EnvironmentValues
 
     /// Objects read by body via `@Environment(Type.self)` during the

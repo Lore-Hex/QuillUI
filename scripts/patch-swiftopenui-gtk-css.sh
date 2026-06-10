@@ -4018,7 +4018,22 @@ private class DisappearBox {
     }
 }
 
-extension OnDisappearView: GTKRenderable {
+extension OnDisappearView: GTKRenderable, GTKDescribable {
+    /// Describe through to the content (the wrapper's widget IS the content's
+    /// widget; the disappear callback rides the existing widget's unmap
+    /// signal, which the narrow mutation path leaves untouched). Without this
+    /// the describe pass terminates here as a childless composite, so every
+    /// ancestor host — e.g. a sheet whose root view chains
+    /// .onAppear/.onDisappear — falls off the narrow path and tears down its
+    /// widgets on every rebuild.
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "OnDisappearView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
 
