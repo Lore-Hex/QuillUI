@@ -1,0 +1,100 @@
+// --- AVFoundation (from L2064)
+.target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/AVFoundation"),
+// --- AVKit (from L2065)
+.target(name: "AVKit", dependencies: ["SwiftUI", "AVFoundation"], path: "Sources/AVKit"),
+// --- AppIntents (from L2056)
+.target(name: "AppIntents", dependencies: ["UniformTypeIdentifiers"], path: "Sources/AppIntents"),
+// --- Bodega (from L840)
+.target(name: "Bodega", dependencies: [], path: "Sources/Bodega"),
+// --- Charts (from L2087)
+.target(name: "Charts", dependencies: ["SwiftUI"], path: "Sources/Charts"),
+// --- Combine (from L2090)
+.target(
+        name: "Combine",
+        dependencies: [
+            .product(name: "OpenCombine", package: "OpenCombine"),
+            .product(name: "OpenCombineDispatch", package: "OpenCombine"),
+            .product(name: "OpenCombineFoundation", package: "OpenCombine")
+        ],
+        path: "Sources/Combine"
+    ),
+// --- CoreGraphics (from L2062)
+.target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
+// --- CoreTransferable (from L2067)
+.target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
+// --- EmojiText (from L2085)
+.target(name: "EmojiText", dependencies: ["SwiftUI", "QuillFoundation"], path: "Sources/EmojiText"),
+// --- FoundationModels (from L2069)
+.target(name: "FoundationModels", dependencies: ["QuillDataMacros"], path: "Sources/FoundationModels"),
+// --- Gifu (from L2086)
+.target(name: "Gifu", dependencies: ["SwiftUI"], path: "Sources/Gifu"),
+// --- KeychainSwift (from L815)
+.target(
+        name: "KeychainSwift",
+        dependencies: [],
+        path: "Sources/KeychainSwift"
+    ),
+// --- LRUCache (from L839)
+.target(name: "LRUCache", dependencies: [], path: "Sources/LRUCache"),
+// --- LinkPresentation (from L2055)
+.target(name: "LinkPresentation", dependencies: ["UIKit"], path: "Sources/LinkPresentation"),
+// --- Nuke (from L2083)
+.target(name: "Nuke", dependencies: [], path: "Sources/Nuke"),
+// --- NukeUI (from L2084)
+.target(name: "NukeUI", dependencies: ["SwiftUI", "Nuke"], path: "Sources/NukeUI"),
+// --- Observation (from L1944)
+.target(name: "Observation", dependencies: ["QuillDataMacros"], path: "Sources/Observation"),
+// --- Photos (from L2066)
+.target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
+// --- PhotosUI (from L2081)
+.target(name: "PhotosUI", dependencies: ["SwiftUI", "Photos"], path: "Sources/PhotosUI"),
+// --- QuickLook (from L2068)
+.target(name: "QuickLook", dependencies: ["QuillFoundation"], path: "Sources/QuickLook"),
+// --- RevenueCat (from L2057)
+.target(name: "RevenueCat", dependencies: [], path: "Sources/RevenueCat"),
+// --- SFSafeSymbols (from L2059)
+.target(name: "SFSafeSymbols", dependencies: [], path: "Sources/SFSafeSymbols"),
+// --- SafariServices (from L2052)
+.target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
+// --- Security (from L2063)
+.target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
+// --- SwiftData (from L834)
+.target(
+        name: "SwiftData",
+        dependencies: ["QuillData", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        path: "Sources/SwiftData"
+    ),
+// --- SwiftUI (from L1931)
+.target(
+        name: "SwiftUI",
+        dependencies: [
+            "QuillSwiftUICompatibility",
+            "Observation",
+            "UIKit",
+            "CoreImage",
+            "CoreTransferable",
+            .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+        ],
+        path: "Sources/SwiftUIShim",
+        swiftSettings: quillUIGTKSwiftImporterSettings
+    ),
+// --- SwiftUIIntrospect (from L841)
+.target(name: "SwiftUIIntrospect", dependencies: ["SwiftUI"], path: "Sources/SwiftUIIntrospect"),
+// --- UIKit (from L2047)
+.target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "CoreTransferable"], path: "Sources/UIKitShim"),
+// --- UniformTypeIdentifiers (from L1945)
+.target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
+// --- WebKit (from L2054)
+.target(name: "WebKit", dependencies: ["QuillWebKit"], path: "Sources/WebKitShim"),
+// --- WishKit (from L2058)
+.target(name: "WishKit", dependencies: ["SwiftUI"], path: "Sources/WishKit"),
+// --- os (from L1925)
+.target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
+// --- QuillSwiftUICompatibility (from L1926)
+.target(
+        name: "QuillSwiftUICompatibility",
+        dependencies: ["QuillFoundation", "QuillDataMacros", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        path: "Sources/QuillSwiftUICompatibility"
+    ),
+// --- ButtonKit (from L2077)
+.target(name: "ButtonKit", dependencies: ["SwiftUI"], path: "Sources/ButtonKit"),
