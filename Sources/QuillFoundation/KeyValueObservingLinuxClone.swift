@@ -59,7 +59,11 @@ public extension NSObjectProtocol where Self: NSObject {
 
 // ObjC associated objects — a leaky side-table emulation (compile-only; no
 // dealloc hook on Linux to clear entries). Keyed by object identity + raw key.
-public enum objc_AssociationPolicy: UInt {
+// internal (not public): the dedicated `ObjCAssoc` shim is the public owner of
+// the objc associated-object API. Keeping these public here too caused an
+// ambiguous-use error once SignalServiceKit re-exported UIKit (→ QuillFoundation)
+// while also depending on ObjCAssoc. Nothing outside QuillFoundation uses these.
+enum objc_AssociationPolicy: UInt {
     case OBJC_ASSOCIATION_ASSIGN = 0
     case OBJC_ASSOCIATION_RETAIN_NONATOMIC = 1
     case OBJC_ASSOCIATION_COPY_NONATOMIC = 3
@@ -82,11 +86,11 @@ private final class QuillAssociatedObjectStore: @unchecked Sendable {
     }
 }
 
-public func objc_setAssociatedObject(_ object: Any, _ key: UnsafeRawPointer, _ value: Any?, _ policy: objc_AssociationPolicy) {
+func objc_setAssociatedObject(_ object: Any, _ key: UnsafeRawPointer, _ value: Any?, _ policy: objc_AssociationPolicy) {
     QuillAssociatedObjectStore.shared.set(object as AnyObject, key, value)
 }
 
-public func objc_getAssociatedObject(_ object: Any, _ key: UnsafeRawPointer) -> Any? {
+func objc_getAssociatedObject(_ object: Any, _ key: UnsafeRawPointer) -> Any? {
     QuillAssociatedObjectStore.shared.get(object as AnyObject, key)
 }
 #endif
