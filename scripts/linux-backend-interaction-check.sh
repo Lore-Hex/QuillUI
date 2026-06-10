@@ -232,9 +232,15 @@ window_x=0
 window_y=0
 window_width="$screen_width"
 window_height="$screen_height"
-window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
+# Poll (rather than one-shot lookup) so a slow app startup on a loaded CI
+# runner cannot silently fall through to screen-sized click geometry — that
+# race made interaction clicks miss the app entirely while the later capture
+# still photographed a healthy window (main-blocking failure, 2026-06-09).
+window_id="$(quillui_wait_for_app_window_for_pid "$DISPLAY_ID" "$app_pid" "${QUILLUI_BACKEND_WINDOW_WAIT_SECONDS:-20}")" || window_id=""
 if [[ -z "$window_id" ]]; then
   window_id="$(quillui_find_visible_window_by_name "$DISPLAY_ID" ".*")"
+  echo "interaction-check: app window for pid $app_pid never became visible+sized;" \
+    "falling back to name search -> '${window_id:-none}'" >&2
 fi
 if [[ -n "$window_id" ]]; then
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -255,6 +261,17 @@ if [[ -n "$window_id" ]]; then
       HEIGHT) window_height="$value" ;;
     esac
   done < <(DISPLAY="$DISPLAY_ID" xdotool getwindowgeometry --shell "$window_id")
+fi
+# Diagnostics: make the click-target window explicit in the step log so a
+# wrong-window/stale-geometry interaction failure is self-explaining from CI
+# output alone (this race previously produced healthy-looking screenshots
+# with mysteriously lost clicks).
+echo "interaction-check: window='${window_id:-none}'" \
+  "geometry=${window_x},${window_y} ${window_width}x${window_height}" \
+  "capture='$capture_window' mode='$INTERACTION_MODE'" >&2
+if [[ -n "$window_id" && "${QUILLUI_BACKEND_PRECLICK_SCREENSHOT:-1}" == "1" ]]; then
+  DISPLAY="$DISPLAY_ID" import -window "$capture_window" \
+    "${SCREENSHOT_PATH%.png}-preclick.png" 2>/dev/null || true
 fi
 
 click_at() {
@@ -435,22 +452,32 @@ wireguard_import_configuration_for_mode() {
   fi
 }
 
+# Move the capture to the child window a sheet presented in, when one exists.
+#
+# Runs regardless of whether the capture currently targets root or the main
+# window — the gtk/qt smoke sheets present as separate ~900px toplevels and
+# the capture must follow them ("Stabilize backend sheet interaction
+# captures" gated this on capture==root, which silently disabled the switch
+# for every found-window run and made all smoke sheet rows photograph the
+# 640px main window). The wrong-window problem that guard was aiming at —
+# `getactivewindow` returning the focused entry's 1x1 offscreen IM popup
+# after sheet inputs began auto-focusing — is solved by the minimum-size
+# gate on candidates instead.
 refresh_capture_window_for_active_child_window() {
   local attempt
   local candidate_window
 
-  [[ "$capture_window" == "root" ]] || return 0
   [[ -n "$window_id" ]] || return 0
 
   for attempt in {1..20}; do
     candidate_window="$(DISPLAY="$DISPLAY_ID" xdotool getactivewindow 2>/dev/null || true)"
-    if [[ -n "$candidate_window" && "$candidate_window" != "$window_id" ]]; then
+    if quillui_window_is_plausible_capture_target "$DISPLAY_ID" "$candidate_window" "$window_id"; then
       capture_window="$candidate_window"
       return 0
     fi
 
     candidate_window="$(quillui_find_visible_window_for_pid_except "$DISPLAY_ID" "$app_pid" "$window_id")"
-    if [[ -n "$candidate_window" ]]; then
+    if quillui_window_is_plausible_capture_target "$DISPLAY_ID" "$candidate_window" "$window_id"; then
       capture_window="$candidate_window"
       return 0
     fi
@@ -1261,11 +1288,42 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
         click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 34))}"
         ;;
     esac
-    click_at "$click_x" "$click_y"
-    sleep "$post_click_sleep"
-    if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
-      refresh_capture_window_for_sheet_interaction
-    fi
+    # Click-and-converge on the row's verified state. On starved CI runners
+    # a click is occasionally delivered late or its action fires TWICE (the
+    # app-log marker showed isOpen=true then false from one synthetic click,
+    # toggling the panel straight back closed), so "did any pixel change" is
+    # unsound. Each attempt captures the window and checks the row's ACTUAL
+    # verifier condition, re-clicking until the expected post-interaction
+    # state is reached; the verified capture becomes the final screenshot.
+    smoke_attempt_screenshot="${SCREENSHOT_PATH%.png}-attempt.png"
+    smoke_verify_product=""
+    quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" smoke_verify_product
+    smoke_click_attempts=0
+    smoke_click_max="${QUILLUI_BACKEND_SMOKE_CLICK_ATTEMPTS:-3}"
+    while true; do
+      smoke_click_attempts=$((smoke_click_attempts + 1))
+      click_at "$click_x" "$click_y"
+      sleep "$post_click_sleep"
+      if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
+        refresh_capture_window_for_sheet_interaction
+        quillui_wait_for_window_geometry_change "$DISPLAY_ID" "$capture_window" \
+          "$window_width" "$window_height" "${QUILLUI_BACKEND_SHEET_WAIT_SECONDS:-8}" || true
+      fi
+      DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$smoke_attempt_screenshot" 2>/dev/null || true
+      if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$smoke_attempt_screenshot" "$smoke_verify_product" >/dev/null 2>&1; then
+        mv -f "$smoke_attempt_screenshot" "$SCREENSHOT_PATH"
+        settled_capture_taken=1
+        break
+      fi
+      if (( smoke_click_attempts >= smoke_click_max )); then
+        echo "interaction-check: smoke interaction did not reach its verified state after" \
+          "$smoke_click_attempts attempts at ($click_x,$click_y) mode='$INTERACTION_MODE'" >&2
+        mv -f "$smoke_attempt_screenshot" "$SCREENSHOT_PATH" 2>/dev/null || true
+        settled_capture_taken=1
+        break
+      fi
+      echo "interaction-check: smoke attempt $smoke_click_attempts not yet in verified state; re-clicking" >&2
+    done
 else
     click_backend_header_action
 fi

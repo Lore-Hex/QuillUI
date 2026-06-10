@@ -1,6 +1,10 @@
 import Foundation
 import QuillKit
 import QuillFoundation  // CGImage (AVAssetImageGenerator.copyCGImage return type)
+import QuartzCore
+@_exported import AudioToolbox
+@_exported import CoreMedia
+@_exported import CoreVideo
 
 #if os(Linux)
 public protocol AVSpeechSynthesizerDelegate: AnyObject {
@@ -192,6 +196,35 @@ public final class AVPlayer: @unchecked Sendable {
     public init(url: URL) {}
 }
 
+public final class AVCaptureDevice: @unchecked Sendable {
+    public final class Format: @unchecked Sendable {
+        public let formatDescription: CMFormatDescription
+        public init(formatDescription: CMFormatDescription = CMFormatDescription()) {
+            self.formatDescription = formatDescription
+        }
+    }
+
+    public struct DeviceType: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
+        public static let builtInWideAngleCamera = DeviceType(rawValue: "wide")
+    }
+
+    public enum Position: Int, Sendable { case unspecified, back, front }
+    public var activeFormat: Format = Format()
+
+    public static func `default`(for mediaType: AVMediaType) -> AVCaptureDevice? {
+        _ = mediaType
+        return nil
+    }
+
+    public static func `default`(_ deviceType: DeviceType, for mediaType: AVMediaType?, position: Position) -> AVCaptureDevice? {
+        _ = (deviceType, mediaType, position)
+        return nil
+    }
+}
+
 // Real AVAudioEngine drives the macOS/iOS CoreAudio graph (input
 // node, output node, mixers, effects). The Linux stub stands in
 // just enough surface for source-compat: callers can build the
@@ -372,67 +405,98 @@ public struct AVFileType: RawRepresentable, Equatable, Hashable, Sendable {
     public static let m4v = AVFileType(rawValue: "public.m4v")
 }
 
-// MARK: CoreMedia time
+// MARK: Sample-buffer display
 
-public struct CMTime: Sendable, Equatable {
-    public var value: Int64
-    public var timescale: Int32
-    public var flags: UInt32
-    public var epoch: Int64
-    public init(value: Int64 = 0, timescale: Int32 = 0, flags: UInt32 = 0, epoch: Int64 = 0) {
-        self.value = value; self.timescale = timescale; self.flags = flags; self.epoch = epoch
-    }
-    public init(seconds: Double, preferredTimescale: Int32) {
-        self.timescale = preferredTimescale
-        self.value = Int64(seconds * Double(preferredTimescale))
-        self.flags = 0; self.epoch = 0
-    }
-    public var seconds: Double { timescale == 0 ? 0 : Double(value) / Double(timescale) }
-    public static let zero = CMTime(value: 0, timescale: 1)
-    public static let invalid = CMTime(value: 0, timescale: 0)
+public struct AVLayerVideoGravity: RawRepresentable, Equatable, Hashable, Sendable, ExpressibleByStringLiteral {
+    public var rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public init(stringLiteral value: String) { self.rawValue = value }
+
+    public static let resize = AVLayerVideoGravity(rawValue: "AVLayerVideoGravityResize")
+    public static let resizeAspect = AVLayerVideoGravity(rawValue: "AVLayerVideoGravityResizeAspect")
+    public static let resizeAspectFill = AVLayerVideoGravity(rawValue: "AVLayerVideoGravityResizeAspectFill")
 }
 
-public func CMTimeMake(value: Int64, timescale: Int32) -> CMTime { CMTime(value: value, timescale: timescale) }
-public func CMTimeMakeWithSeconds(_ seconds: Double, preferredTimescale: Int32) -> CMTime { CMTime(seconds: seconds, preferredTimescale: preferredTimescale) }
-public func CMTimeGetSeconds(_ time: CMTime) -> Float64 { time.seconds }
-
-// MARK: CoreMedia sample / block buffers (opaque, inert)
-
-public final class CMSampleBuffer: @unchecked Sendable { public init() {} }
-public final class CMBlockBuffer: @unchecked Sendable { public init() {} }
-public final class CMFormatDescription: @unchecked Sendable { public init() {} }
-
-public let kCMBlockBufferNoErr: Int32 = 0
-
-public func CMSampleBufferGetDataBuffer(_ sbuf: CMSampleBuffer) -> CMBlockBuffer? { nil }
-public func CMSampleBufferInvalidate(_ sbuf: CMSampleBuffer) {}
-public func CMSampleBufferGetNumSamples(_ sbuf: CMSampleBuffer) -> Int { 0 }
-
-public func CMBlockBufferGetDataPointer(
-    _ buffer: CMBlockBuffer,
-    atOffset offset: Int,
-    lengthAtOffsetOut: UnsafeMutablePointer<Int>?,
-    totalLengthOut: UnsafeMutablePointer<Int>?,
-    dataPointerOut: UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>?
-) -> Int32 {
-    -1  // never kCMBlockBufferNoErr: no data is ever produced on Linux
+public enum AVQueuedSampleBufferRenderingStatus: Int, Sendable {
+    case unknown
+    case rendering
+    case failed
 }
 
-// CoreAudio stream format (minimal; SSK reads only mChannelsPerFrame).
-public struct AudioStreamBasicDescription: Sendable {
-    public var mSampleRate: Float64 = 0
-    public var mFormatID: UInt32 = 0
-    public var mFormatFlags: UInt32 = 0
-    public var mBytesPerPacket: UInt32 = 0
-    public var mFramesPerPacket: UInt32 = 0
-    public var mBytesPerFrame: UInt32 = 0
-    public var mChannelsPerFrame: UInt32 = 0
-    public var mBitsPerChannel: UInt32 = 0
-    public var mReserved: UInt32 = 0
+public protocol AVQueuedSampleBufferRendering: AnyObject {
+    var isReadyForMoreMediaData: Bool { get }
+    var status: AVQueuedSampleBufferRenderingStatus { get }
+    func enqueue(_ sampleBuffer: CMSampleBuffer)
+    func flush()
+    func requestMediaDataWhenReady(on queue: DispatchQueue, using block: @escaping () -> Void)
+    func stopRequestingMediaData()
+}
+
+open class AVSampleBufferDisplayLayer: CALayer, AVQueuedSampleBufferRendering {
+    public var controlTimebase: CMTimebase?
+    public var videoGravity: AVLayerVideoGravity = .resizeAspect
+    public var preventsCapture: Bool = false
+    public var isReadyForMoreMediaData: Bool = true
+    public var status: AVQueuedSampleBufferRenderingStatus = .unknown
+    public var sampleBufferRenderer: AVQueuedSampleBufferRendering { self }
+
+    public func enqueue(_ sampleBuffer: CMSampleBuffer) {}
+    public func flush() {}
+    public func flushAndRemoveImage() {}
+    public func requestMediaDataWhenReady(on queue: DispatchQueue, using block: @escaping () -> Void) {
+        _ = queue
+        block()
+    }
+    public func stopRequestingMediaData() {}
+}
+
+public final class AVSampleBufferAudioRenderer: AVQueuedSampleBufferRendering, @unchecked Sendable {
+    public var volume: Float = 1
+    public var isMuted: Bool = false
+    public var isReadyForMoreMediaData: Bool = true
+    public var status: AVQueuedSampleBufferRenderingStatus = .unknown
+
     public init() {}
+    public func enqueue(_ sampleBuffer: CMSampleBuffer) {}
+    public func flush() {}
+    public func requestMediaDataWhenReady(on queue: DispatchQueue, using block: @escaping () -> Void) {
+        _ = queue
+        block()
+    }
+    public func stopRequestingMediaData() {}
 }
 
-public func CMAudioFormatDescriptionGetStreamBasicDescription(_ desc: CMFormatDescription) -> UnsafePointer<AudioStreamBasicDescription>? { nil }
+public final class AVSampleBufferRenderSynchronizer: @unchecked Sendable {
+    public let timebase: CMTimebase
+    private var renderers: [AVQueuedSampleBufferRendering] = []
+
+    public init() {
+        self.timebase = CMTimebase()
+    }
+
+    public func addRenderer(_ renderer: AVQueuedSampleBufferRendering) {
+        renderers.append(renderer)
+    }
+
+    public func removeRenderer(_ renderer: AVQueuedSampleBufferRendering, at time: CMTime) {
+        _ = time
+        renderers.removeAll { $0 === renderer }
+    }
+
+    public func setRate(_ rate: Float, time: CMTime) {
+        CMTimebaseSetTime(timebase, time: time)
+        CMTimebaseSetRate(timebase, rate: Double(rate))
+    }
+
+    public func setRate(_ rate: Double, time: CMTime) {
+        CMTimebaseSetTime(timebase, time: time)
+        CMTimebaseSetRate(timebase, rate: rate)
+    }
+
+    public func currentTime() -> CMTime {
+        CMTimebaseGetTime(timebase)
+    }
+}
 
 // MARK: Assets
 
@@ -461,8 +525,7 @@ public final class AVURLAsset: AVAsset, @unchecked Sendable {
 public final class AVAssetTrack: @unchecked Sendable {
     public var naturalSize: CGSize { .zero }
     public var mediaType: AVMediaType { .video }
-    // CGAffineTransform is absent from swift-corelibs -> typed Any (unused on Linux).
-    public var preferredTransform: Any { 0 }
+    public var preferredTransform: CGAffineTransform { .identity }
     public var nominalFrameRate: Float { 0 }
     public var estimatedDataRate: Float { 0 }
     public var formatDescriptions: [Any]? { [] }
@@ -489,6 +552,7 @@ public class AVAssetReaderOutput: @unchecked Sendable {
 
 public final class AVAssetReaderTrackOutput: AVAssetReaderOutput, @unchecked Sendable {
     public let track: AVAssetTrack
+    public var alwaysCopiesSampleData: Bool = true
     public init(track: AVAssetTrack, outputSettings: [String: Any]?) {
         self.track = track
         super.init()
@@ -499,6 +563,7 @@ public final class AVAssetReader: @unchecked Sendable {
     public enum Status: Int, Sendable { case unknown, reading, completed, failed, cancelled }
     public let asset: AVAsset
     public private(set) var outputs: [AVAssetReaderOutput] = []
+    public var timeRange: CMTimeRange = CMTimeRange(start: .zero, duration: .zero)
     // Nothing to read on Linux -> immediately "completed" so read loops exit at once.
     public var status: Status { .completed }
     public var error: Error?
@@ -732,6 +797,4 @@ public let AVLinearPCMIsNonInterleaved = "AVLinearPCMIsNonInterleaved"
 public let AVEncoderAudioQualityKey = "AVEncoderAudioQualityKey"
 public let AVEncoderBitRateKey = "AVEncoderBitRateKey"
 
-// CoreAudio format ID ('lpcm'); only ever a dictionary value on Linux.
-public let kAudioFormatLinearPCM: UInt32 = 0x6c70_636d
 #endif

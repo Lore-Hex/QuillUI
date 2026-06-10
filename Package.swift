@@ -240,6 +240,10 @@ var products: [Product] = [
     .library(name: "QuillUIKit", targets: ["QuillUIKit"]),
     .library(name: "QuillWebKit", targets: ["QuillWebKit"]),
     .library(name: "QuillShims", targets: ["QuillShims"]),
+    .library(name: "WebKit", targets: ["WebKit"]),
+    .library(name: "JavaScriptCore", targets: ["JavaScriptCore"]),
+    .library(name: "Compression", targets: ["Compression"]),
+    .library(name: "MediaPlayer", targets: ["MediaPlayer"]),
     .library(name: "KeychainSwift", targets: ["KeychainSwift"]),
     // QuillSourceLowering is the SwiftSyntax-based replacement for the
     // regex transformations in scripts/lower-swiftdata-for-quilldata.sh
@@ -338,8 +342,41 @@ products += [
     .library(name: "Combine", targets: ["Combine"]),
     .library(name: "OllamaKit", targets: ["OllamaKit"]),
     .library(name: "Sparkle", targets: ["Sparkle"]),
-    .library(name: "IOKit", targets: ["IOKit"])
+    .library(name: "IOKit", targets: ["IOKit"]),
+    .library(name: "COSUnfairLock", targets: ["COSUnfairLock"]),
+    .library(name: "NaturalLanguage", targets: ["NaturalLanguage"]),
+    .library(name: "ImageIO", targets: ["ImageIO"]),
+    .library(name: "Accelerate", targets: ["Accelerate"]),
+    .library(name: "AudioToolbox", targets: ["AudioToolbox"]),
+    .library(name: "CoreImage", targets: ["CoreImage"]),
+    .library(name: "CoreLocation", targets: ["CoreLocation"]),
+    .library(name: "CoreSpotlight", targets: ["CoreSpotlight"]),
+    .library(name: "QuartzCore", targets: ["QuartzCore"]),
+    .library(name: "CoreText", targets: ["CoreText"]),
+    .library(name: "CoreVideo", targets: ["CoreVideo"]),
+    .library(name: "CoreMedia", targets: ["CoreMedia"]),
+    .library(name: "Vision", targets: ["Vision"]),
+    .library(name: "VideoToolbox", targets: ["VideoToolbox"]),
+    .library(name: "IOSurface", targets: ["IOSurface"]),
+    .library(name: "LinkPresentation", targets: ["LinkPresentation"]),
+    .library(name: "Metal", targets: ["Metal"]),
+    .library(name: "MetalKit", targets: ["MetalKit"]),
+    .library(name: "MetalPerformanceShaders", targets: ["MetalPerformanceShaders"]),
+    .library(name: "StoreKit", targets: ["StoreKit"])
 ]
+#endif
+
+#if os(Linux)
+let appKitShadowDependencies: [Target.Dependency] = [
+    "QuillFoundation", "QuillUIKit", "QuillKit",
+    "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage",
+]
+let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
+#else
+let appKitShadowDependencies: [Target.Dependency] = [
+    "QuillFoundation", "QuillUIKit", "QuillKit",
+]
+let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation"]
 #endif
 
 #if os(Linux)
@@ -475,7 +512,7 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
-    "OllamaKit", "Sparkle", "IOKit", "KeychainSwift"
+    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "KeychainSwift"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
     "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
@@ -799,8 +836,28 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillWebKit",
-        dependencies: ["QuillFoundation"],
+        dependencies: quillWebKitDependencies,
         path: "Sources/QuillWebKit"
+    ),
+    .target(
+        name: "WebKit",
+        dependencies: ["QuillWebKit"],
+        path: "Sources/WebKitShim"
+    ),
+    .target(
+        name: "JavaScriptCore",
+        dependencies: [],
+        path: "Sources/JavaScriptCoreShim"
+    ),
+    .target(
+        name: "Compression",
+        dependencies: [],
+        path: "Sources/CompressionShim"
+    ),
+    .target(
+        name: "MediaPlayer",
+        dependencies: ["QuillFoundation"],
+        path: "Sources/MediaPlayerShim"
     ),
     .target(
         name: "QuillUIKit",
@@ -1816,9 +1873,10 @@ let signalAppleFrameworkShims = [
     // WireGuard's PrivateDataConfirmation. SSK depends on it via its explicit list
     // instead of this loop (the loop would create a duplicate target named the same).
     "ContactsUI", "Intents", "PassKit", "Accelerate",
-    "QuartzCore", "ImageIO", "CoreServices", "CoreImage", "AuthenticationServices",
+    "LinkPresentation", "Metal", "MetalKit", "MetalPerformanceShaders",
+    "QuartzCore", "CoreText", "ImageIO", "CoreServices", "CoreImage", "CoreLocation", "CoreSpotlight", "Vision", "AuthenticationServices",
     "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
-    "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio",
+    "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio", "CoreVideo", "CoreMedia", "VideoToolbox", "IOSurface",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
     "ObjCAssoc", "System", "notify",
     // NOTE: "zlib" is intentionally NOT here — it's a real systemLibrary
@@ -1839,6 +1897,16 @@ for shimName in signalAppleFrameworkShims {
     switch shimName {
     case "AudioToolbox", "UserNotifications":
         dependencies = ["QuillFoundation", "QuillKit"]
+    case "CoreMedia":
+        dependencies = ["QuillFoundation", "CoreVideo", "AudioToolbox"]
+    case "CoreVideo", "MetalKit", "MetalPerformanceShaders":
+        dependencies = ["QuillFoundation", "Metal"]
+    case "VideoToolbox":
+        dependencies = ["QuillFoundation", "CoreMedia", "CoreVideo"]
+    case "QuartzCore":
+        dependencies = ["QuillFoundation", "Metal"]
+    case "IOSurface":
+        dependencies = ["QuillFoundation", "CoreVideo"]
     default:
         dependencies = ["QuillFoundation"]
     }
@@ -2080,7 +2148,7 @@ targets.append(contentsOf: [
     // state.
     .target(
         name: "AppKit",
-        dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"],
+        dependencies: appKitShadowDependencies,
         path: "Sources/QuillAppKit",
         swiftSettings: [
             .swiftLanguageMode(.v5),
@@ -2152,9 +2220,11 @@ targets.append(contentsOf: [
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
     .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"], path: "Sources/UIKitShim"),
-    // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow + Foundation,
+    // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow +
+    // common AppKit-adjacent Apple modules, so source that relies on Cocoa as
+    // an umbrella import recompiles unchanged.
     // so unmodified macOS app source that `import Cocoa` recompiles unchanged.
-    .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),
+    .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"], path: "Sources/CocoaShim"),
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
     .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
@@ -2162,7 +2232,7 @@ targets.append(contentsOf: [
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
     .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
-    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/AVFoundation"),
+    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo"], path: "Sources/AVFoundation"),
     .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
     .target(name: "ApplicationServices", dependencies: ["QuillKit"], path: "Sources/ApplicationServices"),
     .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement"),
@@ -2348,20 +2418,32 @@ if quillUILinuxBuildBackend == .qt {
             dependencies: ["QuillFoundation"],
             path: "Sources/QuillUIKit"
         ),
+        // Inert GTK-free Apple-framework shims the AppKit shadow
+        // (appKitShadowDependencies) and the Cocoa umbrella below now
+        // re-export. The default/GTK graph gets these from the
+        // signalAppleFrameworkShims loop, which this replacement list bypasses.
+        .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
+        .target(name: "Metal", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/Metal"),
+        .target(name: "QuartzCore", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/QuartzCore"),
+        .target(name: "CoreVideo", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/CoreVideo"),
+        .target(name: "ImageIO", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/ImageIO"),
+        .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
+        .target(name: "CoreImage", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreImage"),
         .target(
             name: "AppKit",
-            dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"],
+            dependencies: appKitShadowDependencies,
             path: "Sources/QuillAppKit",
             swiftSettings: [
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
         ),
-        // `import Cocoa` umbrella (re-exports the AppKit shadow + Foundation) so
-        // unmodified macOS app source that `import Cocoa` recompiles in the qt
-        // graph — needed for the literal WireGuard VC render conformance below.
+        // `import Cocoa` umbrella (re-exports AppKit + common AppKit-adjacent
+        // Apple modules) so unmodified macOS app source that `import Cocoa`
+        // recompiles in the qt graph — needed for the literal WireGuard VC
+        // render conformance below.
         // Mirrors the default/GTK-graph Cocoa target.
-        .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),
+        .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"], path: "Sources/CocoaShim"),
         .target(
             name: "CKiwi",
             path: "Sources/CKiwi",

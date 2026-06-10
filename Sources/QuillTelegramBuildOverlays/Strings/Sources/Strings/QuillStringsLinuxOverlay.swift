@@ -50,16 +50,4 @@ private extension Character {
         isLetter || isNumber || self == "'"
     }
 }
-
-struct QuillCoreTextLine {
-    let glyphCount: Int
-}
-
-func CTLineCreateWithAttributedString(_ attributedString: NSAttributedString) -> QuillCoreTextLine {
-    QuillCoreTextLine(glyphCount: attributedString.string.count)
-}
-
-func CTLineGetGlyphCount(_ line: QuillCoreTextLine) -> Int {
-    line.glyphCount
-}
 #endif

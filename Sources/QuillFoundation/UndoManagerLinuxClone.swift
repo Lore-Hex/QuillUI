@@ -58,6 +58,12 @@ open class UndoManager: NSObject, @unchecked Sendable {
         }
     }
 
+    public func registerUndo(withTarget target: AnyObject, selector: Selector, object: Any?) {
+        registerUndo(withTarget: target) { target in
+            (target as? QuillSelectorDispatching)?.quillPerform(selector, with: object)
+        }
+    }
+
     public func beginUndoGrouping() {
         actionGroups.append([])
     }

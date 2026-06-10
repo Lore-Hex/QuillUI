@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Generated Telegram-Mac app-source check.
+#
+# Mirrors the upstream Telegram-Mac app target (~950 Swift files) into a
+# generated SwiftPM package wired against the same mirrored upstream package
+# tree the package-island check builds, then compiles it on Linux.
+#
+# This is a ratchet harness: until the app target is compile-green it runs in
+# report mode (QUILLUI_GENERATED_TELEGRAM_APP_MODE=report, the default), which
+# never fails the build but prints an error-class histogram so progress is
+# measurable. Switch to mode=check to hard-gate once the surface is green.
+
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "The generated Telegram app-source check requires Linux (QuillObjCCompatibility and the AppKit/Cocoa shim products are Linux-only)." >&2
+  exit 64
+fi
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/quillui-telegram-source.sh"
+
+UPSTREAM_DIR="$(quillui_resolve_telegram_source_dir "$ROOT_DIR")"
+WORK_ROOT="${QUILLUI_GENERATED_TELEGRAM_APP_WORKDIR:-$ROOT_DIR/.build/generated-telegram-app-source-check}"
+CACHE_HOME="${QUILLUI_GENERATED_TELEGRAM_APP_HOME:-$ROOT_DIR/.build/generated-telegram-app-source-check-home}"
+MODE="${QUILLUI_GENERATED_TELEGRAM_APP_MODE:-report}"
+
+if [[ -z "$WORK_ROOT" || "$WORK_ROOT" == "/" || "$WORK_ROOT" == "$ROOT_DIR" ]]; then
+  echo "Refusing unsafe generated work directory: ${WORK_ROOT:-<empty>}" >&2
+  exit 73
+fi
+
+if [[ ! -d "$UPSTREAM_DIR/Telegram-Mac" ]]; then
+  echo "Telegram-Mac sources were not found at: $UPSTREAM_DIR/Telegram-Mac" >&2
+  exit 66
+fi
+
+rm -rf "$WORK_ROOT"
+mkdir -p "$WORK_ROOT" "$CACHE_HOME"
+
+# Reuse the package-island mirror (overlaid-packages + submodule mirrors +
+# manifest patching) by running the package check for one tiny package inside
+# our work root. The mirror is materialized for every upstream manifest
+# regardless of the requested compile set.
+QUILLUI_GENERATED_TELEGRAM_PACKAGE_WORKDIR="$WORK_ROOT/mirror" \
+QUILLUI_GENERATED_TELEGRAM_PACKAGE_HOME="$CACHE_HOME" \
+QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES="ColorPalette" \
+  "$ROOT_DIR/scripts/generated-telegram-package-check.sh"
+
+package_mirror_root="$WORK_ROOT/mirror/overlaid-packages"
+
+# The package-island check builds each package in isolation, where the
+# mirror's dual exposure (overlaid-packages/<P> and
+# submodules/telegram-ios/submodules/<P>, bridged by symlinks) only warns.
+# A unified app dependency graph escalates those duplicate identities to
+# resolution errors, so canonicalize every path dependency in the mirrored
+# manifests to its realpath — one path, one identity.
+python3 - "$WORK_ROOT/mirror" <<'PY'
+import os
+import re
+import sys
+
+mirror_root = sys.argv[1]
+dep_re = re.compile(r'(\.package\(name:\s*"[^"]+",\s*path:\s*")([^"]+)(")')
+
+for dirpath, dirnames, filenames in os.walk(mirror_root, followlinks=False):
+    # SwiftPM scratch/checkout trees are read-only and not ours to rewrite.
+    dirnames[:] = [d for d in dirnames if d != '.build']
+    if 'Package.swift' not in filenames:
+        continue
+    manifest_path = os.path.join(dirpath, 'Package.swift')
+    text = open(manifest_path).read()
+
+    def canonicalize(match):
+        raw = match.group(2)
+        resolved = raw if os.path.isabs(raw) else os.path.join(dirpath, raw)
+        real = os.path.realpath(resolved)
+        return match.group(1) + (real if os.path.isdir(real) else raw) + match.group(3)
+
+    rewritten = dep_re.sub(canonicalize, text)
+    if rewritten != text:
+        open(manifest_path, 'w').write(rewritten)
+PY
+
+app_dir="$WORK_ROOT/app"
+app_sources="$app_dir/Sources/TelegramMac"
+mkdir -p "$app_sources"
+
+while IFS= read -r swift_source; do
+  cp "$swift_source" "$app_sources/"
+done < <(find "$UPSTREAM_DIR/Telegram-Mac" -maxdepth 1 -name '*.swift' -print | sort)
+
+python3 "$ROOT_DIR/scripts/lower-telegram-linux-source.py" "$app_dir"
+python3 "$ROOT_DIR/scripts/generate-telegram-image-resource-symbols.py" "$app_dir"
+
+# The app entry is lowered away; the check builds a library, not a runnable.
+python3 - "$app_sources/AppDelegate.swift" <<'PY'
+import sys
+path = sys.argv[1]
+try:
+    text = open(path).read()
+except OSError:
+    sys.exit(0)
+open(path, 'w').write(text.replace('@NSApplicationMain\n', ''))
+PY
+
+# Package dependencies: every mirrored top-level package plus the QuillUI
+# Apple-module products the app sources import directly.
+app_packages=(
+  ApiCredentials CalendarUtils ColorPalette Colors CrashHandler CurrencyFormat
+  DateUtils FastBlur FetchManager GZIP GraphUI HackUtils InAppPurchaseManager
+  InAppSettings InAppVideoServices InputView KeyboardKey Localization
+  MergeLists ObjcUtils PrivateCallScreen Reactions Spotlight Strings
+  TGCurrencyFormatter TGGifConverter TGModernGrowingTextView TGPassportMRZ
+  TGUIKit TGVideoCameraMovie TelegramIconsTheme TelegramMedia TelegramSystem
+  TextRecognizing ThemeSettings Translate
+)
+
+manifest="$app_dir/Package.swift"
+{
+  printf '%s\n' '// swift-tools-version:5.9'
+  printf '%s\n' '// Generated by scripts/generated-telegram-app-source-check.sh; do not edit.'
+  printf '%s\n' 'import PackageDescription'
+  printf '%s\n' ''
+  printf '%s\n' 'let package = Package('
+  printf '%s\n' '    name: "GeneratedTelegramMacAppSource",'
+  printf '%s\n' '    platforms: [.macOS(.v10_13)],'
+  printf '%s\n' '    products: ['
+  printf '%s\n' '        .library(name: "GeneratedTelegramMacAppSource", targets: ["TelegramMac"]),'
+  printf '%s\n' '    ],'
+  printf '%s\n' '    dependencies: ['
+  printf '%s\n' '        .package(name: "QuillUI", path: "'"$ROOT_DIR"'"),'
+  for package_name in "${app_packages[@]}"; do
+    printf '        .package(name: "%s", path: "%s/%s"),\n' "$package_name" "$package_mirror_root" "$package_name"
+  done
+  printf '%s\n' '    ],'
+  printf '%s\n' '    targets: ['
+  printf '%s\n' '        .target('
+  printf '%s\n' '            name: "TelegramMac",'
+  printf '%s\n' '            dependencies: ['
+  printf '%s\n' '                .product(name: "AppKit", package: "QuillUI"),'
+  printf '%s\n' '                .product(name: "Cocoa", package: "QuillUI"),'
+  printf '%s\n' '                .product(name: "WebKit", package: "QuillUI"),'
+  printf '%s\n' '                .product(name: "AVFoundation", package: "QuillUI"),'
+  printf '%s\n' '                .product(name: "Accelerate", package: "QuillUI"),'
+  printf '%s\n' '                .product(name: "CoreSpotlight", package: "QuillUI"),'
+  printf '%s\n' '                .product(name: "Vision", package: "QuillUI"),'
+  for package_name in "${app_packages[@]}"; do
+    printf '                .product(name: "%s", package: "%s"),\n' "$package_name" "$package_name"
+  done
+  printf '%s\n' '            ],'
+  printf '%s\n' '            path: "Sources/TelegramMac"'
+  printf '%s\n' '        ),'
+  printf '%s\n' '    ]'
+  printf '%s\n' ')'
+} > "$manifest"
+
+objc_include_dir="$ROOT_DIR/Sources/QuillObjCCompatibility/include"
+log_path="$WORK_ROOT/telegram-mac-app.log"
+
+set +e
+HOME="$CACHE_HOME" \
+CLANG_MODULE_CACHE_PATH="$WORK_ROOT/module-cache" \
+swift build \
+  --disable-sandbox \
+  --skip-update \
+  --jobs "${QUILLUI_GENERATED_TELEGRAM_APP_JOBS:-2}" \
+  --package-path "$app_dir" \
+  --scratch-path "$WORK_ROOT/.build/app" \
+  -Xcc "-I$objc_include_dir" \
+  -Xcc "-include" \
+  -Xcc "$objc_include_dir/QuillObjCCompatibility/Prelude.h" \
+  -Xcc "-fobjc-runtime=gnustep-2.0" \
+  -Xcc "-fblocks" \
+  -Xcc "-fobjc-arc" \
+  >"$log_path" 2>&1
+build_status=$?
+set -e
+
+error_count="$(grep -c ' error: ' "$log_path" || true)"
+printf 'Telegram-Mac app-source build status: %s\n' "$build_status"
+printf 'Telegram-Mac app-source error lines: %s\n' "$error_count"
+printf 'Top error classes:\n'
+grep -oE 'error: [^(]*' "$log_path" | sed 's/[A-Za-z0-9_.]*'"'"'[^'"'"']*'"'"'/<symbol>/g' | sort | uniq -c | sort -rn | head -25 || true
+printf 'Log: %s\n' "$log_path"
+
+if [[ "$MODE" == "check" ]]; then
+  exit "$build_status"
+fi
+exit 0

@@ -486,12 +486,20 @@ struct SourceHygieneTests {
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
         #expect(appKit.contains("@MainActor public protocol NSApplicationDelegate"))
-        #expect(appKit.contains("@MainActor public protocol NSMenuDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
-        #expect(appKit.contains("@MainActor public protocol NSTableViewDelegate"))
-        #expect(appKit.contains("@MainActor public protocol NSTableViewDataSource"))
-        #expect(appKit.contains("@MainActor public protocol NSOutlineViewDelegate"))
-        #expect(appKit.contains("@MainActor public protocol NSOutlineViewDataSource"))
+        // The menu/table/outline delegate protocols must stay nonisolated:
+        // @MainActor on a protocol infers @MainActor on conforming classes,
+        // which breaks upstream Telegram TGUIKit types (TableView, ContextMenu)
+        // that conform from nonisolated code. The shim bridges its delegate
+        // call sites with MainActor.assumeIsolated instead.
+        #expect(appKit.contains("public protocol NSMenuDelegate"))
+        #expect(appKit.contains("public protocol NSTableViewDelegate"))
+        #expect(appKit.contains("public protocol NSTableViewDataSource"))
+        #expect(appKit.contains("public protocol NSOutlineViewDelegate"))
+        #expect(appKit.contains("public protocol NSOutlineViewDataSource"))
+        #expect(!appKit.contains("@MainActor public protocol NSMenuDelegate"))
+        #expect(!appKit.contains("@MainActor public protocol NSTableViewDelegate"))
+        #expect(appKit.contains("MainActor.assumeIsolated { delegate.menuWillOpen(self) }"))
         #expect(appKit.contains("public static let borderless: StyleMask = []"))
         #expect(appKit.contains("open class NSTextStorage: NSMutableAttributedString {"))
         #expect(!appKit.contains("public static let borderless = StyleMask(rawValue: 0)"))
@@ -521,7 +529,7 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\"], path: \"Sources/AVFoundation\")"))
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"], path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
     }
 
@@ -1758,7 +1766,11 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_backend_reference_window_defaults"))
         #expect(!backendScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
         #expect(backendScript.contains("quillui_backend_screen_size \"$PRODUCT\" \"${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-}\""))
-        #expect(backendScript.contains("quillui_find_visible_window_for_pid \"$DISPLAY_ID\" \"$app_pid\""))
+        // Interaction clicks must wait for a mapped, plausibly-sized app
+        // window (poll) rather than a one-shot pid lookup — the one-shot
+        // raced slow app startup on CI and clicked screen-sized geometry.
+        #expect(backendScript.contains("quillui_wait_for_app_window_for_pid \"$DISPLAY_ID\" \"$app_pid\""))
+        #expect(backendScript.contains("QUILLUI_BACKEND_WINDOW_WAIT_SECONDS"))
         #expect(backendScript.contains("quillui_find_visible_window_by_name \"$DISPLAY_ID\" \".*\""))
         #expect(backendScript.contains("quillui_place_reference_window \"$DISPLAY_ID\" \"$window_id\""))
         #expect(backendScript.contains("quillui_append_backend_runtime_environment"))
@@ -1782,8 +1794,13 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}"))
         #expect(backendScript.contains("refresh_capture_window_for_active_child_window"))
         #expect(backendScript.contains("refresh_capture_window_for_sheet_interaction"))
-        #expect(backendScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
+        // The child-window refresh must run for found-window captures too
+        // (smoke sheets present as separate ~900px toplevels) — no
+        // capture==root gate. IM-popup misfires are filtered by the
+        // minimum-size candidate gate instead.
+        #expect(!backendScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
         #expect(!backendScript.contains("[[ \"$capture_window\" != \"root\" ]] || return 0"))
+        #expect(backendScript.contains("quillui_window_is_plausible_capture_target \"$DISPLAY_ID\" \"$candidate_window\" \"$window_id\""))
         #expect(backendScript.contains("quillui_find_visible_window_for_pid_except \"$DISPLAY_ID\" \"$app_pid\" \"$window_id\""))
         #expect(!backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
         #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
@@ -2498,6 +2515,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/patch-telegram-package-manifest.py"),
             encoding: .utf8
         )
+        let telegramSourceLowerer = try String(
+            contentsOf: root.appendingPathComponent("scripts/lower-telegram-linux-source.py"),
+            encoding: .utf8
+        )
         let telegramAudit = try String(
             contentsOf: root.appendingPathComponent("docs/upstream-telegram-audit.md"),
             encoding: .utf8
@@ -2518,8 +2539,16 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AppKit/AppKit.h"),
             encoding: .utf8
         )
+        let objcCoreGraphicsHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/CoreGraphics/CoreGraphics.h"),
+            encoding: .utf8
+        )
         let objcPreludeHeader = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/QuillObjCCompatibility/Prelude.h"),
+            encoding: .utf8
+        )
+        let quillFoundationLinuxClone = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillFoundation/FoundationLinuxClone.swift"),
             encoding: .utf8
         )
         let machHeader = try String(
@@ -2566,6 +2595,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
             encoding: .utf8
         )
+        let objcRuntimeHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/objc/runtime.h"),
+            encoding: .utf8
+        )
         let apiCredentialsOverlay = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/ApiCredentials/Sources/ApiCredentials/QuillSecurityOverlay.swift"),
             encoding: .utf8
@@ -2578,8 +2611,37 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/TelegramSystem/Sources/TelegramSystem/QuillDarwinSysctlOverlay.swift"),
             encoding: .utf8
         )
+        let objcUtilsOverlayPackage = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/ObjcUtils/Package.swift"),
+            encoding: .utf8
+        )
+        let objcUtilsSwiftOverlay = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/ObjcUtils/Sources/ObjcUtilsSwift/ObjcUtils.swift"),
+            encoding: .utf8
+        )
+        let coreVideoShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/AppleFrameworkShims/CoreVideo/CoreVideo.swift"),
+            encoding: .utf8
+        )
+        let coreTextSwiftShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/AppleFrameworkShims/CoreText/CoreText.swift"),
+            encoding: .utf8
+        )
+        let objcJavaScriptCoreHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/JavaScriptCore/JavaScriptCore.h"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains(".library(name: \"QuillObjCCompatibility\", targets: [\"QuillObjCCompatibility\"])"))
+        #expect(manifest.contains(".library(name: \"COSUnfairLock\", targets: [\"COSUnfairLock\"])"))
+        #expect(manifest.contains(".library(name: \"NaturalLanguage\", targets: [\"NaturalLanguage\"])"))
+        #expect(manifest.contains(".library(name: \"ImageIO\", targets: [\"ImageIO\"])"))
+        #expect(manifest.contains(".library(name: \"Accelerate\", targets: [\"Accelerate\"])"))
+        #expect(manifest.contains(".library(name: \"CoreLocation\", targets: [\"CoreLocation\"])"))
+        #expect(manifest.contains(".library(name: \"CoreVideo\", targets: [\"CoreVideo\"])"))
+        #expect(manifest.contains(".library(name: \"Vision\", targets: [\"Vision\"])"))
+        #expect(manifest.contains(".library(name: \"StoreKit\", targets: [\"StoreKit\"])"))
+        #expect(manifest.contains("\"AVFAudio\", \"CoreVideo\""))
         #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
         #expect(fetchUpstream.contains("telegram)"))
         #expect(fetchUpstream.contains("fetch_repo telegram-swift https://github.com/overtake/TelegramSwift.git master"))
@@ -2595,38 +2657,74 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("--skip-update"))
         #expect(telegramPackageCheck.contains("ApiCredentials"))
         #expect(telegramPackageCheck.contains("CAPortal"))
+        #expect(telegramPackageCheck.contains("CallVideoLayer"))
         #expect(telegramPackageCheck.contains("ColorPalette"))
+        #expect(telegramPackageCheck.contains("Colors"))
         #expect(telegramPackageCheck.contains("CalendarUtils"))
         #expect(telegramPackageCheck.contains("CrashHandler"))
         #expect(telegramPackageCheck.contains("CurrencyFormat"))
         #expect(telegramPackageCheck.contains("DateUtils"))
         #expect(telegramPackageCheck.contains("DetectSpeech"))
+        #expect(telegramPackageCheck.contains("Dock"))
+        #expect(telegramPackageCheck.contains("DustLayer"))
         #expect(telegramPackageCheck.contains("EDSunriseSet"))
         #expect(telegramPackageCheck.contains("EmojiSuggestions"))
         #expect(telegramPackageCheck.contains("FastBlur"))
+        #expect(telegramPackageCheck.contains("FetchManager"))
         #expect(telegramPackageCheck.contains("FoundationUtils"))
         #expect(telegramPackageCheck.contains("GZIP"))
+        #expect(telegramPackageCheck.contains("GraphUI"))
         #expect(telegramPackageCheck.contains("HackUtils"))
         #expect(telegramPackageCheck.contains("HotKey"))
+        #expect(telegramPackageCheck.contains("InAppPurchaseManager"))
+        #expect(telegramPackageCheck.contains("InAppSettings"))
+        #expect(telegramPackageCheck.contains("InAppVideoServices"))
+        #expect(telegramPackageCheck.contains("InputView"))
         #expect(telegramPackageCheck.contains("KeyboardKey"))
+        #expect(telegramPackageCheck.contains("Localization"))
         #expect(telegramPackageCheck.contains("MergeLists"))
         #expect(telegramPackageCheck.contains("NumberPluralization"))
+        #expect(telegramPackageCheck.contains("OCR"))
+        #expect(telegramPackageCheck.contains("ObjcUtils"))
+        #expect(telegramPackageCheck.contains("PrivateCallScreen"))
+        #expect(telegramPackageCheck.contains("Reactions"))
         #expect(telegramPackageCheck.contains("RingBuffer"))
+        #expect(telegramPackageCheck.contains("Spotlight"))
         #expect(telegramPackageCheck.contains("Strings"))
         #expect(telegramPackageCheck.contains("Svg"))
         #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
+        #expect(telegramPackageCheck.contains("TGGifConverter"))
+        #expect(telegramPackageCheck.contains("TGModernGrowingTextView"))
         #expect(telegramPackageCheck.contains("TGPassportMRZ"))
+        #expect(telegramPackageCheck.contains("TGUIKit"))
+        #expect(telegramPackageCheck.contains("TGVideoCameraMovie"))
+        #expect(telegramPackageCheck.contains("TelegramMedia"))
+        #expect(telegramPackageCheck.contains("TelegramIconsTheme"))
         #expect(telegramPackageCheck.contains("TelegramSystem"))
+        #expect(telegramPackageCheck.contains("TextRecognizing"))
+        #expect(telegramPackageCheck.contains("ThemeSettings"))
+        #expect(telegramPackageCheck.contains("Translate"))
+        // telegram-ios submodule packages promoted into the default compile
+        // set once the mirror + ObjC compatibility surface covered them.
+        #expect(telegramPackageCheck.contains("MediaPlayer"))
+        #expect(telegramPackageCheck.contains("TelegramAudio"))
+        #expect(telegramPackageCheck.contains("YuvConversion"))
+        #expect(telegramPackageCheck.contains("libphonenumber"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/Prelude.h"))
         #expect(telegramPackageCheck.contains("overlay_root=\"$ROOT_DIR/Sources/QuillTelegramBuildOverlays\""))
         #expect(telegramPackageCheck.contains("package_mirror_root=\"$WORK_ROOT/overlaid-packages\""))
+        #expect(telegramPackageCheck.contains("submodule_mirror_root=\"$WORK_ROOT/submodules\""))
         #expect(telegramPackageCheck.contains("CACHE_HOME=\"${QUILLUI_GENERATED_TELEGRAM_PACKAGE_HOME"))
         #expect(telegramPackageCheck.contains("HOME=\"$CACHE_HOME\""))
         #expect(telegramPackageCheck.contains("find \"$UPSTREAM_DIR/packages\""))
+        #expect(telegramPackageCheck.contains("lower-telegram-linux-source.py"))
         #expect(telegramPackageCheck.contains("patch-telegram-package-manifest.py"))
+        #expect(telegramPackageCheck.contains("materialize_telegram_shared_headers \"$submodule_name\" \"$mirrored_submodule\"\n        python3 \"$ROOT_DIR/scripts/patch-telegram-package-manifest.py\" \"$mirrored_submodule\" \"$ROOT_DIR\""))
+        #expect(telegramPackageCheck.contains("find \"$submodule_mirror_root\" -type f -name Package.swift -print | sort"))
         #expect(telegramPackageCheck.contains("cp -R \"$overlay_dir\"/. \"$mirror_package_dir\""))
-        #expect(telegramPackageCheck.contains("ln -s \"$UPSTREAM_DIR/submodules\" \"$package_mirror_root/submodules\""))
+        #expect(telegramPackageCheck.contains("cp -R \"$UPSTREAM_DIR/submodules/telegram-ios/submodules\" \"$submodule_mirror_root/telegram-ios/submodules\""))
+        #expect(telegramPackageCheck.contains("ln -s \"$submodule_mirror_root\" \"$package_mirror_root/submodules\""))
         #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
         #expect(telegramPackageCheck.contains("-fblocks"))
         #expect(telegramPackageCheck.contains("-fobjc-arc"))
@@ -2641,15 +2739,102 @@ struct SourceHygieneTests {
         #expect(telegramAudit.contains("local QuillUI Apple-module products"))
         #expect(telegramAudit.contains("transitive `Colors` package"))
         #expect(telegramManifestPatcher.contains("IMPORT_TO_PRODUCT"))
+        #expect(telegramManifestPatcher.contains("search_roots = [sources_dir, package_dir] if sources_dir.exists() else [package_dir]"))
+        #expect(telegramManifestPatcher.contains("relative_parts = swift_file.relative_to(package_dir).parts"))
+        #expect(telegramManifestPatcher.contains("if any(part in {\".build\", \".git\", \".swiftpm\"} for part in relative_parts):"))
         #expect(telegramManifestPatcher.contains("\"AppKit\": \"AppKit\""))
+        #expect(telegramManifestPatcher.contains("\"AVFoundation\": \"AVFoundation\""))
+        #expect(telegramManifestPatcher.contains("\"Accelerate\": \"Accelerate\""))
         #expect(telegramManifestPatcher.contains("\"Cocoa\": \"Cocoa\""))
+        #expect(telegramManifestPatcher.contains("\"CoreLocation\": \"CoreLocation\""))
+        #expect(telegramManifestPatcher.contains("\"CoreVideo\": \"CoreVideo\""))
+        #expect(telegramManifestPatcher.contains("\"COSUnfairLock\": \"COSUnfairLock\""))
+        #expect(telegramManifestPatcher.contains("\"NaturalLanguage\": \"NaturalLanguage\""))
+        #expect(telegramManifestPatcher.contains("\"ImageIO\": \"ImageIO\""))
+        #expect(telegramManifestPatcher.contains("\"IOKit\": \"IOKit\""))
+        #expect(telegramManifestPatcher.contains("\"StoreKit\": \"StoreKit\""))
+        #expect(telegramManifestPatcher.contains("\"QuillFoundation\": \"QuillFoundation\""))
         #expect(telegramManifestPatcher.contains(".package(name: \"QuillUI\""))
         #expect(telegramManifestPatcher.contains(".product(name:"))
+        #expect(telegramSourceLowerer.contains("THREAD_SELECTOR_RE"))
+        #expect(telegramSourceLowerer.contains("insert_import(lowered, \"COSUnfairLock\")"))
+        #expect(telegramSourceLowerer.contains("insert_import(lowered, \"QuillFoundation\")"))
+        #expect(telegramSourceLowerer.contains("CFAbsoluteTimeGetCurrent"))
+        #expect(telegramSourceLowerer.contains("threadPriority"))
+        #expect(telegramSourceLowerer.contains("IOKit\\.ps"))
+        #expect(telegramSourceLowerer.contains("os_unfair_lock"))
+        #expect(telegramSourceLowerer.contains("__nonnull"))
+        #expect(telegramSourceLowerer.contains("getxattr"))
+        #expect(telegramSourceLowerer.contains("setxattr"))
+        #expect(telegramSourceLowerer.contains("@objc"))
+        #expect(telegramSourceLowerer.contains("#selector"))
+        #expect(telegramSourceLowerer.contains("autoreleasepool"))
+        #expect(quillFoundationLinuxClone.contains("typealias CFAbsoluteTime = Double"))
+        #expect(quillFoundationLinuxClone.contains("func CFAbsoluteTimeGetCurrent()"))
+        #expect(quillFoundationLinuxClone.contains("var threadPriority: Double"))
         #expect(objcFoundationHeader.contains("@interface NSString : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCharacterSet : NSObject"))
         #expect(objcFoundationHeader.contains("@protocol NSXMLParserDelegate"))
+        #expect(objcFoundationHeader.contains("@property (nonatomic, readonly) NSUInteger numberOfRanges;"))
+        #expect(objcFoundationHeader.contains("#define DEPRECATED_MSG_ATTRIBUTE(msg) __attribute__((deprecated(msg)))"))
+        #expect(objcFoundationHeader.contains("@interface NSOperation : NSObject"))
+        #expect(objcFoundationHeader.contains("NSURLRequestUseProtocolCachePolicy = 0"))
+        #expect(objcFoundationHeader.contains("+ (instancetype)ephemeralSessionConfiguration;"))
+        #expect(objcFoundationHeader.contains("static NSString * const NSUnderlyingErrorKey"))
+        #expect(objcFoundationHeader.contains("@property (nonatomic, readonly) NSString *debugDescription;"))
+        #expect(objcFoundationHeader.contains("+ (BOOL)automaticallyNotifiesObserversForKey:(NSString *)key;"))
+        #expect(objcFoundationHeader.contains("- (NSString *)displayNameForKey:(id)key value:(id)value;"))
+        #expect(objcFoundationHeader.contains("#define NSEC_PER_MSEC 1000000ull"))
+        #expect(objcFoundationHeader.contains("@interface NSURLComponents : NSObject"))
+        #expect(objcFoundationHeader.contains("+ (instancetype)URLQueryAllowedCharacterSet;"))
+        #expect(objcFoundationHeader.contains("stringByAddingPercentEncodingWithAllowedCharacters"))
+        #expect(objcFoundationHeader.contains("+ (instancetype)predicateWithBlock:"))
+        #expect(objcFoundationHeader.contains("replaceMatchesInString:(NSMutableString *)string"))
+        #expect(objcFoundationHeader.contains("@interface NSDateComponentsFormatter : NSObject"))
+        #expect(objcFoundationHeader.contains("static NSString * const NSURLErrorKey"))
+        #expect(objcFoundationHeader.contains("NSRegularExpressionDotMatchesLineSeparators"))
+        #expect(objcFoundationHeader.contains("+ (instancetype)whitespaceAndNewlineCharacterSet;"))
+        #expect(objcFoundationHeader.contains("+ (instancetype)decimalDigitCharacterSet;"))
+        #expect(objcFoundationHeader.contains("- (BOOL)isSupersetOfSet:(NSCharacterSet *)other;"))
+        #expect(objcFoundationHeader.contains("#define __nullable _Nullable"))
+        #expect(objcFoundationHeader.contains("@interface NSOperationQueue : NSObject"))
+        #expect(objcFoundationHeader.contains("NSQualityOfServiceUtility"))
+        #expect(objcFoundationHeader.contains("@property NSQualityOfService qualityOfService;"))
+        #expect(objcFoundationHeader.contains("@property (copy) void (^completionBlock)(void);"))
+        #expect(objcFoundationHeader.contains("- (NSArray<NSString *> *)preferredLocalizations;"))
+        #expect(objcFoundationHeader.contains("+ (NSString *)canonicalLanguageIdentifierFromString:(NSString *)string;"))
+        #expect(objcFoundationHeader.contains("static NSString * const NSInvalidArgumentException"))
+        #expect(objcFoundationHeader.contains("@protocol NSURLSessionDataDelegate"))
+        #expect(objcFoundationHeader.contains("NSURLSessionResponseAllow = 1"))
+        #expect(objcFoundationHeader.contains("+ (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration"))
+        #expect(objcFoundationHeader.contains("- (NSURLSessionDataTask *)dataTaskWithURL:(NSURL *)url;"))
+        #expect(objcFoundationHeader.contains("+ (NSString *)localizedStringForStatusCode:(NSInteger)statusCode;"))
+        #expect(objcFoundationHeader.contains("static NSString * const NSURLErrorDomain"))
+        #expect(objcFoundationHeader.contains("NSURLResponseUnknownLength"))
+        #expect(objcFoundationHeader.contains("NSJSONReadingAllowFragments"))
+        #expect(objcCoreFoundationHeader.contains("kCFStringEncodingInvalidId"))
+        #expect(objcCoreFoundationHeader.contains("CFStringConvertIANACharSetNameToEncoding"))
+        #expect(objcModuleMap.contains("module CoreGraphics"))
+        #expect(objcCoreGraphicsHeader.contains("CGRectGetMinX"))
+        #expect(objcCoreGraphicsHeader.contains("#include <AppKit/AppKit.h>"))
+        #expect(objcAppKitHeader.contains("typedef const void CGImage;"))
+        #expect(objcAppKitHeader.contains("CGImageCreateWithImageInRect"))
+        #expect(objcAppKitHeader.contains("+ (instancetype)valueWithRect:(NSRect)rect;"))
+        #expect(objcAppKitHeader.contains("- (CGRect)CGRectValue;"))
+        #expect(objcModuleMap.contains("module JavaScriptCore"))
+        #expect(objcJavaScriptCoreHeader.contains("@interface JSContext : NSObject"))
+        #expect(objcJavaScriptCoreHeader.contains("@interface JSValue : NSObject"))
+        #expect(objcJavaScriptCoreHeader.contains("valueWithObject:(id)value inContext:(JSContext *)context"))
+        #expect(objcRuntimeHeader.contains("objc_lookUpClass"))
+        #expect(objcRuntimeHeader.contains("protocol_getMethodDescription"))
+        #expect(objcFoundationHeader.contains("@interface NSDataDetector : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSRegularExpression : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSFileManager : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSMutableAttributedString : NSAttributedString"))
+        #expect(objcFoundationHeader.contains("NSHomeDirectory"))
+        #expect(objcFoundationHeader.contains("arc4random"))
         #expect(objcFoundationHeader.contains("- (void)getBytes:(void *)buffer range:(NSRange)range"))
         #expect(objcFoundationHeader.contains("- (void)appendBytes:(const void *)bytes length:(NSUInteger)length"))
         #expect(objcFoundationHeader.contains("@protocol NSFastEnumeration"))
@@ -2665,6 +2850,11 @@ struct SourceHygieneTests {
         #expect(objcAppKitHeader.contains("@interface NSView : NSObject"))
         #expect(objcAppKitHeader.contains("@interface NSBitmapImageRep : NSObject"))
         #expect(objcAppKitHeader.contains("@interface NSGraphicsContext : NSObject"))
+        #expect(objcAppKitHeader.contains("@interface NSOpenPanel : NSObject"))
+        #expect(objcAppKitHeader.contains("@interface NSEvent : NSObject"))
+        #expect(objcAppKitHeader.contains("CGImageRef"))
+        #expect(objcAppKitHeader.contains("CGBitmapContextCreate"))
+        #expect(objcAppKitHeader.contains("LSCopyApplicationURLsForURL"))
         #expect(objcAppKitHeader.contains("NSArray<NSView *> *subviews"))
         #expect(objcAppKitHeader.contains("NSString *className"))
         #expect(objcAppKitHeader.contains("NSEventModifierFlagCommand"))
@@ -2679,9 +2869,13 @@ struct SourceHygieneTests {
         #expect(carbonHeader.contains("kVK_Return"))
         #expect(carbonHeader.contains("UCKeyTranslate"))
         #expect(avFoundationHeader.contains("@interface AVURLAsset : NSObject"))
+        #expect(avFoundationHeader.contains("CMSampleBufferRef"))
+        #expect(avFoundationHeader.contains("@interface AVMutableMetadataItem : NSObject"))
         #expect(ioHIDHeader.contains("IOHIDRequestAccess"))
+        #expect(ioHIDHeader.contains("IOServiceGetMatchingServices"))
         #expect(securityHeader.contains("import Security"))
         #expect(commonCryptoHeader.contains("import CommonCrypto"))
+        #expect(commonCryptoHeader.contains("CC_MD5"))
         #expect(coreTextHeader.contains("CTLineGetGlyphCount"))
         #expect(quartzCoreHeader.contains("QuartzCore"))
         #expect(objcModuleMap.contains("module Foundation"))
@@ -2698,10 +2892,27 @@ struct SourceHygieneTests {
         #expect(apiCredentialsOverlay.contains("func CC_SHA1"))
         #expect(apiCredentialsOverlay.contains("containerURL(forSecurityApplicationGroupIdentifier"))
         #expect(stringsOverlay.contains("static let byWords"))
-        #expect(stringsOverlay.contains("func CTLineCreateWithAttributedString"))
+        // Strings' CoreText glyph-count path resolves to the shared CoreText
+        // shim product (added by the manifest patcher), not the overlay.
+        #expect(coreTextSwiftShim.contains("func CTLineCreateWithAttributedString"))
+        #expect(coreTextSwiftShim.contains("func CTLineGetGlyphCount"))
         #expect(stringsOverlay.contains("quillIsTelegramWordCharacter"))
         #expect(telegramSystemOverlay.contains("func sysctlbyname"))
         #expect(telegramSystemOverlay.contains("oldlenp?.pointee = 0"))
+        #expect(objcUtilsOverlayPackage.contains(".library(name: \"ObjcUtils\", targets: [\"ObjcUtils\"])"))
+        #expect(objcUtilsOverlayPackage.contains(".library(name: \"ObjcUtilsObjC\", targets: [\"ObjcUtilsObjC\"])"))
+        #expect(objcUtilsOverlayPackage.contains("Sources/ObjcUtilsSwift"))
+        #expect(objcUtilsOverlayPackage.contains("publicHeadersPath: \"Sources/ObjcUtils\""))
+        #expect(objcUtilsSwiftOverlay.contains("public enum ObjcUtils"))
+        #expect(objcUtilsSwiftOverlay.contains("windowResizeNorthWestSouthEastCursor"))
+        #expect(objcUtilsSwiftOverlay.contains("windowResizeNorthEastSouthWestCursor"))
+        #expect(objcUtilsSwiftOverlay.contains("NSCursor.resizeLeftRight"))
+        #expect(coreVideoShim.contains("@_exported import QuillFoundation"))
+        #expect(coreVideoShim.contains("public typealias CVPixelBuffer"))
+        #expect(coreVideoShim.contains("CVDisplayLinkCreateWithCGDisplay"))
+        #expect(coreVideoShim.contains("CVPixelBufferCreate"))
+        #expect(coreVideoShim.contains("CVPixelBufferLockBaseAddress"))
+        #expect(coreVideoShim.contains("kCVPixelBufferIOSurfacePropertiesKey"))
     }
 
     @Test("Generated resource copier flattens asset catalog images")

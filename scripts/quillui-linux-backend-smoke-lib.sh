@@ -95,6 +95,107 @@ quillui_find_visible_window_for_pid() {
   DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null | head -n 1 || true
 }
 
+# Poll until the app's main window is visible AND plausibly window-sized.
+#
+# The one-shot `find_visible_window_for_pid` raced slow app startup on loaded
+# CI runners: if the window had not mapped yet when the single lookup ran, the
+# caller silently fell back to screen-sized geometry and clicked coordinates
+# derived from the WRONG surface (e.g. x = screen_width - 84 on a 1180px screen
+# while the app is 640px wide) — the interaction was lost while the later
+# screenshot still captured a healthy-looking app. This is what broke the
+# `Backend launch target interaction smokes` step on main after app startup
+# got marginally slower (GTK QuillPaint chrome hooks), while remaining
+# unreproducible on fast local machines.
+#
+# The minimum-dimension gate also skips GTK's 1x1 offscreen IM/popup surfaces
+# that `--onlyvisible` can report for the same pid.
+quillui_wait_for_app_window_for_pid() {
+  local display_id="$1"
+  local pid="$2"
+  local timeout_seconds="${3:-20}"
+  local min_dimension="${4:-120}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local candidate width height key value
+
+  while true; do
+    while read -r candidate; do
+      [[ -n "$candidate" ]] || continue
+      width=0
+      height=0
+      while IFS='=' read -r key value; do
+        case "$key" in
+          WIDTH) width="$value" ;;
+          HEIGHT) height="$value" ;;
+        esac
+      done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+      if (( width >= min_dimension && height >= min_dimension )); then
+        echo "$candidate"
+        return 0
+      fi
+    done < <(DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null)
+    if (( SECONDS >= deadline )); then
+      return 1
+    fi
+    sleep 0.5
+  done
+}
+
+# True when a candidate window is a sensible capture target: non-empty, not
+# the main window itself, and plausibly window-sized (>=120px each way).
+# The size gate skips GTK's 1x1 offscreen IM/popup surfaces, which
+# `getactivewindow` can report once sheet inputs auto-focus an entry.
+quillui_window_is_plausible_capture_target() {
+  local display_id="$1"
+  local candidate="$2"
+  local main_window="$3"
+  local min_dimension="${4:-120}"
+  local width=0 height=0 key value
+
+  [[ -n "$candidate" && "$candidate" != "$main_window" ]] || return 1
+  while IFS='=' read -r key value; do
+    case "$key" in
+      WIDTH) width="$value" ;;
+      HEIGHT) height="$value" ;;
+    esac
+  done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+  (( width >= min_dimension && height >= min_dimension ))
+}
+
+# Poll until a window's geometry differs from the given pre-interaction size
+# (or the timeout elapses — return 1, caller proceeds and the verifier's
+# diagnostics make the stale state visible). GTK sheets present INSIDE the
+# main window by resizing it (QUILLUI_GTK_SHEET_PRESENTATION=window), so a
+# fixed post-click sleep raced the presentation on loaded CI runners: the
+# capture photographed the pre-sheet window ("Interaction sheet width is
+# unexpected: 640px") while fast local machines always won the race.
+quillui_wait_for_window_geometry_change() {
+  local display_id="$1"
+  local window="$2"
+  local old_width="$3"
+  local old_height="$4"
+  local timeout_seconds="${5:-20}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local width height key value
+
+  while true; do
+    width=""
+    height=""
+    while IFS='=' read -r key value; do
+      case "$key" in
+        WIDTH) width="$value" ;;
+        HEIGHT) height="$value" ;;
+      esac
+    done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$window" 2>/dev/null)
+    if [[ -n "$width" && -n "$height" ]] && (( width != old_width || height != old_height )); then
+      return 0
+    fi
+    if (( SECONDS >= deadline )); then
+      return 1
+    fi
+    sleep 0.25
+  done
+}
+
 quillui_find_visible_window_for_pid_except() {
   local display_id="$1"
   local pid="$2"

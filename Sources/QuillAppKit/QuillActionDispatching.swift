@@ -32,7 +32,7 @@
 
 import QuillFoundation
 
-public protocol QuillActionDispatching: AnyObject {
+public protocol QuillActionDispatching: QuillSelectorDispatching {
     /// Invoke the action identified by `selector`, passing the firing control as
     /// `sender`. The lowering generates an implementation that switches on
     /// `selector.name` and forwards `sender` to 1-arg (`@objc func foo(sender:)`)
