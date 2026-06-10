@@ -79,14 +79,6 @@ public enum Browser {
     public static func open(_ urlString: String, inBackground: Bool) {}
 }
 
-public extension NSString {
-    static func rs_SQLValueList(withPlaceholders count: UInt) -> String? {
-        if count == 0 { return nil }
-        let placeholders = Array(repeating: "?", count: Int(count)).joined(separator: ", ")
-        return "(\(placeholders))"
-    }
-}
-
 public extension NSObject {
     var preferredLink: String? { return nil }
     var attributionString: String { return "" }

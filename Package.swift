@@ -397,6 +397,16 @@ let appSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal"])
 ] + quillUIGTKSwiftImporterSettings
 
+#if os(Linux)
+let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
+// QuillRSCoreShim's vendored Cache uses OSAllocatedUnfairLock via `import os`
+// (the os shadow target on Linux), same as Articles' AuthorCache.
+let quillRSCoreShimDependencies: [Target.Dependency] = ["os"]
+#else
+let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
+let quillRSCoreShimDependencies: [Target.Dependency] = []
+#endif
+
 // QuillIceCubesCore consumes the real vendored Models when present (gtk-Linux);
 // gated so macOS / qt (where the Models target isn't built) keep the reimpl.
 var quillIceCubesCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillFoundation"]
@@ -836,6 +846,21 @@ var targets: [Target] = [
     .target(name: "Secrets", dependencies: ["QuillFoundation"], path: "Sources/SecretsShim"),
     .target(name: "Tidemark", dependencies: ["QuillRS"], path: "Sources/TidemarkShim"),
     .target(name: "Zip", dependencies: ["QuillRS"], path: "Sources/ZipShim"),
+    // Pure-Swift replacements for NetNewsWire's RSDatabase ObjC/FMBD island.
+    // The module names intentionally match upstream so imported NNW source can
+    // keep `import RSDatabase` / `import RSDatabaseObjC` unchanged on Linux.
+    .target(
+        name: "RSDatabaseObjC",
+        dependencies: ["CSQLite"],
+        path: "Sources/RSDatabaseObjC",
+        swiftSettings: appSwiftSettings
+    ),
+    .target(
+        name: "RSDatabase",
+        dependencies: ["RSDatabaseObjC"],
+        path: "Sources/RSDatabaseShim",
+        swiftSettings: appSwiftSettings
+    ),
     .target(name: "SwiftData", dependencies: ["QuillData"], path: "Sources/SwiftData"),
     .target(
         name: "QuillEnchantedShared",
@@ -855,7 +880,7 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillArticlesDatabase", "QuillData"],
+        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillArticlesDatabase", "QuillData", "QuillFeedFinder", "QuillRSCoreShim"],
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSCore-shaped shim. Reproduces the slice of
@@ -869,7 +894,7 @@ var targets: [Target] = [
     // and Linux unchanged.
     .target(
         name: "QuillRSCoreShim",
-        dependencies: [],
+        dependencies: quillRSCoreShimDependencies,
         swiftSettings: appSwiftSettings
     ),
     // Vendored Ranchero-Software/NetNewsWire RSParser sources
@@ -918,7 +943,7 @@ var targets: [Target] = [
     // 's/^import RSCore$/import QuillRSCoreShim/'`.
     .target(
         name: "QuillArticles",
-        dependencies: ["QuillRSCoreShim"],
+        dependencies: quillArticlesDependencies,
         path: "Sources/QuillArticles",
         swiftSettings: appSwiftSettings
     ),
@@ -936,6 +961,7 @@ var targets: [Target] = [
     // resolves to it verbatim. Grows toward real RSWeb as Account needs more.
     .target(
         name: "RSWeb",
+        dependencies: ["QuillRSCoreShim"],
         path: "Sources/QuillRSWebShim",
         swiftSettings: appSwiftSettings
     ),
@@ -1219,17 +1245,6 @@ if nnwUpstreamPresent {
             swiftSettings: nnwSwiftSettings
         ),
         .target(
-            name: "RSDatabase",
-            dependencies: ["RSDatabaseObjC"],
-            path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabase",
-            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal"])]
-        ),
-        .target(
-            name: "RSDatabaseObjC",
-            path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabaseObjC",
-            publicHeadersPath: "include"
-        ),
-        .target(
             name: "NetNewsWireLogic",
             dependencies: nnwLogicDependencies,
             path: ".upstream/netnewswire",
@@ -1251,6 +1266,62 @@ if nnwUpstreamPresent {
     ]
 }
 #endif
+
+#if os(Linux)
+if nnwUpstreamPresent {
+    targets += [
+        .target(
+            name: "RSCore",
+            dependencies: ["QuillRSCoreShim"],
+            path: "Sources/RSCoreShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "Articles",
+            dependencies: ["QuillArticles"],
+            path: "Sources/ArticlesShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "RSParser",
+            dependencies: ["QuillRSParser"],
+            path: "Sources/RSParserShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "ArticlesDatabase",
+            dependencies: ["RSCore", "RSParser", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/ArticlesDatabase/Sources/ArticlesDatabase",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "SyncDatabase",
+            dependencies: ["RSCore", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/SyncDatabase/Sources/SyncDatabase",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "ErrorLog",
+            dependencies: ["RSCore", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/ErrorLog/Sources/ErrorLog",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "FeedFinder",
+            dependencies: ["RSWeb", "RSParser", "RSCore", "ActivityLog", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/FeedFinder/Sources/FeedFinder",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "NewsBlur",
+            dependencies: ["Secrets", "RSWeb", "RSParser", "RSCore", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/NewsBlur/Sources/NewsBlur",
+            swiftSettings: nnwSwiftSettings
+        ),
+    ]
+}
+#endif
+
 // NOTE: `QuillNetNewsWire` no longer comes from the upstream
 // NetNewsWireLogic block above. The Shared+Mac coupling
 // produces ~1655 unresolved-symbol errors on macOS and the
@@ -2585,6 +2656,14 @@ let packageTestTargets: [Target] = {
             dependencies: ["QuillNetNewsWireCore", "QuillArticles"],
             swiftSettings: appSwiftSettings
         ),
+        // Pins the pure-Swift FMDB/RSDatabase compatibility layer that lets
+        // NetNewsWire database modules move off ObjC on Linux without changing
+        // their import names.
+        .testTarget(
+            name: "RSDatabaseCompatibilityTests",
+            dependencies: ["RSDatabase", "RSDatabaseObjC"],
+            swiftSettings: appSwiftSettings
+        ),
         // Pins QuillRSCoreShim against RFC 1321 MD5 test vectors
         // plus the upstream Insecure.MD5.hash equivalence (empty
         // string, "a", "abc", and the message digest test set
@@ -2600,7 +2679,7 @@ let packageTestTargets: [Target] = {
         // RSWeb. Foundation-only surface.
         .testTarget(
             name: "QuillRSWebShimTests",
-            dependencies: ["RSWeb"],
+            dependencies: ["RSWeb", "QuillRSCoreShim"],
             swiftSettings: appSwiftSettings
         ),
         // Smoke tests for the vendored upstream RSParser. Pins

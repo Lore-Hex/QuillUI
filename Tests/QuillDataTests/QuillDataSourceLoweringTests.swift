@@ -600,8 +600,12 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}\""))
         #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}\""))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
-        #expect(interactionScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
+        // No capture==root gate on the child-window refresh (smoke sheets
+        // present as separate toplevels); IM popups are filtered by the
+        // minimum-size candidate gate.
+        #expect(!interactionScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
         #expect(!interactionScript.contains("[[ \"$capture_window\" != \"root\" ]] || return 0"))
+        #expect(interactionScript.contains("quillui_window_is_plausible_capture_target \"$DISPLAY_ID\" \"$candidate_window\" \"$window_id\""))
         #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+a"))
         #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-$((window_y + 222))}\""))
         #expect(interactionScript.contains("window_x + 52"))
