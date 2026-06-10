@@ -6,19 +6,19 @@
 //  Copyright © Ranchero Software, LLC. All rights reserved.
 //
 //  Quill bring-up: upstream RSCore's generic TTL cache, vendored verbatim.
-//  The only adaptation is the conditional `import os` — on Linux the
-//  OSAllocatedUnfairLock polyfill in OSUnfairLockShim.swift (same module)
-//  provides the identical surface. Real NetNewsWire RSWeb's DownloadCache
-//  (and HTMLMetadataCache) sit on top of this type.
+//  `import os` is kept as upstream wrote it: on Darwin it is Apple's system
+//  framework; on Linux it resolves to the Quill `os` shadow target (osShim),
+//  which provides OSAllocatedUnfairLock (the in-module polyfill this file
+//  originally leaned on moved there when the NNW database modules landed —
+//  same pattern as Articles' AuthorCache). Real NetNewsWire RSWeb's
+//  DownloadCache (and HTMLMetadataCache) sit on top of this type.
 //
 //  Refresh: re-copy from
 //  .upstream/netnewswire/Modules/RSCore/Sources/RSCore/Cache.swift
 //
 
 import Foundation
-#if canImport(Darwin)
 import os
-#endif
 
 public protocol CacheRecord: Sendable {
 	var dateCreated: Date { get }
