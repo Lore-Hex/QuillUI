@@ -1879,6 +1879,9 @@ let signalAppleFrameworkShims = [
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio", "CoreVideo", "CoreMedia", "VideoToolbox", "IOSurface",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
     "ObjCAssoc", "System", "notify",
+    // Added for Signal-iOS SignalUI (Apple frameworks it imports; MetalKit/Vision
+    // are already in the list above).
+    "Photos", "AVKit",
     // NOTE: "zlib" is intentionally NOT here — it's a real systemLibrary
     // (cZlibTarget, links libz) rather than an inert Swift shim, so it's added to
     // SignalServiceKit's dependencies explicitly below.
@@ -2045,6 +2048,39 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: "Sources/SignalSmoke",
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
+        ),
+        // SignalUI: Signal-iOS's OWN UI framework (270 Swift files, UIKit-based),
+        // compiled UNMODIFIED against QuillUI's UIKit layer + the framework shims.
+        // This is the real Track B UI goal -- Signal's actual UI code running on
+        // QuillOS, not a reimplementation. Tests + the 3 ObjC files are excluded
+        // (ObjC ports follow the SSK QuillPort pattern if needed). Gated like SSK.
+        .target(
+            name: "SignalUI",
+            dependencies: [
+                "SignalServiceKit", "LibSignalClient",
+                "UIKit", "AVFoundation", "Contacts", "SafariServices", "MessageUI",
+                "UniformTypeIdentifiers", "Combine", "PhotosUI", "MobileCoreServices",
+                "SwiftUI", "Photos", "ContactsUI", "MediaPlayer", "MetalKit", "Vision",
+                "NaturalLanguage", "CoreServices", "Logging", "MobileCoin",
+                "LibMobileCoin", "SDWebImage", "PureLayout", "Lottie", "BonMot",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
+            path: ".upstream/signal-ios/SignalUI",
+            exclude: [
+                "SignalUI.h",
+                "UIKitExtensions/UIButton+DeprecationWorkaround.h",
+                "UIKitExtensions/UIButton+DeprecationWorkaround.m",
+                "Calls/CallLinkTest.swift",
+                "Payments/MobileCoinHelperSDKTest.swift",
+                "Utils/FormattedNumberFieldTest.swift",
+                "RecipientPickers/RecipientPickerViewControllerTest.swift",
+                "LinkPreview/LinkPreviewFetchStateTest.swift",
+                "LinkPreview/HTMLMetadataTests.swift",
+                "LinkPreview/LinkPreviewFetcherTest.swift",
+                "UIKitExtensions/UIStackView+SignalUITest.swift",
+                "FormatStyles/OWSByteCountFormatStyleTest.swift",
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
 }
@@ -2244,6 +2280,17 @@ targets.append(contentsOf: [
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),
     .target(name: "PhotosUI", dependencies: ["SwiftUI"], path: "Sources/PhotosUI"),
+    // Third-party Pod shims that Signal-iOS's SignalUI imports but that don't
+    // exist on Linux. Empty modules to start; grow the exact API surface SignalUI
+    // references as the compile reports it. (Apple frameworks it needs -- Photos,
+    // MediaPlayer, MetalKit, Vision, ContactsUI, CoreServices, NaturalLanguage,
+    // SDWebImage -- come from the signalAppleFrameworkShims loop above.)
+    .target(name: "Logging", dependencies: [], path: "Sources/Logging"),
+    .target(name: "MobileCoin", dependencies: [], path: "Sources/MobileCoin"),
+    .target(name: "LibMobileCoin", dependencies: [], path: "Sources/LibMobileCoin"),
+    .target(name: "PureLayout", dependencies: [], path: "Sources/PureLayout"),
+    .target(name: "Lottie", dependencies: [], path: "Sources/Lottie"),
+    .target(name: "BonMot", dependencies: [], path: "Sources/BonMot"),
     .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),
     // Linux `import Combine` resolves to this re-export over
     // OpenCombine — Apple's Combine isn't part of swift-corelibs.

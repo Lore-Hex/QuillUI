@@ -633,21 +633,9 @@ public class NonIntrinsicImageView: UIImageView {}
 
 #endif // !os(iOS)
 
-// MARK: - AuthenticationServices stubs (Linux)
-
-#if !os(iOS) && !os(macOS)
-public protocol ASWebAuthenticationPresentationContextProviding: AnyObject {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor
-}
-
-public class ASWebAuthenticationSession: NSObject {
-    public init(url: URL, callbackURLScheme: String?, completionHandler: @escaping (URL?, Error?) -> Void) {}
-    public var presentationContextProvider: ASWebAuthenticationPresentationContextProviding?
-    public func start() -> Bool { true }
-    public func cancel() {}
-}
-
-public enum ASWebAuthenticationSessionError: Error {
-    case canceledLogin
-}
-#endif
+// MARK: - AuthenticationServices
+// (The ASWebAuthentication* stubs that used to live here moved to the dedicated
+// `AuthenticationServices` shim — Sources/AppleFrameworkShims/AuthenticationServices.
+// Keeping a duplicate here caused an ambiguous-type-lookup error once a module
+// re-exported both QuillUIKit and AuthenticationServices, e.g. SignalServiceKit
+// re-exporting UIKit while its PayPal flow does `import AuthenticationServices`.)
