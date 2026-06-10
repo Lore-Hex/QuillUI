@@ -43,6 +43,25 @@ fetch_repo() {
     fi
 }
 
+apply_generated_source_patch() {
+    local name="$1"
+    local repo="$2"
+    local patch="$3"
+
+    if [[ ! -f "$patch" || ! -d "$repo/.git" ]]; then
+        return
+    fi
+
+    if git -C "$repo" apply --check "$patch" >/dev/null 2>&1; then
+        echo "==> applying $name generated-source patch"
+        git -C "$repo" apply "$patch"
+    elif git -C "$repo" apply --reverse --check "$patch" >/dev/null 2>&1; then
+        echo "==> $name generated-source patch already applied"
+    else
+        echo "warning: could not apply $name generated-source patch" >&2
+    fi
+}
+
 patch_codeeditsymbols() {
     # CodeEditSymbols 0.2.3's Package.swift is missing a `resources:`
     # declaration for `Symbols.xcassets`, so `Bundle.module` lookup
@@ -949,6 +968,40 @@ for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
         open(path, "w").write(new)
         print("patched", os.path.basename(path))
 PY
+    fi
+
+    # Keep fetched IceCubes source disposable: Swift 6 Linux currently times
+    # out on a few very large SwiftUI builder/modifier expressions in StatusKit.
+    # This patch only splits those expressions into equivalent AnyView chunks
+    # in the generated checkout. The canonical upstream source remains clean.
+    apply_generated_source_patch \
+        "IceCubes StatusKit Linux type-check" \
+        "$UPSTREAM_DIR/icecubes" \
+        "$ROOT_DIR/scripts/patches/icecubes-statuskit-linux-typecheck.patch"
+
+    local accountdir="$UPSTREAM_DIR/icecubes/Packages/Account/Sources/Account"
+    if [[ -d "$accountdir" ]]; then
+        echo "==> lowering IceCubes Account Linux compatibility syntax"
+        python3 - "$accountdir" <<'PY'
+import glob
+import os
+import sys
+
+directory = sys.argv[1]
+for path in sorted(glob.glob(os.path.join(directory, "**", "*.swift"), recursive=True)):
+    src = open(path).read()
+    lowered = src.replace("import OSLog", "import os")
+    if lowered != src:
+        open(path, "w").write(lowered)
+        print("patched", os.path.relpath(path, directory))
+PY
+        "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$accountdir"
+    fi
+
+    local statusdir="$UPSTREAM_DIR/icecubes/Packages/StatusKit/Sources/StatusKit"
+    if [[ -d "$statusdir" ]]; then
+        echo "==> lowering IceCubes StatusKit Objective-C interop syntax for Linux"
+        "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$statusdir"
     fi
 }
 

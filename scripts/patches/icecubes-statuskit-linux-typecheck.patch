@@ -1,0 +1,407 @@
+diff --git a/Packages/StatusKit/Sources/StatusKit/Editor/MainView.swift b/Packages/StatusKit/Sources/StatusKit/Editor/MainView.swift
+index 491336c..e2c26af 100644
+--- a/Packages/StatusKit/Sources/StatusKit/Editor/MainView.swift
++++ b/Packages/StatusKit/Sources/StatusKit/Editor/MainView.swift
+@@ -67,41 +67,50 @@ extension StatusEditor {
+       editorScrollView(focusedStore: focusedStore)
+     }
+ 
+-    @ViewBuilder
+-    private func editorScrollView(focusedStore: EditorStore) -> some View {
++    private func editorScrollView(focusedStore: EditorStore) -> AnyView {
+       @Bindable var focusedStore = focusedStore
+ 
+-      ScrollView {
+-        editorStack
+-      }
+-      .scrollPosition(id: $scrollID, anchor: .top)
+-      .animation(.bouncy(duration: 0.3), value: editorFocusState)
+-      .animation(.bouncy(duration: 0.3), value: followUpStores)
++      var view = AnyView(
++        ScrollView {
++          editorStack
++        }
++        .scrollPosition(id: $scrollID, anchor: .top)
++        .animation(.bouncy(duration: 0.3), value: editorFocusState)
++        .animation(.bouncy(duration: 0.3), value: followUpStores)
++      )
++
+       #if !os(visionOS)
+-        .background(backgroundColor)
++        view = AnyView(view.background(backgroundColor))
+       #endif
++
+       #if os(visionOS)
+-        .ornament(attachmentAnchor: .scene(.leading)) {
++        view = AnyView(view.ornament(attachmentAnchor: .scene(.leading)) {
+           AccessoryView(
+             focusedStore: focusedStore,
+             followUpStores: $followUpStores,
+             isMediaPanelPresented: $isMediaPanelPresented)
+-        }
++        })
+       #else
+-        .safeAreaInset(edge: .bottom) {
++        view = AnyView(view.safeAreaInset(edge: .bottom) {
+           bottomInset(focusedStore: focusedStore)
+-        }
++        })
+       #endif
+-      .accessibilitySortPriority(1)  // Ensure that all elements inside the `ScrollView` occur earlier than the accessory views
+-      .navigationTitle(focusedStore.mode.title)
+-      .navigationBarTitleDisplayMode(.inline)
+-      .toolbar {
++
++      view = AnyView(
++        view
++          .accessibilitySortPriority(1)  // Ensure that all elements inside the `ScrollView` occur earlier than the accessory views
++          .navigationTitle(focusedStore.mode.title)
++          .navigationBarTitleDisplayMode(.inline)
++      )
++
++      view = AnyView(view.toolbar {
+         ToolbarItems(
+           mainStore: mainStore,
+           focusedStore: focusedStore,
+           followUpStores: followUpStores)
+-      }
+-      .alert(
++      })
++
++      view = AnyView(view.alert(
+         "status.error.posting.title",
+         isPresented: $focusedStore.showPostingErrorAlert,
+         actions: {
+@@ -110,9 +119,11 @@ extension StatusEditor {
+         message: {
+           Text(mainStore.postingError ?? "")
+         }
+-      )
+-      .interactiveDismissDisabled(mainStore.shouldDisplayDismissWarning)
+-      .onChange(of: appAccounts.currentClient) { _, newValue in
++      ))
++
++      view = AnyView(view.interactiveDismissDisabled(mainStore.shouldDisplayDismissWarning))
++
++      view = AnyView(view.onChange(of: appAccounts.currentClient) { _, newValue in
+         if mainStore.mode.isInShareExtension {
+           currentAccount.setClient(client: newValue)
+           mainStore.client = newValue
+@@ -120,39 +131,45 @@ extension StatusEditor {
+             post.client = newValue
+           }
+         }
+-      }
+-      .onDrop(
++      })
++
++      view = AnyView(view.onDrop(
+         of: [.image, .video, .gif, .mpeg4Movie, .quickTimeMovie, .movie],
+         delegate: focusedStore
+-      )
+-      .onChange(of: currentAccount.account?.id) {
++      ))
++
++      view = AnyView(view.onChange(of: currentAccount.account?.id) {
+         mainStore.currentAccount = currentAccount.account
+         for p in followUpStores {
+           p.currentAccount = mainStore.currentAccount
+         }
+-      }
+-      .onChange(of: editorFocusState) { _, newValue in
++      })
++
++      view = AnyView(view.onChange(of: editorFocusState) { _, newValue in
+         if let newValue {
+           lastEditorFocusState = newValue
+           if isMediaPanelPresented {
+             isMediaPanelPresented = false
+           }
+         }
+-      }
+-      .onChange(of: isMediaPanelPresented) { _, newValue in
++      })
++
++      view = AnyView(view.onChange(of: isMediaPanelPresented) { _, newValue in
+         if newValue {
+           lastEditorFocusState = editorFocusState
+           editorFocusState = nil
+         } else if editorFocusState == nil {
+           editorFocusState = lastEditorFocusState ?? .main
+         }
+-      }
+-      .onChange(of: mainStore.visibility) {
++      })
++
++      view = AnyView(view.onChange(of: mainStore.visibility) {
+         for p in followUpStores {
+           p.visibility = mainStore.visibility
+         }
+-      }
+-      .onChange(of: followUpStores.count) { oldValue, newValue in
++      })
++
++      view = AnyView(view.onChange(of: followUpStores.count) { oldValue, newValue in
+         if oldValue < newValue {
+           Task {
+             try? await Task.sleep(for: .seconds(0.1))
+@@ -161,7 +178,9 @@ extension StatusEditor {
+             }
+           }
+         }
+-      }
++      })
++
++      return view
+     }
+ 
+     private var editorStack: some View {
+diff --git a/Packages/StatusKit/Sources/StatusKit/Row/StatusRowAccessibilityLabel.swift b/Packages/StatusKit/Sources/StatusKit/Row/StatusRowAccessibilityLabel.swift
+index 01b35be..9e64442 100644
+--- a/Packages/StatusKit/Sources/StatusKit/Row/StatusRowAccessibilityLabel.swift
++++ b/Packages/StatusKit/Sources/StatusKit/Row/StatusRowAccessibilityLabel.swift
+@@ -110,7 +110,8 @@ struct StatusRowAccessibilityLabel {
+         ? "accessibility.status.poll.finished.label"
+         : "accessibility.status.poll.active.label"
+ 
+-      return poll.options.enumerated().reduce(into: Text(title)) { text, pair in
++      var text = Text(title)
++      for pair in poll.options.enumerated() {
+         let (index, option) = pair
+         let selected = poll.ownVotes?.contains(index) ?? false
+         let percentage =
+@@ -123,6 +124,7 @@ struct StatusRowAccessibilityLabel {
+           + Text("accessibility.status.poll.option-prefix-\(index + 1)-of-\(poll.options.count)")
+           + Text(", ") + Text(option.title) + Text(showPercentage ? ", \(percentage)%. " : ". ")
+       }
++      return text
+     }
+     return Text("")
+   }
+diff --git a/Packages/StatusKit/Sources/StatusKit/Row/StatusRowView.swift b/Packages/StatusKit/Sources/StatusKit/Row/StatusRowView.swift
+index 139f33d..d218751 100644
+--- a/Packages/StatusKit/Sources/StatusKit/Row/StatusRowView.swift
++++ b/Packages/StatusKit/Sources/StatusKit/Row/StatusRowView.swift
+@@ -40,7 +40,7 @@ public struct StatusRowView: View {
+       isShareAsImageSheetPresented: $isShareAsImageSheetPresented)
+   }
+ 
+-  public var body: some View {
++  private var statusRowBodyBase: some View {
+     HStack(spacing: 0) {
+       if !isCompact {
+         HStack(spacing: 3) {
+@@ -123,7 +123,12 @@ public struct StatusRowView: View {
+       }
+       .padding(.init(top: isCompact ? 6 : 12, leading: 0, bottom: isFocused ? 12 : 6, trailing: 0))
+     }
+-    .onAppear {
++  }
++
++  public var body: some View {
++    var view = AnyView(statusRowBodyBase)
++
++    view = AnyView(view.onAppear {
+       if !reasons.contains(.placeholder) {
+         if !isCompact, viewModel.embeddedStatus == nil {
+           Task {
+@@ -131,9 +136,11 @@ public struct StatusRowView: View {
+           }
+         }
+       }
+-    }
+-    .if(viewModel.url != nil) { $0.draggable(viewModel.url!) }
+-    .contextMenu {
++    })
++
++    view = AnyView(view.if(viewModel.url != nil) { $0.draggable(viewModel.url!) })
++
++    view = AnyView(view.contextMenu {
+       contextMenu
+         .tint(.primary)
+         .onAppear {
+@@ -141,64 +148,74 @@ public struct StatusRowView: View {
+             await viewModel.loadAuthorRelationship()
+           }
+         }
+-    }
+-    .swipeActions(edge: .trailing) {
++    })
++
++    view = AnyView(view.swipeActions(edge: .trailing) {
+       // The actions associated with the swipes are exposed as custom accessibility actions and there is no way to remove them.
+       if !isCompact, accessibilityVoiceOverEnabled == false {
+         StatusRowSwipeView(viewModel: viewModel, mode: .trailing)
+       }
+-    }
+-    .swipeActions(edge: .leading) {
++    })
++
++    view = AnyView(view.swipeActions(edge: .leading) {
+       // The actions associated with the swipes are exposed as custom accessibility actions and there is no way to remove them.
+       if !isCompact, accessibilityVoiceOverEnabled == false {
+         StatusRowSwipeView(viewModel: viewModel, mode: .leading)
+       }
+-    }
++    })
++
+     #if os(visionOS)
+-      .listRowBackground(
++      view = AnyView(view.listRowBackground(
+         RoundedRectangle(cornerRadius: 8)
+           .foregroundStyle(.background).hoverEffect()
+-      )
+-      .listRowHoverEffectDisabled()
++      ))
++      view = AnyView(view.listRowHoverEffectDisabled())
+     #else
+-      .listRowBackground(viewModel.backgroundColor)
++      view = AnyView(view.listRowBackground(viewModel.backgroundColor))
+     #endif
+-    .listRowInsets(
++
++    view = AnyView(view.listRowInsets(
+       .init(
+         top: 0,
+         leading: .layoutPadding,
+         bottom: 0,
+         trailing: .layoutPadding)
+-    )
+-    .accessibilityElement(children: isFocused ? .contain : .combine)
+-    .accessibilityLabel(
++    ))
++
++    view = AnyView(view.accessibilityElement(children: isFocused ? .contain : .combine))
++    view = AnyView(view.accessibilityLabel(
+       isFocused == false && accessibilityVoiceOverEnabled
+         ? StatusRowAccessibilityLabel(viewModel: viewModel).finalLabel() : Text("")
+-    )
+-    .accessibilityHidden(viewModel.filter?.filter.filterAction == .hide)
+-    .accessibilityAction {
++    ))
++    view = AnyView(view.accessibilityHidden(viewModel.filter?.filter.filterAction == .hide))
++
++    view = AnyView(view.accessibilityAction {
+       guard !isFocused else { return }
+       viewModel.navigateToDetail()
+-    }
+-    .accessibilityActions {
++    })
++
++    view = AnyView(view.accessibilityActions {
+       if !isFocused, viewModel.showActions, accessibilityVoiceOverEnabled {
+         accessibilityActions
+       }
+-    }
+-    .background {
++    })
++
++    view = AnyView(view.background {
+       Color.clear
+         .contentShape(Rectangle())
+         .onTapGesture {
+           guard !isFocused else { return }
+           viewModel.navigateToDetail()
+         }
+-    }
+-    .overlay {
++    })
++
++    view = AnyView(view.overlay {
+       if viewModel.isLoadingRemoteContent {
+         remoteContentLoadingView
+       }
+-    }
+-    .alert(
++    })
++
++    view = AnyView(view.alert(
+       isPresented: $viewModel.showDeleteAlert,
+       content: {
+         Alert(
+@@ -212,8 +229,9 @@ public struct StatusRowView: View {
+           secondaryButton: .cancel()
+         )
+       }
+-    )
+-    .confirmationDialog(
++    ))
++
++    view = AnyView(view.confirmationDialog(
+       "",
+       isPresented: $isBlockConfirmationPresented
+     ) {
+@@ -226,22 +244,26 @@ public struct StatusRowView: View {
+           } catch {}
+         }
+       }
+-    }
+-    .alignmentGuide(.listRowSeparatorLeading) { _ in
++    })
++
++    view = AnyView(view.alignmentGuide(.listRowSeparatorLeading) { _ in
+       -100
+-    }
+-    .sheet(isPresented: $showSelectableText) {
++    })
++
++    view = AnyView(view.sheet(isPresented: $showSelectableText) {
+       let content =
+         viewModel.status.reblog?.content.asSafeMarkdownAttributedString
+         ?? viewModel.status.content.asSafeMarkdownAttributedString
+       StatusRowSelectableTextView(content: content)
+-    }
+-    .environment(
++    })
++
++    view = AnyView(view.environment(
+       StatusDataControllerProvider.shared.dataController(
+         for: viewModel.finalStatus,
+         client: viewModel.client)
+-    )
+-    .alert(
++    ))
++
++    view = AnyView(view.alert(
+       "DeepL couldn't be reached!\nIs the API Key correct?",
+       isPresented: $viewModel.deeplTranslationError
+     ) {
+@@ -250,8 +272,9 @@ public struct StatusRowView: View {
+         RouterPath.settingsStartingPoint = .translation
+         routerPath.presentedSheet = .settings
+       }
+-    }
+-    .alert(
++    })
++
++    view = AnyView(view.alert(
+       "The Translation Service of your Instance couldn't be reached!",
+       isPresented: $viewModel.instanceTranslationError
+     ) {
+@@ -260,11 +283,14 @@ public struct StatusRowView: View {
+         RouterPath.settingsStartingPoint = .translation
+         routerPath.presentedSheet = .settings
+       }
+-    }
++    })
++
+     #if canImport(_Translation_SwiftUI)
+-      .addTranslateView(
+-        isPresented: $viewModel.showAppleTranslation, text: viewModel.finalStatus.content.asRawText)
++      view = AnyView(view.addTranslateView(
++        isPresented: $viewModel.showAppleTranslation, text: viewModel.finalStatus.content.asRawText))
+     #endif
++
++    return view
+   }
+ 
+   private func handleDelete() {
+@@ -414,7 +440,7 @@ public struct StatusRowView: View {
+ }
+ 
+ #Preview {
+-  List {
++  SwiftUI.List {
+     StatusRowView(
+       viewModel:
+         .init(

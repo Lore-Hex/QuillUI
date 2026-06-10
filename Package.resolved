@@ -1,5 +1,5 @@
 {
-  "originHash" : "a66ec6cf46dc3f1a8859ec94ba4d17eb98ada1ac4c719f9a5f0139e8a12263fe",
+  "originHash" : "5681ac023ff89c88ff99f2ae862c6fb8f5539febca623da103c9e1dda9b246b6",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -20,12 +20,39 @@
       }
     },
     {
+      "identity" : "swift-asn1",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-asn1.git",
+      "state" : {
+        "revision" : "a9a5efd40eaf558a2bcd48d64b1d1646be686008",
+        "version" : "1.7.1"
+      }
+    },
+    {
+      "identity" : "swift-crypto",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-crypto.git",
+      "state" : {
+        "revision" : "95ba0316a9b733e92bb6b071255ff46263bbe7dc",
+        "version" : "3.15.1"
+      }
+    },
+    {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "revision" : "0687f71944021d616d34d922343dcef086855920",
         "version" : "600.0.1"
+      }
+    },
+    {
+      "identity" : "swiftsoup",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/scinfu/SwiftSoup.git",
+      "state" : {
+        "revision" : "49dcadd93161f4a44b4994d3a3e8de9f085aface",
+        "version" : "2.13.5"
       }
     }
   ],

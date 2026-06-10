@@ -292,7 +292,13 @@ products += [
     .library(name: "Cocoa", targets: ["Cocoa"]),
     .library(name: "MessageUI", targets: ["MessageUI"]),
     .library(name: "SafariServices", targets: ["SafariServices"]),
-    .library(name: "MobileCoreServices", targets: ["MobileCoreServices"])
+    .library(name: "MobileCoreServices", targets: ["MobileCoreServices"]),
+    .library(name: "WebKit", targets: ["WebKit"]),
+    .library(name: "LinkPresentation", targets: ["LinkPresentation"]),
+    .library(name: "AppIntents", targets: ["AppIntents"]),
+    .library(name: "RevenueCat", targets: ["RevenueCat"]),
+    .library(name: "WishKit", targets: ["WishKit"]),
+    .library(name: "SFSafeSymbols", targets: ["SFSafeSymbols"])
 ]
 #endif
 
@@ -321,7 +327,14 @@ products += [
     .library(name: "Carbon", targets: ["Carbon"]),
     .library(name: "CoreGraphics", targets: ["CoreGraphics"]),
     .library(name: "Security", targets: ["Security"]),
+    .library(name: "CryptoKit", targets: ["CryptoKit"]),
+    .library(name: "CoreImage", targets: ["CoreImage"]),
     .library(name: "AVFoundation", targets: ["AVFoundation"]),
+    .library(name: "AVKit", targets: ["AVKit"]),
+    .library(name: "Photos", targets: ["Photos"]),
+    .library(name: "CoreTransferable", targets: ["CoreTransferable"]),
+    .library(name: "QuickLook", targets: ["QuickLook"]),
+    .library(name: "FoundationModels", targets: ["FoundationModels"]),
     .library(name: "Speech", targets: ["Speech"]),
     .library(name: "ApplicationServices", targets: ["ApplicationServices"]),
     .library(name: "ServiceManagement", targets: ["ServiceManagement"]),
@@ -329,12 +342,22 @@ products += [
     .library(name: "MarkdownUI", targets: ["MarkdownUI"]),
     .library(name: "Splash", targets: ["Splash"]),
     .library(name: "ActivityIndicatorView", targets: ["ActivityIndicatorView"]),
-    .library(name: "WrappingHStack", targets: ["WrappingHStack"]),
-    .library(name: "Vortex", targets: ["Vortex"]),
+	    .library(name: "ButtonKit", targets: ["ButtonKit"]),
+	    .library(name: "WrappingHStack", targets: ["WrappingHStack"]),
+	    .library(name: "Bodega", targets: ["Bodega"]),
+	    .library(name: "SwiftUIIntrospect", targets: ["SwiftUIIntrospect"]),
+	    .library(name: "Vortex", targets: ["Vortex"]),
     .library(name: "KeyboardShortcuts", targets: ["KeyboardShortcuts"]),
     .library(name: "PhotosUI", targets: ["PhotosUI"]),
     .library(name: "Magnet", targets: ["Magnet"]),
     .library(name: "Combine", targets: ["Combine"]),
+    .library(name: "Observation", targets: ["Observation"]),
+    .library(name: "Nuke", targets: ["Nuke"]),
+    .library(name: "NukeUI", targets: ["NukeUI"]),
+    .library(name: "EmojiText", targets: ["EmojiText"]),
+    .library(name: "Gifu", targets: ["Gifu"]),
+    .library(name: "Charts", targets: ["Charts"]),
+    .library(name: "LRUCache", targets: ["LRUCache"]),
     .library(name: "OllamaKit", targets: ["OllamaKit"]),
     .library(name: "Sparkle", targets: ["Sparkle"]),
     .library(name: "IOKit", targets: ["IOKit"])
@@ -462,7 +485,7 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "AsyncAlgorithms", "Carbon", "CoreGraphics", "Security",
     "AVFoundation", "Speech", "ApplicationServices",
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
-    "ActivityIndicatorView", "WrappingHStack", "Vortex",
+    "ActivityIndicatorView", "ButtonKit", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
     "OllamaKit", "Sparkle", "IOKit", "KeychainSwift"
 ]
@@ -540,20 +563,15 @@ let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
 
 var quillDataPackageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0")
+    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
+    .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0")
 ]
-// SwiftProtobuf (SSK's *.pb.swift wire format) and swift-crypto (the `CryptoKit`
-// shim re-exports its `Crypto`) are Signal-only. Declare them ONLY when the Signal
-// upstream is present: on a fresh checkout / CI (signal absent) the CryptoKit shim
-// and SignalServiceKit aren't built, so declaring these unconditionally makes
-// non-Signal product builds (e.g. quill-icecubes) warn "dependency X is not used by
-// any target" — and the canonical Qt app products are gated warning-clean.
+// SwiftProtobuf is Signal-only (SSK's *.pb.swift wire format), while swift-crypto
+// is now a general Linux Apple-framework shim dependency because both Signal and
+// IceCubes import CryptoKit.
 if signalUpstreamPresent {
     quillDataPackageDependencies.append(
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1")
-    )
-    quillDataPackageDependencies.append(
-        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0")
     )
 }
 
@@ -813,7 +831,14 @@ var targets: [Target] = [
     .target(name: "Secrets", dependencies: ["QuillFoundation"], path: "Sources/SecretsShim"),
     .target(name: "Tidemark", dependencies: ["QuillRS"], path: "Sources/TidemarkShim"),
     .target(name: "Zip", dependencies: ["QuillRS"], path: "Sources/ZipShim"),
-    .target(name: "SwiftData", dependencies: ["QuillData"], path: "Sources/SwiftData"),
+    .target(
+        name: "SwiftData",
+        dependencies: ["QuillData", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        path: "Sources/SwiftData"
+    ),
+    .target(name: "LRUCache", dependencies: [], path: "Sources/LRUCache"),
+    .target(name: "Bodega", dependencies: [], path: "Sources/Bodega"),
+    .target(name: "SwiftUIIntrospect", dependencies: ["SwiftUI"], path: "Sources/SwiftUIIntrospect"),
     .target(
         name: "QuillEnchantedShared",
         dependencies: ["QuillEnchantedData", "QuillFoundation"],
@@ -1593,12 +1618,7 @@ if libsignalUpstreamPresent {
 
 // CryptoKit Linux shim → swift-crypto's `Crypto` (API-compatible). Canonical
 // Apple framework name so upstream `import CryptoKit` resolves here on Linux.
-// Gated on signalUpstreamPresent: it depends on the swift-crypto package (also
-// gated) and is consumed only by SignalServiceKit, so on a fresh checkout / CI
-// (signal absent) it is excluded — no dangling swift-crypto dependency and no
-// "unused dependency" warning in non-Signal product builds.
 #if os(Linux)
-if signalUpstreamPresent {
 targets.append(
     .target(
         name: "CryptoKit",
@@ -1606,7 +1626,6 @@ targets.append(
         path: "Sources/CryptoKitShim"
     )
 )
-}
 #endif
 
 // CommonCrypto Linux shim → OpenSSL libcrypto (the AES subset Signal uses in
@@ -1906,14 +1925,23 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: ["QuillFoundation", "QuillDataMacros", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: ["QuillFoundation", "QuillDataMacros", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
         path: "Sources/QuillSwiftUICompatibility"
     ),
     .target(
         name: "SwiftUI",
-        dependencies: ["QuillUI", "QuillSwiftUICompatibility"],
-        path: "Sources/SwiftUIShim"
+        dependencies: [
+            "QuillSwiftUICompatibility",
+            "Observation",
+            "UIKit",
+            "CoreImage",
+            "CoreTransferable",
+            .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+        ],
+        path: "Sources/SwiftUIShim",
+        swiftSettings: quillUIGTKSwiftImporterSettings
     ),
+    .target(name: "Observation", dependencies: ["QuillDataMacros"], path: "Sources/Observation"),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
@@ -2016,18 +2044,29 @@ targets.append(contentsOf: [
     // CYCLE-BREAK: these UI-adjacent shims re-export
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
-    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"], path: "Sources/UIKitShim"),
+    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "CoreTransferable"], path: "Sources/UIKitShim"),
     // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow + Foundation,
     // so unmodified macOS app source that `import Cocoa` recompiles unchanged.
     .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
     .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
+    .target(name: "WebKit", dependencies: ["QuillWebKit"], path: "Sources/WebKitShim"),
+    .target(name: "LinkPresentation", dependencies: ["UIKit"], path: "Sources/LinkPresentation"),
+    .target(name: "AppIntents", dependencies: ["UniformTypeIdentifiers"], path: "Sources/AppIntents"),
+    .target(name: "RevenueCat", dependencies: [], path: "Sources/RevenueCat"),
+    .target(name: "WishKit", dependencies: ["SwiftUI"], path: "Sources/WishKit"),
+    .target(name: "SFSafeSymbols", dependencies: [], path: "Sources/SFSafeSymbols"),
     .target(name: "AsyncAlgorithms", dependencies: [], path: "Sources/AsyncAlgorithms"),
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
     .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
     .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/AVFoundation"),
+    .target(name: "AVKit", dependencies: ["SwiftUI", "AVFoundation"], path: "Sources/AVKit"),
+    .target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
+    .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
+    .target(name: "QuickLook", dependencies: ["QuillFoundation"], path: "Sources/QuickLook"),
+    .target(name: "FoundationModels", dependencies: ["QuillDataMacros"], path: "Sources/FoundationModels"),
     .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
     .target(name: "ApplicationServices", dependencies: ["QuillKit"], path: "Sources/ApplicationServices"),
     .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement"),
@@ -2035,11 +2074,17 @@ targets.append(contentsOf: [
     .target(name: "MarkdownUI", dependencies: ["SwiftUI"], path: "Sources/MarkdownUI"),
     .target(name: "Splash", dependencies: ["SwiftUI"], path: "Sources/Splash"),
     .target(name: "ActivityIndicatorView", dependencies: ["SwiftUI"], path: "Sources/ActivityIndicatorView"),
+    .target(name: "ButtonKit", dependencies: ["SwiftUI"], path: "Sources/ButtonKit"),
     .target(name: "WrappingHStack", dependencies: ["SwiftUI"], path: "Sources/WrappingHStack"),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["SwiftUI"], path: "Sources/KeyboardShortcuts"),
-    .target(name: "PhotosUI", dependencies: ["SwiftUI"], path: "Sources/PhotosUI"),
+    .target(name: "PhotosUI", dependencies: ["SwiftUI", "Photos"], path: "Sources/PhotosUI"),
     .target(name: "Magnet", dependencies: ["AppKit"], path: "Sources/Magnet"),
+    .target(name: "Nuke", dependencies: [], path: "Sources/Nuke"),
+    .target(name: "NukeUI", dependencies: ["SwiftUI", "Nuke"], path: "Sources/NukeUI"),
+    .target(name: "EmojiText", dependencies: ["SwiftUI", "QuillFoundation"], path: "Sources/EmojiText"),
+    .target(name: "Gifu", dependencies: ["SwiftUI"], path: "Sources/Gifu"),
+    .target(name: "Charts", dependencies: ["SwiftUI"], path: "Sources/Charts"),
     // Linux `import Combine` resolves to this re-export over
     // OpenCombine — Apple's Combine isn't part of swift-corelibs.
     .target(
@@ -2679,10 +2724,12 @@ let packageTestTargets: [Target] = {
 // (LocalizedStringKey, RelativeDateTimeFormatter, AttributedString markdown).
 #if os(Linux)
 if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
+    products.append(.executable(name: "icecubes-linux-app", targets: ["IceCubesLinuxApp"]))
+
     targets += [
         .target(
             name: "IceCubesShims",
-            dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+            dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI"), "QuillFoundation", "SwiftData", "SwiftUI"],
             path: "Sources/IceCubesShims"
         ),
         .target(
@@ -2695,7 +2742,11 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
             path: ".upstream/icecubes/Packages/Models/Sources/Models",
             exclude: ["SwiftData"],
             swiftSettings: [
-                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+                .swiftLanguageMode(.v5),
+                .unsafeFlags([
+                    "-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims",
+                    "-Xfrontend", "-import-module", "-Xfrontend", "Security"
+                ])
             ]
         ),
         // Real Dimillian/IceCubesApp NetworkClient. Compiles unmodified once
@@ -2713,6 +2764,7 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
             ],
             path: ".upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient",
             swiftSettings: [
+                .swiftLanguageMode(.v5),
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
             ]
         ),
@@ -2732,17 +2784,378 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
                 "os",
                 "KeychainSwift",
                 "UIKit",
+                "CryptoKit",
+                "QuickLook",
+                "Security",
+                "UserNotifications",
             ],
             path: ".upstream/icecubes/Packages/Env/Sources/Env",
             exclude: [
                 "HapticManager.swift",
                 "SoundEffectManager.swift",
                 "Telemetry.swift",
-                "PushNotificationsService.swift",
-                "QuickLook.swift",
                 "PreviewEnv.swift",
             ],
             swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags([
+                    "-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims",
+                    "-Xfrontend", "-import-module", "-Xfrontend", "Security"
+                ])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp DesignSystem. This is the first
+        // substantial SwiftUI UI package above Models/NetworkClient/Env and
+        // is intentionally compiled against canonical shim module names
+        // instead of editing upstream source.
+        .target(
+            name: "DesignSystem",
+            dependencies: [
+                "Models",
+                "Env",
+                "SwiftUI",
+                "IceCubesShims",
+                "Combine",
+                "Observation",
+                "UIKit",
+                "Nuke",
+                "NukeUI",
+                "EmojiText",
+                "Gifu",
+                "Charts",
+            ],
+            path: ".upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp MediaUI. This package sits above
+        // DesignSystem and exercises Apple media/share framework shims while
+        // still compiling against upstream source unchanged.
+        .target(
+            name: "MediaUI",
+            dependencies: [
+                "Models",
+                "DesignSystem",
+                "SwiftUI",
+                "UIKit",
+                "AVFoundation",
+                "AVKit",
+                "Photos",
+                "QuickLook",
+                "CoreTransferable",
+                "Nuke",
+                "NukeUI",
+                "Observation",
+                "Env",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/MediaUI/Sources/MediaUI",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp AppAccount. Kept as a pure package
+        // target so StatusKit can compile against the upstream account model
+        // and account-selector views without copying source.
+        .target(
+            name: "AppAccount",
+            dependencies: [
+                "NetworkClient",
+                "Models",
+                "Env",
+                "DesignSystem",
+                "SwiftUI",
+                "CryptoKit",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/AppAccount/Sources/AppAccount",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp application source as a Linux SwiftPM
+        // executable target. The Xcode project uses target membership; SwiftPM
+        // models the same shape by including the app and shared intents folders
+        // while excluding the widget-only ListEntity intent.
+        .executableTarget(
+            name: "IceCubesLinuxApp",
+            dependencies: [
+                "AVFoundation",
+                "Account",
+                "AppAccount",
+                "AppIntents",
+                "AuthenticationServices",
+                "Combine",
+                "Conversations",
+                "CoreGraphics",
+                "DesignSystem",
+                "Env",
+                "Explore",
+                "IceCubesShims",
+                "ImageIO",
+                "KeychainSwift",
+                "LinkPresentation",
+                "Lists",
+                "MediaUI",
+                "Models",
+                "NetworkClient",
+                "Notifications",
+                "Nuke",
+                "NukeUI",
+                "Observation",
+                "RevenueCat",
+                "SafariServices",
+                "SFSafeSymbols",
+                "StatusKit",
+                "SwiftData",
+                "SwiftUI",
+                "Timeline",
+                "UniformTypeIdentifiers",
+                "UserNotifications",
+                "UIKit",
+                "WebKit",
+                "WishKit",
+            ],
+            path: ".upstream/icecubes",
+            exclude: [
+                "IceCubesApp/App/IceCubesApp-release.entitlements",
+                "IceCubesApp/App/IceCubesApp.entitlements",
+                "IceCubesAppIntents/ListEntity.swift",
+            ],
+            sources: [
+                "IceCubesApp/App",
+                "IceCubesAppIntents",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp StatusKit. This is the first high-traffic
+        // package with timeline rows, status detail, and the composer. The
+        // dependency list names Apple/framework shims explicitly and auto-
+        // imports IceCubesShims for scoped app-storage and data fallbacks.
+        .target(
+            name: "StatusKit",
+            dependencies: [
+                "AppAccount",
+                "Models",
+                "MediaUI",
+                "NetworkClient",
+                "Env",
+                "DesignSystem",
+                "SwiftUI",
+                "UIKit",
+                "AVFoundation",
+                "AVKit",
+                "PhotosUI",
+                "SwiftData",
+                "StoreKit",
+                "NaturalLanguage",
+                "FoundationModels",
+                "ImageIO",
+                "LRUCache",
+                "Nuke",
+                "NukeUI",
+                "EmojiText",
+                "Observation",
+                "Combine",
+                "CoreTransferable",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/StatusKit/Sources/StatusKit",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags([
+                    "-Xfrontend", "-solver-expression-time-threshold=120000",
+                    "-Xfrontend", "-solver-scope-threshold=120000"
+                ]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "ImageIO"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "CoreTransferable"])
+            ]
+        ),
+        // Real Dimillian/IceCubesApp Account. This is the first package above
+        // StatusKit that composes full profile/account screens, account lists,
+        // filters, edit profile, metrics, and follow controls.
+        .target(
+            name: "IceCubesAccount",
+            dependencies: [
+                "AppAccount",
+                "Models",
+                "StatusKit",
+                "NetworkClient",
+                "Env",
+                "DesignSystem",
+                "SwiftUI",
+                "UIKit",
+                "PhotosUI",
+                "Charts",
+                "Nuke",
+                "NukeUI",
+                "EmojiText",
+                "ButtonKit",
+                "WrappingHStack",
+                "Observation",
+                "Combine",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/Account/Sources/Account",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags([
+                    "-Xfrontend", "-solver-expression-time-threshold=120000",
+                    "-Xfrontend", "-solver-scope-threshold=120000"
+                ]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        .target(
+            name: "Account",
+            dependencies: ["IceCubesAccount"],
+            path: "Sources/IceCubesAccountModuleAlias"
+        ),
+        .target(
+            name: "Timeline",
+            dependencies: [
+                "Models",
+                "NetworkClient",
+                "Env",
+                "StatusKit",
+                "DesignSystem",
+                "SwiftUI",
+                "SwiftData",
+                "Charts",
+                "Observation",
+                "Bodega",
+                "SwiftUIIntrospect",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/Timeline/Sources/Timeline",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags([
+                    "-Xfrontend", "-solver-expression-time-threshold=120000",
+                    "-Xfrontend", "-solver-scope-threshold=120000"
+                ]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        .target(
+            name: "Explore",
+            dependencies: [
+                "Account",
+                "Models",
+                "NetworkClient",
+                "Env",
+                "StatusKit",
+                "DesignSystem",
+                "SwiftUI",
+                "EmojiText",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/Explore/Sources/Explore",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags([
+                    "-Xfrontend", "-solver-expression-time-threshold=120000",
+                    "-Xfrontend", "-solver-scope-threshold=120000"
+                ]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        .target(
+            name: "Notifications",
+            dependencies: [
+                "Models",
+                "NetworkClient",
+                "Env",
+                "StatusKit",
+                "DesignSystem",
+                "SwiftUI",
+                "EmojiText",
+                "Observation",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/Notifications/Sources/Notifications",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags([
+                    "-Xfrontend", "-solver-expression-time-threshold=120000",
+                    "-Xfrontend", "-solver-scope-threshold=120000"
+                ]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        .target(
+            name: "Lists",
+            dependencies: [
+                "Account",
+                "Models",
+                "NetworkClient",
+                "Env",
+                "DesignSystem",
+                "SwiftUI",
+                "EmojiText",
+                "Observation",
+                "Combine",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/Lists/Sources/Lists",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags([
+                    "-Xfrontend", "-solver-expression-time-threshold=120000",
+                    "-Xfrontend", "-solver-scope-threshold=120000"
+                ]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        .target(
+            name: "Conversations",
+            dependencies: [
+                "Models",
+                "NetworkClient",
+                "Env",
+                "DesignSystem",
+                "StatusKit",
+                "SwiftUI",
+                "NukeUI",
+                "IceCubesShims",
+            ],
+            path: ".upstream/icecubes/Packages/Conversations/Sources/Conversations",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags([
+                    "-Xfrontend", "-solver-expression-time-threshold=120000",
+                    "-Xfrontend", "-solver-scope-threshold=120000"
+                ]),
+                .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
             ]
         ),
