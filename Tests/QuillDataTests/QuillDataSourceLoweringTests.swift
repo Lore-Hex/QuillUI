@@ -1358,6 +1358,21 @@ struct QuillDataSourceLoweringTests {
             return gtkRenderView(view.body)
         }
 
+        // MARK: - GeometryReader GTK extension
+
+        private class GeometryReaderContext {
+            let renderContent: (GeometryProxy) -> OpaquePointer
+            let box: UnsafeMutablePointer<GtkWidget>
+
+            init<Content: View>(content: @escaping (GeometryProxy) -> Content,
+                                box: UnsafeMutablePointer<GtkWidget>) {
+                self.box = box
+                self.renderContent = { proxy in
+                    gtkRenderView(content(proxy))
+                }
+            }
+        }
+
         // MARK: - GTK rendering protocol
 
         extension Group: GTKRenderable {
@@ -2387,11 +2402,22 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private var gtkStateCache: [String: [AnyStateStorage]] = [:]"))
         #expect(patchedRenderer.contains("private var gtkStateTypeCounters: [String: [String: Int]] = [:]"))
         #expect(patchedRenderer.contains("private func gtkStateIdentityNamespace() -> String"))
-        #expect(patchedRenderer.contains("GTKViewHost.getCurrentRebuilding()?.stateIdentityNamespace ?? \"root\""))
+        // Deferred renders (GeometryReader callbacks) have no rebuilding host;
+        // the forced-namespace fallback keeps their subtree off the shared
+        // never-reset "root" counter pool so @State survives geometry passes.
+        #expect(patchedRenderer.contains("?? gtkForcedStateIdentityNamespace"))
+        #expect(patchedRenderer.contains("private var gtkForcedStateIdentityNamespace: String?"))
+        #expect(patchedRenderer.contains("func gtkClaimStateIdentityNamespace(_ kind: String) -> String"))
+        #expect(patchedRenderer.contains("func gtkWithForcedStateIdentityNamespace<T>(_ namespace: String, _ body: () -> T) -> T"))
+        #expect(patchedRenderer.contains("gtkClaimStateIdentityNamespace(\"GeometryReader\")"))
+        #expect(patchedRenderer.contains("gtkWithForcedStateIdentityNamespace(stateNamespace) {"))
         #expect(patchedRenderer.contains("func gtkBeginStateIdentityPass()"))
         #expect(patchedRenderer.contains("gtkStateTypeCounters[gtkStateIdentityNamespace()] = [:]"))
         #expect(patchedRenderer.contains("return \"\\(namespace)::\\(typeName)#\\(index)\""))
         #expect(patchedRenderer.contains("host.stateIdentityNamespace = key"))
+        // Stateless wrappers must also consume a key slot and namespace their
+        // children; the namespace assignment precedes the provider guard.
+        #expect(patchedRenderer.contains("host.stateIdentityNamespace = key\n    let mirror = Mirror(reflecting: view)"))
         #expect(patchedRenderer.contains("old.forwardMutations(to: provider.anyStorage)"))
         #expect(patchedRenderer.contains("gtkRestoreAndInstallState(view, host: host)"))
         #expect(patchedRenderer.contains("let transientRoot: gpointer?"))
@@ -2473,6 +2499,25 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("return mode == \"overlay\" || mode == \"in-window\" || mode == \"inline\""))
         #expect(patchedRenderer.contains("private func gtkRemoveSheetRootOverlay("))
         #expect(patchedRenderer.contains("gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey"))
+        // Presented panels live in a global registry keyed by the type-derived
+        // activeKey: anchors are recreated per parent render, so per-anchor
+        // g_object data would orphan the panel after the first rebuild.
+        #expect(patchedRenderer.contains("private var gtkRootSheetPanels: [String: UnsafeMutablePointer<GtkWidget>] = [:]"))
+        #expect(patchedRenderer.contains("private var gtkRootSheetItemIDs: [String: Int] = [:]"))
+        #expect(patchedRenderer.contains("guard let panel = gtkRootSheetPanels.removeValue(forKey: activeKey) else"))
+        #expect(patchedRenderer.contains("guard gtkRootSheetPanels[activeKey] == nil else"))
+        #expect(patchedRenderer.components(separatedBy: "gtkRootSheetPanels[activeKey] = panel").count == 3)
+        #expect(!patchedRenderer.contains("g_object_set_data(gobject, overlayKey, gpointer(panel))"))
+        // Debounced entry->binding writes: typing must not schedule a rebuild
+        // per keystroke, and button actions flush eagerly so Save reads the
+        // typed text from the model.
+        #expect(patchedRenderer.contains("func gtkFlushPendingTextBindingUpdate()"))
+        #expect(patchedRenderer.contains("gtkPendingTextBindingSourceID = g_timeout_add(250"))
+        #expect(patchedRenderer.contains("gtkFlushPendingTextBindingUpdate()\n    let now = Date().timeIntervalSinceReferenceDate"))
+        // Sheet auto-focus retries until the panel is allocated; a one-shot
+        // grab on an unallocated panel fails silently and keyboard focus falls
+        // to the sheet's first button.
+        #expect(patchedRenderer.contains("if gtk_widget_get_width(target.panel) <= 1"))
         #expect(patchedRenderer.contains("private func gtkScheduleSheetDismissal(_ action"))
         #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        binding.wrappedValue = false"))
         #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        itemBinding.wrappedValue = nil"))
@@ -2543,7 +2588,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
         #expect(patchedRenderer.contains("private final class GTKButtonRootEventContext"))
         #expect(patchedRenderer.contains("gtkInstallButtonRootEventFallback(context)"))
-        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: \"root-legacy\")"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"root-legacy@"))
+        #expect(patchedRenderer.contains("private func gtkButtonDebugSource(_ source: String, widget: UnsafeMutablePointer<GtkWidget>) -> String"))
         #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y)"))
         #expect(!patchedRenderer.contains("guard gtk_swift_widget_contains_root_point(root, context.widget"))
         #expect(patchedRenderer.contains("context.removeController()"))
@@ -2554,8 +2600,11 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
 
         let patchedDescriptorTree = try String(contentsOf: descriptorTree, encoding: .utf8)
-        #expect(patchedDescriptorTree.contains("GTK Button action closures capture the view state storage"))
+        #expect(patchedDescriptorTree.contains("Reused buttons stay on the narrow path"))
         #expect(patchedDescriptorTree.contains("if plan.newDescriptor.kind == .button"))
+        // Props-bearing childless composites (TextField & co.) compare
+        // meaningfully and stay narrow-eligible on reuse.
+        #expect(patchedDescriptorTree.contains("if case .none = plan.newDescriptor.props {"))
 
         let patchedViewHost = try String(contentsOf: viewHost, encoding: .utf8)
         #expect(patchedViewHost.contains("gtkBeginStateIdentityPass()"))

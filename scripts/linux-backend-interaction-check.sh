@@ -530,6 +530,10 @@ save_quill_chat_new_completion() {
 
   open_quill_chat_new_completion_sheet
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    # Script click coordinates land at the same root/content pixel (offset 0,
+    # verified via root-legacy@x,y debug logs: a dy=1244 click arrives at root
+    # y=1244). Targets from .qa button-frame logs: name entry y 455-471,
+    # instruction box 510-592, editor Save (1434-1464, 399-416).
     name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
     name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}"
     instruction_x="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}"

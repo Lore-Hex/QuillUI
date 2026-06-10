@@ -3357,7 +3357,7 @@ struct SourceHygieneTests {
             #expect(source.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
             #expect(source.contains("GTKButtonRootEventContext"))
             #expect(source.contains("gtkInstallButtonRootEventFallback"))
-            #expect(source.contains("gtkScheduleButtonAction(context.box, source: \"root-legacy\")"))
+            #expect(source.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"root-legacy@"))
             #expect(source.contains("gtk_swift_widget_is_topmost_at_root_point"))
             #expect(source.contains("gtk_widget_add_css_class(button, \"flat\")"))
             #expect(source.contains("background: transparent;"))
