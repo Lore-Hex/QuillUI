@@ -1903,7 +1903,9 @@ let signalAppleFrameworkShims = [
     // (Sources/AVKit, SwiftUI VideoPlayer surface) used by both SignalUI and
     // the Telegram-Mac app graph.
     "Quartz", "QuickLook", "OSLog", "AppIntents", "CoreMediaIO",
-    "MapKit", "SceneKit", "Firebase", "FirebaseCrashlytics", "Lottie", "TdBinding",
+    // NOTE: "Lottie" is NOT here — Sources/Lottie (Signal's LibMobileCoin dep)
+    // already declares it explicitly.
+    "MapKit", "SceneKit", "Firebase", "FirebaseCrashlytics", "TdBinding",
     // Added for Signal-iOS SignalUI (Apple frameworks it imports; MetalKit/Vision
     // are already in the list above).
     "Photos",
