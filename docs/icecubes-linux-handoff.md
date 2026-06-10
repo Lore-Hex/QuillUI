@@ -1,5 +1,34 @@
 # IceCubes-on-Linux — session handoff (2026-06-10)
 
+## UPDATE (later 2026-06-10 session)
+
+- **GTK Cancel-dismiss bug: FIXED + verified.** Root cause: this branch's
+  vendored renderer predated main's 8 swarm sheet commits ("Let GTK root sheet
+  dismiss via binding", "Defer GTK sheet dismissal teardown", …) — the sheet
+  behavior layers in via `scripts/patch-swiftopenui-gtk-css.sh`. Merged
+  origin/main (commit 39ca4c8a; 8 conflicts — UIKitShim keeps the
+  extension-over-QuillUIKit structure, AVFoundation/State/button-action paths
+  take main's), re-applied the patch script (it ABORTS on unrecognized shapes;
+  had to delete this branch's dead `gtkResolveOrQueueScrollTo` first), deduped
+  both-sides-committed decls (scroll system / gtkScheduleOnAppear / gtkDebugLog,
+  commit 172345b1). Smoke-verified: xdotool click at (80,344) now dismisses the
+  Add Account sheet (`.tmp-ice-c1-before.png` → `.tmp-ice-c2-after-cancel.png`).
+  Repro loop: `bash /work/.tmp-ice-cancel-smoke.sh` in quillui-signal-build.
+- **Qt wiring LANDED (commit f4bf37fb):** `iceCubesLinuxGraphEnabled =
+  gtk || (qt && QUILLUI_QT_GENERIC)` widens the 3 gates; under qt-generic the
+  qt branch APPENDS its graph to the common shim graph (name-filtered) instead
+  of resetting; SwiftUI shim backend dep is conditional (BackendQt vs
+  BackendGTK4). dump-package passes in qui-appkit-qt for plain-qt AND
+  qt-generic; flag-off qt reset is byte-identical. First qt build reached
+  706/1118 jobs. ⚠️ GRDB `canImport(Combine)` race: GRDB sees the Combine shim
+  .swiftmodule mid-build but not OpenCombine's COpenCombineHelpers module map →
+  "missing required module". Deterministic workaround in flight: fresh scratch,
+  `swift build --target GRDB` FIRST (before the Combine shim exists), then the
+  product. If that holds, bake it into the qt build loop.
+- Next: qt build verdict → launch smoke (QT_QPA_PLATFORM=xcb); then parity P1
+  (toolbar stacked-pickers artifact at top of window — visible in both smokes).
+
+
 Mission (from Joseph): get the REAL upstream IceCubesApp **fully running** on
 Linux, **on BOTH backends — GTK (SwiftOpenUI/GTK4) and Qt (generic BackendQt)**.
 Work in THIS worktree: `/Users/jperla/claude/QuillUI-icecubes-build`,
