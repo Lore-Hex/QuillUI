@@ -131,7 +131,7 @@ private func gtkTextInputFocusDescriptorContent(
     typeName: String,
     binding: Binding<String>,
     label: String = "",
-    includeValueWhenUnidentified: Bool = true
+    includeValueWhenUnidentified: Bool = false
 ) -> String {
     if let identity = binding.quillUIIdentity {
         return "\(typeName)|binding:\(identity)"
@@ -283,21 +283,35 @@ private func gtkMeasureLayoutSubviews(
 /// `docs/architecture/deferred-callback-environment-binding.md`.
 func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
     return {
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        action()
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action()
+            }
+        } else {
+            action()
+        }
     }
 }
 
 func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
     return { value in
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        action(value)
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action(value)
+            }
+        } else {
+            action(value)
+        }
     }
 }
 
@@ -3883,21 +3897,27 @@ extension SheetModifierView: GTKRenderable {
             // Inject dismiss action into environment
             let previous = getCurrentEnvironment()
             var env = previous
+            let dismissAction: () -> Void
             if let config = info.dismissalConfig {
                 // Dismiss action shows confirmation instead of destroying
-                env.dismiss = DismissAction {
+                dismissAction = {
                     config.isPresented.wrappedValue = true
                     gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
                 }
             } else {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     gtkScheduleSheetDismissal {
                         gtk_window_destroy(dialogWin)
                     }
                 }
             }
+            env.dismiss = DismissAction(handler: dismissAction)
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(info.render())
+            let sheetWidget = widgetFromOpaque(
+                swiftOpenUIWithPresentationDismissAction(dismissAction) {
+                    info.render()
+                }
+            )
             setCurrentEnvironment(previous)
             gtk_window_set_child(dialogWin, sheetWidget)
 
@@ -4037,20 +4057,26 @@ extension ItemSheetModifierView: GTKRenderable {
 
             let previous = getCurrentEnvironment()
             var env = previous
+            let dismissAction: () -> Void
             if let config = info.dismissalConfig {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     config.isPresented.wrappedValue = true
                     gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
                 }
             } else {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     gtkScheduleSheetDismissal {
                         gtk_window_destroy(dialogWin)
                     }
                 }
             }
+            env.dismiss = DismissAction(handler: dismissAction)
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(info.render())
+            let sheetWidget = widgetFromOpaque(
+                swiftOpenUIWithPresentationDismissAction(dismissAction) {
+                    info.render()
+                }
+            )
             setCurrentEnvironment(previous)
             gtk_window_set_child(dialogWin, sheetWidget)
 
@@ -5825,7 +5851,9 @@ private func gtkCreateLazyGridWidget<Data, Content: View>(
     let factory = gtk_swift_signal_list_item_factory_new()!
 
     let configuration = computeLazyGridConfiguration(gridItems: gridItems)
-    let cellMinWidth = configuration.adaptiveMinimum
+    let cellMinWidth = configuration.adaptiveMinimum > 0
+        ? configuration.adaptiveMinimum
+        : (configuration.maxColumns > 1 ? 160 : 0)
     let context = LazyGridContext(items: items, contentBuilder: contentBuilder,
                                   cellMinWidth: cellMinWidth)
     let contextPtr = Unmanaged.passRetained(context).toOpaque()

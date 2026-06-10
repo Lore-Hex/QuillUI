@@ -315,6 +315,43 @@ gtk_swift_label_get_use_markup(GtkWidget *label) {
         if include_marker not in text:
             raise SystemExit("SwiftOpenUI GTK shim include block was not recognized")
         text = text.replace(include_marker, include_marker + accessibility_helpers, 1)
+if "gtk_swift_flow_box_new" not in text:
+    flow_box_helpers = """static inline GtkWidget *
+gtk_swift_flow_box_new(void) {
+    return gtk_flow_box_new();
+}
+
+static inline void
+gtk_swift_flow_box_configure(GtkWidget *flow, guint spacing) {
+    GtkFlowBox *box = GTK_FLOW_BOX(flow);
+    gtk_flow_box_set_selection_mode(box, GTK_SELECTION_NONE);
+    gtk_flow_box_set_activate_on_single_click(box, FALSE);
+    gtk_flow_box_set_column_spacing(box, spacing);
+    gtk_flow_box_set_row_spacing(box, spacing);
+    gtk_flow_box_set_min_children_per_line(box, 1);
+    gtk_flow_box_set_max_children_per_line(box, 128);
+    gtk_flow_box_set_homogeneous(box, FALSE);
+}
+
+static inline void
+gtk_swift_flow_box_insert(GtkWidget *flow, GtkWidget *child) {
+    gtk_flow_box_insert(GTK_FLOW_BOX(flow), child, -1);
+}
+
+"""
+    fixed_marker = """static inline GtkWidget *
+gtk_swift_fixed_new(void) {
+    return gtk_fixed_new();
+}
+
+"""
+    if fixed_marker in text:
+        text = text.replace(fixed_marker, fixed_marker + flow_box_helpers, 1)
+    else:
+        include_marker = "#include <fontconfig/fontconfig.h>\n"
+        if include_marker not in text:
+            raise SystemExit("SwiftOpenUI GTK shim include block was not recognized")
+        text = text.replace(include_marker, include_marker + "\n" + flow_box_helpers, 1)
 pattern = re.compile(
     r"gtk_swift_add_gesture\(GtkWidget \*widget, GtkGesture \*gesture\)\s*\{\s*"
     r"gtk_widget_add_controller\(widget, GTK_EVENT_CONTROLLER\(gesture\)\);\s*"
@@ -2124,6 +2161,21 @@ private func gtkSheetDefaultHeight() -> gint {
         2,
     )
     text = text.replace(
+        """            let sheetWidget = widgetFromOpaque(
+                swiftOpenUIWithPresentationDismissAction(dismissAction) {
+                    info.render()
+                }
+            )
+""",
+        """            let sheetWidget = widgetFromOpaque(
+                swiftOpenUIWithPresentationDismissAction(dismissAction) {
+                    gtkWithSheetLifecycleScope(info.lifecycleScope) { info.render() }
+                }
+            )
+""",
+        2,
+    )
+    text = text.replace(
         """                binding.wrappedValue = false
                 userOnDismiss?()
 """,
@@ -2163,7 +2215,7 @@ private func gtkSheetDefaultHeight() -> gint {
             )
             if let dialogPtr = g_object_get_data(gobject, windowKey) {
 '''
-    if "gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey,\n                onDismiss: onDismiss" not in text:
+    if "        if !isPresented.wrappedValue {\n            gtkRemoveSheetRootOverlay(" not in text:
         text = text.replace(
             '''        if !isPresented.wrappedValue {
             if let dialogPtr = g_object_get_data(gobject, windowKey) {
@@ -2201,7 +2253,7 @@ private func gtkSheetDefaultHeight() -> gint {
             )
             if let dialogPtr = g_object_get_data(gobject, windowKey) {
 '''
-    if "gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey,\n                itemIDKey: itemIDKey,\n                onDismiss: onDismiss" not in text:
+    if "        guard let currentItem = item.wrappedValue else {\n            gtkRemoveSheetRootOverlay(" not in text:
         text = text.replace(
             '''        guard let currentItem = item.wrappedValue else {
             if let dialogPtr = g_object_get_data(gobject, windowKey) {
@@ -2461,7 +2513,7 @@ private func gtkFocusSheetEditable(
     guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
         return
     }
-    gtkFocusSheetEditableWidget(editable)
+    gtkScheduleSheetEditableFocus(editable)
 }
 
 private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
@@ -2582,6 +2634,21 @@ if "private func gtkShouldRenderSheetInWindow" not in text:
         raise SystemExit("SwiftOpenUI sheet overlay helper insertion shape was not recognized")
     text = text.replace(marker, "\n" + sheet_overlay_helpers + "private func gtkSheetDataKey", 1)
 
+text = text.replace(
+    """    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
+        return
+    }
+    gtkFocusSheetEditableWidget(editable)
+}
+""",
+    """    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
+        return
+    }
+    gtkScheduleSheetEditableFocus(editable)
+}
+""",
+)
+
 bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let sheetView = sheetContent
             let binding = isPresented
@@ -2590,12 +2657,13 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
+            let dismissAction: () -> Void
             if let config = dismissalConfig {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     config.isPresented.wrappedValue = true
                 }
             } else {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     gtkScheduleSheetDismissal {
                         binding.wrappedValue = false
                         lifecycleScope.runDisappearActions()
@@ -2603,8 +2671,13 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                     }
                 }
             }
+            env.dismiss = DismissAction(handler: dismissAction)
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) })
+            let sheetWidget = widgetFromOpaque(
+                swiftOpenUIWithPresentationDismissAction(dismissAction) {
+                    gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) }
+                }
+            )
             setCurrentEnvironment(previous)
             return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
         }
@@ -2622,22 +2695,28 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
+            let dismissAction: () -> Void
             if let config = dismissalConfig {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     config.isPresented.wrappedValue = true
                 }
             } else {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     gtkScheduleSheetDismissal {
                         binding.wrappedValue = false
                         lifecycleScope.runDisappearActions()
                     }
                 }
             }
+            env.dismiss = DismissAction(handler: dismissAction)
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkWithRootSheetOverlay(rootOverlay) {
-                gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) }
-            })
+            let sheetWidget = widgetFromOpaque(
+                swiftOpenUIWithPresentationDismissAction(dismissAction) {
+                    gtkWithRootSheetOverlay(rootOverlay) {
+                        gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) }
+                    }
+                }
+            )
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
             gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
@@ -2662,12 +2741,13 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
+            let dismissAction: () -> Void
             if let config = itemDismissalConfig {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     config.isPresented.wrappedValue = true
                 }
             } else {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     gtkScheduleSheetDismissal {
                         itemBinding.wrappedValue = nil
                         lifecycleScope.runDisappearActions()
@@ -2675,8 +2755,13 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                     }
                 }
             }
+            env.dismiss = DismissAction(handler: dismissAction)
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) })
+            let sheetWidget = widgetFromOpaque(
+                swiftOpenUIWithPresentationDismissAction(dismissAction) {
+                    gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }
+                }
+            )
             setCurrentEnvironment(previous)
             return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
         }
@@ -2707,22 +2792,28 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
+            let dismissAction: () -> Void
             if let config = itemDismissalConfig {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     config.isPresented.wrappedValue = true
                 }
             } else {
-                env.dismiss = DismissAction {
+                dismissAction = {
                     gtkScheduleSheetDismissal {
                         itemBinding.wrappedValue = nil
                         lifecycleScope.runDisappearActions()
                     }
                 }
             }
+            env.dismiss = DismissAction(handler: dismissAction)
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkWithRootSheetOverlay(rootOverlay) {
-                gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }
-            })
+            let sheetWidget = widgetFromOpaque(
+                swiftOpenUIWithPresentationDismissAction(dismissAction) {
+                    gtkWithRootSheetOverlay(rootOverlay) {
+                        gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }
+                    }
+                }
+            )
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
             gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
@@ -5474,6 +5565,11 @@ private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: Str
     if helper_marker not in text:
         raise SystemExit("SwiftOpenUI TextField idle binding helper insertion marker was not recognized")
     text = text.replace(helper_marker, text_binding_helper + helper_marker, 1)
+
+text = text.replace(
+    "includeValueWhenUnidentified: Bool = true",
+    "includeValueWhenUnidentified: Bool = false",
+)
 
 if "case .quillPaintMacDefault:" not in text:
     extension_index = text.find("extension Button: GTKRenderable")

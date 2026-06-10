@@ -22,7 +22,7 @@ import AsyncAlgorithms
 import Carbon
 import IOKit
 import IOKit.usb
-import WrappingHStack
+@_spi(QuillTesting) import WrappingHStack
 import Vortex
 import KeyboardShortcuts
 import Magnet
@@ -320,10 +320,13 @@ struct CompatibilityModuleTests {
         _ = Markdown("# Heading\n\n```swift\nprint(\"Quill\")\n```")
             .markdownCodeSyntaxHighlighter(PlainTextCodeSyntaxHighlighter())
             .markdownTheme(markdownContractTheme)
-        _ = WrappingHStack(alignment: .leading) {
+        let wrapping = WrappingHStack(alignment: .leading, spacing: 12) {
             Text("One")
             Text("Two")
         }
+        #expect(wrapping.children.count == 2)
+        #expect(wrapping.quillResolvedSpacing == 12)
+        #expect(wrapping.quillResolvedAlignment == .leading)
         _ = VortexView(.splash.makeUniqueCopy()) {
             Circle()
                 .fill(.white)
@@ -2241,6 +2244,7 @@ struct CompatibilityModuleTests {
     func environmentPresentationModeFallsBackToDismiss() {
         let fallbackInvoked = QuillTestBox<Int>(0)
         let explicitInvoked = QuillTestBox<Int>(nil)
+        let contextualInvoked = QuillTestBox<Int>(nil)
         var environment = EnvironmentValues()
 
         environment.dismiss = DismissAction {
@@ -2249,6 +2253,15 @@ struct CompatibilityModuleTests {
         environment.presentationMode.dismiss()
         #expect(fallbackInvoked.value == 1)
         #expect(explicitInvoked.value == nil)
+        #expect(contextualInvoked.value == nil)
+
+        swiftOpenUIWithPresentationDismissAction({
+            contextualInvoked.value = (contextualInvoked.value ?? 0) + 1
+        }) {
+            environment.presentationMode.dismiss()
+        }
+        #expect(fallbackInvoked.value == 1)
+        #expect(contextualInvoked.value == 1)
 
         environment.presentationMode = PresentationMode {
             explicitInvoked.value = (explicitInvoked.value ?? 0) + 1
