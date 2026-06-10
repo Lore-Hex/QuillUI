@@ -50,17 +50,9 @@ private func findTitlebar(in widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeM
     return nil
 }
 
-/// Box for passing an activate closure through C user_data.
-private class AppActivateBox {
-    let activate: (OpaquePointer) -> Void
-    init(_ activate: @escaping (OpaquePointer) -> Void) {
-        self.activate = activate
-    }
-}
-
-/// Protocol for scenes that can render onto a GtkApplication.
+/// Protocol for scenes that can render onto GTK top-level windows.
 protocol GTKWindowRenderable {
-    func gtkRender(app: OpaquePointer)
+    func gtkRender(app: OpaquePointer?)
 }
 
 /// Root GTK window content should fill the proposed size; leaf alignment is
@@ -95,8 +87,13 @@ extension WindowGroup: GTKWindowRenderable {
         }
     }
 
-    func gtkRender(app: OpaquePointer) {
-        let window = gtk_application_window_new(gtkApplicationPointer(app))!
+    func gtkRender(app: OpaquePointer?) {
+        let window: UnsafeMutablePointer<GtkWidget>
+        if let app {
+            window = gtk_application_window_new(gtkApplicationPointer(app))!
+        } else {
+            window = gtk_window_new()!
+        }
         let winPtr = windowPointer(window)
         gtk_window_set_title(winPtr, title)
 
@@ -576,10 +573,7 @@ public struct GTK4Backend: RenderBackend {
         // asks Pango to resolve the "Material Symbols Rounded" family.
         gtkRegisterBundledIconFont()
 
-        let gtkApp = gtk_application_new(nil, G_APPLICATION_DEFAULT_FLAGS)!
-        let appPtr = OpaquePointer(gtkApp)
-
-        let factory: (OpaquePointer) -> Void = { appPtr in
+        let factory: (OpaquePointer?) -> Void = { appPtr in
             // Inject openWindow action into the environment so views
             // can programmatically open Window scenes by id.
             var env = getCurrentEnvironment()
@@ -592,23 +586,8 @@ public struct GTK4Backend: RenderBackend {
             gtkRenderScene(instance.body, app: appPtr)
         }
 
-        let box = Unmanaged.passRetained(AppActivateBox(factory)).toOpaque()
-        g_signal_connect_data(
-            gpointer(appPtr),
-            "activate",
-            unsafeBitCast({ (app: gpointer?, userData: gpointer?) in
-                let box = Unmanaged<AppActivateBox>.fromOpaque(userData!).takeUnretainedValue()
-                box.activate(OpaquePointer(app!))
-            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-            box,
-            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                Unmanaged<AppActivateBox>.fromOpaque(userData!).release()
-            },
-            GConnectFlags(rawValue: 0)
-        )
-
         // Pump Foundation RunLoop sources (Timer, etc.) periodically.
-        // GTK4's g_application_run blocks in GMainLoop, so Foundation
+        // GTK4's GMainLoop blocks the thread, so Foundation
         // timers (e.g. Timer.scheduledTimer) never fire unless we
         // explicitly spin RunLoop.main from a GLib timeout source.
         g_timeout_add(5, { _ -> gboolean in
@@ -617,18 +596,20 @@ public struct GTK4Backend: RenderBackend {
             return 1 // G_SOURCE_CONTINUE
         }, nil)
 
-        let status = g_application_run(applicationPointer(appPtr), 0, nil)
-        g_object_unref(gpointer(appPtr))
-
-        if status != 0 {
-            print("GTK application exited with status \(status)")
+        if gtk_init_check() == 0 {
+            return
         }
+        factory(nil)
+
+        let loop = g_main_loop_new(nil, 0)
+        g_main_loop_run(loop)
+        g_main_loop_unref(loop)
     }
 }
 
 /// GTK4 rendering for Window scenes (single-instance, identified windows).
 extension Window: GTKWindowRenderable {
-    func gtkRender(app: OpaquePointer) {
+    func gtkRender(app: OpaquePointer?) {
         // Register a factory for all Window scenes so openWindow(id:) works
         // regardless of launch behavior.
         GTK4WindowRegistry.shared.register(id: id) { [self] in
@@ -643,8 +624,13 @@ extension Window: GTKWindowRenderable {
         }
     }
 
-    func gtkCreateWindow(app: OpaquePointer) {
-        let window = gtk_application_window_new(gtkApplicationPointer(app))!
+    func gtkCreateWindow(app: OpaquePointer?) {
+        let window: UnsafeMutablePointer<GtkWidget>
+        if let app {
+            window = gtk_application_window_new(gtkApplicationPointer(app))!
+        } else {
+            window = gtk_window_new()!
+        }
         let winPtr = windowPointer(window)
         gtk_window_set_title(winPtr, title)
 
@@ -702,7 +688,7 @@ extension Window: GTKWindowRenderable {
 
 /// GTK4 rendering for TupleScene — renders both child scenes.
 extension TupleScene: GTKWindowRenderable {
-    func gtkRender(app: OpaquePointer) {
+    func gtkRender(app: OpaquePointer?) {
         gtkRenderScene(scene0, app: app)
         gtkRenderScene(scene1, app: app)
     }
@@ -744,7 +730,7 @@ class GTK4WindowRegistry {
 
 /// Recursively render a Scene. Terminal scenes (WindowGroup, Window) render
 /// directly; composite scenes recurse through their body.
-private func gtkRenderScene<S: Scene>(_ scene: S, app: OpaquePointer) {
+private func gtkRenderScene<S: Scene>(_ scene: S, app: OpaquePointer?) {
     if let renderable = scene as? GTKWindowRenderable {
         renderable.gtkRender(app: app)
         return

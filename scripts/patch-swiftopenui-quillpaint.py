@@ -6,12 +6,38 @@ def patch_renderer(renderer_path: str) -> None:
     path = Path(renderer_path)
     text = path.read_text()
 
-    hook_decl = "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n\n"
+    hook_decl = (
+        "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
+        "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
+        "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n\n"
+    )
     if "quill_gtk_button_paint_hook" not in text:
         marker = "// MARK: - GTK rendering protocol\n"
         if marker not in text:
             raise SystemExit("SwiftOpenUI GTK rendering protocol marker was not recognized")
         text = text.replace(marker, hook_decl + marker, 1)
+    elif "quill_gtk_text_field_paint_hook" not in text:
+        text = text.replace(
+            "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n",
+            "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
+            "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n",
+            1,
+        )
+    if "quill_gtk_text_editor_paint_hook" not in text:
+        text = text.replace(
+            "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n",
+            "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
+            "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
+            1,
+        )
+    if "quill_gtk_toggle_paint_hook" not in text:
+        text = text.replace(
+            "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
+            "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
+            "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
+            1,
+        )
 
     if "case .quillPaintMacDefault:" not in text:
         extension_index = text.find("extension Button: GTKRenderable")
@@ -113,6 +139,182 @@ def patch_renderer(renderer_path: str) -> None:
 
 '''
         text = text[:start] + replacement + text[end:]
+
+    text_field_index = text.find("extension TextField: GTKRenderable")
+    if text_field_index == -1:
+        raise SystemExit("SwiftOpenUI TextField GTKRenderable extension was not recognized")
+    text_field_end = text.find("\nextension ", text_field_index + 1)
+    if text_field_end == -1:
+        text_field_end = len(text)
+
+    if "var useQuillPaintTextField = false" not in text[text_field_index:text_field_end]:
+        style_var = "        let textFieldStyleType = getCurrentEnvironment().textFieldStyle\n"
+        style_index = text.find(style_var, text_field_index)
+        if style_index == -1:
+            raise SystemExit("SwiftOpenUI TextField style variable shape was not recognized")
+        return_index = text.find("        gtkApplyEnabledState(to: entry)", style_index)
+        if return_index == -1:
+            raise SystemExit("SwiftOpenUI TextField enabled-state shape was not recognized")
+        insert_index = style_index + len(style_var)
+        text = text[:insert_index] + "        var useQuillPaintTextField = false\n" + text[insert_index:]
+        return_index = text.find("        gtkApplyEnabledState(to: entry)", insert_index)
+        automatic_case = "        case .automatic, .roundedBorder:\n"
+        case_index = text.find(automatic_case, insert_index, return_index)
+        if case_index == -1:
+            raise SystemExit("SwiftOpenUI TextField automatic style case was not recognized")
+        body_index = case_index + len(automatic_case)
+        for old_body in (
+            "            break // default GTK entry styling\n",
+            "            break\n",
+        ):
+            if text.startswith(old_body, body_index):
+                text = (
+                    text[:body_index]
+                    + "            useQuillPaintTextField = true\n"
+                    + text[body_index + len(old_body):]
+                )
+                break
+        else:
+            raise SystemExit("SwiftOpenUI TextField automatic style body was not recognized")
+        text_field_end = text.find("\nextension ", text_field_index + 1)
+        if text_field_end == -1:
+            text_field_end = len(text)
+
+    if "quill_gtk_text_field_paint_hook?" not in text[text_field_index:text_field_end]:
+        old_text_field_return = '''        gtkApplyEnabledState(to: entry)
+        return opaqueFromWidget(entry)
+'''
+        new_text_field_return = '''        gtkApplyEnabledState(to: entry)
+        if useQuillPaintTextField,
+           let paintedEntry = quill_gtk_text_field_paint_hook?(
+               OpaquePointer(entry),
+               textFieldStyleType == .roundedBorder
+           ) {
+            return paintedEntry
+        }
+        return opaqueFromWidget(entry)
+'''
+        return_index = text.find(old_text_field_return, text_field_index)
+        if return_index == -1:
+            raise SystemExit("SwiftOpenUI TextField return shape was not recognized")
+        text = text[:return_index] + new_text_field_return + text[return_index + len(old_text_field_return):]
+
+    secure_field_index = text.find("extension SecureField: GTKRenderable")
+    secure_field_hook_call = "quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true)"
+    secure_field_end = text.find("\nextension ", secure_field_index + 1) if secure_field_index != -1 else -1
+    if secure_field_end == -1:
+        secure_field_end = len(text)
+    if secure_field_index != -1 and secure_field_hook_call not in text[secure_field_index:secure_field_end]:
+        old_secure_field_return = '''        gtkApplyEnabledState(to: entry)
+        return opaqueFromWidget(entry)
+'''
+        new_secure_field_return = '''        gtkApplyEnabledState(to: entry)
+        if let paintedEntry = quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true) {
+            return paintedEntry
+        }
+        return opaqueFromWidget(entry)
+'''
+        return_index = text.find(old_secure_field_return, secure_field_index)
+        if return_index == -1:
+            raise SystemExit("SwiftOpenUI SecureField return shape was not recognized")
+        text = text[:return_index] + new_secure_field_return + text[return_index + len(old_secure_field_return):]
+
+    text_editor_index = text.find("extension TextEditor: GTKRenderable")
+    text_editor_end = text.find("\nextension ", text_editor_index + 1) if text_editor_index != -1 else -1
+    if text_editor_end == -1:
+        text_editor_end = len(text)
+    if "quill_gtk_text_editor_paint_hook?" not in text[text_editor_index:text_editor_end]:
+        old_text_editor_return = '''        gtkApplyEnabledState(to: textView)
+        return opaqueFromWidget(scrolled)
+'''
+        new_text_editor_return = '''        gtkApplyEnabledState(to: textView)
+        if let paintedEditor = quill_gtk_text_editor_paint_hook?(
+            OpaquePointer(scrolled),
+            OpaquePointer(textView)
+        ) {
+            return paintedEditor
+        }
+        return opaqueFromWidget(scrolled)
+'''
+        if text_editor_index == -1:
+            raise SystemExit("SwiftOpenUI TextEditor GTKRenderable extension was not recognized")
+        return_index = text.find(old_text_editor_return, text_editor_index)
+        if return_index == -1:
+            raise SystemExit("SwiftOpenUI TextEditor return shape was not recognized")
+        text = text[:return_index] + new_text_editor_return + text[return_index + len(old_text_editor_return):]
+
+    toggle_index = text.find("extension Toggle: GTKRenderable")
+    if toggle_index == -1:
+        raise SystemExit("SwiftOpenUI Toggle GTKRenderable extension was not recognized")
+    toggle_end = text.find("\nextension ", toggle_index + 1)
+    if toggle_end == -1:
+        toggle_end = len(text)
+    toggle_section = text[toggle_index:toggle_end]
+
+    old_check_create = '''        let check = label.isEmpty
+            ? gtk_check_button_new()!
+            : gtk_check_button_new_with_label(label)!
+'''
+    new_check_create = '''        let check = label.isEmpty || quill_gtk_toggle_paint_hook != nil
+            ? gtk_check_button_new()!
+            : gtk_check_button_new_with_label(label)!
+'''
+    if old_check_create in toggle_section:
+        create_index = text.find(old_check_create, toggle_index, toggle_end)
+        text = text[:create_index] + new_check_create + text[create_index + len(old_check_create):]
+        toggle_end = text.find("\nextension ", toggle_index + 1)
+        if toggle_end == -1:
+            toggle_end = len(text)
+
+    toggle_section = text[toggle_index:toggle_end]
+    if "quill_gtk_toggle_paint_hook?(" not in toggle_section:
+        old_check_return = '''        gtkApplyEnabledState(to: check)
+        return opaqueFromWidget(check)
+'''
+        new_check_return = '''        gtkApplyEnabledState(to: check)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(check),
+            isOn.wrappedValue,
+            false,
+            label
+        ) {
+            return paintedToggle
+        }
+        return opaqueFromWidget(check)
+'''
+        return_index = text.find(old_check_return, toggle_index, toggle_end)
+        if return_index == -1:
+            raise SystemExit("SwiftOpenUI Toggle check-button return shape was not recognized")
+        text = text[:return_index] + new_check_return + text[return_index + len(old_check_return):]
+        toggle_end = text.find("\nextension ", toggle_index + 1)
+        if toggle_end == -1:
+            toggle_end = len(text)
+
+        old_switch_return = '''        if label.isEmpty {
+            gtkApplyEnabledState(to: sw)
+            return opaqueFromWidget(sw)
+        }
+
+'''
+        new_switch_return = '''        gtkApplyEnabledState(to: sw)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(sw),
+            isOn.wrappedValue,
+            true,
+            label
+        ) {
+            return paintedToggle
+        }
+
+        if label.isEmpty {
+            return opaqueFromWidget(sw)
+        }
+
+'''
+        return_index = text.find(old_switch_return, toggle_index, toggle_end)
+        if return_index == -1:
+            raise SystemExit("SwiftOpenUI Toggle switch return shape was not recognized")
+        text = text[:return_index] + new_switch_return + text[return_index + len(old_switch_return):]
 
     path.write_text(text)
 

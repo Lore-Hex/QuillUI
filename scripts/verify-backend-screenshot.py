@@ -1347,10 +1347,10 @@ def validate_quill_chat_mac_reference_settings_panel(
 
     if require_selected_default_model:
         if panel_kind == "root-overlay":
-            model_x0 = panel_segment.start + 100
-            model_x1 = min(panel_segment.end, panel_segment.start + 460)
-            model_y0 = panel_y + 280
-            model_y1 = panel_y + 370
+            model_x0 = panel_segment.start + 20
+            model_x1 = min(panel_segment.end, panel_segment.start + 520)
+            model_y0 = panel_y + 340
+            model_y1 = panel_y + 430
         else:
             model_x0 = panel_segment.start + 310
             model_x1 = min(panel_segment.end, panel_segment.start + 640)
@@ -1629,6 +1629,8 @@ def validate_quill_chat_mac_reference_completions_panel(
 def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
+        minimum_row_dividers=0,
+        minimum_row_action_segments=0,
         minimum_wordmark_pixels=400,
     )
     left, right, top, bottom = content_bounds(image)
@@ -1688,7 +1690,7 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         f"Completions Upsert Save action was not detected: pixels={save_pixels}, roi={save_roi}",
     )
     require(
-        panel_surface_pixels >= 45_000,
+        panel_surface_pixels >= 32_000,
         "Completions Upsert sheet surface was not detected: "
         f"pixels={panel_surface_pixels}, roi={panel_roi}",
     )

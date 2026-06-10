@@ -181,6 +181,22 @@ gtk_swift_clear_focus(GtkWidget *widget) {
     }
 }
 
+static inline gboolean
+gtk_swift_root_grab_focus(GtkWidget *widget) {
+    if (widget == NULL) {
+        return FALSE;
+    }
+    GtkRoot *root = gtk_widget_get_root(widget);
+    if (root == NULL) {
+        return gtk_widget_grab_focus(widget);
+    }
+    gtk_root_set_focus(root, widget);
+    if (gtk_widget_is_focus(widget)) {
+        return TRUE;
+    }
+    return gtk_widget_grab_focus(widget);
+}
+
 // --- Editable type check ---
 
 static inline gboolean
@@ -262,6 +278,48 @@ gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double 
         && local_y >= 0
         && local_x < gtk_widget_get_width(widget)
         && local_y < gtk_widget_get_height(widget);
+}
+
+static inline gboolean
+gtk_swift_widget_is_ancestor_or_self(GtkWidget *ancestor, GtkWidget *widget) {
+    while (widget != NULL) {
+        if (widget == ancestor) {
+            return TRUE;
+        }
+        widget = gtk_widget_get_parent(widget);
+    }
+    return FALSE;
+}
+
+static inline gboolean
+gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (!gtk_swift_widget_contains_root_point(root, widget, x, y)) {
+        return FALSE;
+    }
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
+        return TRUE;
+    }
+    picked = gtk_widget_pick(root, x, y, GTK_PICK_NON_TARGETABLE);
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
+        return TRUE;
+    }
+    picked = gtk_widget_pick(
+        root,
+        x,
+        y,
+        (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
+    );
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    return picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget);
 }
 
 // --- Scale (Slider) type check ---
@@ -533,6 +591,11 @@ gtk_swift_signal_list_item_factory_new(void) {
 static inline gpointer
 gtk_swift_string_list_new(void) {
     return (gpointer)gtk_string_list_new(NULL);
+}
+
+static inline GtkWidget *
+gtk_swift_drop_down_new(gpointer model) {
+    return gtk_drop_down_new(G_LIST_MODEL(model), NULL);
 }
 
 static inline void

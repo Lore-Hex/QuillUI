@@ -18,6 +18,10 @@ public final class CairoPaintContext: PaintContext {
         self.pointer = pointer
     }
 
+    public convenience init(cr: OpaquePointer) {
+        self.init(pointer: cr)
+    }
+
     public func fillRoundedRect(_ rect: PaintRect, cornerRadius: Double, color: PaintColor) {
         cairo_save(pointer)
         applyColor(color)
@@ -47,6 +51,11 @@ public final class CairoPaintContext: PaintContext {
 
     public func drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {
         guard !string.isEmpty else { return }
+        let resolvedFont = MacFontResolution.resolve(font)
+        let family = resolvedFont.family == MacFontResolution.systemDefaultFamily
+            ? "Sans"
+            : resolvedFont.family
+
         cairo_save(pointer)
         applyColor(color)
         // Cairo's "toy" text API is sufficient for the simple single-run labels
@@ -54,11 +63,11 @@ public final class CairoPaintContext: PaintContext {
         // Pango, but that's out of scope for the macOS-parity control set.
         cairo_select_font_face(
             pointer,
-            font.family,
+            family,
             CAIRO_FONT_SLANT_NORMAL,
-            font.weight >= 600 ? CAIRO_FONT_WEIGHT_BOLD : CAIRO_FONT_WEIGHT_NORMAL
+            resolvedFont.weight >= 600 ? CAIRO_FONT_WEIGHT_BOLD : CAIRO_FONT_WEIGHT_NORMAL
         )
-        cairo_set_font_size(pointer, font.size)
+        cairo_set_font_size(pointer, resolvedFont.size)
         // `cairo_show_text` positions glyphs on the baseline; `point` is the
         // top-left typographic origin, so drop down by the font ascent.
         var extents = cairo_font_extents_t()
@@ -84,10 +93,6 @@ public final class CairoPaintContext: PaintContext {
             return
         }
 
-        // Cairo arc: x, y, radius, angle1, angle2
-        // If Y grows downward, cairo_arc goes clockwise.
-        // 0: Right, pi/2: Down, pi: Left, 3pi/2: Up.
-        
         cairo_new_path(pointer)
         cairo_move_to(pointer, x + r, y)
         cairo_line_to(pointer, x + w - r, y)
@@ -96,7 +101,6 @@ public final class CairoPaintContext: PaintContext {
         cairo_arc(pointer, x + w - r, y + h - r, r, 0, Double.pi / 2)
         cairo_line_to(pointer, x + r, y + h)
         cairo_arc(pointer, x + r, y + h - r, r, Double.pi / 2, Double.pi)
-        cairo_line_to(pointer, x, y + h - r) // Missing in my previous thought but good to be explicit
         cairo_line_to(pointer, x, y + r)
         cairo_arc(pointer, x + r, y + r, r, Double.pi, 3 * Double.pi / 2)
         cairo_close_path(pointer)

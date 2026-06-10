@@ -144,6 +144,37 @@ private func gtkTextInputFocusDescriptorContent(
 }
 
 public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil
+public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
+public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil
+public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
+
+private final class GTKTextBindingIdleUpdate {
+    let binding: Binding<String>
+    let value: String
+
+    init(binding: Binding<String>, value: String) {
+        self.binding = binding
+        self.value = value
+    }
+
+    func apply() {
+        if binding.wrappedValue != value {
+            binding.wrappedValue = value
+        }
+    }
+}
+
+private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
+    let context = Unmanaged.passRetained(
+        GTKTextBindingIdleUpdate(binding: binding, value: value)
+    ).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKTextBindingIdleUpdate>.fromOpaque(userData).takeRetainedValue()
+        context.apply()
+        return 0
+    }, context)
+}
 
 // MARK: - GTK rendering protocol
 
@@ -392,10 +423,7 @@ extension TextField: GTKRenderable, GTKDescribable {
         // all changes (typing, paste, programmatic).
         let binding = text
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            // Avoid feedback loop: only set if value actually changed
-            if binding.wrappedValue != newText {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(binding, value: newText)
         }).toOpaque()
 
         g_signal_connect_data(
@@ -415,13 +443,34 @@ extension TextField: GTKRenderable, GTKDescribable {
             GConnectFlags(rawValue: 0)
         )
 
+        // GtkEntry also emits "changed" as a GtkEditable; keep this in sync with
+        // SecureField so user edits always reach SwiftUI bindings before dismissal.
+        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(entry),
+            "changed",
+            unsafeBitCast({ (editable: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<StringClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                let cStr = gtk_editable_get_text(OpaquePointer(editable))!
+                box.closure(String(cString: cStr))
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            changedBox,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<StringClosureBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+
         // Apply text field style from environment
         let textFieldStyleType = getCurrentEnvironment().textFieldStyle
+        var useQuillPaintTextField = false
         switch textFieldStyleType {
         case .plain:
             applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
         case .automatic, .roundedBorder:
-            break // default GTK entry styling
+            useQuillPaintTextField = true
         }
 
         // Wire onSubmit: GtkEntry fires "activate" on Enter key
@@ -445,6 +494,13 @@ extension TextField: GTKRenderable, GTKDescribable {
         }
 
         gtkApplyEnabledState(to: entry)
+        if useQuillPaintTextField,
+           let paintedEntry = quill_gtk_text_field_paint_hook?(
+               OpaquePointer(entry),
+               textFieldStyleType == .roundedBorder
+           ) {
+            return paintedEntry
+        }
         return opaqueFromWidget(entry)
     }
 }
@@ -690,8 +746,8 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
             var x: Double = 0
             var y: Double = 0
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
-            let contains = gtk_swift_widget_contains_root_point(root, context.widget, x, y) != 0
-            guard contains else { return 0 }
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+            guard isTopmost else { return 0 }
             gtkScheduleButtonAction(context.box, source: "root-legacy")
             return 0
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
@@ -3747,6 +3803,15 @@ private class SheetInfo {
     }
 }
 
+private func gtkScheduleSheetDismissal(_ action: @escaping () -> Void) {
+    let box = Unmanaged.passRetained(ClosureBox(action)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        Unmanaged<ClosureBox>.fromOpaque(userData).takeRetainedValue().closure()
+        return 0
+    }, box)
+}
+
 extension SheetModifierView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
@@ -3825,7 +3890,11 @@ extension SheetModifierView: GTKRenderable {
                     gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
                 }
             } else {
-                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }
+                env.dismiss = DismissAction {
+                    gtkScheduleSheetDismissal {
+                        gtk_window_destroy(dialogWin)
+                    }
+                }
             }
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(info.render())
@@ -3974,7 +4043,11 @@ extension ItemSheetModifierView: GTKRenderable {
                     gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
                 }
             } else {
-                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }
+                env.dismiss = DismissAction {
+                    gtkScheduleSheetDismissal {
+                        gtk_window_destroy(dialogWin)
+                    }
+                }
             }
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(info.render())
@@ -4255,6 +4328,9 @@ extension SecureField: GTKRenderable, GTKDescribable {
         }
 
         gtkApplyEnabledState(to: entry)
+        if let paintedEntry = quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true) {
+            return paintedEntry
+        }
         return opaqueFromWidget(entry)
     }
 }
@@ -4319,6 +4395,12 @@ extension TextEditor: GTKRenderable, GTKDescribable {
         gtk_widget_set_hexpand(scrolled, 1)
 
         gtkApplyEnabledState(to: textView)
+        if let paintedEditor = quill_gtk_text_editor_paint_hook?(
+            OpaquePointer(scrolled),
+            OpaquePointer(textView)
+        ) {
+            return paintedEditor
+        }
         return opaqueFromWidget(scrolled)
     }
 }
@@ -4602,7 +4684,7 @@ extension Toggle: GTKRenderable {
     }
 
     private func gtkCreateCheckButtonWidget() -> OpaquePointer {
-        let check = label.isEmpty
+        let check = label.isEmpty || quill_gtk_toggle_paint_hook != nil
             ? gtk_check_button_new()!
             : gtk_check_button_new_with_label(label)!
         let checkPtr = checkButtonPointer(check)
@@ -4632,6 +4714,14 @@ extension Toggle: GTKRenderable {
         )
 
         gtkApplyEnabledState(to: check)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(check),
+            isOn.wrappedValue,
+            false,
+            label
+        ) {
+            return paintedToggle
+        }
         return opaqueFromWidget(check)
     }
 
@@ -4661,8 +4751,17 @@ extension Toggle: GTKRenderable {
             GConnectFlags(rawValue: 0)
         )
 
+        gtkApplyEnabledState(to: sw)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(sw),
+            isOn.wrappedValue,
+            true,
+            label
+        ) {
+            return paintedToggle
+        }
+
         if label.isEmpty {
-            gtkApplyEnabledState(to: sw)
             return opaqueFromWidget(sw)
         }
 
@@ -5873,16 +5972,12 @@ extension Picker: GTKRenderable {
     }
 
     private func gtkCreateDropdownWidget() -> OpaquePointer {
-        let cStrings: [UnsafeMutablePointer<CChar>?] = options.map { strdup($0) } + [nil]
-
-        let dropdown = cStrings.withUnsafeBufferPointer { buf -> UnsafeMutablePointer<GtkWidget> in
-            buf.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buf.count) { ptr in
-                gtk_drop_down_new_from_strings(ptr)!
-            }
+        let stringList = gtk_swift_string_list_new()!
+        for option in options {
+            gtk_swift_string_list_append(stringList, option)
         }
 
-        for cStr in cStrings { cStr.map { free($0) } }
-
+        let dropdown = gtk_swift_drop_down_new(stringList)!
         let dropdownOp = OpaquePointer(dropdown)
         let clampedSelection = max(0, min(selected, options.count - 1))
         if !options.isEmpty {
@@ -5890,7 +5985,12 @@ extension Picker: GTKRenderable {
         }
 
         if let onChanged = onChanged {
-            let box = Unmanaged.passRetained(IntClosureBox(onChanged)).toOpaque()
+            let box = Unmanaged.passRetained(IntClosureBox { newIndex in
+                guard options.indices.contains(newIndex), newIndex != clampedSelection else {
+                    return
+                }
+                onChanged(newIndex)
+            }).toOpaque()
             g_signal_connect_data(
                 gpointer(dropdown),
                 "notify::selected",
