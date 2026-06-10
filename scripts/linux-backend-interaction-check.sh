@@ -167,6 +167,12 @@ retry_backend_interaction_if_transient() {
 }
 
 app_environment=()
+# Swift's built-in crash backtracer: when the app segfaults (the strict
+# verifier has been hitting launch-time SIGSEGVs in some quill-chat modes on
+# x86 CI runners), print a full symbolicated backtrace to stderr — it lands
+# in $APP_LOG_PATH, which this script already dumps on failure, so the crash
+# is self-diagnosing from the CI log alone.
+app_environment+=("SWIFT_BACKTRACE=${SWIFT_BACKTRACE:-enable=yes,format=text,threads=crashed,sanitize=no,symbolicate=full}")
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-new-sheet" ]]; then
   app_environment+=("QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}")
 fi
