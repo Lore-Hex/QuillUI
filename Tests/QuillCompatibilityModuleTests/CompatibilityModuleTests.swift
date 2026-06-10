@@ -20,7 +20,10 @@ import Splash
 import OllamaKit
 import AsyncAlgorithms
 import Carbon
+import CoreSpotlight
+import Vision
 import IOKit
+import IOKit.pwr_mgt
 import IOKit.usb
 import WrappingHStack
 import Vortex
@@ -1443,6 +1446,78 @@ struct CompatibilityModuleTests {
         #expect(kUSBProductID == "idProduct")
 
         IONotificationPortDestroy(port)
+    }
+
+    @Test("IOKit power-management compatibility covers Telegram call-screen imports")
+    func ioKitPowerManagementContractsCompile() {
+        var assertionID: IOPMAssertionID = 123
+        let createResult = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypeNoDisplaySleep,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            "QuillUI Telegram call",
+            &assertionID
+        )
+
+        #expect(createResult == kIOReturnUnsupported)
+        #expect(assertionID == kIOPMNullAssertionID)
+        #expect(IOPMAssertionRelease(assertionID) == kIOReturnSuccess)
+        #expect(kIOPMAssertionLevelOff == 0)
+        #expect(kIOPMAssertionLevelOn > kIOPMAssertionLevelOff)
+    }
+
+    @Test("CoreSpotlight compatibility covers Telegram search indexing imports")
+    func coreSpotlightContractsCompile() async {
+        let attributes = CSSearchableItemAttributeSet(itemContentType: kUTTypeData)
+        attributes.title = "Quill"
+        attributes.contentDescription = "Linux compatibility"
+        attributes.thumbnailData = Data([1, 2, 3])
+        attributes.creator = "QuillUI"
+        attributes.kind = "Contact"
+
+        let item = CSSearchableItem(
+            uniqueIdentifier: "accountId=1&source=peerId:2",
+            domainIdentifier: "quill.telegram",
+            attributeSet: attributes
+        )
+
+        var indexed = false
+        CSSearchableIndex.default().indexSearchableItems([item]) { error in
+            indexed = error == nil
+        }
+        var deleted = false
+        CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [item.uniqueIdentifier]) { error in
+            deleted = error == nil
+        }
+
+        #expect(indexed)
+        #expect(deleted)
+        #expect(CSSearchableItemActionType == "com.apple.corespotlightitem")
+        #expect(CSSearchableItemActivityIdentifier == "kCSSearchableItemActivityIdentifier")
+    }
+
+    @Test("Vision compatibility covers Telegram text-recognition imports")
+    func visionTextRecognitionContractsCompile() throws {
+        let image = CGImage()
+        let handler = VNImageRequestHandler(cgImage: image)
+        var completed = false
+        let request = VNRecognizeTextRequest { request, error in
+            #expect(error == nil)
+            #expect((request.results as? [VNRecognizedTextObservation])?.isEmpty == true)
+            completed = true
+        }
+        request.preferBackgroundProcessing = true
+        request.usesLanguageCorrection = true
+        request.recognitionLevel = .accurate
+        request.revision = VNRecognizeTextRequestRevision3
+        request.automaticallyDetectsLanguage = true
+        request.progressHandler = { _, progress, error in
+            #expect(error == nil)
+            #expect(progress == 1.0)
+        }
+
+        try handler.perform([request])
+        #expect(completed)
+        request.cancel()
     }
 
     @Test("Apple service modules provide diagnostic Linux fallbacks")

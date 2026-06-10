@@ -6,21 +6,64 @@ from pathlib import Path
 
 IMPORT_TO_PRODUCT = {
     "AppKit": "AppKit",
+    "AVFoundation": "AVFoundation",
+    "Accelerate": "Accelerate",
+    "AudioToolbox": "AudioToolbox",
     "Cocoa": "Cocoa",
+    "Compression": "Compression",
     "CoreGraphics": "CoreGraphics",
+    "CoreImage": "CoreImage",
+    "CoreLocation": "CoreLocation",
+    "CoreMedia": "CoreMedia",
+    "CoreSpotlight": "CoreSpotlight",
+    "CoreText": "CoreText",
+    "CoreVideo": "CoreVideo",
+    "COSUnfairLock": "COSUnfairLock",
+    "NaturalLanguage": "NaturalLanguage",
+    "ImageIO": "ImageIO",
+    "IOKit": "IOKit",
+    "IOSurface": "IOSurface",
+    "JavaScriptCore": "JavaScriptCore",
+    "LinkPresentation": "LinkPresentation",
+    "Metal": "Metal",
+    "MetalKit": "MetalKit",
+    "MetalPerformanceShaders": "MetalPerformanceShaders",
+    "MediaPlayer": "MediaPlayer",
+    "Network": "Network",
+    "QuillFoundation": "QuillFoundation",
+    "QuartzCore": "QuartzCore",
+    "StoreKit": "StoreKit",
+    "VideoToolbox": "VideoToolbox",
+    "Vision": "Vision",
+    "WebKit": "WebKit",
 }
 
 
 def imported_products(package_dir: Path) -> list[str]:
     products: set[str] = set()
-    for swift_file in sorted((package_dir / "Sources").rglob("*.swift")):
-        try:
-            text = swift_file.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            text = swift_file.read_text(encoding="utf-8", errors="ignore")
-        for module, product in IMPORT_TO_PRODUCT.items():
-            if re.search(rf"^\s*import\s+{re.escape(module)}\b", text, flags=re.MULTILINE):
-                products.add(product)
+    sources_dir = package_dir / "Sources"
+    search_roots = [sources_dir, package_dir] if sources_dir.exists() else [package_dir]
+    seen_files: set[Path] = set()
+
+    for search_root in search_roots:
+        for swift_file in sorted(search_root.rglob("*.swift")):
+            try:
+                relative_parts = swift_file.relative_to(package_dir).parts
+            except ValueError:
+                relative_parts = swift_file.parts
+            if any(part in {".build", ".git", ".swiftpm"} for part in relative_parts):
+                continue
+            resolved = swift_file.resolve()
+            if resolved in seen_files:
+                continue
+            seen_files.add(resolved)
+            try:
+                text = swift_file.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                text = swift_file.read_text(encoding="utf-8", errors="ignore")
+            for module, product in IMPORT_TO_PRODUCT.items():
+                if re.search(rf"^\s*import\s+{re.escape(module)}\b", text, flags=re.MULTILINE):
+                    products.add(product)
     return sorted(products)
 
 

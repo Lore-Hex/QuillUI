@@ -1478,8 +1478,10 @@ public final class NWConnection: @unchecked Sendable {
     public let endpoint: NWEndpoint
     public let parameters: NWParameters
     public var stateUpdateHandler: ((State) -> Void)?
+    public var pathUpdateHandler: ((NWPath) -> Void)?
     public var viabilityUpdateHandler: ((Bool) -> Void)?
     public var betterPathUpdateHandler: ((Bool) -> Void)?
+    public var currentPath: NWPath = NWPath(status: .unsatisfied)
     public private(set) var state: State = .setup
 
     public init(to endpoint: NWEndpoint, using parameters: NWParameters) {

@@ -26,6 +26,16 @@ public enum NSKeyValueChange: UInt, Sendable {
     case replacement = 4
 }
 
+public struct NSKeyValueChangeKey: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public static let kindKey = NSKeyValueChangeKey(rawValue: "kind")
+    public static let newKey = NSKeyValueChangeKey(rawValue: "new")
+    public static let oldKey = NSKeyValueChangeKey(rawValue: "old")
+    public static let indexesKey = NSKeyValueChangeKey(rawValue: "indexes")
+    public static let notificationIsPriorKey = NSKeyValueChangeKey(rawValue: "notificationIsPrior")
+}
+
 /// Mirrors `NSKeyValueObservedChange<Value>` — the change payload handed to an
 /// observer. On Linux it's only ever constructed by a (future) runtime layer.
 public struct NSKeyValueObservedChange<Value> {
@@ -54,6 +64,25 @@ public extension NSObjectProtocol where Self: NSObject {
                         options: NSKeyValueObservingOptions = [],
                         changeHandler: @escaping (Self, NSKeyValueObservedChange<Value>) -> Void) -> NSKeyValueObservation {
         NSKeyValueObservation()
+    }
+}
+
+public extension NSObject {
+    func addObserver(
+        _ observer: NSObject,
+        forKeyPath keyPath: String,
+        options: NSKeyValueObservingOptions = [],
+        context: UnsafeMutableRawPointer?
+    ) {
+        _ = (observer, keyPath, options, context)
+    }
+
+    func removeObserver(_ observer: NSObject, forKeyPath keyPath: String) {
+        _ = (observer, keyPath)
+    }
+
+    func removeObserver(_ observer: NSObject, forKeyPath keyPath: String, context: UnsafeMutableRawPointer?) {
+        _ = (observer, keyPath, context)
     }
 }
 

@@ -34,3 +34,23 @@ int os_unfair_lock_trylock(os_unfair_lock_t lock) {
 // debug aids — keep them as no-ops on Linux (the lock/unlock semantics are real).
 void os_unfair_lock_assert_owner(os_unfair_lock_t lock) { (void)lock; }
 void os_unfair_lock_assert_not_owner(os_unfair_lock_t lock) { (void)lock; }
+
+void OSSpinLockLock(volatile OSSpinLock *lock) {
+    _Atomic int32_t *p = (_Atomic int32_t *)lock;
+    while (atomic_exchange_explicit(p, 1, memory_order_acquire) != 0) {
+        sched_yield();
+    }
+}
+
+void OSSpinLockUnlock(volatile OSSpinLock *lock) {
+    _Atomic int32_t *p = (_Atomic int32_t *)lock;
+    atomic_store_explicit(p, 0, memory_order_release);
+}
+
+int OSSpinLockTry(volatile OSSpinLock *lock) {
+    _Atomic int32_t *p = (_Atomic int32_t *)lock;
+    int32_t expected = 0;
+    return atomic_compare_exchange_strong_explicit(
+        p, &expected, 1, memory_order_acquire, memory_order_relaxed
+    );
+}

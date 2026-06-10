@@ -97,6 +97,7 @@ public extension NSLayoutAnchor {
 
 public class NSLayoutConstraint: NSObject {
     public enum QuillRelation: Sendable { case equal, lessThanOrEqual, greaterThanOrEqual }
+    public typealias Relation = QuillRelation
 
     /// Constraint priority (NSLayoutConstraint.Priority): a Float wrapper with
     /// the standard named levels and +/- arithmetic (so `.defaultHigh + 1`

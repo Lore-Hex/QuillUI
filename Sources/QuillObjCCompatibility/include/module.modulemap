@@ -28,8 +28,49 @@ module CommonCrypto {
   export *
 }
 
+module ImageIO {
+  header "ImageIO/ImageIO.h"
+  export *
+}
+
+module CoreGraphics {
+  header "CoreGraphics/CoreGraphics.h"
+  export *
+}
+
 module CoreText {
   header "CoreText/CoreText.h"
+  export *
+}
+
+module CoreVideo {
+  header "CoreVideo/CoreVideo.h"
+  export *
+}
+
+module OpenGL {
+  header "OpenGL/gl.h"
+  header "OpenGL/glext.h"
+  export *
+}
+
+module CoreMedia {
+  header "CoreMedia/CoreMedia.h"
+  export *
+}
+
+module CoreServices {
+  header "CoreServices/CoreServices.h"
+  export *
+}
+
+module SystemConfiguration {
+  header "SystemConfiguration/SystemConfiguration.h"
+  export *
+}
+
+module JavaScriptCore {
+  header "JavaScriptCore/JavaScriptCore.h"
   export *
 }
 

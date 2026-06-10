@@ -2,26 +2,31 @@
 #define QUILL_IOKIT_COMPAT_H
 
 #include <stdint.h>
+#include <CoreFoundation/CoreFoundation.h>
 
-#if __has_include(<dispatch/dispatch.h>)
-#include <dispatch/dispatch.h>
-#else
+#ifndef QUILL_OBJC_DISPATCH_QUEUE_T_TYPEDEF
+#define QUILL_OBJC_DISPATCH_QUEUE_T_TYPEDEF
 typedef void *dispatch_queue_t;
 #endif
 
 typedef uint32_t io_object_t;
 typedef io_object_t io_iterator_t;
 typedef io_object_t io_service_t;
+typedef io_object_t io_connect_t;
 typedef uint32_t mach_port_t;
 typedef int32_t kern_return_t;
 typedef struct QuillIONotificationPort *IONotificationPortRef;
 typedef void (*IOServiceMatchingCallback)(void *refcon, io_iterator_t iterator);
 
 #define kIOMainPortDefault ((mach_port_t)0)
+#define kIOMasterPortDefault ((mach_port_t)0)
 #define kIOReturnSuccess ((kern_return_t)0)
 #define kIOReturnUnsupported ((kern_return_t)-536870201)
 #define kIOFirstMatchNotification "IOServiceFirstMatch"
 #define kIOTerminatedNotification "IOServiceTerminate"
+#define kIOPSNameKey "Name"
+#define kIOPSTimeToEmptyKey "TimeToEmpty"
+#define kIOPSTimeToFullChargeKey "TimeToFullCharge"
 
 static inline IONotificationPortRef IONotificationPortCreate(mach_port_t mainPort) {
     (void)mainPort;
@@ -43,6 +48,45 @@ static inline void IONotificationPortSetDispatchQueue(
 static inline void *IOServiceMatching(const char *name) {
     (void)name;
     return (void *)0;
+}
+
+static inline io_service_t IOServiceGetMatchingService(mach_port_t mainPort, const void *matching) {
+    (void)mainPort;
+    (void)matching;
+    return 0;
+}
+
+static inline CFTypeRef IOPSCopyPowerSourcesInfo(void) {
+    return (CFTypeRef)0;
+}
+
+static inline CFArrayRef IOPSCopyPowerSourcesList(CFTypeRef blob) {
+    (void)blob;
+    return (CFArrayRef)0;
+}
+
+static inline CFDictionaryRef IOPSGetPowerSourceDescription(CFTypeRef blob, CFTypeRef ps) {
+    (void)blob;
+    (void)ps;
+    return (CFDictionaryRef)0;
+}
+
+static inline CFTypeRef IORegistryEntryCreateCFProperty(
+    io_service_t entry,
+    const char *key,
+    CFTypeRef allocator,
+    uint32_t options
+) {
+    (void)entry;
+    (void)key;
+    (void)allocator;
+    (void)options;
+    return (CFTypeRef)0;
+}
+
+static inline kern_return_t IOServiceClose(io_connect_t connect) {
+    (void)connect;
+    return kIOReturnSuccess;
 }
 
 static inline kern_return_t IOServiceAddMatchingNotification(

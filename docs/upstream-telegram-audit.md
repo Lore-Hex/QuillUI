@@ -16,14 +16,10 @@ repeatable source checkout plus Linux compile ratchet:
 - `QuillObjCCompatibility` provides Apple-style Objective-C include paths
   (`<Foundation/Foundation.h>`, `<AppKit/AppKit.h>`, `<Cocoa/Cocoa.h>`) so
   mixed Objective-C package islands can compile without Telegram source edits.
-- `scripts/generated-telegram-package-check.sh` compiles the first SwiftPM
-  package islands on Linux: `ApiCredentials`, `CAPortal`, `ColorPalette`
-  (including its transitive `Colors` package), `CalendarUtils`, `CrashHandler`,
-  `CurrencyFormat`, `DateUtils`, `DetectSpeech`,
-  `EDSunriseSet`, `EmojiSuggestions`, `FastBlur`, `FoundationUtils`, `GZIP`,
-  `HackUtils`, `HotKey`, `KeyboardKey`, `MergeLists`, `NumberPluralization`,
-  `RingBuffer`, `Strings`, `Svg`, `TGCurrencyFormatter`, `TGPassportMRZ`, and
-  `TelegramSystem`.
+- `scripts/generated-telegram-package-check.sh` now compiles all 49 SwiftPM
+  package manifests in the current Telegram checkout on Linux, including the
+  central UI/media packages `TGUIKit`, `TelegramMedia`, `TextRecognizing`,
+  `PrivateCallScreen`, `InputView`, and `TGVideoCameraMovie`.
 - `Sources/QuillTelegramBuildOverlays` provides generic generated build overlays
   for Swift-only ambient Apple symbols that cannot be supplied by C headers.
   `ApiCredentials` uses this for Security/CommonCrypto and app-group container
@@ -33,17 +29,37 @@ repeatable source checkout plus Linux compile ratchet:
 - The generated package check builds from a mirrored package tree and lowers
   package manifests to add local QuillUI Apple-module products when Swift source
   imports frameworks such as `AppKit`, `Cocoa`, `CoreGraphics`, or `Security`.
+  The mirror exposes upstream `submodules` at both relative depths used by
+  Telegram package manifests (`../submodules` and `../../submodules`), so
+  packages can build without editing their path dependencies. Nested
+  `telegram-ios/submodules` packages are also mirrored so Linux-only source
+  lowering can happen in generated working copies instead of mutating upstream.
+- `scripts/lower-telegram-linux-source.py` performs mirror-only lowering for
+  Apple runtime idioms that do not exist in Linux Swift, including
+  `os_unfair_lock` imports, Objective-C-only `@objc`, selector-based
+  `Thread(target:selector:object:)`, `CFAbsoluteTimeGetCurrent`,
+  `Thread.threadPriority`, and `autoreleasepool` blocks.
+- Apple framework shim products are exported as generated upstream packages need
+  them; `NaturalLanguage`, `CoreSpotlight`, `Vision`, media framework shims, and
+  Objective-C compatibility headers are exposed for the Telegram packages that
+  import them.
+- Objective-C package islands compile through `QuillObjCCompatibility`, with
+  mirror-only lowering for nullability and macOS xattr signatures. Current
+  coverage includes the media packages that import ImageIO, AVFoundation,
+  CoreVideo, CoreMedia, and macOS OpenGL/CGL headers.
 
 Current Linux blocker classes:
 
-- Objective-C packages that need deeper runtime declarations and/or behavior
-  beyond the current header overlay (image objects, CoreGraphics drawing,
-  speech/media helpers, and similar surfaces).
-- AppKit/CoreText/Cocoa UI packages that need QuillAppKit/QuillKit shims before
-  they can compile (`TGUIKit`, `TelegramMedia`, and the main `Telegram-Mac`
-  surface).
-- Higher-level Telegram packages that depend on telegram-ios submodules not
-  present in the shallow upstream checkout.
+- The SwiftPM package-island ratchet is compile-green, but this is not a full
+  Telegram desktop app yet. The next blocker class is the Xcode workspace /
+  main `Telegram-Mac` target graph, resource bundling, app entrypoint lowering,
+  and runtime behavior.
+- Several framework shims are compile-compatible but behavior-light. Examples:
+  Vision returns no OCR observations until a Linux OCR backend is wired, media
+  writer/OpenGL headers are inert, and Spotlight indexing is no-op.
+- Visual and interactive parity still needs native GTK/Qt rendering for the
+  Telegram window stack, event handling, media playback, text input, menus,
+  settings, and account/session flows.
 
 The port should stay in QuillUI like Enchanted: Telegram-specific lowering and
 audit scripts may live under `scripts/`, but reusable fixes belong in QuillKit,
