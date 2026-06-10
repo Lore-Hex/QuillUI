@@ -452,22 +452,32 @@ wireguard_import_configuration_for_mode() {
   fi
 }
 
+# Move the capture to the child window a sheet presented in, when one exists.
+#
+# Runs regardless of whether the capture currently targets root or the main
+# window — the gtk/qt smoke sheets present as separate ~900px toplevels and
+# the capture must follow them ("Stabilize backend sheet interaction
+# captures" gated this on capture==root, which silently disabled the switch
+# for every found-window run and made all smoke sheet rows photograph the
+# 640px main window). The wrong-window problem that guard was aiming at —
+# `getactivewindow` returning the focused entry's 1x1 offscreen IM popup
+# after sheet inputs began auto-focusing — is solved by the minimum-size
+# gate on candidates instead.
 refresh_capture_window_for_active_child_window() {
   local attempt
   local candidate_window
 
-  [[ "$capture_window" == "root" ]] || return 0
   [[ -n "$window_id" ]] || return 0
 
   for attempt in {1..20}; do
     candidate_window="$(DISPLAY="$DISPLAY_ID" xdotool getactivewindow 2>/dev/null || true)"
-    if [[ -n "$candidate_window" && "$candidate_window" != "$window_id" ]]; then
+    if quillui_window_is_plausible_capture_target "$DISPLAY_ID" "$candidate_window" "$window_id"; then
       capture_window="$candidate_window"
       return 0
     fi
 
     candidate_window="$(quillui_find_visible_window_for_pid_except "$DISPLAY_ID" "$app_pid" "$window_id")"
-    if [[ -n "$candidate_window" ]]; then
+    if quillui_window_is_plausible_capture_target "$DISPLAY_ID" "$candidate_window" "$window_id"; then
       capture_window="$candidate_window"
       return 0
     fi

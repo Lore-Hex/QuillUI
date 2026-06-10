@@ -1786,8 +1786,13 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}"))
         #expect(backendScript.contains("refresh_capture_window_for_active_child_window"))
         #expect(backendScript.contains("refresh_capture_window_for_sheet_interaction"))
-        #expect(backendScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
+        // The child-window refresh must run for found-window captures too
+        // (smoke sheets present as separate ~900px toplevels) — no
+        // capture==root gate. IM-popup misfires are filtered by the
+        // minimum-size candidate gate instead.
+        #expect(!backendScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
         #expect(!backendScript.contains("[[ \"$capture_window\" != \"root\" ]] || return 0"))
+        #expect(backendScript.contains("quillui_window_is_plausible_capture_target \"$DISPLAY_ID\" \"$candidate_window\" \"$window_id\""))
         #expect(backendScript.contains("quillui_find_visible_window_for_pid_except \"$DISPLAY_ID\" \"$app_pid\" \"$window_id\""))
         #expect(!backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
         #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))

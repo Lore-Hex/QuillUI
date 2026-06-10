@@ -140,6 +140,27 @@ quillui_wait_for_app_window_for_pid() {
   done
 }
 
+# True when a candidate window is a sensible capture target: non-empty, not
+# the main window itself, and plausibly window-sized (>=120px each way).
+# The size gate skips GTK's 1x1 offscreen IM/popup surfaces, which
+# `getactivewindow` can report once sheet inputs auto-focus an entry.
+quillui_window_is_plausible_capture_target() {
+  local display_id="$1"
+  local candidate="$2"
+  local main_window="$3"
+  local min_dimension="${4:-120}"
+  local width=0 height=0 key value
+
+  [[ -n "$candidate" && "$candidate" != "$main_window" ]] || return 1
+  while IFS='=' read -r key value; do
+    case "$key" in
+      WIDTH) width="$value" ;;
+      HEIGHT) height="$value" ;;
+    esac
+  done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+  (( width >= min_dimension && height >= min_dimension ))
+}
+
 # Poll until a window's geometry differs from the given pre-interaction size
 # (or the timeout elapses — return 1, caller proceeds and the verifier's
 # diagnostics make the stale state visible). GTK sheets present INSIDE the
