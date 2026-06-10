@@ -531,11 +531,11 @@ save_quill_chat_new_completion() {
   open_quill_chat_new_completion_sheet
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
-    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 435))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}"
     instruction_x="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}"
-    instruction_y="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 515))}"
-    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1358))}"
-    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 382))}"
+    instruction_y="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 548))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 407))}"
   else
     name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + window_width / 2))}"
     name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 260))}"
@@ -574,9 +574,9 @@ edit_quill_chat_existing_completion() {
     edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + 1510))}"
     edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 536))}"
     name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
-    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 435))}"
-    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1358))}"
-    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 382))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 407))}"
   else
     edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + window_width - 170))}"
     edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 320))}"
