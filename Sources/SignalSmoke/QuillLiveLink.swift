@@ -118,21 +118,21 @@ final class QuillLiveLinkListener: ProvisioningConnectionListener {
     }
 
     func provisioningConnection(_ connection: ProvisioningConnection, didReceiveAddress address: String, sendAck: @escaping () throws -> Void) {
-        var comps = URLComponents()
-        comps.scheme = "sgnl"
-        comps.host = "linkdevice"
-        comps.queryItems = [
-            URLQueryItem(name: "uuid", value: address),
-            URLQueryItem(name: "pub_key", value: pubKeyB64),
-        ]
-        if let url = comps.url?.absoluteString {
-            print("")
-            print("============= SCAN THIS WITH YOUR PHONE =============")
-            print(url)
-            print("(Signal app -> Settings -> Linked Devices -> Link New Device)")
-            print("====================================================")
-            print("")
-        }
+        // Build the URL string MANUALLY exactly like upstream DeviceProvisioningURL
+        // .buildUrl(): URLComponents/URLQueryItem leave '+' and '/' RAW in the
+        // base64 pub_key, which Android's primary does NOT tolerate (it would ECDH
+        // to the wrong key, the envelope MAC-fails, and the single-use scan is
+        // wasted). pub_key is percent-encoded with the real String.encodeURIComponent
+        // (alphanumerics + "-_.!~*'()"); the address (ephemeralDeviceId) is raw; an
+        // empty capabilities param is appended unconditionally, all per upstream.
+        let encodedPub = pubKeyB64.encodeURIComponent ?? pubKeyB64
+        let url = "sgnl://linkdevice?uuid=\(address)&pub_key=\(encodedPub)&capabilities="
+        print("")
+        print("============= SCAN THIS WITH YOUR PHONE =============")
+        print(url)
+        print("(Signal app -> Settings -> Linked Devices -> Link New Device)")
+        print("====================================================")
+        print("")
         try? sendAck()
     }
 
@@ -219,6 +219,15 @@ func quillCompleteLink(message: LinkingProvisioningMessage, net: Net, dbPath: St
     )
     print("signal-smoke LIVE LINK: \(persistMsg)")
 
+    // NOTE (honest status): upstream also uploads EC + Kyber ONE-TIME prekeys to
+    // /v2/keys (rotateOneTimePreKeysForRegistration) after linking, so other
+    // clients can fetch a full prekey bundle. We deliberately defer that here: it
+    // is NOT required to authenticate the chat connection or for durable login
+    // (the websocket authenticates on <aci>.<deviceId> + serverAuthToken, which we
+    // persist), so the device links + reconnects, but is not yet fully provisioned
+    // to RECEIVE brand-new inbound sessions. Follow-up: PUT one-time prekeys to
+    // /v2/keys for both .aci and .pni before declaring fully provisioned.
+    //
     // (g) authenticated chat to confirm the device is live. Username for a
     // linked device = "<aci.serviceIdString>.<deviceId>" (upstream
     // TSAccountManagerImpl.serverUsername).
@@ -237,6 +246,14 @@ func quillPutDevicesLink(phoneNumber: String, authPassword: String, body: Data) 
     var req = URLRequest(url: URL(string: "https://chat.signal.org/v1/devices/link")!)
     req.httpMethod = "PUT"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    // Upstream's REST layer (OWSUrlSession.addDefaultHeaders) always injects a
+    // Signal-iOS User-Agent + Accept-Language. On Linux FoundationNetworking we'd
+    // otherwise ship a libcurl/Foundation default UA -- a clear non-Signal
+    // fingerprint that an edge WAF/CDN could gate the link endpoint on. Present a
+    // coherent Signal-iOS client identity. (X-Signal-Agent is intentionally NOT
+    // set -- upstream omits it for this specific endpoint.)
+    req.setValue("Signal-iOS/7.42.0 iOS/17.5", forHTTPHeaderField: "User-Agent")
+    req.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
     let basic = Data("\(phoneNumber):\(authPassword)".utf8).base64EncodedString()
     req.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")
     req.httpBody = body
@@ -252,28 +269,33 @@ func quillPutDevicesLink(phoneNumber: String, authPassword: String, body: Data) 
         task.resume()
     }
 
-    guard (200..<300).contains(http.statusCode) else {
+    // Upstream defines ONLY 200 as success (VerifySecondaryDeviceResponseCodes);
+    // 409/411 are failures and there is no 201-299 success.
+    guard http.statusCode == 200 else {
         throw QuillLinkError.httpStatus(http.statusCode, String(data: data, encoding: .utf8) ?? "")
     }
 
     // Upstream VerifySecondaryDeviceResponse = {pni: <bare uuid string>, deviceId:
     // <bare int 1...127>}. Parse leniently: at this point the server has ALREADY
     // linked us, so a response-shape surprise must not throw away the (single-use)
-    // scan -- extract the deviceId however it arrives.
+    // scan -- extract the deviceId however it arrives. deviceId is validated to the
+    // same 1...127 range upstream's DeviceId enforces (so a bad value never feeds
+    // the authed-chat username).
+    func validDeviceId(_ v: UInt32) -> Bool { (1...127).contains(v) }
     struct LinkResponse: Decodable { let pni: String; let deviceId: UInt32 }
-    if let parsed = try? JSONDecoder().decode(LinkResponse.self, from: data) {
+    if let parsed = try? JSONDecoder().decode(LinkResponse.self, from: data), validDeviceId(parsed.deviceId) {
         return (parsed.deviceId, parsed.pni)
     }
     if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
         let did: UInt32?
         if let n = obj["deviceId"] as? NSNumber { did = n.uint32Value }
-        else if let i = obj["deviceId"] as? Int { did = UInt32(i) }
+        else if let i = obj["deviceId"] as? Int, i >= 0 { did = UInt32(i) }
         else { did = nil }
-        if let did {
+        if let did, validDeviceId(did) {
             return (did, (obj["pni"] as? String) ?? "")
         }
     }
-    throw QuillLinkError.httpStatus(http.statusCode, "linked but could not parse deviceId from response: \(String(data: data, encoding: .utf8) ?? "")")
+    throw QuillLinkError.httpStatus(http.statusCode, "linked but could not parse a valid deviceId (1...127) from response: \(String(data: data, encoding: .utf8) ?? "")")
 }
 
 /// Durable-login proof: if a prior live link already persisted credentials,

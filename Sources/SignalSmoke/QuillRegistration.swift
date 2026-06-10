@@ -86,7 +86,9 @@ private func quillGenerateSignedPreKey(
     signedBy identityKeyPair: IdentityKeyPair,
     timestamp: UInt64
 ) throws -> LibSignalClient.SignedPreKeyRecord {
-    let keyId = UInt32.random(in: 1...0x7FFF_FFFF)
+    // Prekey IDs are 24-bit (matches upstream PreKeyId.random() =
+    // UInt32.random(in: 1..<0x1000000)); the Signal server rejects IDs >= 0x1000000.
+    let keyId = UInt32.random(in: 1..<0x100_0000)
     let privateKey = PrivateKey.generate()
     let publicKey = privateKey.publicKey
     let signature = identityKeyPair.privateKey.generateSignature(message: publicKey.serialize())
@@ -105,7 +107,8 @@ private func quillGenerateKyberLastResortPreKey(
     signedBy identityKeyPair: IdentityKeyPair,
     timestamp: UInt64
 ) throws -> LibSignalClient.KyberPreKeyRecord {
-    let keyId = UInt32.random(in: 1...0x7FFF_FFFF)
+    // 24-bit prekey ID (see quillGenerateSignedPreKey); server rejects >= 0x1000000.
+    let keyId = UInt32.random(in: 1..<0x100_0000)
     let keyPair = KEMKeyPair.generate()
     let signature = identityKeyPair.privateKey.generateSignature(message: keyPair.publicKey.serialize())
     return try LibSignalClient.KyberPreKeyRecord(

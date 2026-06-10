@@ -104,10 +104,10 @@ public func quillSmokeAccountPersistRoundtrip(path: String) throws -> String {
 // them to `ECKeyPair` (in-module here) for NSKeyedArchiver storage.
 //
 // Collections / keys mirror upstream: account scalars live in
-// `TSStorageUserAccountCollection`; the ACI identity key lives in
-// `TSStorageManagerIdentityKeyStoreCollection` and the PNI identity key in
-// `TSStorageManagerPNIIdentityKeyStoreCollection`, both under
-// `TSStorageManagerIdentityKeyStoreIdentityKey`.
+// `TSStorageUserAccountCollection` (NewKeyValueStore raw values); BOTH identity
+// keys live in the SINGLE collection `TSStorageManagerIdentityKeyStoreCollection`
+// under DIFFERENT keys -- ACI under `TSStorageManagerIdentityKeyStoreIdentityKey`,
+// PNI under `TSStorageManagerIdentityKeyStorePNIIdentityKey` (not two collections).
 public func quillPersistLinkedAccount(
     path: String,
     aciServiceIdUppercase: String,   // aci.serviceIdUppercaseString
@@ -151,6 +151,10 @@ public func quillPersistLinkedAccount(
         acct.writeValue(serverAuthToken, forKey: "TSStorageServerAuthToken", tx: tx)
         // Secondary devices start as manual message fetchers.
         acct.writeValue(true, forKey: "TSAccountManager_ManualMessageFetchKey", tx: tx)
+        // Registration date: a real SSK didRegister writes this (stored as a raw
+        // Date via NewKeyValueStore). Not required to load as registered, but
+        // included for fidelity so the account record matches a real link.
+        acct.writeValue(Date(), forKey: "TSAccountManager_RegistrationDateKey", tx: tx)
         // profileKey is stored by ProfileManager (a different collection) in real
         // SSK; keep it under a clearly-Quill key for our own use (auxiliary, not
         // the production location -- honest about the boundary).

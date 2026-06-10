@@ -1483,6 +1483,32 @@ loads the linked account -- the keys, value TYPES, and STORE must match upstream
   (`localAciUuid`, `localE164`, `TSStoragePniRegistrationId`) + UInt32 + two identity
   collections, all wrong. ALWAYS ground persistence keys/types/store in the real source.
 
+**Adversarial parallel audit caught TWO scan-wasting bugs the single perspective missed.**
+After STEP 9 built green, an 8-dimension Workflow (one skeptical reviewer per wire dimension,
+each given the upstream ground truth + my code embedded -- robust whether or not subagents can
+read the repo) found two defects that would each have wasted the user's SINGLE-USE QR scan,
+both confirmed against the real source before fixing:
+- **Prekey keyId range** -- I used `UInt32.random(in: 1...0x7FFFFFFF)` (31-bit); upstream
+  `PreKeyId.random()` is `UInt32.random(in: 1..<0x1000000)` (24-bit) and the server REJECTS
+  IDs >= 0x1000000. ~99% of my IDs were out of range -> the PUT /v1/devices/link 4xxes on
+  almost every attempt. Fix: `1..<0x100_0000` in both prekey generators.
+- **QR pub_key not percent-encoded** -- I built the `sgnl://linkdevice` URL with
+  `URLComponents`/`URLQueryItem`, which leaves base64 `+` and `/` RAW. Upstream
+  `DeviceProvisioningURL.buildUrl()` explicitly AVOIDS URLComponents ("encodes '+' and '/' in
+  the base64 pub_key in a way Android doesn't tolerate") and builds the string by hand,
+  percent-encoding pub_key via `String.encodeURIComponent` (alphanumerics + `-_.!~*'()`),
+  address raw, `&capabilities=` appended. An Android primary mis-parses raw `+`/`/` -> ECDHs
+  to the wrong key -> the envelope MAC-fails -> no ProvisionMessage -> scan wasted. iOS-only
+  testing hides this. Fix: build the string manually and call the real `pubB64.encodeURIComponent`.
+Plus medium/low: added the Signal-iOS `User-Agent` + `Accept-Language` headers the real REST
+layer injects (WAF/fingerprint risk on the link PUT); tightened the success guard to `==200`
+and validated `deviceId` to 1...127 (upstream `DeviceId`); added `registrationDate` for
+fidelity. DEFERRED (honest, non-blocking for durable login): the post-link one-time prekey
+upload to `/v2/keys` -- the authed-chat reconnect works without it, so the device links +
+reconnects but isn't yet fully provisioned to receive brand-new inbound sessions.
+LESSON: a green build + self-consistent self-tests do NOT prove wire-correctness against a
+single-use action; fan out an adversarial panel over the real protocol source FIRST.
+
 **NSCoder NSData fix (the persistence-blocker):** swift-corelibs NSCoder's
 `encodeBytes(UInt8?,length:,forKey:)` uses an internal keyed-archive byte format that has
 NO `decodeBytes` reader; ECKeyPair's NSSecureCoding round-trip failed "Class ECKeyPair
