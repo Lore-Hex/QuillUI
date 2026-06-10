@@ -12,6 +12,11 @@ import Foundation
 import CoreFoundation
 import QuillKit
 
+/// Re-exported so AudioToolbox consumers (Telegram's AudioRecorder and
+/// audio-queue callers) see the OSStatus the audio APIs return without
+/// leaking the whole CoreFoundation module.
+public typealias OSStatus = CoreFoundation.OSStatus
+
 public typealias SystemSoundID = UInt32
 public typealias AudioFormatID = UInt32
 public typealias AudioFormatFlags = UInt32
