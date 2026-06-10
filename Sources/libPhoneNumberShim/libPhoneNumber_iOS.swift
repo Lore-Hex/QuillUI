@@ -168,6 +168,11 @@ public final class NBPhoneNumberUtil: NSObject {
 public final class NBAsYouTypeFormatter: NSObject {
     private var accumulated = ""
     public init(regionCode: String?) { super.init() }
+    // Faithful additive overload for SSK call sites that pass a metadata helper
+    // (PhoneNumber.swift). The shim formatter is a pure pass-through accumulator
+    // with no metadata-driven behavior, so the helper is intentionally ignored.
+    // Typed Any? to avoid depending on the concrete NBMetadataHelper type.
+    public convenience init(regionCode: String?, metadataHelper: Any?) { self.init(regionCode: regionCode) }
     public func inputDigit(_ digit: String) -> String {
         accumulated += digit
         return accumulated

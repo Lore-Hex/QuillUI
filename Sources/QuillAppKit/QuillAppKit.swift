@@ -70,6 +70,20 @@ public extension NSImage {
 }
 public typealias NSScreen = RSScreen
 
+public struct NSColorSpaceName: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
+    public var rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public init(stringLiteral value: String) {
+        self.rawValue = value
+    }
+
+    public static let deviceRGB = NSColorSpaceName(rawValue: "NSDeviceRGBColorSpace")
+}
+
 // `NSBitmapImageRep` is the AppKit type that converts between
 // raster image formats (TIFF, JPEG, PNG, …). Enchanted uses it
 // to convert NSImage → JPEG bytes for upload. The Linux stub
@@ -152,6 +166,10 @@ public extension NSColor {
     static let gray = NSColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1)
     static let lightGray = NSColor(red: 0.66, green: 0.66, blue: 0.66, alpha: 1)
     static let brown = NSColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 1)
+    static let systemRed = NSColor(red: 1.0, green: 0.231, blue: 0.188, alpha: 1)
+    static let systemBlue = NSColor(red: 0.0, green: 0.478, blue: 1.0, alpha: 1)
+    static let systemGreen = NSColor(red: 0.204, green: 0.780, blue: 0.349, alpha: 1)
+    static let systemOrange = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)
 
     struct Name: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
         public var rawValue: String
@@ -162,20 +180,34 @@ public extension NSColor {
     convenience init(name: NSColor.Name?, dynamicProvider: @escaping (NSAppearance) -> NSColor) {
         self.init()
     }
-    convenience init(white: CGFloat, alpha: CGFloat) { self.init() }
-    convenience init(deviceWhite: CGFloat, alpha: CGFloat) { self.init() }
-    convenience init(calibratedWhite: CGFloat, alpha: CGFloat) { self.init() }
-    convenience init(srgbRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
-    /// Apple's generic calibrated-RGB init (`NSColor(red:green:blue:alpha:)`).
-    /// WireGuard's NSColor(hex:) chains to it. Compile-stub (ignores components).
-    convenience init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
-    convenience init(deviceRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
-    convenience init(calibratedRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { self.init() }
-    convenience init(hue: CGFloat, saturation: CGFloat, brightness: CGFloat, alpha: CGFloat) { self.init() }
+    convenience init(white: CGFloat, alpha: CGFloat) { self.init(red: white, green: white, blue: white, alpha: alpha) }
+    convenience init(deviceWhite: CGFloat, alpha: CGFloat) { self.init(white: deviceWhite, alpha: alpha) }
+    convenience init(calibratedWhite: CGFloat, alpha: CGFloat) { self.init(white: calibratedWhite, alpha: alpha) }
+    convenience init(srgbRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        self.init(red: srgbRed, green: green, blue: blue, alpha: alpha)
+    }
+    convenience init(deviceRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        self.init(red: deviceRed, green: green, blue: blue, alpha: alpha)
+    }
+    convenience init(calibratedRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        self.init(red: calibratedRed, green: green, blue: blue, alpha: alpha)
+    }
 
-    func withAlphaComponent(_ alpha: CGFloat) -> NSColor { self }
-    func blended(withFraction f: CGFloat, of c: NSColor) -> NSColor? { self }
+    func withAlphaComponent(_ alpha: CGFloat) -> NSColor {
+        NSColor(red: _red, green: _green, blue: _blue, alpha: alpha)
+    }
+
+    func blended(withFraction f: CGFloat, of c: NSColor) -> NSColor? {
+        let fraction = max(0, min(1, f))
+        return NSColor(
+            red: _red + (c._red - _red) * fraction,
+            green: _green + (c._green - _green) * fraction,
+            blue: _blue + (c._blue - _blue) * fraction,
+            alpha: _alpha + (c._alpha - _alpha) * fraction
+        )
+    }
     func usingColorSpace(_ space: Any) -> NSColor? { self }
+    func usingColorSpaceName(_ colorSpaceName: NSColorSpaceName) -> NSColor? { self }
     var redComponent: CGFloat { _red }
     var greenComponent: CGFloat { _green }
     var blueComponent: CGFloat { _blue }
@@ -2310,30 +2342,23 @@ private extension NSWorkspace {
 
     @discardableResult
     func _xdgOpen(_ target: String, operation: String) -> Bool {
-        guard _canOpenDesktopTarget else {
+        let url = _workspaceOpenURL(for: target)
+        let didOpen = QuillWorkspace.open(url)
+        if !didOpen {
             _recordFallback(
                 operation: operation,
-                message: "\(operation) requires xdg-open plus DISPLAY or WAYLAND_DISPLAY on Linux; '\(target)' was not opened in this process."
+                message: "\(operation) could not open '\(target)' through QuillWorkspace."
             )
-            return false
         }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = ["xdg-open", target]
-        p.standardOutput = Pipe()
-        p.standardError = Pipe()
-        do {
-            try p.run()
-            // Don't waitUntilExit() — xdg-open forks the real handler
-            // and may stay attached. Detach instead.
-            return true
-        } catch {
-            _recordFallback(
-                operation: operation,
-                message: "\(operation) could not launch xdg-open for '\(target)': \(error.localizedDescription)"
-            )
-            return false
+
+        return didOpen
+    }
+    func _workspaceOpenURL(for target: String) -> URL {
+        if let url = URL(string: target), url.scheme?.isEmpty == false {
+            return url
         }
+
+        return URL(fileURLWithPath: target)
     }
     func _xdgMimeQueryDefault(_ url: URL) -> String? {
         guard _hasCommand("xdg-mime") else { return nil }
@@ -2348,11 +2373,6 @@ private extension NSWorkspace {
     func _xdgMimeForFile(_ path: String) -> String? {
         guard _hasCommand("xdg-mime") else { return nil }
         return _runForOutput(["xdg-mime", "query", "filetype", path])
-    }
-    var _canOpenDesktopTarget: Bool {
-        guard _hasCommand("xdg-open") else { return false }
-        let env = ProcessInfo.processInfo.environment
-        return env["DISPLAY"]?.isEmpty == false || env["WAYLAND_DISPLAY"]?.isEmpty == false
     }
     func _desktopApplicationURL(forDesktopID id: String) -> URL? {
         if id.hasPrefix("/"), FileManager.default.fileExists(atPath: id) {
@@ -2958,7 +2978,23 @@ open class NSBox: NSView {
 }
 
 open class NSClipView: NSView {
-    public var documentView: NSView?
+    public var documentView: NSView? {
+        didSet {
+            // AppKit keeps the documentView inside the clip view's subview tree.
+            // The shadow must too, so the Qt render pass (which walks `subviews`)
+            // reaches it — VCs like WireGuard's TunnelsList/LogView set
+            // `clipView.documentView = tableView` DIRECTLY, bypassing
+            // NSScrollView.documentView's setter, so without this the document
+            // (the whole table) is dropped from the rendered tree. Mirrors
+            // NSScrollView.documentView's wiring.
+            if oldValue !== documentView {
+                oldValue?.removeFromSuperview()
+            }
+            if let documentView, documentView.superview !== self {
+                addSubview(documentView)
+            }
+        }
+    }
     public var documentRect: NSRect = .zero
     public var documentVisibleRect: NSRect = .zero
 }
@@ -4004,6 +4040,12 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public var tableColumns: [NSTableColumn] = []
     public var rowHeight: CGFloat = 17
     public var intercellSpacing: NSSize = NSSize(width: 3, height: 2)
+    /// Cells materialized into the live view tree by the Qt render pass
+    /// (NSTableView.quillMaterializeRowsIntoSubtree) — the shadow keeps cell views
+    /// in private caches, so rendering needs them promoted to `subviews`. Tracked
+    /// so a re-render clears the prior set instead of duplicating rows. Render-only.
+    public var quillMaterializedCells: [NSView] = []
+    public var quillMaterializedConstraints: [NSLayoutConstraint] = []
     public var allowsMultipleSelection: Bool = false
     public var allowsEmptySelection: Bool = true
     public var allowsColumnSelection: Bool = false
@@ -5057,17 +5099,46 @@ open class NSSharingService: NSObject, @unchecked Sendable {
 }
 
 open class NSSound: NSObject, @unchecked Sendable {
-    public init?(named: String) {}
-    public init?(contentsOf: URL, byReference: Bool) {}
-    public init?(data: Data) {}
-    public func play() -> Bool { false }
-    public func stop() -> Bool { false }
+    private let quillPlayerID = UUID()
+
+    public init?(named: String) {
+        super.init()
+        QuillAudioPlayerService.shared.registerPlayer(
+            quillPlayerID,
+            source: .named(named)
+        )
+    }
+
+    public init?(contentsOf url: URL, byReference: Bool) {
+        super.init()
+        QuillAudioPlayerService.shared.registerPlayer(
+            quillPlayerID,
+            source: .url(url)
+        )
+    }
+
+    public init?(data: Data) {
+        super.init()
+        QuillAudioPlayerService.shared.registerPlayer(
+            quillPlayerID,
+            source: .data(byteCount: data.count)
+        )
+    }
+
+    public func play() -> Bool {
+        QuillAudioPlayerService.shared.play(playerID: quillPlayerID)
+    }
+
+    public func stop() -> Bool {
+        QuillAudioPlayerService.shared.stop(playerID: quillPlayerID)
+    }
 
     /// Phase B: emits the terminal bell character (BEL, \x07) to stderr.
     /// Most terminal emulators map this to either a flash or an audible
     /// tone depending on user preference, which is the closest Linux
     /// analogue to Apple's NSSound.beep() system alert.
     public static func beep() {
+        QuillAudioPlayerService.shared.beep()
         FileHandle.standardError.write(Data([0x07]))
     }
 }

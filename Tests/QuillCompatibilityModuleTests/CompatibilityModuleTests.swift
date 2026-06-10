@@ -10,6 +10,8 @@ import SwiftUI
 import SwiftData
 import Combine
 import UIKit
+import AVFoundation
+import AudioToolbox
 import QuillKit
 import QuillFoundation
 import ActivityIndicatorView
@@ -23,7 +25,43 @@ import IOKit.usb
 import WrappingHStack
 import Vortex
 import KeyboardShortcuts
+import Magnet
+import Sparkle
+import ServiceManagement
 @_spi(QuillTesting) import QuillUI
+
+private final class PausingSpeechDelegate: AVSpeechSynthesizerDelegate {
+    var events: [String] = []
+    var pauseResult: Bool?
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        events.append("start")
+        pauseResult = synthesizer.pauseSpeaking(at: .word)
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        events.append("finish")
+    }
+}
+
+private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue: Value
+
+    init(_ value: Value) {
+        storedValue = value
+    }
+
+    var value: Value {
+        lock.withLock { storedValue }
+    }
+
+    func update(_ body: (inout Value) -> Void) {
+        lock.withLock {
+            body(&storedValue)
+        }
+    }
+}
 
 @Suite("Linux compatibility import modules", .serialized)
 struct CompatibilityModuleTests {
@@ -37,6 +75,45 @@ struct CompatibilityModuleTests {
         let height = (UInt32(bytes[20]) << 24) | (UInt32(bytes[21]) << 16)
                    | (UInt32(bytes[22]) << 8)  |  UInt32(bytes[23])
         return (width, height)
+    }
+
+    private func wavData(sampleRate: UInt32 = 8_000, channels: UInt16 = 2, frames: UInt32 = 8_000) -> Data {
+        let bitsPerSample: UInt16 = 16
+        let blockAlign = channels * bitsPerSample / 8
+        let byteRate = sampleRate * UInt32(blockAlign)
+        let dataByteCount = frames * UInt32(blockAlign)
+        let riffByteCount = UInt32(36) + dataByteCount
+        var data = Data()
+
+        func appendASCII(_ string: String) {
+            data.append(contentsOf: string.utf8)
+        }
+        func appendUInt16(_ value: UInt16) {
+            data.append(UInt8(value & 0xff))
+            data.append(UInt8((value >> 8) & 0xff))
+        }
+        func appendUInt32(_ value: UInt32) {
+            data.append(UInt8(value & 0xff))
+            data.append(UInt8((value >> 8) & 0xff))
+            data.append(UInt8((value >> 16) & 0xff))
+            data.append(UInt8((value >> 24) & 0xff))
+        }
+
+        appendASCII("RIFF")
+        appendUInt32(riffByteCount)
+        appendASCII("WAVE")
+        appendASCII("fmt ")
+        appendUInt32(16)
+        appendUInt16(1)
+        appendUInt16(channels)
+        appendUInt32(sampleRate)
+        appendUInt32(byteRate)
+        appendUInt16(blockAlign)
+        appendUInt16(bitsPerSample)
+        appendASCII("data")
+        appendUInt32(dataByteCount)
+        data.append(contentsOf: repeatElement(UInt8(0), count: Int(dataByteCount)))
+        return data
     }
 
     @Test("SwiftUI and SwiftData module aliases expose Quill APIs")
@@ -53,7 +130,7 @@ struct CompatibilityModuleTests {
 
     @Test("QuillUI fallback modifiers record diagnostics")
     func quillUIFallbackModifiersRecordDiagnostics() {
-        QuillCompatibilityDiagnostics.shared.clear()
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
 
         _ = Text("Fallback")
             .symbolEffect(.variableColor, value: true)
@@ -203,8 +280,9 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: typedContent)).contains("TextContentTypeView"))
         #expect(typedContent.contentType == .URL)
 #endif
+        }
 
-        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        let operations = Set(captured.events.map(\.operation))
         #expect(operations.isSuperset(of: Set([
             "symbolEffect",
             "matchedGeometryEffect",
@@ -285,6 +363,32 @@ struct CompatibilityModuleTests {
             "NSWorkspace.urlForApplication(withBundleIdentifier:)",
             "NSWorkspace.urlForApplication(toOpen:)"
         ])))
+    }
+
+    @Test("AppKit audio compatibility routes NSSound through QuillKit")
+    func appKitAudioCompatibilityRoutesNSSoundThroughQuillKit() {
+        let result = AppleCompatibilitySmoke.runAppKitAudioSmoke()
+        #expect(result.dataSoundCreated)
+        #expect(result.playSucceeded)
+        #expect(result.stopSucceeded)
+        #expect(result.playCount == 1)
+        #expect(result.stopCount == 1)
+        #expect(result.stoppedAfterStop)
+        #expect(result.operations.isSuperset(of: Set([
+            "audioPlayer.play",
+            "audioPlayer.stop"
+        ])))
+    }
+
+    @Test("AppKit workspace open routes through QuillWorkspace")
+    func appKitWorkspaceOpenRoutesThroughQuillWorkspace() {
+        let result = AppleCompatibilitySmoke.runAppKitWorkspaceOpenSmoke()
+        let expectedURL = URL(string: "https://example.com/quill-appkit-workspace")!
+        #expect(result.directOpenSucceeded)
+        #expect(result.configurationOpenSucceeded)
+        #expect(result.configurationCompletionSucceeded)
+        #expect(result.openedURLs == [expectedURL, expectedURL])
+        #expect(result.operations.contains("openURL"))
     }
 
     @Test("AppKit rect string helpers round-trip common geometry formats")
@@ -610,6 +714,7 @@ struct CompatibilityModuleTests {
         let overrideShortcut = KeyboardShortcuts.Shortcut(.space, modifiers: [.command, .shift])
         let name = KeyboardShortcuts.Name("togglePanelMode1", default: defaultShortcut)
 
+        QuillHotkeyService.shared.unregisterAll()
         KeyboardShortcuts.reset(name)
         KeyboardShortcuts.resetAllHandlers()
         #expect(KeyboardShortcuts.getShortcut(for: name) == defaultShortcut)
@@ -628,18 +733,420 @@ struct CompatibilityModuleTests {
         }
         #expect(KeyboardShortcuts.trigger(name, type: .keyDown))
         #expect(handledEvents == ["down"])
+        #expect(KeyboardShortcuts.trigger(defaultShortcut))
+        #expect(handledEvents == ["down", "down"])
+
+        KeyboardShortcuts.setShortcut(overrideShortcut, for: name)
+        #expect(!KeyboardShortcuts.trigger(defaultShortcut))
+        #expect(KeyboardShortcuts.trigger(overrideShortcut))
+        #expect(QuillHotkeyService.shared.trigger(key: "space", modifiers: ["command", "shift"]))
+        #expect(handledEvents == ["down", "down", "down", "down"])
         #expect(!KeyboardShortcuts.trigger(name, type: .keyUp))
 
         _ = Text("Shortcut").onKeyboardShortcut(name, type: .keyUp) {
             handledEvents.append("up")
         }
         #expect(KeyboardShortcuts.trigger(name, type: .keyUp))
-        #expect(handledEvents == ["down", "up"])
+        #expect(handledEvents == ["down", "down", "down", "down", "up"])
 
         KeyboardShortcuts.resetAllHandlers()
         #expect(!KeyboardShortcuts.trigger(name, type: .keyDown))
+        #expect(!KeyboardShortcuts.trigger(overrideShortcut))
 
         KeyboardShortcuts.resetAll()
+        QuillHotkeyService.shared.unregisterAll()
+    }
+
+    @Test("AVFoundation speech synthesis routes through QuillKit")
+    func avFoundationSpeechSynthesisRoutesThroughQuillKit() {
+        QuillSpeechBackend.shared.resetSpeechSynthesis()
+        QuillSpeechBackend.shared.configureSpeechSynthesisVoices([
+            QuillSpeechVoice(identifier: "quill.test.voice", name: "Test Voice", quality: 1)
+        ])
+
+        let utterance = AVSpeechUtterance(string: "hello linux")
+        let voice = AVSpeechSynthesisVoice(identifier: "quill.test.voice")
+        utterance.voice = voice
+
+        #expect(utterance.speechString == "hello linux")
+        #expect(voice?.name == "Test Voice")
+        #expect(voice?.quality == .enhanced)
+        #expect(AVSpeechSynthesisVoice.speechVoices().map(\.identifier) == ["quill.test.voice"])
+
+        let synthesizer = AVSpeechSynthesizer()
+        synthesizer.speak(utterance)
+        #expect(!synthesizer.isSpeaking)
+        #expect(!synthesizer.isPaused)
+        #expect(synthesizer.stopSpeaking(at: .immediate))
+
+        let pausingDelegate = PausingSpeechDelegate()
+        let pausingSynthesizer = AVSpeechSynthesizer()
+        pausingSynthesizer.delegate = pausingDelegate
+        pausingSynthesizer.speak(AVSpeechUtterance(string: "pause me"))
+        #expect(pausingDelegate.events == ["start"])
+        #expect(pausingDelegate.pauseResult == true)
+        #expect(pausingSynthesizer.isPaused)
+        #expect(pausingSynthesizer.isSpeaking)
+        #expect(pausingSynthesizer.continueSpeaking())
+        #expect(pausingDelegate.events == ["start", "finish"])
+        #expect(!pausingSynthesizer.isPaused)
+        #expect(!pausingSynthesizer.isSpeaking)
+        #expect(!pausingSynthesizer.continueSpeaking())
+
+        QuillSpeechBackend.shared.resetSpeechSynthesis()
+    }
+
+    @Test("AVFoundation audio session routes through QuillKit")
+    func avFoundationAudioSessionRoutesThroughQuillKit() throws {
+        QuillAudioSessionService.shared.reset()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let session = AVAudioSession.sharedInstance()
+        let secondReference = AVAudioSession.sharedInstance()
+        #expect(session === secondReference)
+        #expect(session.category == .ambient)
+        #expect(session.mode == .spokenAudio)
+        #expect(session.isActive == false)
+
+        try session.setCategory(.playAndRecord, mode: .videoChat, options: [.allowBluetooth, .defaultToSpeaker])
+        #expect(secondReference.category == .playAndRecord)
+        #expect(secondReference.mode == .videoChat)
+        #expect(secondReference.categoryOptions.contains(.allowBluetooth))
+        #expect(secondReference.categoryOptions.contains(.defaultToSpeaker))
+        #expect(QuillAudioSessionService.shared.category == .playAndRecord)
+
+        try secondReference.setMode(.measurement)
+        #expect(session.mode == .measurement)
+        #expect(QuillAudioSessionService.shared.mode == .measurement)
+
+        try session.setActive(true, options: [.notifyOthersOnDeactivation])
+        #expect(secondReference.isActive)
+        #expect(QuillAudioSessionService.shared.setActiveOptionsRawValue == 1)
+        try session.setActive(false)
+        #expect(secondReference.isActive == false)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioSession.setCategory"))
+        #expect(operations.contains("audioSession.setActive"))
+    }
+
+    @Test("AVFoundation audio engine routes graph state through QuillKit")
+    func avFoundationAudioEngineRoutesGraphStateThroughQuillKit() throws {
+        QuillAudioEngineService.shared.resetAll()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let engine = AVAudioEngine()
+        #expect(engine.isRunning == false)
+        #expect(QuillAudioEngineService.shared.engineStates.count == 1)
+
+        engine.prepare()
+        try engine.start()
+        #expect(engine.isRunning)
+
+        let extraMixer = AVAudioMixerNode()
+        engine.attach(extraMixer)
+        engine.connect(engine.inputNode, to: engine.mainMixerNode, format: nil)
+        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { _, _ in }
+
+        var state = try #require(QuillAudioEngineService.shared.engineStates.first)
+        #expect(state.isPrepared)
+        #expect(state.isRunning)
+        #expect(state.attachedNodeCount == 1)
+        #expect(state.connectionCount == 1)
+        #expect(state.tapCount == 1)
+
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        state = try #require(QuillAudioEngineService.shared.engineStates.first)
+        #expect(state.tapCount == 0)
+        #expect(state.isRunning == false)
+
+        engine.reset()
+        state = try #require(QuillAudioEngineService.shared.engineStates.first)
+        #expect(state == QuillAudioEngineState(engineID: state.engineID))
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioEngine.prepare"))
+        #expect(operations.contains("audioEngine.start"))
+        #expect(operations.contains("audioEngine.attach"))
+        #expect(operations.contains("audioEngine.connect"))
+        #expect(operations.contains("audioEngine.installTap"))
+        #expect(operations.contains("audioEngine.removeTap"))
+        #expect(operations.contains("audioEngine.stop"))
+        #expect(operations.contains("audioEngine.reset"))
+    }
+
+    @Test("AVFoundation audio player and system sounds route through QuillKit")
+    func avFoundationAudioPlayerAndSystemSoundsRouteThroughQuillKit() throws {
+        QuillAudioPlayerService.shared.resetAll()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let data = wavData()
+        let player = try AVAudioPlayer(data: data)
+        #expect(player.numberOfChannels == 2)
+        #expect(abs(player.duration - 1) < 0.0001)
+        #expect(player.prepareToPlay())
+        player.currentTime = 0.25
+        player.volume = 1.25
+        player.numberOfLoops = 2
+        #expect(player.play(atTime: 0.5))
+        #expect(player.isPlaying)
+        #expect(player.currentTime == 0.5)
+        #expect(player.volume == 1)
+        player.pause()
+        #expect(player.isPlaying == false)
+        #expect(player.play())
+        player.stop()
+        #expect(player.isPlaying == false)
+
+        let playerState = try #require(QuillAudioPlayerService.shared.playerStates.first {
+            if case .data(byteCount: data.count) = $0.source {
+                return true
+            }
+            return false
+        })
+        #expect(playerState.isPrepared)
+        #expect(playerState.playCount == 2)
+        #expect(playerState.pauseCount == 1)
+        #expect(playerState.stopCount == 1)
+        #expect(playerState.numberOfLoops == 2)
+
+        let soundURL = URL(fileURLWithPath: "/tmp/quill-system-sound.wav")
+        var soundID: SystemSoundID = 0
+        #expect(AudioServicesCreateSystemSoundID(soundURL, &soundID) == kAudioServicesNoError)
+        AudioServicesPlaySystemSound(soundID)
+        AudioServicesPlayAlertSound(soundID)
+        #expect(AudioServicesAddSystemSoundCompletion(soundID, nil, nil, { _, _ in }, nil) == kAudioServicesNoError)
+        AudioServicesRemoveSystemSoundCompletion(soundID)
+        #expect(AudioServicesDisposeSystemSoundID(soundID) == kAudioServicesNoError)
+
+        let systemSound = try #require(QuillAudioPlayerService.shared.systemSoundRecords.first {
+            $0.soundID == soundID
+        })
+        #expect(systemSound.url == soundURL)
+        #expect(systemSound.playCount == 1)
+        #expect(systemSound.alertPlayCount == 1)
+        #expect(systemSound.completionRegistrationCount == 0)
+        #expect(systemSound.isDisposed)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioPlayer.prepareToPlay"))
+        #expect(operations.contains("audioPlayer.play"))
+        #expect(operations.contains("audioPlayer.pause"))
+        #expect(operations.contains("audioPlayer.stop"))
+        #expect(operations.contains("audioSystemSound.create"))
+        #expect(operations.contains("audioSystemSound.play"))
+        #expect(operations.contains("audioSystemSound.playAlert"))
+        #expect(operations.contains("audioSystemSound.addCompletion"))
+        #expect(operations.contains("audioSystemSound.removeCompletion"))
+        #expect(operations.contains("audioSystemSound.dispose"))
+    }
+
+    @Test("Sparkle updater routes through QuillKit")
+    func sparkleUpdaterRoutesThroughQuillKit() {
+        QuillUpdateService.shared.reset()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let updater = SPUUpdater()
+        #expect(updater.canCheckForUpdates == false)
+        #expect(QuillUpdateService.shared.canCheckForUpdates == false)
+
+        updater.canCheckForUpdates = true
+        #expect(updater.canCheckForUpdates)
+        #expect(QuillUpdateService.shared.canCheckForUpdates)
+
+        updater.checkForUpdates()
+        #expect(QuillUpdateService.shared.updateCheckCount == 1)
+        #expect(QuillUpdateService.shared.lastCheckDate != nil)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "checkForUpdates"
+        })
+
+        QuillUpdateService.shared.reset()
+        let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        #expect(controller.updater.canCheckForUpdates)
+        controller.updater.canCheckForUpdates = false
+        #expect(QuillUpdateService.shared.canCheckForUpdates == false)
+
+        QuillUpdateService.shared.reset()
+    }
+
+    @Test("ServiceManagement legacy login item toggle routes through QuillKit")
+    func serviceManagementLegacyLoginItemToggleRoutesThroughQuillKit() throws {
+        try SMAppService.mainApp.unregister()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        #expect(SMAppService.mainApp.status == .notRegistered)
+        #expect(SMLoginItemSetEnabled("co.lorehex.quill.helper" as NSString, true))
+        #expect(QuillLaunchService.shared.isEnabled)
+        #expect(SMAppService.mainApp.status == .enabled)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "SMLoginItemSetEnabled" &&
+                $0.message.contains("co.lorehex.quill.helper")
+        })
+
+        #expect(SMLoginItemSetEnabled("co.lorehex.quill.helper" as NSString, false))
+        #expect(QuillLaunchService.shared.isEnabled == false)
+        #expect(SMAppService.mainApp.status == .notRegistered)
+
+        try SMAppService.mainApp.unregister()
+    }
+
+    @Test("UserNotifications routes through QuillKit")
+    func userNotificationsRoutesThroughQuillKit() async throws {
+        let service = QuillNotificationService.shared
+        let center = UNUserNotificationCenter.current()
+        service.reset()
+        center.setNotificationCategories([])
+        center.removeAllDeliveredNotifications()
+        center.removeAllPendingNotificationRequests()
+        service.configureAuthorization(status: .notDetermined, requestResult: true)
+        QuillCompatibilityDiagnostics.shared.clear()
+        let openedURLs = CompatibilityLockedValue<[URL]>([])
+        QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "ui-application-test") { url in
+            openedURLs.update { $0.append(url) }
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        let granted = try await center.requestAuthorization(options: [.alert, .sound])
+        #expect(granted)
+        #expect(service.authorizationStatus == .authorized)
+
+        var authorizationStatus: UNAuthorizationStatus?
+        center.getNotificationSettings { settings in
+            authorizationStatus = settings.authorizationStatus
+        }
+        #expect(authorizationStatus == .authorized)
+
+        let openURL = URL(string: "https://example.com/quill-chat")!
+        let completionResult = CompatibilityLockedValue<Bool?>(nil)
+        let didOpen = await UIApplication.shared.open(openURL, options: [:]) { result in
+            completionResult.update { $0 = result }
+        }
+        #expect(didOpen)
+        #expect(completionResult.value == true)
+        #expect(openedURLs.value == [openURL])
+
+        await UIApplication.shared.registerForRemoteNotifications()
+        let isRegisteredForRemoteNotifications = await UIApplication.shared.isRegisteredForRemoteNotifications
+        #expect(isRegisteredForRemoteNotifications)
+        #expect(service.remoteNotificationRegistrationCount == 1)
+        await UIApplication.shared.unregisterForRemoteNotifications()
+        let isRegisteredAfterUnregister = await UIApplication.shared.isRegisteredForRemoteNotifications
+        #expect(isRegisteredAfterUnregister == false)
+
+        let replyCategory = UNNotificationCategory(
+            identifier: "reply",
+            actions: [
+                UNTextInputNotificationAction(
+                    identifier: "reply.send",
+                    title: "Reply",
+                    textInputButtonTitle: "Send",
+                    textInputPlaceholder: "Message"
+                )
+            ],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        center.setNotificationCategories([replyCategory])
+        var categoryIdentifiers: Set<String> = []
+        center.getNotificationCategories { categories in
+            categoryIdentifiers = Set(categories.map(\.identifier))
+        }
+        #expect(categoryIdentifiers == ["reply"])
+        #expect(service.categoryIdentifiers == ["reply"])
+
+        let immediateContent = UNMutableNotificationContent()
+        immediateContent.title = "Ready"
+        immediateContent.body = "Delivered now"
+        immediateContent.categoryIdentifier = "reply"
+        immediateContent.threadIdentifier = "chat"
+        try await center.add(UNNotificationRequest(
+            identifier: "now",
+            content: immediateContent,
+            trigger: nil
+        ))
+
+        let pendingContent = UNMutableNotificationContent()
+        pendingContent.title = "Later"
+        pendingContent.body = "Queued"
+        var pendingAddCompleted = false
+        center.add(UNNotificationRequest(
+            identifier: "later",
+            content: pendingContent,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        )) { error in
+            pendingAddCompleted = true
+            #expect(error == nil)
+        }
+        #expect(pendingAddCompleted)
+
+        #expect((await center.deliveredNotifications()).map(\.request.identifier) == ["now"])
+        #expect((await center.pendingNotificationRequests()).map(\.identifier) == ["later"])
+        var deliveredIdentifiers: [String] = []
+        center.getDeliveredNotifications { notifications in
+            deliveredIdentifiers = notifications.map(\.request.identifier)
+        }
+        var pendingIdentifiers: [String] = []
+        center.getPendingNotificationRequests { requests in
+            pendingIdentifiers = requests.map(\.identifier)
+        }
+        #expect(deliveredIdentifiers == ["now"])
+        #expect(pendingIdentifiers == ["later"])
+        #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
+        #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
+
+        center.removeDeliveredNotifications(withIdentifiers: ["now"])
+        center.removePendingNotificationRequests(withIdentifiers: ["later"])
+        #expect((await center.deliveredNotifications()).isEmpty)
+        #expect((await center.pendingNotificationRequests()).isEmpty)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("notifications.requestAuthorization"))
+        #expect(operations.contains("notifications.setCategories"))
+        #expect(operations.contains("notifications.addRequest"))
+        #expect(operations.contains("notifications.registerForRemoteNotifications"))
+        #expect(operations.contains("openURL"))
+
+        service.reset()
+    }
+
+    @Test("Magnet hot keys use the shared QuillKit registry")
+    func magnetHotKeysUseSharedQuillKitRegistry() {
+        QuillHotkeyService.shared.unregisterAll()
+        QuillCompatibilityDiagnostics.shared.clear()
+        var handledEvents: [String] = []
+        let combo = KeyCombo(key: .character("p"), cocoaModifiers: [.command, .shift])!
+
+        let hotKey = HotKey(identifier: "togglePanelMode", keyCombo: combo) { key in
+            handledEvents.append(key.identifier)
+        }
+
+        #expect(!HotKey.trigger(identifier: "togglePanelMode"))
+        hotKey.register()
+        #expect(hotKey.isRegistered)
+        #expect(HotKey.trigger(identifier: "togglePanelMode"))
+        #expect(HotKey.trigger(keyCombo: combo))
+        #expect(handledEvents == ["togglePanelMode", "togglePanelMode"])
+
+        let duplicate = HotKey(identifier: "duplicatePanelMode", keyCombo: combo) { key in
+            handledEvents.append(key.identifier)
+        }
+        duplicate.register()
+        #expect(!duplicate.isRegistered)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "registerHotKey" && $0.severity == .warning
+        })
+
+        hotKey.unregister()
+        #expect(!hotKey.isRegistered)
+        #expect(!HotKey.trigger(identifier: "togglePanelMode"))
+        #expect(!HotKey.trigger(keyCombo: combo))
+
+        hotKey.trigger()
+        #expect(handledEvents == ["togglePanelMode", "togglePanelMode", "togglePanelMode"])
+        QuillHotkeyService.shared.unregisterAll()
     }
 
     @Test("MarkdownUI and Splash cover Enchanted markdown theme contracts")

@@ -1,0 +1,2726 @@
+warning: '--skip-update' option is deprecated and will be removed in a future release
+Fetching https://github.com/swiftlang/swift-syntax.git from cache
+Fetching https://github.com/scinfu/SwiftSoup.git
+Fetching https://github.com/groue/GRDB.swift from cache
+Fetching https://github.com/OpenCombine/OpenCombine.git from cache
+Fetching https://github.com/apple/swift-asn1.git
+Fetching https://github.com/apple/swift-crypto.git
+Fetched https://github.com/OpenCombine/OpenCombine.git from cache (0.01s)
+Fetched https://github.com/swiftlang/swift-syntax.git from cache (0.10s)
+Fetched https://github.com/groue/GRDB.swift from cache (0.47s)
+[1/1880] Fetching swift-asn1
+[152/7886] Fetching swift-asn1, swiftsoup
+[1212/25335] Fetching swift-asn1, swiftsoup, swift-crypto
+Fetched https://github.com/apple/swift-asn1.git from cache (1.60s)
+[1431/23455] Fetching swiftsoup, swift-crypto
+Fetched https://github.com/scinfu/SwiftSoup.git from cache (2.81s)
+[1571/17449] Fetching swift-crypto
+Fetched https://github.com/apple/swift-crypto.git from cache (7.97s)
+Computing version for https://github.com/OpenCombine/OpenCombine.git
+Computed https://github.com/OpenCombine/OpenCombine.git at 0.14.0 (8.08s)
+Computing version for https://github.com/apple/swift-crypto.git
+Computed https://github.com/apple/swift-crypto.git at 3.15.1 (0.25s)
+Computing version for https://github.com/groue/GRDB.swift.git
+Computed https://github.com/groue/GRDB.swift.git at 7.10.0 (0.14s)
+Computing version for https://github.com/swiftlang/swift-syntax.git
+Computed https://github.com/swiftlang/swift-syntax.git at 600.0.1 (0.15s)
+Computing version for https://github.com/apple/swift-asn1.git
+Computed https://github.com/apple/swift-asn1.git at 1.7.1 (0.11s)
+Computing version for https://github.com/scinfu/SwiftSoup.git
+Computed https://github.com/scinfu/SwiftSoup.git at 2.13.5 (0.08s)
+Creating working copy for https://github.com/apple/swift-crypto.git
+Working copy of https://github.com/apple/swift-crypto.git resolved at 3.15.1
+Creating working copy for https://github.com/OpenCombine/OpenCombine.git
+Working copy of https://github.com/OpenCombine/OpenCombine.git resolved at 0.14.0
+Creating working copy for https://github.com/apple/swift-asn1.git
+Working copy of https://github.com/apple/swift-asn1.git resolved at 1.7.1
+Creating working copy for https://github.com/groue/GRDB.swift
+Working copy of https://github.com/groue/GRDB.swift resolved at 7.10.0
+Creating working copy for https://github.com/scinfu/SwiftSoup.git
+Working copy of https://github.com/scinfu/SwiftSoup.git resolved at 2.13.5
+Creating working copy for https://github.com/swiftlang/swift-syntax.git
+Working copy of https://github.com/swiftlang/swift-syntax.git resolved at 600.0.1
+warning: 'work': found 486 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/82D04192-F67B-4EBC-A874-45E1F1207529.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/pull.wav
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/MentionsView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaEditView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Relationship.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Translation.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/MockTimelineStatusFetcher.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountStatsView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/0058B4EC-7293-4BEA-BB1A-DB14090BAF3E.png
+    /work/.upstream/icecubes/ci_scripts/ci_post_xcodebuild.sh
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/RepliesTab.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineTagHeaderView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/CustomEmojis.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsComponents.swift
+    /work/.upstream/icecubes/Packages/Models/Tests/ModelsTests/QuoteTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AccessoryView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Profile.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowContentView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditRelationshipNoteView.swift
+    /work/.upstream/icecubes/Images/editor.png
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredShareButtonBehavior.swift
+    /work/.upstream/icecubes/IceCubesNotifications/NotificationService.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailDataSource.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/PlaceholderView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path 1.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusActionButtonStyle.swift
+    /work/.upstream/icecubes/Packages/Lists/Package.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineListView.swift
+    /work/.upstream/icecubes/Images/explore.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/CardBackgroundModifier.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaContainer.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Timeline/TimelineItem.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/DateFormatterCache.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeStorage.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Quote.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/share.wav
+    /work/.upstream/icecubes/IceCubesApp.xcconfig.template
+    /work/.upstream/icecubes/IceCubesApp/Resources/Preview Assets.xcassets
+    /work/.upstream/icecubes/IceCubesShareExtension/Info.plist
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabProtocol.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/QuickLookToolbarItem.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Statuses.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/ListsWidget/ListsWidget.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Namespace.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/AutocompleteService.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/PollView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/InstanceApp.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineTagGroupheaderView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/QuoteApproval.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUITransferableImage.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Shared/PostsWidgetView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Embed/StatusEmbeddedView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/NotificationTypeExt.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowViewModel.swift
+    /work/.upstream/icecubes/Packages/Env/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowSpoilerView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/NotificationExt.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Endpoint.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Representable.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle copy 2.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowContextMenu.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Poll/StatusPollViewModel.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/DesignSystem.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Shape.svg
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationsPolicy.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Ext/AppStorage.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/RecentTag.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountFieldsView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/PostingServiceTests.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Accounts.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailHeaderView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path 2.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/RecentTagsView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineHeaderView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Duration.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Share/StatusRowSelectableTextView.swift
+    /work/.upstream/icecubes/LICENSE
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/C4C8F684-D9D0-43D6-87B2-0390F364A915.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/CustomEmojiService.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountInfoView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate46.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/NextPageView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CustomEnvValues.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusDataController.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListState.swift
+    /work/.upstream/icecubes/Packages/Env/Tests/RouterTests.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Create/ListCreateView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerError.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/MastodonClient.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/LanguageDetection/LanguageDetection.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/StatusesFetcher.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Info.plist
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/StatusesTab.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/TranslationType.swift
+    /work/.upstream/icecubes/Images/promo.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/PrivacyMenu.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/refresh.wav
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/ServerFilters.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Timelines.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AnyStatusesListView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Package.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineUnreadStatusesObserver.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTagsView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorFocusState.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Notifications.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/2961A88A-B0A1-4DB9-89D6-9F124D02BFAA.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PostError.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CameraPickerView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/IceCubesAppWidgetsExtensionBundle.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/32E33E74-6A30-4003-A426-A3A5B3D56E65.png
+    /work/.upstream/icecubes/Images/dm.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ThemePreviewView.swift
+    /work/.upstream/icecubes/IceCubesShareExtension/ShareViewController.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/FollowRequestButtons.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/51FC584B-4045-4B37-9C37-8DE7F654372F.png
+    /work/.upstream/icecubes/Packages/NetworkClient/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/AutoCompleteView.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/OpenDyslexic-Regular.otf
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/Draft.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path copy 2.svg
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListState.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationGroup.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/6FA80231-084D-47B3-AAD2-88697A0A6CC3.png
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineTestFactories.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Oauth.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/AEA9A4F4-3FD0-47E0-94DA-FF1DE6B7A1AD.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Tag.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingTagsSection.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ConsolidatedNotification.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TextServiceTests.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/glass.wav
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/DeepLClient.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AIPrompt.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate1.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListRow.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountHeaderImageView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/LazyResizableImage.swift
+    /work/.upstream/icecubes/Packages/Models/Package.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/InstanceSocial.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/StatusHistory.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Media.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/D8621CE7-7392-44B7-8B45-D1A360F3C494.png
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationMessageView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TextEditingServiceTests.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/C02D6262-FDBB-4DBF-96A8-1C87826B72E4.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Font.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusEmbedCache.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineQuickAccessPills.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerFilter.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Streaming.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTextView.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountViewModel.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountDetailToolbar.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListView.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/IceCubesActionExtension.entitlements
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/HapticManager.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Share/StatusRowShareAsImageView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Requests/NotificationsRequestsRowView.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/TrendingLinksListView.swift
+    /work/.upstream/icecubes/Packages/Models/Tests/ModelsTests/HTMLStringTests.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/MetricsChartSelectionOverlay.swift
+    /work/.upstream/icecubes/ci_scripts/ci_pre_xcodebuild.sh
+    /work/.upstream/icecubes/IceCubesNotifications/Info.plist
+    /work/.upstream/icecubes/Packages/AppAccount/README.md
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabFetcher.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/ToastCenter.swift
+    /work/.upstream/icecubes/Packages/Timeline/README.md
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/3786C799-8298-4259-8A6D-177E8352B813.png
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineStatusFetcher.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CurrentInstance.swift
+    /work/.upstream/icecubes/Images/more.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsTypes.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Follow/FollowButton.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/HTMLString.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Ext/TranslationView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PollPreferences.swift
+    /work/.upstream/icecubes/PRIVACY.MD
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaIngestionService.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/ToolbarItems.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/B71B4965-8613-4041-A45B-0D554318DD98.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/SceneDelegate.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Package.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PushSubscription.swift
+    /work/.upstream/icecubes/IceCubesApp/Resources/Localization/Localizable.xcstrings
+    /work/.upstream/icecubes/Images/accounts.png
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/LatestPostsWidget/LatestPostsWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Emoji.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/OpenAIClient.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineFilterTests.swift
+    /work/.upstream/icecubes/Packages/Lists/README.md
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/AppAccount.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Tags.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SearchResults.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/F3960E95-C938-49FA-BD6A-3D8DAF5080FF.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/TextEditingService.swift
+    /work/.upstream/icecubes/Packages/Conversations/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/RemoteTagsView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/EmojiText.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/ExpandedView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaIngestionServiceTests.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/BAF76368-114D-421D-9308-5B264CC932DB.png
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/URLData.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/QuickLook.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowIconView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/130D4643-ED26-4CE3-9F27-AEC47ED712DB.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/LangButton.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/MentionWidget/MentionWidgetConfiguration.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/ListsWidget/ListsWidgetConfiguration.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/tootSent.wav
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Polls.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountsManager.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Shared/SharedUtils.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/FamiliarFollowersView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/README.md
+    /work/.upstream/icecubes/IceCubesApp/Embeds/tabSelection.wav
+    /work/.upstream/icecubes/TERMS.MD
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineCache.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineDatasourceMediaFilterTests.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListDataSource.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Status.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Filters/EditFilterView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Poll/StatusPollView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.xcassets
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/LatestPostsWidget/LatestPostsWidget.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineViewModel.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/SuggestedAccountsSection.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Tests/NetworkClientTests/NetworkTests.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Tags/FollowedTagsListView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredBrowser.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/GifView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Package.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListView.swift
+    /work/.upstream/icecubes/Packages/Explore/Package.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/History.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Marker.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsView.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Action.js
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/MetricsNotificationGroup.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Info.plist
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidgetView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/ServerDate.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/ActionRequestHandler.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowContentView.swift
+    /work/.upstream/icecubes/Packages/Notifications/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/TextView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/DBDB4456-D7F6-4667-8645-5511773640B4.png
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingLinksSection.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/String.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/QuickAccessView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/Compressor.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Account.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/PostingService.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PartialAccountWithAvatar.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorStore.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowReplyView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CustomEmojisView.swift
+    /work/.upstream/icecubes/scripts/launch_sim.sh
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path.svg
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/65B8562A-62D7-4962-AD7C-94561AF2E099.png
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreviewEnv.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Language.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AccountPopoverView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineFilter.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditAccountView.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountsSelectorView.swift
+    /work/.upstream/icecubes/IceCubesApp/Info.plist
+    /work/.upstream/icecubes/Images/profile.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditAccountViewModel.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationInputView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/Notification+Consolidated.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/FontPicker.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MediaAttachement.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ToastOverlayView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Package.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/CustomEmojiServiceTests.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/favorite.wav
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/MediaGrid/AccountDetailMediaGridView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/HashtagPostsWidget/HashtagPostsWidget.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ToolbarItem/CloseToolbarItem.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/MainView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/TextState.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/StatusEditorToolbarItem.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Theme.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListRow.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/SearchResultsView.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/glass.caf
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabManager.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle copy.svg
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ConditionalModifier.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIAttachmentVideoView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MediaStatus.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Coordinator.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Assets.xcassets
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ToolbarItem/CancelToolbarItem.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate46.icon/icon.json
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Apps.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A303F17D-55BF-4C99-A17A-ED0D4B5F39EF.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/LanguageSheetView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Stream/StreamMessage.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/TagChartView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/GroupedNotificationsResults.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineView.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccount.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Notification.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/IceCubesAppWidgetsExtensionExtension.entitlements
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailState.swift
+    /work/.upstream/icecubes/Packages/Conversations/Package.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowDetailView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/StatusesLists/AccountStatusesListView.swift
+    /work/.upstream/icecubes/Images/AppIcon.png
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAvatarView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Detail/StatusDetailView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Package.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Telemetry.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/TextService.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/AccountExt.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorMode.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountAvatarView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/SuggestedTagsView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/AutocompleteServiceTests.swift
+    /work/.upstream/icecubes/IceCubesNotifications/IceCubesNotifications.entitlements
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredBoostButtonBehavior.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/List.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineContentFilterView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowAccessibilityLabel.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListDataSource.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TestImages.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Search.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Mention.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/StatusesListView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Instances.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowExternalView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowMediaPreviewView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate1.icon/icon.json
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/FollowRequests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Drafts/DraftsListView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaUploadServiceTests.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/56E4EDB5-12D8-475B-86F2-C7152DCD03BA.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/LocalTimeline.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineViewModelTests.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Edit/ListEditViewModel.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/MentionWidget/MentionWidget.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/HashtagPostsWidget/HashtagPostsWidgetConfiguration.swift
+    /work/.upstream/icecubes/AppIcon.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAppendTextView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/UserPreferences.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/StatusContext.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/TagsListView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIAttachmentImageView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/045BDAEC-2F82-4175-A4E7-72035F57CC73.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Card.swift
+    /work/.upstream/icecubes/Packages/Models/README.md
+    /work/.upstream/icecubes/Images/download_on_the_app_store.svg
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIShareLink.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaUploadService.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path copy.svg
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineContentFilter.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/App/App.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/AddAccounts/ListAddAccountViewModel.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/NotificationsName.swift
+    /work/.upstream/icecubes/Images/timeline.png
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/AddAccounts/ListAddAccountView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/SFSymbols.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/TagGroup.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusAction.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidget.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Stream/StreamEvent.swift
+    /work/.upstream/icecubes/IceCubesApp-release.xcconfig
+    /work/.upstream/icecubes/README.md
+    /work/.upstream/icecubes/AGENTS.MD
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/149D9F62-60F0-4A2C-8C7C-7D672E83C570.png
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationsRequest.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Edit/ListEditView.swift
+    /work/.upstream/icecubes/screenshots.pco/project
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Application.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsHeaderFilteredView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/ShareToolbarItem.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/LinkHandler.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTagView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/EditorStoreTests.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/ConsolidatedNotificationExt.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval copy.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Detail/StatusDetailViewModel.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ErrorView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/History/StatusEditHistoryView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineDatasource.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Filter.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/InstanceSocialClient.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Package.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A87D752B-B74E-401A-AAE3-0F16A14C78A8.png
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/DisplayType.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Lists.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidgetConfiguration.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaPickerPanelView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/MediaTab.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Poll.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Ext/Visibility.swift
+    /work/.upstream/icecubes/IceCubesNotifications/NotificationServiceSupport.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/TimelineGapView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaDescriptionServiceTests.swift
+    /work/.upstream/icecubes/Packages/Explore/README.md
+    /work/.upstream/icecubes/Packages/DesignSystem/Package.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/FavoritesTab.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsPolicyView.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingPostsSection.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowReblogView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAccessibilityActionsView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/7B3B4BEB-96EB-4601-9469-4DC63EFE3F2D.png
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A5FC4F14-EB58-4D6B-97F2-3382FD0EAA25.png
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Trends.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Requests/NotificationsRequestsListView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/996CF392-2FA3-4932-85A8-013AC8EB749B.png
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowMainLabelView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Conversations.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineToolbarTitleView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/B9D6EFB2-EF10-4A4F-B2A2-9990F1F00F8C.png
+    /work/.upstream/icecubes/Packages/Env/Package.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsStore.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusActionButton.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/bookmark.wav
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailState.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MastodonPushNotification.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/TagRowView.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/boost.wav
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StreamWatcher.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/UTTypeSupported.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/OauthToken.swift
+    /work/.upstream/icecubes/Packages/Account/README.md
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Conversation.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/ExploreView.swift
+    /work/.upstream/icecubes/IceCubesShareExtension/IceCubesShareExtension.entitlements
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Modifiers.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineToolbarTagGroupButton.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTranslateView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIZoomableContainer.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowCardView.swift
+    /work/.upstream/icecubes/CLAUDE.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowHeaderView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowActionsView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Push.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/BookmarksTab.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailContextMenu.swift
+    /work/.upstream/icecubes/AppIcon.icon/icon.json
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/BoostsTab.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/SearchScope.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Router.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerPreferences.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Filters/FiltersListView.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Assets.xcassets
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowSwipeView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListViewModel.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ColorSet.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/StatusesLists/AccountStatusesFetcher.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ScrollToView.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/Atkinson-Hyperlegible-Regular-102.ttf
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CategorizedEmojiContainer.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/FeaturedTagsView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Lists/ListsListView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/DeepLUserAPIHandler.swift
+    /work/.upstream/icecubes/Packages/StatusKit/README.md
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/SoundEffectManager.swift
+    /work/.upstream/icecubes/Packages/Account/Tests/AccountTests/AccountMetricsStoreTests.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Instance.swift
+    /work/.upstream/icecubes/Packages/Account/Package.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Markers.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/icon.json
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval 1.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaDescriptionService.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CurrentAccount.swift
+    /work/.upstream/icecubes/IceCubesApp/Assets.xcassets
+    /work/.upstream/icecubes/Images/notifications.png
+warning: 'work': found 1 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.xcassets
+[1/1] Compiling plugin QuillAssetSymbolsPlugin
+Building for debugging...
+[1/841] Write sources
+[53/841] Copying README.md
+[68/841] Write sources
+[69/841] Copying InfoPlist.strings
+[78/841] Write sources
+[78/841] Copying InfoPlist.strings
+[78/841] Copying Info.plist
+[78/841] Write sources
+[78/841] Copying LICENSES
+[80/841] Write sources
+[80/841] Copying InfoPlist.strings
+[80/841] Write sources
+[123/841] Copying InfoPlist.strings
+[123/841] Write sources
+[188/841] Copying Info.plist
+[188/841] Write sources
+[188/841] Copying PrivacyInfo.xcprivacy
+[188/841] Write sources
+[216/841] Copying MaterialSymbolsRounded-Regular.ttf
+[217/841] Write sources
+[218/841] Compiling _SwiftSyntaxCShims dummy.c
+[219/841] Compiling COSUnfairLock shim.c
+[220/841] Compiling md5-x86_64-apple.S
+[221/841] Compiling md5-x86_64-linux.S
+[222/841] Compiling md5-586-apple.S
+[223/841] Compiling md5-586-linux.S
+[224/841] Compiling chacha20_poly1305_x86_64-linux.S
+[225/841] Compiling fiat_p256_adx_sqr.S
+[225/841] Compiling fiat_curve25519_adx_square.S
+[225/841] Compiling fiat_curve25519_adx_mul.S
+[228/841] Compiling IOKit dummy.c
+[229/841] Write swift-version-24593BA9C3E375BF.txt
+[230/841] Compiling chacha20_poly1305_x86_64-apple.S
+[231/841] Compiling fiat_p256_adx_mul.S
+[232/841] Compiling chacha20_poly1305_armv8-win.S
+[233/841] Compiling chacha-x86_64-linux.S
+[234/841] Compiling chacha20_poly1305_armv8-apple.S
+[235/841] Compiling chacha-x86-apple.S
+[236/841] Compiling chacha-x86_64-apple.S
+[237/841] Compiling chacha20_poly1305_armv8-linux.S
+[238/841] Compiling chacha-armv8-apple.S
+[239/845] Compiling chacha-x86-linux.S
+[240/845] Compiling chacha-armv8-win.S
+[241/845] Compiling CCryptoBoringSSLShims shims.c
+[242/850] Compiling chacha-armv8-linux.S
+[243/867] Compiling err_data.cc
+[245/889] Compiling SwiftSyntax509 Empty.swift
+[246/918] Emitting module SwiftSyntax600
+[247/966] Emitting module SwiftSyntax509
+[248/967] Emitting module SwiftSyntax510
+[249/968] Compiling SwiftSyntax510 Empty.swift
+[250/1009] Compiling SwiftSyntax600 Empty.swift
+[253/1063] Compiling SFSafeSymbols SFSafeSymbols.swift
+[253/1063] Compiling COpenCombineHelpers COpenCombineHelpers.cpp
+[255/1066] Emitting module SFSafeSymbols
+[257/1112] Compiling CKiwi CKiwiBridge.cpp
+[259/1180] Emitting module WireGuardKitGo
+[260/1180] Compiling WireGuardKitGo WireGuardKitGo.swift
+[261/1181] Emitting module libPhoneNumber_iOS
+[262/1181] Compiling RSWeb TransportError.swift
+[263/1181] Compiling SwiftOpenUISymbols MaterialSymbolsResources.swift
+[264/1182] Compiling RSWeb HTTPMethod.swift
+[265/1182] Compiling QuillPaint PaintControl.swift
+[266/1183] Compiling QuillWireGuardCore QuillWireGuardProcessRunner.swift
+[268/1183] Compiling SwiftOpenUISymbols MaterialSymbolsCodepoints.swift
+[269/1183] Compiling RSWeb HTTPRequestHeader.swift
+[270/1183] Compiling QuillRSTree RSTree.swift
+[271/1183] Compiling QuillRSTree NodePath.swift
+[272/1183] Compiling RSWeb URLComponents+RSWeb.swift
+[273/1183] Compiling RSWeb URLRequest+RSWeb.swift
+[274/1183] Emitting module SwiftOpenUISymbols
+[275/1183] Compiling QuillRSCoreShim URL+RSCore.swift
+[276/1183] Compiling QuillRSCoreShim FileManager+RSCore.swift
+[277/1183] Compiling QuillRSTree TreeController.swift
+[278/1183] Compiling QuillRSTree TopLevelRepresentedObject.swift
+[279/1183] Compiling SwiftOpenUISymbols SFSymbolCompatibility.swift
+[280/1183] Compiling SwiftOpenUISymbols resource_bundle_accessor.swift
+[281/1184] Compiling RSWeb SpecialCasesLocale.swift
+[282/1184] Compiling RSWeb String+RSWeb.swift
+[283/1184] Compiling RSWeb URL+RSWeb.swift
+[284/1184] Compiling QuillPaint MacStepperPaint.swift
+[286/1186] Compiling QuillPaint MacSwitchPaint.swift
+[287/1186] Compiling QuillPaint MacTextFieldPaint.swift
+[288/1186] Compiling QuillRSCoreShim Date+RSCore.swift
+[289/1186] Compiling QuillPaint MacWindowChromePaint.swift
+[290/1186] Compiling RSWeb HTTPLinkPagingInfo.swift
+[291/1186] Emitting module QuillPaint
+[292/1186] Compiling SwiftSyntax AbsolutePosition.swift
+[293/1186] Compiling SwiftSyntax AbsoluteRawSyntax.swift
+[294/1186] Compiling RSWeb MimeType.swift
+[295/1186] Compiling RSWeb HTTPResponseHeader.swift
+[296/1186] Compiling RSWeb HTTPResponseCode.swift
+[297/1186] Compiling RSWeb SpecialCaseMatching.swift
+[298/1186] Compiling RSWeb URLResponse+RSWeb.swift
+[299/1186] Compiling QuillWireGuardCore QuillWireGuardConfigParser.swift
+[300/1187] Emitting module QuillWireGuardCore
+[301/1187] Compiling SwiftSyntax AbsoluteSyntaxInfo.swift
+[302/1187] Compiling SwiftSyntax Assert.swift
+[303/1188] Emitting module UniformTypeIdentifiers
+[304/1188] Compiling QuillRSCoreShim String+RSCore.swift
+[305/1188] Compiling QuillRSCoreShim Renamable.swift
+[308/1188] Compiling UniformTypeIdentifiers UniformTypeIdentifiers.swift
+[309/1189] Emitting module RSWeb
+[310/1190] Compiling QuillWireGuardCore QuillWireGuardActivation.swift
+[312/1190] Compiling libPhoneNumber_iOS libPhoneNumber_iOS.swift
+[313/1190] Compiling SwiftSyntax MissingNodeInitializers.swift
+[314/1190] Compiling SwiftSyntax RawSyntax.swift
+[315/1190] Compiling SwiftSyntax BumpPtrAllocator.swift
+[316/1190] Compiling SwiftSyntax SourceEdit.swift
+[318/1191] Compiling QuillPaint PaintContext.swift
+[319/1192] Emitting module RevenueCat
+[320/1192] Compiling SwiftSyntax SourceLength.swift
+[321/1192] Compiling SwiftSyntax SourceLocation.swift
+[322/1192] Compiling QuillPaint PaintTypography.swift
+[323/1192] Compiling SwiftSyntax RawSyntaxLayoutView.swift
+[324/1192] Compiling SwiftSyntax RawSyntaxNodeProtocol.swift
+[327/1193] Compiling RevenueCat RevenueCat.swift
+[328/1193] Compiling QuillPaint PaintGeometry.swift
+[329/1193] Compiling SwiftSyntax SourcePresence.swift
+[330/1193] Compiling SwiftSyntax SwiftSyntaxCompatibility.swift
+[331/1193] Emitting module QuillRSTree
+[332/1193] Compiling QuillRSTree Node.swift
+[333/1195] Compiling QuillWireGuardCore QuillWireGuardLinuxAdapter.swift
+[334/1195] Compiling QuillWireGuardCore QuillWireGuardLiveStatus.swift
+[335/1195] Compiling QuillWireGuardCore QuillWireGuardStatusParser.swift
+[337/1195] Compiling QuillWireGuardCore QuillWireGuardRuntimeFormatter.swift
+[340/1195] Compiling QuillRSCoreShim RSProgress.swift
+[341/1195] Emitting module QuillRSCoreShim
+[342/1195] Compiling QuillRSCoreShim Data+RSCore.swift
+[348/1200] Compiling SignalRingRTC SignalRingRTC.swift
+[349/1200] Emitting module SignalRingRTC
+[350/1224] Compiling SwiftOpenUI LazyGrids.swift
+[351/1224] Compiling SwiftOpenUI LazyStacks.swift
+[352/1224] Compiling SwiftOpenUI Link.swift
+[353/1224] Compiling SwiftOpenUI ListView.swift
+[354/1224] Compiling SwiftOpenUI Menu.swift
+[355/1224] Compiling SwiftOpenUI NavigationSplitView.swift
+[356/1224] Compiling SwiftOpenUI OutlineGroup.swift
+[357/1238] Compiling QuillRSCoreShim StripHTML.swift
+[359/1261] Compiling QuillPaint PixelComparator.swift
+[361/1302] Compiling OpenCombine Publishers.Output.swift
+[362/1302] Compiling OpenCombine Publishers.PrefixUntilOutput.swift
+[363/1302] Compiling OpenCombine Publishers.PrefixWhile.swift
+[364/1302] Compiling OpenCombine Publishers.Print.swift
+[365/1302] Compiling OpenCombine Publishers.Comparison.swift
+[366/1302] Compiling OpenCombine Publishers.Concatenate.swift
+[367/1302] Compiling OpenCombine Publishers.Contains.swift
+[368/1316] Compiling QuillAutoLayout QuillAutoLayout.swift
+[369/1324] Emitting module QuillAutoLayout
+[370/1327] Emitting module Nuke
+[371/1327] Compiling Nuke Nuke.swift
+[374/1330] Compiling OpenCombine Publishers.Count.swift
+[375/1330] Compiling OpenCombine Publishers.Debounce.swift
+[376/1330] Compiling OpenCombine Publishers.Delay.swift
+[377/1330] Compiling OpenCombine Publishers.ReceiveOn.swift
+[378/1330] Compiling OpenCombine Publishers.Reduce.swift
+[379/1330] Compiling OpenCombine Publishers.RemoveDuplicates.swift
+[380/1330] Compiling OpenCombine Publishers.ReplaceEmpty.swift
+[381/1330] Compiling SwiftOpenUI GeometryReader.swift
+[382/1330] Compiling SwiftOpenUI Gradients.swift
+[383/1330] Compiling SwiftOpenUI Grid.swift
+[384/1330] Compiling SwiftOpenUI GridRow.swift
+[385/1330] Compiling SwiftOpenUI Group.swift
+[386/1330] Compiling SwiftOpenUI Image.swift
+[387/1330] Compiling SwiftOpenUI Label.swift
+[388/1332] Emitting module QuillDataMacros
+[389/1335] Compiling QuillDataMacros QuillDataMacros.swift
+[390/1336] Compiling QuillRSCoreShim OPMLRepresentable.swift
+[391/1336] Compiling QuillRSCoreShim OSUnfairLockShim.swift
+[392/1336] Compiling QuillRSCoreShim Array+RSCore.swift
+[393/1337] Compiling QuillRSCoreShim MacroProcessor.swift
+[394/1337] Compiling QuillRSCoreShim DisplayNameProvider.swift
+[395/1340] Compiling QuillRSCoreShim QuillRSCoreShim.swift
+[396/1352] Emitting module QuillAssetSymbolsTool
+[397/1352] Compiling QuillAssetSymbolsTool main.swift
+[399/1353] Compiling OpenCombine ReduceProducer.swift
+[400/1353] Compiling OpenCombine SubjectSubscriber.swift
+[401/1353] Compiling OpenCombine SubscriberTap.swift
+[402/1353] Compiling OpenCombine SubscriptionStatus.swift
+[403/1353] Compiling OpenCombine SubscriptionTap.swift
+[404/1353] Compiling OpenCombine Utils.swift
+[405/1353] Compiling OpenCombine Violations.swift
+[406/1353] Compiling OpenCombine ConduitList.swift
+[407/1353] Compiling OpenCombine DebugHook.swift
+[408/1353] Compiling OpenCombine FilterProducer.swift
+[409/1353] Compiling OpenCombine Locking.swift
+[410/1353] Compiling OpenCombine PartialCompletion.swift
+[411/1353] Compiling OpenCombine PublishedSubject.swift
+[412/1353] Compiling OpenCombine PublishedSubscriber.swift
+[414/1356] Compiling QuillPaintTests MacPopUpButtonPaintTests.swift
+[415/1356] Compiling QuillPaintTests MacProgressBarPaintTests.swift
+[416/1356] Compiling QuillPaintTests MacRadioButtonPaintTests.swift
+[417/1356] Compiling OpenCombine GENERATED-Publisher+Concurrency.swift
+[418/1356] Compiling OpenCombine CurrentValueSubject.swift
+[420/1360] Compiling LocalAuthentication LocalAuthentication.swift
+[421/1361] Compiling QuillPaintCoreGraphics CGPaintContext.swift
+[422/1361] Emitting module QuillPaintCoreGraphics
+[423/1361] Compiling QuillPaintCoreGraphics CGPixelExtraction.swift
+[424/1363] Compiling SwiftOpenUI TextEditor.swift
+[425/1363] Compiling SwiftOpenUI TextField.swift
+[426/1363] Compiling SwiftOpenUI Toggle.swift
+[427/1363] Compiling SwiftOpenUI TupleView.swift
+[428/1363] Compiling SwiftOpenUI View.swift
+[429/1363] Compiling SwiftOpenUI ViewBuilder.swift
+[430/1363] Compiling SwiftOpenUI ViewThatFits.swift
+[431/1363] Compiling QuillPaintCoreGraphics MacReferenceManifest.swift
+[432/1363] Emitting module LocalAuthentication
+[433/1363] Compiling QuillPaintCoreGraphics PaintDiffRenderer.swift
+[434/1363] Compiling QuillPaintCoreGraphics MacReferenceRenderer.swift
+[435/1365] Compiling QuillAssetSymbolsTool main.swift
+[436/1365] Emitting module QuillAssetSymbolsTool
+[440/1373] Compiling OpenCombine Result.swift
+[441/1373] Compiling OpenCombine Scheduler.swift
+[442/1373] Compiling OpenCombine Subject+Void.swift
+[443/1373] Compiling OpenCombine Subscriber+Void.swift
+[444/1373] Compiling OpenCombine Subscribers.Assign.swift
+[445/1373] Compiling OpenCombine Subscribers.Completion.swift
+[446/1385] Compiling QuillKit QuillKit.swift
+[447/1385] Emitting module QuillKit
+[448/1385] Compiling OpenCombine Publishers.ReplaceError.swift
+[449/1385] Compiling OpenCombine Publishers.Retry.swift
+[450/1385] Compiling OpenCombine Publishers.AssertNoFailure.swift
+[451/1385] Compiling OpenCombine Publishers.Autoconnect.swift
+[452/1385] Compiling OpenCombine Publishers.Breakpoint.swift
+[453/1385] Compiling OpenCombine Publishers.Buffer.swift
+[454/1385] Compiling OpenCombine Publishers.Collect.swift
+[463/1390] Emitting module QuillPaintCairo
+[464/1394] Compiling QuillPaintCairo CairoPaintContext.swift
+[465/1395] Emitting module quill_render_mac_references
+[466/1395] Compiling QuillPaintTests MacCheckboxPaintTests.swift
+[467/1395] Compiling QuillPaintTests MacDisclosureTrianglePaintTests.swift
+[468/1395] Compiling QuillPaintTests MacButtonPaintTests.swift
+[469/1395] Compiling QuillPaintTests MacChatBubblePaintTests.swift
+[470/1395] Compiling QuillPaintTests MacListRowPaintTests.swift
+[473/1395] Compiling quill_render_mac_references main.swift
+[474/1395] Compiling OpenCombine ImmediateScheduler.swift
+[475/1395] Compiling OpenCombine ObservableObject.swift
+[476/1395] Compiling OpenCombine PassthroughSubject.swift
+[477/1395] Compiling OpenCombine Published.swift
+[478/1395] Compiling OpenCombine Publisher+Subscribe.swift
+[479/1395] Compiling OpenCombine Deferred.swift
+[480/1395] Compiling OpenCombine Empty.swift
+[481/1395] Compiling OpenCombine Fail.swift
+[485/1395] Compiling OpenCombine CustomCombineIdentifierConvertible.swift
+[486/1395] Compiling OpenCombine Future.swift
+[487/1395] Compiling OpenCombine GENERATED-RootProtocols.swift
+[488/1395] Compiling OpenCombine ConduitBase.swift
+[489/1396] Compiling OpenCombine GENERATED-Publishers.Catch.swift
+[492/1396] Compiling OpenCombine GENERATED-Publishers.Encode.swift
+[494/1396] Compiling OpenCombine GENERATED-Publishers.MapKeyPath.swift
+[496/1396] Compiling OpenCombine Just.swift
+[498/1396] Compiling OpenCombine Optional.Publisher.swift
+[500/1396] Compiling OpenCombine Publishers.AllSatisfy.swift
+[502/1396] Compiling OpenCombine Publishers.MeasureInterval.swift
+[503/1396] Compiling OpenCombine Publishers.Multicast.swift
+[504/1396] Emitting module SwiftOpenUI
+[505/1397] Compiling QuillAutoLayoutTests QuillAutoLayoutTests.swift
+[506/1397] Emitting module QuillAutoLayoutTests
+[510/1408] Compiling OpenCombine Publishers.Zip.swift
+[511/1408] Compiling OpenCombine Publishers.swift
+[512/1408] Compiling OpenCombine Record.swift
+[513/1408] Compiling OpenCombine Result.Publisher.swift
+[517/1408] Compiling OpenCombine Publishers.DropUntilOutput.swift
+[518/1408] Compiling OpenCombine Publishers.DropWhile.swift
+[519/1408] Compiling OpenCombine Publishers.Filter.swift
+[520/1408] Compiling OpenCombine Publishers.First.swift
+[521/1408] Compiling OpenCombine Publishers.FlatMap.swift
+[522/1408] Compiling OpenCombine Publishers.Throttle.swift
+[523/1408] Compiling OpenCombine Publishers.Timeout.swift
+[527/1408] Compiling OpenCombine Subscribers.Demand.swift
+[528/1408] Compiling OpenCombine Subscribers.Sink.swift
+[529/1408] Compiling OpenCombine Subscribers.swift
+[530/1408] Compiling OpenCombine Subscription.swift
+[531/1408] Compiling QuillArticles ArticleStatus.swift
+[532/1408] Compiling QuillArticles AuthorCache.swift
+/work/Sources/QuillArticles/AuthorCache.swift:28:31: warning: result of call to 'addObserver(forName:object:queue:using:)' is unused [#no-usage]
+26 | 			// upstream #selector path fails to compile there. The
+27 | 			// block form has identical semantics on Darwin.
+28 | 			NotificationCenter.default.addObserver(
+   |                               `- warning: result of call to 'addObserver(forName:object:queue:using:)' is unused [#no-usage]
+29 | 				forName: .lowMemory,
+30 | 				object: nil,
+[533/1408] Compiling QuillArticles Author.swift
+[534/1408] Emitting module QuillArticles
+[535/1408] Compiling QuillArticles Article.swift
+[543/1409] Emitting module ServiceManagement
+[544/1409] Compiling ServiceManagement ServiceManagement.swift
+[557/1412] Compiling OpenCombine Subscriptions.swift
+[558/1412] Compiling OpenCombine _Introspection.swift
+[577/1417] Compiling SwiftSoup Whitelist.swift
+[578/1417] Compiling SwiftSoup XmlDeclaration.swift
+[579/1417] Compiling SwiftSoup XmlTreeBuilder.swift
+[580/1417] Emitting module os
+[581/1417] Compiling os os.swift
+[583/1418] Compiling OpenCombine Publishers.HandleEvents.swift
+[584/1418] Compiling OpenCombine Publishers.IgnoreOutput.swift
+[585/1418] Compiling OpenCombine Publishers.Last.swift
+[586/1418] Compiling OpenCombine Publishers.MakeConnectable.swift
+[587/1418] Compiling OpenCombine Publishers.Map.swift
+[588/1418] Compiling OpenCombine Publishers.MapError.swift
+[594/1418] Compiling OpenCombine Publishers.CollectByCount.swift
+[595/1418] Compiling OpenCombine Publishers.CompactMap.swift
+[596/1418] Compiling OpenCombine Publishers.Scan.swift
+[597/1418] Compiling OpenCombine Publishers.Sequence.swift
+[598/1418] Compiling OpenCombine Publishers.SetFailureType.swift
+[599/1418] Compiling OpenCombine Publishers.Share.swift
+[600/1418] Compiling OpenCombine Publishers.SubscribeOn.swift
+[601/1418] Compiling OpenCombine Publishers.SwitchToLatest.swift
+[602/1418] Compiling QuillPaintCairoTests CairoPaintContextTests.swift
+[603/1418] Emitting module QuillPaintCairoTests
+[605/1432] Compiling QuillPaintCoreGraphicsTests MacReferenceGoldenTests.swift
+[606/1432] Compiling QuillPaintCoreGraphicsTests PaintDiffRendererTests.swift
+[607/1432] Compiling QuillPaintCoreGraphicsTests MacReferenceRendererTests.swift
+[608/1432] Emitting module QuillPaintCoreGraphicsTests
+[610/1433] Compiling QuillFoundation QuillInitialSelection.swift
+[611/1435] Compiling QuillFoundation AppleEventsShim.swift
+[612/1437] Emitting module LocalAuthenticationTests
+[613/1437] Emitting module Security
+[614/1437] Compiling Security Security.swift
+[637/1438] Emitting module osTests
+[638/1440] Compiling LRUCache LRUCache.swift
+[639/1440] Emitting module LRUCache
+[640/1441] Compiling OpenCombine Publishers.Drop.swift
+[653/1441] Emitting module OpenCombine
+[664/1445] Emitting module KeychainSwift
+[665/1445] Compiling QuillFoundation RelativeTime.swift
+[666/1445] Compiling QuillFoundation QuillTimer.swift
+[667/1445] Compiling QuillFoundation UndoManagerLinuxClone.swift
+/work/Sources/QuillFoundation/UndoManagerLinuxClone.swift:114:35: warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+112 | 
+113 |     public func removeAllActions(withTarget target: Any) {
+114 |         guard let object = target as? AnyObject else { return }
+    |                                   `- warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+115 |         let targetID = ObjectIdentifier(object)
+116 |         undoStack.removeAll { $0.targetIDs.contains(targetID) }
+[668/1445] Compiling QuillFoundation HTMLEntities.swift
+[669/1445] Compiling QuillRSWebShimTests CacheControlInfoTests.swift
+[670/1445] Compiling QuillFoundation QuillFoundation.swift
+[671/1445] Compiling QuillFoundation KeyValueObservingLinuxClone.swift
+[672/1445] Compiling QuillFoundation FoundationLinuxClone.swift
+[673/1445] Compiling QuillFoundation HTMLText.swift
+[674/1468] Compiling osTests OSLogOverloadTests.swift
+[675/1468] Compiling QuillRSWebShimTests URLRequestRSWebTests.swift
+[676/1472] Emitting module QuillRSTreeTests
+[677/1477] Compiling QuillRSTreeTests QuillRSTreeSmokeTests.swift
+[679/1553] Compiling QuillRSCoreShimTests DateRSCoreTests.swift
+[680/1554] Emitting module QuillFoundation
+[681/1569] Compiling QuillRSWebShimTests HTTPLinkPagingInfoTests.swift
+[683/1576] Compiling QuillRSWebShimTests MimeTypeTests.swift
+[685/1581] Compiling QuillArticlesTests QuillArticlesSmokeTests.swift
+[686/1619] Compiling GRDB WALSnapshot.swift
+[687/1619] Compiling GRDB WALSnapshotTransaction.swift
+[688/1619] Compiling GRDB Database+Dump.swift
+[689/1625] Compiling GRDB SQL.swift
+[690/1625] Compiling GRDB SQLInterpolation.swift
+[691/1625] Compiling GRDB SQLRequest.swift
+[692/1625] Compiling GRDB SchedulingWatchdog.swift
+[693/1625] Compiling QuillRSCoreShimTests DataRSCoreTests.swift
+[694/1625] Compiling QuillRSWebShimTests HTTPConditionalGetInfoTests.swift
+[695/1625] Compiling QuillRSCoreShimTests URLRSCoreTests.swift
+[696/1625] Compiling QuillRSCoreShimTests StripHTMLTests.swift
+[697/1625] Compiling CoreWLAN CoreWLAN.swift
+[698/1625] Emitting module CoreWLAN
+[699/1625] Emitting module CoreTransferable
+[700/1626] Compiling CoreTransferable CoreTransferable.swift
+[702/1627] Compiling QuillRSCoreShimTests ArrayRSCoreTests.swift
+[703/1627] Compiling QuillRSCoreShimTests DisplayNameRenamableTests.swift
+[705/1627] Compiling LocalAuthenticationTests LocalAuthenticationTests.swift
+[706/1631] Compiling QuillRSWebShimTests ResponseHeaderTests.swift
+[707/1631] Compiling QuillRSWebShimTests URLComponentsRSWebTests.swift
+[708/1632] Compiling QuillRSCoreShimTests StringRSCoreTests.swift
+[709/1632] Compiling QuillPaintTests PaintTypographyTests.swift
+[710/1633] Compiling QuillRSWebShimTests StringRSWebTests.swift
+[711/1633] Compiling QuillRSWebShimTests URLRSWebTests.swift
+[713/1633] Compiling OpenCombineFoundation Locking.swift
+[714/1633] Compiling QuillRSCoreShimTests FileManagerRSCoreTests.swift
+[715/1635] Compiling OpenCombineFoundation Violations.swift
+[716/1635] Compiling notify notify.swift
+[717/1635] Emitting module notify
+[718/1636] Compiling QuillRSWebShimTests HTTPDateInfoTests.swift
+[719/1636] Compiling QuillRSWebShimTests HTTPConstantsTests.swift
+[720/1636] Compiling QuillRSWebShimTests DictionaryRSWebTests.swift
+[721/1636] Compiling GRDB SerializedDatabase.swift
+[722/1636] Compiling GRDB Statement.swift
+[723/1636] Compiling GRDB StatementAuthorizer.swift
+[724/1636] Compiling GRDB StatementColumnConvertible.swift
+[725/1636] Compiling GRDB CGFloat.swift
+[726/1636] Compiling GRDB Data.swift
+[727/1636] Compiling GRDB DatabaseDateComponents.swift
+[728/1636] Compiling GRDB DatabaseValueConvertible+ReferenceConvertible.swift
+[729/1636] Compiling GRDB DatabaseValueConvertible+RawRepresentable.swift
+[730/1636] Compiling GRDB JSONRequiredEncoder.swift
+[731/1636] Compiling GRDB Optional.swift
+[732/1636] Compiling GRDB StandardLibrary.swift
+[733/1636] Compiling GRDB TransactionClock.swift
+[734/1636] Compiling GRDB TransactionObserver.swift
+[735/1636] Compiling GRDB NSNull.swift
+[736/1636] Compiling GRDB NSNumber.swift
+[737/1636] Compiling GRDB NSString.swift
+[738/1636] Compiling GRDB SQLiteDateParser.swift
+[739/1636] Compiling QuillRSWebShimTests HTTPResponseCodeTests.swift
+[740/1636] Compiling GRDB URL.swift
+[741/1636] Compiling GRDB UUID.swift
+[742/1636] Compiling GRDB DatabaseValueConvertible+Decodable.swift
+[743/1636] Compiling GRDB DatabaseValueConvertible+Encodable.swift
+[744/1636] Compiling GRDB Date.swift
+[745/1636] Compiling GRDB Decimal.swift
+[746/1636] Compiling GRDB NSData.swift
+[748/1636] Compiling blurhash blurhash.swift
+[749/1636] Emitting module blurhash
+[751/1639] Compiling KeychainSwift KeychainSwift.swift
+[753/1642] Emitting module QuillArticlesTests
+[754/1644] Compiling GRDB DatabaseFunction.swift
+[755/1644] Compiling GRDB DatabasePool.swift
+[756/1644] Compiling GRDB DatabaseWriter.swift
+[757/1644] Compiling GRDB DispatchQueueActor.swift
+[758/1644] Compiling GRDB FetchRequest.swift
+[759/1644] Compiling GRDB Row.swift
+[760/1644] Compiling GRDB RowAdapter.swift
+[761/1644] Compiling GRDB RowDecodingError.swift
+[762/1644] Compiling OpenCombineFoundation URLSession.swift
+[763/1644] Compiling QuillPaintTests MacSpinnerPaintTests.swift
+[764/1644] Compiling QuillWireGuardCore QuillWireGuardCore.swift
+[765/1644] Compiling QuillWireGuardCore QuillWireGuardKeyService.swift
+[766/1644] Compiling QuillWireGuardCore QuillWireGuardConfigLoader.swift
+[767/1644] Emitting module StoreKit
+[768/1645] Compiling StoreKit StoreKit.swift
+[771/1648] Emitting module QuillRSCoreShimTests
+[772/1648] Compiling OpenCombineFoundation Timer+Publisher.swift
+[773/1648] Emitting module QuillRSWebShimTests
+[774/1651] Emitting module OpenCombineDispatch
+[775/1651] Compiling System System.swift
+[776/1651] Emitting module System
+[777/1651] Compiling OpenCombineDispatch DispatchQueue+Scheduler.swift
+[781/1653] Emitting module Secrets
+[782/1653] Compiling OpenCombineFoundation PropertyListEncoder.swift
+[783/1653] Compiling OpenCombineFoundation Utils.swift
+[784/1653] Emitting module OpenCombineFoundation
+[785/1653] Compiling OpenCombineFoundation RunLoop+Scheduler.swift
+[786/1653] Compiling OpenCombineFoundation OperationQueue+Scheduler.swift
+[787/1653] Compiling OpenCombineFoundation JSONEncoder.swift
+[788/1653] Compiling OpenCombineFoundation Portability.swift
+[789/1653] Compiling OpenCombineFoundation NotificationCenter.swift
+[790/1653] Compiling Secrets Secrets.swift
+[791/1653] Compiling QuillPaintTests PixelComparatorTests.swift
+[792/1655] Compiling QuillArticlesTests AuthorCacheTests.swift
+[793/1655] Compiling QuillPaintTests MacScrollerPaintTests.swift
+[794/1655] Compiling QuillPaintTests MacSegmentedControlPaintTests.swift
+[795/1655] Compiling UserNotifications UserNotifications.swift
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:76:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNNotificationSound', consider removing it
+ 74 |     public init(named name: UNNotificationSoundName) { self.name = name }
+ 75 |     private init() { self.name = nil }
+ 76 |     nonisolated(unsafe) public static let `default` = UNNotificationSound()
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNNotificationSound', consider removing it
+ 77 | }
+ 78 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:244:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNUserNotificationCenter', consider removing it
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNUserNotificationCenter', consider removing it
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+246 | 
+[796/1655] Compiling QuillPaintTests MacSearchFieldPaintTests.swift
+[797/1655] Compiling QuillArticlesTests QuillArticlesBehaviorTests.swift
+[798/1655] Compiling QuillPaintTests MacSliderPaintTests.swift
+[800/1655] Emitting module UserNotifications
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:76:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNNotificationSound', consider removing it
+ 74 |     public init(named name: UNNotificationSoundName) { self.name = name }
+ 75 |     private init() { self.name = nil }
+ 76 |     nonisolated(unsafe) public static let `default` = UNNotificationSound()
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNNotificationSound', consider removing it
+ 77 | }
+ 78 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:244:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNUserNotificationCenter', consider removing it
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNUserNotificationCenter', consider removing it
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+246 | 
+[802/1659] Compiling SDWebImageWebPCoder SDWebImageWebPCoder.swift
+[803/1659] Emitting module SDWebImageWebPCoder
+[807/1686] Compiling GRDB DatabaseRegionObservation.swift
+[808/1686] Compiling GRDB DatabaseSchemaCache.swift
+[809/1686] Compiling GRDB DatabaseSchemaSource.swift
+[810/1686] Compiling GRDB DatabaseSnapshot.swift
+[811/1686] Compiling QuillRSCoreShimTests OPMLRepresentableTests.swift
+[812/1686] Compiling QuillRSCoreShimTests QuillRSCoreShimTests.swift
+[813/1686] Compiling QuillRSCoreShimTests RSProgressTests.swift
+[814/1687] Compiling QuillRSCoreShimTests MacroProcessorTests.swift
+[815/1696] Emitting module SDWebImage
+/work/Sources/AppleFrameworkShims/SDWebImage/SDWebImage.swift:16:12: warning: class 'SDAnimatedImage' must restate inherited '@unchecked Sendable' conformance
+14 | /// RSImage's initializers (including the failable `init?(data:)` SSK calls) --
+15 | /// which yields a placeholder image on Linux (no frames are actually decoded).
+16 | open class SDAnimatedImage: UIImage {
+   |            `- warning: class 'SDAnimatedImage' must restate inherited '@unchecked Sendable' conformance
+17 | }
+18 | 
+[816/1696] Compiling SDWebImage SDWebImage.swift
+/work/Sources/AppleFrameworkShims/SDWebImage/SDWebImage.swift:16:12: warning: class 'SDAnimatedImage' must restate inherited '@unchecked Sendable' conformance
+14 | /// RSImage's initializers (including the failable `init?(data:)` SSK calls) --
+15 | /// which yields a placeholder image on Linux (no frames are actually decoded).
+16 | open class SDAnimatedImage: UIImage {
+   |            `- warning: class 'SDAnimatedImage' must restate inherited '@unchecked Sendable' conformance
+17 | }
+18 | 
+[818/1696] Compiling QuillAccount AccountBehaviors.swift
+[819/1697] Compiling QuillWebKit QuillWebKit.swift
+[820/1697] Emitting module QuillWebKit
+[822/1698] Compiling SystemConfiguration SystemConfiguration.swift
+[823/1698] Emitting module QuillAccount
+[825/1698] Compiling QuillAccount UnreadCountProvider.swift
+[826/1698] Emitting module QuartzCore
+[827/1698] Compiling QuartzCore QuartzCore.swift
+[828/1699] Compiling QuickLook QuickLook.swift
+[829/1699] Emitting module QuickLook
+[830/1699] Compiling QuillAccount SidebarItemIdentifier.swift
+[831/1702] Compiling QuillAccount AccountError.swift
+[833/1702] Compiling QuillAccount ContainerIdentifier.swift
+[835/1704] Emitting module SystemConfiguration
+[838/1718] Compiling NaturalLanguage NaturalLanguage.swift
+[839/1718] Compiling MobileCoreServices MobileCoreServices.swift
+[840/1718] Emitting module NaturalLanguage
+[841/1719] Emitting module WebKit
+[842/1719] Compiling WebKit WebKit.swift
+[843/1719] Emitting module MobileCoreServices
+[844/1719] Compiling PassKit PassKit.swift
+[846/1721] Emitting module QuillPaintTests
+[847/1721] Compiling QuillFoundationTests QuillInitialSelectionTests.swift
+[848/1721] Emitting module PassKit
+[849/1721] Compiling QuillFoundationTests QuillTimerTests.swift
+[850/1721] Compiling QuillFoundationTests RelativeTimeTests.swift
+[851/1721] Compiling GRDB Mutex.swift
+[852/1721] Compiling GRDB OnDemandFuture.swift
+[853/1721] Compiling GRDB OrderedDictionary.swift
+[854/1721] Compiling GRDB Pool.swift
+[855/1721] Compiling GRDB ReadWriteLock.swift
+[856/1721] Compiling GRDB ReceiveValuesOn.swift
+[857/1721] Compiling GRDB Refinable.swift
+[858/1721] Compiling GRDB Utils.swift
+[859/1721] Compiling GRDB DatabaseCancellable.swift
+[860/1721] Compiling GRDB ValueConcurrentObserver.swift
+[863/1722] Compiling GRDB DatabasePublishers.swift
+[864/1722] Compiling GRDB DatabaseQueue.swift
+[869/1732] Emitting module Photos
+[870/1732] Compiling Photos Photos.swift
+[871/1733] Emitting module ObjCAssoc
+[872/1733] Compiling ObjCAssoc ObjCAssoc.swift
+[876/1734] Emitting module Network
+/work/Sources/NetworkShim/Network.swift:273:24: warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 271 | 
+ 272 | public enum NWProtocolTCP {
+ 273 |     public final class Options: NWProtocolOptions {
+     |                        `- warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 274 |         public var noDelay = false
+ 275 |         public var noPush = false
+
+/work/Sources/NetworkShim/Network.swift:317:24: warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 315 | 
+ 316 | public enum NWProtocolUDP {
+ 317 |     public final class Options: NWProtocolOptions {
+     |                        `- warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 318 |         public var preferNoChecksum = false
+ 319 | 
+
+/work/Sources/NetworkShim/Network.swift:333:24: warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 331 | 
+ 332 | public enum NWProtocolTLS {
+ 333 |     public final class Options: NWProtocolOptions {
+     |                        `- warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 334 |         public override init() {
+ 335 |             super.init()
+
+/work/Sources/NetworkShim/Network.swift:345:24: warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 343 | 
+ 344 | public enum NWProtocolIP {
+ 345 |     public final class Options: NWProtocolOptions {
+     |                        `- warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 346 |         public enum Version: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+ 347 |             case any, v4, v6
+[877/1734] Compiling Network Network.swift
+/work/Sources/NetworkShim/Network.swift:273:24: warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 271 | 
+ 272 | public enum NWProtocolTCP {
+ 273 |     public final class Options: NWProtocolOptions {
+     |                        `- warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 274 |         public var noDelay = false
+ 275 |         public var noPush = false
+
+/work/Sources/NetworkShim/Network.swift:317:24: warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 315 | 
+ 316 | public enum NWProtocolUDP {
+ 317 |     public final class Options: NWProtocolOptions {
+     |                        `- warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 318 |         public var preferNoChecksum = false
+ 319 | 
+
+/work/Sources/NetworkShim/Network.swift:333:24: warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 331 | 
+ 332 | public enum NWProtocolTLS {
+ 333 |     public final class Options: NWProtocolOptions {
+     |                        `- warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 334 |         public override init() {
+ 335 |             super.init()
+
+/work/Sources/NetworkShim/Network.swift:345:24: warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 343 | 
+ 344 | public enum NWProtocolIP {
+ 345 |     public final class Options: NWProtocolOptions {
+     |                        `- warning: class 'Options' must restate inherited '@unchecked Sendable' conformance
+ 346 |         public enum Version: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+ 347 |             case any, v4, v6
+[878/1743] Compiling QuillPaintTests MacSwitchPaintTests.swift
+[879/1743] Compiling QuillPaintTests MacWindowChromePaintTests.swift
+[880/1743] Compiling QuillPaintTests MacTextFieldPaintTests.swift
+[881/1743] Compiling QuillPaintTests MacStepperPaintTests.swift
+[882/1745] Compiling QuillPaintTests PaintGeometryTests.swift
+[884/1745] Emitting module CoreTelephony
+[885/1747] Compiling CoreTelephony CoreTelephony.swift
+[886/1748] Compiling GRDB MutablePersistableRecord.swift
+[887/1748] Compiling GRDB PersistableRecord+Insert.swift
+[888/1748] Compiling GRDB PersistableRecord+Save.swift
+[889/1748] Compiling GRDB PersistableRecord+Upsert.swift
+[890/1748] Compiling GRDB PersistableRecord.swift
+[891/1748] Compiling GRDB Record.swift
+[892/1748] Compiling GRDB TableRecord.swift
+[893/1748] Compiling GRDB CaseInsensitiveIdentifier.swift
+[894/1748] Compiling GRDB Inflections+English.swift
+[895/1748] Compiling GRDB Inflections.swift
+[896/1748] Compiling DeviceCheck DeviceCheck.swift
+[897/1748] Compiling QuillWireGuardCoreTests QuillWireGuardAppSnapshotLiveTests.swift
+[899/1750] Compiling ImageIO ImageIO.swift
+[900/1750] Emitting module ImageIO
+[901/1751] Compiling CoreServices CoreServices.swift
+[902/1754] Emitting module DeviceCheck
+[904/1754] Compiling Intents Intents.swift
+[905/1755] Emitting module Intents
+[906/1756] Compiling QuillWireGuardCoreTests QuillWireGuardSnapshotTests.swift
+[907/1756] Compiling QuillWireGuardCoreTests QuillWireGuardSnapshotLiveStatsTests.swift
+[908/1756] Compiling QuillWireGuardCoreTests QuillWireGuardStatusParserTests.swift
+[910/1756] Compiling GRDB DatabaseReader.swift
+[911/1756] Compiling GRDB DatabaseRegion.swift
+[913/1759] Emitting module CoreWLANTests
+[914/1759] Compiling CoreWLANTests CoreWLANTests.swift
+[915/1759] Emitting module CoreServices
+[917/1763] Compiling QuillAccountTests QuillAccountTests.swift
+[919/1765] Emitting module CoreImage
+[920/1765] Compiling CoreImage CoreImage.swift
+[921/1767] Compiling QuillWireGuardCoreTests QuillWireGuardActivationTests.swift
+[923/1768] Compiling ContactsUI ContactsUI.swift
+[924/1768] Emitting module ContactsUI
+[927/1773] Emitting module NetworkExtension
+[928/1775] Compiling NetworkExtension NetworkExtension.swift
+[940/1775] Compiling CoreGraphics CoreGraphics.swift
+[941/1775] Emitting module CoreGraphics
+[942/1775] Compiling NetworkExtension NetworkExtensionVPN.swift
+[945/1777] Compiling QuillWireGuardCoreTests QuillWireGuardLiveStatusServiceTests.swift
+[946/1777] Compiling QuillWireGuardCoreTests QuillWireGuardRuntimeFormatterTests.swift
+[947/1777] Compiling QuillWireGuardCoreTests QuillWireGuardLinuxAdapterTests.swift
+[948/1777] Compiling Carbon Carbon.swift
+[949/1777] Emitting module QuillAccountTests
+[950/1777] Emitting module Carbon
+[951/1778] Compiling QuillWireGuardCoreTests QuillWireGuardKeyServiceTests.swift
+[952/1778] Compiling QuillWireGuardCoreTests QuillWireGuardEndToEndTests.swift
+[959/1785] Compiling GRDB DatabaseReader+dump.swift
+[960/1785] Compiling GRDB DumpFormat.swift
+[961/1785] Compiling GRDB DebugDumpFormat.swift
+[962/1785] Compiling GRDB JSONDumpFormat.swift
+[963/1785] Compiling GRDB LineDumpFormat.swift
+[964/1785] Compiling GRDB ListDumpFormat.swift
+[965/1785] Emitting module Contacts
+[966/1785] Compiling Contacts Contacts.swift
+[966/1786] Wrapping AST for quill-render-mac-references for debugging
+[968/1786] Compiling CocoaLumberjack CocoaLumberjack.swift
+[970/1786] Emitting module QuillWireGuardCoreTests
+[971/1786] Compiling QuillAccountTests AccountIdentifierTests.swift
+[972/1786] Compiling QuillAccountTests AccountErrorTests.swift
+[973/1787] Compiling CFNetwork CFNetwork.swift
+[974/1787] Emitting module CFNetwork
+[976/1787] Compiling QuillFoundationTests KeyValueObservingCloneTests.swift
+[976/1787] Wrapping AST for osTests for debugging
+[978/1787] Compiling QuillFoundationTests UndoManagerTests.swift
+[978/1788] Wrapping AST for os for debugging
+[980/1788] Wrapping AST for WebKit for debugging
+[981/1788] Wrapping AST for UniformTypeIdentifiers for debugging
+[982/1788] Wrapping AST for SwiftSyntax600 for debugging
+[984/1788] Compiling GRDB Cursor.swift
+[985/1788] Compiling GRDB Database+SQLCipher.swift
+[986/1788] Compiling GRDB Database+Schema.swift
+[987/1788] Compiling GRDB Database+Statements.swift
+[988/1788] Compiling GRDB DatabaseSnapshotPool.swift
+[989/1788] Compiling GRDB DatabaseValue.swift
+[990/1788] Compiling GRDB DatabaseValueConvertible.swift
+[991/1788] Compiling GRDB Configuration.swift
+[992/1788] Compiling GRDB Database.swift
+[993/1788] Compiling GRDB DatabaseBackupProgress.swift
+[994/1788] Compiling GRDB DatabaseCollation.swift
+[995/1788] Compiling GRDB DatabaseError.swift
+[995/1788] Wrapping AST for SwiftSyntax509 for debugging
+[997/1788] Compiling QuillKitTests QuillKitTests.swift
+[998/1788] Emitting module QuillKitTests
+[999/1789] Emitting module CocoaLumberjack
+[999/1790] Wrapping AST for SwiftSyntax510 for debugging
+[1001/1790] Compiling QuillFoundationTests HTMLTextTests.swift
+[1001/1790] Wrapping AST for UserNotifications for debugging
+[1003/1790] Emitting module QuillFoundationTests
+[1005/1791] Compiling Combine Combine.swift
+[1006/1791] Emitting module Combine
+[1006/1791] Wrapping AST for SwiftOpenUI for debugging
+[1008/1791] Wrapping AST for ServiceManagement for debugging
+[1009/1791] Wrapping AST for StoreKit for debugging
+[1011/1791] Emitting module SwiftSoup
+[1011/1793] Wrapping AST for SwiftOpenUISymbols for debugging
+[1013/1793] Wrapping AST for SFSafeSymbols for debugging
+[1014/1793] Wrapping AST for RevenueCat for debugging
+[1016/1793] Wrapping AST for Security for debugging
+[1017/1793] Wrapping AST for QuillRSWebShimTests for debugging
+[1019/1793] Wrapping AST for QuillRSTree for debugging
+[1020/1793] Wrapping AST for RSWeb for debugging
+[1021/1793] Wrapping AST for QuillWebKit for debugging
+[1022/1793] Wrapping AST for QuillRSTreeTests for debugging
+[1022/1793] Wrapping AST for QuillWireGuardCore for debugging
+[1024/1795] Wrapping AST for QuillRSCoreShimTests for debugging
+[1025/1795] Wrapping AST for QuillRSCoreShim for debugging
+[1026/1796] Wrapping AST for QuillPaintTests for debugging
+[1027/1797] Wrapping AST for QuillPaintCoreGraphicsTests for debugging
+[1028/1797] Wrapping AST for QuillPaint for debugging
+[1040/1797] Wrapping AST for QuillPaintCairo for debugging
+[1041/1797] Wrapping AST for QuillPaintCairoTests for debugging
+[1042/1797] Wrapping AST for QuillKitTests for debugging
+[1043/1797] Wrapping AST for QuillPaintCoreGraphics for debugging
+[1044/1797] Wrapping AST for SwiftSoup for debugging
+[1044/1797] Write Objects.LinkFileList
+[1047/1797] Compiling Sparkle Sparkle.swift
+[1047/1797] Wrapping AST for QuillFoundation for debugging
+[1049/1797] Emitting module Sparkle
+[1049/1798] Wrapping AST for QuillAutoLayoutTests for debugging
+[1050/1798] Wrapping AST for QuillDataMacros for debugging
+[1052/1798] Compiling GRDB ValueWriteOnlyObserver.swift
+[1053/1798] Compiling GRDB Fetch.swift
+[1054/1798] Compiling GRDB Map.swift
+[1055/1798] Compiling GRDB RemoveDuplicates.swift
+[1056/1798] Compiling GRDB Trace.swift
+[1057/1798] Compiling GRDB ValueReducer.swift
+[1058/1798] Compiling GRDB SharedValueObservation.swift
+[1059/1798] Compiling GRDB ValueObservation.swift
+[1060/1798] Compiling GRDB ValueObservationScheduler.swift
+[1061/1798] Compiling GRDB resource_bundle_accessor.swift
+[1061/1798] Wrapping AST for QuillFoundationTests for debugging
+[1062/1798] Write Objects.LinkFileList
+[1064/1798] Emitting module QuillUIKit
+[1065/1798] Compiling QuillUIKit QuillUIKit.swift
+[1065/1798] Wrapping AST for QuillAutoLayout for debugging
+[1067/1798] Wrapping AST for QuillKit for debugging
+[1067/1798] Wrapping AST for QuillAssetSymbolsTool for debugging
+[1070/1799] Write Objects.LinkFileList
+[1072/1799] Wrapping AST for QuillArticles for debugging
+[1073/1799] Wrapping AST for QuillArticlesTests for debugging
+[1075/1799] Wrapping AST for QuillAccount for debugging
+[1076/1799] Wrapping AST for QuillAccountTests for debugging
+[1077/1799] Wrapping AST for Sparkle for debugging
+[1078/1799] Wrapping AST for OpenCombineFoundation for debugging
+[1080/1799] Emitting module OllamaKit
+[1080/1799] Wrapping AST for QuickLook for debugging
+[1081/1799] Wrapping AST for Photos for debugging
+[1082/1801] Linking QuillAssetSymbolsTool
+[1083/1803] Wrapping AST for QuillUIKit for debugging
+[1084/1805] Wrapping AST for OpenCombineDispatch for debugging
+[1086/1805] Emitting module KeychainSwiftTests
+[1086/1805] Wrapping AST for Nuke for debugging
+[1088/1805] Compiling KeychainSwiftTests KeychainSwiftTests.swift
+[1088/1806] Linking quill-render-mac-references
+[1089/1806] Wrapping AST for NetworkExtension for debugging
+[1091/1806] Compiling MessageUI MessageUI.swift
+[1092/1806] Emitting module MessageUI
+[1093/1807] Compiling NetworkExtensionTests NetworkExtensionVPNTests.swift
+[1094/1807] Emitting module NetworkExtensionTests
+[1095/1807] Wrapping AST for Network for debugging
+[1096/1808] Wrapping AST for NaturalLanguage for debugging
+[1097/1808] Linking QuillAssetSymbolsTool-tool
+[1099/1808] Wrapping AST for MobileCoreServices for debugging
+[1102/1808] Compiling SafariServices SafariServices.swift
+[1103/1808] Emitting module SafariServices
+[1103/1809] Wrapping AST for OpenCombine for debugging
+[1105/1809] Compiling GRDB ColumnDefinition.swift
+[1106/1809] Compiling GRDB Database+SchemaDefinition.swift
+[1107/1809] Compiling GRDB ForeignKeyDefinition.swift
+[1108/1809] Compiling GRDB IndexDefinition.swift
+[1109/1809] Compiling GRDB TableAlteration.swift
+[1110/1809] Compiling GRDB TableDefinition.swift
+[1111/1809] Compiling GRDB VirtualTableModule.swift
+[1112/1809] Compiling GRDB TableRecord+Association.swift
+[1113/1809] Compiling GRDB TableRecord+QueryInterfaceRequest.swift
+[1114/1809] Compiling GRDB EncodableRecord+Encodable.swift
+[1115/1809] Compiling GRDB EncodableRecord.swift
+[1116/1809] Compiling GRDB FetchableRecord+Decodable.swift
+[1117/1809] Compiling GRDB FetchableRecord+TableRecord.swift
+[1118/1809] Compiling GRDB FetchableRecord.swift
+[1119/1809] Compiling GRDB MutablePersistableRecord+DAO.swift
+[1120/1809] Compiling GRDB MutablePersistableRecord+Delete.swift
+[1121/1809] Compiling GRDB MutablePersistableRecord+Insert.swift
+[1122/1809] Compiling GRDB MutablePersistableRecord+Save.swift
+[1123/1809] Compiling GRDB MutablePersistableRecord+Update.swift
+[1124/1809] Compiling GRDB MutablePersistableRecord+Upsert.swift
+[1124/1809] Wrapping AST for LRUCache for debugging
+[1126/1809] Compiling GRDB SQLSubquery.swift
+[1127/1809] Compiling GRDB Table.swift
+[1128/1809] Compiling GRDB SQLColumnGenerator.swift
+[1129/1809] Compiling GRDB SQLGenerationContext.swift
+[1130/1809] Compiling GRDB SQLIndexGenerator.swift
+[1131/1809] Compiling GRDB SQLQueryGenerator.swift
+[1132/1809] Compiling GRDB SQLTableAlterationGenerator.swift
+[1133/1809] Compiling GRDB SQLTableGenerator.swift
+[1134/1809] Compiling GRDB TableAlias.swift
+[1135/1809] Compiling GRDB SQLInterpolation+QueryInterface.swift
+[1135/1809] Wrapping AST for KeychainSwiftTests for debugging
+[1136/1809] Wrapping AST for CoreWLANTests for debugging
+[1142/1809] Compiling GRDB BelongsToAssociation.swift
+[1142/1809] Wrapping AST for LocalAuthentication for debugging
+[1142/1809] Wrapping AST for LocalAuthenticationTests for debugging
+[1144/1809] Wrapping AST for MessageUI for debugging
+[1144/1809] Wrapping AST for KeychainSwift for debugging
+[1146/1809] Wrapping AST for ImageIO for debugging
+[1147/1809] Wrapping AST for NetworkExtensionTests for debugging
+[1148/1809] Wrapping AST for CoreWLAN for debugging
+[1149/1809] Wrapping AST for CoreTransferable for debugging
+[1150/1809] Wrapping AST for CoreImage for debugging
+[1151/1809] Wrapping AST for SafariServices for debugging
+[1152/1809] Compiling chacha-armv4-linux.S
+[1153/1809] Compiling aes128gcmsiv-x86_64-apple.S
+[1154/1809] Compiling aes128gcmsiv-x86_64-linux.S
+[1155/1809] Wrapping AST for Carbon for debugging
+[1156/1809] Compiling x86_64-mont-linux.S
+[1156/1809] Wrapping AST for CoreGraphics for debugging
+[1156/1809] Compiling x86_64-mont5-apple.S
+[1159/1809] Wrapping AST for Combine for debugging
+[1161/1809] Compiling OllamaKit OllamaKit.swift
+[1161/1809] Compiling x86_64-mont5-linux.S
+[1162/1809] Compiling x86_64-mont-apple.S
+[1163/1809] Linking QuillDataMacros-tool
+[1164/1810] Compiling vpaes-x86-linux.S
+[1165/1810] Compiling vpaes-x86_64-apple.S
+[1166/1810] Compiling vpaes-armv8-win.S
+[1166/1810] Compiling x86-mont-apple.S
+[1169/1810] Compiling x86-mont-linux.S
+[1170/1810] Compiling vpaes-x86_64-linux.S
+[1171/1810] Compiling vpaes-armv8-linux.S
+[1172/1810] Compiling vpaes-x86-apple.S
+[1173/1810] Compiling vpaes-armv7-linux.S
+[1174/1810] Compiling vpaes-armv8-apple.S
+[1175/1810] Compiling sha512-x86_64-apple.S
+[1176/1812] Compiling sha512-x86_64-linux.S
+[1177/1812] Compiling sha512-armv8-apple.S
+[1178/1814] Compiling sha512-armv8-win.S
+[1179/1820] Wrapping AST for OllamaKit for debugging
+[1180/1822] Compiling sha512-armv8-linux.S
+[1181/1822] Compiling sha512-armv4-linux.S
+[1182/1822] Compiling sha512-586-linux.S
+[1183/1822] Compiling sha256-armv8-win.S
+[1183/1822] Compiling sha512-586-apple.S
+[1185/1822] Compiling sha256-x86_64-apple.S
+[1186/1822] Compiling sha256-armv8-linux.S
+[1187/1822] Compiling sha256-armv4-linux.S
+[1188/1822] Compiling sha256-x86_64-linux.S
+[1190/1822] Compiling Observation Observation.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[1191/1822] Emitting module Observation
+[1191/1822] Compiling sha256-armv8-apple.S
+[1192/1823] Compiling sha1-x86_64-linux.S
+[1193/1823] Compiling sha256-586-linux.S
+[1194/1823] Compiling sha1-armv8-win.S
+[1196/1823] Compiling QuillSwiftUICompatibility ColorCompat.swift
+[1196/1823] Compiling sha1-armv8-linux.S
+[1197/1823] Compiling sha1-x86_64-apple.S
+[1198/1823] Compiling sha256-586-apple.S
+[1199/1823] Compiling sha1-armv8-apple.S
+[1201/1823] Compiling sha1-armv4-large-linux.S
+[1203/1823] Emitting module FoundationModels
+[1203/1823] Compiling rsaz-avx2-linux.S
+[1205/1823] Compiling FoundationModels FoundationModels.swift
+[1205/1824] Compiling rdrand-x86_64-linux.S
+[1206/1824] Compiling sha1-586-apple.S
+[1207/1824] Compiling rsaz-avx2-apple.S
+[1208/1824] Compiling sha1-586-linux.S
+[1209/1824] Wrapping AST for Observation for debugging
+[1210/1824] Compiling rdrand-x86_64-apple.S
+[1212/1824] Compiling p256_beeu-x86_64-asm-linux.S
+[1213/1824] Compiling p256_beeu-x86_64-asm-apple.S
+[1218/1824] Compiling p256_beeu-armv8-asm-apple.S
+[1220/1824] Compiling GRDB QuoteDumpFormat.swift
+[1221/1824] Compiling GRDB FTS3.swift
+[1222/1824] Compiling GRDB FTS3Pattern.swift
+[1223/1824] Compiling GRDB FTS3TokenizerDescriptor.swift
+[1224/1824] Compiling GRDB FTS4.swift
+[1225/1824] Compiling GRDB FTS5.swift
+[1226/1824] Compiling GRDB FTS5CustomTokenizer.swift
+[1227/1824] Compiling GRDB FTS5Pattern.swift
+[1228/1824] Compiling GRDB FTS5Tokenizer.swift
+[1229/1824] Compiling GRDB FTS5TokenizerDescriptor.swift
+[1230/1824] Compiling GRDB FTS5WrapperTokenizer.swift
+[1231/1824] Compiling GRDB DatabasePromise.swift
+[1232/1824] Compiling GRDB SQLAssociation.swift
+[1233/1824] Compiling GRDB SQLCollection.swift
+[1234/1824] Compiling GRDB SQLExpression.swift
+[1235/1824] Compiling GRDB SQLForeignKeyRequest.swift
+[1236/1824] Compiling GRDB SQLFunctions.swift
+[1237/1824] Compiling GRDB SQLOperators.swift
+[1238/1824] Compiling GRDB SQLOrdering.swift
+[1239/1824] Compiling GRDB SQLRelation.swift
+[1240/1824] Compiling GRDB SQLSelection.swift
+[1241/1824] Compiling GRDB Fixits.swift
+[1242/1824] Compiling GRDB JSONColumn.swift
+[1243/1824] Compiling GRDB SQLJSONExpressible.swift
+[1244/1824] Compiling GRDB SQLJSONFunctions.swift
+[1245/1824] Compiling GRDB DatabaseMigrator.swift
+[1246/1824] Compiling GRDB Migration.swift
+[1247/1824] Compiling GRDB FTS3+QueryInterface.swift
+[1248/1824] Compiling GRDB FTS5+QueryInterface.swift
+[1249/1824] Compiling GRDB ForeignKey.swift
+[1250/1824] Compiling GRDB Association.swift
+[1251/1824] Compiling GRDB AssociationAggregate.swift
+[1251/1824] Compiling p256-x86_64-asm-apple.S
+[1254/1824] Compiling GRDB HasManyAssociation.swift
+[1255/1824] Compiling GRDB HasManyThroughAssociation.swift
+[1256/1824] Compiling GRDB HasOneAssociation.swift
+[1257/1824] Compiling GRDB HasOneThroughAssociation.swift
+[1258/1824] Compiling GRDB JoinAssociation.swift
+[1259/1824] Compiling GRDB CommonTableExpression.swift
+[1260/1824] Compiling GRDB QueryInterfaceRequest.swift
+[1261/1824] Compiling GRDB RequestProtocols.swift
+[1262/1824] Compiling GRDB Column.swift
+[1262/1824] Compiling p256-x86_64-asm-linux.S
+[1263/1824] Compiling p256_beeu-armv8-asm-linux.S
+[1264/1824] Compiling p256-armv8-asm-win.S
+[1265/1824] Compiling p256_beeu-armv8-asm-win.S
+[1266/1824] Compiling ghashv8-armv8-win.S
+[1267/1824] Compiling ghashv8-armv8-apple.S
+[1268/1824] Compiling ghashv8-armv8-linux.S
+[1269/1824] Compiling ghashv8-armv7-linux.S
+[1270/1824] Compiling p256-armv8-asm-apple.S
+[1271/1824] Compiling ghash-x86_64-linux.S
+[1272/1824] Compiling p256-armv8-asm-linux.S
+[1273/1824] Wrapping AST for FoundationModels for debugging
+[1274/1824] Compiling QuillSwiftUICompatibility QuillSwiftUICompatibility.swift
+[1275/1824] Compiling ghash-x86-apple.S
+[1276/1824] Compiling ghash-ssse3-x86_64-apple.S
+[1277/1824] Compiling ghash-neon-armv8-win.S
+[1278/1824] Compiling ghash-x86-linux.S
+[1279/1824] Compiling ghash-ssse3-x86-linux.S
+[1283/1824] Compiling ghash-x86_64-apple.S
+[1303/1824] Compiling ghash-neon-armv8-linux.S
+[1304/1824] Compiling ghash-ssse3-x86-apple.S
+[1305/1824] Compiling ghash-ssse3-x86_64-linux.S
+[1306/1824] Compiling ghash-neon-armv8-apple.S
+[1307/1824] Compiling ghash-armv4-linux.S
+[1308/1824] Compiling bn-586-linux.S
+[1309/1824] Compiling co-586-linux.S
+[1310/1824] Compiling bn-armv8-win.S
+[1311/1824] Compiling bsaes-armv7-linux.S
+[1312/1824] Compiling bn-armv8-linux.S
+[1317/1824] Compiling armv8-mont-win.S
+[1318/1824] Compiling co-586-apple.S
+[1319/1824] Compiling bn-armv8-apple.S
+[1320/1824] Compiling bn-586-apple.S
+[1321/1824] Compiling armv8-mont-apple.S
+[1322/1824] Compiling aesv8-armv8-win.S
+[1323/1824] Compiling aesv8-gcm-armv8-apple.S
+[1324/1824] Compiling armv8-mont-linux.S
+[1325/1824] Compiling armv4-mont-linux.S
+[1326/1824] Compiling aesv8-armv8-linux.S
+[1327/1824] Compiling aesv8-gcm-armv8-win.S
+[1328/1824] Compiling aesv8-armv8-apple.S
+[1328/1824] Compiling aesv8-gcm-armv8-linux.S
+[1330/1824] Compiling aesv8-armv7-linux.S
+[1332/1824] Emitting module OllamaKitTests
+[1333/1824] Compiling OllamaKitTests OllamaKitTests.swift
+[1333/1824] Compiling aesni-x86-apple.S
+[1334/1825] Compiling aesni-x86_64-apple.S
+[1335/1825] Compiling aesni-x86_64-linux.S
+[1336/1825] Compiling aesni-x86-linux.S
+[1337/1825] Compiling aesni-gcm-x86_64-linux.S
+[1338/1825] Compiling aes-gcm-avx2-x86_64-apple.S
+[1340/1825] Compiling aesni-gcm-x86_64-apple.S
+[1341/1825] Compiling aes-gcm-avx512-x86_64-linux.S
+[1342/1825] Compiling aes-gcm-avx2-x86_64-linux.S
+[1343/1825] Compiling aes-gcm-avx512-x86_64-apple.S
+[1345/1825] Emitting module QuillSwiftUICompatibility
+[1346/1825] Compiling UIKit UIKit.swift
+/work/Sources/UIKitShim/UIKit.swift:293:23: warning: static property 'patternSolid' produces an empty option set
+ 291 |     public static let thick = NSUnderlineStyle(rawValue: 0x02)
+ 292 |     public static let double = NSUnderlineStyle(rawValue: 0x09)
+ 293 |     public static let patternSolid = NSUnderlineStyle(rawValue: 0x0000)
+     |                       |- warning: static property 'patternSolid' produces an empty option set
+     |                       `- note: use [] to silence this warning
+ 294 |     public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
+ 295 |     public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
+
+/work/Sources/UIKitShim/UIKit.swift:746:30: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+ 744 |     @MainActor var windowScene: UIWindowScene? {
+ 745 |         UIApplication.shared.connectedScenes
+ 746 |             .compactMap { $0 as? UIWindowScene }
+     |                              `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+ 747 |             .first { scene in scene.windows.contains { $0 === self } }
+ 748 |     }
+[1347/1825] Emitting module UIKit
+/work/Sources/UIKitShim/UIKit.swift:293:23: warning: static property 'patternSolid' produces an empty option set
+ 291 |     public static let thick = NSUnderlineStyle(rawValue: 0x02)
+ 292 |     public static let double = NSUnderlineStyle(rawValue: 0x09)
+ 293 |     public static let patternSolid = NSUnderlineStyle(rawValue: 0x0000)
+     |                       |- warning: static property 'patternSolid' produces an empty option set
+     |                       `- note: use [] to silence this warning
+ 294 |     public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
+ 295 |     public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
+[1347/1826] Wrapping AST for OllamaKitTests for debugging
+[1350/1826] Emitting module CGTKBridge
+[1350/1826] Compiling xwing.cc
+[1352/1828] Compiling CGTKBridge ClosureBox.swift
+[1352/1828] Compiling x_x509.cc
+[1353/1828] Wrapping AST for UIKit for debugging
+[1355/1828] Emitting module LinkPresentation
+[1356/1828] Compiling LinkPresentation LinkPresentation.swift
+[1360/1828] Compiling x_spki.cc
+[1361/1829] Compiling x_exten.cc
+[1363/1829] Compiling CGTKBridge PointerCast.swift
+[1364/1830] Compiling x_sig.cc
+[1365/1830] Compiling x_crl.cc
+[1367/1830] Wrapping AST for LinkPresentation for debugging
+[1368/1830] Compiling x_pubkey.cc
+[1370/1830] Emitting module SwiftSyntax
+[1370/1830] Compiling x_req.cc
+[1371/1830] Compiling x_x509a.cc
+[1372/1830] Compiling x_all.cc
+[1373/1830] Wrapping AST for CGTKBridge for debugging
+[1373/1830] Compiling x_name.cc
+[1375/1830] Compiling x_attrib.cc
+[1376/1830] Compiling x_algor.cc
+[1377/1830] Compiling x509spki.cc
+[1378/1830] Compiling x509rset.cc
+[1379/1830] Compiling x509name.cc
+[1384/1830] Compiling x509_txt.cc
+[1385/1830] Compiling x509_trs.cc
+[1386/1830] Compiling x509_v3.cc
+[1387/1830] Compiling x509_req.cc
+[1388/1830] Compiling x509_obj.cc
+[1389/1830] Compiling x509_set.cc
+[1390/1830] Compiling x509_def.cc
+[1391/1830] Compiling x509_vpm.cc
+[1392/1830] Compiling x509cset.cc
+[1394/1830] Compiling QuillSwiftUICompatibility OpenURLActionCompat.swift
+[1395/1830] Compiling QuillSwiftUICompatibility DesignSystemSurfaceCompat.swift
+[1396/1830] Compiling QuillSwiftUICompatibility TextLayoutCompat.swift
+[1396/1830] Compiling x509_lu.cc
+[1398/1831] Compiling x509_vfy.cc
+[1399/1831] Compiling x509_d2.cc
+[1400/1831] Compiling x509.cc
+[1402/1831] Emitting module GRDB
+[1402/1831] Wrapping AST for QuillSwiftUICompatibility for debugging
+[1414/1831] Compiling x509_att.cc
+[1415/1831] Compiling v3_skey.cc
+[1416/1831] Compiling x509_cmp.cc
+[1418/1832] Compiling x509_ext.cc
+[1419/1832] Compiling v3_utl.cc
+[1420/1832] Compiling v3_purp.cc
+[1421/1832] Compiling v3_prn.cc
+[1422/1832] Compiling v3_ocsp.cc
+[1423/1836] Compiling v3_ncons.cc
+[1424/1837] Compiling v3_pmaps.cc
+[1425/1837] Wrapping AST for GRDB for debugging
+[1426/1837] Compiling v3_int.cc
+[1428/1837] Compiling QuillData SQLiteSnapshotStubs.swift
+[1428/1837] Compiling v3_ia5.cc
+[1430/1837] Compiling QuillData Macros.swift
+[1430/1837] Compiling v3_pcons.cc
+[1431/1837] Compiling v3_info.cc
+[1432/1837] Compiling v3_extku.cc
+[1433/1837] Compiling v3_cpols.cc
+[1435/1837] Compiling QuillData QuillRelationships.swift
+[1435/1837] Compiling v3_bitst.cc
+[1436/1837] Compiling v3_genn.cc
+[1437/1837] Compiling v3_bcons.cc
+[1438/1837] Compiling v3_lib.cc
+[1439/1837] Compiling v3_alt.cc
+[1440/1837] Compiling v3_enum.cc
+[1441/1837] Compiling v3_crld.cc
+[1442/1837] Compiling v3_akey.cc
+[1443/1837] Compiling v3_conf.cc
+[1444/1837] Compiling t_req.cc
+[1445/1837] Compiling i2d_pr.cc
+[1446/1837] Compiling t_x509.cc
+[1447/1837] Compiling t_crl.cc
+[1448/1837] Compiling v3_akeya.cc
+[1449/1837] Compiling rsa_pss.cc
+[1450/1837] Compiling name_print.cc
+[1451/1837] Compiling by_file.cc
+[1453/1837] Compiling QuillData QuillData.swift
+[1454/1837] Emitting module QuillData
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[1454/1838] Compiling voprf.cc
+[1455/1838] Compiling policy.cc
+[1456/1838] Compiling thread_win.cc
+[1457/1838] Compiling a_digest.cc
+[1458/1838] Compiling t_x509a.cc
+[1459/1838] Compiling a_verify.cc
+[1461/1838] Compiling a_sign.cc
+[1462/1838] Compiling pmbtoken.cc
+[1463/1838] Compiling thread_pthread.cc
+[1464/1840] Compiling trust_token.cc
+[1465/1840] Compiling thread_none.cc
+[1466/1840] Compiling thread.cc
+[1467/1844] Compiling sha512.cc
+[1468/1848] Compiling algorithm.cc
+[1468/1848] Compiling siphash.cc
+[1470/1850] Compiling by_dir.cc
+[1471/1850] Wrapping AST for QuillData for debugging
+[1473/1850] Emitting module SwiftData
+[1474/1850] Compiling SwiftData SwiftData.swift
+[1474/1850] Compiling asn1_gen.cc
+[1475/1850] Compiling stack.cc
+[1476/1851] Compiling sha256.cc
+[1478/1851] Emitting module QuillRS
+[1479/1851] Compiling slhdsa.cc
+[1480/1851] Compiling rsa_print.cc
+[1481/1851] Compiling rsa_crypt.cc
+[1482/1851] Compiling spake2plus.cc
+[1484/1851] Compiling QuillRS QuillRS.swift
+[1485/1851] Compiling QuillEnchantedData SQLiteConversationStore.swift
+[1486/1851] Compiling QuillEnchantedData EnchantedPersistence.swift
+[1486/1852] Compiling windows.cc
+[1487/1852] Wrapping AST for SwiftData for debugging
+[1489/1852] Compiling refcount.cc
+[1490/1852] Compiling sha1.cc
+[1491/1852] Compiling rsa_extra.cc
+[1492/1852] Compiling rc4.cc
+[1493/1852] Compiling getentropy.cc
+[1494/1852] Compiling passive.cc
+[1495/1854] Compiling rsa_asn1.cc
+[1496/1854] Compiling trusty.cc
+[1497/1856] Compiling ios.cc
+[1498/1856] Compiling poly1305_vec.cc
+[1499/1856] Wrapping AST for QuillRS for debugging
+[1500/1856] Compiling fork_detect.cc
+[1501/1856] Compiling poly1305_arm_asm.S
+[1502/1856] Compiling rand.cc
+[1503/1856] Compiling urandom.cc
+[1505/1856] Emitting module Zip
+[1506/1856] Compiling Zip Zip.swift
+[1507/1857] Compiling QuillEnchantedData QuillDataConversationStore.swift
+[1508/1857] Compiling pool.cc
+[1510/1857] Emitting module Tidemark
+[1510/1857] Compiling forkunsafe.cc
+[1511/1857] Compiling Tidemark Tidemark.swift
+[1513/1858] Compiling QuillEnchantedData Models.swift
+[1514/1858] Emitting module QuillEnchantedData
+[1514/1859] Compiling poly1305_arm.cc
+[1516/1859] Compiling poly1305.cc
+[1517/1859] Compiling deterministic.cc
+[1519/1859] Wrapping AST for Zip for debugging
+[1520/1861] Compiling pkcs8_x509.cc
+[1522/1861] Compiling QuillShims QuillShims.swift
+[1523/1863] Emitting module QuillShims
+[1523/1864] Compiling pkcs8.cc
+[1525/1868] Compiling QuillWireGuardCoreTests QuillWireGuardConfigLoaderTests.swift
+[1526/1870] Compiling QuillWireGuardCoreTests QuillWireGuardCoreTests.swift
+[1527/1870] Compiling QuillWireGuardCoreTests QuillWireGuardConfigFidelityTests.swift
+[1527/1886] Wrapping AST for Tidemark for debugging
+[1528/1906] Wrapping AST for QuillEnchantedData for debugging
+[1529/1906] Compiling pkcs7.cc
+[1531/1906] Compiling pem_xaux.cc
+[1533/1906] Compiling pem_pk8.cc
+[1534/1906] Compiling pem_pkey.cc
+[1535/1906] Compiling pem_x509.cc
+[1536/1906] Wrapping AST for QuillWireGuardCoreTests for debugging
+[1537/1906] Compiling pem_oth.cc
+[1538/1906] Compiling QuillRSParser Data+ProbablyFormat.swift
+[1539/1906] Compiling QuillRSParser FeedParser.swift
+[1540/1906] Compiling QuillRSParser FeedParserError.swift
+[1541/1910] Wrapping AST for QuillShims for debugging
+[1542/1910] Emitting module QuillRSParser
+[1543/1910] Compiling obj_xref.cc
+[1544/1910] Compiling p5_pbev2.cc
+[1546/1910] Emitting module RSTree
+[1547/1910] Compiling RSTree RSTree.swift
+[1547/1910] Compiling pem_lib.cc
+[1548/1910] Compiling mlkem.cc
+[1549/1911] Compiling mldsa.cc
+[1550/1911] Compiling md5.cc
+[1551/1911] Compiling poly_rq_mul.S
+[1553/1911] Compiling fips_shared_support.cc
+[1554/1911] Compiling mem.cc
+[1555/1911] Compiling QuillRSParser XMLNamespaceContext.swift
+[1556/1911] Compiling QuillRSParser XMLSAXParser.swift
+[1557/1911] Compiling lhash.cc
+[1558/1911] Compiling md4.cc
+[1559/1911] Compiling obj.cc
+[1560/1911] Compiling fuzzer_mode.cc
+[1561/1911] Compiling pkcs7_x509.cc
+[1562/1911] Compiling pem_all.cc
+[1563/1911] Compiling hpke.cc
+[1564/1911] Compiling pem_info.cc
+[1565/1911] Compiling kyber.cc
+[1566/1911] Compiling print.cc
+[1568/1911] Compiling QuillRSParser XMLSAXParserDelegate.swift
+[1569/1911] Compiling QuillRSParser XMLScanner.swift
+[1569/1911] Compiling ex_data.cc
+[1571/1911] Compiling QuillRSParser ParsedAttachment.swift
+[1572/1911] Compiling QuillRSParser ParsedAuthor.swift
+[1573/1911] Compiling QuillRSParser ParsedFeed.swift
+[1573/1911] Compiling hrss.cc
+[1574/1911] Compiling p_rsa_asn1.cc
+[1575/1911] Compiling pbkdf.cc
+[1576/1911] Compiling scrypt.cc
+[1577/1911] Compiling sign.cc
+[1578/1911] Compiling p_hkdf.cc
+[1579/1911] Compiling p_ec_asn1.cc
+[1580/1911] Compiling p_x25519_asn1.cc
+[1581/1911] Compiling p_ed25519_asn1.cc
+[1582/1911] Compiling p_x25519.cc
+[1584/1911] Compiling QuillRSParser OPMLAttributes.swift
+[1585/1911] Compiling QuillRSParser OPMLDocument.swift
+[1586/1911] Compiling QuillRSParser OPMLError.swift
+[1587/1911] Compiling QuillRSParser String+HTMLEntities.swift
+[1588/1911] Compiling QuillRSParser XMLASCII.swift
+[1589/1911] Compiling QuillRSParser XMLAttributes.swift
+[1590/1911] Compiling QuillRSParser XMLEncoding.swift
+[1591/1911] Compiling QuillRSParser XMLEntities.swift
+[1592/1911] Compiling QuillRSParser XMLNamespace.swift
+[1593/1911] Compiling QuillRSParser HTMLTag.swift
+[1594/1911] Compiling QuillRSParser JSONTypes.swift
+[1595/1911] Compiling QuillRSParser JSONUtilities.swift
+[1595/1911] Compiling p_dh_asn1.cc
+[1596/1911] Compiling p_dh.cc
+[1597/1911] Compiling p_ed25519.cc
+[1599/1911] Compiling QuillRSParser DateParser.swift
+[1600/1911] Compiling QuillRSParser String+RSParser.swift
+[1601/1911] Compiling QuillRSParser OPMLFeedSpecifier.swift
+[1602/1911] Compiling QuillRSParser OPMLItem.swift
+[1603/1911] Compiling QuillRSParser ParserData.swift
+[1604/1911] Compiling QuillRSParser FeedType.swift
+[1605/1911] Compiling QuillRSParser JSONFeedParser.swift
+[1606/1911] Compiling QuillRSParser RSSInJSONParser.swift
+[1607/1911] Compiling QuillRSParser HTMLAttributes.swift
+[1608/1911] Compiling QuillRSParser HTMLLink.swift
+[1609/1911] Compiling QuillRSParser HTMLLinkParser.swift
+[1610/1911] Compiling QuillRSParser HTMLMetadata.swift
+[1611/1911] Compiling QuillRSParser HTMLMetadataParser.swift
+[1612/1911] Compiling QuillRSParser HTMLScanner.swift
+[1613/1911] Compiling QuillRSParser OPMLParser.swift
+[1614/1911] Compiling QuillRSParser RSSItem.swift
+[1615/1911] Compiling QuillRSParser RSSParser.swift
+[1616/1911] Compiling QuillRSParser ParsedHub.swift
+[1617/1911] Compiling QuillRSParser ParsedItem.swift
+[1618/1911] Compiling QuillRSParser AtomParser.swift
+[1618/1911] Compiling p_rsa.cc
+[1619/1912] Compiling evp_ctx.cc
+[1620/1912] Compiling engine.cc
+[1622/1912] Compiling ecdsa_p1363.cc
+[1623/1912] Compiling ecdh.cc
+[1624/1912] Compiling p_ec.cc
+[1625/1912] Compiling p_dsa_asn1.cc
+[1626/1912] Compiling ecdsa_asn1.cc
+[1627/1912] Compiling err.cc
+[1629/1912] Emitting module QuillEnchantedShared
+[1630/1912] Compiling QuillEnchantedShared QuillEnchantedShared.swift
+[1630/1913] Compiling evp.cc
+[1631/1914] Compiling ec_derive.cc
+[1632/1914] Compiling hash_to_curve.cc
+[1633/1916] Wrapping AST for QuillRSParser for debugging
+[1636/1921] Emitting module QuillRSParserTests
+[1636/1922] Compiling des.cc
+[1637/1922] Compiling evp_asn1.cc
+[1638/1922] Compiling ec_asn1.cc
+[1639/1922] Compiling x25519-asm-arm.S
+[1640/1922] Wrapping AST for QuillEnchantedShared for debugging
+[1641/1922] Compiling curve25519_64_adx.cc
+[1643/1922] Emitting module QuillFeedFinder
+[1643/1922] Compiling params.cc
+[1644/1922] Compiling digest_extra.cc
+[1645/1922] Compiling crypto.cc
+[1646/1922] Compiling dsa_asn1.cc
+[1648/1922] Compiling QuillFeedFinder FeedSpecifier.swift
+[1648/1922] Compiling dh_asn1.cc
+[1650/1922] Compiling QuillFeedFinder HTMLFeedFinder.swift
+[1650/1922] Compiling cpu_intel.cc
+[1652/1922] Compiling QuillRSParserTests QuillRSParserSmokeTests.swift
+[1652/1922] Compiling spake25519.cc
+[1653/1922] Compiling dsa.cc
+[1654/1922] Compiling curve25519.cc
+[1655/1923] Compiling cpu_aarch64_win.cc
+[1657/1923] Compiling cpu_aarch64_sysreg.cc
+[1658/1923] Compiling cpu_arm_linux.cc
+[1659/1923] Compiling cpu_aarch64_openbsd.cc
+[1660/1923] Compiling cpu_arm_freebsd.cc
+[1662/1923] Compiling QuillEnchantedDataTests ConversationCopyPayloadTests.swift
+[1663/1923] Emitting module QuillEnchantedDataTests
+[1663/1925] Wrapping AST for QuillFeedFinder for debugging
+[1664/1925] Compiling cpu_aarch64_fuchsia.cc
+[1665/1925] Compiling cpu_aarch64_linux.cc
+[1667/1925] Compiling QuillDataTests QuillDataTests.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[1667/1925] Compiling tls_cbc.cc
+[1669/1925] Compiling QuillEnchantedDataTests ConversationStoreTests.swift
+[1669/1926] Compiling e_rc4.cc
+[1671/1926] Compiling get_cipher.cc
+[1672/1926] Compiling cms.cc
+[1673/1926] Compiling cpu_aarch64_apple.cc
+[1674/1926] Compiling e_null.cc
+[1675/1926] Wrapping AST for QuillEnchantedDataTests for debugging
+[1676/1926] Compiling e_des.cc
+[1677/1926] Compiling conf.cc
+[1678/1926] Compiling e_chacha20poly1305.cc
+[1679/1926] Compiling derive_key.cc
+[1680/1926] Compiling e_aesctrhmac.cc
+[1681/1926] Compiling e_aeseax.cc
+[1682/1926] Compiling e_tls.cc
+[1683/1926] Compiling unicode.cc
+[1684/1926] Compiling e_rc2.cc
+[1685/1926] Compiling e_aesgcmsiv.cc
+[1686/1926] Compiling cbb.cc
+[1710/1926] Compiling cbs.cc
+[1711/1926] Compiling sqrt.cc
+[1712/1926] Compiling chacha.cc
+[1712/1926] Compiling div.cc
+[1714/1926] Compiling asn1_compat.cc
+[1715/1926] Compiling buf.cc
+[1716/1926] Compiling ber.cc
+[1717/1926] Compiling bn_asn1.cc
+[1719/1926] Emitting module QuillFeedFinderTests
+[1720/1926] Compiling QuillFeedFinderTests QuillFeedFinderTests.swift
+[1720/1926] Compiling printf.cc
+[1721/1927] Compiling convert.cc
+[1722/1927] Compiling hexdump.cc
+[1723/1927] Compiling blake2.cc
+[1725/1927] Compiling exponentiation.cc
+[1726/1927] Compiling bio_mem.cc
+[1728/1927] Compiling QuillRSParserTests QuillRSParserFormatTests.swift
+[1728/1928] Compiling pair.cc
+[1729/1928] Compiling file.cc
+[1730/1928] Compiling errno.cc
+[1731/1928] Compiling fd.cc
+[1732/1928] Wrapping AST for QuillFeedFinderTests for debugging
+[1734/1928] Compiling bio.cc
+[1735/1928] Wrapping AST for QuillRSParserTests for debugging
+[1735/1928] Compiling tasn_typ.cc
+[1737/1928] Compiling base64.cc
+[1738/1928] Compiling f_int.cc
+[1739/1928] Compiling tasn_fre.cc
+[1740/1928] Compiling tasn_utl.cc
+[1741/1928] Compiling tasn_new.cc
+[1742/1928] Compiling posix_time.cc
+[1743/1928] Compiling a_utctm.cc
+[1744/1928] Compiling asn_pack.cc
+[1745/1928] Compiling f_string.cc
+[1746/1928] Compiling asn1_lib.cc
+[1747/1928] Compiling tasn_dec.cc
+[1748/1928] Compiling tasn_enc.cc
+[1749/1928] Compiling a_type.cc
+[1750/1928] Compiling a_time.cc
+[1751/1928] Compiling a_octet.cc
+[1752/1928] Compiling asn1_par.cc
+[1752/1928] Write sources
+[1765/1930] Compiling a_strex.cc
+[1766/1930] Compiling a_object.cc
+[1767/1931] Compiling a_strnid.cc
+[1768/1937] Compiling a_mbstr.cc
+[1769/1937] Compiling a_i2d_fp.cc
+[1771/1937] Compiling Bodega Bodega.swift
+[1771/1942] Compiling a_int.cc
+[1772/1942] Compiling a_bool.cc
+[1773/1946] Compiling aes.cc
+[1773/1946] Compiling a_bitstr.cc
+[1773/1946] Write sources
+[1774/1946] Emitting module Bodega
+[1781/1952] Compiling a_dup.cc
+[1783/1953] Compiling AsyncAlgorithms AsyncAlgorithms.swift
+[1783/1954] Compiling a_d2i_fp.cc
+[1785/1954] Compiling AudioToolbox AudioToolbox.swift
+[1787/1954] Emitting module AudioToolbox
+[1787/1954] Compiling a_gentm.cc
+[1798/1958] Emitting module AsyncAlgorithms
+[1799/1962] Wrapping AST for Bodega for debugging
+[1802/1962] Emitting module AppIntents
+[1803/1962] Compiling AVFAudio AVFAudio.swift
+[1804/1962] Emitting module AVFAudio
+[1805/1963] Emitting module AuthenticationServices
+[1806/1963] Compiling AuthenticationServices AuthenticationServices.swift
+[1807/1963] Emitting module Alamofire
+[1808/1963] Compiling AppKit QuillActionDispatching.swift
+[1810/1963] Compiling AppIntents AppIntents.swift
+[1810/1965] Wrapping AST for AsyncAlgorithms for debugging
+[1813/1965] Emitting module ApplicationServices
+[1814/1965] Compiling ApplicationServices ApplicationServices.swift
+[1817/1966] Compiling BackendGTK4 CSSHelper.swift
+[1817/1966] Wrapping AST for AuthenticationServices for debugging
+[1819/1966] Compiling Alamofire Alamofire.swift
+[1819/1967] Wrapping AST for AppIntents for debugging
+[1820/1967] Wrapping AST for ApplicationServices for debugging
+[1822/1967] Emitting module Accelerate
+[1823/1967] Compiling Accelerate Accelerate.swift
+[1825/1968] Wrapping AST for Alamofire for debugging
+[1827/1968] Emitting module BackendGTK4
+[1828/1968] Emitting module AVFoundation
+[1829/1968] Compiling BackendGTK4 GTKViewHost.swift
+[1830/1968] Compiling AVFoundation AVFoundation.swift
+[1831/1969] Wrapping AST for AVFoundation for debugging
+[1833/1971] Compiling Speech Speech.swift
+[1834/1971] Emitting module Speech
+[1835/1972] Wrapping AST for Speech for debugging
+[1841/1976] Wrapping AST for SwiftSyntax for debugging
+[1843/1990] Compiling BackendGTK4 GTK4DescriptorTree.swift
+[1844/2034] Compiling SwiftDiagnostics FixIt.swift
+[1845/2034] Compiling SwiftBasicFormat Syntax+Extensions.swift
+[1846/2034] Emitting module AppKit
+/work/Sources/QuillAppKit/QuillAppKit.swift:3779:12: warning: class 'NSPopUpButtonCell' must restate inherited '@unchecked Sendable' conformance
+3777 | }
+3778 | 
+3779 | open class NSPopUpButtonCell: NSCell {
+     |            `- warning: class 'NSPopUpButtonCell' must restate inherited '@unchecked Sendable' conformance
+3780 |     public var arrowPosition: ArrowPosition = .arrowAtBottom
+3781 |     public enum ArrowPosition: UInt, Sendable { case noArrow, arrowAtCenter, arrowAtBottom }
+[1847/2034] Compiling SwiftDiagnostics Message.swift
+[1848/2034] Emitting module SwiftDiagnostics
+[1849/2034] Compiling SwiftDiagnostics Diagnostic.swift
+[1850/2034] Compiling SwiftDiagnostics Note.swift
+[1851/2034] Compiling SwiftDiagnostics GroupedDiagnostics.swift
+[1852/2034] Compiling SwiftBasicFormat SyntaxProtocol+Formatted.swift
+[1853/2034] Compiling SwiftBasicFormat Trivia+FormatExtensions.swift
+[1854/2034] Compiling SwiftBasicFormat InferIndentation.swift
+[1855/2034] Compiling SwiftDiagnostics Convenience.swift
+[1856/2034] Compiling SwiftDiagnostics BasicDiagnosticDecorator.swift
+[1857/2034] Compiling SwiftDiagnostics DiagnosticsFormatter.swift
+[1858/2034] Compiling SwiftDiagnostics DiagnosticDecorator.swift
+[1859/2034] Compiling SwiftDiagnostics ANSIDiagnosticDecorator.swift
+[1860/2035] Emitting module SwiftBasicFormat
+[1861/2035] Compiling SwiftBasicFormat BasicFormat.swift
+[1863/2036] Wrapping AST for SwiftDiagnostics for debugging
+[1864/2036] Wrapping AST for SwiftBasicFormat for debugging
+[1866/2036] Compiling SwiftParser UnicodeScalarExtensions.swift
+[1867/2036] Compiling SwiftParser Lookahead.swift
+[1868/2036] Compiling SwiftParser LoopProgressCondition.swift
+[1869/2036] Compiling SwiftParser Patterns.swift
+[1870/2036] Compiling SwiftParser Recovery.swift
+[1871/2036] Compiling SwiftParser Specifiers.swift
+[1872/2036] Compiling SwiftParser Statements.swift
+[1873/2036] Compiling SwiftParser StringLiteralRepresentedLiteralValue.swift
+[1874/2036] Compiling SwiftParser StringLiterals.swift
+[1875/2038] Compiling SwiftParser IsLexerClassified.swift
+[1876/2038] Compiling SwiftParser LayoutNodes+Parsable.swift
+[1877/2038] Compiling SwiftParser Types.swift
+[1878/2038] Compiling SwiftParser ExperimentalFeatures.swift
+[1879/2038] Compiling SwiftParser LexemeSequence.swift
+[1880/2038] Compiling SwiftParser Lexer.swift
+[1881/2038] Compiling SwiftParser RegexLiteralLexer.swift
+[1882/2038] Compiling SwiftParser Parameters.swift
+[1883/2038] Compiling SwiftParser ParseSourceFile.swift
+[1884/2038] Compiling SwiftParser Parser.swift
+[1885/2038] Compiling SwiftParser Modifiers.swift
+[1886/2038] Compiling SwiftParser Names.swift
+[1887/2038] Compiling SwiftParser Nominals.swift
+[1888/2038] Compiling SwiftParser SwiftParserCompatibility.swift
+[1889/2038] Compiling SwiftParser SwiftVersion.swift
+[1890/2038] Compiling SwiftParser SyntaxUtils.swift
+[1891/2038] Compiling SwiftParser TokenConsumer.swift
+[1892/2038] Compiling SwiftParser TokenPrecedence.swift
+[1893/2038] Compiling SwiftParser TokenSpec.swift
+[1894/2038] Compiling SwiftParser TokenSpecSet.swift
+[1895/2038] Compiling SwiftParser TopLevel.swift
+[1896/2038] Compiling SwiftParser TriviaParser.swift
+[1896/2038] Compiling bcm.cc
+[1898/2046] Compiling SwiftParser IsValidIdentifier.swift
+[1899/2046] Compiling SwiftParser Cursor.swift
+[1900/2046] Compiling SwiftParser Lexeme.swift
+[1901/2046] Compiling SwiftParser ExpressionInterpretedAsVersionTuple.swift
+[1902/2046] Compiling SwiftParser Expressions.swift
+[1903/2046] Compiling SwiftParser IncrementalParseTransition.swift
+[1904/2046] Emitting module SwiftParser
+[1905/2046] Compiling SwiftParser CollectionNodes+Parsable.swift
+[1906/2046] Compiling SwiftParser Declarations.swift
+[1907/2046] Compiling SwiftParser Directives.swift
+[1908/2046] Compiling SwiftParser Attributes.swift
+[1909/2046] Compiling SwiftParser Availability.swift
+[1910/2046] Compiling SwiftParser CharacterInfo.swift
+[1911/2046] Compiling CryptoBoringWrapper FiniteFieldArithmeticContext.swift
+[1912/2046] Compiling CryptoBoringWrapper RandomBytes.swift
+[1913/2046] Compiling CryptoBoringWrapper CryptoKitErrors_boring.swift
+[1914/2046] Compiling CryptoBoringWrapper BoringSSLAEAD.swift
+[1915/2046] Compiling CryptoBoringWrapper EllipticCurve.swift
+[1916/2046] Compiling CryptoBoringWrapper EllipticCurvePoint.swift
+[1917/2046] Emitting module CryptoBoringWrapper
+[1918/2046] Compiling CryptoBoringWrapper ArbitraryPrecisionInteger.swift
+[1919/2047] Wrapping AST for CryptoBoringWrapper for debugging
+[1921/2123] Compiling Crypto Ed25519Keys.swift
+[1922/2123] Compiling Crypto NISTCurvesKeys.swift
+[1924/2124] Compiling Crypto X25519Keys.swift
+[1925/2124] Compiling Crypto SymmetricKeys.swift
+[1926/2124] Compiling Crypto HMAC.swift
+[1927/2124] Compiling Crypto MACFunctions.swift
+[1928/2124] Compiling Crypto MessageAuthenticationCode.swift
+[1928/2124] Wrapping AST for SwiftParser for debugging
+[1930/2145] Compiling SwiftParserDiagnostics TokenNameForDiagnostics.swift
+[1931/2145] Compiling SwiftParserDiagnostics SyntaxKindNameForDiagnostics.swift
+[1932/2145] Compiling Crypto Nonces.swift
+[1933/2145] Compiling Crypto ASN1.swift
+[1934/2145] Compiling Crypto ASN1Any.swift
+[1935/2145] Compiling Crypto ASN1BitString.swift
+[1936/2145] Compiling Crypto ASN1Boolean.swift
+[1937/2145] Emitting module QuillDoctor
+[1938/2145] Compiling SwiftParserDiagnostics Utils.swift
+[1939/2145] Compiling Crypto ECDH.swift
+[1940/2145] Compiling Crypto HKDF.swift
+[1941/2145] Compiling Crypto AESWrap.swift
+[1942/2145] Compiling Crypto AESWrap_boring.swift
+[1943/2145] Compiling Crypto Ed25519_boring.swift
+[1944/2145] Compiling Crypto Insecure.swift
+[1945/2145] Compiling Crypto Insecure_HashFunctions.swift
+[1946/2145] Compiling Crypto KEM.swift
+[1947/2145] Compiling Crypto ECDH_boring.swift
+[1948/2145] Compiling Crypto DH.swift
+[1949/2145] Compiling Crypto AES-GCM.swift
+[1950/2145] Compiling Crypto AES-GCM_boring.swift
+[1951/2145] Compiling Crypto ChaChaPoly_boring.swift
+[1952/2145] Compiling Crypto ChaChaPoly.swift
+[1953/2145] Compiling Crypto Cipher.swift
+[1954/2145] Emitting module Crypto
+[1955/2145] Compiling Crypto HPKE-Errors.swift
+[1956/2145] Compiling Crypto HPKE.swift
+[1957/2145] Compiling Crypto HPKE-Context.swift
+[1958/2145] Compiling Crypto HPKE-KeySchedule.swift
+[1959/2145] Compiling Crypto HPKE-Modes.swift
+[1960/2145] Compiling Crypto HPKE-Utils.swift
+[1961/2145] Compiling Crypto DHKEM.swift
+[1962/2145] Compiling Crypto HPKE-KEM-Curve25519.swift
+[1963/2145] Compiling Crypto HPKE-NIST-EC-KEMs.swift
+[1964/2145] Compiling Crypto HPKE-KEM.swift
+[1965/2145] Compiling Crypto Digest_boring.swift
+[1966/2145] Compiling Crypto Digest.swift
+[1967/2145] Compiling Crypto Digests.swift
+[1968/2145] Compiling Crypto HashFunctions.swift
+[1969/2145] Compiling Crypto HashFunctions_SHA2.swift
+[1970/2145] Compiling SwiftParserDiagnostics PresenceUtils.swift
+[1971/2145] Compiling SwiftParserDiagnostics MissingTokenError.swift
+[1972/2145] Emitting module SwiftParserDiagnostics
+[1973/2145] Compiling SwiftParserDiagnostics ChildNameForDiagnostics.swift
+[1974/2145] Compiling SwiftParserDiagnostics SyntaxExtensions.swift
+[1975/2145] Compiling Crypto ASN1Identifier.swift
+[1976/2145] Compiling Crypto ASN1Integer.swift
+[1977/2145] Compiling Crypto ASN1Null.swift
+[1978/2145] Compiling Crypto ASN1OctetString.swift
+[1979/2145] Compiling Crypto ASN1Strings.swift
+[1980/2145] Compiling Crypto HPKE-AEAD.swift
+[1981/2145] Compiling Crypto HPKE-Ciphersuite.swift
+[1982/2145] Compiling Crypto HPKE-KDF.swift
+[1983/2145] Compiling Crypto HPKE-KexKeyDerivation.swift
+[1984/2145] Compiling Crypto HPKE-LabeledExtract.swift
+[1985/2145] Compiling Crypto Ed25519.swift
+[1986/2145] Compiling Crypto Signature.swift
+[1987/2145] Compiling Crypto CryptoKitErrors_boring.swift
+[1988/2145] Compiling Crypto RNG_boring.swift
+[1989/2145] Compiling Crypto SafeCompare_boring.swift
+[1990/2145] Compiling Crypto ArraySliceBigint.swift
+[1991/2145] Compiling Crypto GeneralizedTime.swift
+[1992/2145] Compiling Crypto ObjectIdentifier.swift
+[1993/2145] Compiling Crypto ECDSASignature.swift
+[1994/2145] Compiling Crypto PEMDocument.swift
+[1995/2145] Compiling Crypto NISTCurvesKeys_boring.swift
+[1996/2145] Compiling Crypto X25519Keys_boring.swift
+[1997/2145] Compiling Crypto Curve25519.swift
+[2000/2145] Compiling Crypto AES.swift
+[2001/2145] Compiling Crypto ECDSASignature_boring.swift
+[2002/2145] Compiling Crypto ECDSA_boring.swift
+[2003/2145] Compiling Crypto EdDSA_boring.swift
+[2004/2145] Compiling Crypto ECDSA.swift
+[2005/2145] Compiling Crypto PKCS8PrivateKey.swift
+[2006/2145] Compiling Crypto SEC1PrivateKey.swift
+[2007/2145] Compiling Crypto SubjectPublicKeyInfo.swift
+[2008/2145] Compiling Crypto CryptoError_boring.swift
+[2009/2145] Compiling Crypto CryptoKitErrors.swift
+[2010/2145] Compiling QuillDoctor QuillDoctor.swift
+[2011/2146] Compiling BackendGTK4 GTKRenderer.swift
+/work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift:202:40: warning: 'gtk_widget_translate_coordinates' is deprecated: Use 'gtk_widget_compute_point' instead [#DeprecatedDeclaration]
+ 200 |             var targetX = 0.0
+ 201 |             var targetY = 0.0
+ 202 |             let hasTargetCoordinates = gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY) != 0
+     |                                        `- warning: 'gtk_widget_translate_coordinates' is deprecated: Use 'gtk_widget_compute_point' instead [#DeprecatedDeclaration]
+ 203 |             if !hasTargetCoordinates && anchorPoint.y < 1.0 {
+ 204 |                 parent = gtk_widget_get_parent(scrolled)
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[2012/2146] Compiling BackendGTK4 GTK4ImageRenderer.swift
+[2013/2146] Compiling BackendGTK4 GTKNavigation.swift
+[2014/2146] Compiling BackendGTK4 GTK4Backend.swift
+[2017/2147] Compiling SwiftParserDiagnostics LexerDiagnosticMessages.swift
+[2018/2147] Compiling SwiftParserDiagnostics MissingNodesError.swift
+[2019/2147] Compiling SwiftParserDiagnostics DiagnosticExtensions.swift
+[2020/2147] Compiling SwiftParserDiagnostics ParserDiagnosticMessages.swift
+[2020/2147] Wrapping AST for QuillDoctor for debugging
+[2021/2152] Wrapping AST for BackendGTK4 for debugging
+[2023/2157] Compiling Crypto Zeroization_boring.swift
+[2024/2157] Compiling Crypto PrettyBytes.swift
+[2025/2157] Compiling Crypto SafeCompare.swift
+[2026/2157] Compiling Crypto SecureBytes.swift
+[2027/2157] Compiling Crypto Zeroization.swift
+[2028/2175] Wrapping AST for Crypto for debugging
+[2030/2176] Emitting module quill_doctor
+[2031/2176] Compiling quill_doctor main.swift
+[2032/2176] Emitting module CryptoKit
+[2033/2176] Compiling CryptoKit CryptoKit.swift
+[2035/2178] Wrapping AST for CryptoKit for debugging
+[2036/2178] Wrapping AST for quill-doctor for debugging
+[2037/2178] Write Objects.LinkFileList
+[2039/2178] Compiling SwiftParserDiagnostics ParseDiagnosticsGenerator.swift
+[2040/2178] Compiling SwiftParserDiagnostics MultiLineStringLiteralDiagnosticsGenerator.swift
+[2042/2179] Compiling QuillDoctorTests QuillDoctorWorkspaceTests.swift
+[2042/2179] Wrapping AST for SwiftParserDiagnostics for debugging
+[2044/2195] Compiling SwiftSyntaxBuilder ListBuilder.swift
+[2045/2195] Compiling SwiftSyntaxBuilder Indenter.swift
+[2046/2195] Compiling SwiftSyntaxBuilder SyntaxParsable+ExpressibleByStringInterpolation.swift
+[2047/2195] Compiling SwiftSyntaxBuilder ValidatingSyntaxNodes.swift
+[2048/2195] Compiling SwiftSyntaxBuilder SwiftSyntaxBuilderCompatibility.swift
+[2049/2195] Compiling SwiftSyntaxBuilder SyntaxNodeWithBody.swift
+[2050/2195] Compiling SwiftSyntaxBuilder SyntaxExpressibleByStringInterpolationConformances.swift
+[2051/2195] Compiling SwiftSyntaxBuilder Syntax+StringInterpolation.swift
+[2052/2195] Compiling SwiftSyntaxBuilder ResultBuilderExtensions.swift
+[2053/2195] Compiling SwiftSyntaxBuilder DeclSyntaxParseable.swift
+[2054/2195] Compiling SwiftSyntaxBuilder RenamedChildrenBuilderCompatibility.swift
+[2055/2195] Emitting module SwiftSyntaxBuilder
+[2056/2195] Compiling SwiftSyntaxBuilder ConvenienceInitializers.swift
+[2057/2195] Compiling SwiftSyntaxBuilder WithTrailingCommaSyntax+EnsuringTrailingComma.swift
+[2058/2195] Compiling SwiftSyntaxBuilder BuildableNodes.swift
+[2059/2195] Compiling SwiftSyntaxBuilder ResultBuilders.swift
+[2060/2196] Linking quill-doctor
+[2062/2196] Compiling AppKit QuillAppKit.swift
+/work/Sources/QuillAppKit/QuillAppKit.swift:3779:12: warning: class 'NSPopUpButtonCell' must restate inherited '@unchecked Sendable' conformance
+3777 | }
+3778 | 
+3779 | open class NSPopUpButtonCell: NSCell {
+     |            `- warning: class 'NSPopUpButtonCell' must restate inherited '@unchecked Sendable' conformance
+3780 |     public var arrowPosition: ArrowPosition = .arrowAtBottom
+3781 |     public enum ArrowPosition: UInt, Sendable { case noArrow, arrowAtCenter, arrowAtBottom }
+[2063/2197] Wrapping AST for SwiftSyntaxBuilder for debugging
+[2064/2201] Wrapping AST for AppKit for debugging
+[2066/2207] Emitting module QuillDoctorTests
+[2067/2207] Compiling QuillDoctorTests QuillDoctorTests.swift
+[2068/2210] Emitting module Cocoa
+[2069/2210] Compiling Cocoa Cocoa.swift
+[2071/2211] Emitting module QuillAppKitSmoke
+[2072/2211] Wrapping AST for QuillDoctorTests for debugging
+[2074/2211] Compiling Magnet Magnet.swift
+[2075/2211] Emitting module Magnet
+[2076/2212] Wrapping AST for Magnet for debugging
+[2078/2212] Compiling QuillAppKitSmoke Smoke.swift
+[2080/2213] Emitting module QuillSourceLowering
+[2081/2213] Compiling QuillSourceLowering AppKitLowering.swift
+/work/Sources/QuillSourceLowering/AppKitLowering.swift:479:36: warning: 'init(_:)' is deprecated: Call to initializer is not necessary. [#DeprecatedDeclaration]
+477 |         guard kept.count != recursed.memberBlock.members.count else { return DeclSyntax(recursed) }
+478 |         var copy = recursed
+479 |         copy.memberBlock.members = MemberBlockItemListSyntax(kept)
+    |                                    `- warning: 'init(_:)' is deprecated: Call to initializer is not necessary. [#DeprecatedDeclaration]
+480 |         return DeclSyntax(copy)
+481 |     }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[2082/2213] Compiling QuillSourceLowering SwiftDataLowering.swift
+/work/Sources/QuillSourceLowering/SwiftDataLowering.swift:415:27: warning: 'init(_:)' is deprecated: Call to initializer is not necessary. [#DeprecatedDeclaration]
+413 | 
+414 |         var updated = recursed
+415 |         body.statements = CodeBlockItemListSyntax(filteredStatements)
+    |                           `- warning: 'init(_:)' is deprecated: Call to initializer is not necessary. [#DeprecatedDeclaration]
+416 |         body.rightBrace = body.rightBrace.with(\.trailingTrivia, .newlines(1))
+417 |         updated.body = body
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[2083/2213] Compiling QuillSourceLowering SwiftUILowering.swift
+/work/Sources/QuillSourceLowering/SwiftUILowering.swift:119:24: warning: 'init(_:)' is deprecated: Call to initializer is not necessary. [#DeprecatedDeclaration]
+117 |     override func visit(_ node: AttributeListSyntax) -> AttributeListSyntax {
+118 |         let recursed = super.visit(node)
+119 |         let filtered = AttributeListSyntax(recursed.filter { element in
+    |                        `- warning: 'init(_:)' is deprecated: Call to initializer is not necessary. [#DeprecatedDeclaration]
+120 |             guard case .attribute(let attr) = element else { return true }
+121 |             return !Self.strippedAttributeNames.contains(attr.attributeName.trimmedDescription)
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[2084/2214] Compiling SwiftUI UIKitRepresentable.swift
+[2085/2214] Compiling SwiftUI SwiftUI.swift
+[2086/2214] Compiling SwiftUI PlatformSurface.swift
+[2087/2214] Wrapping AST for QuillSourceLowering for debugging
+[2089/2225] Compiling SwiftUI AppRuntime.swift
+[2090/2225] Emitting module SwiftUI
+[2091/2226] Compiling QuillUI GTKAccessibilityModifiers.swift
+[2092/2227] Emitting module quill_lower_swiftui
+[2093/2227] Compiling quill_lower_swiftui main.swift
+[2095/2227] Emitting module quill_source_lower
+[2096/2227] Compiling quill_source_lower main.swift
+[2097/2227] Emitting module quill_lower_appkit
+[2098/2227] Compiling quill_lower_appkit main.swift
+[2101/2248] Compiling QuillUI QuillPaintButtonStyle.swift
+[2102/2248] Compiling QuillUI QuillBackend.swift
+[2103/2248] Compiling QuillUI GTKMessageHoverActions.swift
+[2104/2248] Compiling QuillUI ProfileCompatibility.swift
+[2105/2248] Compiling QuillUI GTKHoverModifiers.swift
+[2106/2248] Compiling QuillUI QuillUI.swift
+[2107/2248] Compiling QuillUI GTKToolbarMenuButton.swift
+[2108/2248] Compiling QuillUI TextStyledRunsCompatibility.swift
+[2109/2248] Compiling QuillUI GtkOffscreenRender.swift
+[2110/2248] Compiling QuillUI QuillApp.swift
+[2111/2248] Compiling QuillUI GdkPixbufTranscode.swift
+[2113/2248] Emitting module QuillUI
+[2114/2252] Compiling WishKit WishKit.swift
+[2115/2252] Emitting module Vortex
+[2116/2252] Compiling SwiftUIIntrospect SwiftUIIntrospect.swift
+[2117/2254] Compiling Vortex Vortex.swift
+[2118/2254] Emitting module WishKit
+[2119/2255] Emitting module WrappingHStack
+[2120/2255] Compiling WrappingHStack WrappingHStack.swift
+[2123/2257] Compiling NukeUI NukeUI.swift
+[2125/2257] Emitting module SwiftUIIntrospect
+[2126/2258] Emitting module NukeUI
+[2128/2260] Compiling Gifu Gifu.swift
+[2129/2260] Emitting module Gifu
+[2130/2260] Compiling PhotosUI PhotosUI.swift
+[2131/2263] Emitting module PhotosUI
+[2134/2267] Compiling KeyboardShortcuts KeyboardShortcuts.swift
+[2135/2267] Emitting module KeyboardShortcuts
+[2136/2267] Emitting module QuillSourceLoweringTests
+[2137/2272] Wrapping AST for quill-source-lower for debugging
+[2139/2272] Emitting module Splash
+[2140/2272] Compiling Splash Splash.swift
+[2141/2272] Wrapping AST for quill-lower-appkit for debugging
+[2141/2272] Write Objects.LinkFileList
+[2143/2272] Wrapping AST for quill-lower-swiftui for debugging
+[2145/2272] Emitting module ButtonKit
+[2145/2272] Wrapping AST for WrappingHStack for debugging
+[2146/2272] Write Objects.LinkFileList
+[2149/2273] Emitting module AVKit
+[2150/2273] Compiling AVKit AVKit.swift
+[2151/2273] Emitting module ActivityIndicatorView
+[2152/2273] Compiling ButtonKit ButtonKit.swift
+[2154/2275] Compiling Charts Charts.swift
+[2155/2275] Emitting module Charts
+[2156/2275] Compiling QuillChatKit QuillChatKit.swift
+[2157/2275] Compiling ActivityIndicatorView ActivityIndicatorView.swift
+[2158/2275] Emitting module QuillChatKit
+[2160/2275] Emitting module QuillAppKitGTK
+[2162/2275] Compiling QuillAppKitGTK QuillAppKit+GTK.swift
+[2162/2275] Wrapping AST for WishKit for debugging
+[2164/2277] Compiling EmojiText EmojiText.swift
+[2165/2277] Emitting module EmojiText
+[2165/2278] Wrapping AST for Vortex for debugging
+[2168/2279] Wrapping AST for SwiftUIIntrospect for debugging
+[2171/2279] Wrapping AST for SwiftUI for debugging
+[2172/2282] Wrapping AST for Splash for debugging
+[2173/2282] Wrapping AST for QuillAppKitGTK for debugging
+[2174/2282] Wrapping AST for PhotosUI for debugging
+[2176/2282] Wrapping AST for NukeUI for debugging
+[2178/2282] Emitting module IceCubesShims
+[2179/2282] Compiling IceCubesShims IceCubesShims.swift
+[2179/2282] Wrapping AST for KeyboardShortcuts for debugging
+[2180/2282] Wrapping AST for Gifu for debugging
+[2181/2284] Wrapping AST for QuillChatKit for debugging
+[2182/2284] Wrapping AST for Charts for debugging
+[2183/2284] Wrapping AST for ButtonKit for debugging
+[2184/2284] Wrapping AST for ActivityIndicatorView for debugging
+[2185/2284] Wrapping AST for AVKit for debugging
+[2186/2284] Wrapping AST for EmojiText for debugging
+[2188/2285] Compiling QuillUI UpstreamCompatibility.swift
+[2189/2285] Wrapping AST for IceCubesShims for debugging
+[2191/2285] Compiling QuillSourceLoweringTests SwiftUILoweringTests.swift
+[2192/2285] Compiling QuillSourceLoweringTests SwiftDataLoweringTests.swift
+[2193/2285] Compiling MarkdownUI MarkdownUI.swift
+[2194/2285] Emitting module MarkdownUI
+[2196/2332] Emitting module QuillAppKitPasteboardDemo
+[2197/2332] Compiling QuillAppKitPasteboardDemo main.swift
+[2197/2333] Wrapping AST for MarkdownUI for debugging
+[2199/2344] Wrapping AST for QuillAppKitPasteboardDemo for debugging
+[2200/2344] Write Objects.LinkFileList
+[2202/2344] Emitting module QuillDataTests
+[2203/2344] Compiling QuillDataTests QuillDataSourceLoweringTests.swift
+[2205/2345] Compiling Models Poll.swift
+[2206/2345] Compiling Models PostError.swift
+[2207/2345] Compiling Models PushSubscription.swift
+[2208/2348] Compiling Models NotificationsRequest.swift
+[2209/2348] Compiling Models OauthToken.swift
+[2210/2348] Compiling Models PartialAccountWithAvatar.swift
+[2211/2348] Compiling Models Application.swift
+[2212/2348] Compiling Models Card.swift
+[2213/2348] Compiling Models ConsolidatedNotification.swift
+[2214/2348] Compiling Models ServerDate.swift
+[2215/2348] Compiling Models App.swift
+[2216/2348] Compiling Models AppAccount.swift
+[2216/2348] Wrapping AST for QuillDataTests for debugging
+[2218/2348] Compiling Models SearchResults.swift
+[2219/2348] Compiling Models ServerError.swift
+[2220/2348] Compiling Models ServerFilter.swift
+[2221/2348] Emitting module QuillShimsTests
+[2222/2348] Compiling Models Quote.swift
+[2223/2348] Compiling Models QuoteApproval.swift
+[2224/2348] Compiling Models Relationship.swift
+[2224/2348] Linking quill-source-lower
+[2226/2348] Compiling QuillSourceLoweringTests AppKitLoweringTests.swift
+[2227/2348] Compiling QuillSourceLoweringTests AppKitLoweringInPlaceTests.swift
+[2228/2349] Compiling Models StatusHistory.swift
+[2229/2349] Compiling Models StreamEvent.swift
+[2230/2349] Compiling Models StreamMessage.swift
+[2230/2349] Linking QuillAppKitPasteboardDemo
+[2233/2349] Compiling QuillShimsTests NetworkPathInterfaceParityTests.swift
+[2234/2349] Compiling QuillShimsTests NetworkEndpointPortParityTests.swift
+[2235/2349] Compiling Models Tag.swift
+[2236/2349] Compiling Models TimelineItem.swift
+[2237/2349] Compiling Models Translation.swift
+[2238/2349] Compiling Models MediaAttachement.swift
+[2239/2349] Compiling Models MediaStatus.swift
+[2240/2349] Compiling Models Mention.swift
+[2241/2349] Compiling Models Notification.swift
+[2242/2349] Compiling Models NotificationGroup.swift
+[2243/2349] Compiling Models NotificationsPolicy.swift
+[2244/2349] Compiling Models InstanceApp.swift
+[2245/2349] Compiling Models InstanceSocial.swift
+[2246/2349] Compiling Models Language.swift
+[2247/2349] Compiling QuillShimsTests NetworkParametersParityTests.swift
+[2247/2349] Linking quill-lower-swiftui
+[2248/2349] Linking quill-lower-appkit
+[2249/2349] Wrapping AST for QuillSourceLoweringTests for debugging
+[2251/2349] Compiling Models List.swift
+[2252/2349] Compiling Models Marker.swift
+[2253/2349] Compiling Models MastodonPushNotification.swift
+[2254/2349] Compiling Models GroupedNotificationsResults.swift
+[2255/2349] Compiling Models History.swift
+[2256/2349] Compiling Models Instance.swift
+[2257/2349] Compiling Models Conversation.swift
+[2258/2349] Compiling Models Emoji.swift
+[2259/2349] Compiling Models Filter.swift
+[2260/2349] Compiling Models ServerPreferences.swift
+[2261/2349] Compiling Models Status.swift
+[2262/2349] Compiling Models StatusContext.swift
+[2263/2349] Compiling QuillShimsTests NetworkEndpointHostParityTests.swift
+[2264/2349] Compiling QuillShimsTests NetworkIPAddressParityTests.swift
+[2265/2349] Compiling QuillShimsTests NetworkErrorParityTests.swift
+[2266/2349] Compiling QuillShimsTests QuillShimsTests.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2267/2349] Emitting module Models
+[2268/2349] Compiling Models Account.swift
+[2269/2349] Compiling Models DateFormatterCache.swift
+[2270/2349] Compiling Models HTMLString.swift
+[2271/2350] Wrapping AST for Models for debugging
+[2273/2379] Compiling QuillShimsTests SecurityKeychainParityTests.swift
+[2274/2379] Compiling QuillShimsTests OSTests.swift
+[2275/2379] Compiling QuillShimsTests NetworkProtocolSurfaceParityTests.swift
+[2277/2380] Compiling NetworkClient CustomEmojis.swift
+[2278/2380] Compiling NetworkClient Endpoint.swift
+[2278/2381] Wrapping AST for QuillShimsTests for debugging
+[2280/2381] Compiling NetworkClient Lists.swift
+[2281/2381] Compiling NetworkClient Markers.swift
+[2282/2381] Compiling NetworkClient FollowRequests.swift
+[2283/2381] Compiling NetworkClient Instances.swift
+[2284/2381] Compiling NetworkClient Apps.swift
+[2285/2381] Compiling NetworkClient Conversations.swift
+[2286/2381] Compiling NetworkClient Tags.swift
+[2287/2381] Compiling NetworkClient Timelines.swift
+[2288/2381] Compiling NetworkClient URLData.swift
+[2289/2381] Compiling NetworkClient Media.swift
+[2290/2381] Compiling NetworkClient Notifications.swift
+[2291/2381] Compiling NetworkClient Search.swift
+[2292/2381] Compiling NetworkClient ServerFilters.swift
+[2293/2381] Compiling NetworkClient OpenAIClient.swift
+[2294/2381] Compiling NetworkClient String.swift
+[2295/2381] Compiling NetworkClient DeepLClient.swift
+[2296/2381] Compiling NetworkClient Accounts.swift
+[2297/2381] Emitting module NetworkClient
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2298/2381] Compiling QuillUI Controls.swift
+[2299/2381] Compiling QuillUI AppStorage.swift
+[2300/2381] Compiling QuillUI Compatibility.swift
+[2302/2382] Compiling NetworkClient Trends.swift
+[2303/2382] Compiling NetworkClient InstanceSocialClient.swift
+[2304/2382] Compiling NetworkClient Statuses.swift
+[2305/2382] Compiling NetworkClient Streaming.swift
+[2306/2382] Compiling NetworkClient Oauth.swift
+[2307/2382] Compiling NetworkClient Polls.swift
+[2308/2382] Compiling NetworkClient Profile.swift
+[2309/2382] Compiling NetworkClient Push.swift
+[2310/2382] Compiling NetworkClient LinkHandler.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2311/2382] Compiling NetworkClient MastodonClient.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2312/2386] Wrapping AST for QuillUI for debugging
+[2313/2412] Wrapping AST for NetworkClient for debugging
+[2315/2435] Compiling Env PollPreferences.swift
+[2316/2435] Compiling Env PreferredBoostButtonBehavior.swift
+[2317/2435] Compiling Env TranslationView.swift
+[2318/2435] Compiling Env NotificationsName.swift
+[2319/2436] Compiling Env StatusEmbedCache.swift
+[2320/2436] Compiling Env Duration.swift
+[2321/2436] Compiling Env AppStorage.swift
+[2322/2436] Compiling Env TranslationType.swift
+[2323/2436] Compiling Env StatusDataController.swift
+[2324/2436] Compiling Env StatusAction.swift
+[2325/2436] Compiling Env CustomEnvValues.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2326/2436] Compiling Env DeepLUserAPIHandler.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2327/2436] Compiling Env ToastCenter.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2328/2436] Compiling Env StreamWatcher.swift
+[2329/2436] Emitting module Env
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+[2330/2436] Compiling Env CurrentAccount.swift
+[2331/2436] Compiling Env CurrentInstance.swift
+[2332/2436] Emitting module QuillInteractionSmokeSupport
+[2333/2436] Compiling Env PreferredBrowser.swift
+[2334/2436] Compiling Env PreferredShareButtonBehavior.swift
+[2335/2436] Emitting module QuillWireGuardUI
+[2336/2436] Emitting module QuillTelegramCore
+[2337/2436] Compiling QuillUIGtk QuillUIGtk.swift
+[2338/2436] Compiling QuillSignalCore QuillSignalCore.swift
+[2339/2436] Emitting module QuillUIQt
+[2340/2436] Compiling QuillUIQt QuillUIQt.swift
+[2341/2436] Compiling QuillNetNewsWireCore RSSReadStateStore.swift
+[2343/2437] Compiling Env QuickLook.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2344/2437] Compiling Env Router.swift
+[2345/2437] Compiling Env PushNotificationsService.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+[2346/2437] Compiling QuillUIGtk QuillGtkButton.swift
+[2346/2437] Wrapping AST for QuillUIQt for debugging
+[2348/2437] Compiling QuillTelegramCore QuillTelegramCore.swift
+[2349/2437] Compiling QuillNetNewsWireCore RSSFeedListStore.swift
+[2350/2437] Compiling QuillUIGtk CairoPaintContext.swift
+[2351/2438] Emitting module QuillUIGtk
+[2354/2439] Compiling Env UserPreferences.swift
+[2355/2444] Wrapping AST for QuillTelegramCore for debugging
+[2356/2444] Wrapping AST for QuillUIGtk for debugging
+[2358/2444] Emitting module QuillNetNewsWireCore
+[2359/2444] Emitting module QuillSignalCore
+[2360/2445] Compiling QuillTelegram main.swift
+[2362/2445] Emitting module QuillTelegram
+[2362/2445] Wrapping AST for Env for debugging
+[2363/2476] Wrapping AST for QuillSignalCore for debugging
+[2365/2480] Wrapping AST for QuillTelegram for debugging
+[2366/2480] Write Objects.LinkFileList
+[2368/2480] Compiling QuillInteractionSmokeSupport QuillInteractionSmokeView.swift
+[2369/2480] Emitting module QuillIINACore
+[2370/2480] Compiling QuillIINACore QuillIINACore.swift
+[2371/2480] Compiling QuillWireGuardUI QuillWireGuardUI.swift
+[2372/2480] Compiling QuillSignal main.swift
+[2373/2480] Emitting module QuillSignal
+[2375/2482] Compiling QuillCodeEditCore QuillCodeEditCore.swift
+[2376/2483] Emitting module QuillCodeEditCore
+[2378/2483] Compiling DesignSystem FontPicker.swift
+[2379/2483] Compiling DesignSystem Colors.swift
+[2381/2484] Compiling DesignSystem ErrorView.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2382/2484] Compiling DesignSystem FollowRequestButtons.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[2382/2486] Wrapping AST for QuillInteractionSmokeSupport for debugging
+[2384/2487] Compiling DesignSystem GifView.swift
+[2385/2487] Compiling DesignSystem LazyResizableImage.swift
+[2385/2501] Wrapping AST for QuillIINACore for debugging
+[2388/2501] Compiling DesignSystem ScrollToView.swift
+[2389/2501] Compiling DesignSystem StatusEditorToolbarItem.swift
+[2390/2501] Compiling DesignSystem TagChartView.swift
+[2391/2501] Compiling DesignSystem TagRowView.swift
+[2392/2501] Compiling DesignSystem ThemePreviewView.swift
+[2393/2501] Compiling DesignSystem NextPageView.swift
+[2394/2501] Compiling DesignSystem PlaceholderView.swift
+[2395/2503] Compiling DesignSystem AvatarView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+[2396/2503] Compiling DesignSystem EmojiText.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+[2398/2506] Emitting module QuillSignalCoreTests
+[2398/2506] Wrapping AST for QuillWireGuardUI for debugging
+[2399/2506] Wrapping AST for QuillSignal for debugging
+[2401/2510] Compiling QuillWireGuard main.swift
+[2402/2510] Emitting module QuillGtkInteractionSmoke
+[2403/2510] Compiling QuillGtkInteractionSmoke main.swift
+[2404/2510] Compiling QuillTelegramCoreTests QuillTelegramCoreTests.swift
+[2405/2510] Emitting module QuillTelegramCoreTests
+[2406/2510] Compiling DesignSystem ThemeStorage.swift
+[2407/2510] Compiling DesignSystem CancelToolbarItem.swift
+[2408/2510] Emitting module QuillWireGuard
+[2409/2510] Compiling DesignSystem CloseToolbarItem.swift
+[2410/2510] Compiling DesignSystem AccountPopoverView.swift
+[2411/2511] Compiling QuillIINA main.swift
+[2412/2511] Emitting module QuillIINA
+[2414/2512] Emitting module QuillCodeEdit
+[2415/2512] Compiling QuillCodeEdit main.swift
+[2416/2512] Write Objects.LinkFileList
+[2418/2514] Emitting module QuillIINACoreTests
+[2418/2514] Wrapping AST for QuillCodeEditCore for debugging
+[2421/2514] Compiling DesignSystem ToastOverlayView.swift
+[2422/2515] Wrapping AST for QuillWireGuard for debugging
+[2425/2515] Compiling QuillChatKitTests QuillChatKitTests.swift
+[2426/2515] Emitting module QuillChatKitTests
+[2427/2515] Emitting module QuillCodeEditCoreTests
+[2427/2515] Write Objects.LinkFileList
+[2428/2515] Wrapping AST for QuillGtkInteractionSmoke for debugging
+[2429/2515] Write Objects.LinkFileList
+[2430/2515] Wrapping AST for QuillIINA for debugging
+[2431/2515] Wrapping AST for QuillTelegramCoreTests for debugging
+[2431/2515] Write Objects.LinkFileList
+[2433/2515] Wrapping AST for QuillCodeEdit for debugging
+[2434/2515] Write Objects.LinkFileList
+[2436/2516] Compiling DesignSystem SFSymbols.swift
+[2437/2516] Compiling DesignSystem SceneDelegate.swift
+[2438/2516] Compiling DesignSystem ColorSet.swift
+[2439/2516] Compiling DesignSystem ConditionalModifier.swift
+[2440/2516] Compiling DesignSystem DesignSystem.swift
+[2441/2516] Compiling DesignSystem Font.swift
+[2442/2516] Emitting module DesignSystem
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+[2443/2516] Compiling DesignSystem AccountExt.swift
+[2444/2516] Compiling DesignSystem CardBackgroundModifier.swift
+[2445/2516] Compiling DesignSystem Theme.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[2446/2516] Compiling DesignSystem ThemeApplier.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[2448/2517] Linking quill-telegram
+[2450/2517] Emitting module QuillParityTests
+[2451/2517] Compiling QuillSignalCoreTests QuillSignalCoreTests.swift
+[2451/2517] Wrapping AST for QuillChatKitTests for debugging
+[2453/2517] Compiling QuillIceCubesCore QuillIceCubesCore.swift
+[2454/2517] Compiling QuillIceCubesCore IceCubesAPI.swift
+[2455/2517] Emitting module QuillIceCubesCore
+[2456/2528] Wrapping AST for DesignSystem for debugging
+[2458/2528] Compiling QuillUITests InteractionSmokeConfigurationTests.swift
+[2459/2535] Wrapping AST for QuillSignalCoreTests for debugging
+[2461/2535] Compiling QuillIINACoreTests QuillIINACoreTests.swift
+[2462/2535] Compiling QuillParityTests WireGuardUIParityTests.swift
+[2462/2539] Linking quill-signal
+[2463/2539] Wrapping AST for QuillIceCubesCore for debugging
+error: link command failed with exit code 1 (use -v to see invocation)
+/work/.build-icecubes-foundation-tests/aarch64-unknown-linux-gnu/debug/BackendGTK4.build/GTK4Backend.swift.o:GTK4Backend.swift.o:function $s11BackendGTK40B11MenuBarHostC20evaluateWithTrackingyyF:(.text.$s11BackendGTK40B11MenuBarHostC20evaluateWithTrackingyyF+0xa4): error: undefined reference to '$s11Observation04withA8Tracking_8onChangexxyKXE_yyYbctKlF'
+/work/.build-icecubes-foundation-tests/aarch64-unknown-linux-gnu/debug/BackendGTK4.build/GTKViewHost.swift.o:GTKViewHost.swift.o:function $s11BackendGTK411GTKViewHostC21buildBodyWithTrackings13OpaquePointerVyF:(.text.$s11BackendGTK411GTKViewHostC21buildBodyWithTrackings13OpaquePointerVyF+0xfc): error: undefined reference to '$s11Observation04withA8Tracking_8onChangexxyKXE_yyYbctKlF'
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+[2464/2540] Linking quill-gtk-interaction-smoke
+[2465/2540] Emitting module AppAccount
+[2466/2540] Compiling AppAccount AppAccount.swift
+[2466/2540] Linking quill-wireguard
+[2467/2540] Compiling QuillNetNewsWireCore OPMLImporter.swift
+[2468/2540] Compiling QuillNetNewsWireCore OPMLExporter.swift
+error: link command failed with exit code 1 (use -v to see invocation)
+/work/.build-icecubes-foundation-tests/aarch64-unknown-linux-gnu/debug/BackendGTK4.build/GTK4Backend.swift.o:GTK4Backend.swift.o:function $s11BackendGTK40B11MenuBarHostC20evaluateWithTrackingyyF:(.text.$s11BackendGTK40B11MenuBarHostC20evaluateWithTrackingyyF+0xa4): error: undefined reference to '$s11Observation04withA8Tracking_8onChangexxyKXE_yyYbctKlF'
+/work/.build-icecubes-foundation-tests/aarch64-unknown-linux-gnu/debug/BackendGTK4.build/GTKViewHost.swift.o:GTKViewHost.swift.o:function $s11BackendGTK411GTKViewHostC21buildBodyWithTrackings13OpaquePointerVyF:(.text.$s11BackendGTK411GTKViewHostC21buildBodyWithTrackings13OpaquePointerVyF+0xfc): error: undefined reference to '$s11Observation04withA8Tracking_8onChangexxyKXE_yyYbctKlF'
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+[2468/2540] Linking quill-iina
+/work/.build-icecubes-foundation-tests/aarch64-unknown-linux-gnu/debug/BackendGTK4.build/GTK4Backend.swift.o:GTK4Backend.swift.o:function $s11BackendGTK40B11MenuBarHostC20evaluateWithTrackingyyF:(.text.$s11BackendGTK40B11MenuBarHostC20evaluateWithTrackingyyF+0xa4): error: undefined reference to '$s11Observation04withA8Tracking_8onChangexxyKXE_yyYbctKlF'
+/work/.build-icecubes-foundation-tests/aarch64-unknown-linux-gnu/debug/BackendGTK4.build/GTKViewHost.swift.o:GTKViewHost.swift.o:function $s11BackendGTK411GTKViewHostC21buildBodyWithTrackings13OpaquePointerVyF:(.text.$s11BackendGTK411GTKViewHostC21buildBodyWithTrackings13OpaquePointerVyF+0xfc): error: undefined reference to '$s11Observation04withA8Tracking_8onChangexxyKXE_yyYbctKlF'
+[2468/2540] Linking quill-codeedit
+error: fatalError

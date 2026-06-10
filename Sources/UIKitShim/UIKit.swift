@@ -67,6 +67,13 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public func withSize(_ size: CGFloat) -> UIFont {
         UIFont(descriptor: fontDescriptor, size: size)
     }
+    // UIFont.lineHeight / .capHeight — real font metrics. There is no font engine
+    // on Linux, so these are typographic approximations derived from pointSize
+    // (system-font ratios: lineHeight ≈ 1.2·pointSize, capHeight ≈ 0.7·pointSize).
+    // SSK uses lineHeight for text-height measurement (String+SSK.height(for:)) and
+    // capHeight for vertical image-attachment centering; both degrade to approximate
+    // layout on Linux (HONEST STATUS: no exact glyph metrics).
+    public var lineHeight: CGFloat { pointSize * 1.2 }
     public var capHeight: CGFloat { pointSize * 0.7 }
     public struct Weight: Equatable, Sendable {
         public let rawValue: CGFloat
@@ -139,10 +146,19 @@ public final class UIFontMetrics: @unchecked Sendable {
 public enum UIApplicationState: Int { case active, inactive, background }
 
 public extension UIApplication {
+    // The UIApplication CLASS lives in QuillUIKit (re-exported above); this
+    // extension adds the async/source-compat members the vendored apps use.
     @MainActor @discardableResult
     func open(_ url: URL) async -> Bool {
         open(url, options: [:], completionHandler: nil)
         return true
+    }
+
+    @MainActor func unregisterForRemoteNotifications() {
+        QuillNotificationService.shared.unregisterForRemoteNotifications()
+    }
+    @MainActor var isRegisteredForRemoteNotifications: Bool {
+        QuillNotificationService.shared.remoteNotificationsRegistered
     }
 
     @MainActor var applicationState: UIApplicationState { .active }
@@ -290,7 +306,7 @@ public struct NSUnderlineStyle: OptionSet, Sendable {
     public static let single = NSUnderlineStyle(rawValue: 0x01)
     public static let thick = NSUnderlineStyle(rawValue: 0x02)
     public static let double = NSUnderlineStyle(rawValue: 0x09)
-    public static let patternSolid = NSUnderlineStyle(rawValue: 0x0000)
+    public static let patternSolid: NSUnderlineStyle = []
     public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
     public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
     public static let patternDashDot = NSUnderlineStyle(rawValue: 0x0300)
@@ -653,8 +669,11 @@ public class UINotificationFeedbackGenerator: NSObject {
 // MARK: - UIDevice / UIScreen extras commonly used by iOS-only upstream
 
 @MainActor public class UIDevice: NSObject {
-    public static let current = UIDevice()
-    public var userInterfaceIdiom: UIUserInterfaceIdiom { .mac }
+    nonisolated public static let current = UIDevice()
+    // nonisolated init so the nonisolated `current` default value (UIDevice())
+    // can be evaluated off the main actor; UIDevice has no isolated stored state.
+    nonisolated public override init() { super.init() }
+    nonisolated public var userInterfaceIdiom: UIUserInterfaceIdiom { .mac }
     public var name: String {
         #if canImport(AppKit)
         return Host.current().localizedName ?? "Mac"
@@ -785,7 +804,7 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
 /// `UISwitch: UIControl`. SSK only references it as a callback parameter type
 /// (`switchDidChange(_ sender: UISwitch)` reading `.isOn`); never instantiated here.
 @MainActor open class UISwitch: UIControl {
-    public var isOn: Bool = false
+    nonisolated(unsafe) public var isOn: Bool = false
     public func setOn(_ on: Bool, animated: Bool) { isOn = on }
 }
 

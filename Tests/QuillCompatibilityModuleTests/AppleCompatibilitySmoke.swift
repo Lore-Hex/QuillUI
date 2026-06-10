@@ -58,6 +58,39 @@ enum AppleCompatibilitySmoke {
         var operations: Set<String>
     }
 
+    struct AppKitWorkspaceOpenResult {
+        var directOpenSucceeded: Bool
+        var configurationOpenSucceeded: Bool
+        var configurationCompletionSucceeded: Bool
+        var openedURLs: [URL]
+        var operations: Set<String>
+    }
+
+    struct AppKitAudioResult {
+        var dataSoundCreated: Bool
+        var playSucceeded: Bool
+        var stopSucceeded: Bool
+        var playCount: Int
+        var stopCount: Int
+        var stoppedAfterStop: Bool
+        var operations: Set<String>
+    }
+
+    private final class WorkspaceOpenRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storedURLs: [URL] = []
+
+        var urls: [URL] {
+            lock.withLock { storedURLs }
+        }
+
+        func append(_ url: URL) {
+            lock.withLock {
+                storedURLs.append(url)
+            }
+        }
+    }
+
     struct AppKitGeometryResult {
         var stringRoundTrip: Bool
         var bracedFormatParsed: Bool
@@ -436,6 +469,7 @@ enum AppleCompatibilitySmoke {
         try service.unregister()
         let launchServiceDisabled = service.status == .notRegistered
 
+        QuillUpdateService.shared.reset()
         let updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
 
         return AppleServiceResult(
@@ -507,35 +541,36 @@ enum AppleCompatibilitySmoke {
 
     @MainActor
     static func runDiagnosticFallbackSmoke() throws -> DiagnosticFallbackResult {
-        QuillCompatibilityDiagnostics.shared.clear()
+        let captured = try QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
 
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            let synthesizer = AVSpeechSynthesizer()
+            synthesizer.speak(AVSpeechUtterance(string: "hello"))
 
-        let synthesizer = AVSpeechSynthesizer()
-        synthesizer.speak(AVSpeechUtterance(string: "hello"))
+            var authorizationStatus: SFSpeechRecognizerAuthorizationStatus?
+            SFSpeechRecognizer.requestAuthorization { status in
+                authorizationStatus = status
+            }
+            _ = SFSpeechRecognizer()?.recognitionTask(with: SFSpeechAudioBufferRecognitionRequest()) { _, _ in }
 
-        var authorizationStatus: SFSpeechRecognizerAuthorizationStatus?
-        SFSpeechRecognizer.requestAuthorization { status in
-            authorizationStatus = status
+            _ = CGEventSource.keyState(.combinedSessionState, key: 42)
+            CGEvent(keyboardEventSource: CGEventSource(stateID: .combinedSessionState), virtualKey: 42, keyDown: true)?
+                .post(tap: .cghidEventTap)
+            QuillHotkeyService.shared.registerSingleUseSpace(modifiers: []) {
+                nil
+            }
+
+            _ = SecTrustEvaluateWithError(SecTrust(), nil)
+
+            try SMAppService.mainApp.register()
+            try SMAppService.mainApp.unregister()
+            return authorizationStatus == .denied
         }
-        _ = SFSpeechRecognizer()?.recognitionTask(with: SFSpeechAudioBufferRecognitionRequest()) { _, _ in }
-
-        _ = CGEventSource.keyState(.combinedSessionState, key: 42)
-        CGEvent(keyboardEventSource: CGEventSource(stateID: .combinedSessionState), virtualKey: 42, keyDown: true)?
-            .post(tap: .cghidEventTap)
-        QuillHotkeyService.shared.registerSingleUseSpace(modifiers: []) {
-            nil
-        }
-
-        _ = SecTrustEvaluateWithError(SecTrust(), nil)
-
-        try SMAppService.mainApp.register()
-        try SMAppService.mainApp.unregister()
 
         return DiagnosticFallbackResult(
-            operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation)),
-            speechAuthorizationDenied: authorizationStatus == .denied
+            operations: Set(captured.events.map(\.operation)),
+            speechAuthorizationDenied: captured.result
         )
     }
 
@@ -703,47 +738,124 @@ enum AppleCompatibilitySmoke {
     }
 
     static func runAppKitImageSmoke() throws -> AppKitImageResult {
-        QuillCompatibilityDiagnostics.shared.clear()
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
+            let size = NSSize(width: 24, height: 16)
+            let image = NSImage(size: size)
+            let sizeRoundTrip = image.size == size
+            image.lockFocus()
+            image.draw(
+                in: NSRect(x: 0, y: 0, width: 24, height: 16),
+                from: NSRect(x: 0, y: 0, width: 12, height: 8),
+                operation: .copy,
+                fraction: 0.5
+            )
+            image.unlockFocus()
 
-        let size = NSSize(width: 24, height: 16)
-        let image = NSImage(size: size)
-        let sizeRoundTrip = image.size == size
-        image.lockFocus()
-        image.draw(
-            in: NSRect(x: 0, y: 0, width: 24, height: 16),
-            from: NSRect(x: 0, y: 0, width: 12, height: 8),
-            operation: .copy,
-            fraction: 0.5
-        )
-        image.unlockFocus()
+            let namedImage = NSImage(named: "StatusBarIcon")
+            let systemImage = NSImage(systemName: "paperplane.fill")
+            let workspaceFileIcon = NSWorkspace.shared.icon(forFile: "/tmp/enchanted-export.txt")
+            let workspaceContentTypeIcon = NSWorkspace.shared.icon(forContentType: "public.plain-text")
+            let missingBundleApplication = NSWorkspace.shared.urlForApplication(
+                withBundleIdentifier: "com.quillui.missing.AppKitWorkspaceSmoke"
+            )
+            let missingSchemeApplication = NSWorkspace.shared.urlForApplication(
+                toOpen: URL(string: "quillui-missing-scheme://workspace-smoke")!
+            )
+            let encoded = Data([0xFF, 0xD8, 0xFF, 0xD9])
+            let rep = NSBitmapImageRep(data: encoded)
+            NSWindow.allowsAutomaticWindowTabbing = false
+            let windowTabbingRoundTrip = NSWindow.allowsAutomaticWindowTabbing == false
+            NSWindow.allowsAutomaticWindowTabbing = true
 
-        let namedImage = NSImage(named: "StatusBarIcon")
-        let systemImage = NSImage(systemName: "paperplane.fill")
-        let workspaceFileIcon = NSWorkspace.shared.icon(forFile: "/tmp/enchanted-export.txt")
-        let workspaceContentTypeIcon = NSWorkspace.shared.icon(forContentType: "public.plain-text")
-        let missingBundleApplication = NSWorkspace.shared.urlForApplication(
-            withBundleIdentifier: "com.quillui.missing.AppKitWorkspaceSmoke"
-        )
-        let missingSchemeApplication = NSWorkspace.shared.urlForApplication(
-            toOpen: URL(string: "quillui-missing-scheme://workspace-smoke")!
-        )
-        let encoded = Data([0xFF, 0xD8, 0xFF, 0xD9])
-        let rep = NSBitmapImageRep(data: encoded)
-        NSWindow.allowsAutomaticWindowTabbing = false
-        let windowTabbingRoundTrip = NSWindow.allowsAutomaticWindowTabbing == false
-        NSWindow.allowsAutomaticWindowTabbing = true
+            return (
+                sizeRoundTrip: sizeRoundTrip,
+                namedImagePlaceholder: namedImage?.size == CGSize(width: 32, height: 32),
+                systemImagePlaceholder: systemImage?.size == CGSize(width: 32, height: 32),
+                workspaceFileIconPlaceholder: workspaceFileIcon.size == CGSize(width: 32, height: 32),
+                workspaceContentTypeIconPlaceholder: workspaceContentTypeIcon.size == CGSize(width: 32, height: 32),
+                unknownBundleApplicationMissing: missingBundleApplication == nil,
+                unknownSchemeApplicationMissing: missingSchemeApplication == nil,
+                bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
+                windowTabbingRoundTrip: windowTabbingRoundTrip
+            )
+        }
 
         return AppKitImageResult(
-            sizeRoundTrip: sizeRoundTrip,
-            namedImagePlaceholder: namedImage?.size == CGSize(width: 32, height: 32),
-            systemImagePlaceholder: systemImage?.size == CGSize(width: 32, height: 32),
-            workspaceFileIconPlaceholder: workspaceFileIcon.size == CGSize(width: 32, height: 32),
-            workspaceContentTypeIconPlaceholder: workspaceContentTypeIcon.size == CGSize(width: 32, height: 32),
-            unknownBundleApplicationMissing: missingBundleApplication == nil,
-            unknownSchemeApplicationMissing: missingSchemeApplication == nil,
-            bitmapRepresentationRoundTrip: rep?.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) == encoded,
-            windowTabbingRoundTrip: windowTabbingRoundTrip,
-            operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+            sizeRoundTrip: captured.result.sizeRoundTrip,
+            namedImagePlaceholder: captured.result.namedImagePlaceholder,
+            systemImagePlaceholder: captured.result.systemImagePlaceholder,
+            workspaceFileIconPlaceholder: captured.result.workspaceFileIconPlaceholder,
+            workspaceContentTypeIconPlaceholder: captured.result.workspaceContentTypeIconPlaceholder,
+            unknownBundleApplicationMissing: captured.result.unknownBundleApplicationMissing,
+            unknownSchemeApplicationMissing: captured.result.unknownSchemeApplicationMissing,
+            bitmapRepresentationRoundTrip: captured.result.bitmapRepresentationRoundTrip,
+            windowTabbingRoundTrip: captured.result.windowTabbingRoundTrip,
+            operations: Set(captured.events.map(\.operation))
+        )
+    }
+
+    static func runAppKitWorkspaceOpenSmoke() -> AppKitWorkspaceOpenResult {
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
+            let recorder = WorkspaceOpenRecorder()
+            QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "appkit-workspace-test") { url in
+                recorder.append(url)
+                return true
+            })
+            defer { QuillWorkspace.installOpenBackend(nil) }
+
+            let url = URL(string: "https://example.com/quill-appkit-workspace")!
+            let directOpenSucceeded = NSWorkspace.shared.open(url)
+            let configuration = NSWorkspace.OpenConfiguration()
+            var configurationCompletionSucceeded = false
+            NSWorkspace.shared.open(url, configuration: configuration) { _, error in
+                configurationCompletionSucceeded = error == nil
+            }
+
+            return (
+                directOpenSucceeded: directOpenSucceeded,
+                configurationOpenSucceeded: recorder.urls.count == 2,
+                configurationCompletionSucceeded: configurationCompletionSucceeded,
+                openedURLs: recorder.urls
+            )
+        }
+
+        return AppKitWorkspaceOpenResult(
+            directOpenSucceeded: captured.result.directOpenSucceeded,
+            configurationOpenSucceeded: captured.result.configurationOpenSucceeded,
+            configurationCompletionSucceeded: captured.result.configurationCompletionSucceeded,
+            openedURLs: captured.result.openedURLs,
+            operations: Set(captured.events.map(\.operation))
+        )
+    }
+
+    static func runAppKitAudioSmoke() -> AppKitAudioResult {
+        QuillAudioPlayerService.shared.resetAll()
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
+            let sound = NSSound(data: Data([1, 2, 3]))
+            let playSucceeded = sound?.play() ?? false
+            let stopSucceeded = sound?.stop() ?? false
+            let state = QuillAudioPlayerService.shared.playerStates.first {
+                $0.source == .data(byteCount: 3)
+            }
+
+            return (
+                dataSoundCreated: sound != nil,
+                playSucceeded: playSucceeded,
+                stopSucceeded: stopSucceeded,
+                playCount: state?.playCount ?? 0,
+                stopCount: state?.stopCount ?? 0,
+                stoppedAfterStop: state?.isPlaying == false
+            )
+        }
+
+        return AppKitAudioResult(
+            dataSoundCreated: captured.result.dataSoundCreated,
+            playSucceeded: captured.result.playSucceeded,
+            stopSucceeded: captured.result.stopSucceeded,
+            playCount: captured.result.playCount,
+            stopCount: captured.result.stopCount,
+            stoppedAfterStop: captured.result.stoppedAfterStop,
+            operations: Set(captured.events.map(\.operation))
         )
     }
 
@@ -2347,15 +2459,15 @@ enum AppleCompatibilitySmoke {
     }
 
     static func runOSLogSmoke() -> OSLogResult {
-        QuillCompatibilityDiagnostics.shared.clear()
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
+            let logger = Logger(subsystem: "co.lorehex.quillchat", category: "usb-launcher")
+            logger.info("public value: \("visible", privacy: .public)")
+            logger.error("private value: \("hidden", privacy: .private)")
+        }
 
-        let logger = Logger(subsystem: "co.lorehex.quillchat", category: "usb-launcher")
-        logger.info("public value: \("visible", privacy: .public)")
-        logger.error("private value: \("hidden", privacy: .private)")
-
-        let messages = QuillCompatibilityDiagnostics.shared.events.map(\.message).joined(separator: "\n")
+        let messages = captured.events.map(\.message).joined(separator: "\n")
         return OSLogResult(
-            operations: Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation)),
+            operations: Set(captured.events.map(\.operation)),
             renderedPublicValue: messages.contains("visible"),
             redactedPrivateValue: messages.contains("<private>") && !messages.contains("hidden")
         )

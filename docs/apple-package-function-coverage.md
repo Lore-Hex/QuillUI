@@ -50,8 +50,8 @@ is `Usable` or `Parity`.
 | `NetworkExtension` | None yet beyond compile/fallback shapes. | Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete. |
 | `CoreGraphics` | None yet beyond compile/fallback shapes. | Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete. |
 | `Security` | `SecRandomCopyBytes`, process-local `SecKeyCreateWithData`, `SecKeyCreateRandomKey`, `SecKeyGeneratePair`, `SecKeyCopyPublicKey`, `SecKeyGetBlockSize`, `SecKeyCopyAttributes`, `SecKeyCopyExternalRepresentation`, metadata-gated `SecKeyIsAlgorithmSupported`, deterministic ECDSA message/digest `SecKeyCreateSignature` and `SecKeyVerifySignature` compatibility, deterministic symmetric ECDH `SecKeyCopyKeyExchangeResult` compatibility, key-exchange parameter constants, synthesized `SecKey` references, `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, `SecItemDelete` generic-password, internet-password, and key-class rows, persistent-reference returns/lookups/deletes, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, `kSecAttrSynchronizableAny`, server/security-domain/protocol/authentication/port/path endpoint identity, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and current keychain constants. | Native secure keychain persistence/access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete. |
-| `AVFoundation` / `AVKit` | None yet beyond compile/fallback shapes. | Speech synthesis, audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete. |
-| `Speech` | None yet beyond compile/fallback shapes. | Authorization, recognizer availability, recognition tasks, audio transcription, and audio bridge behavior are incomplete. |
+| `AVFoundation` / `AVKit` | Speech synthesis lifecycle callback fallback. | Audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete. |
+| `Speech` | Configurable authorization, recognizer availability, recognition-result delivery, request buffer counting, and task cancellation state. | Native microphone/audio capture, native transcription, and audio bridge behavior are incomplete. |
 | `PhotosUI` / `Photos` | None yet beyond compile-compatible shapes. | Photo-library authorization, asset fetching, picker UI, transferable item loading, and photo service behavior are incomplete. |
 | `Charts`, `StoreKit`, `TipKit` | None yet beyond compile-compatible shapes. | Chart marks/rendering/axes/scales/interaction/accessibility, product lookup, purchases, transactions, subscriptions, tip rules, persistence, display frequency, and popovers are incomplete. |
 | `Observation` | None yet at `Usable`; `@Observable` lowering is partial. | Tracking, invalidation, access lists, registrar behavior, and observation parity are incomplete. |
@@ -62,7 +62,7 @@ is `Usable` or `Parity`.
 | `Combine` | `AnyPublisher.init()` where `Failure == Never`. | OpenCombine coverage, merge behavior, backpressure, schedulers, demand, cancellation, operators, and seeded edge-case parity remain partial or incomplete. |
 | `os` | `Logger.init(...)`. | Logging calls, `os_log`, dyld inspection, unfair-lock semantics, signposts, persistence, and tooling parity are partial, compile-only, or incomplete. |
 | `IOKit` | None yet beyond compile/fallback shapes. | USB/device discovery, notifications, registry traversal, matching, iterators, and object lifetime behavior are incomplete. |
-| Re-export-only Apple shims | Imports compile for current app source. | `MessageUI`, `SafariServices`, `MobileCoreServices`, `LocalAuthentication`, and `CoreSpotlight` do not implement standalone framework behavior yet. |
+| Re-export-only Apple shims | Imports compile for current app source. | `MessageUI`, `SafariServices`, `MobileCoreServices`, and `CoreSpotlight` do not implement standalone framework behavior yet; `LocalAuthentication` now has QuillKit-backed configurable compatibility state but no native biometric/passcode backend. |
 
 ## SwiftUI
 
@@ -180,7 +180,7 @@ platform fallbacks.
 | `NSPasteboard.setData(_:forType:)` / `data(forType:)` | Usable | In-memory data storage. |
 | `NSPasteboard.writeObjects(_:)` / `readObjects(...)` | Partial | Current pasteboard item paths only. |
 | `NSPasteboardItem.setString`, `setData`, `setPropertyList` and getters | Usable | In-memory item storage. |
-| `NSWorkspace.open(_:)` and overloads | Fallback | Delegates where host support exists, otherwise records diagnostic/no-op. |
+| `NSWorkspace.open(_:)` and overloads | Partial | Routes through shared `QuillWorkspace.open`; native GTK/Qt launchers can inject a backend and headless Linux no-ops with diagnostics. |
 | `NSWorkspace.selectFile`, `activateFileViewerSelecting` | Fallback | Opens containing directories through `xdg-open` when a Linux desktop session is available; records diagnostics and no-ops in headless environments. |
 | `NSWorkspace.icon(forFile:)`, `icon(forContentType:)` | Fallback | Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet. |
 | `NSWorkspace.urlForApplication(...)` | Partial | Uses `xdg-mime` plus XDG application directories for existing `.desktop` files; bundle identifiers only resolve when they already map to a Linux desktop entry. |
@@ -220,7 +220,7 @@ platform fallbacks.
 | `NSAnimationContext.runAnimationGroup(...)` | Fallback | Runs closure immediately. |
 | `NSHapticFeedbackManager.perform(...)` | Fallback | No haptic hardware effect. |
 | `NSSharingService.perform(withItems:)` / `sharingServices(forItems:)` | Compile-only | Sharing integration is absent. |
-| `NSSound.play()` / `stop()` / `NSBeep()` | Fallback | No native audio playback. |
+| `NSSound.play()` / `stop()` / `NSBeep()` | Partial | Routes through shared `QuillAudioPlayerService` process-local playback state; `beep()` still emits BEL for terminal-visible feedback. |
 | `NSXPCConnection.resume()` / `suspend()` / `invalidate()` / `remoteObjectProxy()` | Compile-only | XPC is not implemented. |
 | `NSHumanReadableCopyright()`, `NSFullUserName()`, `NSFindPanelAction()` | Fallback | Deterministic helper values only. |
 
@@ -232,8 +232,8 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | --- | --- | --- |
 | `UIImage`, `UIColor`, `UIFont`, `UIScreen` aliases | Partial | Map to AppKit types when importable, otherwise to QuillFoundation fallbacks. |
 | `UIApplication.shared` | Usable | Singleton shape exists. |
-| `UIApplication.open(_:options:completionHandler:)` | Partial | Uses `NSWorkspace` when AppKit is available; otherwise completion is `false`. |
-| `UIApplication.registerForRemoteNotifications()` | Compile-only | No-op. |
+| `UIApplication.open(_:options:completionHandler:)` | Partial | Uses `NSWorkspace` on Apple platforms and `QuillWorkspace.open` on Linux; completion receives the compatibility backend result. |
+| `UIApplication.registerForRemoteNotifications()` / `unregisterForRemoteNotifications()` / `isRegisteredForRemoteNotifications` | Partial | Routes through `QuillNotificationService` process-local registration state; no native APNs/device-token registration exists on Linux. |
 | `UIApplication.setAlternateIconName(_:completionHandler:)` | Fallback | Calls completion with nil, no icon change. |
 | `UIApplication.connectedScenes`, `applicationState`, `alternateIconName` | Compile-only | Static/default metadata only. |
 | `UIScene.delegate` | Compile-only | Property only. |
@@ -255,7 +255,8 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | `UIPasteboard.general` string/data helpers | Partial | In-memory pasteboard bridge. |
 | `UIControl.setTitle(_:for:)` and value/action helpers | Compile-only | Property shape only. |
 | `UIImageView`, `UILabel`, `UIKeyCommand` initializers | Compile-only | Source compatibility only. |
-| `UNUserNotificationCenter.requestAuthorization(...)` | Fallback | Callback shape exists; no platform notification registration. |
+| `UNUserNotificationCenter.requestAuthorization(...)` | Partial | Routes through `QuillNotificationService`; authorization status is configurable and process-local. |
+| `UNUserNotificationCenter.setNotificationCategories`, `add`, delivered/pending request lists, removal helpers | Partial | Tracks categories, immediate deliveries, scheduled pending requests, and removals in memory; no native desktop notification is presented yet. |
 | UIKit layout engine, rendering, event delivery, accessibility, text input, collection/table data-source parity | Incomplete | Required for UIKit Parity. |
 
 ## WebKit
@@ -390,20 +391,27 @@ subset lives in `QuillUIKit`.
 | `SecTrustEvaluateWithError(_:_:)` | Fallback | Records diagnostic and returns true. |
 | Native secure keychain persistence, access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, certificate parsing, policy evaluation, platform trust store, Secure Transport parity | Incomplete | Current keychain rows are process-local compatibility storage, and current trust fallback must not be treated as production TLS trust. |
 
+## AudioToolbox
+
+| API or function | Linux status | Notes |
+| --- | --- | --- |
+| `AudioServicesCreateSystemSoundID`, `DisposeSystemSoundID`, `PlaySystemSound`, `PlayAlertSound`, completion registration | Partial | Routes through `QuillAudioPlayerService` process-local system-sound records; native PipeWire/ALSA playback is not attached yet. |
+
 ## AVFoundation
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `AVSpeechSynthesizer.speak(_:)` | Fallback | Records diagnostic and calls start/finish delegate callbacks immediately. |
-| `AVSpeechSynthesizer.stopSpeaking(at:)` | Fallback | Returns true without native speech output. |
-| `AVSpeechSynthesizer.continueSpeaking()` / `pauseSpeaking(at:)` | Compile-only | Return false. |
-| `AVSpeechUtterance.init(string:)` | Compile-only | Stores utterance metadata. |
-| `AVSpeechSynthesisVoice` initializers and voice metadata | Compile-only | Static metadata only. |
-| `AVAudioSession.sharedInstance()`, `setCategory`, `setActive` | Fallback | No native audio-session effect. |
+| `AVSpeechSynthesizer.speak(_:)` | Partial | Routes through QuillKit's speech backend, records compatibility diagnostics, tracks speaking state during synchronous callbacks, and calls start/finish delegate callbacks immediately. |
+| `AVSpeechSynthesizer.stopSpeaking(at:)` | Partial | Clears QuillKit speech state and returns true without native speech output. |
+| `AVSpeechSynthesizer.continueSpeaking()` / `pauseSpeaking(at:)` | Partial | Tracks paused speech state in `QuillSpeechBackend`; a paused compatibility utterance holds its finish callback until `continueSpeaking()`. |
+| `AVSpeechUtterance.init(string:)` | Usable | Stores source-visible utterance text and metadata. |
+| `AVSpeechSynthesisVoice` initializers, `speechVoices()`, and voice metadata | Partial | Resolve through QuillKit voice metadata; Linux default remains a compatibility voice until native synthesis lands. |
+| `AVAudioSession.sharedInstance()`, `setCategory`, `setMode`, `setActive`, category/mode/options/active readback | Partial | Routes through shared `QuillAudioSessionService` process-local state; no native PipeWire/CoreAudio audio-session policy is applied yet. |
 | `AVPlayer.init(url:)` | Compile-only | Stores URL/player shape only. |
-| `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Fallback | Records diagnostics and toggles `isRunning`; no audio I/O. |
-| `AVAudioEngine.attach(_:)` / `connect(...)` | Compile-only | No real graph processing. |
-| `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Fallback | Records diagnostic, no audio tap stream. |
+| `AVAudioPlayer` data/URL initializers, `prepareToPlay`, `play`, `play(atTime:)`, `pause`, `stop`, state readback | Partial | Routes through shared `QuillAudioPlayerService` process-local playback state and extracts basic WAV duration/channel metadata from local data or file URLs; native playback is not attached yet. |
+| `AVAudioEngine.prepare()` / `start()` / `stop()` / `reset()` | Partial | Routes through `QuillAudioEngineService`; tracks prepared/running state, no audio I/O. |
+| `AVAudioEngine.attach(_:)` / `connect(...)` | Partial | Tracks process-local graph attachment and connection counts; no real graph processing. |
+| `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Partial | Tracks process-local tap registration/removal; no audio tap stream. |
 | `AVAudioFormat`, `AVAudioPCMBuffer`, `AVAudioTime` initializers | Compile-only | Data containers only. |
 | Real synthesis, playback, capture, engine graph processing, media decoding | Incomplete | Required for AVFoundation Parity. |
 
@@ -418,13 +426,14 @@ subset lives in `QuillUIKit`.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `SFSpeechRecognizer.init(locale:)` | Fallback | Creates unavailable recognizer shape. |
-| `SFSpeechRecognizer.authorizationStatus()` | Fallback | Returns `.denied`. |
-| `SFSpeechRecognizer.requestAuthorization(_:)` | Fallback | Records diagnostic and returns `.denied`. |
-| `SFSpeechRecognizer.recognitionTask(with:resultHandler:)` | Fallback | Records diagnostic and returns task object only. |
-| `SFSpeechAudioBufferRecognitionRequest.append(_:)` | Compile-only | No-op. |
-| `SFSpeechRecognitionTask.cancel()` | Compile-only | No-op. |
-| Real speech recognition, audio transcription, authorization bridge | Incomplete | Required for Speech Parity. |
+| `SFSpeechRecognizer.init()` / `init(locale:)` | Usable | Creates a recognizer shape backed by QuillKit speech-recognition state. |
+| `SFSpeechRecognizer.authorizationStatus()` | Partial | Returns QuillKit's configured recognition authorization state; Linux default remains `.denied`. |
+| `SFSpeechRecognizer.requestAuthorization(_:)` | Partial | Records diagnostics and returns QuillKit's configured authorization state. |
+| `SFSpeechRecognizer.isAvailable` | Partial | Reads/writes QuillKit's configured recognition availability state. |
+| `SFSpeechRecognizer.recognitionTask(with:resultHandler:)` | Partial | Records diagnostics, returns a cancellable task object, and delivers configured compatibility results or errors. |
+| `SFSpeechAudioBufferRecognitionRequest.append(_:)` | Usable | Tracks appended buffer count for source-visible request state. |
+| `SFSpeechRecognitionTask.cancel()` / `isCancelled` | Usable | Records task cancellation state. |
+| Native speech recognition, audio transcription, microphone capture, audio bridge behavior | Incomplete | Required for Speech Parity. |
 
 ## PhotosUI and Photos
 
@@ -483,7 +492,8 @@ subset lives in `QuillUIKit`.
 | `SMAppService.mainApp` | Partial | Backed by current `QuillLaunchService`. |
 | `SMAppService.status` | Partial | Mirrors current launch-service state. |
 | `SMAppService.register()` / `unregister()` | Usable | Registers/unregisters through the current Quill launch-service abstraction. |
-| Full login item parity, privileged helpers, platform service managers | Incomplete | Required for ServiceManagement Parity. |
+| `SMLoginItemSetEnabled(_:_:)` | Partial | Enables/disables shared `QuillLaunchService` state and records the helper identifier; no native autostart file is installed yet. |
+| Full login item persistence, privileged helpers, platform service managers | Incomplete | Required for ServiceManagement Parity. |
 
 ## AsyncAlgorithms
 
@@ -544,7 +554,7 @@ scope. They do not implement standalone Apple framework behavior yet.
 | `MessageUI` | Compile-only | Re-exports `QuillFoundation` and `QuillUIKit`; mail composer behavior is incomplete. |
 | `SafariServices` | Compile-only | Re-exports `QuillFoundation` and `QuillUIKit`; Safari view services are incomplete. |
 | `MobileCoreServices` | Compile-only | Re-exports `QuillFoundation`; legacy UTI constants beyond shared fallbacks are incomplete. |
-| `LocalAuthentication` | Compile-only | Re-exports `QuillShims`; biometric/passcode auth is incomplete. |
+| `LocalAuthentication` | Partial | `LAContext.canEvaluatePolicy`, `evaluatePolicy`, `biometryType`, `LAPolicy`, `LABiometryType`, and `LAError` route through configurable QuillKit compatibility state; biometric/passcode auth remains non-native. |
 | `CoreSpotlight` | Compile-only | Re-exports `QuillShims`; indexing/search APIs are incomplete. |
 
 ## Third-Party and App-Support Package Clones
@@ -670,27 +680,28 @@ app progress can be audited with the same status ladder.
 | `getShortcut(for:)` / `setShortcut(_:for:)` | Usable | Stores shortcuts in `UserDefaults` with locking. |
 | `reset(_:)` / `resetAll()` | Usable | Restores defaults or clears stored shortcut values. |
 | `KeyboardShortcuts.Recorder.body` | Partial | Renders a text label for current settings screens. |
-| `View.onKeyboardShortcut(...)` | Compile-only | Returns `self`; actions are not registered. |
-| Native recorder UI, global shortcut registration, event delivery, conflict handling | Incomplete | Required for KeyboardShortcuts parity. |
+| `View.onKeyboardShortcut(...)` | Partial | Registers key-down handlers through QuillKit's process-local hot-key registry and keeps direct test/helper triggering for key-up handlers. |
+| `KeyboardShortcuts.trigger(_ shortcut:)` | Usable | Test/helper entry point dispatches registered key-down shortcuts through the shared QuillKit registry. |
+| Native recorder UI and desktop-global shortcut capture | Incomplete | Required for full KeyboardShortcuts parity. |
 
 ### Magnet
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `Key.space`, `Key.escape`, `.character(_:)` | Compile-only | Covers current hot-key declarations. |
-| `_Modifiers` / `KeyCombo.init?` | Compile-only | Stores key/modifier payloads. |
-| `HotKey.init(...)` | Partial | Stores identifier, combo, and handler. |
-| `HotKey.register()` / `unregister()` | Compile-only | No-op; no native hot key is installed. |
-| `HotKey.trigger()` | Usable | Test helper invokes the stored handler. |
-| Global Carbon/AppKit hot-key registration, event routing, conflict detection | Incomplete | Required for Magnet parity. |
+| `Key.space`, `Key.escape`, `.character(_:)` | Usable | Covers current hot-key declarations with stable key names for the shared registry. |
+| `_Modifiers` / `KeyCombo.init?` | Usable | Stores key/modifier payloads and lowers common modifier masks into QuillKit gesture descriptors. |
+| `HotKey.init(...)` | Usable | Stores identifier, combo, handler, and registration state. |
+| `HotKey.register()` / `unregister()` | Partial | Registers in QuillKit's process-local compatibility registry with duplicate identifier/gesture detection. |
+| `HotKey.trigger()` / `HotKey.trigger(identifier:)` / `HotKey.trigger(keyCombo:)` | Usable | Direct test helper invokes the stored handler; registry triggers route only through registered hot keys. |
+| Native global Carbon/AppKit hot-key hooks and desktop event routing | Incomplete | Required for true OS-global Magnet parity. |
 
 ### Sparkle
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `SPUUpdater.canCheckForUpdates` | Fallback | Always false. |
-| `SPUUpdater.checkForUpdates()` | Compile-only | No-op. |
-| `SPUStandardUpdaterController.updater` | Compile-only | Exposes an updater object for source compatibility. |
+| `SPUUpdater.canCheckForUpdates` | Partial | Reads and writes shared `QuillUpdateService` state. |
+| `SPUUpdater.checkForUpdates()` | Partial | Records a shared QuillKit update-check attempt and diagnostic; no appcast fetch is performed yet. |
+| `SPUStandardUpdaterController.updater` | Partial | Exposes an updater object backed by shared QuillKit update state. |
 | Appcast fetching, signature checks, update UI, installer/relaunch behavior | Incomplete | Required for Sparkle parity. |
 
 ### Tidemark

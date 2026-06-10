@@ -38,7 +38,7 @@ Likely first milestone:
 
 ## 3. NetNewsWire
 
-Status: compile-green hard-gated. Self-contained two-pane RSS reader (sidebar + detail) shipped (CP84 + CP94) — `QuillNetNewsWireCore` ships a Foundation `XMLParser`-backed RSS 2.0 + Atom 1.0 parser + `URLSession` fetcher; defaults to fetching daringfireball.net on first launch. The upstream `NetNewsWireLogic` target's Shared/Mac tree (~1655 unresolved symbols on either platform) stays opt-in and unbuilt. `QuillNetNewsWireCoreTests` (12 tests) pin the parser via fixture XML strings. OPML import/export and three-pane layout are follow-ups.
+Status: compile-green hard-gated. Self-contained three-pane RSS reader shipped and keeps moving toward the upstream product shape. `QuillNetNewsWireCore` uses the vendored NetNewsWire parser slice (`QuillRSParser`) for RSS, Atom, JSON Feed, RSS-in-JSON, and OPML; persists subscriptions, read/starred state, and fetched article timelines through the reusable `QuillArticlesDatabase` adapter; restores cached feed timelines before network refresh; and reports cache-backed smart-feed/sidebar counts. The upstream `NetNewsWireLogic` target's Shared/Mac tree (~1655 unresolved symbols on either platform) stays opt-in and unbuilt while deeper database/account/sync/AppKit/WebKit compatibility is staged.
 
 Why it matters:
 

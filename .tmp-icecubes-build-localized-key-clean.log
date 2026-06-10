@@ -1,0 +1,1204 @@
+swiftpm-preserve-package-resolved: capping 'swift build' to --jobs 2
+warning: '--skip-update' option is deprecated and will be removed in a future release
+Fetching https://github.com/apple/swift-asn1.git
+Fetching https://github.com/swiftlang/swift-syntax.git from cache
+Fetching https://github.com/apple/swift-crypto.git
+Fetching https://github.com/groue/GRDB.swift from cache
+Fetched https://github.com/swiftlang/swift-syntax.git from cache (0.10s)
+Fetched https://github.com/groue/GRDB.swift from cache (0.47s)
+[1/1880] Fetching swift-asn1
+[509/19329] Fetching swift-asn1, swift-crypto
+Fetched https://github.com/apple/swift-asn1.git from cache (1.86s)
+[524/17449] Fetching swift-crypto
+Fetched https://github.com/apple/swift-crypto.git from cache (7.07s)
+Creating working copy for https://github.com/groue/GRDB.swift
+Creating working copy for https://github.com/swiftlang/swift-syntax.git
+Creating working copy for https://github.com/apple/swift-asn1.git
+Working copy of https://github.com/apple/swift-asn1.git resolved at 1.7.1
+Creating working copy for https://github.com/apple/swift-crypto.git
+Working copy of https://github.com/swiftlang/swift-syntax.git resolved at 600.0.1
+Working copy of https://github.com/apple/swift-crypto.git resolved at 3.15.1
+Working copy of https://github.com/groue/GRDB.swift resolved at 7.10.0
+Fetching https://github.com/scinfu/SwiftSoup.git
+Fetching https://github.com/OpenCombine/OpenCombine.git from cache
+Fetched https://github.com/OpenCombine/OpenCombine.git from cache (0.01s)
+[1/6006] Fetching swiftsoup
+Fetched https://github.com/scinfu/SwiftSoup.git from cache (12.99s)
+Computing version for https://github.com/OpenCombine/OpenCombine.git
+Computed https://github.com/OpenCombine/OpenCombine.git at 0.14.0 (13.27s)
+Computing version for https://github.com/apple/swift-crypto.git
+Computed https://github.com/apple/swift-crypto.git at 3.15.1 (0.33s)
+Computing version for https://github.com/groue/GRDB.swift.git
+Computed https://github.com/groue/GRDB.swift.git at 7.10.0 (0.14s)
+Computing version for https://github.com/swiftlang/swift-syntax.git
+Computed https://github.com/swiftlang/swift-syntax.git at 600.0.1 (0.16s)
+Computed https://github.com/OpenCombine/OpenCombine.git at 0.14.0 (0.00s)
+Computed https://github.com/apple/swift-crypto.git at 3.15.1 (0.00s)
+Computed https://github.com/groue/GRDB.swift.git at 7.10.0 (0.00s)
+Computed https://github.com/swiftlang/swift-syntax.git at 600.0.1 (0.00s)
+Computing version for https://github.com/apple/swift-asn1.git
+Computed https://github.com/apple/swift-asn1.git at 1.7.1 (0.11s)
+Computing version for https://github.com/scinfu/SwiftSoup.git
+Computed https://github.com/scinfu/SwiftSoup.git at 2.13.5 (0.08s)
+Computed https://github.com/scinfu/SwiftSoup.git at 2.13.5 (0.00s)
+Creating working copy for https://github.com/scinfu/SwiftSoup.git
+Working copy of https://github.com/scinfu/SwiftSoup.git resolved at 2.13.5
+Creating working copy for https://github.com/OpenCombine/OpenCombine.git
+Working copy of https://github.com/OpenCombine/OpenCombine.git resolved at 0.14.0
+warning: 'work': found 486 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PostError.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Representable.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/OpenDyslexic-Regular.otf
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate1.icon/icon.json
+    /work/.upstream/icecubes/Images/promo.png
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaDescriptionServiceTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Ext/Visibility.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListDataSource.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Assets.xcassets
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/GifView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/LocalTimeline.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/StatusesLists/AccountStatusesListView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle copy 2.svg
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/EmojiText.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/MainView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowReplyView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineHeaderView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineFilter.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Edit/ListEditViewModel.swift
+    /work/.upstream/icecubes/Images/dm.png
+    /work/.upstream/icecubes/IceCubesApp/Embeds/tootSent.wav
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredBoostButtonBehavior.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/TextEditingService.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Notifications.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/tabSelection.wav
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Requests/NotificationsRequestsListView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorMode.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditAccountView.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/favorite.wav
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/TagsListView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PushSubscription.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/RecentTagsView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Card.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MediaAttachement.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAccessibilityActionsView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ColorSet.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowActionsView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ToolbarItem/CancelToolbarItem.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/ExpandedView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineQuickAccessPills.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListState.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/TranslationType.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Media.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineCache.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Info.plist
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Account.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Share/StatusRowSelectableTextView.swift
+    /work/.upstream/icecubes/IceCubesApp/Info.plist
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/ExploreView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/0058B4EC-7293-4BEA-BB1A-DB14090BAF3E.png
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/SearchResultsView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/FollowRequestButtons.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Filter.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/TagChartView.swift
+    /work/.upstream/icecubes/Images/timeline.png
+    /work/.upstream/icecubes/Packages/Account/Package.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListView.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingTagsSection.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/ServerFilters.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIAttachmentVideoView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusActionButtonStyle.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle copy.svg
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Tags/FollowedTagsListView.swift
+    /work/.upstream/icecubes/Images/explore.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationsRequest.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/TextService.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Info.plist
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Drafts/DraftsListView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/List.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TextServiceTests.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/HashtagPostsWidget/HashtagPostsWidgetConfiguration.swift
+    /work/.upstream/icecubes/IceCubesApp/Resources/Localization/Localizable.xcstrings
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/MentionWidget/MentionWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccount.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowContentView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/BAF76368-114D-421D-9308-5B264CC932DB.png
+    /work/.upstream/icecubes/scripts/launch_sim.sh
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate46.icon/icon.json
+    /work/.upstream/icecubes/Packages/Lists/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorView.swift
+    /work/.upstream/icecubes/Images/editor.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Stream/StreamMessage.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabManager.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/DateFormatterCache.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Poll/StatusPollViewModel.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineTagGroupheaderView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CurrentAccount.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListDataSource.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path copy.svg
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerError.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/BookmarksTab.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/AutoCompleteView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/3786C799-8298-4259-8A6D-177E8352B813.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerPreferences.swift
+    /work/.upstream/icecubes/Packages/Env/Package.swift
+    /work/.upstream/icecubes/Images/notifications.png
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval copy.svg
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Filters/EditFilterView.swift
+    /work/.upstream/icecubes/IceCubesShareExtension/ShareViewController.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/AccountExt.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/icon.json
+    /work/.upstream/icecubes/AppIcon.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/Packages/Models/Tests/ModelsTests/QuoteTests.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Streaming.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaPickerPanelView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsStore.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Profile.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/149D9F62-60F0-4A2C-8C7C-7D672E83C570.png
+    /work/.upstream/icecubes/IceCubesApp/Resources/Preview Assets.xcassets
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/DeepLClient.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsHeaderFilteredView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineListView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusActionButton.swift
+    /work/.upstream/icecubes/CLAUDE.md
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/TagRowView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/ListsWidget/ListsWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabProtocol.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailContextMenu.swift
+    /work/.upstream/icecubes/Packages/Timeline/README.md
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/TagGroup.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountViewModel.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/boost.wav
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredShareButtonBehavior.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineDatasource.swift
+    /work/.upstream/icecubes/IceCubesNotifications/NotificationServiceSupport.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Tags.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Conversations.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Detail/StatusDetailViewModel.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/LazyResizableImage.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/PollView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowAccessibilityLabel.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaUploadService.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/B71B4965-8613-4041-A45B-0D554318DD98.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Coordinator.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/Draft.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/LanguageDetection/LanguageDetection.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Conversation.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsComponents.swift
+    /work/.upstream/icecubes/PRIVACY.MD
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/MentionWidget/MentionWidget.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationsPolicy.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerFilter.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AccountPopoverView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Poll/StatusPollView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUITransferableImage.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/TextView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreviewEnv.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowDetailView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/LatestPostsWidget/LatestPostsWidget.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/IceCubesAppWidgetsExtensionBundle.swift
+    /work/.upstream/icecubes/IceCubesNotifications/Info.plist
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate46.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/IceCubesApp-release.xcconfig
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/History/StatusEditHistoryView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/StatusEditorToolbarItem.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Mention.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIShareLink.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TextEditingServiceTests.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PartialAccountWithAvatar.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Lists.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/QuoteApproval.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/CustomEmojis.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/PlaceholderView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Package.swift
+    /work/.upstream/icecubes/screenshots.pco/project
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate1.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowMediaPreviewView.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/glass.wav
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationInputView.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Package.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path 1.svg
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/D8621CE7-7392-44B7-8B45-D1A360F3C494.png
+    /work/.upstream/icecubes/IceCubesApp/Embeds/Atkinson-Hyperlegible-Regular-102.ttf
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountDetailToolbar.swift
+    /work/.upstream/icecubes/ci_scripts/ci_post_xcodebuild.sh
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/UserPreferences.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaIngestionServiceTests.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MediaStatus.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/SceneDelegate.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/StatusesFetcher.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Shared/PostsWidgetView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIAttachmentImageView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/2961A88A-B0A1-4DB9-89D6-9F124D02BFAA.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowHeaderView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Instances.swift
+    /work/.upstream/icecubes/AGENTS.MD
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/String.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Package.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Language.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/SFSymbols.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/SearchScope.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/996CF392-2FA3-4932-85A8-013AC8EB749B.png
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Timelines.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/HapticManager.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/GroupedNotificationsResults.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/IceCubesActionExtension.entitlements
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Application.swift
+    /work/.upstream/icecubes/Images/accounts.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/MetricsChartSelectionOverlay.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/PrivacyMenu.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailHeaderView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/EditorStoreTests.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountHeaderImageView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Translation.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Package.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CustomEnvValues.swift
+    /work/.upstream/icecubes/IceCubesNotifications/IceCubesNotifications.entitlements
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/SoundEffectManager.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTagsView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Marker.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Shared/SharedUtils.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval.svg
+    /work/.upstream/icecubes/IceCubesApp/Embeds/bookmark.wav
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Timeline/TimelineItem.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowReblogView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowViewModel.swift
+    /work/.upstream/icecubes/Packages/Conversations/README.md
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/NextPageView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountAvatarView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusEmbedCache.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/BoostsTab.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/OpenAIClient.swift
+    /work/.upstream/icecubes/Packages/Notifications/README.md
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/AddAccounts/ListAddAccountView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ToolbarItem/CloseToolbarItem.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/65B8562A-62D7-4962-AD7C-94561AF2E099.png
+    /work/.upstream/icecubes/IceCubesApp/Assets.xcassets
+    /work/.upstream/icecubes/IceCubesActionExtension/ActionRequestHandler.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path 2.svg
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineToolbarTitleView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/QuickLookToolbarItem.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ThemePreviewView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/FamiliarFollowersView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/FavoritesTab.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/StatusContext.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A303F17D-55BF-4C99-A17A-ED0D4B5F39EF.png
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Edit/ListEditView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/StatusesLists/AccountStatusesFetcher.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/51FC584B-4045-4B37-9C37-8DE7F654372F.png
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineViewModelTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTranslateView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountInfoView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Requests/NotificationsRequestsRowView.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountsSelectorView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/CustomEmojiServiceTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/RemoteTagsView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/ToolbarItems.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/NotificationsName.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/InstanceSocial.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/InstanceSocialClient.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CameraPickerView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListState.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Package.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineTestFactories.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/6FA80231-084D-47B3-AAD2-88697A0A6CC3.png
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/C02D6262-FDBB-4DBF-96A8-1C87826B72E4.png
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A87D752B-B74E-401A-AAE3-0F16A14C78A8.png
+    /work/.upstream/icecubes/Packages/Explore/README.md
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineStatusFetcher.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/AppAccount.swift
+    /work/.upstream/icecubes/Packages/Env/Tests/RouterTests.swift
+    /work/.upstream/icecubes/Packages/Account/README.md
+    /work/.upstream/icecubes/Packages/Lists/Package.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowView.swift
+    /work/.upstream/icecubes/LICENSE
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/QuickAccessView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorFocusState.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Telemetry.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CategorizedEmojiContainer.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Accounts.swift
+    /work/.upstream/icecubes/Packages/Explore/Package.swift
+    /work/.upstream/icecubes/IceCubesApp.xcconfig.template
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/56E4EDB5-12D8-475B-86F2-C7152DCD03BA.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountStatsView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowIconView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/MastodonClient.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidgetView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Push.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/NotificationExt.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ToastOverlayView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/ListsWidget/ListsWidget.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/refresh.wav
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailState.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditRelationshipNoteView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/README.md
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Duration.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Search.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowSwipeView.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Action.js
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CurrentInstance.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredBrowser.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIZoomableContainer.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListView.swift
+    /work/.upstream/icecubes/Packages/Models/Tests/ModelsTests/HTMLStringTests.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/F3960E95-C938-49FA-BD6A-3D8DAF5080FF.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Detail/StatusDetailView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path.svg
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/045BDAEC-2F82-4175-A4E7-72035F57CC73.png
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailState.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Filters/FiltersListView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaDescriptionService.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Lists/ListsListView.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/ServerDate.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/IceCubesAppWidgetsExtensionExtension.entitlements
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListViewModel.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/MediaGrid/AccountDetailMediaGridView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/ConsolidatedNotificationExt.swift
+    /work/.upstream/icecubes/ci_scripts/ci_pre_xcodebuild.sh
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/82D04192-F67B-4EBC-A874-45E1F1207529.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Poll.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailDataSource.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/pull.wav
+    /work/.upstream/icecubes/Packages/Conversations/Package.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingPostsSection.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/RepliesTab.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowContentView.swift
+    /work/.upstream/icecubes/Packages/Models/README.md
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineUnreadStatusesObserver.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/LinkHandler.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/StatusesListView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusDataController.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/InstanceApp.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationGroup.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsTypes.swift
+    /work/.upstream/icecubes/Packages/Account/Tests/AccountTests/AccountMetricsStoreTests.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Polls.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/StatusHistory.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/LatestPostsWidget/LatestPostsWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabFetcher.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ConditionalModifier.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A5FC4F14-EB58-4D6B-97F2-3382FD0EAA25.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Share/StatusRowShareAsImageView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/MetricsNotificationGroup.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Theme.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Tag.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaIngestionService.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowExternalView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/HashtagPostsWidget/HashtagPostsWidget.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/AEA9A4F4-3FD0-47E0-94DA-FF1DE6B7A1AD.png
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAppendTextView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Instance.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/FontPicker.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowCardView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Namespace.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/DisplayType.swift
+    /work/.upstream/icecubes/IceCubesShareExtension/IceCubesShareExtension.entitlements
+    /work/.upstream/icecubes/IceCubesApp/Embeds/glass.caf
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle.svg
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeStorage.swift
+    /work/.upstream/icecubes/README.md
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval 1.svg
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Trends.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/UTTypeSupported.swift
+    /work/.upstream/icecubes/Packages/AppAccount/README.md
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Status.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path copy 2.svg
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/7B3B4BEB-96EB-4601-9469-4DC63EFE3F2D.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Follow/FollowButton.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Font.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MastodonPushNotification.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Assets.xcassets
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/CustomEmojiService.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Create/ListCreateView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/RecentTag.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineToolbarTagGroupButton.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Router.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Shape.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaUploadServiceTests.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/CardBackgroundModifier.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PollPreferences.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/32E33E74-6A30-4003-A426-A3A5B3D56E65.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Emoji.swift
+    /work/.upstream/icecubes/AppIcon.icon/icon.json
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/MentionsView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.xcassets
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/PostingService.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/MockTimelineStatusFetcher.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Ext/TranslationView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AnyStatusesListView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StreamWatcher.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationMessageView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/Notification+Consolidated.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowMainLabelView.swift
+    /work/.upstream/icecubes/Images/AppIcon.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTagView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/AutocompleteServiceTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/TimelineGapView.swift
+    /work/.upstream/icecubes/Packages/Env/README.md
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/130D4643-ED26-4CE3-9F27-AEC47ED712DB.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/AutocompleteService.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListRow.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/StatusesTab.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineTagHeaderView.swift
+    /work/.upstream/icecubes/Packages/Models/Package.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorStore.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Modifiers.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Ext/AppStorage.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/NotificationTypeExt.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Relationship.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/TextState.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/share.wav
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ScrollToView.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/TrendingLinksListView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/History.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/ToastCenter.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SearchResults.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AccessoryView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineContentFilterView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/DeepLUserAPIHandler.swift
+    /work/.upstream/icecubes/Images/more.png
+    /work/.upstream/icecubes/Images/profile.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/MediaTab.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Statuses.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/OauthToken.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/DesignSystem.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/ShareToolbarItem.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AIPrompt.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Quote.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/DBDB4456-D7F6-4667-8645-5511773640B4.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Embed/StatusEmbeddedView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/QuickLook.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/LanguageSheetView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Tests/NetworkClientTests/NetworkTests.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditAccountViewModel.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/FeaturedTagsView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Apps.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/LangButton.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowContextMenu.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTextView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineViewModel.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineFilterTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/Compressor.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowSpoilerView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidget.swift
+    /work/.upstream/icecubes/IceCubesNotifications/NotificationService.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Notification.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingLinksSection.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Endpoint.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaContainer.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListRow.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineContentFilter.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountsManager.swift
+    /work/.upstream/icecubes/Images/download_on_the_app_store.svg
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsPolicyView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ConsolidatedNotification.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Package.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ErrorView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Package.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/B9D6EFB2-EF10-4A4F-B2A2-9990F1F00F8C.png
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TestImages.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/PostingServiceTests.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/SuggestedAccountsSection.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Oauth.swift
+    /work/.upstream/icecubes/TERMS.MD
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/App/App.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/URLData.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Markers.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/C4C8F684-D9D0-43D6-87B2-0390F364A915.png
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusAction.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/AddAccounts/ListAddAccountViewModel.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountFieldsView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/FollowRequests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CustomEmojisView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/SuggestedTagsView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaEditView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineDatasourceMediaFilterTests.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/HTMLString.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsView.swift
+    /work/.upstream/icecubes/IceCubesShareExtension/Info.plist
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Stream/StreamEvent.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAvatarView.swift
+warning: 'work': found 1 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.xcassets
+Building for debugging...
+[0/541] Compiling cpu_aarch64_apple.cc
+[1/541] Compiling ex_data.cc
+[2/541] Write sources
+[12/541] Copying README.md
+[14/541] Copying MaterialSymbolsRounded-Regular.ttf
+[15/541] Copying LICENSES
+[16/541] Write sources
+[26/541] Copying InfoPlist.strings
+[38/541] Copying Info.plist
+[39/541] Write sources
+[68/541] Copying PrivacyInfo.xcprivacy
+[69/541] Copying Info.plist
+[70/541] Write sources
+[85/541] Write swift-version-24593BA9C3E375BF.txt
+[85/541] Write sources
+[87/541] Compiling CCryptoBoringSSLShims shims.c
+[88/543] Compiling COpenCombineHelpers COpenCombineHelpers.cpp
+[90/564] Compiling UniformTypeIdentifiers UniformTypeIdentifiers.swift
+[91/564] Emitting module UniformTypeIdentifiers
+[93/568] Emitting module SwiftOpenUISymbols
+[94/568] Compiling SwiftOpenUISymbols MaterialSymbolsCodepoints.swift
+[95/568] Compiling SwiftOpenUISymbols MaterialSymbolsResources.swift
+[96/570] Compiling SwiftOpenUISymbols SFSymbolCompatibility.swift
+[97/570] Compiling SwiftOpenUISymbols resource_bundle_accessor.swift
+[99/595] Emitting module SwiftSoup
+[100/615] Emitting module SwiftOpenUI
+[101/615] Compiling SwiftOpenUI App.swift
+[102/615] Compiling SwiftOpenUI AppBundle.swift
+[103/615] Compiling SwiftOpenUI Commands.swift
+[104/615] Compiling SwiftOpenUI Window.swift
+[105/615] Compiling SwiftOpenUI WindowSizing.swift
+[106/615] Compiling SwiftOpenUI RenderBackend.swift
+[107/615] Compiling SwiftOpenUI Environment.swift
+[108/615] Compiling SwiftOpenUI Alignment.swift
+[109/615] Compiling SwiftOpenUI Edge.swift
+[110/615] Compiling SwiftOpenUI Layout.swift
+[111/615] Compiling SwiftOpenUI LayoutFoundation.swift
+[112/615] Compiling SwiftOpenUI SafeArea.swift
+[113/615] Compiling SwiftOpenUI Localization.swift
+[114/615] Compiling SwiftOpenUI AlertModifier.swift
+[115/615] Compiling SwiftOpenUI AnimationModifier.swift
+[116/615] Compiling SwiftOpenUI AppearanceModifiers.swift
+[117/615] Compiling SwiftOpenUI AspectRatioModifier.swift
+[118/615] Compiling SwiftOpenUI ClipModifiers.swift
+[119/615] Compiling SwiftOpenUI ConfirmationDialogModifier.swift
+[120/615] Compiling SwiftOpenUI ContextMenuModifier.swift
+[121/615] Compiling SwiftSoup Evaluator.swift
+[122/615] Compiling SwiftSoup Exception.swift
+[123/615] Compiling SwiftSoup FormElement.swift
+[124/661] Compiling SwiftOpenUI DisabledModifier.swift
+[125/661] Compiling SwiftOpenUI DropDestinationModifier.swift
+[126/661] Compiling SwiftOpenUI EnvironmentModifiers.swift
+[127/661] Compiling SwiftOpenUI FocusModifier.swift
+[128/661] Compiling SwiftOpenUI FrameModifier.swift
+[129/661] Compiling SwiftOpenUI FullScreenCoverModifier.swift
+[130/661] Compiling SwiftOpenUI GestureModifier.swift
+[131/661] Compiling SwiftOpenUI HelpModifier.swift
+[132/661] Compiling SwiftOpenUI KeyboardShortcutModifier.swift
+[133/661] Compiling SwiftOpenUI KeyboardShortcutRegistry.swift
+[134/661] Compiling SwiftOpenUI KeyboardShortcutTypes.swift
+[135/661] Compiling SwiftOpenUI LabelsHiddenModifier.swift
+[136/661] Compiling SwiftOpenUI LayoutModifiers.swift
+[137/661] Compiling SwiftOpenUI LifecycleModifier.swift
+[138/661] Compiling SwiftOpenUI NavigationSplitViewColumnWidthModifier.swift
+[139/661] Compiling SwiftOpenUI OnChangeModifier.swift
+[140/661] Compiling SwiftOpenUI OnSubmitModifier.swift
+[141/661] Compiling SwiftOpenUI OverlayModifier.swift
+[142/661] Compiling SwiftOpenUI PaddingModifier.swift
+[143/661] Compiling SwiftOpenUI PopoverModifier.swift
+[144/661] Compiling SwiftOpenUI RotationModifier.swift
+[145/661] Compiling SwiftOpenUI SafeAreaModifiers.swift
+[146/661] Compiling SwiftOpenUI SearchableModifier.swift
+[147/684] Compiling SwiftOpenUI ShadowModifier.swift
+[148/684] Compiling SwiftOpenUI SheetModifier.swift
+[149/684] Compiling SwiftOpenUI StyleModifiers.swift
+[150/684] Compiling SwiftOpenUI TagModifier.swift
+[151/684] Compiling SwiftOpenUI TextDecorationModifiers.swift
+[152/684] Compiling SwiftOpenUI TextModifiers.swift
+[153/684] Compiling SwiftOpenUI ToolbarModifier.swift
+[154/684] Compiling SwiftOpenUI ViewModifier.swift
+[155/684] Compiling SwiftOpenUI NavigateAction.swift
+[156/684] Compiling SwiftOpenUI NavigationDestination.swift
+[157/684] Compiling SwiftOpenUI NavigationLink.swift
+[158/684] Compiling SwiftOpenUI NavigationPath.swift
+[159/684] Compiling SwiftOpenUI NavigationSplitViewVisibility.swift
+[160/684] Compiling SwiftOpenUI NavigationStack.swift
+[161/684] Compiling SwiftOpenUI NavigationTitle.swift
+[162/684] Compiling SwiftOpenUI ImageRenderer.swift
+[163/684] Compiling SwiftOpenUI Bindable.swift
+[164/684] Compiling SwiftOpenUI Binding.swift
+[165/684] Compiling SwiftOpenUI DependencyTracking.swift
+[166/684] Compiling SwiftOpenUI FocusState.swift
+[167/684] Compiling SwiftOpenUI FocusedValue.swift
+[168/684] Compiling SwiftOpenUI ObservableObject.swift
+[169/684] Compiling SwiftOpenUI State.swift
+[170/707] Compiling SwiftOpenUI ViewHost.swift
+[171/707] Compiling SwiftOpenUI AnyView.swift
+[172/707] Compiling SwiftOpenUI AsyncImage.swift
+[173/707] Compiling SwiftOpenUI Button.swift
+[174/707] Compiling SwiftOpenUI Canvas.swift
+[175/707] Compiling SwiftOpenUI Color.swift
+[176/707] Compiling SwiftOpenUI DatePicker.swift
+[177/707] Compiling SwiftOpenUI DisclosureGroup.swift
+[178/707] Compiling SwiftOpenUI Font.swift
+[179/707] Compiling SwiftOpenUI ForEach.swift
+[180/707] Compiling SwiftOpenUI Form.swift
+[181/707] Compiling SwiftOpenUI GeometryReader.swift
+[182/707] Compiling SwiftOpenUI Gradients.swift
+[183/707] Compiling SwiftOpenUI Grid.swift
+[184/707] Compiling SwiftOpenUI GridRow.swift
+[185/707] Compiling SwiftOpenUI Group.swift
+[186/707] Compiling SwiftOpenUI Image.swift
+[187/707] Compiling SwiftOpenUI Label.swift
+[188/707] Compiling SwiftOpenUI LazyGrids.swift
+[189/707] Compiling SwiftOpenUI LazyStacks.swift
+[190/707] Compiling SwiftOpenUI Link.swift
+[191/707] Compiling SwiftOpenUI ListView.swift
+[192/707] Compiling SwiftOpenUI Menu.swift
+[193/707] Compiling SwiftOpenUI NavigationSplitView.swift
+[214/723] Compiling SwiftOpenUI OutlineGroup.swift
+[215/723] Compiling SwiftOpenUI Path.swift
+[216/723] Compiling SwiftOpenUI Picker.swift
+[217/723] Compiling SwiftOpenUI ProgressView.swift
+[218/723] Compiling SwiftOpenUI ScrollView.swift
+[219/723] Compiling SwiftOpenUI ScrollViewReader.swift
+[220/723] Compiling SwiftOpenUI Section.swift
+[221/723] Compiling SwiftOpenUI SecureField.swift
+[222/724] Compiling SwiftOpenUI Shapes.swift
+[223/724] Compiling SwiftOpenUI Slider.swift
+[224/724] Compiling SwiftOpenUI Spacer.swift
+[225/724] Compiling SwiftOpenUI Stacks.swift
+[226/724] Compiling SwiftOpenUI Stepper.swift
+[227/724] Compiling SwiftOpenUI TabView.swift
+[228/724] Compiling SwiftOpenUI Text.swift
+[229/724] Compiling SwiftOpenUI TextEditor.swift
+[230/724] Compiling SwiftOpenUI TextField.swift
+[231/724] Compiling SwiftOpenUI Toggle.swift
+[232/724] Compiling SwiftOpenUI TupleView.swift
+[233/724] Compiling SwiftOpenUI View.swift
+[234/724] Compiling SwiftOpenUI ViewBuilder.swift
+[235/724] Compiling SwiftOpenUI ViewThatFits.swift
+[257/730] Emitting module SFSafeSymbols
+[258/730] Compiling SFSafeSymbols SFSafeSymbols.swift
+[260/733] Emitting module RevenueCat
+[261/733] Compiling RevenueCat RevenueCat.swift
+[263/736] Compiling QuillKit QuillKit.swift
+[264/736] Emitting module QuillKit
+[266/739] Compiling QuillDataMacros QuillDataMacros.swift
+[267/739] Emitting module QuillDataMacros
+[269/742] Emitting module os
+[270/742] Compiling os os.swift
+[272/745] Compiling Security Security.swift
+[273/745] Emitting module Security
+[275/752] Compiling QuillFoundation AppleEventsShim.swift
+[276/752] Compiling QuillFoundation FoundationLinuxClone.swift
+[277/752] Compiling QuillFoundation HTMLEntities.swift
+[278/752] Compiling QuillFoundation HTMLText.swift
+[279/752] Compiling QuillFoundation KeyValueObservingLinuxClone.swift
+[280/752] Emitting module QuillFoundation
+[281/757] Compiling QuillFoundation QuillFoundation.swift
+/work/Sources/QuillFoundation/UndoManagerLinuxClone.swift:114:35: warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+112 | 
+113 |     public func removeAllActions(withTarget target: Any) {
+114 |         guard let object = target as? AnyObject else { return }
+    |                                   `- warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+115 |         let targetID = ObjectIdentifier(object)
+116 |         undoStack.removeAll { $0.targetIDs.contains(targetID) }
+[282/757] Compiling QuillFoundation QuillInitialSelection.swift
+/work/Sources/QuillFoundation/UndoManagerLinuxClone.swift:114:35: warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+112 | 
+113 |     public func removeAllActions(withTarget target: Any) {
+114 |         guard let object = target as? AnyObject else { return }
+    |                                   `- warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+115 |         let targetID = ObjectIdentifier(object)
+116 |         undoStack.removeAll { $0.targetIDs.contains(targetID) }
+[283/757] Compiling QuillFoundation QuillTimer.swift
+/work/Sources/QuillFoundation/UndoManagerLinuxClone.swift:114:35: warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+112 | 
+113 |     public func removeAllActions(withTarget target: Any) {
+114 |         guard let object = target as? AnyObject else { return }
+    |                                   `- warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+115 |         let targetID = ObjectIdentifier(object)
+116 |         undoStack.removeAll { $0.targetIDs.contains(targetID) }
+[284/757] Compiling QuillFoundation RelativeTime.swift
+/work/Sources/QuillFoundation/UndoManagerLinuxClone.swift:114:35: warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+112 | 
+113 |     public func removeAllActions(withTarget target: Any) {
+114 |         guard let object = target as? AnyObject else { return }
+    |                                   `- warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+115 |         let targetID = ObjectIdentifier(object)
+116 |         undoStack.removeAll { $0.targetIDs.contains(targetID) }
+[285/757] Compiling QuillFoundation UndoManagerLinuxClone.swift
+/work/Sources/QuillFoundation/UndoManagerLinuxClone.swift:114:35: warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+112 | 
+113 |     public func removeAllActions(withTarget target: Any) {
+114 |         guard let object = target as? AnyObject else { return }
+    |                                   `- warning: conditional cast from 'Any' to 'AnyObject' always succeeds
+115 |         let targetID = ObjectIdentifier(object)
+116 |         undoStack.removeAll { $0.targetIDs.contains(targetID) }
+[287/760] Compiling UserNotifications UserNotifications.swift
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:76:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNNotificationSound', consider removing it
+ 74 |     public init(named name: UNNotificationSoundName) { self.name = name }
+ 75 |     private init() { self.name = nil }
+ 76 |     nonisolated(unsafe) public static let `default` = UNNotificationSound()
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNNotificationSound', consider removing it
+ 77 | }
+ 78 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:244:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNUserNotificationCenter', consider removing it
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNUserNotificationCenter', consider removing it
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+246 | 
+[288/760] Emitting module UserNotifications
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:76:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNNotificationSound', consider removing it
+ 74 |     public init(named name: UNNotificationSoundName) { self.name = name }
+ 75 |     private init() { self.name = nil }
+ 76 |     nonisolated(unsafe) public static let `default` = UNNotificationSound()
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNNotificationSound', consider removing it
+ 77 | }
+ 78 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:244:5: warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNUserNotificationCenter', consider removing it
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+    |     `- warning: 'nonisolated(unsafe)' is unnecessary for a constant with 'Sendable' type 'UNUserNotificationCenter', consider removing it
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+246 | 
+[290/763] Emitting module StoreKit
+[291/763] Compiling StoreKit StoreKit.swift
+[293/766] Emitting module QuillWebKit
+[294/766] Compiling QuillWebKit QuillWebKit.swift
+[296/769] Compiling QuillUIKit QuillUIKit.swift
+[297/769] Emitting module QuillUIKit
+[299/772] Emitting module WebKit
+[300/772] Compiling WebKit WebKit.swift
+[302/775] Compiling SafariServices SafariServices.swift
+[303/775] Emitting module SafariServices
+[305/778] Emitting module QuickLook
+[306/778] Compiling QuickLook QuickLook.swift
+[308/781] Emitting module Photos
+[309/781] Compiling Photos Photos.swift
+[311/782] Compiling SwiftSoup SourceRange.swift
+[312/782] Compiling SwiftSoup StreamReader.swift
+[313/782] Compiling SwiftSoup String.swift
+[314/782] Compiling SwiftSoup StringBuilder.swift
+[315/782] Compiling SwiftSoup StringUtil.swift
+[316/782] Compiling SwiftSoup StructuralEvaluator.swift
+[317/782] Compiling SwiftSoup SwiftSoup.swift
+[318/782] Compiling SwiftSoup Tag.swift
+[319/782] Compiling SwiftSoup TextNode.swift
+[320/782] Compiling SwiftSoup Token.swift
+[321/782] Compiling SwiftSoup TokenQueue.swift
+[322/782] Compiling SwiftSoup Tokeniser.swift
+[323/782] Compiling SwiftSoup TokeniserState.swift
+[324/782] Compiling SwiftSoup TreeBuilder.swift
+[325/782] Compiling SwiftSoup UTF8Arrays.swift
+[326/782] Compiling SwiftSoup UnicodeScalar.swift
+[327/782] Compiling SwiftSoup Validate.swift
+[328/782] Compiling SwiftSoup Whitelist.swift
+[329/782] Compiling SwiftSoup XmlDeclaration.swift
+[330/782] Compiling SwiftSoup XmlTreeBuilder.swift
+[332/807] Compiling Nuke Nuke.swift
+[333/807] Emitting module Nuke
+[335/810] Emitting module NaturalLanguage
+[336/810] Compiling NaturalLanguage NaturalLanguage.swift
+[338/813] Compiling LRUCache LRUCache.swift
+[339/813] Emitting module LRUCache
+[341/816] Compiling KeychainSwift KeychainSwift.swift
+[342/816] Emitting module KeychainSwift
+[344/819] Emitting module OpenCombine
+[345/819] Compiling OpenCombine AnyCancellable.swift
+[346/819] Compiling OpenCombine AnyPublisher.swift
+[347/819] Compiling OpenCombine AnySubscriber.swift
+[348/819] Compiling OpenCombine Cancellable.swift
+[349/819] Compiling OpenCombine Codable.swift
+[350/819] Compiling OpenCombine CombineIdentifier.swift
+[351/819] Compiling OpenCombine ConcurrencyHelpers.swift
+[352/819] Compiling OpenCombine Future+Concurrency.swift
+[353/819] Compiling OpenCombine GENERATED-Publisher+Concurrency.swift
+[354/819] Compiling OpenCombine CurrentValueSubject.swift
+[355/819] Compiling OpenCombine CustomCombineIdentifierConvertible.swift
+[356/819] Compiling OpenCombine Future.swift
+[357/819] Compiling OpenCombine GENERATED-RootProtocols.swift
+[358/819] Compiling OpenCombine ConduitBase.swift
+[359/819] Compiling OpenCombine ConduitList.swift
+[360/819] Compiling OpenCombine DebugHook.swift
+[361/819] Compiling OpenCombine FilterProducer.swift
+[362/819] Compiling OpenCombine Locking.swift
+[363/819] Compiling OpenCombine PartialCompletion.swift
+[364/819] Compiling OpenCombine PublishedSubject.swift
+[365/819] Compiling OpenCombine PublishedSubscriber.swift
+[366/861] Emitting module ImageIO
+[367/861] Compiling ImageIO ImageIO.swift
+[369/887] Compiling OpenCombine ReduceProducer.swift
+[370/887] Compiling OpenCombine SubjectSubscriber.swift
+[371/887] Compiling OpenCombine SubscriberTap.swift
+[372/887] Compiling OpenCombine SubscriptionStatus.swift
+[373/887] Compiling OpenCombine SubscriptionTap.swift
+[374/887] Compiling OpenCombine Utils.swift
+[375/887] Compiling OpenCombine Violations.swift
+[376/887] Compiling OpenCombine ImmediateScheduler.swift
+[377/887] Compiling OpenCombine ObservableObject.swift
+[378/887] Compiling OpenCombine PassthroughSubject.swift
+[379/887] Compiling OpenCombine Published.swift
+[380/887] Compiling OpenCombine Publisher+Subscribe.swift
+[381/887] Compiling OpenCombine Deferred.swift
+[382/887] Compiling OpenCombine Empty.swift
+[383/887] Compiling OpenCombine Fail.swift
+[384/887] Compiling OpenCombine GENERATED-Publishers.Catch.swift
+[385/887] Compiling OpenCombine GENERATED-Publishers.Encode.swift
+[386/887] Compiling OpenCombine GENERATED-Publishers.MapKeyPath.swift
+[387/887] Compiling OpenCombine Just.swift
+[388/887] Compiling OpenCombine Optional.Publisher.swift
+[389/887] Compiling OpenCombine Publishers.AllSatisfy.swift
+[390/887] Compiling GRDB DatabaseValueConvertible.swift
+[391/887] Compiling GRDB DatabaseWriter.swift
+[392/887] Compiling GRDB DispatchQueueActor.swift
+[393/887] Compiling OpenCombine Publishers.Buffer.swift
+[394/887] Compiling OpenCombine Publishers.Collect.swift
+[395/887] Compiling OpenCombine Publishers.CollectByCount.swift
+[396/887] Compiling OpenCombine Publishers.CompactMap.swift
+[397/887] Compiling OpenCombine Publishers.Comparison.swift
+[398/887] Compiling OpenCombine Publishers.Concatenate.swift
+[399/887] Compiling OpenCombine Publishers.Contains.swift
+[400/887] Compiling OpenCombine Publishers.Count.swift
+[401/887] Compiling OpenCombine Publishers.Debounce.swift
+[402/887] Compiling OpenCombine Publishers.Delay.swift
+[403/887] Compiling OpenCombine Publishers.Drop.swift
+[404/887] Compiling OpenCombine Publishers.DropUntilOutput.swift
+[405/887] Compiling OpenCombine Publishers.DropWhile.swift
+[406/887] Compiling OpenCombine Publishers.Filter.swift
+[407/887] Compiling OpenCombine Publishers.First.swift
+[408/887] Compiling OpenCombine Publishers.FlatMap.swift
+[409/887] Compiling OpenCombine Publishers.HandleEvents.swift
+[410/887] Compiling OpenCombine Publishers.IgnoreOutput.swift
+[411/927] Emitting module GRDB
+[412/951] Compiling OpenCombine Publishers.SubscribeOn.swift
+[413/951] Compiling OpenCombine Publishers.SwitchToLatest.swift
+[414/951] Compiling OpenCombine Publishers.Throttle.swift
+[415/951] Compiling OpenCombine Publishers.Timeout.swift
+[416/951] Compiling OpenCombine Publishers.Zip.swift
+[417/951] Compiling OpenCombine Publishers.swift
+[418/951] Compiling OpenCombine Record.swift
+[419/951] Compiling OpenCombine Result.Publisher.swift
+[420/951] Compiling OpenCombine Result.swift
+[421/951] Compiling OpenCombine Scheduler.swift
+[422/951] Compiling OpenCombine Subject+Void.swift
+[423/951] Compiling OpenCombine Subscriber+Void.swift
+[424/951] Compiling OpenCombine Subscribers.Assign.swift
+[425/951] Compiling OpenCombine Subscribers.Completion.swift
+[426/951] Compiling OpenCombine Subscribers.Demand.swift
+[427/951] Compiling OpenCombine Subscribers.Sink.swift
+[428/951] Compiling OpenCombine Subscribers.swift
+[429/951] Compiling OpenCombine Subscription.swift
+[430/951] Compiling OpenCombine Subscriptions.swift
+[431/951] Compiling OpenCombine _Introspection.swift
+[432/951] Compiling OpenCombine Publishers.Last.swift
+[433/951] Compiling OpenCombine Publishers.MakeConnectable.swift
+[434/951] Compiling OpenCombine Publishers.Map.swift
+[435/951] Compiling OpenCombine Publishers.MapError.swift
+[436/951] Compiling OpenCombine Publishers.MeasureInterval.swift
+[437/951] Compiling OpenCombine Publishers.Multicast.swift
+[438/951] Compiling OpenCombine Publishers.Output.swift
+[439/951] Compiling OpenCombine Publishers.PrefixUntilOutput.swift
+[440/951] Compiling OpenCombine Publishers.PrefixWhile.swift
+[441/951] Compiling OpenCombine Publishers.Print.swift
+[442/951] Compiling OpenCombine Publishers.ReceiveOn.swift
+[443/951] Compiling OpenCombine Publishers.Reduce.swift
+[444/951] Compiling OpenCombine Publishers.RemoveDuplicates.swift
+[445/951] Compiling OpenCombine Publishers.ReplaceEmpty.swift
+[446/951] Compiling OpenCombine Publishers.ReplaceError.swift
+[447/951] Compiling OpenCombine Publishers.Retry.swift
+[448/951] Compiling OpenCombine Publishers.Scan.swift
+[449/951] Compiling OpenCombine Publishers.Sequence.swift
+[450/951] Compiling OpenCombine Publishers.SetFailureType.swift
+[451/951] Compiling OpenCombine Publishers.Share.swift
+[453/954] Emitting module CoreTransferable
+[454/954] Compiling CoreTransferable CoreTransferable.swift
+[456/962] Emitting module OpenCombineFoundation
+[457/967] Compiling OpenCombineFoundation Locking.swift
+[458/967] Compiling OpenCombineFoundation Portability.swift
+[459/967] Compiling OpenCombineFoundation Utils.swift
+[460/967] Compiling OpenCombineFoundation Violations.swift
+[461/967] Compiling OpenCombineFoundation JSONEncoder.swift
+[462/967] Compiling OpenCombineFoundation NotificationCenter.swift
+[469/967] Compiling OpenCombineFoundation OperationQueue+Scheduler.swift
+[470/967] Compiling OpenCombineFoundation PropertyListEncoder.swift
+[471/967] Compiling OpenCombineFoundation RunLoop+Scheduler.swift
+[472/967] Compiling OpenCombineFoundation Timer+Publisher.swift
+[473/967] Compiling OpenCombineFoundation URLSession.swift
+[474/967] Compiling GRDB DatabasePublishers.swift
+[475/967] Compiling GRDB DatabaseQueue.swift
+[476/967] Compiling GRDB DatabaseReader.swift
+[477/967] Compiling GRDB DatabaseRegion.swift
+[478/967] Compiling GRDB DatabaseRegionObservation.swift
+[479/967] Compiling GRDB DatabaseSchemaCache.swift
+[480/967] Compiling GRDB DatabaseSchemaSource.swift
+[481/967] Compiling GRDB DatabaseSnapshot.swift
+[482/967] Compiling GRDB DatabaseSnapshotPool.swift
+[483/967] Compiling GRDB DatabaseValue.swift
+[493/994] Compiling GRDB FetchRequest.swift
+[494/994] Compiling GRDB Row.swift
+[495/994] Compiling GRDB RowAdapter.swift
+[496/994] Compiling GRDB RowDecodingError.swift
+[497/994] Compiling GRDB SQL.swift
+[498/994] Compiling GRDB SQLInterpolation.swift
+[499/994] Compiling GRDB SQLRequest.swift
+[500/994] Compiling GRDB SchedulingWatchdog.swift
+[501/994] Compiling GRDB SerializedDatabase.swift
+[502/994] Compiling GRDB Statement.swift
+[503/994] Compiling GRDB StatementAuthorizer.swift
+[504/994] Compiling GRDB StatementColumnConvertible.swift
+[505/994] Compiling GRDB CGFloat.swift
+[506/994] Compiling GRDB Data.swift
+[507/994] Compiling GRDB DatabaseDateComponents.swift
+[508/994] Compiling GRDB DatabaseValueConvertible+ReferenceConvertible.swift
+[509/994] Compiling GRDB Date.swift
+[510/994] Compiling GRDB Decimal.swift
+[511/994] Compiling GRDB NSData.swift
+[512/994] Compiling GRDB NSNull.swift
+[513/994] Compiling GRDB NSNumber.swift
+[514/994] Compiling GRDB NSString.swift
+[515/994] Compiling GRDB SQLiteDateParser.swift
+[516/994] Compiling GRDB URL.swift
+[517/1018] Compiling UIKit UIKit.swift
+/work/Sources/UIKitShim/UIKit.swift:293:23: warning: static property 'patternSolid' produces an empty option set
+ 291 |     public static let thick = NSUnderlineStyle(rawValue: 0x02)
+ 292 |     public static let double = NSUnderlineStyle(rawValue: 0x09)
+ 293 |     public static let patternSolid = NSUnderlineStyle(rawValue: 0x0000)
+     |                       |- warning: static property 'patternSolid' produces an empty option set
+     |                       `- note: use [] to silence this warning
+ 294 |     public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
+ 295 |     public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
+
+/work/Sources/UIKitShim/UIKit.swift:746:30: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+ 744 |     @MainActor var windowScene: UIWindowScene? {
+ 745 |         UIApplication.shared.connectedScenes
+ 746 |             .compactMap { $0 as? UIWindowScene }
+     |                              `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+ 747 |             .first { scene in scene.windows.contains { $0 === self } }
+ 748 |     }
+[518/1018] Emitting module UIKit
+/work/Sources/UIKitShim/UIKit.swift:293:23: warning: static property 'patternSolid' produces an empty option set
+ 291 |     public static let thick = NSUnderlineStyle(rawValue: 0x02)
+ 292 |     public static let double = NSUnderlineStyle(rawValue: 0x09)
+ 293 |     public static let patternSolid = NSUnderlineStyle(rawValue: 0x0000)
+     |                       |- warning: static property 'patternSolid' produces an empty option set
+     |                       `- note: use [] to silence this warning
+ 294 |     public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
+ 295 |     public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
+[520/1021] Emitting module OpenCombineDispatch
+[521/1021] Compiling OpenCombineDispatch DispatchQueue+Scheduler.swift
+[523/1024] Compiling LinkPresentation LinkPresentation.swift
+[524/1024] Emitting module LinkPresentation
+[526/1027] Compiling CoreImage CoreImage.swift
+[527/1027] Emitting module CoreImage
+[529/1030] Emitting module CoreGraphics
+[530/1030] Compiling CoreGraphics CoreGraphics.swift
+[532/1033] Compiling GRDB UUID.swift
+[533/1033] Compiling GRDB DatabaseValueConvertible+Decodable.swift
+[534/1033] Compiling GRDB DatabaseValueConvertible+Encodable.swift
+[535/1033] Compiling GRDB DatabaseValueConvertible+RawRepresentable.swift
+[536/1033] Compiling GRDB JSONRequiredEncoder.swift
+[537/1033] Compiling GRDB Optional.swift
+[538/1033] Compiling GRDB StandardLibrary.swift
+[539/1033] Compiling GRDB TransactionClock.swift
+[540/1033] Compiling GRDB TransactionObserver.swift
+[541/1033] Compiling GRDB WALSnapshot.swift
+[542/1033] Compiling GRDB WALSnapshotTransaction.swift
+[543/1033] Compiling GRDB Database+Dump.swift
+[544/1033] Compiling GRDB DatabaseReader+dump.swift
+[545/1033] Compiling GRDB DumpFormat.swift
+[546/1033] Compiling GRDB DebugDumpFormat.swift
+[547/1033] Compiling GRDB JSONDumpFormat.swift
+[548/1033] Compiling GRDB LineDumpFormat.swift
+[549/1033] Compiling GRDB ListDumpFormat.swift
+[550/1033] Compiling GRDB QuoteDumpFormat.swift
+[551/1033] Compiling GRDB FTS3.swift
+[552/1033] Compiling GRDB FTS3Pattern.swift
+[553/1033] Compiling GRDB FTS3TokenizerDescriptor.swift
+[554/1033] Compiling GRDB FTS4.swift
+[555/1033] Compiling GRDB FTS5.swift
+[556/1057] Compiling Combine Combine.swift
+[557/1057] Emitting module Combine
+[559/1060] Compiling GRDB FTS5CustomTokenizer.swift
+[560/1060] Compiling GRDB FTS5Pattern.swift
+[561/1060] Compiling GRDB FTS5Tokenizer.swift
+[562/1060] Compiling GRDB FTS5TokenizerDescriptor.swift
+[563/1060] Compiling GRDB FTS5WrapperTokenizer.swift
+[564/1060] Compiling GRDB Fixits.swift
+[565/1060] Compiling GRDB JSONColumn.swift
+[566/1060] Compiling GRDB SQLJSONExpressible.swift
+[567/1060] Compiling GRDB SQLJSONFunctions.swift
+[568/1060] Compiling GRDB DatabaseMigrator.swift
+[569/1060] Compiling GRDB Migration.swift
+[570/1060] Compiling GRDB FTS3+QueryInterface.swift
+[571/1060] Compiling GRDB FTS5+QueryInterface.swift
+[572/1060] Compiling GRDB ForeignKey.swift
+[573/1060] Compiling GRDB Association.swift
+[574/1060] Compiling GRDB AssociationAggregate.swift
+[575/1060] Compiling GRDB BelongsToAssociation.swift
+[576/1060] Compiling GRDB HasManyAssociation.swift
+[577/1060] Compiling GRDB HasManyThroughAssociation.swift
+[578/1060] Compiling GRDB HasOneAssociation.swift
+[579/1060] Compiling GRDB HasOneThroughAssociation.swift
+[580/1060] Compiling GRDB JoinAssociation.swift
+[581/1060] Compiling GRDB CommonTableExpression.swift
+[582/1060] Compiling GRDB QueryInterfaceRequest.swift
+[583/1084] Compiling CGTKBridge ClosureBox.swift
+[584/1085] Compiling CGTKBridge PointerCast.swift
+[585/1085] Emitting module CGTKBridge
+[586/1086] Wrapping AST for os for debugging
+[587/1086] Wrapping AST for WebKit for debugging
+[588/1086] Wrapping AST for UserNotifications for debugging
+[589/1086] Wrapping AST for UniformTypeIdentifiers for debugging
+[590/1086] Wrapping AST for UIKit for debugging
+[591/1086] Wrapping AST for SwiftSoup for debugging
+[592/1086] Wrapping AST for SwiftOpenUISymbols for debugging
+[593/1086] Wrapping AST for SwiftOpenUI for debugging
+[594/1086] Wrapping AST for StoreKit for debugging
+[595/1086] Wrapping AST for Security for debugging
+[597/1086] Compiling GRDB ForeignKeyDefinition.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[598/1086] Compiling GRDB IndexDefinition.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[599/1086] Compiling GRDB TableAlteration.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[600/1086] Compiling GRDB TableDefinition.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[601/1086] Compiling GRDB VirtualTableModule.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[602/1086] Compiling GRDB TableRecord+Association.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[603/1086] Compiling GRDB TableRecord+QueryInterfaceRequest.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[604/1086] Compiling GRDB EncodableRecord+Encodable.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[605/1086] Compiling GRDB EncodableRecord.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[606/1086] Compiling GRDB FetchableRecord+Decodable.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[607/1086] Compiling GRDB FetchableRecord+TableRecord.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[608/1086] Compiling GRDB FetchableRecord.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[609/1086] Compiling GRDB MutablePersistableRecord+DAO.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[610/1086] Compiling GRDB MutablePersistableRecord+Delete.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[611/1086] Compiling GRDB MutablePersistableRecord+Insert.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[612/1086] Compiling GRDB MutablePersistableRecord+Save.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[613/1086] Compiling GRDB MutablePersistableRecord+Update.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[614/1086] Compiling GRDB MutablePersistableRecord+Upsert.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[615/1086] Compiling GRDB MutablePersistableRecord.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[616/1086] Compiling GRDB PersistableRecord+Insert.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[617/1086] Compiling GRDB PersistableRecord+Save.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[618/1086] Compiling GRDB PersistableRecord+Upsert.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[619/1086] Compiling GRDB PersistableRecord.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[620/1086] Compiling GRDB Record.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[620/1090] Wrapping AST for SafariServices for debugging
+[621/1110] Wrapping AST for SFSafeSymbols for debugging
+[622/1110] Wrapping AST for RevenueCat for debugging
+[623/1110] Wrapping AST for QuillWebKit for debugging
+[624/1110] Wrapping AST for QuillUIKit for debugging
+[625/1110] Wrapping AST for QuillKit for debugging
+[626/1110] Wrapping AST for QuillFoundation for debugging
+[627/1110] Wrapping AST for QuillDataMacros for debugging
+[628/1110] Wrapping AST for QuickLook for debugging
+[628/1110] Write Objects.LinkFileList
+[630/1110] Wrapping AST for Photos for debugging
+[632/1110] Compiling GRDB TableRecord.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[633/1110] Compiling GRDB CaseInsensitiveIdentifier.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[634/1110] Compiling GRDB Inflections+English.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[635/1110] Compiling GRDB Inflections.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[636/1110] Compiling GRDB Mutex.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[637/1110] Compiling GRDB OnDemandFuture.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[638/1110] Compiling GRDB OrderedDictionary.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[639/1110] Compiling GRDB Pool.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[640/1110] Compiling GRDB ReadWriteLock.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[641/1110] Compiling GRDB ReceiveValuesOn.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[642/1110] Compiling GRDB Refinable.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[643/1110] Compiling GRDB Utils.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[644/1110] Compiling GRDB DatabaseCancellable.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[645/1110] Compiling GRDB ValueConcurrentObserver.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[646/1110] Compiling GRDB ValueWriteOnlyObserver.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[647/1110] Compiling GRDB Fetch.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[648/1110] Compiling GRDB Map.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[649/1110] Compiling GRDB RemoveDuplicates.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[650/1110] Compiling GRDB Trace.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[651/1110] Compiling GRDB ValueReducer.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[652/1110] Compiling GRDB SharedValueObservation.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[653/1110] Compiling GRDB ValueObservation.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[654/1110] Compiling GRDB ValueObservationScheduler.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[655/1110] Compiling GRDB resource_bundle_accessor.swift
+<unknown>:0: error: missing required module 'COpenCombineHelpers'
+[655/1110] Linking QuillDataMacros-tool
+[656/1110] Wrapping AST for OpenCombineFoundation for debugging
+[658/1114] Emitting module QuillSwiftUICompatibility
+[659/1116] Compiling QuillSwiftUICompatibility QuillSwiftUICompatibility.swift
+[660/1116] Compiling QuillSwiftUICompatibility TextLayoutCompat.swift
+[661/1116] Compiling QuillSwiftUICompatibility ColorCompat.swift
+[662/1116] Compiling QuillSwiftUICompatibility DesignSystemSurfaceCompat.swift
+[663/1116] Compiling QuillSwiftUICompatibility OpenURLActionCompat.swift
+[664/1117] Compiling GRDB RequestProtocols.swift
+[665/1117] Compiling GRDB Column.swift
+[666/1117] Compiling GRDB DatabasePromise.swift
+[667/1117] Compiling GRDB SQLAssociation.swift
+[668/1117] Compiling GRDB SQLCollection.swift
+[669/1117] Compiling GRDB SQLExpression.swift
+[670/1117] Compiling GRDB SQLForeignKeyRequest.swift
+[671/1117] Compiling GRDB SQLFunctions.swift
+[672/1117] Compiling GRDB SQLOperators.swift
+[673/1117] Compiling GRDB SQLOrdering.swift
+[674/1117] Compiling GRDB SQLRelation.swift
+[675/1117] Compiling GRDB SQLSelection.swift
+[676/1117] Compiling GRDB SQLSubquery.swift
+[677/1117] Compiling GRDB Table.swift
+[678/1117] Compiling GRDB SQLColumnGenerator.swift
+[679/1117] Compiling GRDB SQLGenerationContext.swift
+[680/1117] Compiling GRDB SQLIndexGenerator.swift
+[681/1117] Compiling GRDB SQLQueryGenerator.swift
+[682/1117] Compiling GRDB SQLTableAlterationGenerator.swift
+[683/1117] Compiling GRDB SQLTableGenerator.swift
+[684/1117] Compiling GRDB TableAlias.swift
+[685/1117] Compiling GRDB SQLInterpolation+QueryInterface.swift
+[686/1117] Compiling GRDB ColumnDefinition.swift
+[687/1117] Compiling GRDB Database+SchemaDefinition.swift
+[689/1119] Compiling Observation Observation.swift
+[690/1119] Emitting module Observation
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))

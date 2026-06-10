@@ -1617,6 +1617,10 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("retry_backend_interaction_if_transient()"))
         #expect(backendScript.contains("if kill -0 \"${app_pid:-}\" 2>/dev/null; then"))
         #expect(backendScript.contains("exec \"$0\" \"$SCREENSHOT_PATH\" \"$PRODUCT\" \"$REQUESTED_BACKEND\""))
+        #expect(backendScript.contains("&& \"$INTERACTION_MODE\" == \"settings-default-model-selected\""))
+        #expect(backendScript.contains("INTERACTION_MAX_ATTEMPTS=4"))
+        #expect(backendScript.contains("attempt $INTERACTION_ATTEMPT/$INTERACTION_MAX_ATTEMPTS); retrying"))
+        #expect(!backendScript.contains("retrying once"))
         #expect(backendCore.contains("static var status: QuillBackendRuntimeStatus"))
         #expect(backendCore.contains("QuillBackendRegistry.runtimeStatus(preferred: identifier)"))
         #expect(backendCore.contains("public static func runtimeStatus("))
@@ -1659,6 +1663,8 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("APP_LOG_PATH=\"${QUILLUI_BACKEND_INTERACTION_APP_LOG:-/tmp/quillui-backend-interaction-app.log}\""))
         #expect(backendScript.contains("quillui_print_backend_app_log_tail \"$APP_LOG_PATH\" \"${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}\""))
         #expect(backendScript.contains(">\"$APP_LOG_PATH\" 2>&1 &"))
+        #expect(backendScript.contains("QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"))
+        #expect(backendScript.contains("\"$INTERACTION_MODE\" == \"completions-new-sheet\""))
         #expect(!backendScript.contains("/tmp/quillui-gtk-interaction-app.log"))
         #expect(backendScript.contains("INTERACTION_MODE=\"$(quillui_backend_default_interaction_mode_for_product \"$PRODUCT\")\""))
         #expect(backendProducts.contains("quillui_backend_default_interaction_mode_for_product()"))
@@ -1776,6 +1782,8 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}"))
         #expect(backendScript.contains("refresh_capture_window_for_active_child_window"))
         #expect(backendScript.contains("refresh_capture_window_for_sheet_interaction"))
+        #expect(backendScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
+        #expect(!backendScript.contains("[[ \"$capture_window\" != \"root\" ]] || return 0"))
         #expect(backendScript.contains("quillui_find_visible_window_for_pid_except \"$DISPLAY_ID\" \"$app_pid\" \"$window_id\""))
         #expect(!backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
         #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
@@ -1784,6 +1792,22 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_append_backend_selection_start_environment"))
         #expect(!backendScript.contains("app_environment+=(\"QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(!backendScript.contains("app_environment+=(\"QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6"))
+        #expect(backendScript.contains("reset_cancel_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}\""))
+        #expect(backendScript.contains("reset_cancel_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}\""))
+        #expect(backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 435))}\""))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_TEXT"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y"))
+        #expect(backendScript.contains("instruction_x=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}\""))
+        #expect(backendScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 515))}\""))
+        #expect(backendScript.contains("Reply with a concise Linux validation response."))
+        #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1358))}\""))
+        #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 382))}\""))
+        #expect(!backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}\""))
+        #expect(!backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
         #expect(backendScript.contains("run_list_selection_or_header_interaction()"))
         #expect(backendScript.contains("unsupported_backend_interaction_mode()"))
         #expect(backendScript.contains("backend_label_for_message()"))
@@ -2455,6 +2479,231 @@ struct SourceHygieneTests {
         #expect(!source.contains(".product(name: \"BackendGTK4\", package: \"SwiftOpenUI\")"))
     }
 
+    @Test("Telegram upstream source tooling is tracked")
+    func telegramUpstreamSourceToolingIsTracked() throws {
+        let root = try packageRoot()
+        let fetchUpstream = try String(
+            contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
+            encoding: .utf8
+        )
+        let telegramSourceResolver = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-telegram-source.sh"),
+            encoding: .utf8
+        )
+        let telegramPackageCheck = try String(
+            contentsOf: root.appendingPathComponent("scripts/generated-telegram-package-check.sh"),
+            encoding: .utf8
+        )
+        let telegramManifestPatcher = try String(
+            contentsOf: root.appendingPathComponent("scripts/patch-telegram-package-manifest.py"),
+            encoding: .utf8
+        )
+        let telegramAudit = try String(
+            contentsOf: root.appendingPathComponent("docs/upstream-telegram-audit.md"),
+            encoding: .utf8
+        )
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let objcFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Foundation/Foundation.h"),
+            encoding: .utf8
+        )
+        let objcCoreFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/CoreFoundation/CoreFoundation.h"),
+            encoding: .utf8
+        )
+        let objcAppKitHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AppKit/AppKit.h"),
+            encoding: .utf8
+        )
+        let objcPreludeHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/QuillObjCCompatibility/Prelude.h"),
+            encoding: .utf8
+        )
+        let machHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/mach/mach.h"),
+            encoding: .utf8
+        )
+        let accelerateHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Accelerate/Accelerate.h"),
+            encoding: .utf8
+        )
+        let audioToolboxHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AudioToolbox/AudioToolbox.h"),
+            encoding: .utf8
+        )
+        let carbonHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Carbon/Carbon.h"),
+            encoding: .utf8
+        )
+        let avFoundationHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/AVFoundation/AVFoundation.h"),
+            encoding: .utf8
+        )
+        let ioHIDHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/IOKit/hidsystem/IOHIDLib.h"),
+            encoding: .utf8
+        )
+        let securityHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/Security/Security.h"),
+            encoding: .utf8
+        )
+        let commonCryptoHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/CommonCrypto/CommonCrypto.h"),
+            encoding: .utf8
+        )
+        let coreTextHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/CoreText/CoreText.h"),
+            encoding: .utf8
+        )
+        let quartzCoreHeader = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/QuartzCore/QuartzCore.h"),
+            encoding: .utf8
+        )
+        let objcModuleMap = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/module.modulemap"),
+            encoding: .utf8
+        )
+        let apiCredentialsOverlay = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/ApiCredentials/Sources/ApiCredentials/QuillSecurityOverlay.swift"),
+            encoding: .utf8
+        )
+        let stringsOverlay = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/Strings/Sources/Strings/QuillStringsLinuxOverlay.swift"),
+            encoding: .utf8
+        )
+        let telegramSystemOverlay = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillTelegramBuildOverlays/TelegramSystem/Sources/TelegramSystem/QuillDarwinSysctlOverlay.swift"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains(".library(name: \"QuillObjCCompatibility\", targets: [\"QuillObjCCompatibility\"])"))
+        #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
+        #expect(fetchUpstream.contains("telegram)"))
+        #expect(fetchUpstream.contains("fetch_repo telegram-swift https://github.com/overtake/TelegramSwift.git master"))
+        #expect(telegramSourceResolver.contains("quillui_resolve_telegram_source_dir()"))
+        #expect(telegramSourceResolver.contains("QUILLUI_APP_SOURCE_DIR"))
+        #expect(telegramSourceResolver.contains("TELEGRAM_SWIFT_SOURCE_DIR"))
+        #expect(telegramSourceResolver.contains("TELEGRAM_SOURCE_DIR"))
+        #expect(telegramSourceResolver.contains(".upstream/telegram-swift"))
+        #expect(telegramPackageCheck.contains("source \"$ROOT_DIR/scripts/quillui-telegram-source.sh\""))
+        #expect(telegramPackageCheck.contains("UPSTREAM_DIR=\"$(quillui_resolve_telegram_source_dir \"$ROOT_DIR\")\""))
+        #expect(telegramPackageCheck.contains("QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES"))
+        #expect(telegramPackageCheck.contains("--jobs 1"))
+        #expect(telegramPackageCheck.contains("--skip-update"))
+        #expect(telegramPackageCheck.contains("ApiCredentials"))
+        #expect(telegramPackageCheck.contains("CAPortal"))
+        #expect(telegramPackageCheck.contains("ColorPalette"))
+        #expect(telegramPackageCheck.contains("CalendarUtils"))
+        #expect(telegramPackageCheck.contains("CrashHandler"))
+        #expect(telegramPackageCheck.contains("CurrencyFormat"))
+        #expect(telegramPackageCheck.contains("DateUtils"))
+        #expect(telegramPackageCheck.contains("DetectSpeech"))
+        #expect(telegramPackageCheck.contains("EDSunriseSet"))
+        #expect(telegramPackageCheck.contains("EmojiSuggestions"))
+        #expect(telegramPackageCheck.contains("FastBlur"))
+        #expect(telegramPackageCheck.contains("FoundationUtils"))
+        #expect(telegramPackageCheck.contains("GZIP"))
+        #expect(telegramPackageCheck.contains("HackUtils"))
+        #expect(telegramPackageCheck.contains("HotKey"))
+        #expect(telegramPackageCheck.contains("KeyboardKey"))
+        #expect(telegramPackageCheck.contains("MergeLists"))
+        #expect(telegramPackageCheck.contains("NumberPluralization"))
+        #expect(telegramPackageCheck.contains("RingBuffer"))
+        #expect(telegramPackageCheck.contains("Strings"))
+        #expect(telegramPackageCheck.contains("Svg"))
+        #expect(telegramPackageCheck.contains("TGCurrencyFormatter"))
+        #expect(telegramPackageCheck.contains("TGPassportMRZ"))
+        #expect(telegramPackageCheck.contains("TelegramSystem"))
+        #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
+        #expect(telegramPackageCheck.contains("QuillObjCCompatibility/Prelude.h"))
+        #expect(telegramPackageCheck.contains("overlay_root=\"$ROOT_DIR/Sources/QuillTelegramBuildOverlays\""))
+        #expect(telegramPackageCheck.contains("package_mirror_root=\"$WORK_ROOT/overlaid-packages\""))
+        #expect(telegramPackageCheck.contains("CACHE_HOME=\"${QUILLUI_GENERATED_TELEGRAM_PACKAGE_HOME"))
+        #expect(telegramPackageCheck.contains("HOME=\"$CACHE_HOME\""))
+        #expect(telegramPackageCheck.contains("find \"$UPSTREAM_DIR/packages\""))
+        #expect(telegramPackageCheck.contains("patch-telegram-package-manifest.py"))
+        #expect(telegramPackageCheck.contains("cp -R \"$overlay_dir\"/. \"$mirror_package_dir\""))
+        #expect(telegramPackageCheck.contains("ln -s \"$UPSTREAM_DIR/submodules\" \"$package_mirror_root/submodules\""))
+        #expect(telegramPackageCheck.contains("-fobjc-runtime=gnustep-2.0"))
+        #expect(telegramPackageCheck.contains("-fblocks"))
+        #expect(telegramPackageCheck.contains("-fobjc-arc"))
+        #expect(telegramPackageCheck.contains("deeper Foundation/AppKit runtime surface"))
+        #expect(telegramPackageCheck.contains("Generic build overlays applied"))
+        #expect(telegramAudit.contains("Telegram Swift is not a SwiftUI app"))
+        #expect(telegramAudit.contains("scripts/fetch-upstream.sh telegram"))
+        #expect(telegramAudit.contains("QuillObjCCompatibility"))
+        #expect(telegramAudit.contains("QuillAppKit/QuillKit shims"))
+        #expect(telegramAudit.contains("Sources/QuillTelegramBuildOverlays"))
+        #expect(telegramAudit.contains("mirrored package tree"))
+        #expect(telegramAudit.contains("local QuillUI Apple-module products"))
+        #expect(telegramAudit.contains("transitive `Colors` package"))
+        #expect(telegramManifestPatcher.contains("IMPORT_TO_PRODUCT"))
+        #expect(telegramManifestPatcher.contains("\"AppKit\": \"AppKit\""))
+        #expect(telegramManifestPatcher.contains("\"Cocoa\": \"Cocoa\""))
+        #expect(telegramManifestPatcher.contains(".package(name: \"QuillUI\""))
+        #expect(telegramManifestPatcher.contains(".product(name:"))
+        #expect(objcFoundationHeader.contains("@interface NSString : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSCharacterSet : NSObject"))
+        #expect(objcFoundationHeader.contains("@protocol NSXMLParserDelegate"))
+        #expect(objcFoundationHeader.contains("- (void)getBytes:(void *)buffer range:(NSRange)range"))
+        #expect(objcFoundationHeader.contains("- (void)appendBytes:(const void *)bytes length:(NSUInteger)length"))
+        #expect(objcFoundationHeader.contains("@protocol NSFastEnumeration"))
+        #expect(objcFoundationHeader.contains("typedef uint32_t UInt32"))
+        #expect(objcFoundationHeader.contains("clang assume_nonnull begin"))
+        #expect(objcFoundationHeader.contains("typedef NS_ENUM(NSInteger, NSDateFormatterStyle)"))
+        #expect(objcFoundationHeader.contains("typedef long dispatch_once_t"))
+        #expect(objcCoreFoundationHeader.contains("CFStringGetBytes"))
+        #expect(objcCoreFoundationHeader.contains("kCFStringEncodingUTF16LE"))
+        #expect(objcAppKitHeader.contains("CGSizeMake"))
+        #expect(objcAppKitHeader.contains("CGSizeEqualToSize"))
+        #expect(objcAppKitHeader.contains("CGContextFillRect"))
+        #expect(objcAppKitHeader.contains("@interface NSView : NSObject"))
+        #expect(objcAppKitHeader.contains("@interface NSBitmapImageRep : NSObject"))
+        #expect(objcAppKitHeader.contains("@interface NSGraphicsContext : NSObject"))
+        #expect(objcAppKitHeader.contains("NSArray<NSView *> *subviews"))
+        #expect(objcAppKitHeader.contains("NSString *className"))
+        #expect(objcAppKitHeader.contains("NSEventModifierFlagCommand"))
+        #expect(objcAppKitHeader.contains("@interface NSWorkspace : NSObject"))
+        #expect(objcPreludeHeader.contains("#include <string.h>"))
+        #expect(machHeader.contains("vm_allocate"))
+        #expect(machHeader.contains("vm_remap"))
+        #expect(accelerateHeader.contains("vImage_Buffer"))
+        #expect(accelerateHeader.contains("vImageBoxConvolve_ARGB8888"))
+        #expect(audioToolboxHeader.contains("AudioComponentDescription"))
+        #expect(audioToolboxHeader.contains("AUVoiceIOMutedSpeechActivityEventListener"))
+        #expect(carbonHeader.contains("kVK_Return"))
+        #expect(carbonHeader.contains("UCKeyTranslate"))
+        #expect(avFoundationHeader.contains("@interface AVURLAsset : NSObject"))
+        #expect(ioHIDHeader.contains("IOHIDRequestAccess"))
+        #expect(securityHeader.contains("import Security"))
+        #expect(commonCryptoHeader.contains("import CommonCrypto"))
+        #expect(coreTextHeader.contains("CTLineGetGlyphCount"))
+        #expect(quartzCoreHeader.contains("QuartzCore"))
+        #expect(objcModuleMap.contains("module Foundation"))
+        #expect(objcModuleMap.contains("module AppKit"))
+        #expect(objcModuleMap.contains("module Cocoa"))
+        #expect(objcModuleMap.contains("module Security"))
+        #expect(objcModuleMap.contains("module CommonCrypto"))
+        #expect(objcModuleMap.contains("module CoreText"))
+        #expect(objcModuleMap.contains("module QuartzCore"))
+        #expect(!objcModuleMap.contains("module CoreFoundation {"))
+        #expect(objcPreludeHeader.contains("#include <string>"))
+        #expect(objcPreludeHeader.contains("#include <pthread.h>"))
+        #expect(apiCredentialsOverlay.contains("func SecStaticCodeCreateWithPath"))
+        #expect(apiCredentialsOverlay.contains("func CC_SHA1"))
+        #expect(apiCredentialsOverlay.contains("containerURL(forSecurityApplicationGroupIdentifier"))
+        #expect(stringsOverlay.contains("static let byWords"))
+        #expect(stringsOverlay.contains("func CTLineCreateWithAttributedString"))
+        #expect(stringsOverlay.contains("quillIsTelegramWordCharacter"))
+        #expect(telegramSystemOverlay.contains("func sysctlbyname"))
+        #expect(telegramSystemOverlay.contains("oldlenp?.pointee = 0"))
+    }
+
     @Test("Generated resource copier flattens asset catalog images")
     func generatedResourceCopierFlattensAssetCatalogImages() throws {
         let root = try packageRoot()
@@ -2758,10 +3007,25 @@ struct SourceHygieneTests {
         #expect(historyList.contains("public var emptySubtitle: String"))
         #expect(historyList.contains("emptyTitle: String = \"No saved chats yet\""))
         #expect(historyList.contains("emptySubtitle: String = \"Start a chat and it will be saved locally.\""))
+        #expect(historyList.contains("private enum QuillConversationInitialSelection"))
+        #expect(historyList.contains("\"QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START\""))
+        #expect(historyList.contains("\"QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START\""))
+        #expect(historyList.contains("\"QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START\""))
+        #expect(historyList.contains("@State private var didApplyInitialSelection = false"))
+        #expect(historyList.contains(".onAppear { applyInitialSelectionIfNeeded() }"))
+        #expect(historyList.contains("QuillConversationInitialSelection.index(count: sortedItems.count)"))
+        #expect(historyList.contains("QuillConversationInitialSelection.index(count: items.count)"))
         #expect(historyList.contains(".accessibilityElement(children: .combine)"))
         #expect(historyList.contains(".accessibilityLabel(item.title)"))
         #expect(historyList.contains(".accessibilityValue(item.lastMessage)"))
         #expect(historyList.contains(".help(accessibilitySummary(for: item))"))
+        #expect(historyList.contains("""
+                        .help(accessibilitySummary(for: item))
+                        #if os(Linux)
+                        .onTapGesture { onSelect(item) }
+                        #endif
+                        .onHover { hovering in
+"""))
         #expect(historyList.contains("if sortedItems.isEmpty"))
         #expect(historyList.contains("private var emptyHistory: some View"))
         #expect(historyList.contains("Text(emptyTitle)"))
@@ -2777,13 +3041,23 @@ struct SourceHygieneTests {
         #expect(historyList.contains("let lastMessage = lastMessagePreview(for: item)"))
         #expect(historyList.contains("VStack(alignment: .leading, spacing: listSpacing)"))
         #expect(historyList.contains("ForEach(sortedItems) { item in"))
+        #expect(historyList.contains("Button(action: { onSelect(item) })"))
         #expect(historyList.contains("VStack(alignment: .leading, spacing: rowTextSpacing)"))
         #expect(historyList.contains(".font(.system(size: rowFontSize))"))
         #expect(historyList.contains("Text(lastMessage)"))
         #expect(historyList.contains(".font(.system(size: rowPreviewFontSize))"))
         #expect(historyList.contains(".lineLimit(2)"))
         #expect(historyList.contains(".padding(rowPadding)"))
+        #expect(historyList.contains("""
+                            .padding(rowPadding)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(rowBackgroundColor(for: rowState))
+                            .cornerRadius(rowCornerRadius)
+                        }
+                        .contentShape(Rectangle())
+"""))
         #expect(historyList.contains(".cornerRadius(rowCornerRadius)"))
+        #expect(historyList.contains(".buttonStyle(.plain)"))
         #expect(historyList.contains("private var listSpacing: CGFloat { 8 }"))
         #expect(historyList.contains("private var rowFontSize: CGFloat { 15 }"))
         #expect(historyList.contains("private var rowPreviewFontSize: CGFloat { 12 }"))
@@ -2813,6 +3087,20 @@ struct SourceHygieneTests {
         #expect(historyList.contains("Text(dateTitle(group.date))"))
         #expect(historyList.contains("ForEach(group.items) { item in"))
         #expect(historyList.contains("private func groupedRow(for item: QuillConversationHistoryItem) -> some View"))
+        #expect(historyList.contains("return Button(action: { onSelect(item) })"))
+        #expect(historyList.contains("""
+            .padding(.vertical, groupedRowVerticalPadding)
+            .frame(maxWidth: .infinity, minHeight: groupedRowMinHeight, alignment: .leading)
+        }
+        .contentShape(Rectangle())
+"""))
+        #expect(historyList.contains("""
+        .help(item.title)
+        #if os(Linux)
+        .onTapGesture { onSelect(item) }
+        #endif
+        .onHover { hovering in
+"""))
         #expect(historyList.contains("let textState = PaintControlState(isHovered: isHovered, isSelected: false)"))
         #expect(historyList.contains("MacListRowPaint.primaryTextColor(for: textState)"))
         #expect(historyList.contains("Button(role: .destructive, action: { onDeleteDay(date) })"))
@@ -2884,11 +3172,13 @@ struct SourceHygieneTests {
         #expect(controls.contains("Quill is unreachable. Plug Quill back in if it's unplugged"))
         #expect(controls.contains("QuillSheetStatusBanner(\n            message: message"))
 
-        let gtkPaintContext = try packageSource("Sources/QuillUIGtk/CairoPaintContext.swift")
-        #expect(gtkPaintContext.contains("import CCairo"))
-        #expect(gtkPaintContext.contains("cairo_select_font_face("))
-        #expect(gtkPaintContext.contains("cairo_show_text(cr, string)"))
-        #expect(!gtkPaintContext.contains("drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {\n        // TODO"))
+        let cairoPaintContext = try packageSource("Sources/QuillPaintCairo/CairoPaintContext.swift")
+        #expect(cairoPaintContext.contains("import CCairo"))
+        #expect(cairoPaintContext.contains("public convenience init(cr: OpaquePointer)"))
+        #expect(cairoPaintContext.contains("MacFontResolution.resolve(font)"))
+        #expect(cairoPaintContext.contains("cairo_select_font_face("))
+        #expect(cairoPaintContext.contains("cairo_show_text(pointer, string)"))
+        #expect(!cairoPaintContext.contains("drawText(_ string: String, at point: PaintPoint, font: PaintFont, color: PaintColor) {\n        // TODO"))
 
         guard let buttonStart = controls.range(of: "public struct QuillSidebarNavigationButton: View"),
               let nextSection = controls.range(of: "public struct QuillStatusBanner: View") else {
@@ -2914,6 +3204,75 @@ struct SourceHygieneTests {
         #expect(sidebarButton.contains("\"gearshape\", \"gearshape.fill\", \"gear\""))
         #expect(!sidebarButton.contains("case \"keyboard\", \"keyboard.fill\":"))
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
+    }
+
+    @Test("GTK QuillPaint hooks cover button and text input chrome")
+    func gtkQuillPaintHooksCoverButtonAndTextInputChrome() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+        let smallPatcher = try packageSource("scripts/patch-swiftopenui-quillpaint.py")
+        let gtkBackend = try packageSource("Sources/QuillUIGtk/QuillUIGtk.swift")
+        let gtkButton = try packageSource("Sources/QuillUIGtk/QuillGtkButton.swift")
+        let gtkTextField = try packageSource("Sources/QuillUIGtk/QuillGtkTextField.swift")
+        let gtkToggle = try packageSource("Sources/QuillUIGtk/QuillGtkToggle.swift")
+
+        for source in [renderer, patcher, smallPatcher] {
+            #expect(source.contains("quill_gtk_button_paint_hook"))
+            #expect(source.contains("quill_gtk_text_field_paint_hook"))
+            #expect(source.contains("quill_gtk_text_editor_paint_hook"))
+            #expect(source.contains("quill_gtk_toggle_paint_hook"))
+            #expect(source.contains("var useQuillPaintTextField = false"))
+            #expect(source.contains("textFieldStyleType == .roundedBorder"))
+            #expect(source.contains("extension SecureField: GTKRenderable"))
+            #expect(source.contains("quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true)"))
+            #expect(source.contains("extension TextEditor: GTKRenderable"))
+            #expect(source.contains("extension Toggle: GTKRenderable"))
+            #expect(source.contains("quill_gtk_toggle_paint_hook?("))
+        }
+
+        #expect(renderer.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(renderer.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
+        #expect(renderer.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
+        #expect(renderer.contains("gtk_editable_get_text(OpaquePointer(editable))"))
+        #expect(patcher.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
+        #expect(patcher.contains("SwiftOpenUI TextField idle binding helper insertion marker was not recognized"))
+        #expect(patcher.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(patcher.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
+        #expect(patcher.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
+        #expect(patcher.contains("gtk_editable_get_text(OpaquePointer(editable))"))
+
+        #expect(gtkBackend.contains("installQuillButtonHook()"))
+        #expect(gtkBackend.contains("installQuillTextFieldHook()"))
+        #expect(gtkBackend.contains("installQuillToggleHook()"))
+        #expect(gtkButton.contains("setupQuillButtonChrome(button: button, label: label, isDefault: isDefault)"))
+        #expect(gtkButton.contains("MacButtonPaint()"))
+        #expect(gtkTextField.contains("setupQuillTextFieldChrome(entry: entry)"))
+        #expect(gtkTextField.contains("setupQuillTextEditorChrome(scrolledWindow: scrolledWindow, textView: textView)"))
+        #expect(gtkTextField.contains("MacTextFieldPaint()"))
+        #expect(gtkTextField.contains("installQuillTextInputFocusGesture(on: overlay, focus: focusEntry)"))
+        #expect(gtkTextField.contains("installQuillTextInputFocusGesture(on: entryWidget, focus: focusEntry)"))
+        #expect(gtkTextField.contains("installQuillTextInputFocusGesture(on: scrolledWidget, focus: focusTextView)"))
+        #expect(gtkTextField.contains("gtk_swift_add_capture_gesture(widget, gesture)"))
+        #expect(gtkTextField.contains("\"pressed\""))
+        #expect(gtkTextField.contains("gtk_editable_get_delegate(OpaquePointer(entry))"))
+        #expect(gtkTextField.contains("quillTextFieldForceFocus(quillTextFieldGTKWidgetPointer(delegate))"))
+        #expect(gtkTextField.contains("gtk_swift_root_grab_focus(widget)"))
+        #expect(gtkTextField.contains("private final class QuillGTKTextInputFocusTarget"))
+        #expect(gtkTextField.contains("quillTextFieldScheduleRootFocus(widget)"))
+        #expect(gtkTextField.contains("g_object_ref(gpointer(widget))"))
+        #expect(gtkTextField.contains("g_idle_add({ userData -> gboolean in"))
+        #expect(gtkTextField.contains("g_object_unref(gpointer(target.widget))"))
+        #expect(gtkTextField.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), entryWidget)"))
+        #expect(gtkTextField.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), scrolledWidget)"))
+        #expect(gtkTextField.contains("gtk_swift_drawing_area_set_draw_func("))
+        #expect(gtkTextField.contains("CairoPaintContext(cr: cr)"))
+        #expect(gtkTextField.contains(".quill-paint-text-field text placeholder"))
+        #expect(gtkTextField.contains("textview.quill-paint-text-editor"))
+        #expect(gtkToggle.contains("setupQuillToggleChrome(control: control, isSwitch: isSwitch, label: label)"))
+        #expect(gtkToggle.contains("MacCheckboxPaint(value: chromeBox.isActive ? .on : .off)"))
+        #expect(gtkToggle.contains("MacSwitchPaint(isOn: chromeBox.isActive)"))
+        #expect(gtkToggle.contains("gtk_widget_set_opacity(control, 0.001)"))
+        #expect(gtkToggle.contains("installQuillToggleLabelGesture"))
     }
 
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
@@ -2975,9 +3334,29 @@ struct SourceHygieneTests {
     @Test("GTK plain button style suppresses platform chrome")
     func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let shim = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h")
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
 
         for source in [renderer, patcher] {
+            #expect(source.contains("private func gtkDisableButtonChildTargeting"))
+            #expect(source.contains("private func gtkDebugLog(_ message: String)"))
+            #expect(source.contains("gtk_widget_set_can_target(widget, 0)"))
+            #expect(source.contains("gtkDisableButtonChildTargeting(childWidget)"))
+            #expect(source.contains("private final class GTKButtonActionBox"))
+            #expect(source.contains("private func gtkScheduleButtonAction"))
+            #expect(source.contains("private func gtkScheduleSheetDismissal"))
+            #expect(source.contains("gtkScheduleSheetDismissal {"))
+            #expect(source.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
+            #expect(source.contains("gtkScheduleButtonAction(box, source: \"gesture\")"))
+            #expect(source.contains("gtk_swift_add_capture_gesture"))
+            #expect(source.contains("gtk_swift_add_capture_gesture(button, gesture)"))
+            #expect(source.contains("gtk_swift_legacy_capture_controller"))
+            #expect(source.contains("gtk_swift_event_is_primary_button_press"))
+            #expect(source.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
+            #expect(source.contains("GTKButtonRootEventContext"))
+            #expect(source.contains("gtkInstallButtonRootEventFallback"))
+            #expect(source.contains("gtkScheduleButtonAction(context.box, source: \"root-legacy\")"))
+            #expect(source.contains("gtk_swift_widget_is_topmost_at_root_point"))
             #expect(source.contains("gtk_widget_add_css_class(button, \"flat\")"))
             #expect(source.contains("background: transparent;"))
             #expect(source.contains("background-color: transparent;"))
@@ -2989,6 +3368,35 @@ struct SourceHygieneTests {
             #expect(source.contains("text-shadow: none;"))
             #expect(!source.contains("border: none; background: none; padding: 0;"))
         }
+        #expect(patcher.contains("gtk_swift_widget_contains_root_point"))
+        #expect(!patcher.contains("guard gtk_swift_widget_contains_root_point(root, context.widget"))
+        #expect(patcher.contains("GTK_PICK_NON_TARGETABLE"))
+        #expect(patcher.contains("gtk_swift_widget_is_ancestor_or_self(picked, widget)"))
+        #expect(shim.contains("GTK_PICK_NON_TARGETABLE"))
+        #expect(shim.contains("gtk_swift_widget_is_ancestor_or_self(picked, widget)"))
+        #expect(renderer.contains("gtk_swift_drop_down_new(stringList)!"))
+        #expect(!renderer.contains("gtk_drop_down_new_from_strings(ptr)!"))
+        #expect(renderer.contains("guard options.indices.contains(newIndex), newIndex != clampedSelection else"))
+        #expect(patcher.contains("gtk_swift_drop_down_new(stringList)!"))
+        #expect(patcher.contains("guard options.indices.contains(newIndex), newIndex != clampedSelection else"))
+        #expect(patcher.contains("gtk_swift_drop_down_new(gpointer model)"))
+        #expect(shim.contains("gtk_swift_drop_down_new(gpointer model)"))
+        #expect(shim.contains("gtk_drop_down_new(G_LIST_MODEL(model), NULL)"))
+    }
+
+    @Test("GTK backend launches through a plain GTK main loop")
+    func gtkBackendLaunchesThroughPlainGTKMainLoop() throws {
+        let backend = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        for source in [backend, patcher] {
+            #expect(source.contains("gtk_init_check()"))
+            #expect(source.contains("factory(nil)"))
+            #expect(source.contains("g_main_loop_new(nil, 0)"))
+            #expect(source.contains("g_main_loop_run(loop)"))
+            #expect(!source.contains("g_application_run(applicationPointer(appPtr), 0, nil)"))
+        }
+        #expect(!backend.contains("g_application_run("))
     }
 
     @Test("GTK patcher preserves fixed-frame and list viewport sizing contracts")
@@ -3014,9 +3422,49 @@ struct SourceHygieneTests {
         #expect(patcher.contains("private final class GTKSheetLifecycleScope"))
         #expect(patcher.contains("gtkWithSheetLifecycleScope(info.lifecycleScope) { info.render() }"))
         #expect(patcher.contains("gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) }"))
-        #expect(patcher.contains("if gtkShouldRenderSheetInWindow() || gtkShouldRenderSheetInRootOverlay()"))
-        #expect(patcher.contains("gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }"))
+        #expect(patcher.contains("private var gtkRootSheetOverlayStack: [OpaquePointer] = []"))
+        #expect(patcher.contains("private func gtkWithRootSheetOverlay<T>(_ rootOverlay: OpaquePointer, _ body: () -> T) -> T"))
+        #expect(patcher.contains("private func gtkSheetRootOverlay(for anchor: UnsafeMutablePointer<GtkWidget>) -> OpaquePointer?"))
+        #expect(patcher.contains("if let rootOverlay = gtkCurrentRootSheetOverlay()"))
+        #expect(patcher.contains("if let rootOverlay = gtkStoredRootPresentationOverlay(on: gpointer(anchor))"))
+        #expect(patcher.contains("var ancestor = gtk_widget_get_parent(anchor)"))
+        #expect(patcher.contains("ancestor = gtk_widget_get_parent(current)"))
+        #expect(patcher.contains("if let rootOverlay = gtkFallbackRootPresentationOverlay()"))
+        #expect(patcher.occurrences(of: "let rootOverlay = gtkSheetRootOverlay(for: anchor)") == 2)
+        #expect(patcher.occurrences(of: "gtkWithRootSheetOverlay(rootOverlay) {") == 2)
+        #expect(patcher.occurrences(of: "gtkStoreRootPresentationOverlay(rootOverlay, on: panel)") == 2)
+        #expect(patcher.occurrences(of: "gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)") == 2)
+        #expect(patcher.contains("private func gtkAttachRootSheetOverlay("))
+        #expect(patcher.contains("gtk_widget_insert_after(panel, overlayWidget, previousTop)"))
+        #expect(patcher.occurrences(of: "gtkAttachRootSheetOverlay(panel, to: rootOverlay)") == 2)
+        #expect(patcher.contains("private var gtkRootPresentationOverlayFallback: OpaquePointer?"))
+        #expect(patcher.contains("func gtkStoreRootPresentationOverlay("))
+        #expect(patcher.contains("gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))"))
+        #expect(patcher.contains("gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)"))
+        #expect(patcher.contains("func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer?"))
+        #expect(patcher.contains("gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback"))
+        #expect(patcher.contains("func gtkFallbackRootPresentationOverlay() -> OpaquePointer?"))
+        #expect(patcher.contains("sheet item root present activeKey="))
+        #expect(patcher.contains("sheet item root unavailable activeKey="))
+        #expect(patcher.contains("if gtkShouldRenderSheetInWindow() {\n            let sheetBuilder = sheetContent"))
+        #expect(!patcher.contains("if gtkShouldRenderSheetInWindow() || gtkShouldRenderSheetInRootOverlay()"))
+        #expect(patcher.occurrences(of: "gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }") == 2)
+        #expect(patcher.contains("lifecycleScope.runDisappearActions()"))
         #expect(patcher.contains("sheetLifecycleScope.registerOnDisappear(boundAction)"))
+        #expect(patcher.contains("gtkInstallSheetPanelFocusBridge(on: panel)"))
+        #expect(patcher.contains("gtkScheduleFirstSheetEditableFocus(in: panel)"))
+        #expect(patcher.contains("gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)"))
+        #expect(patcher.contains("gtkFocusSheetEditableWidget(editable)"))
+        #expect(patcher.contains("private final class GTKSheetEditableFocusTarget"))
+        #expect(patcher.contains("private final class GTKSheetPanelFocusTarget"))
+        #expect(patcher.contains("gtk_editable_get_delegate(OpaquePointer(widget))"))
+        #expect(patcher.contains("gtkScheduleSheetEditableFocus(delegateWidget)"))
+        #expect(patcher.contains("gtkFindFirstSheetEditable(in: target.panel)"))
+        #expect(patcher.contains("g_idle_add({ userData -> gboolean in"))
+        #expect(patcher.contains("gtk_swift_widget_is_topmost_at_root_point(root, widget, rootX, rootY)"))
+        #expect(patcher.contains("gtk_swift_widget_is_editable(widget)"))
+        #expect(patcher.contains("gtk_swift_root_grab_focus(widget)"))
+        #expect(patcher.contains("gtk_swift_root_grab_focus(delegateWidget)"))
         #expect(patcher.contains("var hasMapped: Bool = false"))
         #expect(patcher.contains("guard box.hasMapped else { return }"))
     }
@@ -3046,10 +3494,19 @@ struct SourceHygieneTests {
         #expect(verifier.contains("new_completion_pixels >= 120"))
         #expect(verifier.contains("minimum_row_action_segments: int = 4"))
         #expect(verifier.contains("row_action_segments >= minimum_row_action_segments"))
+        #expect(verifier.contains("minimum_wordmark_pixels: int = 650"))
+        #expect(verifier.contains("wordmark_pixels >= minimum_wordmark_pixels"))
+        #expect(verifier.contains("panel_surface_pixels >= 32_000"))
+        #expect(verifier.contains("minimum_row_dividers=0"))
+        #expect(verifier.contains("minimum_row_action_segments=0"))
+        #expect(verifier.contains("minimum_wordmark_pixels=400"))
+        #expect(verifier.contains("minimum_wordmark_pixels=350"))
         #expect(verifier.contains("cancel_pixels >= 90"))
         #expect(verifier.contains("save_pixels >= 90"))
         #expect(verifier.contains("saved_row_pixels >= 260"))
-        #expect(verifier.contains("edited_row_name_pixels >= 400"))
+        #expect(verifier.contains("edited_row_name_pixels >= 240"))
+        #expect(verifier.contains("top + int(app_height * 0.49)"))
+        #expect(verifier.contains("top + int(app_height * 0.57)"))
         #expect(verifier.contains("deleted_row_action_segments <= 3"))
     }
 
@@ -3067,6 +3524,27 @@ struct SourceHygieneTests {
         #expect(renderer.contains("SwiftUI lays repeated vertical rows against the parent's"))
         #expect(renderer.contains("gtk_widget_set_hexpand(widget, 1)"))
         #expect(renderer.contains("gtk_widget_set_halign(widget, GTK_ALIGN_FILL)"))
+    }
+
+    @Test("Vendored GTK ScrollViewReader uses deferred ID adjustment scrolling")
+    func vendoredGTKScrollViewReaderUsesDeferredIDAdjustmentScrolling() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>]"))
+        #expect(renderer.contains("private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest]"))
+        #expect(renderer.contains("let gtkSwiftVerticalScrollViewMarker = \"gtk-swift-vertical-scroll-view\""))
+        #expect(renderer.contains("private func gtkMarkSwiftUIScrollView"))
+        #expect(renderer.contains("gtkMarkSwiftUIScrollView(scrolled, hasVerticalAxis: axes.contains(.vertical))"))
+        #expect(renderer.contains("private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>)"))
+        #expect(renderer.contains("gtkResolvePendingScrollTo(id: id, widget: widget)"))
+        #expect(renderer.contains("@discardableResult\nprivate func gtkApplyScrollTo"))
+        #expect(renderer.contains("gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY)"))
+        #expect(renderer.contains("gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled))"))
+        #expect(renderer.contains("gtk_adjustment_set_value(vadjustment, maxValue)"))
+        #expect(renderer.contains("gtkScheduleScrollTo(id: id, widget, anchor: anchor)"))
+        #expect(renderer.contains("gtkPendingScrollRequests[anyID] = GTKPendingScrollRequest(anchor: anchor)"))
+        #expect(renderer.contains("gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)"))
+        #expect(!renderer.contains("gtk_widget_grab_focus(widget)"))
     }
 
     private func packageRoot() throws -> URL {

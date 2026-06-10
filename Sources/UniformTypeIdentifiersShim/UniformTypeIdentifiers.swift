@@ -26,6 +26,22 @@ public struct UTType: Hashable, Sendable {
         self = type
     }
 
+    /// Best-effort MIME-type -> UTType lookup over the known type table (used by
+    /// MimeTypeUtil.utiTypeForMimeType). Not the full UTI MIME database; covers the
+    /// types SSK references. Returns nil for unknown MIME strings, matching Apple.
+    public init?(mimeType: String, conformingTo supertype: UTType? = nil) {
+        guard
+            let mimeType = Self.normalizedMIMEType(mimeType),
+            let type = Self.typesByMIMEType[mimeType]
+        else { return nil }
+
+        if let supertype, !type.conforms(to: supertype) {
+            return nil
+        }
+
+        self = type
+    }
+
     public static let item = UTType("public.item")!
     public static let content = UTType("public.content")!
     public static let data = UTType("public.data")!
@@ -209,8 +225,36 @@ public struct UTType: Hashable, Sendable {
         UTType.pdf.identifier: "PDF"
     ]
 
+    private static let typesByMIMEType: [String: UTType] = [
+        "text/plain": .plainText,
+        "application/rtf": .rtf,
+        "text/html": .html,
+        "application/xml": .xml,
+        "text/xml": .xml,
+        "application/json": .json,
+        "image/png": .png,
+        "image/jpeg": .jpeg,
+        "image/jpg": .jpeg,
+        "image/tiff": .tiff,
+        "image/gif": .gif,
+        "image/heic": .heic,
+        "image/heif": .heif,
+        "image/webp": .webP,
+        "video/mp4": .mpeg4Movie,
+        "audio/mpeg": .mp3,
+        "audio/mp3": .mp3,
+        "application/pdf": .pdf
+    ]
+
     private static func normalizedFilenameExtension(_ filenameExtension: String) -> String? {
         let normalized = filenameExtension.lowercased()
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private static func normalizedMIMEType(_ mimeType: String) -> String? {
+        // Strip any parameters (e.g. "text/plain; charset=utf-8") then normalize.
+        let base = mimeType.split(separator: ";", maxSplits: 1).first.map(String.init) ?? mimeType
+        let normalized = base.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return normalized.isEmpty ? nil : normalized
     }
 }

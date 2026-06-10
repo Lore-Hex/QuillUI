@@ -64,21 +64,7 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
     var _value: Value  // internal for restoreValue cross-storage access
     private var forwardedStorage: StateStorage<Value>?
     public weak var host: AnyViewHost? {
-        didSet { wireObservableObjectStateValueIfNeeded() }
-    }
-
-    private func wireObservableObjectStateValueIfNeeded() {
-        guard let object = _value as? any ObservableObject else { return }
-        var mirror: Mirror? = Mirror(reflecting: object)
-        while let current = mirror {
-            for child in current.children {
-                guard let provider = child.value as? AnyPublishedProvider else { continue }
-                provider.anyPublished.setObserver(token: ObjectIdentifier(self)) { [weak self] in
-                    self?.host?.scheduleRebuild()
-                }
-            }
-            mirror = current.superclassMirror
-        }
+        didSet { wireObservableStateValue() }
     }
     public private(set) var generation: UInt64 = 0
 
@@ -95,6 +81,11 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
 
     public func setValue(_ newValue: Value) {
         lock.lock()
+        if let forwarded = forwardedStorage {
+            lock.unlock()
+            forwarded.setValue(newValue)
+            return
+        }
         _value = newValue
         generation += 1
         let forwarded = forwardedStorage
@@ -103,10 +94,7 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
         let hostDescription = currentHost.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
         let forwardedHostDescription = forwarded?.host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
         swiftOpenUIStateDebugLog("state set type=\(Value.self) forwarded=\(forwarded != nil) host=\(hostDescription) forwardedHost=\(forwardedHostDescription)")
-        if let forwarded {
-            forwarded.setValue(newValue)
-            return
-        }
+        wireObservableStateValue()
         // @State always rebuilds its declaring host — no dependency gating.
         // The declaring host is the only host notified, and it may pass
         // the value to children via Binding. Skipping its rebuild would
@@ -131,6 +119,13 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
         if let typed = other as? StateStorage<Value> {
             // Direct access without lock — called only during render pass (single-threaded)
             _value = typed._value
+            forwardedStorage = nil
+            wireObservableStateValue()
         }
+    }
+
+    private func wireObservableStateValue() {
+        guard let object = _value as? any ObservableObject else { return }
+        wirePublishedObject(object, token: ObjectIdentifier(self), host: host)
     }
 }

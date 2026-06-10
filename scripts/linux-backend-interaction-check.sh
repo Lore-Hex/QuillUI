@@ -24,6 +24,11 @@ INTERACTION_MODE="${QUILLUI_BACKEND_INTERACTION_MODE:-}"
 if [[ -z "$INTERACTION_MODE" ]]; then
   INTERACTION_MODE="$(quillui_backend_default_interaction_mode_for_product "$PRODUCT")"
 fi
+if [[ -z "${QUILLUI_BACKEND_INTERACTION_MAX_ATTEMPTS:-}" \
+  && "$PRODUCT" == "quill-chat-linux" \
+  && "$INTERACTION_MODE" == "settings-default-model-selected" ]]; then
+  INTERACTION_MAX_ATTEMPTS=4
+fi
 
 quillui_install_linux_backend_smoke_packages
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
@@ -153,7 +158,7 @@ retry_backend_interaction_if_transient() {
     return 1
   fi
 
-  echo "quillui: backend interaction app exited before verification (status $status, attempt $INTERACTION_ATTEMPT/$INTERACTION_MAX_ATTEMPTS); retrying once" >&2
+  echo "quillui: backend interaction app exited before verification (status $status, attempt $INTERACTION_ATTEMPT/$INTERACTION_MAX_ATTEMPTS); retrying" >&2
   rm -f "$SCREENSHOT_PATH" "$APP_LOG_PATH"
   export QUILLUI_BACKEND_INTERACTION_ATTEMPT="$((INTERACTION_ATTEMPT + 1))"
   trap - EXIT
@@ -162,6 +167,9 @@ retry_backend_interaction_if_transient() {
 }
 
 app_environment=()
+if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-new-sheet" ]]; then
+  app_environment+=("QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}")
+fi
 quillui_append_backend_runtime_environment \
   app_environment \
   "$PRODUCT" \
@@ -192,6 +200,9 @@ quillui_append_backend_selection_start_environment \
   "$SELECTED_BACKEND" \
   "$INTERACTION_MODE" \
   "$OUTPUT_DIR"
+if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
+  app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
+fi
 if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
   app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
 fi
@@ -249,7 +260,13 @@ fi
 click_at() {
   local x="$1"
   local y="$2"
-  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y" click 1
+  local settle_sleep="${QUILLUI_BACKEND_CLICK_SETTLE_SLEEP:-0.15}"
+  local hold_sleep="${QUILLUI_BACKEND_CLICK_HOLD_SLEEP:-0.08}"
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y"
+  sleep "$settle_sleep"
+  DISPLAY="$DISPLAY_ID" xdotool mousedown 1
+  sleep "$hold_sleep"
+  DISPLAY="$DISPLAY_ID" xdotool mouseup 1
 }
 
 move_pointer_to() {
@@ -422,7 +439,7 @@ refresh_capture_window_for_active_child_window() {
   local attempt
   local candidate_window
 
-  [[ "$capture_window" != "root" ]] || return 0
+  [[ "$capture_window" == "root" ]] || return 0
   [[ -n "$window_id" ]] || return 0
 
   for attempt in {1..20}; do
@@ -447,12 +464,36 @@ refresh_capture_window_for_sheet_interaction() {
 }
 
 open_quill_chat_completions_panel() {
+  local reset_before_open="${1:-0}"
   local click_x
   local click_y
+  local reset_x
+  local reset_y
+  local reset_cancel_x
+  local reset_cancel_y
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    click_x="${QUILLUI_BACKEND_CLICK_X:-90}"
-    click_y="${QUILLUI_BACKEND_CLICK_Y:-1244}"
+    # Enchanted persists the selected sidebar utility across relaunches. In the
+    # CI mode sequence, completions-save can leave "Completions" selected but
+    # without the overlay open; clicking the already-selected row is then a no-op.
+    # Select Settings first so the following Completions click is never a no-op.
+    # A history-row reset does not clear the selected utility, and source-built
+    # CI can keep Completions selected across a new-chat toolbar click.
+    click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
+    click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 1244))}"
+    if [[ "$reset_before_open" == "1" ]]; then
+      reset_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}}"
+      reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}}"
+      click_at "$reset_x" "$reset_y"
+      sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.6}"
+      # Settings opens as a sheet in the Mac-reference build. Dismiss it before
+      # the Completions click, otherwise the click lands behind the modal and
+      # follow-up edit/delete interactions exercise the wrong screen.
+      reset_cancel_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}"
+      reset_cancel_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}"
+      click_at "$reset_cancel_x" "$reset_cancel_y"
+      sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6}"
+    fi
   else
     click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
@@ -468,8 +509,8 @@ open_quill_chat_new_completion_sheet() {
   open_quill_chat_completions_panel
   sleep "${QUILLUI_BACKEND_NEW_COMPLETION_PRE_CLICK_SLEEP:-1.5}"
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-1518}"
-    new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-498}"
+    new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}"
+    new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 498))}"
   else
     new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + window_width - 210))}"
     new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 270))}"
@@ -482,18 +523,24 @@ open_quill_chat_new_completion_sheet() {
 save_quill_chat_new_completion() {
   local name_x
   local name_y
+  local instruction_x
+  local instruction_y
   local save_x
   local save_y
 
   open_quill_chat_new_completion_sheet
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-720}"
-    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-468}"
-    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-1450}"
-    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-408}"
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 435))}"
+    instruction_x="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}"
+    instruction_y="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 515))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1358))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 382))}"
   else
     name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + window_width / 2))}"
     name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 260))}"
+    instruction_x="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + window_width / 2))}"
+    instruction_y="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 330))}"
     save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + window_width - 130))}"
     save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 46))}"
   fi
@@ -503,6 +550,12 @@ save_quill_chat_new_completion() {
   DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
   sleep 0.2
   type_text "${QUILLUI_BACKEND_COMPLETION_NAME_TEXT:-Linux Saved Completion}"
+  sleep 0.5
+  click_at "$instruction_x" "$instruction_y"
+  sleep 0.5
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+  sleep 0.2
+  type_text "${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_TEXT:-Reply with a concise Linux validation response.}"
   sleep 0.5
   click_at "$save_x" "$save_y"
   sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
@@ -516,14 +569,14 @@ edit_quill_chat_existing_completion() {
   local save_x
   local save_y
 
-  open_quill_chat_completions_panel
+  open_quill_chat_completions_panel 1
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-1510}"
-    edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-536}"
-    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-720}"
-    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-468}"
-    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-1450}"
-    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-408}"
+    edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + 1510))}"
+    edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 536))}"
+    name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
+    name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 435))}"
+    save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1358))}"
+    save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 382))}"
   else
     edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + window_width - 170))}"
     edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 320))}"
@@ -552,8 +605,8 @@ delete_quill_chat_completion() {
 
   open_quill_chat_completions_panel
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-1545}"
-    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-536}"
+    delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1545))}"
+    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 536))}"
   else
     delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + window_width - 125))}"
     delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 320))}"
@@ -893,9 +946,14 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         click_at "$settings_x" "$settings_y"
         sleep 1
         click_at "$model_x" "$model_y"
-        sleep 0.5
-        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Down Return
-        sleep "$post_click_sleep"
+        sleep "${QUILLUI_BACKEND_MODEL_PICKER_OPEN_SLEEP:-0.5}"
+        # Keep this smoke scoped to the settings picker itself. Sending Down /
+        # Return here is unreliable under GTK focus restoration and can be
+        # handled by the sidebar, selecting a transcript behind the panel and
+        # hiding the home wordmark that the Mac-reference verifier checks.
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape
+        sleep "${QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP:-$post_click_sleep}"
+        refocus_capture_window
         ;;
       settings-delete-confirmation)
         open_quill_chat_settings_delete_confirmation
@@ -953,11 +1011,14 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         click_at "$click_x" "$click_y"
         sleep 1
         if [[ "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
-          sleep "${QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP:-3}"
+          # QuillMessageList retries Linux ScrollViewReader bottom-scroll at 5s
+          # and 8s while GTK finishes laying out long transcripts.
+          sleep "${QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP:-9}"
         else
           scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
           scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
-          scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-2400}"
+          scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-4800}"
+          scroll_click_delay="${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-5}"
           scroll_key_repeats="${QUILLUI_BACKEND_SCROLL_KEY_REPEATS:-6}"
           scroll_key_delay="${QUILLUI_BACKEND_SCROLL_KEY_DELAY:-0.08}"
           refocus_capture_window
@@ -967,7 +1028,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
             DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers End
             sleep "$scroll_key_delay"
           done
-          DISPLAY="$DISPLAY_ID" xdotool click --repeat "$scroll_clicks" --delay 20 5
+          DISPLAY="$DISPLAY_ID" xdotool click --repeat "$scroll_clicks" --delay "$scroll_click_delay" 5
           sleep "${QUILLUI_BACKEND_SCROLL_AFTER_SLEEP:-3}"
         fi
         ;;

@@ -82,8 +82,9 @@ public struct QuillNetNewsWireContentView: View {
                     // Real-fetch path: persist read/starred + the subscribed
                     // feed list across launches. (Fixture mode above stays
                     // in-memory + deterministic.)
-                    model.enablePersistence()
                     model.enableFeedPersistence()
+                    model.enablePersistence()
+                    model.enableArticlePersistence()
                     Task { @MainActor in await model.loadIfNeeded(urlString: activeFeedURL) }
                     // Kick off the periodic auto-refresh Task.
                     // Skipped in profile/disable-fetch mode so the
@@ -262,11 +263,9 @@ public struct QuillNetNewsWireContentView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if unread > 0 {
-                // Compact NetNewsWire-style unread badge. Only
-                // the active feed shows a count today because the
-                // model hasn't yet cached items for inactive
-                // feeds — persistence iteration enables badges
-                // for every subscription.
+                // Compact NetNewsWire-style unread badge. Counts come from
+                // the active timeline when selected, and from the persisted
+                // article cache for inactive subscriptions.
                 Text("\(unread)")
                     .font(.caption2)
                     .fontWeight(.bold)
@@ -667,10 +666,11 @@ public struct Feed: Identifiable, Hashable, Sendable {
 
 /// Virtual feed kinds that aggregate articles by status or age
 /// rather than by source. Upstream NetNewsWire pins these to
-/// the top of the sidebar above the subscribed-feed list. The
-/// active feed's items are filtered through whichever kind is
-/// selected; cross-feed aggregation arrives with the
-/// persistence iteration.
+/// the top of the sidebar above the subscribed-feed list. Smart
+/// feeds operate over the selected feed plus any persisted cached
+/// timelines, which gives the Linux port useful all-feed unread
+/// and starred behavior before the full upstream account database
+/// is available.
 public enum SmartFeed: String, CaseIterable, Identifiable, Sendable {
     case today
     case allUnread
@@ -769,6 +769,17 @@ final class RSSReaderModel: ObservableObject {
     /// list, so OPML imports / additions survive relaunch. Same opt-in shape.
     private var feedStore: RSSFeedListStore?
 
+    /// Optional SQLite article timeline cache. This is the first bridge toward
+    /// NetNewsWire's real database behavior: restore content before the network
+    /// returns and compute unread/starred badges for inactive feeds.
+    private var articleStore: RSSArticleCacheStore?
+    private var cachedItemsByFeed: [Feed.ID: [RSSItem]] = [:]
+
+    /// Private published revision used to notify SwiftUI/SwiftOpenUI when
+    /// cache-backed counts change even though `cachedItemsByFeed` itself stays
+    /// an implementation detail.
+    @Published private var cachedFeedRevision = 0
+
     /// Live search query bound to the timeline filter field.
     /// Empty string → no filter (filteredRows == rows). Matching
     /// is case-insensitive and runs against the article title
@@ -847,6 +858,7 @@ final class RSSReaderModel: ObservableObject {
         guard id != selectedFeedID || wasShowingSmartFeed else { return }
         selectedFeedID = id
         selectItem(id: nil)
+        loadCachedItemsForSelectedFeed(selectFirstIfAvailable: true)
         didStartInitialLoad = true
         await fetch(urlString: feed.url)
     }
@@ -991,7 +1003,11 @@ final class RSSReaderModel: ObservableObject {
         subscribedFeeds.remove(at: index)
         if selectedFeedID == id {
             selectedFeedID = subscribedFeeds.first?.id
+            loadCachedItemsForSelectedFeed(selectFirstIfAvailable: true)
         }
+        cachedItemsByFeed[id] = nil
+        bumpCachedFeedRevision()
+        try? articleStore?.remove(feedID: id)
         persistFeedList()
         return true
     }
@@ -1062,9 +1078,11 @@ final class RSSReaderModel: ObservableObject {
             let upstreamArticles = RSSFeedParser.parseUpstreamArticles(
                 data: data, url: urlString
             )
+            let parsedItems = Array(parsed.items.prefix(50))
             self.setFeedTitle(parsed.title)
-            self.setItems(Array(parsed.items.prefix(50)))
+            self.setItems(parsedItems)
             self.articles = Array(upstreamArticles.prefix(50))
+            self.cacheFetchedItems(parsedItems, fallbackFeedURL: urlString)
             if self.selectedID == nil {
                 self.selectItem(id: self.preferredInitialItemID(in: self.items))
             }
@@ -1247,39 +1265,109 @@ final class RSSReaderModel: ObservableObject {
         try? feedStore?.replaceAll(subscribedFeeds)
     }
 
+    /// Turn on article timeline caching. Loads every cached feed timeline into
+    /// memory and, when the selected feed has cached content, shows it
+    /// immediately while the network refresh runs.
+    func enableArticlePersistence(store: RSSArticleCacheStore? = nil) {
+        guard let store = store ?? (try? RSSArticleCacheStore(url: RSSArticleCacheStore.defaultURL())) else { return }
+        articleStore = store
+        if let loaded = try? store.loadAll() {
+            cachedItemsByFeed = loaded
+            bumpCachedFeedRevision()
+            loadCachedItemsForSelectedFeed(selectFirstIfAvailable: selectedID == nil)
+        }
+    }
+
+    private func loadCachedItemsForSelectedFeed(selectFirstIfAvailable: Bool) {
+        guard let selectedFeedID else {
+            if items.isEmpty { return }
+            setItems([])
+            articles = []
+            selectItem(id: nil)
+            return
+        }
+        guard let cached = cachedItemsByFeed[selectedFeedID], !cached.isEmpty else {
+            setItems([])
+            articles = []
+            selectItem(id: nil)
+            return
+        }
+        setItems(cached)
+        articles = []
+        if selectFirstIfAvailable, selectedID == nil {
+            selectItem(id: preferredInitialItemID(in: cached))
+        }
+    }
+
+    private func cacheFetchedItems(_ fetchedItems: [RSSItem], fallbackFeedURL: String) {
+        let feedID = selectedFeedID ?? fallbackFeedURL
+        cachedItemsByFeed[feedID] = fetchedItems
+        bumpCachedFeedRevision()
+        try? articleStore?.replaceAll(feedID: feedID, items: fetchedItems)
+    }
+
+    private func bumpCachedFeedRevision() {
+        cachedFeedRevision &+= 1
+        updateStatusText()
+    }
+
     /// Count of starred items in the currently-loaded timeline.
-    /// Doesn't yet aggregate across feeds (the smart-feed iteration
-    /// will introduce a separate fetch-all-starred view).
+    /// Aggregates the selected timeline plus cached inactive feeds.
     var starredCount: Int {
-        items.reduce(0) { acc, item in
+        timelineItemsForAllFeeds.reduce(0) { acc, item in
             acc + (starredArticleIDs.contains(item.id) ? 1 : 0)
         }
     }
 
-    /// Item count for a given smart feed against the
-    /// currently-loaded timeline. Used by the feedsPane badge
-    /// next to each Smart Feed row. Persistence iteration will
-    /// switch this to a cross-feed aggregation.
+    /// Item count for a given smart feed across cached feeds. Used by the
+    /// feedsPane badge next to each Smart Feed row.
     func count(for smart: SmartFeed) -> Int {
         switch smart {
         case .today:
             let cutoff = Date().addingTimeInterval(-86_400)
-            return articles.reduce(0) { acc, article in
-                acc + ((article.datePublished.map { $0 >= cutoff }) == true ? 1 : 0)
+            return timelineItemsForAllFeeds.reduce(0) { acc, item in
+                acc + ((publishedDate(for: item).map { $0 >= cutoff }) == true ? 1 : 0)
             }
-        case .allUnread: return unreadCount
+        case .allUnread: return allUnreadCount
         case .starred:   return starredCount
         }
     }
 
-    /// Unread count for a subscribed feed. Today only the
-    /// active feed has loaded items, so the count is exact for
-    /// the selected feed and 0 for everything else. When the
-    /// persistence iteration lands a per-feed article cache,
-    /// this will report accurate counts for every subscription.
+    /// Unread count for a subscribed feed. Exact for the selected feed's live
+    /// timeline; cache-backed for inactive feeds.
     func unreadCount(forFeed feedID: Feed.ID) -> Int {
-        guard feedID == selectedFeedID else { return 0 }
-        return unreadCount
+        let feedItems = timelineItemsByFeed[feedID] ?? []
+        return feedItems.reduce(0) { acc, item in
+            acc + (readArticleIDs.contains(item.id) ? 0 : 1)
+        }
+    }
+
+    private var timelineItemsByFeed: [Feed.ID: [RSSItem]] {
+        var grouped = cachedItemsByFeed
+        if let selectedFeedID {
+            grouped[selectedFeedID] = items
+        } else if grouped.isEmpty, !items.isEmpty {
+            grouped[""] = items
+        }
+        return grouped
+    }
+
+    private var timelineItemsForAllFeeds: [RSSItem] {
+        let grouped = timelineItemsByFeed
+        guard !subscribedFeeds.isEmpty else {
+            return grouped.values.flatMap { $0 }
+        }
+        return subscribedFeeds.flatMap { grouped[$0.id] ?? [] }
+    }
+
+    private var smartFeedBaseItems: [RSSItem] {
+        timelineItemsForAllFeeds
+    }
+
+    private var allUnreadCount: Int {
+        timelineItemsForAllFeeds.reduce(0) { acc, item in
+            acc + (readArticleIDs.contains(item.id) ? 0 : 1)
+        }
     }
 
     /// Items in the current timeline that match the active smart
@@ -1288,23 +1376,12 @@ final class RSSReaderModel: ObservableObject {
     /// feed runs first so the search field narrows whatever the
     /// smart-feed view is showing.
     var filteredItems: [RSSItem] {
-        var pool = items
+        var pool = selectedSmartFeed == nil ? items : smartFeedBaseItems
         if let smart = selectedSmartFeed {
             switch smart {
             case .today:
-                // Use the parallel articles array (real Date from
-                // upstream DateParser) to determine which uniqueIDs
-                // fall inside the last-24h window, then narrow
-                // items to that set so the existing RSSItem render
-                // path keeps working unchanged.
                 let cutoff = Date().addingTimeInterval(-86_400)
-                let todayIDs = Set(articles.compactMap { article -> String? in
-                    guard let published = article.datePublished, published >= cutoff else {
-                        return nil
-                    }
-                    return article.uniqueID
-                })
-                pool = pool.filter { todayIDs.contains($0.id) }
+                pool = pool.filter { (publishedDate(for: $0).map { $0 >= cutoff }) == true }
             case .allUnread:
                 pool = pool.filter { !readArticleIDs.contains($0.id) }
             case .starred:
@@ -1321,6 +1398,11 @@ final class RSSReaderModel: ObservableObject {
             }
         }
         return pool
+    }
+
+    private func publishedDate(for item: RSSItem) -> Date? {
+        item.publishedDate
+            ?? articles.first { $0.articleID == item.id || $0.uniqueID == item.id }?.datePublished
     }
 
     /// Row projection of `filteredItems` for the timeline view to
@@ -1341,7 +1423,8 @@ final class RSSReaderModel: ObservableObject {
     }
 
     private func updateSelectedItem() {
-        let item = selectedID.flatMap { selectedID in items.first(where: { $0.id == selectedID }) }
+        let pool = selectedSmartFeed == nil ? items : smartFeedBaseItems
+        let item = selectedID.flatMap { selectedID in pool.first(where: { $0.id == selectedID }) }
         if selectedItem != item {
             selectedItem = item
         }
@@ -1367,10 +1450,11 @@ final class RSSReaderModel: ObservableObject {
             nextStatusText = "Error: \(error)"
         } else if let smart = selectedSmartFeed {
             // Smart-feed view: count vs total items currently
-            // loaded. Search narrowing folds into the same count.
+            // available across cached feeds. Search narrowing folds
+            // into the same count.
             let matching = filteredItems.count
             let suffix = searchActive ? " (search)" : ""
-            nextStatusText = "\(smart.displayName): \(matching) of \(items.count)\(suffix)"
+            nextStatusText = "\(smart.displayName): \(matching) of \(smartFeedBaseItems.count)\(suffix)"
         } else if searchActive {
             let matching = filteredItems.count
             nextStatusText = "\(matching) matching · \(items.count) items"
@@ -1569,7 +1653,7 @@ struct RSSFeedParser {
             default: return lhs.uniqueID < rhs.uniqueID
             }
         }
-        let rssItems = sortedItems.map(adaptParsedItem(_:))
+        let rssItems = sortedItems.map { adaptParsedItem($0, feedID: url) }
         return Result(title: parsed.title, items: rssItems)
     }
 
@@ -1578,7 +1662,7 @@ struct RSSFeedParser {
     /// → summary → nil. Title falls back to "Untitled" so the
     /// timeline always renders something. pubDate gets ISO 8601
     /// formatted when the upstream DateParser produced a Date.
-    static func adaptParsedItem(_ item: ParsedItem) -> RSSItem {
+    static func adaptParsedItem(_ item: ParsedItem, feedID: String? = nil) -> RSSItem {
         let title = (item.title?.isEmpty == false) ? item.title! : "Untitled"
         let body = item.contentHTML ?? item.contentText ?? item.summary
         // Byline: first non-empty author name (sorted for a stable
@@ -1588,8 +1672,10 @@ struct RSSFeedParser {
             .filter { !$0.isEmpty }
             .sorted()
             .first
+        let id = feedID.map { Article.calculatedArticleID(feedID: $0, uniqueID: item.uniqueID) }
+            ?? item.uniqueID
         return RSSItem(
-            id: item.uniqueID,
+            id: id,
             title: title,
             link: item.url,
             pubDate: formatPubDate(item.datePublished),
@@ -1659,15 +1745,16 @@ struct RSSFeedParser {
         }
         let now = Date()
         return sorted.map { parsed in
+            let articleID = Article.calculatedArticleID(feedID: feedID, uniqueID: parsed.uniqueID)
             let status = ArticleStatus(
-                articleID: parsed.uniqueID,
+                articleID: articleID,
                 read: false,
                 starred: false,
                 dateArrived: now
             )
             return Article(
                 accountID: accountID,
-                articleID: nil,  // upstream synthesizes via md5
+                articleID: articleID,
                 feedID: feedID,
                 uniqueID: parsed.uniqueID,
                 title: parsed.title,

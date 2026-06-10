@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/quillui-telegram-source.sh"
+
+UPSTREAM_DIR="$(quillui_resolve_telegram_source_dir "$ROOT_DIR")"
+WORK_ROOT="${QUILLUI_GENERATED_TELEGRAM_PACKAGE_WORKDIR:-$ROOT_DIR/.build/generated-telegram-package-check}"
+CACHE_HOME="${QUILLUI_GENERATED_TELEGRAM_PACKAGE_HOME:-$ROOT_DIR/.build/generated-telegram-package-check-home}"
+
+if [[ -z "$WORK_ROOT" || "$WORK_ROOT" == "/" || "$WORK_ROOT" == "$ROOT_DIR" ]]; then
+  echo "Refusing unsafe generated work directory: ${WORK_ROOT:-<empty>}" >&2
+  exit 73
+fi
+
+if [[ -z "$CACHE_HOME" || "$CACHE_HOME" == "/" || "$CACHE_HOME" == "$ROOT_DIR" ]]; then
+  echo "Refusing unsafe generated cache home: ${CACHE_HOME:-<empty>}" >&2
+  exit 73
+fi
+
+if [[ ! -d "$UPSTREAM_DIR" ]]; then
+  quillui_print_telegram_source_missing "$UPSTREAM_DIR"
+  exit 66
+fi
+
+if [[ ! -d "$UPSTREAM_DIR/packages" ]]; then
+  echo "Telegram Swift packages directory was not found at: $UPSTREAM_DIR/packages" >&2
+  exit 66
+fi
+
+rm -rf "$WORK_ROOT"
+mkdir -p "$WORK_ROOT/logs" "$WORK_ROOT/module-cache" "$WORK_ROOT/overlaid-packages" "$CACHE_HOME"
+
+default_packages=(
+  ApiCredentials
+  CAPortal
+  ColorPalette
+  CalendarUtils
+  CrashHandler
+  CurrencyFormat
+  DateUtils
+  DetectSpeech
+  EDSunriseSet
+  EmojiSuggestions
+  FastBlur
+  FoundationUtils
+  GZIP
+  HackUtils
+  HotKey
+  KeyboardKey
+  MergeLists
+  NumberPluralization
+  RingBuffer
+  Strings
+  Svg
+  TGCurrencyFormatter
+  TGPassportMRZ
+  TelegramSystem
+)
+
+if [[ -n "${QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES:-}" ]]; then
+  # shellcheck disable=SC2206
+  packages=($QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES)
+else
+  packages=("${default_packages[@]}")
+fi
+
+if [[ ${#packages[@]} -eq 0 ]]; then
+  echo "No Telegram packages requested." >&2
+  exit 64
+fi
+
+printf 'Telegram source: %s\n' "$UPSTREAM_DIR"
+printf 'Swift platform: %s\n' "$(uname -s)"
+printf 'Package compile set: %s\n' "${packages[*]}"
+
+objc_include_dir="$ROOT_DIR/Sources/QuillObjCCompatibility/include"
+overlay_root="$ROOT_DIR/Sources/QuillTelegramBuildOverlays"
+package_mirror_root="$WORK_ROOT/overlaid-packages"
+overlaid_packages=()
+swift_build_flags=()
+if [[ "$(uname -s)" == "Linux" ]]; then
+  swift_build_flags+=(
+    -Xcc "-I$objc_include_dir"
+    -Xcc "-include"
+    -Xcc "$objc_include_dir/QuillObjCCompatibility/Prelude.h"
+    -Xcc "-fobjc-runtime=gnustep-2.0"
+    -Xcc "-fblocks"
+    -Xcc "-fobjc-arc"
+  )
+
+  while IFS= read -r package_manifest; do
+    source_package_dir="$(dirname "$package_manifest")"
+    package_name="$(basename "$source_package_dir")"
+    mirror_package_dir="$package_mirror_root/$package_name"
+    overlay_dir="$overlay_root/$package_name"
+
+    mkdir -p "$mirror_package_dir"
+    cp -R "$source_package_dir"/. "$mirror_package_dir"
+
+    if [[ -d "$overlay_dir" ]]; then
+      cp -R "$overlay_dir"/. "$mirror_package_dir"
+      overlaid_packages+=("$package_name")
+    fi
+
+    python3 "$ROOT_DIR/scripts/patch-telegram-package-manifest.py" "$mirror_package_dir" "$ROOT_DIR"
+  done < <(find "$UPSTREAM_DIR/packages" -mindepth 2 -maxdepth 2 -name Package.swift -print | sort)
+
+  if [[ -d "$UPSTREAM_DIR/submodules" ]]; then
+    ln -s "$UPSTREAM_DIR/submodules" "$package_mirror_root/submodules"
+  fi
+fi
+
+for package_name in "${packages[@]}"; do
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    package_dir="$package_mirror_root/$package_name"
+  else
+    package_dir="$UPSTREAM_DIR/packages/$package_name"
+  fi
+  log_path="$WORK_ROOT/logs/$package_name.log"
+
+  if [[ ! -f "$package_dir/Package.swift" ]]; then
+    echo "Missing Telegram package manifest: $package_dir/Package.swift" >&2
+    exit 66
+  fi
+
+  printf '==> building %s\n' "$package_name"
+  if HOME="$CACHE_HOME" \
+    CLANG_MODULE_CACHE_PATH="$WORK_ROOT/module-cache" \
+    swift build \
+      --disable-sandbox \
+      --skip-update \
+      --jobs 1 \
+      --package-path "$package_dir" \
+      --scratch-path "$WORK_ROOT/.build/$package_name" \
+      "${swift_build_flags[@]}" \
+      >"$log_path" 2>&1
+  then
+    printf 'ok %s\n' "$package_name"
+  else
+    printf 'failed %s; log: %s\n' "$package_name" "$log_path" >&2
+    sed -n '1,80p' "$log_path" >&2
+    exit 1
+  fi
+done
+
+cat > "$WORK_ROOT/README.md" <<MSG
+# Generated Telegram Package Check
+
+Source: \`$UPSTREAM_DIR\`
+
+Compiled package islands:
+
+$(printf -- '- `%s`\n' "${packages[@]}")
+
+Generic build overlays applied:
+
+$(if [[ ${#overlaid_packages[@]} -eq 0 ]]; then printf -- '- none\n'; else printf -- '- `%s`\n' "${overlaid_packages[@]}"; fi)
+
+Known next blocker classes from the broader upstream package audit:
+
+- Objective-C package shims that need deeper Foundation/AppKit runtime surface beyond the current header overlay.
+- AppKit/CoreText/Cocoa packages that belong behind QuillAppKit or QuillKit compatibility.
+- Missing telegram-ios submodule package dependencies for higher-level Telegram modules.
+MSG
+
+printf 'Generated Telegram package check completed: %s\n' "$WORK_ROOT"

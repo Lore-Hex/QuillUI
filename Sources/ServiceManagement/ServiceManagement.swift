@@ -27,7 +27,21 @@ public enum SMAppService {
 }
 
 /// Legacy login-item toggle. WireGuard's AppDelegate calls SMLoginItemSetEnabled to
-/// (de)register its login helper. No launch-services backend on Linux → compile-stub
-/// returning false (the macOS app uses the real SM framework).
+/// (de)register its login helper. Linux tracks the requested state through
+/// QuillKit until a native autostart backend is attached.
 @discardableResult
-public func SMLoginItemSetEnabled(_ identifier: CFString, _ enabled: Bool) -> Bool { false }
+public func SMLoginItemSetEnabled(_ identifier: CFString, _ enabled: Bool) -> Bool {
+    if enabled {
+        QuillLaunchService.shared.register()
+    } else {
+        QuillLaunchService.shared.unregister()
+    }
+
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "ServiceManagement",
+        operation: "SMLoginItemSetEnabled",
+        severity: .info,
+        message: "Login item '\(identifier.description)' is tracked by the QuillKit compatibility launch service."
+    )
+    return true
+}

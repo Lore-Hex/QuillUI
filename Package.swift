@@ -257,6 +257,7 @@ var products: [Product] = [
     .library(name: "QuillKit", targets: ["QuillKit"]),
     .library(name: "QuillChatKit", targets: ["QuillChatKit"]),
     .library(name: "QuillFoundation", targets: ["QuillFoundation"]),
+    .library(name: "QuillObjCCompatibility", targets: ["QuillObjCCompatibility"]),
     .library(name: "QuillRS", targets: ["QuillRS"]),
     .library(name: "QuillUIKit", targets: ["QuillUIKit"]),
     .library(name: "QuillWebKit", targets: ["QuillWebKit"]),
@@ -505,7 +506,7 @@ quillParityTestDependencies.append("SwiftUI")
 let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "QuillShims", "SwiftUI",
     "AsyncAlgorithms", "Carbon", "CoreGraphics", "Security",
-    "AVFoundation", "Speech", "ApplicationServices",
+    "AVFoundation", "AudioToolbox", "Speech", "ApplicationServices",
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "ButtonKit", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
@@ -514,6 +515,12 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
     "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
 ] + quillLinuxShimTestDependencies
+let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = appSwiftSettings + [
+    // Swift Testing declares platform cross-import overlays such as
+    // _Testing_UIKit on Apple SDKs. This Linux-only target intentionally imports
+    // QuillUI's shadow Apple modules, so disable those SDK overlay lookups here.
+    .unsafeFlags(["-Xfrontend", "-disable-cross-import-overlays"])
+]
 #endif
 #if os(Linux)
 func quillLinuxBackendDependencies(
@@ -680,6 +687,11 @@ var targets: [Target] = [
     cSQLiteTarget,
     cCairoTarget,
     cZlibTarget,
+    .target(
+        name: "QuillObjCCompatibility",
+        path: "Sources/QuillObjCCompatibility",
+        publicHeadersPath: "include"
+    ),
     // Cassowary constraint solver (vendored nucleic/kiwi, C++), exposed to Swift via a
     // pure-C ABI. Backs Auto Layout (NSLayoutConstraint) for the AppKit→Qt compatibility
     // layer — issue #231, milestone M0. Default graph only (no Qt dependency).
@@ -708,7 +720,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIGtk",
-        dependencies: ["QuillUI", "CCairo"],
+        dependencies: ["QuillUI", "QuillPaintCairo", "CCairo"],
         path: "Sources/QuillUIGtk",
         swiftSettings: appSwiftSettings
     ),
@@ -879,7 +891,7 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillData"],
+        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillArticlesDatabase", "QuillData"],
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSCore-shaped shim. Reproduces the slice of
@@ -946,6 +958,16 @@ var targets: [Target] = [
         path: "Sources/QuillArticles",
         swiftSettings: appSwiftSettings
     ),
+    // QuillData-backed ArticlesDatabase-compatible surface. This is the
+    // first cross-platform replacement for upstream NetNewsWire's
+    // FMDatabase/RSDatabase-backed article store: same key public type names,
+    // but no ObjC SQLite wrapper dependency.
+    .target(
+        name: "QuillArticlesDatabase",
+        dependencies: ["QuillArticles", "QuillData", "QuillRSParser"],
+        path: "Sources/QuillArticlesDatabase",
+        swiftSettings: appSwiftSettings
+    ),
     // Minimal RSWeb shim — target named `RSWeb` so vendored `import RSWeb`
     // resolves to it verbatim. Grows toward real RSWeb as Account needs more.
     .target(
@@ -986,6 +1008,16 @@ var targets: [Target] = [
         path: "Sources/QuillRSTree",
         swiftSettings: appSwiftSettings
     ),
+    // Vendored Ranchero-Software/NetNewsWire ActivityLog module.
+    // Upstream FeedFinder and account refresh paths now depend on this
+    // Foundation-only activity lifecycle model, so keep the module name
+    // upstream-shaped (`ActivityLog`) to allow later imports to stay verbatim.
+    .target(
+        name: "ActivityLog",
+        path: "Sources/QuillActivityLog",
+        resources: [.process("Resources")],
+        swiftSettings: appSwiftSettings
+    ),
     // Vendored Ranchero-Software/NetNewsWire FeedFinder module
     // (Sources/FeedFinder → Sources/QuillFeedFinder). Brings up the
     // network-free part of FeedFinder: HTMLFeedFinder (detects feeds in
@@ -997,7 +1029,7 @@ var targets: [Target] = [
     // Downloader + RSCore's Data.isProbablyHTML are brought up.
     .target(
         name: "QuillFeedFinder",
-        dependencies: ["QuillRSCoreShim", "QuillRSParser", "RSWeb"],
+        dependencies: ["QuillRSCoreShim", "QuillRSParser", "RSWeb", "ActivityLog"],
         path: "Sources/QuillFeedFinder",
         swiftSettings: appSwiftSettings
     ),
@@ -1276,8 +1308,15 @@ if nnwUpstreamPresent {
 // model (TunnelConfiguration parsing, keypair generation, IPv4/v6
 // helpers) compiles on Linux too — the runtime files are excluded
 // via wireGuardKitExcludes. Verified building on swift:6.2-noble.
+//
+// Collected into a shared array (not appended to `targets` directly) so BOTH the
+// default/GTK graph AND the qt graph can include this GTK-free WireGuard
+// conformance dep-tree — the qt graph's wholesale `targets =` reassignment would
+// otherwise discard these default-graph appends. Appended to `targets` for the
+// default graph immediately after the block; the qt branch appends it too.
+var wireGuardConformanceTargets: [Target] = []
 if wireguardUpstreamPresent {
-    targets += [
+    wireGuardConformanceTargets += [
         .target(
             name: "WireGuardKitC",
             path: ".upstream/wireguard-apple/Sources/WireGuardKitC",
@@ -1333,7 +1372,7 @@ if wireguardUpstreamPresent {
     // write_log_to_file / close_log). Pure POSIX C (mmap), compiles on Linux.
     // Excludes the sibling Logger.swift (compiled by the conformance Swift
     // target) + test_ringlogger.c; ringlogger.h is the public header.
-    targets.append(
+    wireGuardConformanceTargets.append(
         .target(
             name: "WireGuardRingLoggerC",
             path: ".upstream/wireguard-apple/Sources/Shared/Logging",
@@ -1347,7 +1386,7 @@ if wireguardUpstreamPresent {
     // system zlib (-lz); bzip2 is `#ifdef HAVE_BZIP2`-guarded so we don't define
     // it (no libbz2 needed). zlib.h resolves via the system include path. Same
     // shape as WireGuardRingLoggerC.
-    targets.append(
+    wireGuardConformanceTargets.append(
         .target(
             name: "WireGuardMinizipC",
             path: ".upstream/wireguard-apple/Sources/WireGuardApp/ZipArchive/3rdparty/minizip",
@@ -1363,7 +1402,7 @@ if wireguardUpstreamPresent {
     // C (no external lib). It shares the View/ dir with the conformance target's
     // .swift cells, so exclude those (the C target compiles only highlighter.c;
     // highlighter.h is its public header) — same overlap pattern as WireGuardRingLoggerC.
-    targets.append(
+    wireGuardConformanceTargets.append(
         .target(
             name: "WireGuardHighlighterC",
             path: ".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS/View",
@@ -1374,7 +1413,7 @@ if wireguardUpstreamPresent {
             publicHeadersPath: "."
         )
     )
-    targets.append(
+    wireGuardConformanceTargets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
             dependencies: ["Cocoa", "NetworkExtension", "os", "WireGuardRingLoggerC", "WireGuardMinizipC", "WireGuardHighlighterC", "CoreWLAN", "LocalAuthentication", "ServiceManagement", "Security", "WireGuardKit", "QuillWireGuardUpstreamConfig", "QuillFoundation"],
@@ -1600,6 +1639,10 @@ if wireguardUpstreamPresent {
     )
     #endif
 }
+// Default/GTK graph: include the WireGuard conformance dep-tree (a no-op when the
+// upstream checkout is absent — the array is empty). The qt graph appends the same
+// shared array in its own branch so it can render the real tunnel-list VC.
+targets += wireGuardConformanceTargets
 
 // ── Signal-iOS upstream-slice (Linux / QuillOS) ─────────────────────────
 // Compile the REAL signalapp/Signal-iOS against QuillUI's Linux
@@ -1762,7 +1805,14 @@ for shimName in signalAppleFrameworkShims {
     // types (e.g. ImageIO's CGImageSource returns QuillFoundation's CGImage).
     // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
     // edge is inert for shims that do not import QuillFoundation.
-    targets.append(.target(name: shimName, dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/\(shimName)"))
+    let dependencies: [Target.Dependency]
+    switch shimName {
+    case "AudioToolbox", "UserNotifications":
+        dependencies = ["QuillFoundation", "QuillKit"]
+    default:
+        dependencies = ["QuillFoundation"]
+    }
+    targets.append(.target(name: shimName, dependencies: dependencies, path: "Sources/AppleFrameworkShims/\(shimName)"))
 }
 #endif
 
@@ -1883,6 +1933,20 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: ".upstream/signal-ios/SignalServiceKit",
             exclude: signalServiceKitExcludes,
             swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // signal-smoke: smallest-milestone executable proving the real
+        // Signal-iOS toolchain LINKS + RUNS on QuillOS (Track B). Links
+        // SignalServiceKit + libsignal_ffi.a and runs a pure in-memory
+        // libsignal crypto primitive. `-use-ld=lld` is required: the default
+        // bfd linker OOMs ("Killed") on the 194MB libsignal_ffi.a; lld links it
+        // in ~44s. Gated like SSK (Linux + signal/libsignal upstream present),
+        // so absent from CI / fresh checkouts.
+        .executableTarget(
+            name: "signal-smoke",
+            dependencies: ["SignalServiceKit", "LibSignalClient"],
+            path: "Sources/SignalSmoke",
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
         )
     ]
 }
@@ -1970,7 +2034,7 @@ targets.append(contentsOf: [
     .testTarget(name: "NetworkExtensionTests", dependencies: ["NetworkExtension"], path: "Tests/NetworkExtensionTests"),
     // LocalAuthentication shim — LAContext/LAPolicy/LAError so WireGuard's
     // PrivateDataConfirmation (key-reveal gate) recompiles; no auth backend on Linux.
-    .target(name: "LocalAuthentication", dependencies: [], path: "Sources/LocalAuthenticationShim"),
+    .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
     .testTarget(name: "LocalAuthenticationTests", dependencies: ["LocalAuthentication"], path: "Tests/LocalAuthenticationTests"),
     // WireGuardKitGo Linux stub — the wireguard-go cgo bridge (Go engine not built here);
     // lets WireGuardKit's WireGuardAdapter recompile. Compile-faithful, never runs on Linux.
@@ -2099,9 +2163,9 @@ targets.append(contentsOf: [
     .target(name: "ButtonKit", dependencies: ["SwiftUI"], path: "Sources/ButtonKit"),
     .target(name: "WrappingHStack", dependencies: ["SwiftUI"], path: "Sources/WrappingHStack"),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
-    .target(name: "KeyboardShortcuts", dependencies: ["SwiftUI"], path: "Sources/KeyboardShortcuts"),
+    .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),
     .target(name: "PhotosUI", dependencies: ["SwiftUI", "Photos"], path: "Sources/PhotosUI"),
-    .target(name: "Magnet", dependencies: ["AppKit"], path: "Sources/Magnet"),
+    .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),
     .target(name: "Nuke", dependencies: [], path: "Sources/Nuke"),
     .target(name: "NukeUI", dependencies: ["SwiftUI", "Nuke"], path: "Sources/NukeUI"),
     .target(name: "EmojiText", dependencies: ["SwiftUI", "QuillFoundation"], path: "Sources/EmojiText"),
@@ -2120,7 +2184,7 @@ targets.append(contentsOf: [
     ),
     // Combine-dependent shims.
     .target(name: "OllamaKit", dependencies: ["Combine", "QuillKit"], path: "Sources/OllamaKit"),
-    .target(name: "Sparkle", dependencies: ["Combine"], path: "Sources/Sparkle"),
+    .target(name: "Sparkle", dependencies: ["Combine", "QuillKit"], path: "Sources/Sparkle"),
     // IOKit: header-only C target. `module.modulemap` exposes
     // `IOKit` and its `IOKit.usb` submodule; `dummy.c` is an empty
     // translation unit so SwiftPM treats this as a buildable C
@@ -2422,53 +2486,35 @@ if quillUILinuxBuildBackend == .qt {
         )
     }
 
-    // --- Literal WireGuard VC render conformance (purist render path) ---
-    // Compile the VERBATIM upstream ButtonedDetailViewController.swift into the qt
-    // graph (its only import is `Cocoa`, added above) so QuillAppKitQtTests can
-    // render the REAL upstream file — not a hand-written twin — through
-    // QuillAppKit→Qt. Gated on the upstream checkout so a fresh clone still
-    // resolves the manifest.
+    // --- Real WireGuard UI render conformance (purist render path) ---
+    // Bring the whole GTK-free WireGuard conformance dep-tree into the qt graph so
+    // QuillAppKitQtTests can render the REAL upstream VCs verbatim through
+    // QuillAppKit→Qt. QuillWireGuardConformanceUI already compiles ButtonedDetail,
+    // UnusableTunnel, the model, and the TunnelsListTableViewController main window,
+    // so it SUBSUMES the earlier per-VC conformance targets (which would otherwise
+    // overlap-source the same upstream files). Gated on the upstream checkout.
     if wireguardUpstreamPresent {
-        targets.append(
-            .target(
-                name: "QuillButtonedDetailConformance",
-                dependencies: ["Cocoa"],
-                // Path scoped to the ViewController directory (NOT the whole
-                // .upstream tree): the canonical Qt product build is warning-gated
-                // (any warning = fatal), and a broad `path` makes SwiftPM flag
-                // every sibling upstream file as "unhandled". Compile the verbatim
-                // ButtonedDetailViewController.swift and explicitly exclude its
-                // sibling VCs (each a later render rung) so zero files are unhandled.
-                path: ".upstream/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController",
-                exclude: [
-                    "LogViewController.swift",
-                    "ManageTunnelsRootViewController.swift",
-                    "TunnelDetailTableViewController.swift",
-                    "TunnelEditViewController.swift",
-                    "TunnelsListTableViewController.swift",
-                    "UnusableTunnelDetailViewController.swift"
-                ],
-                sources: [
-                    "ButtonedDetailViewController.swift"
-                ],
-                swiftSettings: [.swiftLanguageMode(.v5)]
-            )
-        )
-        // Next VC up the ladder: a vertical NSStackView of a bold label + a
-        // wrapping label + a button (tr-localized). It needs TWO verbatim upstream
-        // files from DIFFERENT directories (the VC + LocalizationHelper, for tr()),
-        // which a single narrow `path` can't cover without flagging every sibling
-        // as "unhandled". So compile from a dedicated directory of relative SYMLINKS
-        // to the verbatim files — the dir holds only those two sources, so zero
-        // files are unhandled (keeps the warning-gated Qt product build clean).
-        targets.append(
-            .target(
-                name: "QuillUnusableTunnelDetailConformance",
-                dependencies: ["Cocoa"],
-                path: "Sources/QuillUnusableTunnelDetailConformance",
-                swiftSettings: [.swiftLanguageMode(.v5)]
-            )
-        )
+        // The REAL WireGuard main window: bring the whole GTK-free conformance
+        // dep-tree (model + all VCs + the verbatim TunnelsListTableViewController)
+        // into the qt graph so it renders via QuillAppKit→Qt. The 8 shims the
+        // conformance depends on are absent from the qt literal (the qt graph
+        // wholesale-reassigns `targets`), so add them here; wireGuardConformanceTargets
+        // (populated GTK-free before the graph branches) holds WireGuardKit/KitC/
+        // RingLogger/Minizip/Highlighter/UpstreamConfig + QuillWireGuardConformanceUI.
+        // Targets only — NO .library products (the qt product reassignment
+        // intentionally drops the os/Network/etc. products; re-adding would expand
+        // the warning-gated canonical product build).
+        targets += [
+            .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
+            .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
+            .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
+            .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
+            .target(name: "WireGuardKitGo", dependencies: [], path: "Sources/WireGuardKitGoShim"),
+            .target(name: "CoreWLAN", dependencies: [], path: "Sources/CoreWLAN"),
+            .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
+            .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement")
+        ]
+        targets += wireGuardConformanceTargets
     }
 }
 #endif
@@ -2479,7 +2525,7 @@ let packageTestTargets: [Target] = {
         // The qt AppKit test target also renders the LITERAL upstream WireGuard
         // VC (ButtonedDetailViewController) when the upstream checkout is present.
         let akqtTestDeps: [Target.Dependency] = wireguardUpstreamPresent
-            ? ["QuillAppKitQt", "AppKit", "QuillButtonedDetailConformance", "QuillUnusableTunnelDetailConformance"]
+            ? ["QuillAppKitQt", "AppKit", "QuillWireGuardConformanceUI", "NetworkExtension"]
             : ["QuillAppKitQt", "AppKit"]
         return [
             // Runs inside the stripped Qt graph itself. This keeps
@@ -2573,7 +2619,7 @@ let packageTestTargets: [Target] = {
         ),
         .testTarget(
             name: "QuillPaintCairoTests",
-            dependencies: ["QuillPaintCairo", "QuillPaint"],
+            dependencies: ["QuillPaintCairo", "QuillPaintCoreGraphics", "QuillPaint"],
             swiftSettings: appSwiftSettings
         ),
         // QuillKitTests covers QuillClipboard / diagnostics /
@@ -2652,6 +2698,11 @@ let packageTestTargets: [Target] = {
             swiftSettings: appSwiftSettings
         ),
         .testTarget(
+            name: "QuillArticlesDatabaseTests",
+            dependencies: ["QuillArticlesDatabase", "QuillArticles", "QuillRSParser"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
             name: "QuillAccountTests",
             dependencies: ["QuillAccount"],
             swiftSettings: appSwiftSettings
@@ -2663,6 +2714,15 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillRSTreeTests",
             dependencies: ["QuillRSTree"],
+            swiftSettings: appSwiftSettings
+        ),
+        // Pins the vendored upstream NetNewsWire ActivityLog module:
+        // lifecycle transitions, owner/kind lookup, id-based completion,
+        // stale-running cleanup, notification posting, and completed-log
+        // trimming. This is the next reusable FeedFinder/account dependency.
+        .testTarget(
+            name: "QuillActivityLogTests",
+            dependencies: ["ActivityLog"],
             swiftSettings: appSwiftSettings
         ),
         // Pins the vendored FeedFinder HTML feed-detection: HTMLFeedFinder
@@ -2732,7 +2792,7 @@ let packageTestTargets: [Target] = {
         // itself on the test-target scorecard.
         .testTarget(
             name: "QuillUITests",
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillInteractionSmokeSupport"],
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"],
             swiftSettings: appSwiftSettings
         )
     ]
@@ -2745,7 +2805,7 @@ let packageTestTargets: [Target] = {
     tests.append(.testTarget(
         name: "QuillCompatibilityModuleTests",
         dependencies: quillLinuxCompatibilityModuleTestDependencies,
-        swiftSettings: appSwiftSettings
+        swiftSettings: quillLinuxCompatibilityModuleTestSwiftSettings
     ))
     tests.append(.testTarget(
         name: "OllamaKitTests",

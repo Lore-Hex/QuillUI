@@ -1,5 +1,5 @@
 {
-  "originHash" : "5681ac023ff89c88ff99f2ae862c6fb8f5539febca623da103c9e1dda9b246b6",
+  "originHash" : "d411fa26e4cf147f69e97ae4ed058dd8c84ad592fa7f77db516490fc39cc30f4",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115",
         "version" : "7.10.0"
-      }
-    },
-    {
-      "identity" : "opencombine",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/OpenCombine/OpenCombine.git",
-      "state" : {
-        "revision" : "8576f0d579b27020beccbccc3ea6844f3ddfc2c2",
-        "version" : "0.14.0"
       }
     },
     {
@@ -44,15 +35,6 @@
       "state" : {
         "revision" : "0687f71944021d616d34d922343dcef086855920",
         "version" : "600.0.1"
-      }
-    },
-    {
-      "identity" : "swiftsoup",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/scinfu/SwiftSoup.git",
-      "state" : {
-        "revision" : "49dcadd93161f4a44b4994d3a3e8de9f085aface",
-        "version" : "2.13.5"
       }
     }
   ],

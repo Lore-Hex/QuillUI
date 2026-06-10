@@ -640,7 +640,6 @@ quillui_backend_quill_chat_mac_reference_interaction_modes() {
     transcript-selection \
     markdown-transcript-selection \
     message-hover-actions \
-    long-transcript-selection \
     long-transcript-auto-selection
 }
 

@@ -1,0 +1,194 @@
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+[QuillUI GTK] state install type=IceCubesLinuxApp.AppView key=root::IceCubesLinuxApp.AppView#0 providers=6 cached=false
+swift-runtime: failed to suspend thread 16 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 24 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 25 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 26 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 27 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 28 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 29 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 30 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 31 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 32 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 33 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 34 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 35 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 36 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 37 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 38 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 39 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 40 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 41 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 42 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 43 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 44 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 45 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 46 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 47 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 48 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 49 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 50 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 51 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 52 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 53 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 54 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 55 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 56 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 16 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 24 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 25 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 26 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 27 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 28 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 29 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 30 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 31 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 32 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 33 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 34 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 35 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 36 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 37 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 38 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 39 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 40 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 41 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 42 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 43 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 44 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 45 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 46 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 47 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 48 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 49 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 50 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 51 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 52 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 53 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 54 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 55 while processing a crash; backtraces will be missing information
+swift-runtime: failed to suspend thread 56 while processing a crash; backtraces will be missing information
+
+*** Signal 11: Backtracing from 0xffff9a915450... done ***
+
+*** Program crashed: Bad pointer dereference at 0x00676e6174636578 ***
+
+Platform: arm64 Linux (Ubuntu 24.04.4 LTS)
+
+Thread 0 "icecubes-linux-" crashed:
+
+  0               0x0000ffff9a915450 swift_retain + 40 in libswiftCore.so
+  1 [ra]          0x0000ffff9a960350 swift_bridgeObjectRetain + 27 in libswiftCore.so
+  2 [ra] [thunk]  0x0000aaaaeae5e7e0 Label<>.init(_:systemImage:) + 139 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:769:48
+  3 [ra]          0x0000aaaaeaa6f7cc AppTab.label.getter + 263 in icecubes-linux-app at /work/.upstream/icecubes/IceCubesApp/App/Tabs/Tabs.swift:192:7
+  4 [ra]          0x0000aaaaea965448 closure #2 in closure #3 in closure #1 in closure #1 in closure #3 in AppView.tabBarView.getter + 243 in icecubes-linux-app at /work/.upstream/icecubes/IceCubesApp/App/Main/AppView.swift:118:21
+  5 [ra] [thunk]  0x0000aaaaeae653d8 Tab.init<A, B>(value:role:content:label:) + 367 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1528:13
+  6 [ra]          0x0000aaaaea965170 closure #3 in closure #1 in closure #1 in closure #3 in AppView.tabBarView.getter + 735 in icecubes-linux-app at /work/.upstream/icecubes/IceCubesApp/App/Main/AppView.swift:115:15
+  7 [ra]          0x0000aaaaeb11972c closure #1 in ForEach.children.getter + 151 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/ForEach.swift:14:20
+  8 [ra] [thunk]  0x0000aaaaeb1197a4 partial apply for closure #1 in ForEach.children.getter + 91 in icecubes-linux-app at //<compiler-generated>
+  9 [ra] [system] 0x0000aaaaea07f220 Collection.map<A, B>(_:) + 739 in icecubes-linux-app at //<compiler-generated>
+ 10 [ra]          0x0000aaaaeb11b9a0 ForEach.children.getter + 327 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/ForEach.swift:14:14
+ 11 [ra]          0x0000aaaaeae63080 ForEach.quillCollectedTabs.getter + 103 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1348:9
+ 12 [ra] [thunk]  0x0000aaaaeae6315c protocol witness for QuillTabCollectible.quillCollectedTabs.getter in conformance ForEach<A, B, C> + 63 in icecubes-linux-app at //<compiler-generated>
+ 13 [ra]          0x0000aaaaeae40da0 quillCollectTabs(fromAny:) + 223 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1332:26
+ 14 [ra]          0x0000aaaaeae40a18 quillCollectTabs<A>(from:) + 83 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1327:5
+ 15 [ra]          0x0000aaaaeae6343c _ConditionalView.quillCollectedTabs.getter + 383 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1369:20
+ 16 [ra] [thunk]  0x0000aaaaeae63484 protocol witness for QuillTabCollectible.quillCollectedTabs.getter in conformance _ConditionalView<A, B> + 11 in icecubes-linux-app at //<compiler-generated>
+ 17 [ra]          0x0000aaaaeae40da0 quillCollectTabs(fromAny:) + 223 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1332:26
+ 18 [ra]          0x0000aaaaeae40a18 quillCollectTabs<A>(from:) + 83 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1327:5
+ 19 [ra]          0x0000aaaaeae65d9c TabSection.quillCollectedTabs.getter + 119 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1573:9
+ 20 [ra] [thunk]  0x0000aaaaeae65dd4 protocol witness for QuillTabCollectible.quillCollectedTabs.getter in conformance TabSection<A> + 11 in icecubes-linux-app at //<compiler-generated>
+ 21 [ra]          0x0000aaaaeae40da0 quillCollectTabs(fromAny:) + 223 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1332:26
+ 22 [ra] [thunk]  0x0000aaaaeae410c8 thunk for @callee_guaranteed (@in_guaranteed View) -> (@owned [AnyTab], @error @owned Error) + 27 in icecubes-linux-app at //<compiler-generated>
+ 23 [ra] [thunk]  0x0000aaaaeae4132c partial apply for thunk for @callee_guaranteed (@in_guaranteed View) -> (@owned [AnyTab], @error @owned Error) + 27 in icecubes-linux-app at //<compiler-generated>
+ 24 [ra]          0x0000ffff9a864f00 Sequence.flatMap<A>(_:) + 531 in libswiftCore.so
+ 25 [ra]          0x0000aaaaeae630ec ForEach.quillCollectedTabs.getter + 211 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1348:18
+ 26 [ra] [thunk]  0x0000aaaaeae6315c protocol witness for QuillTabCollectible.quillCollectedTabs.getter in conformance ForEach<A, B, C> + 63 in icecubes-linux-app at //<compiler-generated>
+ 27 [ra]          0x0000aaaaeae40da0 quillCollectTabs(fromAny:) + 223 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1332:26
+ 28 [ra]          0x0000aaaaeae40a18 quillCollectTabs<A>(from:) + 83 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1327:5
+ 29 [ra]          0x0000aaaaeae62cec static TabBuilder.buildExpression<A>(_:) + 115 in icecubes-linux-app at /work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1314:20
+ 30 [ra] [system] 0x0000aaaaea963204 closure #3 in AppView.tabBarView.getter + 259 in icecubes-linux-app at /work/.upstream/icecubes/IceCubesApp/App/Main/AppView.swift
+ 31 [ra] [thunk]  0x0000aaaaeb18d508 TabView.init<A>(selection:content:) + 111 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/TabView.swift:46:21
+ 32 [ra]          0x0000aaaaea96c9c4 AppView.tabBarView.getter + 371 in icecubes-linux-app at /work/.upstream/icecubes/IceCubesApp/App/Main/AppView.swift:77:5
+ 33 [ra]          0x0000aaaaea961d90 closure #1 in AppView.body.getter + 75 in icecubes-linux-app at /work/.upstream/icecubes/IceCubesApp/App/Main/AppView.swift:41:7
+ 34 [ra] [thunk]  0x0000aaaaeb184264 HStack.init(alignment:spacing:content:) + 223 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Stacks.swift:57:24
+ 35 [ra]          0x0000aaaaea96c788 AppView.body.getter + 191 in icecubes-linux-app at /work/.upstream/icecubes/IceCubesApp/App/Main/AppView.swift:40:5
+ 36 [ra] [thunk]  0x0000aaaaea966aac protocol witness for View.body.getter in conformance AppView + 51 in icecubes-linux-app at //<compiler-generated>
+ 37 [ra]          0x0000aaaaea10bfa0 closure #1 in gtkRenderStatefulView<A>(_:) + 147 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift:7771:28
+ 38 [ra]          0x0000aaaaea155838 closure #1 in GTKViewHost.buildBodyWithTracking() + 83 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift:346:26
+ 39 [ra] [thunk]  0x0000aaaaea15587c partial apply for closure #1 in GTKViewHost.buildBodyWithTracking() + 27 in icecubes-linux-app at //<compiler-generated>
+ 40 [ra]          0x0000aaaaeac7a5d0 withObservationTracking<A>(_:onChange:) + 63 in icecubes-linux-app at /work/Sources/Observation/Observation.swift:18:16
+ 41 [ra]          0x0000aaaaea162b78 GTKViewHost.buildBodyWithTracking() + 255 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift:344:13
+ 42 [ra]          0x0000aaaaea0e5524 gtkRenderStatefulView<A>(_:) + 639 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift:7782:23
+ 43 [ra]          0x0000aaaaea11ba7c gtkRenderView<A>(_:) + 1387 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift:448:16
+ 44 [ra]          0x0000aaaaea0e5e14 render #1 <A>(_:) in gtkRenderAnyView(_:) + 35 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift:471:53
+ 45 [ra]          0x0000aaaaea11bb44 gtkRenderAnyView(_:) + 55 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift:472:12
+ 46 [ra]          0x0000aaaaea14115c _ViewModifierContent.gtkCreateWidget() + 87 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift:5449:9
+...
+125 [ra]          0x0000aaaaea09c278 closure #1 in GTK4Backend.run<A>(_:) + 379 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift:661:13
+126 [ra]          0x0000aaaaea09c4d4 closure #2 in GTK4Backend.run<A>(_:) + 335 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift:670:21
+127 [ra] [thunk]  0x0000aaaaea09c500 @objc closure #2 in GTK4Backend.run<A>(_:) + 11 in icecubes-linux-app at //<compiler-generated>
+128 [ra]          0x0000ffff986b5914 <unknown> in libgobject-2.0.so.0.8000.0
+129 [ra]          0x0000ffff986e9ddc <unknown> in libgobject-2.0.so.0.8000.0
+130 [ra]          0x0000ffff986d7ef4 <unknown> in libgobject-2.0.so.0.8000.0
+131 [ra]          0x0000ffff986d8178 <unknown> in libgobject-2.0.so.0.8000.0
+132 [ra]          0x0000ffff986d8234 <unknown> in libgobject-2.0.so.0.8000.0
+133 [ra]          0x0000ffff9882868c <unknown> in libgio-2.0.so.0.8000.0
+134 [ra]          0x0000ffff98828824 <unknown> in libgio-2.0.so.0.8000.0
+135 [ra]          0x0000aaaaea0a25f8 GTK4Backend.run<A>(_:) + 571 in icecubes-linux-app at /work/third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift:689:22
+136 [ra]          0x0000aaaaeb378bf8 static App.main() + 51 in icecubes-linux-app at /work/Sources/SwiftUIShim/AppRuntime.swift:7:23
+137 [ra] [system] 0x0000aaaaea9c0140 static IceCubesApp.$main() + 39 in icecubes-linux-app at //<compiler-generated>
+138 [ra] [system] 0x0000aaaaea9c0988 IceCubesLinuxApp_main + 11 in icecubes-linux-app at /work/.upstream/icecubes/IceCubesApp/App/Main/IceCubesApp.swift
+139 [ra]          0x0000ffff983484c4 <unknown> in libc.so.6
+140 [ra]          0x0000ffff98348598 <unknown> in libc.so.6
+...
+
+
+Registers:
+
+ x0 0x0c676e6174636570  893804415899886960
+ x1 0xe800000000000000  16717361816799281152
+ x2 0x656e696c656d6954  7308895159547947348
+ x3 0x0000ffff9aa8c9c8  98 19 ab 9a ff ff 00 00 00 8f 7b 9a ff ff 00 00  ··«·ÿÿ····{·ÿÿ··
+ x4 0x0000ffff9aab4a2c  08 00 00 00 00 00 00 00 08 00 00 00 2b fd ef ff  ············+ýïÿ
+ x5 0x0000aaaafc78b520  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+ x6 0x798bc7c5e35cbc2d  8758313553089051693
+ x7 0x0000000100000003  4294967299
+ x8 0x0000000000000000  0
+ x9 0x656e696c656d6954  7308895159547947348
+x10 0x00c020f27d511b9e  54079421385087902
+x11 0xd1001709529442a6  15060062482734531238
+x12 0x38e4212064e0e28e  4099437983829123726
+x13 0x8535d59d07d8bc49  9598813051228306505
+x14 0x544b0485ad3049b4  6073953494622030260
+x15 0xb0af21fe2be310d3  12731432047141392595
+x16 0x0000aaaaeca60168  34 03 96 9a ff ff 00 00 80 1a 3c 98 ff ff 00 00  4···ÿÿ····<·ÿÿ··
+x17 0x0000ffff9a960334  fd 7b be a9 f3 0b 00 f9 fd 03 00 91 08 f0 7d 92  ý{¾©ó··ùý····ð}·
+x18 0x0000000000000000  0
+x19 0x0c676e6174636570  893804415899886960
+x20 0x0000ffffd6149ad8  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ················
+x21 0x0000000000000000  0
+x22 0x0000ffff9a93a270  3f 04 40 71 e9 00 00 54 08 a0 40 39 a8 00 00 34  ?·@qé··T· @9¨··4
+x23 0x0000aaaafc806730  20 c9 aa 9a ff ff 00 00 6d 12 9b 9a ff ff 00 00   Éª·ÿÿ··m···ÿÿ··
+x24 0x0000ffffd614ab10  f0 a0 85 fc aa aa 00 00 58 5d 80 fc aa aa 00 00  ð ·üªª··X]·üªª··
+x25 0x0000ffffd614ab70  2d bc 5c e3 c5 c7 8b 79 00 00 00 00 00 00 00 00  -¼\ãÅÇ·y········
+x26 0x0000ffff9a93a248  28 0c 40 f9 08 0c 00 f9 28 10 40 f9 08 10 00 f9  (·@ù···ù(·@ù···ù
+x27 0x0000aaaafc805d58  03 03 00 00 00 00 00 00 01 00 00 80 01 00 00 00  ················
+x28 0x0000ffffd614ab40  f0 a0 85 fc aa aa 00 00 58 5d 80 fc aa aa 00 00  ð ·üªª··X]·üªª··
+ fp 0x0000ffffd6147330  60 73 14 d6 ff ff 00 00 50 03 96 9a ff ff 00 00  `s·Öÿÿ··P···ÿÿ··
+ lr 0x0000ffff9a960350  e0 03 13 aa f3 0b 40 f9 fd 7b c2 a8 c0 03 5f d6  à··ªó·@ùý{Â¨À·_Ö
+ sp 0x0000ffffd6147330  60 73 14 d6 ff ff 00 00 50 03 96 9a ff ff 00 00  `s·Öÿÿ··P···ÿÿ··
+ pc 0x0000ffff9a915450  74 06 40 f9 55 00 c0 d2 81 02 15 ab 44 01 00 54  t·@ùU·ÀÒ···«D··T
+
+
+Images (130 omitted):
+
+0x0000aaaae9ea0000–0x0000aaaaec9bef40 f3968b782dc21a5e509d310b9f9eda3f5c072d12 icecubes-linux-app         /work/.build-icecubes-app/aarch64-unknown-linux-gnu/debug/icecubes-linux-app
+0x0000ffff98320000–0x0000ffff984b9ec1 d5ef86dde36cbd3289566cf5098226035d76f2e1 libc.so.6                  /usr/lib/aarch64-linux-gnu/libc.so.6
+0x0000ffff986a0000–0x0000ffff98707118 e55b57e7e21637d2dc1dc9a6f4be84d181d6f9ab libgobject-2.0.so.0.8000.0 /usr/lib/aarch64-linux-gnu/libgobject-2.0.so.0.8000.0
+0x0000ffff98730000–0x0000ffff9891ca58 1363827da40208e4222b77ccaf6814bee84fd293 libgio-2.0.so.0.8000.0     /usr/lib/aarch64-linux-gnu/libgio-2.0.so.0.8000.0
+0x0000ffff9a520000–0x0000ffff9aa5ef30 2ac0969a342ebc2a5e967e327bd1ecbf7f550a28 libswiftCore.so            /usr/lib/swift/linux/libswiftCore.so
+
+Backtrace took 1.43s
+

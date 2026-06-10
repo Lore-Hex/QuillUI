@@ -98,10 +98,12 @@ struct AppKitSurfaceTests {
 
     @Test("NSColor(red:green:blue:alpha:) generic RGB init exists (WireGuard's NSColor(hex:) chains to it)")
     func nsColorGenericRGBInit() {
-        // Compile-stub (ignores components), but must exist + be callable so
-        // WireGuard's NSColor+Hex — NSColor(hex:) -> self.init(red:green:blue:alpha:) — compiles.
         let c = NSColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1)
-        #expect(c.withAlphaComponent(1) === c) // stub returns self; proves a usable NSColor
+        let translucent = c.withAlphaComponent(0.5)
+        #expect(translucent.redComponent == 0.2)
+        #expect(translucent.greenComponent == 0.4)
+        #expect(translucent.blueComponent == 0.6)
+        #expect(translucent.alphaComponent == 0.5)
     }
 
     @Test("NSStatusItem.squareLength / variableLength sentinels (WireGuard's StatusItemController)")

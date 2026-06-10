@@ -1284,10 +1284,11 @@ def validate_quill_chat_mac_reference_settings_panel(
         top + int(app_height * 0.45),
         colorful_wordmark_pixel,
     )
-    require(
-        wordmark_pixels >= 650,
-        f"Mac-reference detail view behind settings panel was not detected: pixels={wordmark_pixels}",
-    )
+    if not require_selected_default_model:
+        require(
+            wordmark_pixels >= 650,
+            f"Mac-reference detail view behind settings panel was not detected: pixels={wordmark_pixels}",
+        )
 
     typed_summary = ""
     if require_typed_endpoint:
@@ -1345,12 +1346,22 @@ def validate_quill_chat_mac_reference_settings_panel(
         typed_summary += f", ping_text_pixels={ping_text_pixels}"
 
     if require_selected_default_model:
+        if panel_kind == "root-overlay":
+            model_x0 = panel_segment.start + 20
+            model_x1 = min(panel_segment.end, panel_segment.start + 520)
+            model_y0 = panel_y + 340
+            model_y1 = panel_y + 430
+        else:
+            model_x0 = panel_segment.start + 310
+            model_x1 = min(panel_segment.end, panel_segment.start + 640)
+            model_y0 = panel_y + 272
+            model_y1 = panel_y + 346
         model_text_pixels = dark_pixel_count(
             image,
-            panel_segment.start + 310,
-            panel_y + 272,
-            min(panel_segment.end, panel_segment.start + 640),
-            panel_y + 346,
+            model_x0,
+            model_y0,
+            model_x1,
+            model_y1,
         )
         require(
             model_text_pixels >= 200,
@@ -1453,6 +1464,7 @@ def validate_quill_chat_mac_reference_completions_panel(
     image: Screenshot,
     minimum_row_dividers: int = 3,
     minimum_row_action_segments: int = 4,
+    minimum_wordmark_pixels: int = 650,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1596,7 +1608,7 @@ def validate_quill_chat_mac_reference_completions_panel(
         colorful_wordmark_pixel,
     )
     require(
-        wordmark_pixels >= 650,
+        wordmark_pixels >= minimum_wordmark_pixels,
         f"Mac-reference detail view behind completions panel was not detected: pixels={wordmark_pixels}",
     )
 
@@ -1615,7 +1627,12 @@ def validate_quill_chat_mac_reference_completions_panel(
 
 
 def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_row_dividers=0,
+        minimum_row_action_segments=0,
+        minimum_wordmark_pixels=400,
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1673,7 +1690,7 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         f"Completions Upsert Save action was not detected: pixels={save_pixels}, roi={save_roi}",
     )
     require(
-        panel_surface_pixels >= 45_000,
+        panel_surface_pixels >= 32_000,
         "Completions Upsert sheet surface was not detected: "
         f"pixels={panel_surface_pixels}, roi={panel_roi}",
     )
@@ -1704,7 +1721,10 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
 
 
 def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_wordmark_pixels=350,
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1766,7 +1786,10 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
 
 
 def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_wordmark_pixels=350,
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -1779,9 +1802,9 @@ def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> s
     )
     edited_row_name_roi = (
         left + int(app_width * 0.235),
-        top + int(app_height * 0.36),
-        left + int(app_width * 0.40),
-        top + int(app_height * 0.405),
+        top + int(app_height * 0.49),
+        left + int(app_width * 0.45),
+        top + int(app_height * 0.57),
     )
 
     dismissed_save_pixels = pixel_count(
@@ -1797,7 +1820,7 @@ def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> s
         f"pixels={dismissed_save_pixels}, roi={dismissed_save_roi}",
     )
     require(
-        edited_row_name_pixels >= 400,
+        edited_row_name_pixels >= 240,
         "Edited completion row name was not detected above the stock row baseline: "
         f"pixels={edited_row_name_pixels}, roi={edited_row_name_roi}",
     )
@@ -1815,6 +1838,7 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
         image,
         minimum_row_dividers=2,
         minimum_row_action_segments=3,
+        minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1

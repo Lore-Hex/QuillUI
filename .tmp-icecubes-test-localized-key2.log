@@ -1,0 +1,2346 @@
+swiftpm-preserve-package-resolved: capping 'swift test' to --jobs 2
+warning: '--skip-update' option is deprecated and will be removed in a future release
+warning: 'work': found 486 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AnyStatusesListView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineContentFilter.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ColorSet.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle.svg
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path 2.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowActionsView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Search.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/ToolbarItems.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/LatestPostsWidget/LatestPostsWidgetConfiguration.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/82D04192-F67B-4EBC-A874-45E1F1207529.png
+    /work/.upstream/icecubes/ci_scripts/ci_pre_xcodebuild.sh
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/QuickLook.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountsManager.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Translation.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/CardBackgroundModifier.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Trends.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccount.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Edit/ListEditView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Conversation.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountStatsView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Requests/NotificationsRequestsRowView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Share/StatusRowSelectableTextView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/RemoteTagsView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/PostingService.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Status.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/favorite.wav
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/TagGroup.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Info.plist
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabProtocol.swift
+    /work/.upstream/icecubes/Packages/Notifications/README.md
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/AEA9A4F4-3FD0-47E0-94DA-FF1DE6B7A1AD.png
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Telemetry.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path 1.svg
+    /work/.upstream/icecubes/IceCubesApp/Embeds/pull.wav
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineUnreadStatusesObserver.swift
+    /work/.upstream/icecubes/Packages/StatusKit/README.md
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditAccountView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowIconView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowContentView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/App/App.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabFetcher.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/PrivacyMenu.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle copy.svg
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Marker.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CategorizedEmojiContainer.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/ActionRequestHandler.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/C02D6262-FDBB-4DBF-96A8-1C87826B72E4.png
+    /work/.upstream/icecubes/Packages/Env/Tests/RouterTests.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Streaming.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/DisplayType.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAppendTextView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorStore.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/2961A88A-B0A1-4DB9-89D6-9F124D02BFAA.png
+    /work/.upstream/icecubes/Images/editor.png
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CurrentInstance.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Info.plist
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/ShareToolbarItem.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidget.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/ListsWidget/ListsWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/Explore/README.md
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Notifications.swift
+    /work/.upstream/icecubes/Packages/Timeline/README.md
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListState.swift
+    /work/.upstream/icecubes/IceCubesNotifications/Info.plist
+    /work/.upstream/icecubes/Packages/Models/Tests/ModelsTests/HTMLStringTests.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/MockTimelineStatusFetcher.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineViewModelTests.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path copy 2.svg
+    /work/.upstream/icecubes/Images/profile.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaPickerPanelView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowViewModel.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/51FC584B-4045-4B37-9C37-8DE7F654372F.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeStorage.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTextView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CustomEnvValues.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/TimelineFilter.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/TranslationType.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/FeaturedTagsView.swift
+    /work/.upstream/icecubes/IceCubesApp/Info.plist
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Shape.svg
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineDatasourceMediaFilterTests.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailState.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/SearchScope.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineStatusFetcher.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/StatusesLists/AccountStatusesFetcher.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Modifiers.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.xcassets
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredShareButtonBehavior.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Stream/StreamEvent.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval 1.svg
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/String.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineCache.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Font.swift
+    /work/.upstream/icecubes/IceCubesShareExtension/IceCubesShareExtension.entitlements
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/FontPicker.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusEmbedCache.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/LinkHandler.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Poll/StatusPollViewModel.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/tootSent.wav
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/149D9F62-60F0-4A2C-8C7C-7D672E83C570.png
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/LazyResizableImage.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/tabSelection.wav
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineToolbarTitleView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/QuickLookToolbarItem.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A5FC4F14-EB58-4D6B-97F2-3382FD0EAA25.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/MediaTab.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/StatusesLists/AccountStatusesListView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Package.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/SuggestedTagsView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusDataController.swift
+    /work/.upstream/icecubes/README.md
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval copy.svg
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/HashtagPostsWidget/HashtagPostsWidget.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaUploadServiceTests.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/SFSymbols.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/OpenAIClient.swift
+    /work/.upstream/icecubes/Packages/AppAccount/README.md
+    /work/.upstream/icecubes/Packages/Models/README.md
+    /work/.upstream/icecubes/IceCubesActionExtension/IceCubesActionExtension.entitlements
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MediaStatus.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/DeepLClient.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/CustomEmojiService.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PostError.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListDataSource.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/BAF76368-114D-421D-9308-5B264CC932DB.png
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Conversations.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowContextMenu.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Poll.swift
+    /work/.upstream/icecubes/Images/AppIcon.png
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTranslateView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/MediaGrid/AccountDetailMediaGridView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AccessoryView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Duration.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/996CF392-2FA3-4932-85A8-013AC8EB749B.png
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/DeepLUserAPIHandler.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/MetricsChartSelectionOverlay.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Push.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/PlaceholderView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Ext/TranslationView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Package.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Create/ListCreateView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowHeaderView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineHeaderView.swift
+    /work/.upstream/icecubes/ci_scripts/ci_post_xcodebuild.sh
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIAttachmentImageView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusActionButtonStyle.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Profile.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/ConsolidatedNotificationExt.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListRow.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAccessibilityActionsView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Media.swift
+    /work/.upstream/icecubes/Packages/Account/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CameraPickerView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/C4C8F684-D9D0-43D6-87B2-0390F364A915.png
+    /work/.upstream/icecubes/IceCubesApp/Resources/Preview Assets.xcassets
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountsSelectorView.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/ExploreView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsListState.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredBoostButtonBehavior.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/ListsWidget/ListsWidget.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/Compressor.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/MetricsNotificationGroup.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/AutoCompleteView.swift
+    /work/.upstream/icecubes/Packages/Lists/Package.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Card.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/NotificationTypeExt.swift
+    /work/.upstream/icecubes/Packages/Env/README.md
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingPostsSection.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StreamWatcher.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Polls.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Ext/AppStorage.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/7B3B4BEB-96EB-4601-9469-4DC63EFE3F2D.png
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/LatestPostsWidget/LatestPostsWidget.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Lists.swift
+    /work/.upstream/icecubes/IceCubesNotifications/NotificationServiceSupport.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/TextService.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/AccountsList/AccountsListViewModel.swift
+    /work/.upstream/icecubes/PRIVACY.MD
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaEditView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/PostingServiceTests.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Instance.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailState.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path copy.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Coordinator.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerFilter.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowMainLabelView.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/README.md
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Embed/StatusEmbeddedView.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/bookmark.wav
+    /work/.upstream/icecubes/Packages/Conversations/README.md
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MastodonPushNotification.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Filter.swift
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineFilterTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/RecentTagsView.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationInputView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineTagHeaderView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/README.md
+    /work/.upstream/icecubes/IceCubesApp/Embeds/OpenDyslexic-Regular.otf
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowSwipeView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/RepliesTab.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/AddAccounts/ListAddAccountView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowContentView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A87D752B-B74E-401A-AAE3-0F16A14C78A8.png
+    /work/.upstream/icecubes/IceCubesApp/Embeds/boost.wav
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/StatusesListView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/InstanceApp.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineTagGroupheaderView.swift
+    /work/.upstream/icecubes/AGENTS.MD
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/HashtagPostsWidget/HashtagPostsWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/History/StatusEditHistoryView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/130D4643-ED26-4CE3-9F27-AEC47ED712DB.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Quote.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Mention.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/CustomEmojis.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsPolicyView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Emoji.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/List.swift
+    /work/.upstream/icecubes/Packages/Env/Package.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ScrollToView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountHeaderImageView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ToastOverlayView.swift
+    /work/.upstream/icecubes/LICENSE
+    /work/.upstream/icecubes/CLAUDE.md
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreviewEnv.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaDescriptionServiceTests.swift
+    /work/.upstream/icecubes/scripts/launch_sim.sh
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/Base/AccountTabManager.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Detail/StatusDetailViewModel.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowExternalView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/0058B4EC-7293-4BEA-BB1A-DB14090BAF3E.png
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate46.icon/icon.json
+    /work/.upstream/icecubes/IceCubesShareExtension/Info.plist
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/CurrentAccount.swift
+    /work/.upstream/icecubes/Images/explore.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/GifView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/SceneDelegate.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/HTMLString.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/Atkinson-Hyperlegible-Regular-102.ttf
+    /work/.upstream/icecubes/Packages/Conversations/Package.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerError.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorFocusState.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/CustomEmojisView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ToolbarItem/CancelToolbarItem.swift
+    /work/.upstream/icecubes/Images/more.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ErrorView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/NotificationsName.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Language.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Tags.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Package.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/UTTypeSupported.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/MediaContainer.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Action.js
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsView.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate1.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/Packages/Models/Package.swift
+    /work/.upstream/icecubes/IceCubesApp/Assets.xcassets
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountView.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/glass.caf
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/EmojiText.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/ThemePreviewView.swift
+    /work/.upstream/icecubes/Packages/Lists/README.md
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/UserPreferences.swift
+    /work/.upstream/icecubes/Packages/Account/Tests/AccountTests/AccountMetricsStoreTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowReplyView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/Router.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/B9D6EFB2-EF10-4A4F-B2A2-9990F1F00F8C.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowDetailView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Requests/NotificationsRequestsListView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/F3960E95-C938-49FA-BD6A-3D8DAF5080FF.png
+    /work/.upstream/icecubes/Packages/Timeline/Tests/TimelineTests/TimelineTestFactories.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineQuickAccessPills.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/NextPageView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountDetailToolbar.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Shared/PostsWidgetView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditAccountViewModel.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaDescriptionService.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListRow.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Share/StatusRowShareAsImageView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/3786C799-8298-4259-8A6D-177E8352B813.png
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/CustomEmojiServiceTests.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift
+    /work/.upstream/icecubes/Images/download_on_the_app_store.svg
+    /work/.upstream/icecubes/Packages/NetworkClient/Tests/NetworkClientTests/NetworkTests.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Drafts/DraftsListView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/DesignSystem.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsTypes.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Ext/Visibility.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Poll/StatusPollView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/Draft.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PollPreferences.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/OauthToken.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/StatusRowAccessibilityLabel.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusActionButton.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/DateFormatterCache.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorMode.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineListView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ToolbarItem/CloseToolbarItem.swift
+    /work/.upstream/icecubes/Images/timeline.png
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/NotificationExt.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/icon.json
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaUploadService.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/QuickAccessView.swift
+    /work/.upstream/icecubes/IceCubesNotifications/IceCubesNotifications.entitlements
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowCardView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/LanguageDetection/LanguageDetection.swift
+    /work/.upstream/icecubes/Packages/Account/Package.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowAvatarView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/actors/TimelineDatasource.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AccountPopoverView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/ExpandedView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/History.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Row/NotificationRowView.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/B71B4965-8613-4041-A45B-0D554318DD98.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/StatusesTab.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/LangButton.swift
+    /work/.upstream/icecubes/Images/notifications.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PushSubscription.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/ServerFilters.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Oauth.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/TagRowView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Assets.xcassets
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AutoComplete/MentionsView.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/FamiliarFollowersView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/Models/Notification+Consolidated.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/32E33E74-6A30-4003-A426-A3A5B3D56E65.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/AIPrompt.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineViewModel.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/FavoritesTab.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Tags/FollowedTagsListView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/TagChartView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate46.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineView.swift
+    /work/.upstream/icecubes/screenshots.pco/project
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountFieldsView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Application.swift
+    /work/.upstream/icecubes/Images/accounts.png
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/EditorView.swift
+    /work/.upstream/icecubes/Packages/Timeline/Package.swift
+    /work/.upstream/icecubes/Packages/AppAccount/Package.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTagsView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/PartialAccountWithAvatar.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailHeaderView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SearchResults.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Markers.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingTagsSection.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Theme.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationMessageView.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/AddAccounts/ListAddAccountViewModel.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/MediaIngestionServiceTests.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/HapticManager.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Follow/FollowButton.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIAttachmentVideoView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Notification.swift
+    /work/.upstream/icecubes/Images/promo.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountAvatarView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ConditionalModifier.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/SearchResultsView.swift
+    /work/.upstream/icecubes/IceCubesShareExtension/ShareViewController.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Detail/StatusDetailView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUITransferableImage.swift
+    /work/.upstream/icecubes/AppIcon.icon/icon.json
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/SoundEffectManager.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/TrendingLinksListView.swift
+    /work/.upstream/icecubes/Packages/Notifications/Sources/Notifications/List/NotificationsHeaderFilteredView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIZoomableContainer.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/StatusHistory.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/IceCubesAppWidgetsExtensionBundle.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Package.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/TextEditingService.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Timeline/TimelineItem.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/BookmarksTab.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Relationship.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TestImages.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsComponents.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/MediaAttachement.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/refresh.wav
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Oval.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Namespace.swift
+    /work/.upstream/icecubes/IceCubesActionExtension/Assets.xcassets
+    /work/.upstream/icecubes/Packages/AppAccount/Sources/AppAccount/AppAccountViewModel.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/LocalTimeline.swift
+    /work/.upstream/icecubes/TERMS.MD
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationGroup.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowSpoilerView.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Tag.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/glass.wav
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowTagView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationsPolicy.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/6FA80231-084D-47B3-AAD2-88697A0A6CC3.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/NotificationsRequest.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/PreferredBrowser.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/045BDAEC-2F82-4175-A4E7-72035F57CC73.png
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Filters/FiltersListView.swift
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/StatusAction.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Package.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Alias/ServerDate.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Lists/ListsListView.swift
+    /work/.upstream/icecubes/Packages/Lists/Sources/Lists/Edit/ListEditViewModel.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/QuoteApproval.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Rounded Rectangle copy 2.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/StatusesFetcher.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/List/ConversationsListDataSource.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Metrics/AccountMetricsStore.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/D8621CE7-7392-44B7-8B45-D1A360F3C494.png
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/StatusEditorToolbarItem.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/IceCubesAppWidgetsExtensionExtension.entitlements
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/TrendingLinksSection.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/InstanceSocial.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/GroupedNotificationsResults.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/FollowRequests.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/StatusContext.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/EditorStoreTests.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/AccountExt.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Timelines.swift
+    /work/.upstream/icecubes/IceCubesApp-release.xcconfig
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TextServiceTests.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Tabs/BoostsTab.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/TextView.swift
+    /work/.upstream/icecubes/Packages/Conversations/Sources/Conversations/Detail/ConversationDetailDataSource.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ServerPreferences.swift
+    /work/.upstream/icecubes/IceCubesApp/Embeds/share.wav
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Filters/EditFilterView.swift
+    /work/.upstream/icecubes/Packages/Models/Tests/ModelsTests/QuoteTests.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/MentionWidget/MentionWidget.swift
+    /work/.upstream/icecubes/Packages/MediaUI/Sources/MediaUI/MediaUIShareLink.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/ConsolidatedNotification.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Statuses.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/A303F17D-55BF-4C99-A17A-ED0D4B5F39EF.png
+    /work/.upstream/icecubes/Packages/Env/Sources/Env/ToastCenter.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/TextEditingServiceTests.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/AccountWidget/AccountWidgetView.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/Shared/SharedUtils.swift
+    /work/.upstream/icecubes/Images/dm.png
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Components/TagsListView.swift
+    /work/.upstream/icecubes/Packages/Explore/Sources/Explore/Sections/SuggestedAccountsSection.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/MastodonClient.swift
+    /work/.upstream/icecubes/IceCubesAppWidgetsExtension/MentionWidget/MentionWidgetConfiguration.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Edit/EditRelationshipNoteView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/TextState.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/56E4EDB5-12D8-475B-86F2-C7152DCD03BA.png
+    /work/.upstream/icecubes/IceCubesNotifications/NotificationService.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowReblogView.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/SwiftData/RecentTag.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Instances.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/MainView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate2.icon/Assets/Path.svg
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/AutocompleteService.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Account.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/Components/AccountInfoView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/UITextView/Representable.swift
+    /work/.upstream/icecubes/Packages/Account/Sources/Account/Detail/AccountDetailContextMenu.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Services/MediaIngestionService.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Endpoint.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Tests/StatusKitTests/AutocompleteServiceTests.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineToolbarTagGroupButton.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/DBDB4456-D7F6-4667-8645-5511773640B4.png
+    /work/.upstream/icecubes/IceCubesApp.xcconfig.template
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Accounts.swift
+    /work/.upstream/icecubes/Packages/Timeline/Sources/Timeline/View/TimelineContentFilterView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/InstanceSocialClient.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/LanguageSheetView.swift
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/FollowRequestButtons.swift
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/AppAccount.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/List/TimelineGapView.swift
+    /work/.upstream/icecubes/AlternateIcons/AppIconAlternate1.icon/icon.json
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/Endpoint/Apps.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Editor/Components/PollView.swift
+    /work/.upstream/icecubes/Packages/StatusKit/Sources/StatusKit/Row/Subviews/StatusRowMediaPreviewView.swift
+    /work/.upstream/icecubes/AppIcon.icon/Assets/puple_cube.png
+    /work/.upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient/URLData.swift
+    /work/.upstream/icecubes/Packages/Explore/Package.swift
+    /work/.upstream/icecubes/screenshots.pco/Images/Default/65B8562A-62D7-4962-AD7C-94561AF2E099.png
+    /work/.upstream/icecubes/Packages/Models/Sources/Models/Stream/StreamMessage.swift
+    /work/.upstream/icecubes/IceCubesApp/Resources/Localization/Localizable.xcstrings
+warning: 'work': found 1 file(s) which are unhandled; explicitly declare them as resources or exclude from the target
+    /work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Resources/Colors.xcassets
+[0/1] Planning build
+[1/1] Compiling plugin QuillAssetSymbolsPlugin
+Building for debugging...
+[1/219] Write sources
+[2/219] Write swift-version-24593BA9C3E375BF.txt
+[4/94] Emitting module NukeUI
+[5/94] Compiling NukeUI NukeUI.swift
+[7/96] Emitting module QuillUI
+[8/103] Compiling MarkdownUI MarkdownUI.swift
+[9/103] Emitting module MarkdownUI
+[11/106] Emitting module KeyboardShortcuts
+[12/106] Compiling KeyboardShortcuts KeyboardShortcuts.swift
+[14/108] Compiling QuillUI GdkPixbufTranscode.swift
+[15/108] Compiling QuillUI GtkOffscreenRender.swift
+[16/108] Compiling QuillUI ProfileCompatibility.swift
+[17/108] Compiling QuillUI QuillApp.swift
+[18/108] Compiling QuillUI QuillBackend.swift
+[19/108] Compiling QuillUI QuillPaintButtonStyle.swift
+[20/108] Compiling QuillUI UpstreamCompatibility.swift
+[21/108] Emitting module IceCubesShims
+[22/108] Compiling IceCubesShims IceCubesShims.swift
+[24/133] Compiling Models Account.swift
+[25/133] Compiling Models DateFormatterCache.swift
+[26/133] Compiling Models HTMLString.swift
+[27/133] Compiling Models ServerDate.swift
+[28/133] Compiling Models App.swift
+[29/133] Compiling Models AppAccount.swift
+[30/133] Compiling Models Application.swift
+[39/136] Compiling Models Card.swift
+[40/136] Compiling Models ConsolidatedNotification.swift
+[41/136] Compiling Models Conversation.swift
+[42/136] Compiling Models Emoji.swift
+[43/136] Compiling Models Filter.swift
+[44/136] Compiling Models GroupedNotificationsResults.swift
+[45/136] Compiling Models History.swift
+[46/136] Compiling Models Instance.swift
+[47/136] Compiling Models InstanceApp.swift
+[48/136] Compiling Models InstanceSocial.swift
+[49/136] Compiling Models Language.swift
+[50/136] Compiling Models List.swift
+[51/136] Compiling Models Marker.swift
+[52/136] Compiling Models MastodonPushNotification.swift
+[53/136] Compiling Models MediaAttachement.swift
+[54/136] Compiling Models MediaStatus.swift
+[55/136] Compiling Models Mention.swift
+[56/136] Emitting module Models
+[57/160] Compiling Models Notification.swift
+[58/160] Compiling Models NotificationGroup.swift
+[59/160] Compiling Models NotificationsPolicy.swift
+[60/160] Compiling Models NotificationsRequest.swift
+[61/160] Compiling Models OauthToken.swift
+[62/160] Compiling Models PartialAccountWithAvatar.swift
+[63/160] Compiling Models Poll.swift
+[64/160] Compiling Models PostError.swift
+[65/160] Compiling Models PushSubscription.swift
+[66/160] Compiling Models Quote.swift
+[67/160] Compiling Models QuoteApproval.swift
+[68/160] Compiling Models Relationship.swift
+[69/160] Compiling Models SearchResults.swift
+[70/160] Compiling Models ServerError.swift
+[71/160] Compiling Models ServerFilter.swift
+[72/160] Compiling Models ServerPreferences.swift
+[73/160] Compiling Models Status.swift
+[74/160] Compiling Models StatusContext.swift
+[75/160] Compiling Models StatusHistory.swift
+[76/160] Compiling Models StreamEvent.swift
+[77/160] Compiling Models StreamMessage.swift
+[78/160] Compiling Models Tag.swift
+[79/160] Compiling Models TimelineItem.swift
+[80/160] Compiling Models Translation.swift
+[82/162] Emitting module QuillIceCubesCore
+[83/162] Compiling QuillIceCubesCore IceCubesAPI.swift
+[84/163] Compiling QuillNetNewsWireCore QuillNetNewsWireCore.swift
+[85/163] Emitting module QuillNetNewsWireCore
+[87/164] Compiling QuillIceCubesCore QuillIceCubesCore.swift
+[89/170] Compiling QuillUITests LinuxBackendAppMatrixTests.swift
+[90/170] Compiling QuillUITests MainActorViewConformanceTests.swift
+[91/170] Emitting module QuillUITests
+[92/172] Emitting module QuillIceCubesCoreTests
+[93/172] Compiling QuillIceCubesCoreTests QuillIceCubesCoreTests.swift
+[95/175] Compiling QuillIceCubes main.swift
+[96/175] Emitting module QuillIceCubes
+[98/178] Compiling QuillIINACore QuillIINACore.swift
+[99/178] Emitting module QuillIINACore
+[101/181] Emitting module QuillCodeEditCore
+[102/181] Compiling QuillCodeEditCore QuillCodeEditCore.swift
+[104/184] Emitting module QuillCodeEditCoreTests
+[105/184] Compiling QuillCodeEditCoreTests QuillCodeEditCoreTests.swift
+[107/187] Emitting module QuillCodeEdit
+[108/187] Compiling QuillCodeEdit main.swift
+[110/204] Emitting module NetworkClient
+[111/218] Compiling NetworkClient DeepLClient.swift
+[112/218] Compiling NetworkClient Accounts.swift
+[113/218] Compiling NetworkClient Apps.swift
+[114/218] Compiling NetworkClient Conversations.swift
+[115/218] Compiling NetworkClient CustomEmojis.swift
+[116/218] Compiling NetworkClient Endpoint.swift
+[117/218] Compiling NetworkClient FollowRequests.swift
+[118/218] Compiling NetworkClient Instances.swift
+[119/218] Compiling NetworkClient Lists.swift
+[120/218] Compiling NetworkClient Markers.swift
+[121/218] Compiling NetworkClient Media.swift
+[122/218] Compiling NetworkClient Notifications.swift
+[123/218] Compiling NetworkClient Oauth.swift
+[124/218] Compiling NetworkClient Polls.swift
+[125/218] Compiling NetworkClient Profile.swift
+[126/218] Compiling NetworkClient Push.swift
+[127/218] Compiling NetworkClient Search.swift
+[128/218] Compiling NetworkClient ServerFilters.swift
+[129/218] Compiling NetworkClient Statuses.swift
+[130/218] Compiling NetworkClient Streaming.swift
+[131/218] Compiling NetworkClient Tags.swift
+[132/218] Compiling NetworkClient Timelines.swift
+[133/218] Compiling NetworkClient Trends.swift
+[134/218] Compiling NetworkClient InstanceSocialClient.swift
+[135/218] Compiling NetworkClient LinkHandler.swift
+[136/218] Compiling NetworkClient MastodonClient.swift
+[137/218] Compiling NetworkClient OpenAIClient.swift
+[138/218] Compiling NetworkClient String.swift
+[139/218] Compiling NetworkClient URLData.swift
+[141/220] Compiling Gifu Gifu.swift
+[142/220] Emitting module Gifu
+[144/232] Emitting module Env
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+[145/243] Compiling Env CurrentAccount.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[146/243] Compiling Env CurrentInstance.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[147/243] Compiling Env CustomEnvValues.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[148/243] Compiling Env DeepLUserAPIHandler.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[149/243] Compiling Env Duration.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[150/243] Compiling Env AppStorage.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[151/243] Compiling Env TranslationView.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[152/243] Compiling Env NotificationsName.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[153/243] Compiling Env PollPreferences.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[154/243] Compiling Env PreferredBoostButtonBehavior.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[155/243] Compiling Env PreferredBrowser.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[156/243] Compiling Env PreferredShareButtonBehavior.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[157/243] Compiling Env PushNotificationsService.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[158/243] Compiling Env QuickLook.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[159/243] Compiling Env Router.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[160/243] Compiling Env StatusAction.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[161/243] Compiling Env StatusDataController.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[162/243] Compiling Env StatusEmbedCache.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[163/243] Compiling Env StreamWatcher.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[164/243] Compiling Env ToastCenter.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[165/243] Compiling Env TranslationType.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[166/243] Compiling Env UserPreferences.swift
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:17:51: warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 15 | import UserNotifications
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+    |                                                   `- warning: conformance of 'UNNotification' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:213:20: note: 'UNNotification' declares conformance to protocol 'Sendable' here
+211 | }
+212 | 
+213 | public final class UNNotification: @unchecked Sendable {
+    |                    `- note: 'UNNotification' declares conformance to protocol 'Sendable' here
+214 |     public let request: UNNotificationRequest
+215 |     public let date: Date
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:18:59: warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 16 | 
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+    |                                                           `- warning: conformance of 'UNNotificationResponse' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+ 20 | 
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:222:20: note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+220 | }
+221 | 
+222 | public final class UNNotificationResponse: @unchecked Sendable {
+    |                    `- note: 'UNNotificationResponse' declares conformance to protocol 'Sendable' here
+223 |     public let notification: UNNotification
+224 |     public let actionIdentifier: String
+
+/work/.upstream/icecubes/Packages/Env/Sources/Env/PushNotificationsService.swift:19:61: warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 17 | extension UNNotification: @unchecked @retroactive Sendable {}
+ 18 | extension UNNotificationResponse: @unchecked @retroactive Sendable {}
+ 19 | extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
+    |                                                             `- warning: conformance of 'UNUserNotificationCenter' to protocol 'Sendable' was already stated in the type's module 'UserNotifications'
+ 20 | 
+ 21 | public struct PushKeys: Sendable {
+
+/work/Sources/AppleFrameworkShims/UserNotifications/UserNotifications.swift:243:20: note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+241 | public protocol UNUserNotificationCenterDelegate: AnyObject {}
+242 | 
+243 | public final class UNUserNotificationCenter: @unchecked Sendable {
+    |                    `- note: 'UNUserNotificationCenter' declares conformance to protocol 'Sendable' here
+244 |     nonisolated(unsafe) private static let _shared = UNUserNotificationCenter()
+245 |     public static func current() -> UNUserNotificationCenter { _shared }
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[168/245] Compiling EmojiText EmojiText.swift
+[169/245] Emitting module EmojiText
+[171/247] Emitting module Charts
+[172/247] Compiling Charts Charts.swift
+[174/249] Emitting module ButtonKit
+[175/249] Compiling ButtonKit ButtonKit.swift
+[177/265] Emitting module DesignSystem
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[178/280] Compiling DesignSystem AccountExt.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[179/280] Compiling DesignSystem CardBackgroundModifier.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[180/280] Compiling DesignSystem ColorSet.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[181/280] Compiling DesignSystem ConditionalModifier.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[182/280] Compiling DesignSystem DesignSystem.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[183/280] Compiling DesignSystem Font.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[184/280] Compiling DesignSystem FontPicker.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[185/280] Compiling DesignSystem Colors.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[186/280] Compiling DesignSystem SFSymbols.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[187/280] Compiling DesignSystem SceneDelegate.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[188/280] Compiling DesignSystem Theme.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[189/280] Compiling DesignSystem ThemeApplier.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[190/280] Compiling DesignSystem ThemeStorage.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[191/280] Compiling DesignSystem CancelToolbarItem.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[192/280] Compiling DesignSystem CloseToolbarItem.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/ThemeApplier.swift:105:26: warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+103 |     private func allWindows() -> [UIWindow] {
+104 |       UIApplication.shared.connectedScenes
+105 |         .compactMap { $0 as? UIWindowScene }
+    |                          `- warning: cast from 'UIScene' to unrelated type 'UIWindowScene' always fails
+106 |         .flatMap(\.windows)
+107 |     }
+[193/280] Compiling DesignSystem AccountPopoverView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[194/280] Compiling DesignSystem AvatarView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[195/280] Compiling DesignSystem EmojiText.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[196/280] Compiling DesignSystem ErrorView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[197/280] Compiling DesignSystem FollowRequestButtons.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[198/280] Compiling DesignSystem GifView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[199/280] Compiling DesignSystem LazyResizableImage.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[200/280] Compiling DesignSystem NextPageView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[201/280] Compiling DesignSystem PlaceholderView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[202/280] Compiling DesignSystem ScrollToView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[203/280] Compiling DesignSystem StatusEditorToolbarItem.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[204/280] Compiling DesignSystem TagChartView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[205/280] Compiling DesignSystem TagRowView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[206/280] Compiling DesignSystem ThemePreviewView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[207/280] Compiling DesignSystem ToastOverlayView.swift
+/work/.upstream/icecubes/Packages/DesignSystem/Sources/DesignSystem/Views/AvatarView.swift:33:60: warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 31 |   }
+ 32 | 
+ 33 |   public init(_ avatar: URL? = nil, config: FrameConfig = .status) {
+    |                                                            `- warning: main actor-isolated static property 'status' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode
+ 34 |     self.avatar = avatar
+ 35 |     self.config = config
+    :
+ 52 |       public static let status = FrameConfig(width: 48, height: 48)
+ 53 |     #else
+ 54 |       public static let status = FrameConfig(width: 40, height: 40)
+    |                         `- note: static property declared here
+ 55 |     #endif
+ 56 |     public static let embed = FrameConfig(width: 34, height: 34)
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[209/283] Emitting module ActivityIndicatorView
+[210/283] Compiling ActivityIndicatorView ActivityIndicatorView.swift
+[212/288] Emitting module AppAccount
+[213/290] Compiling AppAccount AppAccount.swift
+[214/290] Compiling AppAccount AppAccountView.swift
+[215/290] Compiling AppAccount AppAccountViewModel.swift
+[216/290] Compiling AppAccount AppAccountsManager.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[217/290] Compiling AppAccount AppAccountsSelectorView.swift
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[219/297] Emitting module QuillShimsTests
+Internal Error: dataCorrupted(Swift.DecodingError.Context(codingPath: [], debugDescription: "Corrupted JSON", underlyingError: Optional(unexpected end of file)))
+[220/302] Compiling QuillShimsTests NetworkEndpointHostParityTests.swift
+[221/302] Compiling QuillShimsTests NetworkEndpointPortParityTests.swift
+[222/302] Compiling QuillShimsTests NetworkErrorParityTests.swift
+[223/302] Compiling QuillShimsTests NetworkIPAddressParityTests.swift
+[224/302] Compiling QuillShimsTests NetworkParametersParityTests.swift
+[225/302] Compiling QuillShimsTests NetworkPathInterfaceParityTests.swift
+[226/302] Compiling QuillShimsTests NetworkProtocolSurfaceParityTests.swift
+[227/302] Compiling QuillShimsTests OSTests.swift
+[228/302] Compiling QuillShimsTests QuillShimsTests.swift
+[229/302] Compiling QuillShimsTests SecurityKeychainParityTests.swift
+error: emit-module command failed with exit code 1 (use -v to see invocation)
+[231/304] Emitting module QuillCompatibilityModuleTests
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:2066:18: error: ambiguous use of 'font'
+2064 |         }) {
+2065 |             Text("Rename")
+2066 |                 .font(.body)
+     |                  `- error: ambiguous use of 'font'
+2067 |                 .foregroundColor(.primary)
+2068 |                 .lineLimit(1)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1262:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+1260 |     }
+1261 | 
+1262 |     func font(_ font: Font) -> Text {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1263 |         _ = font
+1264 |         return self
+
+/work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/StyleModifiers.swift:75:17: note: found this candidate in module 'SwiftOpenUI'
+73 | 
+74 |     /// Apply a font to this view.
+75 |     public func font(_ font: Font) -> FontModifiedView<Self> {
+   |                 `- note: found this candidate in module 'SwiftOpenUI'
+76 |         FontModifiedView(content: self, font: font)
+77 |     }
+[232/304] Compiling QuillCompatibilityModuleTests AppleCompatibilitySmoke.swift
+[235/309] Compiling QuillUITests ForEachBindingCompatibilityTests.swift
+[236/309] Compiling QuillUITests InteractionSmokeConfigurationTests.swift
+[237/309] Compiling QuillUITests BackendModuleReexportTests.swift
+[238/309] Compiling QuillUITests ButtonCairoTests.swift
+[240/312] Compiling QuillCompatibilityModuleTests CompatibilityModuleTests.swift
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:45:14: error: ambiguous use of 'foregroundStyle'
+  43 |     func swiftUIAndSwiftDataAliasesExposeQuillAPIs() throws {
+  44 |         _ = Text("Quill")
+  45 |             .foregroundStyle(Color("label"))
+     |              `- error: ambiguous use of 'foregroundStyle'
+  46 |             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
+  47 |         _ = ModelConfiguration(isStoredInMemoryOnly: true)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1272:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+1270 |     }
+1271 | 
+1272 |     func foregroundStyle(_ color: Color) -> Text {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1273 |         _ = color
+1274 |         return self
+
+/work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/StyleModifiers.swift:54:17: note: found this candidate in module 'SwiftOpenUI'
+52 | 
+53 |     /// SwiftUI-compatible alias for foregroundColor.
+54 |     public func foregroundStyle(_ color: Color) -> ForegroundColorView<Self> {
+   |                 `- note: found this candidate in module 'SwiftOpenUI'
+55 |         foregroundColor(color)
+56 |     }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:71:53: error: ambiguous use of 'init()'
+  69 |         _ = Text("Fallback")
+  70 |             .symbolEffect(.variableColor, value: true)
+  71 |             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
+     |                                                     `- error: ambiguous use of 'init()'
+  72 |             .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .top)))
+  73 |             .mask(Rectangle())
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:224:12: note: found this candidate in module 'QuillUI'
+ 222 |     private var id: ID
+ 223 | 
+ 224 |     public init() {
+     |            `- note: found this candidate in module 'QuillUI'
+ 225 |         self.id = ID()
+ 226 |     }
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:298:12: note: found this candidate in module 'QuillSwiftUICompatibility'
+ 296 | 
+ 297 |     private let id = ID()
+ 298 |     public init() {}
+     |            `- note: found this candidate in module 'QuillSwiftUICompatibility'
+ 299 |     public var wrappedValue: ID { id }
+ 300 | }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:96:47: error: ambiguous use of 'grouped'
+  94 |         _ = Text("Icon scaled").imageScale(.large)
+  95 |         _ = Image(systemName: "photo").renderingMode(.template)
+  96 |         _ = Form { Text("Field") }.formStyle(.grouped)
+     |                                               `- error: ambiguous use of 'grouped'
+  97 | 
+  98 | #if os(Linux)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1544:23: note: found this candidate in module 'QuillSwiftUICompatibility'
+1542 | public struct GroupedFormStyle: Sendable {
+1543 |     public init() {}
+1544 |     public static let grouped = GroupedFormStyle()
+     |                       `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1545 | }
+1546 | 
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:570:23: note: found this candidate in module 'QuillUI'
+ 568 | public struct FormStyleType: Sendable {
+ 569 |     public init() {}
+ 570 |     public static let grouped = FormStyleType()
+     |                       `- note: found this candidate in module 'QuillUI'
+ 571 | }
+ 572 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:120:65: error: ambiguous use of 'hidden'
+ 118 |         #expect(rowSeparator.edges == .vertical)
+ 119 | 
+ 120 |         let scrollIndicators = Text("Scroll").scrollIndicators(.hidden)
+     |                                                                 `- error: ambiguous use of 'hidden'
+ 121 |         #expect(String(describing: type(of: scrollIndicators)).contains("ScrollIndicatorsView"))
+ 122 |         #expect(String(describing: scrollIndicators.visibility).contains("hidden"))
+
+/work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift:5:10: note: found this candidate in module 'SwiftOpenUI'
+  3 |     case automatic
+  4 |     case visible
+  5 |     case hidden
+    |          `- note: found this candidate in module 'SwiftOpenUI'
+  6 |     case never
+  7 | }
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:773:10: note: found this candidate in module 'QuillUI'
+ 771 |     case automatic
+ 772 |     case visible
+ 773 |     case hidden
+     |          `- note: found this candidate in module 'QuillUI'
+ 774 |     case never
+ 775 | }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:124:72: error: ambiguous use of 'hidden'
+ 122 |         #expect(String(describing: scrollIndicators.visibility).contains("hidden"))
+ 123 | 
+ 124 |         let scrollBackground = Text("Scroll").scrollContentBackground(.hidden)
+     |                                                                        `- error: ambiguous use of 'hidden'
+ 125 |         #expect(String(describing: type(of: scrollBackground)).contains("ScrollContentBackgroundView"))
+ 126 |         #expect(scrollBackground.visibility == .hidden)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:732:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+ 730 |     case automatic
+ 731 |     case visible
+ 732 |     case hidden
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+ 733 | }
+ 734 | 
+
+/work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift:5:10: note: found this candidate in module 'SwiftOpenUI'
+  3 |     case automatic
+  4 |     case visible
+  5 |     case hidden
+    |          `- note: found this candidate in module 'SwiftOpenUI'
+  6 |     case never
+  7 | }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:134:28: error: value of type 'Text' has no member 'enabled'
+ 132 |         let hitTesting = Text("Hit Test").allowsHitTesting(false)
+ 133 |         #expect(String(describing: type(of: hitTesting)).contains("AllowsHitTestingView"))
+ 134 |         #expect(hitTesting.enabled == false)
+     |                            `- error: value of type 'Text' has no member 'enabled'
+ 135 |         #expect(quillTextLabel(from: hitTesting) == "Hit Test")
+ 136 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:149:44: error: ambiguous use of 'mask'
+ 147 |         #expect(quillTextLabel(from: transitioned) == "Transition")
+ 148 | 
+ 149 |         let maskedContent = Text("Masked").mask(Text("Mask"))
+     |                                            `- error: ambiguous use of 'mask'
+ 150 |         #expect(String(describing: type(of: maskedContent)).contains("ViewMaskView"))
+ 151 |         #expect(quillTextLabel(from: maskedContent) == "Masked")
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1646:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+1644 |     }
+1645 | 
+1646 |     func mask<Mask: View>(_ mask: Mask) -> Self {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1647 |         _ = mask
+1648 |         return self
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:1382:10: note: found this candidate in module 'QuillUI'
+1380 |     }
+1381 | 
+1382 |     func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
+     |          `- note: found this candidate in module 'QuillUI'
+1383 |         recordQuillUIFallback(
+1384 |             "mask",
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:161:41: error: ambiguous use of 'focusEffectDisabled'
+ 159 |         #expect(hoverStates == [true, false])
+ 160 | 
+ 161 |         let focusEffect = Text("Focus").focusEffectDisabled(false)
+     |                                         `- error: ambiguous use of 'focusEffectDisabled'
+ 162 |         #expect(String(describing: type(of: focusEffect)).contains("FocusEffectDisabledView"))
+ 163 |         #expect(focusEffect.disabled == false)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:2460:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+2458 |     }
+2459 | 
+2460 |     func focusEffectDisabled(_ disabled: Bool = true) -> Self {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+2461 |         _ = disabled
+2462 |         return self
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:1342:10: note: found this candidate in module 'QuillUI'
+1340 |     }
+1341 | 
+1342 |     func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
+     |          `- note: found this candidate in module 'QuillUI'
+1343 |         recordQuillUIFallback(
+1344 |             "focusEffectDisabled",
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:189:55: error: ambiguous use of 'edgesIgnoringSafeArea'
+ 187 |         #expect(quillTextLabel(from: optionalBindingFocus) == "Optional binding focus")
+ 188 | 
+ 189 |         let legacySafeArea = Text("Legacy Safe Area").edgesIgnoringSafeArea(.top)
+     |                                                       `- error: ambiguous use of 'edgesIgnoringSafeArea'
+ 190 |         #expect(String(describing: type(of: legacySafeArea)).contains("EdgesIgnoringSafeAreaView"))
+ 191 |         #expect(legacySafeArea.edges == .top)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:2534:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+2532 |     }
+2533 | 
+2534 |     func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+2535 |         _ = edges
+2536 |         return self
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:1350:10: note: found this candidate in module 'QuillUI'
+1348 |     }
+1349 | 
+1350 |     func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
+     |          `- note: found this candidate in module 'QuillUI'
+1351 |         recordQuillUIFallback(
+1352 |             "edgesIgnoringSafeArea",
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:191:42: error: cannot infer contextual base in reference to member 'top'
+ 189 |         let legacySafeArea = Text("Legacy Safe Area").edgesIgnoringSafeArea(.top)
+ 190 |         #expect(String(describing: type(of: legacySafeArea)).contains("EdgesIgnoringSafeAreaView"))
+ 191 |         #expect(legacySafeArea.edges == .top)
+     |                                          `- error: cannot infer contextual base in reference to member 'top'
+ 192 | 
+ 193 |         let ignoredSafeArea = Text("Safe Area").ignoresSafeArea(.bottom)
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:201:55: error: ambiguous use of 'URL'
+ 199 |         #expect(String(describing: selectable.selection).contains("enabled"))
+ 200 | 
+ 201 |         let keyboardTyped = Text("URL").keyboardType(.URL)
+     |                                                       `- error: ambiguous use of 'URL'
+ 202 |         #expect(String(describing: type(of: keyboardTyped)).contains("KeyboardTypeView"))
+ 203 |         #expect(keyboardTyped.keyboardType == .URL)
+
+/work/Sources/UIKitShim/UIKit.swift:456:10: note: found this candidate in module 'UIKit'
+ 454 |     case asciiCapable
+ 455 |     case numbersAndPunctuation
+ 456 |     case URL
+     |          `- note: found this candidate in module 'UIKit'
+ 457 |     case numberPad
+ 458 |     case phonePad
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:594:23: note: found this candidate in module 'QuillUI'
+ 592 |     }
+ 593 | 
+ 594 |     public static let URL = KeyboardType("URL")
+     |                       `- note: found this candidate in module 'QuillUI'
+ 595 | }
+ 596 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:203:48: error: cannot infer contextual base in reference to member 'URL'
+ 201 |         let keyboardTyped = Text("URL").keyboardType(.URL)
+ 202 |         #expect(String(describing: type(of: keyboardTyped)).contains("KeyboardTypeView"))
+ 203 |         #expect(keyboardTyped.keyboardType == .URL)
+     |                                                `- error: cannot infer contextual base in reference to member 'URL'
+ 204 | 
+ 205 |         let autocapitalized = Text("Lowercase").autocapitalization(.never)
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:213:57: error: ambiguous use of 'URL'
+ 211 |         #expect(autocorrectionDisabled.disabled == true)
+ 212 | 
+ 213 |         let typedContent = Text("URL").textContentType(.URL)
+     |                                                         `- error: ambiguous use of 'URL'
+ 214 |         #expect(String(describing: type(of: typedContent)).contains("TextContentTypeView"))
+ 215 |         #expect(typedContent.contentType == .URL)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1550:23: note: found this candidate in module 'QuillSwiftUICompatibility'
+1548 |     public var rawValue: String
+1549 |     public init(_ rawValue: String) { self.rawValue = rawValue }
+1550 |     public static let URL = TextContentType("URL")
+     |                       `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1551 |     public static let password = TextContentType("password")
+1552 | }
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:584:23: note: found this candidate in module 'QuillUI'
+ 582 |     }
+ 583 | 
+ 584 |     public static let URL = TextContentType("URL")
+     |                       `- note: found this candidate in module 'QuillUI'
+ 585 | }
+ 586 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:215:46: error: cannot infer contextual base in reference to member 'URL'
+ 213 |         let typedContent = Text("URL").textContentType(.URL)
+ 214 |         #expect(String(describing: type(of: typedContent)).contains("TextContentTypeView"))
+ 215 |         #expect(typedContent.contentType == .URL)
+     |                                              `- error: cannot infer contextual base in reference to member 'URL'
+ 216 | #endif
+ 217 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:706:25: error: ambiguous use of operator '+'
+ 704 |             .markdownTheme(markdownContractTheme)
+ 705 |         _ = Markdown("| Property | Value |\n| --- | --- |\n| display | `flex` |")
+ 706 |         _ = Text("one") + Text(" two")
+     |                         `- error: ambiguous use of operator '+'
+ 707 |         _ = configuration.label
+ 708 |             .relativeLineSpacing(.em(0.225))
+
+/work/Sources/MarkdownUI/MarkdownUI.swift:1299:17: note: found this candidate in module 'MarkdownUI'
+1297 | 
+1298 | public extension Text {
+1299 |     static func + (lhs: Text, rhs: Text) -> Text {
+     |                 `- note: found this candidate in module 'MarkdownUI'
+1300 |         Text(lhs.content + rhs.content)
+1301 |     }
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1290:17: note: found this candidate in module 'QuillSwiftUICompatibility'
+1288 |     }
+1289 | 
+1290 |     static func + (lhs: Text, rhs: Text) -> Text {
+     |                 `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1291 |         Text(styledRuns: lhs.runs + rhs.runs)
+1292 |     }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1227:21: error: ambiguous use of 'animation'
+1225 |         // Bindings: previously returned self with no diagnostic.
+1226 |         let binding: Binding<Int> = .constant(0)
+1227 |         _ = binding.animation()
+     |                     `- error: ambiguous use of 'animation'
+1228 |         _ = binding.animation(.easeOut(duration: 0.1))
+1229 | 
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1189:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+1187 | 
+1188 | public extension Binding {
+1189 |     func animation(_ animation: Animation? = nil) -> Binding<Value> {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1190 |         _ = animation
+1191 |         return self
+
+/work/Sources/QuillUI/Compatibility.swift:565:10: note: found this candidate in module 'QuillUI'
+563 | 
+564 | public extension Binding {
+565 |     func animation(_ animation: Animation? = nil) -> Binding<Value> {
+    |          `- note: found this candidate in module 'QuillUI'
+566 |         recordCompatibilityFallback("Binding.animation")
+567 |         return self
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1228:21: error: ambiguous use of 'animation'
+1226 |         let binding: Binding<Int> = .constant(0)
+1227 |         _ = binding.animation()
+1228 |         _ = binding.animation(.easeOut(duration: 0.1))
+     |                     `- error: ambiguous use of 'animation'
+1229 | 
+1230 |         // listStyle(PlainListStyle): previously returned self with no diagnostic.
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1189:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+1187 | 
+1188 | public extension Binding {
+1189 |     func animation(_ animation: Animation? = nil) -> Binding<Value> {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1190 |         _ = animation
+1191 |         return self
+
+/work/Sources/QuillUI/Compatibility.swift:565:10: note: found this candidate in module 'QuillUI'
+563 | 
+564 | public extension Binding {
+565 |     func animation(_ animation: Animation? = nil) -> Binding<Value> {
+    |          `- note: found this candidate in module 'QuillUI'
+566 |         recordCompatibilityFallback("Binding.animation")
+567 |         return self
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1231:30: error: ambiguous use of 'listStyle'
+1229 | 
+1230 |         // listStyle(PlainListStyle): previously returned self with no diagnostic.
+1231 |         _ = Text("List row").listStyle(PlainListStyle())
+     |                              `- error: ambiguous use of 'listStyle'
+1232 | 
+1233 |         // Animation chain methods: previously returned self with no diagnostic.
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1847:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+1845 |     }
+1846 | 
+1847 |     func listStyle(_ style: PlainListStyle) -> Self {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1848 |         _ = style
+1849 |         return self
+
+/work/Sources/QuillUI/Compatibility.swift:627:10: note: found this candidate in module 'QuillUI'
+625 |     }
+626 | 
+627 |     func listStyle(_ style: PlainListStyle) -> Self {
+    |          `- note: found this candidate in module 'QuillUI'
+628 |         recordCompatibilityFallback("listStyle(PlainListStyle)")
+629 |         return self
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1252:36: error: 'PlatformImage' is ambiguous for type lookup in this context
+1250 |         #expect(renderer.nsImage == nil)
+1251 |         let colorRenderer = ImageRenderer(content: Color.red)
+1252 |         let renderedPlatformImage: PlatformImage? = colorRenderer.nsImage
+     |                                    `- error: 'PlatformImage' is ambiguous for type lookup in this context
+1253 |         let renderedNSImage: NSImage? = colorRenderer.nsImage
+1254 |         #expect(renderedPlatformImage?.data?.isEmpty == false)
+
+/work/Sources/QuillUI/Compatibility.swift:245:18: note: found this candidate
+243 | 
+244 | public typealias QuillPlatformImage = RSImage
+245 | public typealias PlatformImage = RSImage
+    |                  `- note: found this candidate
+246 | 
+247 | public extension QuillPlatformImage {
+
+/work/Sources/QuillSwiftUICompatibility/QuillSwiftUICompatibility.swift:67:18: note: found this candidate
+ 65 | /// source like `return ImageRenderer(content: view).nsImage` type-compatible
+ 66 | /// with app code that returns `NSImage?` / `PlatformImage?`.
+ 67 | public typealias PlatformImage = RSImage
+    |                  `- note: found this candidate
+ 68 | 
+ 69 | /// SwiftUI-compatible image renderer that bridges SwiftOpenUI's rendered bytes
+
+/work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Rendering/ImageRenderer.swift:9:15: note: found this candidate
+  7 | /// intentionally byte-oriented: successful renderers return PNG bytes in
+  8 | /// `data`, and AppKit/UIKit shims can wrap the same value as needed.
+  9 | public struct PlatformImage: Sendable {
+    |               `- note: found this candidate
+ 10 |     public var data: Data?
+ 11 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1361:21: error: ambiguous use of 'init(_:)'
+1359 |         }
+1360 | 
+1361 |         let image = Image("logo-nobg")
+     |                     `- error: ambiguous use of 'init(_:)'
+1362 |         if case .filePath(let path) = image.source {
+1363 |             #expect(path == imageURL.path)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1325:5: note: found this candidate in module 'QuillSwiftUICompatibility'
+1323 | 
+1324 | public extension Image {
+1325 |     init(_ name: String) {
+     |     `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1326 |         self.init(resource: name)
+1327 |     }
+
+/work/Sources/QuillUI/Compatibility.swift:534:5: note: found this candidate in module 'QuillUI'
+532 | 
+533 | public extension Image {
+534 |     init(_ name: String) {
+    |     `- note: found this candidate in module 'QuillUI'
+535 |         if let path = QuillResourceLookup.path(
+536 |             forResource: name,
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1626:21: error: ambiguous use of 'init()'
+1624 | 
+1625 |         // Empty provider always errors.
+1626 |         let empty = NSItemProvider()
+     |                     `- error: ambiguous use of 'init()'
+1627 |         let emptyCaptured = QuillTestBox<(Data?, Error?)>((nil, nil))
+1628 |         _ = empty.loadDataRepresentation(for: .png) { data, error in
+
+/work/Sources/UIKitShim/UIKit.swift:409:21: note: found this candidate in module 'UIKit'
+ 407 |     }
+ 408 | 
+ 409 |     public override init() {
+     |                     `- note: found this candidate in module 'UIKit'
+ 410 |         self.fileURL = nil
+ 411 |         self.object = nil
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:48:12: note: found this candidate in module 'QuillUI'
+  46 |     private let representations: [Representation]
+  47 | 
+  48 |     public init() {
+     |            `- note: found this candidate in module 'QuillUI'
+  49 |         self.representations = []
+  50 |     }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1628:48: error: cannot infer contextual base in reference to member 'png'
+1626 |         let empty = NSItemProvider()
+1627 |         let emptyCaptured = QuillTestBox<(Data?, Error?)>((nil, nil))
+1628 |         _ = empty.loadDataRepresentation(for: .png) { data, error in
+     |                                                `- error: cannot infer contextual base in reference to member 'png'
+1629 |             emptyCaptured.value = (data, error)
+1630 |         }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1647:17: error: cannot convert value of type 'OpenURLAction.Result' to expected argument type 'Bool'
+1645 |         let url = URL(string: "https://quill.test/path?q=1")!
+1646 |         let result = action(url)
+1647 |         #expect(result == true)
+     |                 `- error: cannot convert value of type 'OpenURLAction.Result' to expected argument type 'Bool'
+1648 |         #expect(captured.value == url)
+1649 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1652:17: error: cannot convert value of type 'OpenURLAction.Result' to expected argument type 'Bool'
+1650 |         // Returning false from the handler propagates.
+1651 |         let rejecting = OpenURLAction { _ in false }
+1652 |         #expect(rejecting(URL(string: "https://example.com")!) == false)
+     |                 `- error: cannot convert value of type 'OpenURLAction.Result' to expected argument type 'Bool'
+1653 |     }
+1654 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1646:28: error: call to main actor-isolated instance method 'callAsFunction' in a synchronous nonisolated context [#ActorIsolatedCall]
+1636 | 
+1637 |     @Test("OpenURLAction routes URLs through the configured handler")
+1638 |     func openURLActionInvokesCustomHandler() {
+     |          `- note: add '@MainActor' to make instance method 'openURLActionInvokesCustomHandler()' part of global actor 'MainActor'
+1639 |         let captured = QuillTestBox<URL>()
+1640 |         let action = OpenURLAction { url in
+     :
+1644 | 
+1645 |         let url = URL(string: "https://quill.test/path?q=1")!
+1646 |         let result = action(url)
+     |                            `- error: call to main actor-isolated instance method 'callAsFunction' in a synchronous nonisolated context [#ActorIsolatedCall]
+1647 |         #expect(result == true)
+1648 |         #expect(captured.value == url)
+
+/work/Sources/QuillSwiftUICompatibility/OpenURLActionCompat.swift:39:17: note: calls to instance method 'callAsFunction' from outside of its actor context are implicitly asynchronous
+37 |     @discardableResult
+38 |     @MainActor
+39 |     public func callAsFunction(_ url: URL) -> Result {
+   |                 `- note: calls to instance method 'callAsFunction' from outside of its actor context are implicitly asynchronous
+40 |         handler(url)
+41 |     }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1826:21: error: ambiguous use of 'init()'
+1824 |     @Test("Namespace generates unique IDs across instances and is Hashable")
+1825 |     func namespaceGeneratesUniqueIdentities() {
+1826 |         let first = Namespace()
+     |                     `- error: ambiguous use of 'init()'
+1827 |         let second = Namespace()
+1828 |         #expect(first.wrappedValue != second.wrappedValue)
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:224:12: note: found this candidate in module 'QuillUI'
+ 222 |     private var id: ID
+ 223 | 
+ 224 |     public init() {
+     |            `- note: found this candidate in module 'QuillUI'
+ 225 |         self.id = ID()
+ 226 |     }
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:298:12: note: found this candidate in module 'QuillSwiftUICompatibility'
+ 296 | 
+ 297 |     private let id = ID()
+ 298 |     public init() {}
+     |            `- note: found this candidate in module 'QuillSwiftUICompatibility'
+ 299 |     public var wrappedValue: ID { id }
+ 300 | }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1827:22: error: ambiguous use of 'init()'
+1825 |     func namespaceGeneratesUniqueIdentities() {
+1826 |         let first = Namespace()
+1827 |         let second = Namespace()
+     |                      `- error: ambiguous use of 'init()'
+1828 |         #expect(first.wrappedValue != second.wrappedValue)
+1829 | 
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:224:12: note: found this candidate in module 'QuillUI'
+ 222 |     private var id: ID
+ 223 | 
+ 224 |     public init() {
+     |            `- note: found this candidate in module 'QuillUI'
+ 225 |         self.id = ID()
+ 226 |     }
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:298:12: note: found this candidate in module 'QuillSwiftUICompatibility'
+ 296 | 
+ 297 |     private let id = ID()
+ 298 |     public init() {}
+     |            `- note: found this candidate in module 'QuillSwiftUICompatibility'
+ 299 |     public var wrappedValue: ID { id }
+ 300 | }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1835:22: error: 'Namespace' is ambiguous for type lookup in this context
+1833 | 
+1834 |         // IDs are usable as Set / Dictionary keys.
+1835 |         let ids: Set<Namespace.ID> = [
+     |                      `- error: 'Namespace' is ambiguous for type lookup in this context
+1836 |             first.wrappedValue,
+1837 |             second.wrappedValue,
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:215:15: note: found this candidate
+ 213 | 
+ 214 | @propertyWrapper
+ 215 | public struct Namespace: Sendable {
+     |               `- note: found this candidate
+ 216 |     public struct ID: Hashable, Sendable {
+ 217 |         private let rawValue = UUID()
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:291:15: note: found this candidate
+ 289 | 
+ 290 | @propertyWrapper
+ 291 | public struct Namespace {
+     |               `- note: found this candidate
+ 292 |     public struct ID: Hashable, Sendable {
+ 293 |         private let rawValue: UUID
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:1984:14: error: ambiguous use of 'font'
+1982 |     func quillTextLabelUnwrapsStyledLabels() {
+1983 |         let styledLabel = Text("Styled")
+1984 |             .font(.body)
+     |              `- error: ambiguous use of 'font'
+1985 |             .foregroundColor(.primary)
+1986 |             .lineLimit(1)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1262:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+1260 |     }
+1261 | 
+1262 |     func font(_ font: Font) -> Text {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1263 |         _ = font
+1264 |         return self
+
+/work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/StyleModifiers.swift:75:17: note: found this candidate in module 'SwiftOpenUI'
+73 | 
+74 |     /// Apply a font to this view.
+75 |     public func font(_ font: Font) -> FontModifiedView<Self> {
+   |                 `- note: found this candidate in module 'SwiftOpenUI'
+76 |         FontModifiedView(content: self, font: font)
+77 |     }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:2066:18: error: ambiguous use of 'font'
+2064 |         }) {
+2065 |             Text("Rename")
+2066 |                 .font(.body)
+     |                  `- error: ambiguous use of 'font'
+2067 |                 .foregroundColor(.primary)
+2068 |                 .lineLimit(1)
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1262:10: note: found this candidate in module 'QuillSwiftUICompatibility'
+1260 |     }
+1261 | 
+1262 |     func font(_ font: Font) -> Text {
+     |          `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1263 |         _ = font
+1264 |         return self
+
+/work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/StyleModifiers.swift:75:17: note: found this candidate in module 'SwiftOpenUI'
+73 | 
+74 |     /// Apply a font to this view.
+75 |     public func font(_ font: Font) -> FontModifiedView<Self> {
+   |                 `- note: found this candidate in module 'SwiftOpenUI'
+76 |         FontModifiedView(content: self, font: font)
+77 |     }
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:2092:34: error: ambiguous use of 'confirmationDialog(_:isPresented:actions:message:)'
+2090 |         let deleteTapCount = QuillTestBox<Int>(0)
+2091 |         let cancelTapCount = QuillTestBox<Int>(0)
+2092 |         let dialog = Text("Row").confirmationDialog("Delete?", isPresented: .constant(true)) {
+     |                                  `- error: ambiguous use of 'confirmationDialog(_:isPresented:actions:message:)'
+2093 |             Button("Delete") {
+2094 |                 deleteTapCount.value = (deleteTapCount.value ?? 0) + 1
+
+/work/third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift:134:17: note: found this candidate in module 'SwiftOpenUI'
+132 | 
+133 |     /// SwiftUI-shaped builder overload with a message view.
+134 |     public func confirmationDialog<Actions: View, Message: View>(
+    |                 `- note: found this candidate in module 'SwiftOpenUI'
+135 |         _ title: String,
+136 |         isPresented: Binding<Bool>,
+
+/work/Sources/QuillUI/UpstreamCompatibility.swift:1533:10: note: found this candidate in module 'QuillUI'
+1531 |     }
+1532 | 
+1533 |     func confirmationDialog<Actions: View, Message: View>(
+     |          `- note: found this candidate in module 'QuillUI'
+1534 |         _ title: String,
+1535 |         isPresented: Binding<Bool>,
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:2106:36: error: cannot infer key path type from context; consider explicitly specifying a root type
+2104 |         #expect(dialog.message == "Delete this completion?")
+2105 |         #expect(dialog.buttons.count == 2)
+2106 |         #expect(dialog.buttons.map(\.label) == ["Delete", "Cancel"])
+     |                                    `- error: cannot infer key path type from context; consider explicitly specifying a root type
+2107 |         guard dialog.buttons.count == 2 else {
+2108 |             return
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:2759:29: error: type of expression is ambiguous without a type annotation
+2757 |         mutating func addToken(_ token: String, ofType type: TokenType) {
+2758 |             let color = theme.tokenColors[type] ?? theme.plainTextColor
+2759 |             accumulatedText.append(Text(token).foregroundColor(.init(color)))
+     |                             `- error: type of expression is ambiguous without a type annotation
+2760 |         }
+2761 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:2763:29: error: type of expression is ambiguous without a type annotation
+2761 | 
+2762 |         mutating func addPlainText(_ text: String) {
+2763 |             accumulatedText.append(Text(text).foregroundColor(.init(theme.plainTextColor)))
+     |                             `- error: type of expression is ambiguous without a type annotation
+2764 |         }
+2765 | 
+
+/work/Tests/QuillCompatibilityModuleTests/CompatibilityModuleTests.swift:2771:46: error: ambiguous use of operator '+'
+2769 | 
+2770 |         func build() -> Text {
+2771 |             accumulatedText.reduce(Text(""), +)
+     |                                              `- error: ambiguous use of operator '+'
+2772 |         }
+2773 |     }
+
+/work/Sources/MarkdownUI/MarkdownUI.swift:1299:17: note: found this candidate in module 'MarkdownUI'
+1297 | 
+1298 | public extension Text {
+1299 |     static func + (lhs: Text, rhs: Text) -> Text {
+     |                 `- note: found this candidate in module 'MarkdownUI'
+1300 |         Text(lhs.content + rhs.content)
+1301 |     }
+
+/work/Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift:1290:17: note: found this candidate in module 'QuillSwiftUICompatibility'
+1288 |     }
+1289 | 
+1290 |     static func + (lhs: Text, rhs: Text) -> Text {
+     |                 `- note: found this candidate in module 'QuillSwiftUICompatibility'
+1291 |         Text(styledRuns: lhs.runs + rhs.runs)
+1292 |     }
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+error: fatalError

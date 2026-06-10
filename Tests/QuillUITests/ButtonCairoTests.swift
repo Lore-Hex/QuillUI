@@ -5,6 +5,8 @@ import QuillUI
 
 #if os(Linux)
 import QuillUIGtk
+import QuillPaintCairo
+import CCairo
 import CGTK
 import BackendGTK4
 #endif

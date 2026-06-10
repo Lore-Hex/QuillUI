@@ -2,13 +2,13 @@ import Testing
 import AppKit
 import QuillUIKit
 @testable import QuillAppKitQt
-#if canImport(QuillButtonedDetailConformance)
-// The VERBATIM upstream WireGuard VC, compiled into the qt graph when the
-// .upstream checkout is present (purist render path). Internal type → @testable.
-@testable import QuillButtonedDetailConformance
-#endif
-#if canImport(QuillUnusableTunnelDetailConformance)
-@testable import QuillUnusableTunnelDetailConformance
+#if canImport(QuillWireGuardConformanceUI)
+// The verbatim upstream WireGuard VCs (ButtonedDetail, UnusableTunnel, and the
+// TunnelsListTableViewController main window) + the model all compile into
+// QuillWireGuardConformanceUI in the qt graph when the .upstream checkout is
+// present (purist render path). Internal types → @testable.
+@testable import QuillWireGuardConformanceUI
+import NetworkExtension   // NETunnelProviderManager — feed fakes to the real TunnelsManager
 #endif
 
 /// M1 slice 1 (issue #231): prove the AppKit shadow's NSApplication/NSWindow are
@@ -457,7 +457,7 @@ struct QuillAppKitQtTests {
     // layout pass: the button must solve to a non-zero size, not collapse to 0×0.
     @Test("The LITERAL upstream ButtonedDetailViewController renders to a non-empty PNG via Qt")
     func rendersLiteralButtonedDetailVCToPNG() throws {
-        #if canImport(QuillButtonedDetailConformance)
+        #if canImport(QuillWireGuardConformanceUI)
         guard QuillQt.ensureInitialized() else { return }
 
         let vc = ButtonedDetailViewController()   // the VERBATIM upstream type
@@ -564,7 +564,7 @@ struct QuillAppKitQtTests {
     // real file, including its setCustomSpacing(30, after: infoLabel).
     @Test("The LITERAL upstream UnusableTunnelDetailViewController renders to a non-empty PNG via Qt")
     func rendersLiteralUnusableTunnelDetailVCToPNG() throws {
-        #if canImport(QuillUnusableTunnelDetailConformance)
+        #if canImport(QuillWireGuardConformanceUI)
         guard QuillQt.ensureInitialized() else { return }
 
         let vc = UnusableTunnelDetailViewController()   // the VERBATIM upstream type
@@ -601,6 +601,153 @@ struct QuillAppKitQtTests {
         #expect(window.grabQtWindowPNG(to: out))
         let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
         #expect(size > 500)
+        window.closeQtWindow()
+        #endif
+    }
+
+    // Toward rendering the real WireGuard table VCs (tunnel list, log view):
+    // NSTableView keeps its cell views in private caches, never in `subviews`, so
+    // the Qt render pass can't reach them. quillMaterializeRowsIntoSubtree() pulls
+    // each row's real cell (via the data-source/delegate path) into the view tree
+    // so realize + layout render them. Proven here on a synthetic 3-row table; the
+    // real VCs reuse this verbatim once their app deps are in the qt graph.
+    @Test("NSTableView materializes its data-source rows into the Qt-rendered view tree")
+    func tableViewMaterializesRowsForRender() throws {
+        guard QuillQt.ensureInitialized() else { return }
+
+        final class RowSource: NSTableViewDataSource {
+            func numberOfRows(in tableView: NSTableView) -> Int { 3 }
+        }
+        final class RowDelegate: NSTableViewDelegate {
+            func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+                NSTextField(labelWithString: "Tunnel \(row)")
+            }
+        }
+        let source = RowSource()
+        let rowDelegate = RowDelegate()
+        let table = NSTableView(frame: NSRect(x: 0, y: 0, width: 220, height: 200))
+        table.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name")))
+        table.dataSource = source
+        table.delegate = rowDelegate
+        table.rowHeight = 28
+
+        table.quillMaterializeRowsIntoSubtree()
+        #expect(table.numberOfRows == 3)
+        #expect(table.quillMaterializedCells.count == 3)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 220),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+        window.contentView = table
+        table.realizeQtSubtree()
+        table.layoutQtSubtree(width: 220, height: 200)
+
+        // The teeth: all 3 rows solved to real, non-zero frames AND are stacked
+        // vertically (not overlapping) — the materialized cells actually rendered.
+        let cells = table.quillMaterializedCells
+        for cell in cells {
+            #expect(cell.frame.width > 0)
+            #expect(cell.frame.height > 0)
+        }
+        #expect(cells[1].frame.minY > cells[0].frame.minY)
+        #expect(cells[2].frame.minY > cells[1].frame.minY)
+
+        window.showAsQtWindowWithContent()
+        let out = "/tmp/quillappkitqt-table-rows.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 500)
+        window.closeQtWindow()
+
+        // Idempotent: re-materializing must not duplicate rows (checked after the
+        // grab so it doesn't disturb the already-rendered tree).
+        table.quillMaterializeRowsIntoSubtree()
+        #expect(table.quillMaterializedCells.count == 3)
+    }
+
+    // Toward rendering scroll/table VCs (the real WireGuard tunnel-list + log view
+    // wire `clipView.documentView = tableView; scrollView.contentView = clipView`).
+    // NSClipView.documentView must enter the view tree so the Qt render pass reaches
+    // the document — otherwise the whole scrolled content is dropped.
+    @Test("NSClipView.documentView enters the view tree so a scroll→clip→document chain renders via Qt")
+    func clipViewDocumentViewRendersViaQt() throws {
+        guard QuillQt.ensureInitialized() else { return }
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 240, height: 120))
+        let clipView = NSClipView()
+        let document = NSTextField(labelWithString: "Document content")
+        clipView.documentView = document        // the fix: document joins clipView.subviews
+        scrollView.contentView = clipView        // clipView joins scrollView.subviews
+
+        #expect(document.superview === clipView)
+        #expect(clipView.superview === scrollView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 120),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.contentView = scrollView
+        scrollView.realizeQtSubtree()
+        scrollView.layoutQtSubtree(width: 240, height: 120)
+        // The document is reachable + rendered (non-zero size), not dropped.
+        #expect(document.frame.width > 0)
+        #expect(document.frame.height > 0)
+
+        window.showAsQtWindowWithContent()
+        let out = "/tmp/quillappkitqt-clipview.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        // A single small label on a mostly-empty 240×120 canvas; the frame
+        // assertions above are the real "document rendered" proof, this is a
+        // non-empty-file floor.
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 300)
+        window.closeQtWindow()
+    }
+
+    // THE PAYOFF: render the REAL WireGuard main window — the verbatim upstream
+    // TunnelsListTableViewController — via QuillAppKit→Qt. NETunnelProviderManager
+    // is plain-instantiable on Linux, so we feed fake managers to the REAL
+    // TunnelsManager (no mock) and hand it to the verbatim VC. This rung renders the
+    // window CHROME (the bezel scroll box + the add/remove/action button bar from
+    // loadView); a follow-up materializes the tunnel rows.
+    @Test("The LITERAL upstream TunnelsListTableViewController renders its main-window chrome via Qt")
+    func rendersLiteralTunnelsListVCChromeToPNG() throws {
+        #if canImport(QuillWireGuardConformanceUI)
+        guard QuillQt.ensureInitialized() else { return }
+
+        func fakeManager(_ name: String) -> NETunnelProviderManager {
+            let manager = NETunnelProviderManager()
+            manager.localizedDescription = name
+            manager.isEnabled = true
+            return manager
+        }
+        // The REAL upstream model, driven by fake managers — no mock class.
+        let tunnelsManager = TunnelsManager(tunnelProviders: [
+            fakeManager("home"), fakeManager("office"), fakeManager("edge")
+        ])
+        let vc = TunnelsListTableViewController(tunnelsManager: tunnelsManager)
+        #expect(!vc.isViewLoaded)
+        let content = vc.view                          // triggers the real loadView()
+        #expect(vc.isViewLoaded)
+        // loadView builds containerView = scrollView + buttonBar + fillerButton.
+        #expect(content.subviews.count == 3)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 260, height: 420),
+            styleMask: .titled, backing: .buffered, defer: false
+        )
+        window.title = "WireGuard"
+        window.contentView = content
+        content.realizeQtSubtree()
+        content.layoutQtSubtree(width: 260, height: 420)
+        window.showAsQtWindowWithContent()
+
+        let out = "/tmp/quillappkitqt-tunnels-list-chrome.png"
+        #expect(window.grabQtWindowPNG(to: out))
+        let size = ((try? FileManager.default.attributesOfItem(atPath: out))?[.size] as? Int) ?? 0
+        #expect(size > 300)
         window.closeQtWindow()
         #endif
     }

@@ -27,10 +27,6 @@ public func feedType(_ parserData: ParserData, isPartialData: Bool = false) -> F
 	//
 	// This is fast enough to call on the main thread.
 
-	if parserData.data.count < minNumberOfBytesRequired {
-		return .unknown
-	}
-
 	let data = parserData.data
 
 	if data.isProbablyJSONFeed {
@@ -44,6 +40,10 @@ public func feedType(_ parserData: ParserData, isPartialData: Bool = false) -> F
 	}
 	if data.isProbablyAtom {
 		return .atom
+	}
+
+	if parserData.data.count < minNumberOfBytesRequired {
+		return .unknown
 	}
 
 	if isPartialData && data.isProbablyJSON {

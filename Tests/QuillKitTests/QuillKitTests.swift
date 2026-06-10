@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import QuillKit
 
-@Suite("QuillKit platform services")
+@Suite("QuillKit platform services", .serialized)
 struct QuillKitTests {
     @Test("clipboard stores strings and data by type")
     func clipboardStoresValuesByType() {
@@ -150,7 +150,13 @@ struct QuillKitTests {
         #expect(statuses.count == QuillKitCapability.allCases.count)
         #if os(Linux)
         #expect(statuses[.clipboard] == .emulated)
-        #expect(statuses[.speechRecognition] == .unavailable(reason: "No native Linux backend has been attached yet."))
+        #expect(statuses[.speechSynthesis] == .emulated)
+        #expect(statuses[.speechRecognition] == .emulated)
+        #expect(statuses[.localAuthentication] == .emulated)
+        #expect(statuses[.globalShortcuts] == .emulated)
+        #expect(statuses[.audioSession] == .emulated)
+        #expect(statuses[.audioPlayback] == .emulated)
+        #expect(statuses[.notifications] == .emulated)
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.secureStorage] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -173,19 +179,404 @@ struct QuillKitTests {
         #expect(service.isEnabled == false)
     }
 
+    @Test("workspace open uses configurable backend")
+    func workspaceOpenUsesConfigurableBackend() {
+        let openedURLs = LockedValue<[URL]>([])
+        let url = URL(string: "https://example.com/quill")!
+        QuillCompatibilityDiagnostics.shared.clear()
+        QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "test-opener") { openedURL in
+            openedURLs.update { $0.append(openedURL) }
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        #expect(QuillWorkspace.open(url))
+        #expect(openedURLs.value == [url])
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "openURL"
+                && $0.severity == .info
+                && $0.message.contains("test-opener")
+        })
+    }
+
+    @Test("update service tracks configuration and checks")
+    func updateServiceTracksConfigurationAndChecks() {
+        let service = QuillUpdateService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.canCheckForUpdates == false)
+        #expect(service.updateCheckCount == 0)
+        #expect(service.lastCheckDate == nil)
+
+        service.configure(canCheckForUpdates: true)
+        #expect(service.canCheckForUpdates)
+        service.checkForUpdates()
+        #expect(service.updateCheckCount == 1)
+        #expect(service.lastCheckDate != nil)
+        let checkDiagnosticsAfterFirstRun = QuillCompatibilityDiagnostics.shared.events.filter {
+            $0.operation == "checkForUpdates"
+        }.count
+
+        service.configure(canCheckForUpdates: false)
+        #expect(service.canCheckForUpdates == false)
+        service.checkForUpdates()
+        #expect(service.updateCheckCount == 2)
+        #expect(QuillCompatibilityDiagnostics.shared.events.filter {
+            $0.operation == "checkForUpdates"
+        }.count >= checkDiagnosticsAfterFirstRun + 1)
+
+        service.reset()
+        #expect(service.canCheckForUpdates == false)
+        #expect(service.updateCheckCount == 0)
+        #expect(service.lastCheckDate == nil)
+    }
+
+    @Test("local authentication service exposes configurable policy state")
+    func localAuthenticationServiceExposesConfigurablePolicyState() {
+        let service = QuillLocalAuthenticationService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.biometryType == .none)
+        let unavailable = service.canEvaluatePolicy(.deviceOwnerAuthentication)
+        #expect(unavailable.canEvaluate == false)
+        #expect(unavailable.error == nil)
+        let denied = service.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "unlock")
+        #expect(denied.success == false)
+        #expect(denied.error == .authenticationFailed)
+
+        service.configure(
+            canEvaluatePolicy: true,
+            biometryType: .faceID,
+            evaluationSucceeds: true
+        )
+        #expect(service.biometryType == .faceID)
+        let available = service.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)
+        #expect(available.canEvaluate)
+        #expect(available.error == nil)
+        let granted = service.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "unlock")
+        #expect(granted.success)
+        #expect(granted.error == nil)
+
+        service.configure(
+            canEvaluatePolicy: false,
+            biometryType: .touchID,
+            canEvaluateError: .passcodeNotSet,
+            evaluationSucceeds: false,
+            evaluationError: .userCancel
+        )
+        #expect(service.biometryType == .touchID)
+        let passcodeMissing = service.canEvaluatePolicy(.deviceOwnerAuthentication)
+        #expect(passcodeMissing.canEvaluate == false)
+        #expect(passcodeMissing.error == .passcodeNotSet)
+        let cancelled = service.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "unlock")
+        #expect(cancelled.success == false)
+        #expect(cancelled.error == .userCancel)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("localAuthentication.canEvaluatePolicy"))
+        #expect(operations.contains("localAuthentication.evaluatePolicy"))
+    }
+
+    @Test("notification service tracks authorization, categories, and queues")
+    func notificationServiceTracksAuthorizationCategoriesAndQueues() {
+        let service = QuillNotificationService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.authorizationStatus == .notDetermined)
+        #expect(service.requestAuthorization(optionsRawValue: 0) == false)
+        #expect(service.authorizationStatus == .denied)
+
+        service.configureAuthorization(status: .notDetermined, requestResult: true)
+        #expect(service.requestAuthorization(optionsRawValue: 5))
+        #expect(service.authorizationStatus == .authorized)
+
+        service.setCategories(["reply", "mark-read"])
+        #expect(service.categoryIdentifiers == ["mark-read", "reply"])
+
+        service.addRequest(
+            QuillNotificationRequestRecord(
+                identifier: "later",
+                title: "Later",
+                body: "Queued",
+                categoryIdentifier: "reply",
+                threadIdentifier: "chat"
+            ),
+            deliverImmediately: false
+        )
+        service.addRequest(
+            QuillNotificationRequestRecord(identifier: "now", title: "Now", body: "Delivered"),
+            deliverImmediately: true
+        )
+        #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
+        #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
+
+        #expect(service.remoteNotificationsRegistered == false)
+        #expect(service.remoteNotificationRegistrationCount == 0)
+        service.registerForRemoteNotifications()
+        service.registerForRemoteNotifications()
+        #expect(service.remoteNotificationsRegistered)
+        #expect(service.remoteNotificationRegistrationCount == 2)
+        service.unregisterForRemoteNotifications()
+        #expect(service.remoteNotificationsRegistered == false)
+
+        service.removePendingNotificationRequests(withIdentifiers: ["later"])
+        service.removeDeliveredNotifications(withIdentifiers: ["now"])
+        #expect(service.pendingRequestRecords.isEmpty)
+        #expect(service.deliveredNotificationRecords.isEmpty)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("notifications.requestAuthorization"))
+        #expect(operations.contains("notifications.setCategories"))
+        #expect(operations.contains("notifications.addRequest"))
+        #expect(operations.contains("notifications.registerForRemoteNotifications"))
+    }
+
+    @Test("audio session service tracks category mode options and active state")
+    func audioSessionServiceTracksCategoryModeOptionsAndActiveState() {
+        let service = QuillAudioSessionService()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.reset()
+        #expect(service.category == .ambient)
+        #expect(service.mode == .spokenAudio)
+        #expect(service.categoryOptionsRawValue == 0)
+        #expect(service.isActive == false)
+
+        service.setCategory(.playAndRecord, mode: .videoChat, optionsRawValue: 12)
+        #expect(service.category == .playAndRecord)
+        #expect(service.mode == .videoChat)
+        #expect(service.categoryOptionsRawValue == 12)
+
+        service.setActive(true, optionsRawValue: 1)
+        #expect(service.isActive)
+        #expect(service.setActiveOptionsRawValue == 1)
+        service.setActive(false)
+        #expect(service.isActive == false)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioSession.setCategory"))
+        #expect(operations.contains("audioSession.setActive"))
+    }
+
+    @Test("audio engine service tracks lifecycle graph and taps")
+    func audioEngineServiceTracksLifecycleGraphAndTaps() {
+        let service = QuillAudioEngineService()
+        let engineID = UUID()
+        let nodeID = UUID()
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.registerEngine(engineID)
+        #expect(service.state(for: engineID) == QuillAudioEngineState(engineID: engineID))
+
+        service.prepare(engineID: engineID)
+        service.start(engineID: engineID)
+        service.attachNode(engineID: engineID)
+        service.connect(engineID: engineID)
+        service.installTap(engineID: engineID, nodeID: nodeID, bus: 0)
+
+        var state = service.state(for: engineID)
+        #expect(state.isPrepared)
+        #expect(state.isRunning)
+        #expect(state.attachedNodeCount == 1)
+        #expect(state.connectionCount == 1)
+        #expect(state.tapCount == 1)
+
+        service.removeTap(engineID: engineID, nodeID: nodeID, bus: 0)
+        service.stop(engineID: engineID)
+        state = service.state(for: engineID)
+        #expect(state.tapCount == 0)
+        #expect(state.isRunning == false)
+
+        service.reset(engineID: engineID)
+        #expect(service.state(for: engineID) == QuillAudioEngineState(engineID: engineID))
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioEngine.prepare"))
+        #expect(operations.contains("audioEngine.start"))
+        #expect(operations.contains("audioEngine.attach"))
+        #expect(operations.contains("audioEngine.connect"))
+        #expect(operations.contains("audioEngine.installTap"))
+        #expect(operations.contains("audioEngine.removeTap"))
+        #expect(operations.contains("audioEngine.stop"))
+        #expect(operations.contains("audioEngine.reset"))
+    }
+
+    @Test("audio player service tracks playback properties and system sounds")
+    func audioPlayerServiceTracksPlaybackPropertiesAndSystemSounds() {
+        let service = QuillAudioPlayerService()
+        let playerID = UUID()
+        let soundURL = URL(fileURLWithPath: "/tmp/quill-tone.wav")
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.registerPlayer(
+            playerID,
+            source: .data(byteCount: 128),
+            duration: 2.5,
+            numberOfChannels: 2
+        )
+        #expect(service.prepareToPlay(playerID: playerID))
+        service.setCurrentTime(0.75, playerID: playerID)
+        service.setVolume(1.5, playerID: playerID)
+        service.setNumberOfLoops(-1, playerID: playerID)
+        #expect(service.play(playerID: playerID, atTime: 1.25))
+
+        var playerState = service.state(for: playerID)
+        #expect(playerState?.duration == 2.5)
+        #expect(playerState?.numberOfChannels == 2)
+        #expect(playerState?.isPrepared == true)
+        #expect(playerState?.isPlaying == true)
+        #expect(playerState?.playCount == 1)
+        #expect(playerState?.currentTime == 1.25)
+        #expect(playerState?.volume == 1)
+        #expect(playerState?.numberOfLoops == -1)
+
+        service.pause(playerID: playerID)
+        _ = service.stop(playerID: playerID)
+        playerState = service.state(for: playerID)
+        #expect(playerState?.isPlaying == false)
+        #expect(playerState?.pauseCount == 1)
+        #expect(playerState?.stopCount == 1)
+
+        let soundID = service.createSystemSoundID(url: soundURL)
+        service.playSystemSound(soundID)
+        service.playSystemSound(soundID, alert: true)
+        service.addSystemSoundCompletion(soundID)
+        service.removeSystemSoundCompletion(soundID)
+        service.disposeSystemSoundID(soundID)
+        service.beep()
+
+        let systemSound = service.systemSoundRecords.first { $0.soundID == soundID }
+        #expect(systemSound?.url == soundURL)
+        #expect(systemSound?.playCount == 1)
+        #expect(systemSound?.alertPlayCount == 1)
+        #expect(systemSound?.completionRegistrationCount == 0)
+        #expect(systemSound?.isDisposed == true)
+        #expect(service.playerStates.contains {
+            $0.source == .beep && $0.isPlaying && $0.playCount == 1
+        })
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("audioPlayer.prepareToPlay"))
+        #expect(operations.contains("audioPlayer.play"))
+        #expect(operations.contains("audioPlayer.pause"))
+        #expect(operations.contains("audioPlayer.stop"))
+        #expect(operations.contains("audioSystemSound.create"))
+        #expect(operations.contains("audioSystemSound.play"))
+        #expect(operations.contains("audioSystemSound.playAlert"))
+        #expect(operations.contains("audioSystemSound.addCompletion"))
+        #expect(operations.contains("audioSystemSound.removeCompletion"))
+        #expect(operations.contains("audioSystemSound.dispose"))
+        #expect(operations.contains("audioSystemSound.beep"))
+    }
+
     @Test("speech backend invokes lifecycle callbacks in order")
     func speechBackendInvokesCallbacksInOrder() {
         let backend = QuillSpeechBackend()
         let callbacks = LockedValue<[String]>([])
+        backend.configureSpeechSynthesisVoices([
+            QuillSpeechVoice(identifier: "quill.test.voice", name: "Test Voice", quality: 1)
+        ])
+
+        #expect(backend.voices() == [
+            QuillSpeechVoice(identifier: "quill.test.voice", name: "Test Voice", quality: 1)
+        ])
+        #expect(!backend.isSpeaking)
 
         backend.speak("hello") {
+            #expect(backend.isSpeaking)
             callbacks.update { $0.append("start") }
         } onFinish: {
+            #expect(!backend.isSpeaking)
             callbacks.update { $0.append("finish") }
         }
 
         #expect(callbacks.value == ["start", "finish"])
+        #expect(!backend.isSpeaking)
         #expect(backend.stop())
+        backend.resetSpeechSynthesis()
+        #if os(Linux)
+        #expect(backend.voices() == [.linuxDefault])
+        #else
+        #expect(backend.voices().isEmpty)
+        #endif
+    }
+
+    @Test("speech backend can pause and continue synthesis")
+    func speechBackendCanPauseAndContinueSynthesis() {
+        let backend = QuillSpeechBackend()
+        let callbacks = LockedValue<[String]>([])
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        backend.speak("hello") {
+            callbacks.update { $0.append("start") }
+            #expect(backend.pause())
+            #expect(backend.isPaused)
+            #expect(backend.isSpeaking)
+        } onFinish: {
+            callbacks.update { $0.append("finish") }
+        }
+
+        #expect(callbacks.value == ["start"])
+        #expect(backend.isPaused)
+        #expect(backend.isSpeaking)
+        #expect(backend.continueSpeaking())
+        #expect(callbacks.value == ["start", "finish"])
+        #expect(!backend.isPaused)
+        #expect(!backend.isSpeaking)
+        #expect(!backend.continueSpeaking())
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("speechSynthesis.pause"))
+        #expect(operations.contains("speechSynthesis.continue"))
+    }
+
+    @Test("speech recognition backend exposes configurable authorization availability and results")
+    func speechRecognitionBackendExposesConfigurableState() {
+        let backend = QuillSpeechBackend()
+        let deliveredStatuses = LockedValue<[QuillSpeechRecognitionAuthorizationStatus]>([])
+        let deliveredResults = LockedValue<[QuillSpeechRecognitionResult?]>([])
+        let deliveredErrors = LockedValue<[QuillSpeechRecognitionError?]>([])
+
+        backend.configureSpeechRecognition(
+            authorizationStatus: .authorized,
+            isAvailable: true,
+            result: QuillSpeechRecognitionResult(formattedString: "hello linux", isFinal: false)
+        )
+        backend.requestSpeechRecognitionAuthorization { status in
+            deliveredStatuses.update { $0.append(status) }
+        }
+
+        let task = backend.recognitionTask(shouldReportPartialResults: true) { result, error in
+            deliveredResults.update { $0.append(result) }
+            deliveredErrors.update { $0.append(error) }
+        }
+
+        #expect(deliveredStatuses.value == [.authorized])
+        #expect(deliveredResults.value == [
+            QuillSpeechRecognitionResult(formattedString: "hello linux", isFinal: false)
+        ])
+        #expect(deliveredErrors.value == [nil])
+        #expect(!task.isCancelled)
+        task.cancel()
+        #expect(task.isCancelled)
+
+        backend.configureSpeechRecognition(
+            authorizationStatus: .denied,
+            isAvailable: true,
+            result: QuillSpeechRecognitionResult(formattedString: "ignored")
+        )
+        _ = backend.recognitionTask(shouldReportPartialResults: false) { result, error in
+            deliveredResults.update { $0.append(result) }
+            deliveredErrors.update { $0.append(error) }
+        }
+
+        #expect(deliveredResults.value.count == 2)
+        #expect(deliveredResults.value[1] == nil)
+        let lastError = deliveredErrors.value.last ?? nil
+        #expect(lastError?.reason == "Speech recognition is not authorized.")
     }
 
     @Test("hot key registration invokes actions when triggered")
@@ -199,6 +590,69 @@ struct QuillKitTests {
         registration.trigger()
         registration.unregister()
 
+        #expect(triggerCount.value == 2)
+    }
+
+    @Test("hot key service registers triggers conflicts and unregisters")
+    func hotKeyServiceRegistersTriggersConflictsAndUnregisters() {
+        let diagnostics = QuillCompatibilityDiagnostics()
+        let service = QuillHotkeyService(diagnostics: diagnostics)
+        let triggerCount = LockedValue(0)
+        let duplicateIdentifierCount = LockedValue(0)
+        let duplicateGestureCount = LockedValue(0)
+        let descriptor = QuillHotKeyDescriptor(
+            identifier: "togglePanel",
+            key: "space",
+            modifiers: ["shift", "command", "command"]
+        )
+
+        let registration = service.register(descriptor: descriptor) {
+            triggerCount.update { $0 += 1 }
+        }
+
+        #expect(registration.isRegistered)
+        #expect(registration.descriptor == QuillHotKeyDescriptor(
+            identifier: "togglePanel",
+            key: "space",
+            modifiers: ["command", "shift"]
+        ))
+        #expect(service.registeredHotKeys == [descriptor])
+        #expect(service.trigger(identifier: "togglePanel"))
+        #expect(service.trigger(key: "space", modifiers: ["command", "shift"]))
+        #expect(triggerCount.value == 2)
+
+        let duplicateIdentifier = service.register(
+            descriptor: QuillHotKeyDescriptor(
+                identifier: "togglePanel",
+                key: "escape",
+                modifiers: ["command"]
+            )
+        ) {
+            duplicateIdentifierCount.update { $0 += 1 }
+        }
+        let duplicateGesture = service.register(
+            descriptor: QuillHotKeyDescriptor(
+                identifier: "otherPanel",
+                key: "space",
+                modifiers: ["shift", "command"]
+            )
+        ) {
+            duplicateGestureCount.update { $0 += 1 }
+        }
+
+        #expect(!duplicateIdentifier.isRegistered)
+        #expect(!duplicateGesture.isRegistered)
+        #expect(!duplicateIdentifier.trigger())
+        #expect(!duplicateGesture.trigger())
+        #expect(duplicateIdentifierCount.value == 0)
+        #expect(duplicateGestureCount.value == 0)
+        #expect(diagnostics.events.filter { $0.operation == "registerHotKey" && $0.severity == .warning }.count == 2)
+
+        registration.unregister()
+        #expect(!registration.isRegistered)
+        #expect(!registration.trigger())
+        #expect(!service.trigger(identifier: "togglePanel"))
+        #expect(service.registeredHotKeys.isEmpty)
         #expect(triggerCount.value == 2)
     }
 
@@ -239,8 +693,12 @@ struct QuillKitTests {
         #expect(hotkeyInvoked)
 
         let updater = QuillUpdater()
+        updater.reset()
         #expect(updater.canCheckForUpdates == false)
+        updater.configure(canCheckForUpdates: true)
+        #expect(updater.canCheckForUpdates)
         updater.checkForUpdates()
+        #expect(updater.updateCheckCount == 1)
 
         #expect(HotkeyService.shared === QuillHotkeyService.shared)
 

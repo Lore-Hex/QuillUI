@@ -259,6 +259,15 @@ public struct CGAffineTransform: Equatable, Sendable {
     }
 }
 
+// CGPoint.applying(_:) — apply an affine transform to a point. swift-corelibs
+// ships CGPoint but not this method (it lives in CoreGraphics on Apple); SSK's
+// UIView+OWS.applyingInverse needs it. Faithful CGPointApplyAffineTransform math.
+public extension CGPoint {
+    func applying(_ t: CGAffineTransform) -> CGPoint {
+        CGPoint(x: t.a * x + t.c * y + t.tx, y: t.b * x + t.d * y + t.ty)
+    }
+}
+
 // MARK: - CoreGraphics drawing shim (Linux)
 //
 // SignalServiceKit's avatar/thumbnail rendering (AvatarBuilder, UIImage+OWS)
@@ -266,7 +275,7 @@ public struct CGAffineTransform: Equatable, Sendable {
 // rasterization is unavailable on Linux, so this is an INERT no-op context:
 // nothing is drawn, and the renderer returns a blank placeholder image of the
 // requested size. Color / gradient / path / image arguments are typed `Any?`
-// to avoid coupling to RSColor.cgColor (which returns Any?) and the optional
+// to avoid coupling drawing to a concrete raster backend and the optional
 // CGGradient/CGPath value-holders. A real raster backend (Cairo/Skia) is a
 // later milestone. HONEST STATUS: avatars render blank on Linux.
 
@@ -506,6 +515,10 @@ public enum QuillResourceLookup {
     }
 }
 
+public enum QuillImageCompositingOperation: Sendable {
+    case copy
+}
+
 open class RSImage: NSObject, @unchecked Sendable {
     public override init() {}
     public init?(data: Data) {
@@ -564,6 +577,38 @@ open class RSImage: NSObject, @unchecked Sendable {
     public static var smartBadgeTemplateName: String { "" }
     public func maskWithColor(color: Any) -> RSImage? { self }
 
+    public func lockFocus() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage.lockFocus",
+            severity: .warning,
+            message: "NSImage.lockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
+        )
+    }
+
+    public func unlockFocus() {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage.unlockFocus",
+            severity: .warning,
+            message: "NSImage.unlockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
+        )
+    }
+
+    public func draw(
+        in destinationRect: CGRect,
+        from sourceRect: CGRect,
+        operation: QuillImageCompositingOperation,
+        fraction: Double
+    ) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage.draw",
+            severity: .warning,
+            message: "NSImage.draw is currently a no-op on Linux; image compositing needs a real bitmap backend."
+        )
+    }
+
     // MARK: UIImage source-compat surface (Linux placeholders)
     public convenience init?(contentsOfFile path: String) {
         self.init()
@@ -595,6 +640,15 @@ open class RSImage: NSObject, @unchecked Sendable {
     }
 }
 public typealias UIImage = RSImage
+
+public struct RSCGColor: Sendable {
+    public var components: [CGFloat]?
+    public var numberOfComponents: Int { components?.count ?? 0 }
+
+    public init(components: [CGFloat]?) {
+        self.components = components
+    }
+}
 
 public class RSColor: NSObject, @unchecked Sendable {
     // Phase B: real RGBA storage so callers get sensible values back
@@ -634,13 +688,19 @@ public class RSColor: NSObject, @unchecked Sendable {
         self.init(red: r, green: g, blue: b, alpha: alpha)
     }
 
+    /// UIColor.setFill() sets this color as the fill color in the current UIKit
+    /// graphics context. There is no graphics context on Linux (UIGraphicsImageRenderer
+    /// is inert), so this is a no-op — UIImage+OWS's solid-color image render degrades
+    /// to a blank image. HONEST STATUS: no rasterized fills on Linux.
+    public func setFill() {}
+
     public static let clear = RSColor(red: 0, green: 0, blue: 0, alpha: 0)
     public static let white = RSColor(red: 1, green: 1, blue: 1, alpha: 1)
     public static let black = RSColor(red: 0, green: 0, blue: 0, alpha: 1)
     public static let orange = RSColor(red: 1.0, green: 0.5, blue: 0.0, alpha: 1)
 
-    /// Returns a 4-tuple [R, G, B, A]. Matches CGColor.components shape.
-    public var cgColor: Any? { [_red, _green, _blue, _alpha] }
+    /// Returns a 4-tuple [R, G, B, A]. Matches the CGColor.components shape.
+    public var cgColor: RSCGColor { RSCGColor(components: [_red, _green, _blue, _alpha]) }
     public var components: [CGFloat]? { [_red, _green, _blue, _alpha] }
     public var numberOfComponents: Int { 4 }
 
@@ -657,6 +717,20 @@ public class RSColor: NSObject, @unchecked Sendable {
         green.pointee = _green
         blue.pointee = _blue
         alpha.pointee = _alpha
+        return true
+    }
+
+    @discardableResult
+    public func getRed(
+        _ red: UnsafeMutablePointer<CGFloat>?,
+        green: UnsafeMutablePointer<CGFloat>?,
+        blue: UnsafeMutablePointer<CGFloat>?,
+        alpha: UnsafeMutablePointer<CGFloat>?
+    ) -> Bool {
+        red?.pointee = _red
+        green?.pointee = _green
+        blue?.pointee = _blue
+        alpha?.pointee = _alpha
         return true
     }
 
@@ -684,6 +758,25 @@ public class RSColor: NSObject, @unchecked Sendable {
         saturation.pointee = maxV == 0 ? 0 : delta / maxV
         brightness.pointee = maxV
         alpha.pointee = _alpha
+        return true
+    }
+
+    @discardableResult
+    public func getHue(
+        _ hue: UnsafeMutablePointer<CGFloat>?,
+        saturation: UnsafeMutablePointer<CGFloat>?,
+        brightness: UnsafeMutablePointer<CGFloat>?,
+        alpha: UnsafeMutablePointer<CGFloat>?
+    ) -> Bool {
+        var h: CGFloat = 0
+        var s: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        _ = getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        hue?.pointee = h
+        saturation?.pointee = s
+        brightness?.pointee = b
+        alpha?.pointee = a
         return true
     }
 }
@@ -787,6 +880,13 @@ public class RSScreen: NSObject, @unchecked Sendable {
     public var deviceDescription: [String: Any] { [:] }
 }
 public typealias UIScreen = RSScreen
+
+public func arc4random_uniform(_ upperBound: UInt32) -> UInt32 {
+    guard upperBound > 0 else {
+        return 0
+    }
+    return UInt32.random(in: 0..<upperBound)
+}
 #endif
 
 // MARK: - CGImage luminance (Linux shim for the netnewswire port)

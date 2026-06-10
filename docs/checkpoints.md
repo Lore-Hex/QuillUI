@@ -3185,3 +3185,222 @@ explicit sheet presentation environment modes, and the transient GTK window path
 stays as a fallback when no root overlay is available. This moves Quill Chat's
 Settings and Completions sheets toward macOS-style in-window presentation
 without adding Enchanted source edits.
+
+## Checkpoint 190: QuillKit Hot-Key Registry
+
+Status: implemented locally; guarded by QuillKit tests, source hygiene, Linux
+`Magnet` target build, and CI follow-up.
+
+QuillKit now owns a process-local hot-key registry with normalized gestures,
+registration state, unregister behavior, identifier and gesture triggering, and
+duplicate detection diagnostics. The Linux `Magnet` shim registers through that
+shared service instead of returning from empty `register()` / `unregister()`
+methods, while still leaving true desktop-global event capture as the remaining
+native-backend gap. The pass also fixes the ObjC CoreFoundation compatibility
+header by including the standard C definition for `NULL`, unblocking current
+Linux CI before it reaches the Swift test graph.
+
+## Checkpoint 191: QuillKit Speech Recognition State
+
+Status: implemented locally; guarded by QuillKit tests, Linux `Speech` target
+build, and CI follow-up.
+
+Speech recognition compatibility is now owned by QuillKit instead of hard-coded
+inside the `Speech` module. The shared backend exposes configurable
+authorization, availability, configured recognition results, explicit
+recognition errors, and cancellable task state. The Linux `Speech` shim routes
+`SFSpeechRecognizer.authorizationStatus()`, `requestAuthorization`,
+`isAvailable`, `recognitionTask`, request buffer appends, and task cancellation
+through that backend. Native microphone capture and real transcription remain
+the next backend work, but Enchanted-style source can now exercise speech flows
+without app-local rewrites or a permanently denied shim.
+
+## Checkpoint 192: KeyboardShortcuts Shared Hot-Key Registry
+
+Status: implemented locally; guarded by Linux `KeyboardShortcuts` target build,
+Linux compatibility test, GTK renderer build fix, and CI follow-up.
+
+The Linux `KeyboardShortcuts` shim now depends on QuillKit and registers
+key-down `View.onKeyboardShortcut` handlers in the shared process-local
+hot-key registry. Shortcut changes re-register the active handler, handler
+reset unregisters the registry entry, and the public trigger helper can dispatch
+by shortcut as well as by name. This keeps Enchanted source unchanged while
+moving another app-facing package out of isolated in-memory behavior and into
+the reusable QuillKit compatibility layer. The pass also restores the missing
+`gtkScheduleOnAppear` helper in the vendored GTK renderer so Linux builds no
+longer fail before reaching the compatibility targets.
+
+## Checkpoint 193: AVFoundation Speech Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux AVFoundation
+target build, Linux compatibility test, and CI follow-up.
+
+AVFoundation speech synthesis now routes through QuillKit's shared speech
+backend instead of carrying a separate local fallback. `AVSpeechUtterance`
+stores source-visible text, `AVSpeechSynthesisVoice` resolves QuillKit voice
+metadata, `AVSpeechSynthesizer.isSpeaking` reflects backend state, and
+`stopSpeaking(at:)` clears that state. This keeps Enchanted and future apps on a
+single reusable speech abstraction while native Linux synthesis remains a
+backend TODO.
+
+## Checkpoint 194: Sparkle Updater Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux Sparkle target
+build, Linux compatibility test, and CI follow-up.
+
+The Sparkle compatibility target now depends on QuillKit and routes
+`SPUUpdater.canCheckForUpdates`, `SPUUpdater.checkForUpdates()`, and
+`SPUStandardUpdaterController.updater` through shared `QuillUpdateService`
+state. The service tracks configurability, check count, and last check time
+with diagnostics, keeping updater behavior reusable across Enchanted, CodeEdit,
+and later app ports. Native appcast fetch, signing, installer, update UI, and
+relaunch behavior remain backend work.
+
+## Checkpoint 195: Legacy ServiceManagement Uses QuillKit
+
+Status: implemented locally; guarded by Linux ServiceManagement target build,
+Linux compatibility test, and CI follow-up.
+
+The legacy `SMLoginItemSetEnabled(_:_:)` shim now updates shared
+`QuillLaunchService` state instead of hard-returning `false`. Modern
+`SMAppService` and legacy login-helper calls therefore report the same
+enabled/not-registered state, while diagnostics retain the helper identifier for
+debugging. Native desktop autostart persistence and privileged helper management
+remain backend work.
+
+## Checkpoint 196: LocalAuthentication Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, LocalAuthentication
+tests, Linux target build, source hygiene, and CI follow-up.
+
+The Linux `LocalAuthentication` shim now depends on QuillKit and maps
+`LAContext.canEvaluatePolicy`, `evaluatePolicy`, and `biometryType` through
+shared `QuillLocalAuthenticationService` state. Ports can configure policy
+availability, biometry type, evaluation success, and LA-shaped error codes in a
+single reusable service instead of accepting an unconfigurable always-denied
+stub. Native biometric/passcode prompts and OS authentication context remain
+backend work.
+
+## Checkpoint 197: UserNotifications Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+The Linux `UserNotifications` shim now depends on QuillKit and routes
+authorization requests, settings, categories, pending requests, delivered
+notifications, removal helpers, and UIKit remote-notification registration
+state through shared `QuillNotificationService`. The backend is process-local
+and deterministic, so ports can read back notification state without app-local
+rewrites. Native libnotify or org.freedesktop.Notifications presentation and
+APNs-equivalent push integration remain backend work.
+
+## Checkpoint 198: AVAudioSession Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVAudioSession.sharedInstance()` now returns a singleton shim backed by
+`QuillAudioSessionService`. Category, mode, category options, active state, and
+set-active options are tracked in shared QuillKit state with diagnostics, and
+common category/mode overloads compile. Native PipeWire/ALSA/JACK session
+policy and real audio routing remain backend work.
+
+## Checkpoint 199: AVAudioEngine Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVAudioEngine` lifecycle, graph attachment/connection counts, and
+`AVAudioNode` tap registration now route through `QuillAudioEngineService`.
+The shim exposes deterministic process-local state for recording/playback code
+without performing real audio I/O. Native PipeWire/ALSA/JACK graph processing
+and tap buffers remain backend work.
+
+## Checkpoint 200: Audio Playback Surfaces Use QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVAudioPlayer`, `AudioToolbox` system sounds, and `NSSound` now route through
+shared `QuillAudioPlayerService` process-local state. The service tracks player
+sources, prepare/play/pause/stop counts, current time, volume, loop count,
+system-sound IDs, alert plays, completion registration, and basic WAV
+duration/channel metadata for local data or file URLs. Native PipeWire/ALSA/JACK
+playback remains backend work.
+
+## Checkpoint 201: Speech Pause/Resume Uses QuillKit
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`AVSpeechSynthesizer.pauseSpeaking(at:)` and `continueSpeaking()` now route
+through `QuillSpeechBackend` instead of returning false. The compatibility
+backend tracks paused speech state, keeps `isSpeaking` true while paused, and
+holds the finish callback until `continueSpeaking()` resumes the utterance.
+Native speech synthesis remains backend work.
+
+## Checkpoint 202: UIApplication Open Uses QuillWorkspace
+
+Status: implemented locally; guarded by QuillKit tests, Linux compatibility
+test, source hygiene, and CI follow-up.
+
+`UIApplication.open(_:options:completionHandler:)` now routes through
+`QuillWorkspace.open` on Linux and calls the completion handler with the backend
+result instead of returning false. `QuillWorkspace` gained an injectable open
+backend so tests and future GTK/Qt/native desktop launchers can use the same
+service without spawning `xdg-open` in headless runs.
+
+The Linux compatibility test target also disables Swift Testing cross-import
+overlay lookup, because the target intentionally imports QuillUI's shadow
+Apple modules (`UIKit`, `AppKit`, and friends) rather than Apple SDK overlays.
+This keeps clean Swift 6.3 Linux scratches from looking for unavailable
+`_Testing_UIKit`/`_Testing_AppKit` modules.
+
+## Checkpoint 203: NSWorkspace Open Uses QuillWorkspace
+
+Status: implemented locally; guarded by Linux compatibility tests, source
+hygiene, and CI follow-up.
+
+`NSWorkspace.open(_:)` and its configuration overload now use the same
+`QuillWorkspace.open` service as UIKit URL opening. This removes a second
+AppKit-local `xdg-open` launcher, gives GTK/Qt/native backends one injectable
+URL-open hook, and keeps headless Linux from spawning desktop launchers unless
+an explicit compatibility backend is installed.
+
+## Checkpoint 204: NetNewsWire Article Cache
+
+Status: implemented locally; guarded by focused NetNewsWire tests, adjacent
+FeedFinder/RSWeb tests, executable build, source hygiene, and CI follow-up.
+
+`QuillNetNewsWireCore` now has a QuillData-backed `RSSArticleCacheStore` for
+fetched per-feed timelines. The reader loads the persisted feed list first,
+then read/starred state, then article timelines, so it can show cached articles
+immediately while `URLSession` refreshes in the background. Feed rows now use
+cache-backed unread badges for inactive subscriptions, Smart Feeds aggregate
+across cached feeds, and Starred smart-feed selections can render inactive-feed
+article details. Live parsed item IDs are feed-scoped to avoid cross-feed
+read/star collisions.
+
+Remaining NetNewsWire work is still substantial: upstream
+`ArticlesDatabase`/`RSDatabase` compatibility, account/sync modules, richer
+article rendering/WebKitGTK escape hatches, and AppKit/WebKit UI migration.
+
+## Checkpoint 205: NetNewsWire ArticlesDatabase Adapter
+
+Status: implemented locally; guarded by focused ArticlesDatabase tests,
+focused NetNewsWire tests, adjacent article/parser tests, executable build,
+source hygiene, and CI follow-up.
+
+Added `QuillArticlesDatabase`, an upstream-shaped `ArticlesDatabase` surface
+backed by QuillData article/status records. The adapter now covers feed,
+multi-feed, and article-ID fetches; unread/today/starred/search/count APIs;
+parsed-item update flows for feed-based and sync-system retention; status
+creation/marking/deletion; startup cleanup; future-date normalization; and the
+async wrappers that upstream call sites expect. `RSSArticleCacheStore` now uses
+this reusable database adapter instead of an app-local cache table, so the
+NetNewsWire shell's persisted timelines are on the same compatibility path as
+future account/database work.
+
+Remaining NetNewsWire database work is still real: this is a QuillData-backed
+adapter, not a full `RSDatabase`/`FMDatabase` SQL implementation with upstream
+migrations, FTS/search indexes, sync-account semantics, and columnar hot paths.
