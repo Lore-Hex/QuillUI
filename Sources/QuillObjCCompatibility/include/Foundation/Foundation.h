@@ -27,6 +27,23 @@
 #define __has_feature(x) 0
 #endif
 
+/* Apple availability annotations are meaningless on QuillOS; erase them. */
+#ifndef NS_AVAILABLE_IOS
+#define NS_AVAILABLE_IOS(...)
+#endif
+#ifndef NS_AVAILABLE_MAC
+#define NS_AVAILABLE_MAC(...)
+#endif
+#ifndef NS_AVAILABLE
+#define NS_AVAILABLE(...)
+#endif
+#ifndef NS_DEPRECATED_IOS
+#define NS_DEPRECATED_IOS(...)
+#endif
+#ifndef NS_CLASS_AVAILABLE_IOS
+#define NS_CLASS_AVAILABLE_IOS(...)
+#endif
+
 #ifndef nil
 #define nil ((id)0)
 #endif
@@ -311,8 +328,14 @@ typedef NS_ENUM(NSInteger, NSComparisonResult) {
     NSOrderedDescending = 1
 };
 
+@class NSMethodSignature;
+@class NSInvocation;
+
 __attribute__((objc_root_class))
 @interface NSObject <NSObject>
+- (BOOL)conformsToProtocol:(Protocol *)aProtocol;
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector;
+- (void)forwardInvocation:(NSInvocation *)anInvocation;
 + (instancetype)alloc;
 + (instancetype)allocWithZone:(NSZone *)zone;
 + (instancetype)new;
@@ -342,7 +365,13 @@ __attribute__((objc_root_class))
 @end
 
 typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
-    NSStringEnumerationByComposedCharacterSequences = 1UL << 1
+    NSStringEnumerationByLines = 0,
+    NSStringEnumerationByComposedCharacterSequences = 1UL << 1,
+    NSStringEnumerationByWords = 1UL << 2,
+    NSStringEnumerationBySentences = 1UL << 3,
+    NSStringEnumerationReverse = 1UL << 8,
+    NSStringEnumerationSubstringNotRequired = 1UL << 9,
+    NSStringEnumerationLocalized = 1UL << 10,
 };
 
 typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
@@ -398,6 +427,10 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 - (NSString *)stringByReplacingPercentEscapesUsingEncoding:(NSUInteger)encoding;
 - (NSString *)stringByAddingPercentEncodingWithAllowedCharacters:(NSCharacterSet *)allowedCharacters;
 - (NSString *)stringByRemovingPercentEncoding;
+- (NSString *)capitalizedString;
+- (NSString *)stringByPaddingToLength:(NSUInteger)newLength withString:(NSString *)padString startingAtIndex:(NSUInteger)padIndex;
+- (int)intValue;
+- (NSRange)rangeOfComposedCharacterSequencesForRange:(NSRange)range;
 - (NSInteger)integerValue;
 - (long long)longLongValue;
 - (float)floatValue;
@@ -462,8 +495,42 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 + (NSNull *)null;
 @end
 
+@interface NSMethodSignature : NSObject
++ (NSMethodSignature *)signatureWithObjCTypes:(const char *)types;
+@property (nonatomic, readonly) NSUInteger numberOfArguments;
+@end
+
+@interface NSInvocation : NSObject
+@property (nonatomic) SEL selector;
+@property (nonatomic, readonly) NSMethodSignature *methodSignature;
++ (NSInvocation *)invocationWithMethodSignature:(NSMethodSignature *)sig;
+- (void)invokeWithTarget:(id)target;
+- (void)invoke;
+@end
+
+@interface NSUUID : NSObject
++ (instancetype)UUID;
+@property (nonatomic, readonly) NSString *UUIDString;
+@end
+
+@interface NSDecimalNumber : NSNumber
++ (NSDecimalNumber *)decimalNumberWithString:(NSString *)numberValue;
++ (NSDecimalNumber *)zero;
+- (NSDecimalNumber *)decimalNumberByMultiplyingByPowerOf10:(short)power;
+- (NSDecimalNumber *)decimalNumberByAdding:(NSDecimalNumber *)decimalNumber;
+@end
+
+@interface NSSortDescriptor : NSObject
+@property (nonatomic, readonly, copy) NSString *key;
+@property (nonatomic, readonly) BOOL ascending;
++ (instancetype)sortDescriptorWithKey:(NSString *)key ascending:(BOOL)ascending;
++ (instancetype)sortDescriptorWithKey:(NSString *)key ascending:(BOOL)ascending selector:(SEL)selector;
+@end
+
 @interface NSArray<ObjectType> : NSObject <NSFastEnumeration>
 @property (nonatomic, readonly) NSUInteger count;
+- (NSArray<ObjectType> *)sortedArrayUsingDescriptors:(NSArray<NSSortDescriptor *> *)sortDescriptors;
+- (NSArray<ObjectType> *)arrayByAddingObject:(ObjectType)anObject;
 @property (nonatomic, readonly) ObjectType firstObject;
 @property (nonatomic, readonly) ObjectType lastObject;
 @property (nonatomic, readonly) NSEnumerator *objectEnumerator;
@@ -560,6 +627,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 
 @interface NSSet<ObjectType> : NSObject <NSFastEnumeration>
 @property (nonatomic, readonly) NSUInteger count;
+- (NSArray<ObjectType> *)sortedArrayUsingDescriptors:(NSArray<NSSortDescriptor *> *)sortDescriptors;
 @property (nonatomic, readonly) NSArray<ObjectType> *allObjects;
 + (instancetype)set;
 + (instancetype)setWithArray:(NSArray<ObjectType> *)array;
@@ -612,7 +680,10 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 @property (nonatomic, readonly) NSDictionary *userInfo;
 @property (nonatomic, readonly) NSString *localizedDescription;
 + (instancetype)errorWithDomain:(NSString *)domain code:(NSInteger)code userInfo:(NSDictionary *)dict;
+- (instancetype)initWithDomain:(NSString *)domain code:(NSInteger)code userInfo:(NSDictionary *)dict;
 @end
+
+static const NSInteger NSURLErrorCancelled = -999;
 
 @interface NSCoder : NSObject
 - (BOOL)allowsKeyedCoding;
@@ -733,6 +804,10 @@ typedef NSString *NSAttributedStringKey;
 + (instancetype)dateWithTimeIntervalSince1970:(NSTimeInterval)seconds;
 - (NSDate *)dateByAddingTimeInterval:(NSTimeInterval)seconds;
 - (NSTimeInterval)timeIntervalSinceNow;
+- (BOOL)isEqualToDate:(NSDate *)otherDate;
+- (NSComparisonResult)compare:(NSDate *)other;
+- (NSDate *)earlierDate:(NSDate *)anotherDate;
+- (NSDate *)laterDate:(NSDate *)anotherDate;
 @property (nonatomic, readonly) NSTimeInterval timeIntervalSince1970;
 @end
 
@@ -800,6 +875,7 @@ typedef NS_ENUM(NSInteger, NSDateComponentsFormatterUnitsStyle) {
 
 @interface NSLocale : NSObject
 + (instancetype)currentLocale;
++ (instancetype)autoupdatingCurrentLocale;
 + (instancetype)localeWithLocaleIdentifier:(NSString *)identifier;
 + (NSString *)canonicalLanguageIdentifierFromString:(NSString *)string;
 + (NSArray<NSString *> *)preferredLanguages;
@@ -972,6 +1048,8 @@ NSArray<NSString *> *NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory d
 static NSString * const NSURLIsExcludedFromBackupKey = @"NSURLIsExcludedFromBackupKey";
 
 @interface NSURL : NSObject
+- (NSURL *)URLByAppendingPathComponent:(NSString *)pathComponent;
+- (NSURL *)URLByAppendingPathExtension:(NSString *)pathExtension;
 + (instancetype)fileURLWithPath:(NSString *)path;
 + (instancetype)URLWithString:(NSString *)URLString;
 @property (nonatomic, readonly) NSString *path;
@@ -1212,6 +1290,7 @@ typedef NS_OPTIONS(NSUInteger, NSJSONReadingOptions) {
 
 @interface NSJSONSerialization : NSObject
 + (id)JSONObjectWithData:(NSData *)data options:(NSJSONReadingOptions)opt error:(NSError **)error;
++ (NSData *)dataWithJSONObject:(id)obj options:(NSUInteger)opt error:(NSError **)error;
 @end
 
 typedef NS_ENUM(NSUInteger, NSNumberFormatterStyle) {
