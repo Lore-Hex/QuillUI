@@ -2581,7 +2581,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private final class GTKButtonActionBox"))
         #expect(patchedRenderer.contains("private func gtkScheduleButtonAction"))
         #expect(patchedRenderer.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
-        #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"gesture\")"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"gesture\", widget: context.widget))"))
         #expect(patchedRenderer.contains("gtk_swift_add_capture_gesture(button, gesture)"))
         #expect(patchedRenderer.contains("let legacyController = gtk_swift_legacy_capture_controller()!"))
         #expect(patchedRenderer.contains("gtk_swift_event_is_primary_button_press(event)"))

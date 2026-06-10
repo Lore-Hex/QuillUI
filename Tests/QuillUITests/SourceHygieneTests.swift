@@ -3349,7 +3349,7 @@ struct SourceHygieneTests {
             #expect(source.contains("private func gtkScheduleSheetDismissal"))
             #expect(source.contains("gtkScheduleSheetDismissal {"))
             #expect(source.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
-            #expect(source.contains("gtkScheduleButtonAction(box, source: \"gesture\")"))
+            #expect(source.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"gesture\", widget: context.widget))"))
             #expect(source.contains("gtk_swift_add_capture_gesture"))
             #expect(source.contains("gtk_swift_add_capture_gesture(button, gesture)"))
             #expect(source.contains("gtk_swift_legacy_capture_controller"))

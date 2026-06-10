@@ -723,6 +723,17 @@ private final class GTKButtonRootEventContext {
     }
 }
 
+/// Debug-only: tags a button activation source with the widget's root-frame
+/// so QUILLUI_GTK_DEBUG_ACTIONS logs identify WHICH button fired.
+private func gtkButtonDebugSource(_ source: String, widget: UnsafeMutablePointer<GtkWidget>) -> String {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return source }
+    guard gtk_swift_is_widget(widget) != 0, let root = gtk_swift_widget_root_widget(widget) else { return source }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_widget_translate_coordinates(widget, root, 0, 0, &rootX, &rootY) != 0 else { return source }
+    return "\(source)@\(Int(rootX)),\(Int(rootY)) \(gtk_widget_get_width(widget))x\(gtk_widget_get_height(widget))"
+}
+
 private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {
     let now = Date().timeIntervalSinceReferenceDate
     if now - box.lastActivationTime < 0.08 {
@@ -762,7 +773,7 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
             let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
             guard isTopmost else { return 0 }
-            gtkScheduleButtonAction(context.box, source: "root-legacy")
+            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("root-legacy@\(Int(x)),\(Int(y))", widget: context.widget))
             return 0
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
         contextPointer,
@@ -922,10 +933,10 @@ extension Button: GTKRenderable, GTKDescribable {
             "clicked",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
                 guard let userData else { return }
-                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
-                gtkScheduleButtonAction(box, source: "clicked")
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget))
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-            buttonActionBox,
+            buttonRootEventContext,
             nil,
             GConnectFlags(rawValue: 0)
         )
@@ -936,10 +947,10 @@ extension Button: GTKRenderable, GTKDescribable {
             "pressed",
             unsafeBitCast({ (_: gpointer?, _: gint, _: gdouble, _: gdouble, userData: gpointer?) in
                 guard let userData else { return }
-                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
-                gtkScheduleButtonAction(box, source: "gesture")
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget))
             } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
-            buttonActionBox,
+            buttonRootEventContext,
             nil,
             GConnectFlags(rawValue: 0)
         )
