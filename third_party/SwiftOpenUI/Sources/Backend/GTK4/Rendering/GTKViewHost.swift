@@ -47,6 +47,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     /// and can't see @Observable mutations, so it would wrongly declare the inputs
     /// unchanged and leave observation permanently unsubscribed.
     private var observationDidFire = false
+    var rebuildPresentationRoot: gpointer?
+    var stateIdentityNamespace = "root"
     var capturedEnvironment: EnvironmentValues
 
     /// Objects read by body via `@Environment(Type.self)` during the
@@ -340,6 +342,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: OpaquePointer!
             withObservationTracking {
+                gtkBeginStateIdentityPass()
                 result = buildBody()
             } onChange: { [weak self] in
                 guard let self else { return }
@@ -355,6 +358,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         }
         #endif
 
+        gtkBeginStateIdentityPass()
         let result = buildBody()
         if let reads = endEnvironmentReadTracking() {
             capturedInjectedObjects = reads
@@ -439,6 +443,17 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
 
         g_object_ref(gpointer(container))
         defer { g_object_unref(gpointer(container)) }
+        let presentationRoot = gtk_widget_get_root(container).map { gpointer($0) }
+        if let presentationRoot {
+            g_object_ref(presentationRoot)
+        }
+        rebuildPresentationRoot = presentationRoot
+        defer {
+            if let presentationRoot {
+                g_object_unref(presentationRoot)
+            }
+            rebuildPresentationRoot = nil
+        }
 
         // Always save focus state before teardown — cursor/selection must
         // survive even when focus restore is suppressed (parity with Win32/Web).

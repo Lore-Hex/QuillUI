@@ -113,10 +113,21 @@ public struct ToolbarItem<Content: View>: View {
 public struct AnyToolbarItem {
     public let placement: ToolbarItemPlacement
     public let wrapped: any View
+    public let renderedViews: [any View]
 
     public init<Content: View>(_ item: ToolbarItem<Content>) {
         self.placement = item.placement
         self.wrapped = item.content
+        if let multi = item.content as? MultiChildView {
+            self.renderedViews = multi.children
+        } else if Content.Body.self != Never.self,
+                  let multi = item.content.body as? MultiChildView {
+            self.renderedViews = multi.children
+        } else if Content.Body.self != Never.self {
+            self.renderedViews = [item.content.body]
+        } else {
+            self.renderedViews = [item.content]
+        }
     }
 }
 

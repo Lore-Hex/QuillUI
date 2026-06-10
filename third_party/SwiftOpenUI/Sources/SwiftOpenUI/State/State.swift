@@ -1,5 +1,14 @@
 import Foundation
 
+private func swiftOpenUIStateDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
+        return
+    }
+    if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
 /// Protocol for type-erased access to StateStorage from @State wrappers.
 public protocol AnyStateStorageProvider {
     var anyStorage: AnyStateStorage { get }
@@ -96,6 +105,7 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
             return
         }
         forwardedStorage = typed
+        swiftOpenUIStateDebugLog("state forward type=\(Value.self)")
     }
 
     public func restoreValue(from other: AnyStateStorage) {

@@ -88,6 +88,9 @@ public enum SFSymbolCompatibility {
         "exclamationmark.triangle": "warning",
         "exclamationmark.triangle.fill": "warning",
         "info.circle":            "info",
+        "lightbulb":                "lightbulb",
+        "lightbulb.circle":         "lightbulb",
+        "lightbulb.circle.fill":    "lightbulb",
         "info.circle.fill":       "info",
         "questionmark":           "help_outline",
         "questionmark.circle":    "help_outline",
@@ -96,6 +99,7 @@ public enum SFSymbolCompatibility {
         "xmark":                  "close",
         "xmark.circle":           "cancel",
         "xmark.circle.fill":      "cancel",
+        "x.circle.fill":            "cancel",
 
         // MARK: Common actions
         "gear":                   "settings",
@@ -105,6 +109,7 @@ public enum SFSymbolCompatibility {
         "minus.circle":           "remove_circle",
         "paperplane.fill":        "send",
         "pencil":                 "edit",
+        "paperclip":                "attach_file",
         "plus":                   "add",
         "plus.circle":            "add_circle",
         "plus.circle.fill":       "add_circle",
@@ -125,6 +130,7 @@ public enum SFSymbolCompatibility {
         "bell.fill":              "notifications",
         "bookmark":               "bookmark",
         "calendar":               "calendar_today",
+        "character.cursor.ibeam":   "text_fields",
         "clock":                  "schedule",
         "ellipsis":               "more_horiz",
         "ellipsis.circle":        "more_horiz",
@@ -142,6 +148,8 @@ public enum SFSymbolCompatibility {
         "link":                   "link",
         "lock":                   "lock",
         "lock.fill":              "lock",
+        "lock.shield":              "shield_lock",
+        "shield.lefthalf.filled":   "shield",
         "mic":                    "mic",
         "sidebar.left":           "view_sidebar",
         "lock.open":              "lock_open",
@@ -149,6 +157,7 @@ public enum SFSymbolCompatibility {
         "star.fill":              "star",
         "tag":                    "label",
         "tag.fill":               "label",
+        "textformat":               "text_fields",
         "textformat.abc":         "text_fields",
 
         // MARK: Social / navigation (Mastodon / IceCubes)
