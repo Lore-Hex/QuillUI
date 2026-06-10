@@ -48,6 +48,38 @@ QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES="ColorPalette" \
   "$ROOT_DIR/scripts/generated-telegram-package-check.sh"
 
 package_mirror_root="$WORK_ROOT/mirror/overlaid-packages"
+
+# The package-island check builds each package in isolation, where the
+# mirror's dual exposure (overlaid-packages/<P> and
+# submodules/telegram-ios/submodules/<P>, bridged by symlinks) only warns.
+# A unified app dependency graph escalates those duplicate identities to
+# resolution errors, so canonicalize every path dependency in the mirrored
+# manifests to its realpath — one path, one identity.
+python3 - "$WORK_ROOT/mirror" <<'PY'
+import os
+import re
+import sys
+
+mirror_root = sys.argv[1]
+dep_re = re.compile(r'(\.package\(name:\s*"[^"]+",\s*path:\s*")([^"]+)(")')
+
+for dirpath, dirnames, filenames in os.walk(mirror_root, followlinks=False):
+    if 'Package.swift' not in filenames:
+        continue
+    manifest_path = os.path.join(dirpath, 'Package.swift')
+    text = open(manifest_path).read()
+
+    def canonicalize(match):
+        raw = match.group(2)
+        resolved = raw if os.path.isabs(raw) else os.path.join(dirpath, raw)
+        real = os.path.realpath(resolved)
+        return match.group(1) + (real if os.path.isdir(real) else raw) + match.group(3)
+
+    rewritten = dep_re.sub(canonicalize, text)
+    if rewritten != text:
+        open(manifest_path, 'w').write(rewritten)
+PY
+
 app_dir="$WORK_ROOT/app"
 app_sources="$app_dir/Sources/TelegramMac"
 mkdir -p "$app_sources"

@@ -854,6 +854,35 @@ open(path, "w").write(src.replace('class ErrorPresenter: ErrorPresenterProtocol 
 print("patched ErrorPresenter @MainActor")
 PY
     fi
+
+    # The QuillAppKit shadow's NSResponder declares `open func copy(_:)` (the
+    # Telegram pasteboard surface), so LogViewController's responder-chain
+    # `copy(_:)` is an override on Linux but not on real AppKit. Split the
+    # declaration per platform; the original body moves into a helper.
+    local lvc="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController/LogViewController.swift"
+    if [[ -f "$lvc" ]] && ! grep -q 'quillCopySelectedLogLines' "$lvc"; then
+        echo "==> patching LogViewController.swift copy(_:) override split"
+        python3 - "$lvc" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+needle = '    func copy(_ sender: Any?) {\n'
+replacement = (
+    '    #if os(Linux)\n'
+    '    override func copy(_ sender: Any?) {\n'
+    '        quillCopySelectedLogLines(sender)\n'
+    '    }\n'
+    '    #else\n'
+    '    func copy(_ sender: Any?) {\n'
+    '        quillCopySelectedLogLines(sender)\n'
+    '    }\n'
+    '    #endif\n'
+    '    private func quillCopySelectedLogLines(_ sender: Any?) {\n'
+)
+assert needle in src, "LogViewController copy(_:) signature not found"
+open(path, "w").write(src.replace(needle, replacement, 1))
+print("patched LogViewController copy(_:) override split")
+PY
+    fi
 }
 
 patch_icecubes() {

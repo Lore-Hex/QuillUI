@@ -1,6 +1,12 @@
 import Foundation
-@_exported import CoreFoundation
+// Plain import: re-exporting all of corelibs CoreFoundation leaks its stub
+// CFString/CFArray classes into every `import Cocoa` scope (see the QuartzCore
+// shim note). Only the CF names CoreText's API surface needs are re-exported.
+import CoreFoundation
 @_exported import QuillFoundation
+
+public typealias CFIndex = CoreFoundation.CFIndex
+public typealias CFRange = CoreFoundation.CFRange
 
 public final class CTFramesetter {}
 public final class CTFrame {}

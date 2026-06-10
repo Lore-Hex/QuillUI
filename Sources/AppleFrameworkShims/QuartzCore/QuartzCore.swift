@@ -9,9 +9,15 @@
 // callbacks on Linux). CGRect/CGPoint/CGContext come from QuillFoundation.
 //
 import Foundation
-@_exported import CoreFoundation
+// Plain import: re-exporting all of corelibs CoreFoundation leaks its stub
+// CFString/CFArray classes into every `import Cocoa` scope and collides with
+// the bridged CF typealiases there (e.g. ServiceManagement.CFString). Only
+// the CF names this shim's API surface needs are re-exported below.
+import CoreFoundation
 @_exported import Metal
 @_exported import QuillFoundation
+
+public typealias CFTimeInterval = CoreFoundation.CFTimeInterval
 
 // MARK: - CACurrentMediaTime
 //

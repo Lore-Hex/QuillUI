@@ -1,8 +1,14 @@
 import Foundation
-@_exported import CoreFoundation
+// Plain import: re-exporting all of corelibs CoreFoundation leaks its stub
+// CFString/CFArray classes into consumer scopes (see the QuartzCore shim
+// note). Only the CF names CoreMedia's API surface needs are re-exported.
+import CoreFoundation
 @_exported import CoreVideo
 @_exported import AudioToolbox
 @_exported import QuillFoundation
+
+public typealias CFRunLoop = CoreFoundation.CFRunLoop
+public typealias CFRunLoopTimer = CoreFoundation.CFRunLoopTimer
 
 public typealias CMTimeValue = Int64
 public typealias CMTimeScale = Int32
