@@ -1503,11 +1503,34 @@ both confirmed against the real source before fixing:
 Plus medium/low: added the Signal-iOS `User-Agent` + `Accept-Language` headers the real REST
 layer injects (WAF/fingerprint risk on the link PUT); tightened the success guard to `==200`
 and validated `deviceId` to 1...127 (upstream `DeviceId`); added `registrationDate` for
-fidelity. DEFERRED (honest, non-blocking for durable login): the post-link one-time prekey
-upload to `/v2/keys` -- the authed-chat reconnect works without it, so the device links +
-reconnects but isn't yet fully provisioned to receive brand-new inbound sessions.
-LESSON: a green build + self-consistent self-tests do NOT prove wire-correctness against a
-single-use action; fan out an adversarial panel over the real protocol source FIRST.
+fidelity. LESSON: a green build + self-consistent self-tests do NOT prove wire-correctness
+against a single-use action; fan out an adversarial panel over the real protocol source FIRST.
+
+**One-time prekey upload to `/v2/keys` -- "fully provisioned" (NO LONGER DEFERRED).** After the
+verify-secondary PUT, upstream uploads EC + Kyber ONE-TIME prekeys so other clients can fetch a
+full bundle and open brand-new inbound sessions. Built on the REAL upstream stores
+(`QuillPreKeyPersist.swift`, in the SSK module): `PreKeyStoreImpl.allocatePreKeyIds`(count:100) +
+`generatePreKeyRecords`, `KyberPreKeyStoreImpl.allocatePreKeyIds`(count:100) +
+`generatePreKeyRecords(signedBy:)`, persisting the private halves into the real `PreKey` GRDB
+table (namespaces: oneTime=0, kyber=1, signed=2; identity aci=0/pni=1) and the allocation
+counters into the real metadata collections, so a real SSK receive path
+(`PreKeyStoreForIdentity` conforms to LibSignalClient `PreKeyStore`/`SignedPreKeyStore`/
+`KyberPreKeyStore`) finds them. Wire shapes (verified vs `OWSRequestFactory`): one-time **EC**
+params = `{keyId, publicKey}` with **NO signature** (`preKeyRequestParameters`); PQ params =
+`{keyId, publicKey, signature}`; the post-link upload body is `{preKeys, pqPreKeys}` ONLY (no
+`signedPreKey`/`pqLastResortPreKey` -- those went in the link body), matching
+`createOneTimePreKeys`'s `[.oneTimePreKey, .oneTimePqPreKey]` targets. PUT `v2/keys` (ACI) and
+`v2/keys?identity=pni` (PNI), Basic auth `<aci.serviceIdString>.<deviceId>:serverAuthToken`,
+`timeoutInterval` 45. Persist-before-upload mirrors `persistKeysPriorToUpload` (a crash between
+persist and upload never strands server-advertised keys we can't decrypt with). NON-FATAL to the
+link.
+
+**Productive authoring during a Bash-classifier outage.** The `claude-fable-5` permission
+classifier was down ~2h (Bash blocked entirely; read-only tools unaffected). Rather than idle on
+retries, authored the ENTIRE next increment (the prekey upload above) from upstream reads +
+desk-verification, pre-researched the milestone after (the receive path), and queued the exact
+commit/build/merge/live-login command sequence into the loop prompt so it all fired in one batch
+the moment Bash recovered. A `/model` switch off the stuck model also clears it instantly.
 
 **NSCoder NSData fix (the persistence-blocker):** swift-corelibs NSCoder's
 `encodeBytes(UInt8?,length:,forKey:)` uses an internal keyed-archive byte format that has

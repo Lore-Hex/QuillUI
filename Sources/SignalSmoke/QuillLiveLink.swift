@@ -219,19 +219,29 @@ func quillCompleteLink(message: LinkingProvisioningMessage, net: Net, dbPath: St
     )
     print("signal-smoke LIVE LINK: \(persistMsg)")
 
-    // NOTE (honest status): upstream also uploads EC + Kyber ONE-TIME prekeys to
-    // /v2/keys (rotateOneTimePreKeysForRegistration) after linking, so other
-    // clients can fetch a full prekey bundle. We deliberately defer that here: it
-    // is NOT required to authenticate the chat connection or for durable login
-    // (the websocket authenticates on <aci>.<deviceId> + serverAuthToken, which we
-    // persist), so the device links + reconnects, but is not yet fully provisioned
-    // to RECEIVE brand-new inbound sessions. Follow-up: PUT one-time prekeys to
-    // /v2/keys for both .aci and .pni before declaring fully provisioned.
-    //
-    // (g) authenticated chat to confirm the device is live. Username for a
-    // linked device = "<aci.serviceIdString>.<deviceId>" (upstream
-    // TSAccountManagerImpl.serverUsername).
+    // authed-chat / v2-keys username for a linked device =
+    // "<aci.serviceIdString>.<deviceId>" (upstream TSAccountManagerImpl.serverUsername).
     let username = "\(aci.serviceIdString).\(deviceId)"
+
+    // (f.2) ONE-TIME PREKEY UPLOAD -- "fully provisioned" step. Upstream, right
+    // after the verify-secondary PUT, uploads EC + Kyber one-time prekeys to
+    // /v2/keys (PreKeyManager.rotateOneTimePreKeysForRegistration) so other
+    // clients can fetch a full prekey bundle and open brand-new inbound sessions
+    // to this device. We generate + persist the private halves into the REAL
+    // PreKey GRDB table (via the real upstream stores) BEFORE uploading, then PUT
+    // both identities. This is NON-FATAL to the link: if it fails the device is
+    // still linked + durably logged in, just not yet able to receive new sessions
+    // until a later rotation succeeds.
+    let prekeyMsg = await quillUploadOneTimePreKeys(
+        dbPath: dbPath,
+        aciIdentityKeyPair: aciIdentityKeyPair,
+        pniIdentityKeyPair: pniIdentityKeyPair,
+        username: username,
+        password: serverAuthToken
+    )
+    print("signal-smoke LIVE LINK: \(prekeyMsg)")
+
+    // (g) authenticated chat to confirm the device is live.
     let chat = try await net.connectAuthenticatedChat(
         username: username, password: serverAuthToken, receiveStories: false)
     print("signal-smoke LIVE LINK: authenticated chat connected as \(username) -- DEVICE IS LIVE")

@@ -123,6 +123,13 @@ do {
 let quillFaithfulPath = FileManager.default.temporaryDirectory.appendingPathComponent("quill-faithful-\(UUID().uuidString).sqlite").path
 print("signal-smoke FAITHFUL PERSIST: \(quillFaithfulPersistSelfTest(path: quillFaithfulPath))")
 
+// One-time prekey self-test: generate 100 EC + 100 Kyber one-time prekeys per
+// identity via the REAL upstream stores (PreKeyId/PreKeyStoreImpl/
+// KyberPreKeyStoreImpl), persist the private halves into the real `PreKey`
+// table, and build the exact v2/keys upload bodies. This is the post-link
+// "fully provisioned" step's machinery, exercised with NO network, NO account.
+print("signal-smoke PREKEYS SELFTEST: \(quillOneTimePreKeysSelfTest())")
+
 // STEP 9/10: the FULL live secondary-device link flow -- strictly USER-GATED
 // behind QUILL_SIGNAL_LINK=1 (default OFF). With the flag set, it prints a QR
 // URL and WAITS for the user to scan with their phone, then registers + persists
