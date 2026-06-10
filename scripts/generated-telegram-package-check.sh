@@ -154,6 +154,12 @@ materialize_telegram_shared_headers() {
     if [[ -d "$encryption_headers" ]]; then
       mkdir -p "$mirror_dir/SharedHeaders/EncryptionProvider"
       cp -R "$encryption_headers"/. "$mirror_dir/SharedHeaders/EncryptionProvider"
+      # Swift importers compile the public-header module without the target's
+      # private headerSearchPath cSettings, so the imported header must also be
+      # self-contained inside PublicHeaders/.
+      if [[ -d "$mirror_dir/PublicHeaders" ]]; then
+        cp -R "$encryption_headers"/. "$mirror_dir/PublicHeaders"
+      fi
     fi
   fi
 
@@ -367,6 +373,27 @@ if [[ "$(uname -s)" == "Linux" ]]; then
     done < <(find "$submodule_mirror_root" -type f -name Package.swift -print | sort)
     ln -s "$submodule_mirror_root" "$package_mirror_root/submodules"
   fi
+
+  # Overlay-only packages: Swift replacements for upstream code that has no
+  # SwiftPM manifest of its own (e.g. CodeSyntax sources, the RLottie_Xcode/
+  # rlottie C++ tree). The overlay IS the package; expose it in the mirror so
+  # the generated app graph can resolve the module.
+  while IFS= read -r overlay_manifest; do
+    overlay_package_dir="$(dirname "$overlay_manifest")"
+    overlay_package_name="$(basename "$overlay_package_dir")"
+    overlay_sibling="$package_mirror_root/$overlay_package_name"
+    # A manifest-less sibling (the plain upstream source symlink, possibly a
+    # case-insensitive-filesystem collision like rlottie vs RLottie) yields to
+    # the overlay package, which is the importable module.
+    if [[ -L "$overlay_sibling" && ! -f "$overlay_sibling/Package.swift" ]]; then
+      rm "$overlay_sibling"
+    fi
+    if [[ ! -e "$overlay_sibling" && ! -L "$overlay_sibling" ]]; then
+      mkdir -p "$overlay_sibling"
+      cp -R "$overlay_package_dir"/. "$overlay_sibling"
+      overlaid_packages+=("$overlay_package_name")
+    fi
+  done < <(find "$overlay_root" -mindepth 2 -maxdepth 2 -name Package.swift -print | sort)
 fi
 
 for package_name in "${packages[@]}"; do

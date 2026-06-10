@@ -189,6 +189,11 @@ def lower_thread_selector_multiline(match: re.Match[str]) -> str:
 
 def lower_swift_source(text: str) -> str:
     lowered = text
+    # Upstream Telegram-Mac carries stray truncated import fragments (a bare
+    # "imp" line in CallTooltip/PeerInfoSpawnEmojiView) that Xcode tolerates
+    # only because of target membership; strip them.
+    lowered = re.sub(r"(?m)^imp(?:o|or)?$\n", "", lowered)
+
     # Telegram-Mac's oldest files import the pre-rename macOS module names;
     # rewrite them to the modern packages the mirror provides.
     for legacy, modern in (
