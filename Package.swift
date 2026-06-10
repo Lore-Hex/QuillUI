@@ -2418,6 +2418,17 @@ if quillUILinuxBuildBackend == .qt {
             dependencies: ["QuillFoundation"],
             path: "Sources/QuillUIKit"
         ),
+        // Inert GTK-free Apple-framework shims the AppKit shadow
+        // (appKitShadowDependencies) and the Cocoa umbrella below now
+        // re-export. The default/GTK graph gets these from the
+        // signalAppleFrameworkShims loop, which this replacement list bypasses.
+        .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
+        .target(name: "Metal", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/Metal"),
+        .target(name: "QuartzCore", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/QuartzCore"),
+        .target(name: "CoreVideo", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/CoreVideo"),
+        .target(name: "ImageIO", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/ImageIO"),
+        .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
+        .target(name: "CoreImage", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreImage"),
         .target(
             name: "AppKit",
             dependencies: appKitShadowDependencies,
