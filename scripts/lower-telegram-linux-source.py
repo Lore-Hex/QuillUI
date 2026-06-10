@@ -703,10 +703,20 @@ def main() -> None:
         raise SystemExit("usage: lower-telegram-linux-source.py PACKAGE_DIR")
 
     package_dir = Path(sys.argv[1])
-    sources_dir = package_dir / "Sources"
-    search_root = sources_dir if sources_dir.exists() else package_dir
+    # Packages keep Objective-C public headers OUTSIDE Sources/ (e.g. Stripe's
+    # PublicHeaders/ carries __nonnull annotations), so lower those roots too.
+    search_roots = [
+        candidate
+        for candidate in (package_dir / "Sources", package_dir / "PublicHeaders", package_dir / "include")
+        if candidate.exists()
+    ] or [package_dir]
 
-    for swift_file in sorted(search_root.rglob("*.swift")):
+    def walk(suffixes):
+        for root in search_roots:
+            for suffix in suffixes:
+                yield from root.rglob(suffix)
+
+    for swift_file in sorted(walk(("*.swift",))):
         try:
             text = swift_file.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -715,9 +725,7 @@ def main() -> None:
         if lowered != text:
             swift_file.write_text(lowered, encoding="utf-8")
 
-    for objc_file in sorted(
-        path for suffix in ("*.h", "*.m", "*.mm") for path in search_root.rglob(suffix)
-    ):
+    for objc_file in sorted(walk(("*.h", "*.m", "*.mm"))):
         try:
             text = objc_file.read_text(encoding="utf-8")
         except UnicodeDecodeError:
