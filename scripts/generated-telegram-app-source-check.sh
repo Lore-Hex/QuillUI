@@ -64,6 +64,8 @@ mirror_root = sys.argv[1]
 dep_re = re.compile(r'(\.package\(name:\s*"[^"]+",\s*path:\s*")([^"]+)(")')
 
 for dirpath, dirnames, filenames in os.walk(mirror_root, followlinks=False):
+    # SwiftPM scratch/checkout trees are read-only and not ours to rewrite.
+    dirnames[:] = [d for d in dirnames if d != '.build']
     if 'Package.swift' not in filenames:
         continue
     manifest_path = os.path.join(dirpath, 'Package.swift')

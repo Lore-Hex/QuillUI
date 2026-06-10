@@ -126,6 +126,33 @@ def insert_target_products(manifest: str, products: list[str]) -> str:
     return "\n".join(output) + ("\n" if manifest.endswith("\n") else "")
 
 
+PRODUCT_ATTRIBUTION_RE = re.compile(
+    r'\.product\(name:\s*"([A-Za-z0-9_]+)",\s*package:\s*"([A-Za-z0-9_]+)"'
+)
+PACKAGE_DECLARATION_RE = re.compile(r'\.package\(name:\s*"([A-Za-z0-9_]+)"')
+
+
+def fix_product_package_attribution(manifest: str) -> str:
+    """Repair upstream product->package mis-attributions.
+
+    Upstream manifests occasionally attribute a product to a sibling package
+    that merely re-exports it (e.g. InAppPurchaseManager declares
+    `.product(name: "TGUIKit", package: "Postbox")`). Isolated package-island
+    builds tolerate that; a unified dependency graph rejects it. When the
+    product name matches a package the manifest itself declares, attribute the
+    product to that package.
+    """
+    declared = set(PACKAGE_DECLARATION_RE.findall(manifest))
+
+    def repair(match: "re.Match[str]") -> str:
+        product, package = match.group(1), match.group(2)
+        if product != package and product in declared:
+            return f'.product(name: "{product}", package: "{product}"'
+        return match.group(0)
+
+    return PRODUCT_ATTRIBUTION_RE.sub(repair, manifest)
+
+
 def main() -> None:
     if len(sys.argv) != 3:
         raise SystemExit("usage: patch-telegram-package-manifest.py PACKAGE_DIR QUILLUI_ROOT")
@@ -133,12 +160,17 @@ def main() -> None:
     package_dir = Path(sys.argv[1])
     quill_root = sys.argv[2]
     manifest_path = package_dir / "Package.swift"
-    products = imported_products(package_dir)
-    if not products:
-        return
 
     manifest = manifest_path.read_text(encoding="utf-8")
-    manifest = insert_quill_dependency(manifest, quill_root)
+    repaired = fix_product_package_attribution(manifest)
+
+    products = imported_products(package_dir)
+    if not products:
+        if repaired != manifest:
+            manifest_path.write_text(repaired, encoding="utf-8")
+        return
+
+    manifest = insert_quill_dependency(repaired, quill_root)
     manifest = insert_target_products(manifest, products)
     manifest_path.write_text(manifest, encoding="utf-8")
 

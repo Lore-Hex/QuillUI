@@ -1,6 +1,9 @@
 import Foundation
 
-#if canImport(CoreText)
+// !os(Linux): the Telegram/Qt graphs build an inert CoreText shim module into
+// the same scratch directory, which can flip canImport(CoreText) true on
+// Linux; QuillPaint must keep its native Linux text stack regardless.
+#if canImport(CoreText) && !os(Linux)
 import CoreText
 #endif
 
@@ -85,7 +88,7 @@ public enum MacFontResolution {
     }
 
     public static func installedFontFamilies() -> Set<String> {
-        #if canImport(CoreText)
+        #if canImport(CoreText) && !os(Linux)
         let names = CTFontManagerCopyAvailableFontFamilyNames() as NSArray
         return Set(names.compactMap { $0 as? String })
         #elseif os(Linux)
@@ -117,7 +120,7 @@ public enum PaintTextMetrics {
             return PaintSize(width: 0, height: lineHeight(for: font))
         }
 
-        #if canImport(CoreText)
+        #if canImport(CoreText) && !os(Linux)
         let line = CTLineCreateWithAttributedString(
             NSAttributedString(
                 string: string,
@@ -141,7 +144,7 @@ public enum PaintTextMetrics {
     }
 
     public static func lineHeight(for font: PaintFont) -> Double {
-        #if canImport(CoreText)
+        #if canImport(CoreText) && !os(Linux)
         let ctFont = coreTextFont(from: font)
         return ceil(Double(CTFontGetAscent(ctFont) + CTFontGetDescent(ctFont) + CTFontGetLeading(ctFont)))
         #else
@@ -150,7 +153,7 @@ public enum PaintTextMetrics {
     }
 }
 
-#if canImport(CoreText)
+#if canImport(CoreText) && !os(Linux)
 private func coreTextFont(from font: PaintFont) -> CTFont {
     let resolved = MacFontResolution.resolve(font)
     let traits: [String: Any] = [
