@@ -191,6 +191,28 @@ let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/
 // against the repo's SwiftUI shim + IceCubesShims. See fetch-upstream.sh.
 let iceCubesUpstreamPresent: Bool = upstreamPresent(".upstream/icecubes/Packages/Models/Sources/Models")
 
+// The vendored-IceCubes Linux graph (Models → … → IceCubesLinuxApp) builds
+// under gtk (default) and — for the dual-backend mission — under qt when the
+// generic SwiftOpenUI→Qt backend is enabled (QUILLUI_QT_GENERIC=1). The plain
+// qt build resets the target graph and never sees these targets.
+#if os(Linux)
+let iceCubesLinuxGraphEnabled = iceCubesUpstreamPresent
+    && (quillUILinuxBuildBackend == .gtk
+        || (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled))
+
+// The SwiftUI shim renders through exactly one backend: BackendGTK4 (a
+// SwiftOpenUI product) by default, or the in-package BackendQt target under
+// the qt-generic dual-backend path. The plain qt build resets the target
+// graph and never builds the shim, so its dormant BackendGTK4 reference is
+// unchanged there.
+let swiftUIShimBackendDependency: Target.Dependency =
+    (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled)
+    ? "BackendQt"
+    : .product(name: "BackendGTK4", package: "SwiftOpenUI")
+#else
+let iceCubesLinuxGraphEnabled = false
+#endif
+
 enum QuillCanonicalLinuxAppQtRuntime {
     case genericQtNative
     case wireGuardQtNative
@@ -413,7 +435,7 @@ let appSwiftSettings: [SwiftSetting] = [
 var quillIceCubesCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillFoundation"]
 var quillIceCubesCoreSwiftSettings: [SwiftSetting] = appSwiftSettings
 #if os(Linux)
-if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
+if iceCubesLinuxGraphEnabled {
     quillIceCubesCoreDependencies.append("Models")
     quillIceCubesCoreSwiftSettings.append(.define("ICECUBES_REAL_MODELS"))
 }
@@ -1936,7 +1958,7 @@ targets.append(contentsOf: [
             "UIKit",
             "CoreImage",
             "CoreTransferable",
-            .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+            swiftUIShimBackendDependency,
         ],
         path: "Sources/SwiftUIShim",
         swiftSettings: quillUIGTKSwiftImporterSettings
@@ -2160,7 +2182,7 @@ allPackageDependencies.append(
 // HTMLString. Scoped to the gtk Linux build: the qt-native product build
 // evaluates the manifest with a trimmed dependency set that can't resolve
 // SwiftSoup, and the Models target isn't a dependency of any qt app anyway.
-if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
+if iceCubesLinuxGraphEnabled {
 allPackageDependencies.append(
     .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.4.3")
 )
@@ -2201,12 +2223,7 @@ allPackageDependencies += [
 // for a native Qt-only smoke app.
 #if os(Linux)
 if quillUILinuxBuildBackend == .qt {
-    products = quillCanonicalLinuxAppProducts + [
-        .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
-        .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
-    ]
-    allPackageDependencies = quillDataPackageDependencies
-    targets = [
+    let qtGraphTargets: [Target] = [
         cSQLiteTarget,
         quillDataMacroTarget,
         quillDataTarget,
@@ -2331,18 +2348,42 @@ if quillUILinuxBuildBackend == .qt {
         )
     ] + quillCanonicalLinuxApps.map(quillCanonicalLinuxAppQtTarget)
 
+    if quillUIQtGenericEnabled {
+        // IceCubes-on-Qt path (QUILLUI_QT_GENERIC=1): the upstream IceCubes app's
+        // ~80-target closure lives in the COMMON Linux shim graph, so keep it and
+        // APPEND the qt-native graph instead of resetting. Name collisions
+        // (QuillKit, QuillFoundation, …) keep their common-graph definitions —
+        // only icecubes-linux-app is supported under the flag; the 9 canonical
+        // apps remain the flag-off (reset) build's concern. SwiftOpenUI also
+        // stays in allPackageDependencies (no reset), so it is NOT re-added here.
+        products += [
+            .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
+            .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
+        ]
+        let existingTargetNames = Set(targets.map(\.name))
+        targets += qtGraphTargets.filter { !existingTargetNames.contains($0.name) }
+    } else {
+        // Canonical Qt build: byte-for-byte the historical reset. Qt builds must
+        // not load the GTK/SwiftOpenUI graph — SwiftPM evaluates dependency
+        // manifests before target planning, so keeping SwiftOpenUI in the package
+        // dependency list is enough to pull in its GTK pkg-config warnings even
+        // for a native Qt-only smoke app.
+        products = quillCanonicalLinuxAppProducts + [
+            .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
+            .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
+        ]
+        allPackageDependencies = quillDataPackageDependencies
+        targets = qtGraphTargets
+    }
+
     // --- Generic SwiftUI→Qt backend (BackendQt), opt-in via QUILLUI_QT_GENERIC ---
     //
     // Everything below is gated so the default Qt build is unchanged. When the
-    // flag is on we (1) re-add SwiftOpenUI to the Qt dependency graph, (2) add a
-    // CQtBridge C++ wrapper, the BackendQt Swift renderer, and a sibling
-    // quill-qt-generic-smoke executable that renders a REAL SwiftUI tree through
-    // QtBackend().run(QtSmokeApp.self). The 9 production apps keep their existing
-    // per-app C++ shims and are not touched.
+    // flag is on we add a CQtBridge C++ wrapper, the BackendQt Swift renderer,
+    // and a sibling quill-qt-generic-smoke executable that renders a REAL
+    // SwiftUI tree through QtBackend().run(QtSmokeApp.self). The 9 production
+    // apps keep their existing per-app C++ shims and are not touched.
     if quillUIQtGenericEnabled {
-        allPackageDependencies.append(
-            .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI")
-        )
         targets += [
             .target(
                 name: "CQtBridge",
@@ -2723,7 +2764,7 @@ let packageTestTargets: [Target] = {
 // resolve against the repo `SwiftUI` shim + the auto-imported IceCubesShims
 // (LocalizedStringKey, RelativeDateTimeFormatter, AttributedString markdown).
 #if os(Linux)
-if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
+if iceCubesLinuxGraphEnabled {
     products.append(.executable(name: "icecubes-linux-app", targets: ["IceCubesLinuxApp"]))
 
     targets += [
