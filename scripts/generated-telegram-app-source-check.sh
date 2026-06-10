@@ -109,7 +109,6 @@ manifest="$app_dir/Package.swift"
   printf '%s\n' '                .product(name: "WebKit", package: "QuillUI"),'
   printf '%s\n' '                .product(name: "AVFoundation", package: "QuillUI"),'
   printf '%s\n' '                .product(name: "Accelerate", package: "QuillUI"),'
-  printf '%s\n' '                .product(name: "LocalAuthentication", package: "QuillUI"),'
   printf '%s\n' '                .product(name: "CoreSpotlight", package: "QuillUI"),'
   printf '%s\n' '                .product(name: "Vision", package: "QuillUI"),'
   for package_name in "${app_packages[@]}"; do

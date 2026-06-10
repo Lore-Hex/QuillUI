@@ -425,8 +425,13 @@ let appSwiftSettings: [SwiftSetting] = [
 
 #if os(Linux)
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
+// The vendored RSCore Cache.swift imports os for OSAllocatedUnfairLock; on
+// Linux that resolves to the os shim (one canonical lock type — a module-local
+// polyfill would be ambiguous wherever both modules are visible).
+let quillRSCoreShimDependencies: [Target.Dependency] = ["os"]
 #else
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
+let quillRSCoreShimDependencies: [Target.Dependency] = []
 #endif
 
 // QuillIceCubesCore consumes the real vendored Models when present (gtk-Linux);
@@ -936,7 +941,7 @@ var targets: [Target] = [
     // and Linux unchanged.
     .target(
         name: "QuillRSCoreShim",
-        dependencies: [],
+        dependencies: quillRSCoreShimDependencies,
         swiftSettings: appSwiftSettings
     ),
     // Vendored Ranchero-Software/NetNewsWire RSParser sources
