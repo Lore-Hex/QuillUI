@@ -925,6 +925,7 @@ var targets: [Target] = [
     // resolves to it verbatim. Grows toward real RSWeb as Account needs more.
     .target(
         name: "RSWeb",
+        dependencies: ["QuillRSCoreShim"],
         path: "Sources/QuillRSWebShim",
         swiftSettings: appSwiftSettings
     ),
@@ -2589,7 +2590,7 @@ let packageTestTargets: [Target] = {
         // RSWeb. Foundation-only surface.
         .testTarget(
             name: "QuillRSWebShimTests",
-            dependencies: ["RSWeb"],
+            dependencies: ["RSWeb", "QuillRSCoreShim"],
             swiftSettings: appSwiftSettings
         ),
         // Smoke tests for the vendored upstream RSParser. Pins
