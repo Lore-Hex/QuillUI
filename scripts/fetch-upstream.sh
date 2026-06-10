@@ -854,6 +854,44 @@ open(path, "w").write(src.replace('class ErrorPresenter: ErrorPresenterProtocol 
 print("patched ErrorPresenter @MainActor")
 PY
     fi
+
+    # The QuillAppKit shadow's NSResponder declares `open func copy(_:)` (the
+    # Telegram pasteboard surface), so LogViewController's responder-chain
+    # `copy(_:)` is an override on Linux but not on real AppKit. Split the
+    # declaration per platform; the original body moves into a helper.
+    local lvc="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController/LogViewController.swift"
+    if [[ -f "$lvc" ]] && ! grep -q 'quillCopySelectedLogLines' "$lvc"; then
+        echo "==> patching LogViewController.swift copy(_:) override split"
+        python3 - "$lvc" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+# The Linux lowering strips @objc before this patch runs on Linux fetches,
+# so match either form of the signature.
+needles = [
+    '    @objc func copy(_ sender: Any?) {\n',
+    '    func copy(_ sender: Any?) {\n',
+]
+needle = next((n for n in needles if n in src), None)
+assert needle is not None, "LogViewController copy(_:) signature not found"
+replacement = (
+    '    #if os(Linux)\n'
+    '    // NSResponder.copy(_:) is nonisolated in the QuillAppKit shadow; the\n'
+    '    // responder chain invokes it on the main thread, so bridge into the\n'
+    '    // MainActor-isolated view-controller helper.\n'
+    '    override func copy(_ sender: Any?) {\n'
+    '        MainActor.assumeIsolated { quillCopySelectedLogLines(sender) }\n'
+    '    }\n'
+    '    #else\n'
+    + needle +
+    '        quillCopySelectedLogLines(sender)\n'
+    '    }\n'
+    '    #endif\n'
+    '    private func quillCopySelectedLogLines(_ sender: Any?) {\n'
+)
+open(path, "w").write(src.replace(needle, replacement, 1))
+print("patched LogViewController copy(_:) override split")
+PY
+    fi
 }
 
 patch_icecubes() {
