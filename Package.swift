@@ -362,7 +362,25 @@ products += [
     .library(name: "Metal", targets: ["Metal"]),
     .library(name: "MetalKit", targets: ["MetalKit"]),
     .library(name: "MetalPerformanceShaders", targets: ["MetalPerformanceShaders"]),
-    .library(name: "StoreKit", targets: ["StoreKit"])
+    .library(name: "StoreKit", targets: ["StoreKit"]),
+    // Telegram-Mac app-target products.
+    .library(name: "AVKit", targets: ["AVKit"]),
+    .library(name: "Quartz", targets: ["Quartz"]),
+    .library(name: "QuickLook", targets: ["QuickLook"]),
+    .library(name: "Contacts", targets: ["Contacts"]),
+    .library(name: "OSLog", targets: ["OSLog"]),
+    .library(name: "AppIntents", targets: ["AppIntents"]),
+    .library(name: "CoreMediaIO", targets: ["CoreMediaIO"]),
+    .library(name: "MapKit", targets: ["MapKit"]),
+    .library(name: "SceneKit", targets: ["SceneKit"]),
+    .library(name: "Firebase", targets: ["Firebase"]),
+    .library(name: "FirebaseCrashlytics", targets: ["FirebaseCrashlytics"]),
+    .library(name: "Lottie", targets: ["Lottie"]),
+    .library(name: "TdBinding", targets: ["TdBinding"]),
+    .library(name: "UserNotifications", targets: ["UserNotifications"]),
+    .library(name: "CoreServices", targets: ["CoreServices"]),
+    .library(name: "LocalAuthentication", targets: ["LocalAuthentication"]),
+    .library(name: "Zip", targets: ["Zip"])
 ]
 #endif
 
@@ -1879,6 +1897,10 @@ let signalAppleFrameworkShims = [
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio", "CoreVideo", "CoreMedia", "VideoToolbox", "IOSurface",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
     "ObjCAssoc", "System", "notify",
+    // Telegram-Mac app-target surface (scripts/generated-telegram-app-source-check.sh).
+    // NOTE: "Contacts" is NOT here — Sources/ContactsShim already declares it.
+    "Quartz", "QuickLook", "OSLog", "AppIntents", "CoreMediaIO",
+    "MapKit", "SceneKit", "Firebase", "FirebaseCrashlytics", "Lottie", "TdBinding",
     // NOTE: "zlib" is intentionally NOT here — it's a real systemLibrary
     // (cZlibTarget, links libz) rather than an inert Swift shim, so it's added to
     // SignalServiceKit's dependencies explicitly below.
@@ -1905,6 +1927,10 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "CoreMedia", "CoreVideo"]
     case "QuartzCore":
         dependencies = ["QuillFoundation", "Metal"]
+    case "Quartz":
+        dependencies = ["QuillFoundation", "QuartzCore"]
+    case "OSLog":
+        dependencies = ["os"]
     case "IOSurface":
         dependencies = ["QuillFoundation", "CoreVideo"]
     default:
@@ -2124,6 +2150,7 @@ targets.append(contentsOf: [
     // LocalAuthentication shim — LAContext/LAPolicy/LAError so WireGuard's
     // PrivateDataConfirmation (key-reveal gate) recompiles; no auth backend on Linux.
     .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
+    .target(name: "AVKit", dependencies: ["SwiftUI", "AVFoundation"], path: "Sources/AVKit"),
     .testTarget(name: "LocalAuthenticationTests", dependencies: ["LocalAuthentication"], path: "Tests/LocalAuthenticationTests"),
     // WireGuardKitGo Linux stub — the wireguard-go cgo bridge (Go engine not built here);
     // lets WireGuardKit's WireGuardAdapter recompile. Compile-faithful, never runs on Linux.

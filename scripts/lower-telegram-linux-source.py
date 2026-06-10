@@ -189,6 +189,22 @@ def lower_thread_selector_multiline(match: re.Match[str]) -> str:
 
 def lower_swift_source(text: str) -> str:
     lowered = text
+    # Telegram-Mac's oldest files import the pre-rename macOS module names;
+    # rewrite them to the modern packages the mirror provides.
+    for legacy, modern in (
+        ("TelegramCoreMac", "TelegramCore"),
+        ("PostboxMac", "Postbox"),
+        ("SwiftSignalKitMac", "SwiftSignalKit"),
+        ("MtProtoKitMac", "MtProtoKit"),
+        ("TelegramApiMac", "TelegramApi"),
+        ("SyncCore", "TelegramCore"),
+    ):
+        lowered = re.sub(
+            rf"^(\s*)import {legacy}\b",
+            rf"\1import {modern}",
+            lowered,
+            flags=re.MULTILINE,
+        )
 
     if "os(macOS)" in lowered:
         lowered = re.sub(
