@@ -1328,6 +1328,101 @@ several CI/packaging lessons worth keeping:
 
 ---
 
+## Parallel fan-out method (the SSK tail, 40 unique root causes)
+
+The whole remaining ~1952-error tail was just **~40 unique error MESSAGES**
+(`grep -E ': error:' /tmp/ssk.log | sed 's#/qui/##' | sort -u`). Workflow:
+dump all unique messages -> group into independent clusters -> design patches
+in a **Workflow** (one agent per cluster; embed the error + ±7-line source +
+the relevant existing shim surface IN THE PROMPT, since workflow subagents
+CANNOT read this repo; return schema-structured edits) -> apply ALL via one
+python applier with `assert count==N` per edit -> ONE batched build to verify
+OWN-empty + each target->0 -> triage regressions. One batch cleared 25 of 40.
+
+## Linux-corelibs gotchas (this batch)
+
+- **URLRequest / URLSession / URLResponse live in `FoundationNetworking` on
+  Linux**, not Foundation. A port/shim file using them needs
+  `#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif`
+  (else "cannot find type 'URLRequest'").
+- `nonisolated static let X = T()` on a `@MainActor` class needs a
+  `nonisolated init` too, or the default value can't be evaluated off-main
+  ("main actor-isolated default value in a nonisolated context").
+- `NSTextCheckingResult` has NO data-detector accessors on corelibs — add inert
+  `.url/.date/.components` (always nil; data detection is absent). But the
+  transit `NSTextCheckingKey.airline/.flight` keys are **internal** in corelibs
+  -> can't reference them -> gate that block `#if !os(Linux)` (dead on Linux).
+- **Timer is block-only on corelibs**: no `Timer(timeInterval:target:selector:
+  userInfo:repeats:)` / `scheduledTimer(...)` target-selector overloads and no
+  `perform`/Selector dispatch. Fix internal proxies (WeakTimer,
+  StorageServiceManager) by gating to the block-based timer
+  (`Timer.scheduledTimer(withTimeInterval:repeats:){ ... }`, strong-capture the
+  proxy/self to match the original retain). `NSTimer+OWS`'s public
+  `weakScheduledTimer`/`weakTimer` are `@available(swift, obsoleted: 1)` =
+  ObjC-only -> dead on Linux (ObjC excluded) -> make `TimerProxy.timerFired`
+  inert under `#if os(Linux)`.
+- `Data.WritingOptions.atomicWrite` -> alias `.atomic`. `UserDefaults.setValue`
+  (KVC) -> forward to `set(_:forKey:)`. `NSCoder.encodeCInt` -> `encode(Int32)`.
+  `NSURLSessionDownloadTaskResumeData` global const absent -> define it.
+  `NotificationCenter.notifications(named:)` async seq absent -> AsyncStream
+  over `addObserver`. `LAContext.evaluatePolicy` async overload -> bridge the
+  callback via `withCheckedThrowingContinuation`. `vDSP_desamp` -> faithful
+  FIR-decimation Swift port (vDSP_Stride/vDSP_Length already in Accelerate.swift).
+  `SecTrustSetPolicies(_, CFTypeRef)` -> widen param to `Any` (corelibs
+  `CFArray == Array<Any>`, not class-constrained).
+- **DEFERRED**: GRDB `Filter.operator` typed `(any SQLSpecificExpressible,
+  SQLExpressible?) -> SQLExpression` — passing `==` (or `{ $0 == $1 }`) fails
+  "`any SQLSpecificExpressible` cannot conform to itself"; needs `Filter` made
+  generic. PassKit `PKContact` is cross-module (its `phoneNumber`/`postalAddress`
+  are Contacts `CNPhoneNumber`/`CNPostalAddress`) -> define `PKContact` in the
+  SSK module (`SignalServiceKitObjCPort`, importing Contacts+PassKit), de-finalize
+  `PKPaymentSummaryItem` so `PKRecurringPaymentSummaryItem` can subclass it, and
+  `PKPayment.billingContact` as a computed `{ nil }` extension (inert).
+
+---
+
+## MILESTONES: SSK compiles to 0, and the toolchain RUNS
+
+### STEP C: GRDB storage engine runs at runtime
+A bare in-memory GRDB roundtrip (open `DatabaseQueue`, CREATE/INSERT/SELECT) runs on
+QuillOS Linux from the signal-smoke exe -- SSK's SQLite persistence engine executes,
+not just crypto. The full Signal schema migration is the next frontier (its entry
+points -- migrateDatabase(databaseStorage:)/runIncrementalMigrations(databaseWriter:)/
+registerSchemaMigrations -- are internal/private/`#if TESTABLE_BUILD`).
+
+The real signalapp/Signal-iOS **SignalServiceKit compiles to 0 errors** on QuillOS
+(aarch64 Linux, swift-corelibs-foundation) against QuillUI's Apple-framework shims +
+real libsignal (~4880 -> 0 over this effort). And a **`signal-smoke` executable runs**:
+it links SignalServiceKit + the 194MB `libsignal_ffi.a` Rust core and executes a pure
+libsignal primitive (`IdentityKeyPair.generate()` -> 69-byte keypair, exit 0). HONEST:
+in-memory crypto only -- no DB, no network, no account.
+
+### Smallest-milestone exe recipe (3 essential parts)
+1. **libsignal testing-gate** -- LibSignalClient's "testing endpoints" (FakeChat / OTP /
+   comparable-backup helpers) are gated `#if !os(iOS) || targetEnvironment(simulator)`
+   ("not generated in device builds, to save code size"). On Linux `!os(iOS)` is true so
+   they compile and reference `signal_testing_*` FFI symbols ABSENT from the **release**
+   `libsignal_ffi.a` -> undefined-symbol at link. Narrow the gate to
+   `#if (!os(iOS) || targetEnvironment(simulator)) && !os(Linux)` in
+   ChatServiceTypes.swift / ComparableBackup.swift / Net.swift / ChatConnection+Fake.swift
+   (durable: `patch_libsignal()` in scripts/fetch-upstream.sh, mirroring patch_signal_ios
+   -- signal/libsignal are dev-only, manually provisioned, not CI-fetched).
+2. **lld linker** -- the default bfd linker OOMs ("clang: error: unable to execute
+   command: Killed") linking the 194MB `libsignal_ffi.a`; `ld.lld` links it in ~44s. Bake
+   `linkerSettings: [.unsafeFlags(["-use-ld=lld"])]` into the exe target so a plain
+   `swift build` works (no -Xswiftc needed).
+3. **exe target** -- `.executableTarget(name: "signal-smoke", dependencies:
+   ["SignalServiceKit", "LibSignalClient"], ...)` inside the
+   `if signalUpstreamPresent && libsignalUpstreamPresent` block (Linux+upstream gated, so
+   absent from CI / fresh checkouts -- CI doesn't build SSK or the exe).
+
+An exe depending on SignalServiceKit transitively links LibSignalClient -> SignalFfi, whose
+module.modulemap does `link "signal_ffi"`; the `-L.upstream/libsignal/target/release` flag
+on LibSignalClient supplies the .a path. The .a is only needed when a downstream exe/test
+links (the SSK *target* alone compiles without resolving it).
+
+---
+
 ## Pointers
 
 - `SIGNAL_PORT.md` — chronology + "Historical: abandoned Signal-iOS compile"

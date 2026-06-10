@@ -67,10 +67,18 @@ let package = Package(
 )
 SWIFT
 
-exec swift run \
-  --package-path "$TOOL_PACKAGE_DIR" \
-  --scratch-path "$TOOL_SCRATCH_PATH" \
-  --disable-sandbox \
+swift_run_args=(
+  run
+  --package-path "$TOOL_PACKAGE_DIR"
+  --scratch-path "$TOOL_SCRATCH_PATH"
+  --disable-index-store
+  --disable-sandbox
+)
+if [[ "${QUILLUI_SWIFT_JOBS:-}" =~ ^[0-9]+$ && "${QUILLUI_SWIFT_JOBS:-}" -gt 0 ]]; then
+  swift_run_args+=(--jobs "$QUILLUI_SWIFT_JOBS")
+fi
+
+exec swift "${swift_run_args[@]}" \
   quill-source-lower \
   "$SOURCE_DIR" \
   "$OUTPUT_DIR"

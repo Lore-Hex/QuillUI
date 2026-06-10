@@ -19,6 +19,15 @@ extension NSCoder {
         return decodeObject(forKey: key) as? [K: V]
     }
 
+    // swift-corelibs NSCoder lacks the legacy `encodeCInt(_:forKey:)` convenience
+    // (a 32-bit-int writer). It does have `encode(_ value: Int32, forKey:)`, and
+    // the matching decode side reads back with `decodeInt32(forKey:)`. Forward to
+    // the Int32 overload so the encode/decode roundtrip stays symmetric. Sole
+    // caller: OWSProfileManager userProfileWriter encode.
+    func encodeCInt(_ value: Int32, forKey key: String) {
+        encode(value, forKey: key)
+    }
+
     // swift-corelibs NSCoder has the `UnsafePointer<UInt8>?` overload of
     // encodeBytes but not the raw-pointer one. NSSecureCoding encoders write
     // `data.withUnsafeBytes { coder.encodeBytes($0.baseAddress, ...) }`, and

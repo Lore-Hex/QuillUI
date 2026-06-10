@@ -1187,6 +1187,240 @@ subs = [
             options: [],
         )''',
      '''let value = [nameComponents.givenName, nameComponents.familyName].compactMap { $0 }.joined(separator: " ")'''),
+    # GRDBSchemaMigrator: expose a public schema-only migration entry that calls
+    # the private _runIncrementalMigrations, so the headless smoke exe can run
+    # Signal's full schema migration on a plain DatabaseWriter (no SDSDatabaseStorage).
+    ('''        return try runIncrementalMigrations(databaseStorage: databaseStorage, runDataMigrations: runDataMigrations)
+    }
+''',
+     '''        return try runIncrementalMigrations(databaseStorage: databaseStorage, runDataMigrations: runDataMigrations)
+    }
+
+    public static func quillRunSchemaMigrations(on databaseWriter: some DatabaseWriter) throws {
+        _ = try _runIncrementalMigrations(databaseWriter: databaseWriter, runDataMigrations: false)
+    }
+'''),
+    # Bundle.bundleIdPrefix owsFailDebug()s (fatal in debug) when the Info.plist key
+    # OWSBundleIDPrefix is missing. A headless QuillOS exe has no Info.plist, and the
+    # default "org.whispersystems" is correct -- gate the failDebug out on Linux.
+    ('''        } else {
+            owsFailDebug("Missing Info.plist entry for OWSBundleIDPrefix")
+            return "org.whispersystems"
+        }''',
+     '''        } else {
+            #if !os(Linux)
+            owsFailDebug("Missing Info.plist entry for OWSBundleIDPrefix")
+            #endif
+            // Headless QuillOS has no Info.plist; the default prefix is correct.
+            return "org.whispersystems"
+        }'''),
+    # AttachmentValidationBackfillMigrator.Filter.operator: existential `any
+    # SQLSpecificExpressible` can't conform to itself on Swift 6, so the generic GRDB
+    # `==` won't coerce. The sole caller passes a concrete Column -> narrow the lhs to
+    # Column so `==` instantiates with T==Column (which conforms).
+    ('''        let `operator`: (_ lhs: SQLSpecificExpressible, _ rhs: SQLExpressible?) -> SQLExpression''',
+     '''        // QuillOS/Linux Swift 6: the existential `any SQLSpecificExpressible` cannot
+        // conform to itself, so passing the generic GRDB `==` to a closure typed with an
+        // existential lhs is rejected (`type 'any SQLSpecificExpressible' cannot conform
+        // to 'SQLSpecificExpressible'`). The sole caller passes a concrete `Column`
+        // (line ~318: `columnFilter.operator(Column(columnFilter.column), value)`), so
+        // narrow the lhs to `Column`; `==` then instantiates with T == Column, which
+        // conforms. Faithful (all column filters use a Column), macOS-unaffected.
+        let `operator`: (_ lhs: Column, _ rhs: SQLExpressible?) -> SQLExpression'''),
+    # Timer target/selector cluster: swift-corelibs Timer has only block-based
+    # init/scheduledTimer + no perform/selector dispatch. Gate each site #if os(Linux)
+    # to the block-based timer (NSTimer+OWS proxy is inert -- ObjC-only/dead on Linux).
+    ('''        _ = target.perform(selector, with: timer)''',
+     '''        #if os(Linux)
+        // ObjC selector dispatch (perform) is unavailable on swift-corelibs (no ObjC
+        // runtime). weakScheduledTimer/weakTimer are @available(swift, obsoleted: 1) --
+        // callable only from ObjC, which is excluded on Linux -- so this proxy is never
+        // exercised on QuillOS. Inert.
+        _ = (target, selector, timer)
+        #else
+        _ = target.perform(selector, with: timer)
+        #endif'''),
+    ('''        return Timer.scheduledTimer(timeInterval: timeInterval, target: proxy, selector: Selector("timerFired(_:)"), userInfo: userInfo, repeats: repeats)''',
+     '''        #if os(Linux)
+        // corelibs Timer has no target/selector overload; use the block-based timer.
+        // proxy is strongly captured to keep it alive (the real Timer would retain it).
+        return Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: repeats) { timer in proxy.timerFired(timer) }
+        #else
+        return Timer.scheduledTimer(timeInterval: timeInterval, target: proxy, selector: Selector("timerFired(_:)"), userInfo: userInfo, repeats: repeats)
+        #endif'''),
+    ('''        return Timer(timeInterval: timeInterval, target: proxy, selector: Selector("timerFired(_:)"), userInfo: userInfo, repeats: repeats)''',
+     '''        #if os(Linux)
+        return Timer(timeInterval: timeInterval, repeats: repeats) { timer in proxy.timerFired(timer) }
+        #else
+        return Timer(timeInterval: timeInterval, target: proxy, selector: Selector("timerFired(_:)"), userInfo: userInfo, repeats: repeats)
+        #endif'''),
+    ('''        self.timer = Timer.scheduledTimer(
+            timeInterval: timeInterval,
+            target: self,
+            selector: Selector("fire"),
+            userInfo: userInfo,
+            repeats: repeats,
+        )''',
+     '''        #if os(Linux)
+        // swift-corelibs Timer has no target/selector overload (no ObjC dispatch); use
+        // the block-based scheduledTimer. self is strongly captured so the timer keeps
+        // this WeakTimer alive (matching the original, where the Timer retained the
+        // target); the weak `target` check in fire(timer:) is preserved.
+        self.timer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: repeats) { timer in
+            self.fire(timer: timer)
+        }
+        #else
+        self.timer = Timer.scheduledTimer(
+            timeInterval: timeInterval,
+            target: self,
+            selector: Selector("fire"),
+            userInfo: userInfo,
+            repeats: repeats,
+        )
+        #endif'''),
+    ('''        let timer = Timer(
+            timeInterval: StorageServiceManagerImpl.backupDebounceInterval,
+            target: self,
+            selector: Selector("backupTimerFired(_:)"),
+            userInfo: nil,
+            repeats: false,
+        )''',
+     '''        #if os(Linux)
+        // corelibs Timer has no target/selector overload; use the block-based timer.
+        // self is strongly captured to match the original (Timer retained target: self).
+        let timer = Timer(timeInterval: StorageServiceManagerImpl.backupDebounceInterval, repeats: false) { timer in
+            self.backupTimerFired(timer)
+        }
+        #else
+        let timer = Timer(
+            timeInterval: StorageServiceManagerImpl.backupDebounceInterval,
+            target: self,
+            selector: Selector("backupTimerFired(_:)"),
+            userInfo: nil,
+            repeats: false,
+        )
+        #endif'''),
+    # TextCheckingDataItem transit branch: NSTextCheckingKey.airline/.flight are
+    # internal on swift-corelibs and data detection is unavailable, so the transit
+    # URL-building block is dead on Linux. Gate it #if !os(Linux).
+    ('''                if matchUrl == nil {
+                    guard
+                        let components = match.components,
+                        let airline = components[.airline]?.nilIfEmpty,
+                        let flight = components[.flight]?.nilIfEmpty
+                    else {
+                        Logger.warn("Missing components.")
+                        return nil
+                    }
+                    let query = airline + " " + flight
+                    guard let urlEncodedQuery = query.encodeURIComponent else {
+                        owsFailDebug("Could not URL encode query.")
+                        return nil
+                    }
+                    let urlString = "https://www.google.com/?q=" + urlEncodedQuery
+                    guard let transitUrl = URL(string: urlString) else {
+                        owsFailDebug("Couldn't build transitUrl.")
+                        return nil
+                    }
+                    customUrl = transitUrl
+                }''',
+     '''                #if os(Linux)
+                // Transit-info data detection is unavailable on swift-corelibs
+                // Foundation: NSDataDetector yields no matches and the .airline/.flight
+                // NSTextCheckingKeys are internal there. This branch is dead on Linux,
+                // so the lookup URL is skipped; `guard let url = customUrl ?? matchUrl`
+                // below then drops the (absent) match. Transit data items are a
+                // deferred display feature on QuillOS.
+                _ = matchUrl
+                #else
+                if matchUrl == nil {
+                    guard
+                        let components = match.components,
+                        let airline = components[.airline]?.nilIfEmpty,
+                        let flight = components[.flight]?.nilIfEmpty
+                    else {
+                        Logger.warn("Missing components.")
+                        return nil
+                    }
+                    let query = airline + " " + flight
+                    guard let urlEncodedQuery = query.encodeURIComponent else {
+                        owsFailDebug("Could not URL encode query.")
+                        return nil
+                    }
+                    let urlString = "https://www.google.com/?q=" + urlEncodedQuery
+                    guard let transitUrl = URL(string: urlString) else {
+                        owsFailDebug("Couldn't build transitUrl.")
+                        return nil
+                    }
+                    customUrl = transitUrl
+                }
+                #endif'''),
+    # Contact.fullName: PersonNameComponentsFormatter.localizedString(from:style:) is
+    # unavailable on swift-corelibs-foundation. Join given+family (the .default style).
+    ('''        return PersonNameComponentsFormatter.localizedString(
+            from: components,
+            style: .default,
+        )''',
+     '''        // QuillOS/Linux: swift-corelibs-foundation has no PersonNameComponentsFormatter
+        // formatting (localizedString is @available(*, unavailable)). The .default style
+        // produces "given family", so join the available components to stay faithful.
+        return [components.givenName, components.familyName].compactMap { $0 }.joined(separator: " ")'''),
+    # OWSUrlSession server-trust delegate: NSURLAuthenticationMethodServerTrust,
+    # protectionSpace.serverTrust and URLCredential(trust:) are unavailable on
+    # swift-corelibs-foundation. Gate the Darwin cert-pinning block #if !os(Linux);
+    # on Linux corelibs URLSession does its own system-trust validation.
+    ('''        if
+            challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+            let serverTrust = challenge.protectionSpace.serverTrust
+        {
+            if endpoint.securityPolicy.evaluate(serverTrust: serverTrust, domain: challenge.protectionSpace.host) {
+                credential = URLCredential(trust: serverTrust)
+                disposition = .useCredential
+            } else {
+                disposition = .cancelAuthenticationChallenge
+            }
+        } else {
+            disposition = .performDefaultHandling
+        }''',
+     '''        #if os(Linux)
+        // Custom server-trust pinning relies on the Darwin Security framework and
+        // URLAuthenticationChallenge.serverTrust, which swift-corelibs-foundation
+        // marks unavailable. corelibs URLSession performs standard system-trust TLS
+        // validation itself, so we defer to default handling here. (Cert pinning is
+        // a hardening feature; deferred on QuillOS.)
+        disposition = .performDefaultHandling
+        #else
+        if
+            challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+            let serverTrust = challenge.protectionSpace.serverTrust
+        {
+            if endpoint.securityPolicy.evaluate(serverTrust: serverTrust, domain: challenge.protectionSpace.host) {
+                credential = URLCredential(trust: serverTrust)
+                disposition = .useCredential
+            } else {
+                disposition = .cancelAuthenticationChallenge
+            }
+        } else {
+            disposition = .performDefaultHandling
+        }
+        #endif'''),
+    # HTTPResponse.parseStringEncoding: no String<->CFString bridge on corelibs.
+    # Map common IANA charset names directly to String.Encoding.
+    ('''        let encoding = CFStringConvertIANACharSetNameToEncoding(encodingName as CFString)
+        guard encoding != kCFStringEncodingInvalidId else {
+            return nil
+        }
+        return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))''',
+     '''        // swift-corelibs-foundation lacks the String<->CFString toll-free bridge,
+        // so map the common IANA charset names directly to String.Encoding.
+        switch encodingName.lowercased() {
+        case "utf-8": return .utf8
+        case "utf-16": return .utf16
+        case "iso-8859-1", "latin1": return .isoLatin1
+        case "us-ascii", "ascii": return .ascii
+        case "windows-1252": return .windowsCP1252
+        default: return .utf8
+        }'''),
 ]
 n = 0
 for dp, _d, fs in os.walk(root):
@@ -1280,6 +1514,36 @@ PY
 }
 
 want=("$@")
+patch_libsignal() {
+    # libsignal's LibSignalClient ships "testing endpoints" (FakeChat / OTP /
+    # comparable-backup test helpers) gated `#if !os(iOS) || targetEnvironment(simulator)`
+    # -- compiled for macOS/simulator test builds, EXCLUDED on iOS device builds
+    # "to save on code size". On Linux `!os(iOS)` is true, so they would compile
+    # and reference `signal_testing_*` FFI symbols that are ABSENT from the release
+    # libsignal_ffi.a (cargo build -p libsignal-ffi --release), breaking any
+    # downstream executable/test link (undefined symbol at ld time). QuillOS links
+    # the release .a, so narrow the gate to ALSO exclude Linux (behave like a device
+    # build). Idempotent + self-guarded: only rewrites the un-narrowed gate.
+    local dir="$UPSTREAM_DIR/libsignal/swift/Sources/LibSignalClient"
+    [[ -d "$dir" ]] || return 0
+    python3 - "$dir" <<'PYLS'
+import sys, os
+root = sys.argv[1]
+old = "#if !os(iOS) || targetEnvironment(simulator)"
+new = "#if (!os(iOS) || targetEnvironment(simulator)) && !os(Linux)"
+n = 0
+for f in ("ChatServiceTypes.swift", "ComparableBackup.swift", "Net.swift", "ChatConnection+Fake.swift"):
+    p = os.path.join(root, f)
+    if not os.path.exists(p):
+        continue
+    src = open(p).read()
+    if old in src:
+        open(p, "w").write(src.replace(old, new))
+        n += 1
+print(f"patch_libsignal: narrowed testing-endpoint gate on Linux in {n} file(s)")
+PYLS
+}
+
 if [[ ${#want[@]} -eq 0 ]]; then
     # Default set excludes codeedit/codeeditsymbols. CodeEditSymbols
     # 0.2.3 pulls in a SwiftLintPlugin prebuild command that SwiftPM

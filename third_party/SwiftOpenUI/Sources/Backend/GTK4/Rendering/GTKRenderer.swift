@@ -11,6 +11,11 @@ let gtkSwiftDividerMarker = "gtk-swift-divider"
 /// Marker string for backend-only layout helpers that should not be
 /// considered rendered SwiftOpenUI content by snapshot capture.
 let gtkSwiftLayoutHelperMarker = "gtk-swift-layout-helper"
+/// Marker string for SwiftUI ScrollView widgets that should receive
+/// ScrollViewReader target adjustments.
+let gtkSwiftScrollViewMarker = "gtk-swift-scroll-view"
+/// Marker string for vertical SwiftUI ScrollViews.
+let gtkSwiftVerticalScrollViewMarker = "gtk-swift-vertical-scroll-view"
 
 private func gtkMarkLayoutHelper(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
@@ -25,6 +30,17 @@ private func gtkHasLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: 
 private func gtkSetLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: String) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
     g_object_set_data(gobject, key, UnsafeMutableRawPointer(bitPattern: 1))
+}
+
+private func gtkMarkSwiftUIScrollView(_ widget: UnsafeMutablePointer<GtkWidget>, hasVerticalAxis: Bool) {
+    gtkSetLayoutMarker(widget, key: gtkSwiftScrollViewMarker)
+    if hasVerticalAxis {
+        gtkSetLayoutMarker(widget, key: gtkSwiftVerticalScrollViewMarker)
+    }
+}
+
+private func gtkIsSwiftUIVerticalScrollView(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    gtkHasLayoutMarker(widget, key: gtkSwiftVerticalScrollViewMarker)
 }
 
 private func gtkPropagateSingleChildLayoutMarkers(
@@ -128,6 +144,37 @@ private func gtkTextInputFocusDescriptorContent(
 }
 
 public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil
+public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
+public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil
+public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
+
+private final class GTKTextBindingIdleUpdate {
+    let binding: Binding<String>
+    let value: String
+
+    init(binding: Binding<String>, value: String) {
+        self.binding = binding
+        self.value = value
+    }
+
+    func apply() {
+        if binding.wrappedValue != value {
+            binding.wrappedValue = value
+        }
+    }
+}
+
+private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
+    let context = Unmanaged.passRetained(
+        GTKTextBindingIdleUpdate(binding: binding, value: value)
+    ).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKTextBindingIdleUpdate>.fromOpaque(userData).takeRetainedValue()
+        context.apply()
+        return 0
+    }, context)
+}
 
 // MARK: - GTK rendering protocol
 
@@ -376,10 +423,7 @@ extension TextField: GTKRenderable, GTKDescribable {
         // all changes (typing, paste, programmatic).
         let binding = text
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            // Avoid feedback loop: only set if value actually changed
-            if binding.wrappedValue != newText {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(binding, value: newText)
         }).toOpaque()
 
         g_signal_connect_data(
@@ -399,13 +443,34 @@ extension TextField: GTKRenderable, GTKDescribable {
             GConnectFlags(rawValue: 0)
         )
 
+        // GtkEntry also emits "changed" as a GtkEditable; keep this in sync with
+        // SecureField so user edits always reach SwiftUI bindings before dismissal.
+        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(entry),
+            "changed",
+            unsafeBitCast({ (editable: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<StringClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                let cStr = gtk_editable_get_text(OpaquePointer(editable))!
+                box.closure(String(cString: cStr))
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            changedBox,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<StringClosureBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+
         // Apply text field style from environment
         let textFieldStyleType = getCurrentEnvironment().textFieldStyle
+        var useQuillPaintTextField = false
         switch textFieldStyleType {
         case .plain:
             applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
         case .automatic, .roundedBorder:
-            break // default GTK entry styling
+            useQuillPaintTextField = true
         }
 
         // Wire onSubmit: GtkEntry fires "activate" on Enter key
@@ -429,6 +494,13 @@ extension TextField: GTKRenderable, GTKDescribable {
         }
 
         gtkApplyEnabledState(to: entry)
+        if useQuillPaintTextField,
+           let paintedEntry = quill_gtk_text_field_paint_hook?(
+               OpaquePointer(entry),
+               textFieldStyleType == .roundedBorder
+           ) {
+            return paintedEntry
+        }
         return opaqueFromWidget(entry)
     }
 }
@@ -580,6 +652,112 @@ extension Color: GTKRenderable, GTKDescribable {
     }
 }
 
+private func gtkDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    gtk_widget_set_can_target(widget, 0)
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        gtkDisableButtonChildTargeting(c)
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func gtkDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
+        return
+    }
+    if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
+private final class GTKButtonActionBox {
+    let action: () -> Void
+    var lastActivationTime: TimeInterval = 0
+
+    init(_ action: @escaping () -> Void) {
+        self.action = action
+    }
+}
+
+private final class GTKButtonIdleActionContext {
+    let box: GTKButtonActionBox
+    let source: String
+
+    init(box: GTKButtonActionBox, source: String) {
+        self.box = box
+        self.source = source
+    }
+}
+
+private final class GTKButtonRootEventContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    let box: GTKButtonActionBox
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+
+    init(widget: UnsafeMutablePointer<GtkWidget>, box: GTKButtonActionBox) {
+        self.widget = widget
+        self.box = box
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {
+    let now = Date().timeIntervalSinceReferenceDate
+    if now - box.lastActivationTime < 0.08 {
+        gtkDebugLog("button duplicate \(source)")
+        return
+    }
+    box.lastActivationTime = now
+    gtkDebugLog("button \(source)")
+    let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKButtonIdleActionContext>.fromOpaque(userData).takeRetainedValue()
+        gtkDebugLog("button action \(context.source)")
+        context.box.action()
+        return 0
+    }, context)
+}
+
+private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return 0 }
+            var x: Double = 0
+            var y: Double = 0
+            guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+            guard isTopmost else { return 0 }
+            gtkScheduleButtonAction(context.box, source: "root-legacy")
+            return 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
 extension Button: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         // Opaque stable leaf — Button action closures are captured at widget
@@ -625,6 +803,7 @@ extension Button: GTKRenderable, GTKDescribable {
         if !handledByQuillPaint {
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
+            gtkDisableButtonChildTargeting(childWidget)
             if !(label is Text) {
                 // Remove GTK default button border/padding so custom-styled
                 // labels (with .background/.frame) render cleanly.
@@ -705,18 +884,89 @@ extension Button: GTKRenderable, GTKDescribable {
         gtk_widget_set_valign(button, buttonWantsVExpand ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
 
         let boundAction = bindActionToCurrentEnvironment(action)
-        let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()
+        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        let buttonRootEventContext = Unmanaged.passRetained(
+            GTKButtonRootEventContext(
+                widget: button,
+                box: Unmanaged<GTKButtonActionBox>.fromOpaque(buttonActionBox).takeUnretainedValue()
+            )
+        ).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkInstallButtonRootEventFallback(context)
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
         g_signal_connect_data(
             gpointer(button),
             "clicked",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeUnretainedValue()
-                box.closure()
+                guard let userData else { return }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "clicked")
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-            box,
-            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                Unmanaged<ClosureBox>.fromOpaque(userData!).release()
-            },
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        let gesture = gtk_gesture_click_new()!
+        gtk_swift_gesture_single_set_button(gesture, 1)
+        g_signal_connect_data(
+            gpointer(gesture),
+            "pressed",
+            unsafeBitCast({ (_: gpointer?, _: gint, _: gdouble, _: gdouble, userData: gpointer?) in
+                guard let userData else { return }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "gesture")
+            } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_swift_add_capture_gesture(button, gesture)
+        let legacyController = gtk_swift_legacy_capture_controller()!
+        g_signal_connect_data(
+            gpointer(legacyController),
+            "event",
+            unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+                guard let event, let userData else { return 0 }
+                guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "legacy")
+                return 0
+            } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_swift_add_event_controller(button, legacyController)
+        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeRetainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<GTKButtonActionBox>.fromOpaque(userData).release()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
             GConnectFlags(rawValue: 0)
         )
         // Register keyboard shortcut if present in environment
@@ -2355,11 +2605,219 @@ extension TextCaseView: GTKRenderable {
 
 // MARK: - ScrollViewReader + ID GTK extensions
 
+private final class GTKScrollToContext {
+    let target: UnsafeMutablePointer<GtkWidget>
+    let targetID: AnyHashable?
+    let anchor: UnitPoint?
+    var remainingTicks: Int
+    var remainingTotalTicks: Int
+
+    init(
+        target: UnsafeMutablePointer<GtkWidget>,
+        targetID: AnyHashable? = nil,
+        anchor: UnitPoint?,
+        remainingTicks: Int = 180,
+        remainingTotalTicks: Int = 600
+    ) {
+        self.target = target
+        self.targetID = targetID
+        self.anchor = anchor
+        self.remainingTicks = remainingTicks
+        self.remainingTotalTicks = remainingTotalTicks
+    }
+}
+
+private struct GTKPendingScrollRequest {
+    let anchor: UnitPoint?
+}
+
+private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
+private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
+
+private func gtkLookupLiveScrollTarget(_ id: AnyHashable) -> UnsafeMutablePointer<GtkWidget>? {
+    if let widget = gtkScrollTargetRegistry[id] {
+        if gtk_swift_is_widget(widget) != 0 {
+            return widget
+        }
+        gtkScrollTargetRegistry.removeValue(forKey: id)
+        g_object_unref(gpointer(widget))
+    }
+
+    guard let widget = lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>,
+          gtk_swift_is_widget(widget) != 0 else {
+        return nil
+    }
+    return widget
+}
+
+private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    guard let request = gtkPendingScrollRequests.removeValue(forKey: id) else { return }
+    gtkScheduleIdleScrollTo(id: id, widget, anchor: request.anchor)
+}
+
+private func gtkClampScrollValue(_ value: Double, lower: Double, upper: Double) -> Double {
+    min(max(value, lower), upper)
+}
+
+@discardableResult
+private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) -> Bool {
+    guard gtk_swift_is_widget(target) != 0 else { return false }
+
+    var fallbackVerticalApplied = false
+    var parent = gtk_widget_get_parent(target)
+    while let scrolled = parent {
+        let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(scrolled)))
+        if typeName == "GtkScrolledWindow" {
+            let anchorPoint = anchor ?? .top
+            let requiresVerticalAnchor = anchorPoint.y > 0.0
+            let isSwiftUIVerticalScrollView = gtkIsSwiftUIVerticalScrollView(scrolled)
+            var targetX = 0.0
+            var targetY = 0.0
+            let hasTargetCoordinates = gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY) != 0
+            if !hasTargetCoordinates && anchorPoint.y < 1.0 {
+                parent = gtk_widget_get_parent(scrolled)
+                continue
+            }
+
+            var verticalApplied = false
+            var horizontalApplied = false
+
+            if let vadjustment = gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(vadjustment)
+                let upper = gtk_adjustment_get_upper(vadjustment)
+                let pageSize = gtk_adjustment_get_page_size(vadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(vadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetHeight = max(1.0, Double(gtk_widget_get_height(target)))
+                    if anchorPoint.y >= 1.0 {
+                        gtk_adjustment_set_value(vadjustment, maxValue)
+                    } else {
+                        let desired = currentValue + targetY - ((pageSize - targetHeight) * anchorPoint.y)
+                        gtk_adjustment_set_value(
+                            vadjustment,
+                            gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                        )
+                    }
+                    verticalApplied = true
+                }
+            }
+
+            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(hadjustment)
+                let upper = gtk_adjustment_get_upper(hadjustment)
+                let pageSize = gtk_adjustment_get_page_size(hadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(hadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetWidth = max(1.0, Double(gtk_widget_get_width(target)))
+                    let desired = currentValue + targetX - ((pageSize - targetWidth) * anchorPoint.x)
+                    gtk_adjustment_set_value(
+                        hadjustment,
+                        gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                    )
+                    horizontalApplied = true
+                }
+            }
+
+            if requiresVerticalAnchor {
+                if verticalApplied && isSwiftUIVerticalScrollView { return true }
+                if verticalApplied { fallbackVerticalApplied = true }
+            } else if verticalApplied || horizontalApplied {
+                return true
+            }
+        }
+        parent = gtk_widget_get_parent(scrolled)
+    }
+
+    return fallbackVerticalApplied
+}
+
+private func gtkScheduleScrollTo(
+    id: AnyHashable? = nil,
+    _ target: UnsafeMutablePointer<GtkWidget>,
+    anchor: UnitPoint?
+) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
+    let context = GTKScrollToContext(target: target, targetID: id, anchor: anchor)
+    _ = g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+        let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)
+        let context = unmanaged.takeUnretainedValue()
+        let target = context.targetID.flatMap { gtkLookupLiveScrollTarget($0) } ?? context.target
+        guard gtk_swift_is_widget(target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+
+        let applied = gtkApplyScrollTo(target, anchor: context.anchor)
+        if applied {
+            context.remainingTicks -= 1
+        }
+        context.remainingTotalTicks -= 1
+        if context.remainingTicks > 0 && context.remainingTotalTicks > 0 { return 1 }
+
+        g_object_unref(gpointer(context.target))
+        unmanaged.release()
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
+}
+
+private func gtkScheduleIdleScrollTo(
+    id: AnyHashable? = nil,
+    _ target: UnsafeMutablePointer<GtkWidget>,
+    anchor: UnitPoint?
+) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
+    let context = GTKScrollToContext(target: target, targetID: id, anchor: anchor)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKScrollToContext>.fromOpaque(userData).takeRetainedValue()
+        defer { g_object_unref(gpointer(context.target)) }
+        let target = context.targetID.flatMap { gtkLookupLiveScrollTarget($0) } ?? context.target
+        guard gtk_swift_is_widget(target) != 0 else { return 0 }
+        gtkApplyOrScheduleScrollTo(id: context.targetID, target, anchor: context.anchor)
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
+}
+
+private func gtkApplyOrScheduleScrollTo(
+    id: AnyHashable? = nil,
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    anchor: UnitPoint?
+) {
+    _ = gtkApplyScrollTo(widget, anchor: anchor)
+    gtkScheduleScrollTo(id: id, widget, anchor: anchor)
+}
+
 extension IdView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        registerViewID(id, element: widget)
-        return opaqueFromWidget(widget)
+        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_box_append(boxPointer(wrapper), widget)
+        gtkPropagateSingleChildLayoutMarkers(from: [widget], to: wrapper)
+        if gtk_widget_get_hexpand(widget) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        }
+        if gtk_widget_get_vexpand(widget) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+        }
+        gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)
+        return opaqueFromWidget(wrapper)
     }
 }
 
@@ -2367,23 +2825,10 @@ extension ScrollViewReader: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         var proxy = ScrollViewProxy()
         proxy.scrollToAction = { anyID, anchor in
-            guard let widget = lookupViewID(anyID) as? UnsafeMutablePointer<GtkWidget> else { return }
-            // Verify the widget is still alive before operating on it
-            guard gtk_swift_is_widget(widget) != 0 else { return }
-            // Find the enclosing GtkScrolledWindow and scroll to the widget.
-            var parent = gtk_widget_get_parent(widget)
-            while let p = parent {
-                let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(p)))
-                if typeName == "GtkScrolledWindow" {
-                    // Temporarily make the widget focusable so grab_focus
-                    // triggers GTK4 auto-scroll. Restore after.
-                    let wasFocusable = gtk_widget_get_focusable(widget)
-                    gtk_widget_set_focusable(widget, 1)
-                    gtk_widget_grab_focus(widget)
-                    gtk_widget_set_focusable(widget, wasFocusable)
-                    break
-                }
-                parent = gtk_widget_get_parent(p)
+            if let widget = gtkLookupLiveScrollTarget(anyID) {
+                gtkApplyOrScheduleScrollTo(id: anyID, widget, anchor: anchor)
+            } else {
+                gtkPendingScrollRequests[anyID] = GTKPendingScrollRequest(anchor: anchor)
             }
         }
         return gtkRenderView(content(proxy))
@@ -2711,7 +3156,7 @@ extension TapGestureView: GTKRenderable, GTKDescribable {
             GConnectFlags(rawValue: 0)
         )
 
-        gtk_swift_add_gesture(widget, gesture)
+        gtk_swift_add_capture_gesture(widget, gesture)
         return opaqueFromWidget(widget)
     }
 }
@@ -3358,6 +3803,15 @@ private class SheetInfo {
     }
 }
 
+private func gtkScheduleSheetDismissal(_ action: @escaping () -> Void) {
+    let box = Unmanaged.passRetained(ClosureBox(action)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        Unmanaged<ClosureBox>.fromOpaque(userData).takeRetainedValue().closure()
+        return 0
+    }, box)
+}
+
 extension SheetModifierView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
@@ -3436,7 +3890,11 @@ extension SheetModifierView: GTKRenderable {
                     gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
                 }
             } else {
-                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }
+                env.dismiss = DismissAction {
+                    gtkScheduleSheetDismissal {
+                        gtk_window_destroy(dialogWin)
+                    }
+                }
             }
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(info.render())
@@ -3585,7 +4043,11 @@ extension ItemSheetModifierView: GTKRenderable {
                     gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
                 }
             } else {
-                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }
+                env.dismiss = DismissAction {
+                    gtkScheduleSheetDismissal {
+                        gtk_window_destroy(dialogWin)
+                    }
+                }
             }
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(info.render())
@@ -3866,6 +4328,9 @@ extension SecureField: GTKRenderable, GTKDescribable {
         }
 
         gtkApplyEnabledState(to: entry)
+        if let paintedEntry = quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true) {
+            return paintedEntry
+        }
         return opaqueFromWidget(entry)
     }
 }
@@ -3930,6 +4395,12 @@ extension TextEditor: GTKRenderable, GTKDescribable {
         gtk_widget_set_hexpand(scrolled, 1)
 
         gtkApplyEnabledState(to: textView)
+        if let paintedEditor = quill_gtk_text_editor_paint_hook?(
+            OpaquePointer(scrolled),
+            OpaquePointer(textView)
+        ) {
+            return paintedEditor
+        }
         return opaqueFromWidget(scrolled)
     }
 }
@@ -4213,7 +4684,7 @@ extension Toggle: GTKRenderable {
     }
 
     private func gtkCreateCheckButtonWidget() -> OpaquePointer {
-        let check = label.isEmpty
+        let check = label.isEmpty || quill_gtk_toggle_paint_hook != nil
             ? gtk_check_button_new()!
             : gtk_check_button_new_with_label(label)!
         let checkPtr = checkButtonPointer(check)
@@ -4243,6 +4714,14 @@ extension Toggle: GTKRenderable {
         )
 
         gtkApplyEnabledState(to: check)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(check),
+            isOn.wrappedValue,
+            false,
+            label
+        ) {
+            return paintedToggle
+        }
         return opaqueFromWidget(check)
     }
 
@@ -4272,8 +4751,17 @@ extension Toggle: GTKRenderable {
             GConnectFlags(rawValue: 0)
         )
 
+        gtkApplyEnabledState(to: sw)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(sw),
+            isOn.wrappedValue,
+            true,
+            label
+        ) {
+            return paintedToggle
+        }
+
         if label.isEmpty {
-            gtkApplyEnabledState(to: sw)
             return opaqueFromWidget(sw)
         }
 
@@ -4427,6 +4915,7 @@ extension ScrollView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let scrolled = gtk_scrolled_window_new()!
+        gtkMarkSwiftUIScrollView(scrolled, hasVerticalAxis: axes.contains(.vertical))
         let scrolledOp = OpaquePointer(scrolled)
 
         let hPolicy: GtkPolicyType = axes.contains(.horizontal) ? GTK_POLICY_AUTOMATIC : GTK_POLICY_NEVER
@@ -5483,16 +5972,12 @@ extension Picker: GTKRenderable {
     }
 
     private func gtkCreateDropdownWidget() -> OpaquePointer {
-        let cStrings: [UnsafeMutablePointer<CChar>?] = options.map { strdup($0) } + [nil]
-
-        let dropdown = cStrings.withUnsafeBufferPointer { buf -> UnsafeMutablePointer<GtkWidget> in
-            buf.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buf.count) { ptr in
-                gtk_drop_down_new_from_strings(ptr)!
-            }
+        let stringList = gtk_swift_string_list_new()!
+        for option in options {
+            gtk_swift_string_list_append(stringList, option)
         }
 
-        for cStr in cStrings { cStr.map { free($0) } }
-
+        let dropdown = gtk_swift_drop_down_new(stringList)!
         let dropdownOp = OpaquePointer(dropdown)
         let clampedSelection = max(0, min(selected, options.count - 1))
         if !options.isEmpty {
@@ -5500,7 +5985,12 @@ extension Picker: GTKRenderable {
         }
 
         if let onChanged = onChanged {
-            let box = Unmanaged.passRetained(IntClosureBox(onChanged)).toOpaque()
+            let box = Unmanaged.passRetained(IntClosureBox { newIndex in
+                guard options.indices.contains(newIndex), newIndex != clampedSelection else {
+                    return
+                }
+                onChanged(newIndex)
+            }).toOpaque()
             g_signal_connect_data(
                 gpointer(dropdown),
                 "notify::selected",

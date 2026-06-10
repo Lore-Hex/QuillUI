@@ -3,6 +3,7 @@ import BackendGTK4
 import CGTK
 import Foundation
 import QuillPaint
+import QuillPaintCairo
 
 private let quillButtonHookInstaller: Void = {
     BackendGTK4.quill_gtk_button_paint_hook = { button, label, isDefault in

@@ -181,6 +181,22 @@ gtk_swift_clear_focus(GtkWidget *widget) {
     }
 }
 
+static inline gboolean
+gtk_swift_root_grab_focus(GtkWidget *widget) {
+    if (widget == NULL) {
+        return FALSE;
+    }
+    GtkRoot *root = gtk_widget_get_root(widget);
+    if (root == NULL) {
+        return gtk_widget_grab_focus(widget);
+    }
+    gtk_root_set_focus(root, widget);
+    if (gtk_widget_is_focus(widget)) {
+        return TRUE;
+    }
+    return gtk_widget_grab_focus(widget);
+}
+
 // --- Editable type check ---
 
 static inline gboolean
@@ -202,6 +218,108 @@ gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
     gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE);
     gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+}
+
+static inline void
+gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
+    gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+}
+
+static inline gpointer
+gtk_swift_legacy_capture_controller(void) {
+    GtkEventController *controller = gtk_event_controller_legacy_new();
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+    return controller;
+}
+
+static inline void
+gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller) {
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(controller));
+}
+
+static inline void
+gtk_swift_remove_event_controller(GtkWidget *widget, gpointer controller) {
+    gtk_widget_remove_controller(widget, GTK_EVENT_CONTROLLER(controller));
+}
+
+static inline gboolean
+gtk_swift_event_is_primary_button_press(gpointer event) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL
+        && gdk_event_get_event_type(gdk_event) == GDK_BUTTON_PRESS
+        && gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY;
+}
+
+static inline gboolean
+gtk_swift_event_get_position(gpointer event, double *x, double *y) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL ? gdk_event_get_position(gdk_event, x, y) : FALSE;
+}
+
+static inline GtkWidget *
+gtk_swift_widget_root_widget(GtkWidget *widget) {
+    GtkRoot *root = gtk_widget_get_root(widget);
+    return root != NULL ? GTK_WIDGET(root) : NULL;
+}
+
+static inline gboolean
+gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (root == NULL || widget == NULL) {
+        return FALSE;
+    }
+    double local_x = 0;
+    double local_y = 0;
+    if (!gtk_widget_translate_coordinates(root, widget, x, y, &local_x, &local_y)) {
+        return FALSE;
+    }
+    return local_x >= 0
+        && local_y >= 0
+        && local_x < gtk_widget_get_width(widget)
+        && local_y < gtk_widget_get_height(widget);
+}
+
+static inline gboolean
+gtk_swift_widget_is_ancestor_or_self(GtkWidget *ancestor, GtkWidget *widget) {
+    while (widget != NULL) {
+        if (widget == ancestor) {
+            return TRUE;
+        }
+        widget = gtk_widget_get_parent(widget);
+    }
+    return FALSE;
+}
+
+static inline gboolean
+gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (!gtk_swift_widget_contains_root_point(root, widget, x, y)) {
+        return FALSE;
+    }
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
+        return TRUE;
+    }
+    picked = gtk_widget_pick(root, x, y, GTK_PICK_NON_TARGETABLE);
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
+        return TRUE;
+    }
+    picked = gtk_widget_pick(
+        root,
+        x,
+        y,
+        (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
+    );
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    return picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget);
 }
 
 // --- Scale (Slider) type check ---
@@ -473,6 +591,11 @@ gtk_swift_signal_list_item_factory_new(void) {
 static inline gpointer
 gtk_swift_string_list_new(void) {
     return (gpointer)gtk_string_list_new(NULL);
+}
+
+static inline GtkWidget *
+gtk_swift_drop_down_new(gpointer model) {
+    return gtk_drop_down_new(G_LIST_MODEL(model), NULL);
 }
 
 static inline void

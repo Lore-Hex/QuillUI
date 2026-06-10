@@ -64,6 +64,7 @@ struct QuillDataSourceLoweringTests {
         #expect(lowererWrapper.contains(".build/quill-source-lower-package"))
         #expect(lowererWrapper.contains("ln -s \"$ROOT_DIR/Sources/QuillSourceLowering\""))
         #expect(lowererWrapper.contains("--package-path \"$TOOL_PACKAGE_DIR\""))
+        #expect(lowererWrapper.contains("--disable-index-store"))
         #expect(!lowererWrapper.contains("--package-path \"$ROOT_DIR\""))
 
         let result = try runScript(
@@ -490,7 +491,10 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("token_y0 = panel_y + 350"))
         #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
         #expect(verifier.contains("ping_y0 = panel_y + 384"))
+        #expect(verifier.contains("if not require_selected_default_model:"))
         #expect(verifier.contains("Mac-reference selected default model was not detected"))
+        #expect(verifier.contains("model_x0 = panel_segment.start + 20"))
+        #expect(verifier.contains("model_y0 = panel_y + 340"))
         #expect(verifier.contains("model_text_pixels >= 200"))
         #expect(verifier.contains("selected_model_pixels={model_text_pixels}"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_completions_panel"))
@@ -571,6 +575,10 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("settings-bearer-token-typed"))
         #expect(interactionScript.contains("settings-ping-interval-typed"))
         #expect(interactionScript.contains("settings-default-model-selected"))
+        #expect(interactionScript.contains("&& \"$INTERACTION_MODE\" == \"settings-default-model-selected\""))
+        #expect(interactionScript.contains("INTERACTION_MAX_ATTEMPTS=4"))
+        #expect(interactionScript.contains("attempt $INTERACTION_ATTEMPT/$INTERACTION_MAX_ATTEMPTS); retrying"))
+        #expect(!interactionScript.contains("retrying once"))
         #expect(interactionScript.contains("settings-delete-confirmation"))
         #expect(interactionScript.contains("settings-delete-confirmed"))
         #expect(interactionScript.contains("confirm_quill_chat_settings_delete()"))
@@ -585,17 +593,37 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("ping_y=\"${QUILLUI_BACKEND_PING_CLICK_Y:-838}\""))
         #expect(interactionScript.contains("model_x=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}\""))
         #expect(interactionScript.contains("model_y=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-763}\""))
-        #expect(interactionScript.contains("xdotool key --clearmodifiers Down Return"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_OPEN_SLEEP"))
+        #expect(!interactionScript.contains("xdotool key --clearmodifiers Down Return"))
+        #expect(interactionScript.contains("xdotool key --clearmodifiers Escape"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP"))
         #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}\""))
         #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}\""))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
+        #expect(interactionScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
+        #expect(!interactionScript.contains("[[ \"$capture_window\" != \"root\" ]] || return 0"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+a"))
         #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-$((window_y + 222))}\""))
         #expect(interactionScript.contains("window_x + 52"))
         #expect(interactionScript.contains("window_height - 14"))
         #expect(interactionScript.contains("completions-panel"))
-        #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-90}\""))
-        #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-1244}\""))
+        #expect(interactionScript.contains("local reset_before_open=\"${1:-0}\""))
+        #expect(interactionScript.contains("if [[ \"$reset_before_open\" == \"1\" ]]; then"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y"))
+        #expect(interactionScript.contains("reset_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}}\""))
+        #expect(interactionScript.contains("reset_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}}\""))
+        #expect(!interactionScript.contains("reset_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}\""))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.6"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6"))
+        #expect(interactionScript.contains("reset_cancel_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}\""))
+        #expect(interactionScript.contains("reset_cancel_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}\""))
+        #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}\""))
+        #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 1244))}\""))
+        #expect(interactionScript.contains("open_quill_chat_completions_panel 1\n  if quillui_is_quill_chat_mac_reference_product \"$PRODUCT\"; then\n    edit_x="))
+        #expect(!interactionScript.contains("open_quill_chat_new_completion_sheet() {\n  local new_x\n  local new_y\n\n  open_quill_chat_completions_panel 1"))
         #expect(interactionScript.contains("window_x + 90"))
         #expect(interactionScript.contains("window_height - 136"))
         #expect(interactionScript.contains("completions-new-sheet"))
@@ -606,10 +634,21 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("edit_quill_chat_existing_completion()"))
         #expect(interactionScript.contains("delete_quill_chat_completion()"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_NAME_TEXT"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_TEXT"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_EDITED_NAME_TEXT"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X"))
+        #expect(interactionScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 435))}\""))
+        #expect(interactionScript.contains("instruction_x=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}\""))
+        #expect(interactionScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 515))}\""))
+        #expect(interactionScript.contains("Reply with a concise Linux validation response."))
+        #expect(interactionScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1358))}\""))
+        #expect(interactionScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 382))}\""))
+        #expect(!interactionScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}\""))
+        #expect(!interactionScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
         #expect(interactionScript.contains("history-selection"))
         #expect(interactionScript.contains("transcript-selection"))
         #expect(interactionScript.contains("markdown-transcript-selection"))
@@ -1401,8 +1440,71 @@ struct QuillDataSourceLoweringTests {
         extension TextField: GTKRenderable {
             public func gtkCreateWidget() -> OpaquePointer {
                 let entry = gtk_entry_new()!
-                applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
+                // Apply text field style from environment
+                let textFieldStyleType = getCurrentEnvironment().textFieldStyle
+                switch textFieldStyleType {
+                case .plain:
+                    applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
+                case .automatic, .roundedBorder:
+                    break // default GTK entry styling
+                }
+
+                gtkApplyEnabledState(to: entry)
                 return opaqueFromWidget(entry)
+            }
+        }
+
+        extension SecureField: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let entry = gtk_password_entry_new()!
+
+                gtkApplyEnabledState(to: entry)
+                return opaqueFromWidget(entry)
+            }
+        }
+
+        extension TextEditor: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let textView = gtk_text_view_new()!
+                let scrolled = gtk_scrolled_window_new()!
+                gtk_scrolled_window_set_child(OpaquePointer(scrolled), textView)
+                gtk_widget_set_vexpand(scrolled, 1)
+                gtk_widget_set_hexpand(scrolled, 1)
+
+                gtkApplyEnabledState(to: textView)
+                return opaqueFromWidget(scrolled)
+            }
+        }
+
+        extension Toggle: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let toggleStyleType = getCurrentEnvironment().toggleStyle
+
+                if toggleStyleType == .switch {
+                    return gtkCreateSwitchWidget()
+                }
+                return gtkCreateCheckButtonWidget()
+            }
+
+            private func gtkCreateCheckButtonWidget() -> OpaquePointer {
+                let check = label.isEmpty
+                    ? gtk_check_button_new()!
+                    : gtk_check_button_new_with_label(label)!
+                gtkApplyEnabledState(to: check)
+                return opaqueFromWidget(check)
+            }
+
+            private func gtkCreateSwitchWidget() -> OpaquePointer {
+                let sw = gtk_swift_switch_new()!
+
+                if label.isEmpty {
+                    gtkApplyEnabledState(to: sw)
+                    return opaqueFromWidget(sw)
+                }
+
+                let hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8)!
+                gtkApplyEnabledState(to: hbox)
+                return opaqueFromWidget(hbox)
             }
         }
 
@@ -1687,6 +1789,26 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        // MARK: - Gesture GTK extensions
+
+        extension TapGestureView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let widget = widgetFromOpaque(gtkRenderView(content))
+                let gesture = gtk_gesture_click_new()!
+                gtk_swift_add_gesture(widget, gesture)
+                return opaqueFromWidget(widget)
+            }
+        }
+
+        extension LongPressGestureView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let widget = widgetFromOpaque(gtkRenderView(content))
+                let gesture = gtk_gesture_long_press_new()!
+                gtk_swift_add_gesture(widget, gesture)
+                return opaqueFromWidget(widget)
+            }
+        }
+
         // MARK: - OnAppear / OnDisappear GTK extensions
 
         extension OnAppearView: GTKRenderable {
@@ -1740,6 +1862,45 @@ struct QuillDataSourceLoweringTests {
                 gtk_overlay_add_overlay(OpaquePointer(container), overlayWidget)
 
                 return opaqueFromWidget(container)
+            }
+        }
+
+        extension Picker: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                gtkCreateDropdownWidget()
+            }
+
+            private func gtkCreateDropdownWidget() -> OpaquePointer {
+                let cStrings: [UnsafeMutablePointer<CChar>?] = options.map { strdup($0) } + [nil]
+
+                let dropdown = cStrings.withUnsafeBufferPointer { buf -> UnsafeMutablePointer<GtkWidget> in
+                    buf.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buf.count) { ptr in
+                        gtk_drop_down_new_from_strings(ptr)!
+                    }
+                }
+
+                for cStr in cStrings { cStr.map { free($0) } }
+
+                let dropdownOp = OpaquePointer(dropdown)
+                gtk_drop_down_set_selected(dropdownOp, guint(selected))
+                if let onChanged = onChanged {
+                    let box = Unmanaged.passRetained(IntClosureBox(onChanged)).toOpaque()
+                    g_signal_connect_data(
+                        gpointer(dropdown),
+                        "notify::selected",
+                        unsafeBitCast({ (widget: gpointer?, _: gpointer?, userData: gpointer?) in
+                            let box = Unmanaged<IntClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                            let sel = Int(gtk_drop_down_get_selected(OpaquePointer(widget!)))
+                            box.closure(sel)
+                        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+                        box,
+                        { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                            Unmanaged<IntClosureBox>.fromOpaque(userData!).release()
+                        },
+                        GConnectFlags(rawValue: 0)
+                    )
+                }
+                return opaqueFromWidget(dropdown)
             }
         }
 
@@ -2149,6 +2310,12 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader scroll-view marker install shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI ScrollViewReader fallback scroll return shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI OnAppear lifecycle rebuild shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI TextField idle binding helper insertion marker was not recognized"))
+        #expect(patchScript.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
+        #expect(patchScript.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
+        #expect(patchScript.contains("gtk_editable_get_text(OpaquePointer(editable))"))
 
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
@@ -2195,6 +2362,18 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if gtk_widget_get_hexpand(childWidget) != 0"))
         #expect(patchedRenderer.contains("gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)"))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(button, buttonWantsHExpand ? GTK_ALIGN_FILL : GTK_ALIGN_START)"))
+        #expect(patchedRenderer.contains("public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil"))
+        #expect(patchedRenderer.contains("public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil"))
+        #expect(patchedRenderer.contains("public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil"))
+        #expect(patchedRenderer.contains("var useQuillPaintTextField = false"))
+        #expect(patchedRenderer.contains("quill_gtk_text_field_paint_hook?("))
+        #expect(patchedRenderer.contains("extension SecureField: GTKRenderable"))
+        #expect(patchedRenderer.contains("quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true)"))
+        #expect(patchedRenderer.contains("quill_gtk_text_editor_paint_hook?("))
+        #expect(patchedRenderer.contains("let check = label.isEmpty || quill_gtk_toggle_paint_hook != nil"))
+        #expect(patchedRenderer.contains("quill_gtk_toggle_paint_hook?("))
+        #expect(patchedRenderer.contains("false,\n            label"))
+        #expect(patchedRenderer.contains("true,\n            label"))
         #expect(patchedRenderer.contains("if maxWidth != nil {"))
         #expect(patchedRenderer.contains("if maxHeight != nil {"))
         #expect(!patchedRenderer.contains("if let xw = maxWidth, xw != nil"))
@@ -2202,7 +2381,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity)"))
         #expect(patchedRenderer.contains("expandsToFillHeight: childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
         #expect(patchedRenderer.contains("expandsToFillHeight: gtk_widget_get_vexpand(child) != 0 || (height == nil && maxHeight != nil && maxHeight != .infinity)"))
-        #expect(patchedRenderer.contains("retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()"))
+        #expect(patchedRenderer.contains("let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()"))
+        #expect(patchedRenderer.contains("let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()"))
         #expect(patchedRenderer.contains("private var gtkStateCache: [String: [AnyStateStorage]] = [:]"))
         #expect(patchedRenderer.contains("private var gtkStateTypeCounters: [String: [String: Int]] = [:]"))
         #expect(patchedRenderer.contains("private func gtkStateIdentityNamespace() -> String"))
@@ -2292,18 +2472,78 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("return mode == \"overlay\" || mode == \"in-window\" || mode == \"inline\""))
         #expect(patchedRenderer.contains("private func gtkRemoveSheetRootOverlay("))
         #expect(patchedRenderer.contains("gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey"))
+        #expect(patchedRenderer.contains("private func gtkScheduleSheetDismissal(_ action"))
+        #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        binding.wrappedValue = false"))
+        #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        itemBinding.wrappedValue = nil"))
+        #expect(!patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)"))
+        #expect(!patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        gtkRemoveSheetRootOverlay(\n                            anchor: anchor"))
         #expect(patchedRenderer.contains("private func gtkCreateSheetOverlayPanel("))
+        #expect(patchedRenderer.contains("gtkInstallSheetPanelFocusBridge(on: panel)"))
+        #expect(patchedRenderer.contains("gtkScheduleFirstSheetEditableFocus(in: panel)"))
+        #expect(patchedRenderer.contains("gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)"))
+        #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, widget, rootX, rootY)"))
+        #expect(patchedRenderer.contains("gtkFocusSheetEditableWidget(editable)"))
+        #expect(patchedRenderer.contains("private final class GTKSheetEditableFocusTarget"))
+        #expect(patchedRenderer.contains("private final class GTKSheetPanelFocusTarget"))
+        #expect(patchedRenderer.contains("gtk_editable_get_delegate(OpaquePointer(widget))"))
+        #expect(patchedRenderer.contains("gtkScheduleSheetEditableFocus(delegateWidget)"))
+        #expect(patchedRenderer.contains("gtkFindFirstSheetEditable(in: target.panel)"))
+        #expect(patchedRenderer.contains("g_idle_add({ userData -> gboolean in"))
+        #expect(patchedRenderer.contains("gtk_swift_root_grab_focus(widget)"))
+        #expect(patchedRenderer.contains("gtk_swift_root_grab_focus(delegateWidget)"))
         #expect(patchedRenderer.contains("private func gtkCreateSheetOverlay("))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)"))
         #expect(patchedRenderer.contains("gtkRootPresentationOverlay(for: root)"))
-        #expect(patchedRenderer.contains("gtk_overlay_add_overlay(rootOverlay, panel)"))
+        #expect(patchedRenderer.contains("private var gtkRootSheetOverlayStack: [OpaquePointer] = []"))
+        #expect(patchedRenderer.contains("private func gtkWithRootSheetOverlay<T>(_ rootOverlay: OpaquePointer, _ body: () -> T) -> T"))
+        #expect(patchedRenderer.contains("private func gtkSheetRootOverlay(for anchor: UnsafeMutablePointer<GtkWidget>) -> OpaquePointer?"))
+        #expect(patchedRenderer.contains("if let rootOverlay = gtkCurrentRootSheetOverlay()"))
+        #expect(patchedRenderer.contains("if let rootOverlay = gtkStoredRootPresentationOverlay(on: gpointer(anchor))"))
+        #expect(patchedRenderer.contains("var ancestor = gtk_widget_get_parent(anchor)"))
+        #expect(patchedRenderer.contains("ancestor = gtk_widget_get_parent(current)"))
+        #expect(patchedRenderer.contains("if let rootOverlay = gtkFallbackRootPresentationOverlay()"))
+        #expect(patchedRenderer.components(separatedBy: "let rootOverlay = gtkSheetRootOverlay(for: anchor)").count == 3)
+        #expect(patchedRenderer.components(separatedBy: "gtkWithRootSheetOverlay(rootOverlay) {").count == 3)
+        #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: panel)").count == 3)
+        #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)").count == 3)
+        #expect(patchedRenderer.contains("let stringList = gtk_swift_string_list_new()!"))
+        #expect(patchedRenderer.contains("gtk_swift_drop_down_new(stringList)!"))
+        #expect(!patchedRenderer.contains("gtk_drop_down_new_from_strings(ptr)!"))
+        #expect(patchedRenderer.contains("guard options.indices.contains(newIndex), newIndex != clampedSelection else"))
+        #expect(patchedRenderer.contains("private func gtkAttachRootSheetOverlay("))
+        #expect(patchedRenderer.contains("let previousTop = gtk_widget_get_last_child(overlayWidget)"))
+        #expect(patchedRenderer.contains("gtk_widget_insert_after(panel, overlayWidget, previousTop)"))
+        #expect(patchedRenderer.components(separatedBy: "gtkAttachRootSheetOverlay(panel, to: rootOverlay)").count == 3)
+        #expect(patchedRenderer.contains("sheet item root present activeKey="))
+        #expect(patchedRenderer.contains("sheet item root unavailable activeKey="))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
+        #expect(patchedRenderer.contains("if gtkShouldRenderSheetInWindow() {\n            let sheetBuilder = sheetContent"))
+        #expect(!patchedRenderer.contains("if gtkShouldRenderSheetInWindow() || gtkShouldRenderSheetInRootOverlay()"))
+        #expect(patchedRenderer.components(separatedBy: "gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }").count == 3)
         #expect(patchedRenderer.contains("remainingTicks: Int = 180"))
         #expect(!patchedRenderer.contains("remainingTicks: Int = 4"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))
         #expect(!patchedRenderer.contains("gtk_widget_grab_focus(widget)"))
+        #expect(patchedRenderer.contains("private func gtkDisableButtonChildTargeting"))
+        #expect(patchedRenderer.contains("gtkDisableButtonChildTargeting(childWidget)"))
+        #expect(patchedRenderer.contains("private final class GTKButtonActionBox"))
+        #expect(patchedRenderer.contains("private func gtkScheduleButtonAction"))
+        #expect(patchedRenderer.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"gesture\")"))
+        #expect(patchedRenderer.contains("gtk_swift_add_capture_gesture(button, gesture)"))
+        #expect(patchedRenderer.contains("let legacyController = gtk_swift_legacy_capture_controller()!"))
+        #expect(patchedRenderer.contains("gtk_swift_event_is_primary_button_press(event)"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
+        #expect(patchedRenderer.contains("private final class GTKButtonRootEventContext"))
+        #expect(patchedRenderer.contains("gtkInstallButtonRootEventFallback(context)"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: \"root-legacy\")"))
+        #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y)"))
+        #expect(!patchedRenderer.contains("guard gtk_swift_widget_contains_root_point(root, context.widget"))
+        #expect(patchedRenderer.contains("context.removeController()"))
+        #expect(patchedRenderer.contains("gtk_swift_add_event_controller(button, legacyController)"))
+        #expect(patchedRenderer.contains("gtk_swift_add_capture_gesture(widget, gesture)"))
         #expect(patchedRenderer.contains("private protocol GTKDecorativeOverlay"))
         #expect(patchedRenderer.contains("extension StrokedShape: GTKDecorativeOverlay"))
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
@@ -2329,6 +2569,22 @@ struct QuillDataSourceLoweringTests {
 
         let patchedShim = try String(contentsOf: shim, encoding: .utf8)
         #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE)"))
+        #expect(patchedShim.contains("gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture)"))
+        #expect(patchedShim.contains("gtk_swift_root_grab_focus(GtkWidget *widget)"))
+        #expect(patchedShim.contains("gtk_swift_drop_down_new(gpointer model)"))
+        #expect(patchedShim.contains("gtk_drop_down_new(G_LIST_MODEL(model), NULL)"))
+        #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE)"))
+        #expect(patchedShim.contains("gtk_swift_legacy_capture_controller(void)"))
+        #expect(patchedShim.contains("gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller)"))
+        #expect(patchedShim.contains("gtk_swift_remove_event_controller(GtkWidget *widget, gpointer controller)"))
+        #expect(patchedShim.contains("gtk_swift_event_is_primary_button_press(gpointer event)"))
+        #expect(patchedShim.contains("gtk_swift_event_get_position(gpointer event, double *x, double *y)"))
+        #expect(patchedShim.contains("gtk_swift_widget_root_widget(GtkWidget *widget)"))
+        #expect(patchedShim.contains("gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double x, double y)"))
+        #expect(patchedShim.contains("gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, double x, double y)"))
+        #expect(patchedShim.contains("GTK_PICK_NON_TARGETABLE"))
+        #expect(patchedShim.contains("gtk_swift_widget_is_ancestor_or_self(picked, widget)"))
+        #expect(patchedShim.contains("gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY"))
         #expect(patchedShim.contains("gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE)"))
 
         let patchedState = try String(contentsOf: state, encoding: .utf8)
@@ -2357,7 +2613,13 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedBackend.contains("gtk_widget_set_size_request(\n                contentWidget"))
         #expect(patchedBackend.contains("private let gtkRootPresentationOverlayKey"))
         #expect(patchedBackend.contains("func gtkCreateRootPresentationContainer("))
-        #expect(patchedBackend.contains("g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))"))
+        #expect(patchedBackend.contains("gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))"))
+        #expect(patchedBackend.contains("gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)"))
+        #expect(patchedBackend.contains("func gtkStoreRootPresentationOverlay("))
+        #expect(patchedBackend.contains("func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer?"))
+        #expect(patchedBackend.contains("g_object_set_data(gobject, gtkRootPresentationOverlayKey, UnsafeMutableRawPointer(rootOverlay))"))
+        #expect(patchedBackend.contains("gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback"))
+        #expect(patchedBackend.contains("func gtkFallbackRootPresentationOverlay() -> OpaquePointer?"))
         #expect(patchedBackend.contains("func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer?"))
         #expect(patchedBackend.contains("let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)"))
         #expect(patchedBackend.contains("gtk_window_set_child(winPtr, rootContentWidget)"))

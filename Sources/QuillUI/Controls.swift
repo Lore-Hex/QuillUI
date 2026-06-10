@@ -504,6 +504,26 @@ public enum QuillDesktopChromeStyle {
     }
 }
 
+private enum QuillConversationInitialSelection {
+    static let environmentKeys = [
+        "QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START",
+        "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START",
+        "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START",
+        "QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START"
+    ]
+
+    static func index(count: Int, environment: [String: String] = ProcessInfo.processInfo.environment) -> Int? {
+        guard count > 0 else { return nil }
+        for key in environmentKeys {
+            guard let rawValue = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let requestedIndex = Int(rawValue)
+            else { continue }
+            return min(max(requestedIndex, 0), count - 1)
+        }
+        return nil
+    }
+}
+
 public struct QuillConversationHistoryList: View {
     public var items: [QuillConversationHistoryItem]
     public var selectedID: String?
@@ -511,6 +531,7 @@ public struct QuillConversationHistoryList: View {
     public var emptySubtitle: String
     public var onSelect: (QuillConversationHistoryItem) -> Void
     @State private var hoveredItemID: String?
+    @State private var didApplyInitialSelection = false
 
     public init(
         items: [QuillConversationHistoryItem],
@@ -537,36 +558,42 @@ public struct QuillConversationHistoryList: View {
                         let isHovered = hoveredItemID == item.id
                         let rowState = PaintControlState(isHovered: isHovered, isSelected: isSelected)
                         let lastMessage = lastMessagePreview(for: item)
-                        VStack(alignment: .leading, spacing: rowTextSpacing) {
-                            Text(item.title)
-                                .font(.system(size: rowFontSize))
-                                .lineLimit(1)
-                                .foregroundColor(rowTitleColor(for: rowState))
+                        Button(action: { onSelect(item) }) {
+                            VStack(alignment: .leading, spacing: rowTextSpacing) {
+                                Text(item.title)
+                                    .font(.system(size: rowFontSize))
+                                    .lineLimit(1)
+                                    .foregroundColor(rowTitleColor(for: rowState))
 
-                            if !lastMessage.isEmpty {
-                                Text(lastMessage)
-                                    .font(.system(size: rowPreviewFontSize))
-                                    .lineLimit(2)
-                                    .foregroundColor(rowPreviewColor(for: rowState))
+                                if !lastMessage.isEmpty {
+                                    Text(lastMessage)
+                                        .font(.system(size: rowPreviewFontSize))
+                                        .lineLimit(2)
+                                        .foregroundColor(rowPreviewColor(for: rowState))
+                                }
                             }
+                            .padding(rowPadding)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(rowBackgroundColor(for: rowState))
+                            .cornerRadius(rowCornerRadius)
                         }
-                        .padding(rowPadding)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(rowBackgroundColor(for: rowState))
-                        .cornerRadius(rowCornerRadius)
                         .contentShape(Rectangle())
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel(item.title)
                         .accessibilityValue(item.lastMessage)
                         .help(accessibilitySummary(for: item))
+                        #if os(Linux)
+                        .onTapGesture { onSelect(item) }
+                        #endif
                         .onHover { hovering in
                             hoveredItemID = hovering ? item.id : nil
                         }
-                        .onTapGesture { onSelect(item) }
+                        .buttonStyle(.plain)
                     }
                 }
             }
         }
+        .onAppear { applyInitialSelectionIfNeeded() }
     }
 
     private var rowFontSize: CGFloat { 15 }
@@ -600,6 +627,13 @@ public struct QuillConversationHistoryList: View {
 
     private var sortedItems: [QuillConversationHistoryItem] {
         items.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    private func applyInitialSelectionIfNeeded() {
+        guard !didApplyInitialSelection, selectedID == nil else { return }
+        guard let index = QuillConversationInitialSelection.index(count: sortedItems.count) else { return }
+        didApplyInitialSelection = true
+        onSelect(sortedItems[index])
     }
 
     private var emptyHistory: some View {
@@ -650,6 +684,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
     public var onDeleteDay: ((Date) -> Void)?
 
     @State private var hoveredItemID: String?
+    @State private var didApplyInitialSelection = false
 
     public init(
         items: [QuillConversationHistoryItem],
@@ -745,6 +780,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
             }
         }
         .scrollIndicators(.never)
+        .onAppear { applyInitialSelectionIfNeeded() }
     }
 
     private var dayGroups: [QuillConversationHistoryDayGroup] {
@@ -760,36 +796,53 @@ public struct QuillDateGroupedConversationHistoryList: View {
         .sorted { $0.date > $1.date }
     }
 
+    private var flattenedGroupedItems: [QuillConversationHistoryItem] {
+        dayGroups.flatMap(\.items)
+    }
+
+    private func applyInitialSelectionIfNeeded() {
+        let items = flattenedGroupedItems
+        guard !didApplyInitialSelection, selectedID == nil else { return }
+        guard let index = QuillConversationInitialSelection.index(count: items.count) else { return }
+        didApplyInitialSelection = true
+        onSelect(items[index])
+    }
+
     private func groupedRow(for item: QuillConversationHistoryItem) -> some View {
         let isSelected = selectedID == item.id
         let isHovered = hoveredItemID == item.id
         let textState = PaintControlState(isHovered: isHovered, isSelected: false)
 
-        return HStack {
-            if isSelected {
-                Circle()
-                    .frame(width: groupedSelectionDotSize, height: groupedSelectionDotSize)
+        return Button(action: { onSelect(item) }) {
+            HStack {
+                if isSelected {
+                    Circle()
+                        .frame(width: groupedSelectionDotSize, height: groupedSelectionDotSize)
+                        .transition(.opacity)
+                }
+
+                Text(item.title)
+                    .lineLimit(1)
+                    .font(.system(size: groupedRowFontSize))
+                    .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: textState)))
                     .transition(.opacity)
+
+                Spacer()
             }
-
-            Text(item.title)
-                .lineLimit(1)
-                .font(.system(size: groupedRowFontSize))
-                .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: textState)))
-                .transition(.opacity)
-
-            Spacer()
+            .padding(.vertical, groupedRowVerticalPadding)
+            .frame(maxWidth: .infinity, minHeight: groupedRowMinHeight, alignment: .leading)
         }
-        .padding(.vertical, groupedRowVerticalPadding)
-        .frame(maxWidth: .infinity, minHeight: groupedRowMinHeight, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(item.title)
         .help(item.title)
+        #if os(Linux)
+        .onTapGesture { onSelect(item) }
+        #endif
         .onHover { hovering in
             hoveredItemID = hovering ? item.id : nil
         }
-        .onTapGesture { onSelect(item) }
+        .buttonStyle(.plain)
         .animation(.easeOut(duration: 0.15), value: isSelected)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .contextMenu(menuItems: {

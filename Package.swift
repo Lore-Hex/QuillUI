@@ -717,7 +717,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIGtk",
-        dependencies: ["QuillUI", "CCairo"],
+        dependencies: ["QuillUI", "QuillPaintCairo", "CCairo"],
         path: "Sources/QuillUIGtk",
         swiftSettings: appSwiftSettings
     ),
@@ -901,7 +901,7 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillData"],
+        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillArticlesDatabase", "QuillData"],
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSCore-shaped shim. Reproduces the slice of
@@ -966,6 +966,16 @@ var targets: [Target] = [
         name: "QuillArticles",
         dependencies: ["QuillRSCoreShim"],
         path: "Sources/QuillArticles",
+        swiftSettings: appSwiftSettings
+    ),
+    // QuillData-backed ArticlesDatabase-compatible surface. This is the
+    // first cross-platform replacement for upstream NetNewsWire's
+    // FMDatabase/RSDatabase-backed article store: same key public type names,
+    // but no ObjC SQLite wrapper dependency.
+    .target(
+        name: "QuillArticlesDatabase",
+        dependencies: ["QuillArticles", "QuillData", "QuillRSParser"],
+        path: "Sources/QuillArticlesDatabase",
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSWeb shim — target named `RSWeb` so vendored `import RSWeb`
@@ -1950,6 +1960,20 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: ".upstream/signal-ios/SignalServiceKit",
             exclude: signalServiceKitExcludes,
             swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // signal-smoke: smallest-milestone executable proving the real
+        // Signal-iOS toolchain LINKS + RUNS on QuillOS (Track B). Links
+        // SignalServiceKit + libsignal_ffi.a and runs a pure in-memory
+        // libsignal crypto primitive. `-use-ld=lld` is required: the default
+        // bfd linker OOMs ("Killed") on the 194MB libsignal_ffi.a; lld links it
+        // in ~44s. Gated like SSK (Linux + signal/libsignal upstream present),
+        // so absent from CI / fresh checkouts.
+        .executableTarget(
+            name: "signal-smoke",
+            dependencies: ["SignalServiceKit", "LibSignalClient"],
+            path: "Sources/SignalSmoke",
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
         )
     ]
 }
@@ -2580,7 +2604,7 @@ let packageTestTargets: [Target] = {
         ),
         .testTarget(
             name: "QuillPaintCairoTests",
-            dependencies: ["QuillPaintCairo", "QuillPaint"],
+            dependencies: ["QuillPaintCairo", "QuillPaintCoreGraphics", "QuillPaint"],
             swiftSettings: appSwiftSettings
         ),
         // QuillKitTests covers QuillClipboard / diagnostics /
@@ -2656,6 +2680,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillArticlesTests",
             dependencies: ["QuillArticles"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillArticlesDatabaseTests",
+            dependencies: ["QuillArticlesDatabase", "QuillArticles", "QuillRSParser"],
             swiftSettings: appSwiftSettings
         ),
         .testTarget(
@@ -2748,7 +2777,7 @@ let packageTestTargets: [Target] = {
         // itself on the test-target scorecard.
         .testTarget(
             name: "QuillUITests",
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillInteractionSmokeSupport"],
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"],
             swiftSettings: appSwiftSettings
         )
     ]

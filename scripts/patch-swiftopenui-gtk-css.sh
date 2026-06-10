@@ -321,16 +321,184 @@ pattern = re.compile(
     r"\}",
     re.S,
 )
-replacement = """gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
+bubble_replacement = """gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
     gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE);
     gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
 }
 """
 if "gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE)" not in text:
-    text, count = pattern.subn(replacement, text, count=1)
+    text, count = pattern.subn(bubble_replacement, text, count=1)
     if count != 1:
         raise SystemExit("SwiftOpenUI GTK gesture shim shape was not recognized")
+if "gtk_swift_add_capture_gesture" not in text:
+    capture_helper = """static inline void
+gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
+    gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+}
+"""
+    if bubble_replacement not in text:
+        raise SystemExit("SwiftOpenUI GTK bubble gesture shim shape was not recognized")
+    text = text.replace(bubble_replacement, bubble_replacement + "\n" + capture_helper, 1)
+if "gtk_swift_root_grab_focus" not in text:
+    clear_focus_marker = """static inline void
+gtk_swift_clear_focus(GtkWidget *widget) {
+    GtkRoot *root = gtk_widget_get_root(widget);
+    if (root) {
+        gtk_root_set_focus(root, NULL);
+    }
+}
+"""
+    root_focus_helper = """static inline gboolean
+gtk_swift_root_grab_focus(GtkWidget *widget) {
+    if (widget == NULL) {
+        return FALSE;
+    }
+    GtkRoot *root = gtk_widget_get_root(widget);
+    if (root == NULL) {
+        return gtk_widget_grab_focus(widget);
+    }
+    gtk_root_set_focus(root, widget);
+    if (gtk_widget_is_focus(widget)) {
+        return TRUE;
+    }
+    return gtk_widget_grab_focus(widget);
+}
+"""
+    if clear_focus_marker in text:
+        text = text.replace(clear_focus_marker, clear_focus_marker + "\n" + root_focus_helper, 1)
+    else:
+        editable_marker = "\n// --- Editable type check ---\n"
+        if editable_marker in text:
+            text = text.replace(editable_marker, "\n" + root_focus_helper + editable_marker, 1)
+        else:
+            text = text.rstrip() + "\n\n" + root_focus_helper
+if "gtk_swift_drop_down_new(gpointer model)" not in text:
+    dropdown_helper = """static inline GtkWidget *
+gtk_swift_drop_down_new(gpointer model) {
+    return gtk_drop_down_new(G_LIST_MODEL(model), NULL);
+}
+"""
+    string_list_marker = """static inline gpointer
+gtk_swift_string_list_new(void) {
+    return (gpointer)gtk_string_list_new(NULL);
+}
+"""
+    if string_list_marker in text:
+        text = text.replace(string_list_marker, string_list_marker + "\n" + dropdown_helper, 1)
+    else:
+        include_marker = "#include <fontconfig/fontconfig.h>\n"
+        if include_marker not in text:
+            raise SystemExit("SwiftOpenUI GTK shim include block was not recognized")
+        text = text.replace(include_marker, include_marker + "\n" + dropdown_helper, 1)
+if "gtk_swift_legacy_capture_controller" not in text:
+    capture_helper = """static inline void
+gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
+    gtk_gesture_single_set_exclusive(GTK_GESTURE_SINGLE(gesture), FALSE);
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+}
+"""
+    legacy_helpers = """static inline gpointer
+gtk_swift_legacy_capture_controller(void) {
+    GtkEventController *controller = gtk_event_controller_legacy_new();
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+    return controller;
+}
+
+static inline void
+gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller) {
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(controller));
+}
+
+static inline void
+gtk_swift_remove_event_controller(GtkWidget *widget, gpointer controller) {
+    gtk_widget_remove_controller(widget, GTK_EVENT_CONTROLLER(controller));
+}
+
+static inline gboolean
+gtk_swift_event_is_primary_button_press(gpointer event) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL
+        && gdk_event_get_event_type(gdk_event) == GDK_BUTTON_PRESS
+        && gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY;
+}
+
+static inline gboolean
+gtk_swift_event_get_position(gpointer event, double *x, double *y) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL ? gdk_event_get_position(gdk_event, x, y) : FALSE;
+}
+
+static inline GtkWidget *
+gtk_swift_widget_root_widget(GtkWidget *widget) {
+    GtkRoot *root = gtk_widget_get_root(widget);
+    return root != NULL ? GTK_WIDGET(root) : NULL;
+}
+
+static inline gboolean
+gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (root == NULL || widget == NULL) {
+        return FALSE;
+    }
+    double local_x = 0;
+    double local_y = 0;
+    if (!gtk_widget_translate_coordinates(root, widget, x, y, &local_x, &local_y)) {
+        return FALSE;
+    }
+    return local_x >= 0
+        && local_y >= 0
+        && local_x < gtk_widget_get_width(widget)
+        && local_y < gtk_widget_get_height(widget);
+}
+
+static inline gboolean
+gtk_swift_widget_is_ancestor_or_self(GtkWidget *ancestor, GtkWidget *widget) {
+    while (widget != NULL) {
+        if (widget == ancestor) {
+            return TRUE;
+        }
+        widget = gtk_widget_get_parent(widget);
+    }
+    return FALSE;
+}
+
+static inline gboolean
+gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, double x, double y) {
+    if (!gtk_swift_widget_contains_root_point(root, widget, x, y)) {
+        return FALSE;
+    }
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
+        return TRUE;
+    }
+    picked = gtk_widget_pick(root, x, y, GTK_PICK_NON_TARGETABLE);
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    if (picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget)) {
+        return TRUE;
+    }
+    picked = gtk_widget_pick(
+        root,
+        x,
+        y,
+        (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
+    );
+    if (picked != NULL && gtk_swift_widget_is_ancestor_or_self(widget, picked)) {
+        return TRUE;
+    }
+    return picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget);
+}
+"""
+    if capture_helper not in text:
+        raise SystemExit("SwiftOpenUI GTK capture gesture shim shape was not recognized")
+    text = text.replace(capture_helper, capture_helper + "\n" + legacy_helpers, 1)
 path.write_text(text)
 PY
 fi
@@ -1092,6 +1260,7 @@ if "buttonWantsHExpand" not in text:
 '''
     new_button_child = '''            let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
+            gtkDisableButtonChildTargeting(childWidget)
             if gtk_widget_get_hexpand(childWidget) != 0 {
                 buttonWantsHExpand = true
                 gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
@@ -1116,6 +1285,189 @@ if "buttonWantsHExpand" not in text:
     text = text.replace(old_button_child, new_button_child, 1)
     text = text.replace(old_button_expand, new_button_expand, 1)
 
+if "private func gtkDisableButtonChildTargeting" not in text:
+    button_targeting_helper = '''private func gtkDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    gtk_widget_set_can_target(widget, 0)
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        gtkDisableButtonChildTargeting(c)
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+'''
+    button_marker = "extension Button: GTKRenderable"
+    if button_marker not in text:
+        raise SystemExit("SwiftOpenUI Button renderer marker was not recognized")
+    text = text.replace(button_marker, button_targeting_helper + button_marker, 1)
+
+if "gtkDisableButtonChildTargeting(childWidget)" not in text:
+    button_child_set = "            gtk_button_set_child(btnPtr, childWidget)\n"
+    if button_child_set not in text:
+        raise SystemExit("SwiftOpenUI Button child install shape was not recognized")
+    text = text.replace(
+        button_child_set,
+        button_child_set + "            gtkDisableButtonChildTargeting(childWidget)\n",
+        1,
+    )
+
+if "private final class GTKButtonActionBox" not in text:
+    button_action_helper = '''private final class GTKButtonActionBox {
+    let action: () -> Void
+    var lastActivationTime: TimeInterval = 0
+
+    init(_ action: @escaping () -> Void) {
+        self.action = action
+    }
+}
+
+private final class GTKButtonIdleActionContext {
+    let box: GTKButtonActionBox
+    let source: String
+
+    init(box: GTKButtonActionBox, source: String) {
+        self.box = box
+        self.source = source
+    }
+}
+
+private final class GTKButtonRootEventContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    let box: GTKButtonActionBox
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+
+    init(widget: UnsafeMutablePointer<GtkWidget>, box: GTKButtonActionBox) {
+        self.widget = widget
+        self.box = box
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {
+    let now = Date().timeIntervalSinceReferenceDate
+    if now - box.lastActivationTime < 0.08 {
+        gtkDebugLog("button duplicate \\(source)")
+        return
+    }
+    box.lastActivationTime = now
+    gtkDebugLog("button \\(source)")
+    let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKButtonIdleActionContext>.fromOpaque(userData).takeRetainedValue()
+        gtkDebugLog("button action \\(context.source)")
+        context.box.action()
+        return 0
+    }, context)
+}
+
+private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return 0 }
+            var x: Double = 0
+            var y: Double = 0
+            guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            guard gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0 else { return 0 }
+            gtkScheduleButtonAction(context.box, source: "root-legacy")
+            return 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+'''
+    button_marker = "extension Button: GTKRenderable"
+    if button_marker not in text:
+        raise SystemExit("SwiftOpenUI Button renderer marker was not recognized")
+    text = text.replace(button_marker, button_action_helper + button_marker, 1)
+
+if "private final class GTKButtonRootEventContext" not in text:
+    root_context_helper = '''private final class GTKButtonRootEventContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    let box: GTKButtonActionBox
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+
+    init(widget: UnsafeMutablePointer<GtkWidget>, box: GTKButtonActionBox) {
+        self.widget = widget
+        self.box = box
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+'''
+    schedule_marker = "private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {\n"
+    if schedule_marker not in text:
+        raise SystemExit("SwiftOpenUI Button scheduler marker was not recognized")
+    text = text.replace(schedule_marker, root_context_helper + schedule_marker, 1)
+
+if "private func gtkInstallButtonRootEventFallback" not in text:
+    root_install_helper = '''private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return 0 }
+            var x: Double = 0
+            var y: Double = 0
+            guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            guard gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0 else { return 0 }
+            gtkScheduleButtonAction(context.box, source: "root-legacy")
+            return 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+'''
+    button_marker = "extension Button: GTKRenderable"
+    if button_marker not in text:
+        raise SystemExit("SwiftOpenUI Button renderer marker was not recognized")
+    text = text.replace(button_marker, root_install_helper + button_marker, 1)
+
 # Keep these frame/layout rewrites independent from the Button idempotency guard.
 # A vendored renderer may already contain button expansion while still needing
 # the finite .frame(maxWidth:) fixes below.
@@ -1136,44 +1488,231 @@ text = text.replace(
     'if gtk_widget_get_hexpand(widget) != 0 { needsHExpand = true; gtk_widget_set_halign(widget, GTK_ALIGN_FILL) }'
 )
 
-old_button_clicked = '''        g_signal_connect_data(
+if 'gtkScheduleButtonAction(box, source: "gesture")' not in text:
+    button_extension_index = text.find("extension Button: GTKRenderable")
+    if button_extension_index == -1:
+        raise SystemExit("SwiftOpenUI Button GTKRenderable extension was not recognized")
+    button_action_start = text.find(
+        "        let boundAction = bindActionToCurrentEnvironment(action)\n",
+        button_extension_index,
+    )
+    button_action_end = text.find(
+        "        // Register keyboard shortcut if present in environment\n",
+        button_action_start,
+    )
+    if button_action_end == -1:
+        button_action_end = text.find(
+            "        return opaqueFromWidget(button)\n",
+            button_action_start,
+        )
+    if button_action_start == -1 or button_action_end == -1:
+        raise SystemExit("SwiftOpenUI Button action callback shape was not recognized")
+    button_activation = '''        let boundAction = bindActionToCurrentEnvironment(action)
+        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        let buttonRootEventContext = Unmanaged.passRetained(
+            GTKButtonRootEventContext(
+                widget: button,
+                box: Unmanaged<GTKButtonActionBox>.fromOpaque(buttonActionBox).takeUnretainedValue()
+            )
+        ).toOpaque()
+        g_signal_connect_data(
             gpointer(button),
-            "clicked",
+            "map",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeUnretainedValue()
-                box.closure()
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkInstallButtonRootEventFallback(context)
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-'''
-new_button_clicked = '''        g_signal_connect_data(
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
             gpointer(button),
             "clicked",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
                 guard let userData else { return }
-                gtkDebugLog("button clicked")
-                let retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()
-                g_idle_add({ idleData -> gboolean in
-                    let box = Unmanaged<ClosureBox>.fromOpaque(idleData!).takeRetainedValue()
-                    gtkDebugLog("button action")
-                    box.closure()
-                    return 0
-                }, retainedBox)
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "clicked")
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        let gesture = gtk_gesture_click_new()!
+        gtk_swift_gesture_single_set_button(gesture, 1)
+        g_signal_connect_data(
+            gpointer(gesture),
+            "pressed",
+            unsafeBitCast({ (_: gpointer?, _: gint, _: gdouble, _: gdouble, userData: gpointer?) in
+                guard let userData else { return }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "gesture")
+            } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_swift_add_capture_gesture(button, gesture)
+        let legacyController = gtk_swift_legacy_capture_controller()!
+        g_signal_connect_data(
+            legacyController,
+            "event",
+            unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+                guard let event, let userData else { return 0 }
+                guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "legacy")
+                return 0
+            } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_swift_add_event_controller(button, legacyController)
+        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeRetainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<GTKButtonActionBox>.fromOpaque(userData).release()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
 '''
-if "retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()" not in text:
-    if old_button_clicked not in text:
-        raise SystemExit("SwiftOpenUI Button clicked callback shape was not recognized")
-    text = text.replace(old_button_clicked, new_button_clicked, 1)
-elif 'gtkDebugLog("button clicked")' not in text:
-    text = text.replace(
-        "                let retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()\n",
-        "                gtkDebugLog(\"button clicked\")\n                let retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()\n",
-        1,
+    text = text[:button_action_start] + button_activation + text[button_action_end:]
+
+text = text.replace(
+    "        gtk_swift_add_gesture(button, gesture)\n"
+    "        g_signal_connect_data(\n"
+    "            gpointer(button),\n"
+    "            \"destroy\",\n",
+    "        gtk_swift_add_capture_gesture(button, gesture)\n"
+    "        g_signal_connect_data(\n"
+    "            gpointer(button),\n"
+    "            \"destroy\",\n",
+    1,
+)
+
+if "let buttonRootEventContext = Unmanaged.passRetained" not in text:
+    action_box_line = "        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()\n"
+    root_context_activation = '''        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        let buttonRootEventContext = Unmanaged.passRetained(
+            GTKButtonRootEventContext(
+                widget: button,
+                box: Unmanaged<GTKButtonActionBox>.fromOpaque(buttonActionBox).takeUnretainedValue()
+            )
+        ).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkInstallButtonRootEventFallback(context)
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+'''
+    if action_box_line not in text:
+        raise SystemExit("SwiftOpenUI Button action box insertion point was not recognized")
+    text = text.replace(action_box_line, root_context_activation, 1)
+
+if 'gtkScheduleButtonAction(box, source: "legacy")' not in text:
+    button_legacy_marker = (
+        "        gtk_swift_add_capture_gesture(button, gesture)\n"
+        "        g_signal_connect_data(\n"
+        "            gpointer(button),\n"
+        "            \"destroy\",\n"
     )
-    text = text.replace(
-        "                    let box = Unmanaged<ClosureBox>.fromOpaque(idleData!).takeRetainedValue()\n                    box.closure()\n",
-        "                    let box = Unmanaged<ClosureBox>.fromOpaque(idleData!).takeRetainedValue()\n                    gtkDebugLog(\"button action\")\n                    box.closure()\n",
-        1,
-    )
+    button_legacy_block = '''        gtk_swift_add_capture_gesture(button, gesture)
+        let legacyController = gtk_swift_legacy_capture_controller()!
+        g_signal_connect_data(
+            gpointer(legacyController),
+            "event",
+            unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+                guard let event, let userData else { return 0 }
+                guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+                let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
+                gtkScheduleButtonAction(box, source: "legacy")
+                return 0
+            } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_swift_add_event_controller(button, legacyController)
+        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+'''
+    if button_legacy_marker not in text:
+        raise SystemExit("SwiftOpenUI Button legacy event insertion point was not recognized")
+    text = text.replace(button_legacy_marker, button_legacy_block, 1)
+
+text = text.replace("            gpointer(legacyController),\n", "            legacyController,\n")
+
+if "context.removeController()" not in text:
+    action_destroy_marker = '''        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<GTKButtonActionBox>.fromOpaque(userData).release()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonActionBox,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+'''
+    root_destroy_block = '''        g_signal_connect_data(
+            gpointer(button),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeRetainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+''' + action_destroy_marker
+    if action_destroy_marker not in text:
+        raise SystemExit("SwiftOpenUI Button destroy insertion point was not recognized")
+    text = text.replace(action_destroy_marker, root_destroy_block, 1)
+
+tap_extension_index = text.find("extension TapGestureView: GTKRenderable")
+if tap_extension_index != -1:
+    long_press_index = text.find("extension LongPressGestureView", tap_extension_index)
+    if long_press_index == -1:
+        raise SystemExit("SwiftOpenUI TapGesture renderer end marker was not recognized")
+    tap_block = text[tap_extension_index:long_press_index]
+    if "gtk_swift_add_capture_gesture(widget, gesture)" not in tap_block:
+        if "gtk_swift_add_gesture(widget, gesture)" not in tap_block:
+            raise SystemExit("SwiftOpenUI TapGesture gesture attach shape was not recognized")
+        tap_block = tap_block.replace(
+            "gtk_swift_add_gesture(widget, gesture)",
+            "gtk_swift_add_capture_gesture(widget, gesture)",
+            1,
+        )
+        text = text[:tap_extension_index] + tap_block + text[long_press_index:]
 
 finite_frame_width = "childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity)"
 finite_frame_height = "childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)"
@@ -1676,8 +2215,32 @@ private func gtkSheetDefaultHeight() -> gint {
             if let dialogPtr = g_object_get_data(gobject, windowKey) {
 ''',
             item_overlay_dismiss,
-            1,
-        )
+        1,
+    )
+
+sheet_dismissal_scheduler = '''private func gtkScheduleSheetDismissal(_ action: @escaping () -> Void) {
+    let box = Unmanaged.passRetained(ClosureBox(action)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        Unmanaged<ClosureBox>.fromOpaque(userData).takeRetainedValue().closure()
+        return 0
+    }, box)
+}
+'''
+if "private func gtkScheduleSheetDismissal" not in text:
+    marker = "\n\nextension SheetModifierView: GTKRenderable"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI sheet dismissal scheduler insertion shape was not recognized")
+    text = text.replace(marker, "\n\n" + sheet_dismissal_scheduler + marker, 1)
+
+text = text.replace(
+    "                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }",
+    """                env.dismiss = DismissAction {
+                    gtkScheduleSheetDismissal {
+                        gtk_window_destroy(dialogWin)
+                    }
+                }""",
+)
 
 if 'gtkDebugLog("sheet bool presented=' not in text:
     text = text.replace(
@@ -1743,6 +2306,46 @@ private func gtkShouldRenderSheetInWindow() -> Bool {
     return mode == "overlay" || mode == "in-window" || mode == "inline"
 }
 
+private var gtkRootSheetOverlayStack: [OpaquePointer] = []
+
+private func gtkCurrentRootSheetOverlay() -> OpaquePointer? {
+    gtkRootSheetOverlayStack.last
+}
+
+private func gtkWithRootSheetOverlay<T>(_ rootOverlay: OpaquePointer, _ body: () -> T) -> T {
+    gtkRootSheetOverlayStack.append(rootOverlay)
+    defer { _ = gtkRootSheetOverlayStack.popLast() }
+    return body()
+}
+
+private func gtkSheetRootOverlay(for anchor: UnsafeMutablePointer<GtkWidget>) -> OpaquePointer? {
+    if let rootOverlay = gtkCurrentRootSheetOverlay() {
+        return rootOverlay
+    }
+    if let rootOverlay = gtkStoredRootPresentationOverlay(on: gpointer(anchor)) {
+        return rootOverlay
+    }
+    var ancestor = gtk_widget_get_parent(anchor)
+    while let current = ancestor {
+        if let rootOverlay = gtkStoredRootPresentationOverlay(on: gpointer(current)) {
+            return rootOverlay
+        }
+        ancestor = gtk_widget_get_parent(current)
+    }
+    if let root = gtk_widget_get_root(anchor).map({ gpointer($0) }),
+       let rootOverlay = gtkRootPresentationOverlay(for: root) {
+        return rootOverlay
+    }
+    if let root = GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
+       let rootOverlay = gtkRootPresentationOverlay(for: root) {
+        return rootOverlay
+    }
+    if let rootOverlay = gtkFallbackRootPresentationOverlay() {
+        return rootOverlay
+    }
+    return nil
+}
+
 private func gtkRemoveSheetRootOverlay(
     anchor: UnsafeMutablePointer<GtkWidget>,
     overlayKey: String,
@@ -1781,7 +2384,174 @@ private func gtkCreateSheetOverlayPanel(
     gtk_widget_set_halign(sheetWidget, GTK_ALIGN_FILL)
     gtk_widget_set_valign(sheetWidget, GTK_ALIGN_FILL)
     gtk_box_append(boxPointer(panel), sheetWidget)
+    gtkInstallSheetPanelFocusBridge(on: panel)
+    gtkScheduleFirstSheetEditableFocus(in: panel)
     return panel
+}
+
+private func gtkAttachRootSheetOverlay(
+    _ panel: UnsafeMutablePointer<GtkWidget>,
+    to rootOverlay: OpaquePointer
+) {
+    let overlayWidget = UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GtkWidget.self)
+    let previousTop = gtk_widget_get_last_child(overlayWidget)
+    gtk_overlay_add_overlay(rootOverlay, panel)
+    if let previousTop, previousTop != panel {
+        gtk_widget_insert_after(panel, overlayWidget, previousTop)
+    }
+}
+
+private final class GTKSheetPanelFocusBox {
+    let panel: UnsafeMutablePointer<GtkWidget>
+
+    init(panel: UnsafeMutablePointer<GtkWidget>) {
+        self.panel = panel
+    }
+}
+
+private final class GTKSheetEditableFocusTarget {
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+    }
+}
+
+private final class GTKSheetPanelFocusTarget {
+    let panel: UnsafeMutablePointer<GtkWidget>
+
+    init(panel: UnsafeMutablePointer<GtkWidget>) {
+        self.panel = panel
+    }
+}
+
+private func gtkInstallSheetPanelFocusBridge(on panel: UnsafeMutablePointer<GtkWidget>) {
+    let gesture = gtk_gesture_click_new()!
+    let box = Unmanaged.passRetained(GTKSheetPanelFocusBox(panel: panel)).toOpaque()
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, x: Double, y: Double, userData: gpointer?) in
+            guard let userData else { return }
+            let box = Unmanaged<GTKSheetPanelFocusBox>.fromOpaque(userData).takeUnretainedValue()
+            gtkFocusSheetEditable(in: box.panel, localX: x, localY: y)
+        } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        box,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKSheetPanelFocusBox>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(panel, gesture)
+}
+
+private func gtkFocusSheetEditable(
+    in panel: UnsafeMutablePointer<GtkWidget>,
+    localX: Double,
+    localY: Double
+) {
+    guard gtk_swift_is_widget(panel) != 0 else { return }
+    guard let root = gtk_swift_widget_root_widget(panel) else { return }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_widget_translate_coordinates(panel, root, localX, localY, &rootX, &rootY) != 0 else {
+        return
+    }
+    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
+        return
+    }
+    gtkFocusSheetEditableWidget(editable)
+}
+
+private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_focusable(widget, 1)
+    _ = gtk_swift_root_grab_focus(widget)
+    if let delegate = gtk_editable_get_delegate(OpaquePointer(widget)) {
+        let delegateWidget = UnsafeMutableRawPointer(delegate).assumingMemoryBound(to: GtkWidget.self)
+        gtk_widget_set_can_target(delegateWidget, 1)
+        gtk_widget_set_focusable(delegateWidget, 1)
+        _ = gtk_swift_root_grab_focus(delegateWidget)
+        gtkScheduleSheetEditableFocus(delegateWidget)
+    }
+    gtkScheduleSheetEditableFocus(widget)
+}
+
+private func gtkScheduleSheetEditableFocus(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    g_object_ref(gpointer(widget))
+    let target = GTKSheetEditableFocusTarget(widget: widget)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let target = Unmanaged<GTKSheetEditableFocusTarget>.fromOpaque(userData).takeRetainedValue()
+        defer { g_object_unref(gpointer(target.widget)) }
+        guard gtk_swift_is_widget(target.widget) != 0 else { return 0 }
+        gtk_widget_set_can_target(target.widget, 1)
+        gtk_widget_set_focusable(target.widget, 1)
+        _ = gtk_swift_root_grab_focus(target.widget)
+        return 0
+    }, Unmanaged.passRetained(target).toOpaque())
+}
+
+private func gtkScheduleFirstSheetEditableFocus(in panel: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(panel) != 0 else { return }
+    g_object_ref(gpointer(panel))
+    let target = GTKSheetPanelFocusTarget(panel: panel)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let target = Unmanaged<GTKSheetPanelFocusTarget>.fromOpaque(userData).takeRetainedValue()
+        defer { g_object_unref(gpointer(target.panel)) }
+        guard gtk_swift_is_widget(target.panel) != 0 else { return 0 }
+        if let editable = gtkFindFirstSheetEditable(in: target.panel) {
+            gtkFocusSheetEditableWidget(editable)
+        }
+        return 0
+    }, Unmanaged.passRetained(target).toOpaque())
+}
+
+private func gtkFindSheetEditable(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    rootX: Double,
+    rootY: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let found = gtkFindSheetEditable(in: current, root: root, rootX: rootX, rootY: rootY) {
+            return found
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    guard gtkSheetWidgetIsTextInput(widget),
+          gtk_swift_widget_is_topmost_at_root_point(root, widget, rootX, rootY) != 0
+    else {
+        return nil
+    }
+    return widget
+}
+
+private func gtkFindFirstSheetEditable(
+    in widget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let found = gtkFindFirstSheetEditable(in: current) {
+            return found
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return gtkSheetWidgetIsTextInput(widget) ? widget : nil
+}
+
+private func gtkSheetWidgetIsTextInput(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    guard gtk_swift_is_widget(widget) != 0 else { return false }
+    if gtk_swift_widget_is_editable(widget) != 0 { return true }
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    return typeName == "GtkTextView"
 }
 
 private func gtkCreateSheetOverlay(
@@ -1826,9 +2596,11 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 }
             } else {
                 env.dismiss = DismissAction {
-                    binding.wrappedValue = false
-                    lifecycleScope.runDisappearActions()
-                    userOnDismiss?()
+                    gtkScheduleSheetDismissal {
+                        binding.wrappedValue = false
+                        lifecycleScope.runDisappearActions()
+                        userOnDismiss?()
+                    }
                 }
             }
             setCurrentEnvironment(env)
@@ -1838,9 +2610,7 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
         }
 
         if gtkShouldRenderSheetInRootOverlay(),
-           let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
-                ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
-           let rootOverlay = gtkRootPresentationOverlay(for: root) {
+           let rootOverlay = gtkSheetRootOverlay(for: anchor) {
             guard g_object_get_data(gobject, activeKey) == nil else {
                 return opaqueFromWidget(widget)
             }
@@ -1858,18 +2628,22 @@ bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
                 }
             } else {
                 env.dismiss = DismissAction {
-                    gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)
-                    binding.wrappedValue = false
-                    lifecycleScope.runDisappearActions()
-                    userOnDismiss?()
+                    gtkScheduleSheetDismissal {
+                        binding.wrappedValue = false
+                        lifecycleScope.runDisappearActions()
+                    }
                 }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) })
+            let sheetWidget = widgetFromOpaque(gtkWithRootSheetOverlay(rootOverlay) {
+                gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) }
+            })
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
-            gtk_overlay_add_overlay(rootOverlay, panel)
+            gtkAttachRootSheetOverlay(panel, to: rootOverlay)
             return opaqueFromWidget(widget)
         }
 
@@ -1880,7 +2654,7 @@ if "gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)" not 
         raise SystemExit("SwiftOpenUI bool sheet overlay insertion shape was not recognized")
     text = text.replace(bool_marker, bool_sheet_overlay + bool_marker, 1)
 
-item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() || gtkShouldRenderSheetInRootOverlay() {
+item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
             let sheetBuilder = sheetContent
             let itemBinding = item
             let userOnDismiss = onDismiss
@@ -1894,9 +2668,11 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() || gtkShouldRe
                 }
             } else {
                 env.dismiss = DismissAction {
-                    itemBinding.wrappedValue = nil
-                    lifecycleScope.runDisappearActions()
-                    userOnDismiss?()
+                    gtkScheduleSheetDismissal {
+                        itemBinding.wrappedValue = nil
+                        lifecycleScope.runDisappearActions()
+                        userOnDismiss?()
+                    }
                 }
             }
             setCurrentEnvironment(env)
@@ -1906,10 +2682,9 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() || gtkShouldRe
         }
 
         if gtkShouldRenderSheetInRootOverlay(),
-           let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
-                ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
-           let rootOverlay = gtkRootPresentationOverlay(for: root) {
+           let rootOverlay = gtkSheetRootOverlay(for: anchor) {
             let currentIdHash = currentItem.id.hashValue
+            gtkDebugLog("sheet item root present activeKey=\(activeKey) itemID=\(currentIdHash)")
             if g_object_get_data(gobject, activeKey) != nil {
                 let storedHash = Int(bitPattern: g_object_get_data(gobject, itemIDKey))
                 if storedHash == currentIdHash {
@@ -1929,6 +2704,7 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() || gtkShouldRe
             let itemBinding = item
             let userOnDismiss = onDismiss
             let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+            let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
             if let config = itemDismissalConfig {
@@ -1937,24 +2713,25 @@ item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() || gtkShouldRe
                 }
             } else {
                 env.dismiss = DismissAction {
-                    gtkRemoveSheetRootOverlay(
-                        anchor: anchor,
-                        overlayKey: overlayKey,
-                        activeKey: activeKey,
-                        itemIDKey: itemIDKey
-                    )
-                    itemBinding.wrappedValue = nil
-                    userOnDismiss?()
+                    gtkScheduleSheetDismissal {
+                        itemBinding.wrappedValue = nil
+                        lifecycleScope.runDisappearActions()
+                    }
                 }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(gtkRenderView(sheetBuilder(currentItem)))
+            let sheetWidget = widgetFromOpaque(gtkWithRootSheetOverlay(rootOverlay) {
+                gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }
+            })
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)
             g_object_set_data(gobject, overlayKey, gpointer(panel))
-            gtk_overlay_add_overlay(rootOverlay, panel)
+            gtkAttachRootSheetOverlay(panel, to: rootOverlay)
             return opaqueFromWidget(widget)
         }
+        gtkDebugLog("sheet item root unavailable activeKey=\(activeKey)")
 
 '''
 if "let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))" in text and text.count("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)") < 2:
@@ -1962,6 +2739,17 @@ if "let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(curre
     if item_marker not in text:
         raise SystemExit("SwiftOpenUI item sheet overlay insertion shape was not recognized")
     text = text.replace(item_marker, item_sheet_overlay + item_marker, 1)
+
+legacy_item_sheet_window_or_root_condition = (
+    "        if gtkShouldRenderSheetInWindow() "
+    + "|| gtkShouldRenderSheetInRootOverlay() {\n"
+)
+text = text.replace(
+    legacy_item_sheet_window_or_root_condition
+    + "            let sheetBuilder = sheetContent\n",
+    "        if gtkShouldRenderSheetInWindow() {\n"
+    "            let sheetBuilder = sheetContent\n",
+)
 
 text = text.replace(
     'gtk_window_set_default_size(dialogWin, 400, 300)',
@@ -2622,6 +3410,7 @@ private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePoi
 if (
     "gtkScheduleIdleScrollTo(_ target" not in text
     and "gtkScheduleIdleScrollTo(id: AnyHashable? = nil, _ target" not in text
+    and "private func gtkScheduleIdleScrollTo(" not in text
 ):
     idle_helper_marker = '''private func gtkApplyOrScheduleScrollTo(_ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
     gtkApplyScrollTo(widget, anchor: anchor)
@@ -2728,9 +3517,15 @@ new_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable
 '''
 if old_resolve_or_queue in text:
     text = text.replace(old_resolve_or_queue, new_resolve_or_queue)
-elif "let request = GTKPendingScrollRequest(anchor: anchor)" not in text:
+elif (
+    "let request = GTKPendingScrollRequest(anchor: anchor)" not in text
+    and "gtkPendingScrollRequests[anyID] = GTKPendingScrollRequest(anchor: anchor)" not in text
+):
     raise SystemExit("SwiftOpenUI ScrollViewReader request queue shape was not recognized")
-elif "lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>" in text:
+elif (
+    "private func gtkResolveOrQueueScrollTo" in text
+    and "lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>" in text
+):
     stale_resolve_or_queue = '''private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
     let request = GTKPendingScrollRequest(anchor: anchor)
     gtkPendingScrollRequests[id] = request
@@ -3508,6 +4303,7 @@ from pathlib import Path
 path = Path(sys.argv[1])
 text = path.read_text()
 root_overlay_helpers = '''private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
+private var gtkRootPresentationOverlayFallback: OpaquePointer?
 
 func gtkCreateRootPresentationContainer(
     winPtr: UnsafeMutablePointer<GtkWindow>,
@@ -3525,18 +4321,34 @@ func gtkCreateRootPresentationContainer(
     gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
     gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
 
-    let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
-    g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: overlay)
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)
+    gtkRootPresentationOverlayFallback = OpaquePointer(overlay)
     return overlay
 }
 
-func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
-    let gobject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
-    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else {
-        return nil
-    }
+func gtkStoreRootPresentationOverlay(
+    _ rootOverlay: OpaquePointer,
+    on widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, gtkRootPresentationOverlayKey, UnsafeMutableRawPointer(rootOverlay))
+}
+
+func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer? {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else { return nil }
     let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
     return OpaquePointer(overlay)
+}
+
+func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
+    gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback
+}
+
+func gtkFallbackRootPresentationOverlay() -> OpaquePointer? {
+    gtkRootPresentationOverlayFallback
 }
 
 '''
@@ -3640,6 +4452,62 @@ if "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL" not in text:
         text = text.replace(legacy_menubar_label, new_menubar_label, 1)
     else:
         text = text.replace(old_menubar_label, new_menubar_label, 1)
+text = text.replace(
+    "/// Protocol for scenes that can render onto a GtkApplication.",
+    "/// Protocol for scenes that can render onto GTK top-level windows.",
+    1,
+)
+text = text.replace("func gtkRender(app: OpaquePointer)", "func gtkRender(app: OpaquePointer?)")
+text = text.replace("func gtkCreateWindow(app: OpaquePointer)", "func gtkCreateWindow(app: OpaquePointer?)")
+application_window = '''        let window = gtk_application_window_new(gtkApplicationPointer(app))!
+'''
+plain_window = '''        let window: UnsafeMutablePointer<GtkWidget>
+        if let app {
+            window = gtk_application_window_new(gtkApplicationPointer(app))!
+        } else {
+            window = gtk_window_new()!
+        }
+'''
+if application_window in text:
+    text = text.replace(application_window, plain_window)
+plain_lifecycle = '''        let factory: (OpaquePointer?) -> Void = { appPtr in
+            // Inject openWindow action into the environment so views
+            // can programmatically open Window scenes by id.
+            var env = getCurrentEnvironment()
+            env.openWindow = OpenWindowAction { id in
+                GTK4WindowRegistry.shared.open(id: id)
+            }
+            setCurrentEnvironment(env)
+
+            let instance = A()
+            gtkRenderScene(instance.body, app: appPtr)
+        }
+
+        // Pump Foundation RunLoop sources (Timer, etc.) periodically.
+        // GTK4's GMainLoop blocks the thread, so Foundation
+        // timers (e.g. Timer.scheduledTimer) never fire unless we
+        // explicitly spin RunLoop.main from a GLib timeout source.
+        g_timeout_add(5, { _ -> gboolean in
+            let limit = Date(timeIntervalSinceNow: 0.001)
+            _ = RunLoop.main.run(mode: .default, before: limit)
+            return 1 // G_SOURCE_CONTINUE
+        }, nil)
+
+        if gtk_init_check() == 0 {
+            return
+        }
+        factory(nil)
+
+        let loop = g_main_loop_new(nil, 0)
+        g_main_loop_run(loop)
+        g_main_loop_unref(loop)
+'''
+start = text.find("        let gtkApp = gtk_application_new")
+if start != -1:
+    end = text.find("\n    }\n}\n\n/// GTK4 rendering for Window", start)
+    if end == -1:
+        raise SystemExit("SwiftOpenUI GTK application lifecycle shape was not recognized")
+    text = text[:start] + plain_lifecycle + text[end:]
 path.write_text(text)
 PY
 
@@ -4539,12 +5407,73 @@ from pathlib import Path
 path = Path(sys.argv[1])
 text = path.read_text()
 
-hook_decl = "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n\n"
+hook_decl = (
+    "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
+    "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
+    "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
+    "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n\n"
+)
 if "quill_gtk_button_paint_hook" not in text:
     marker = "// MARK: - GTK rendering protocol\n"
     if marker not in text:
         raise SystemExit("SwiftOpenUI GTK rendering protocol marker was not recognized")
     text = text.replace(marker, hook_decl + marker, 1)
+elif "quill_gtk_text_field_paint_hook" not in text:
+    text = text.replace(
+        "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n",
+        "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
+        "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n",
+        1,
+    )
+if "quill_gtk_text_editor_paint_hook" not in text:
+    text = text.replace(
+        "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n",
+        "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
+        "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
+        1,
+    )
+if "quill_gtk_toggle_paint_hook" not in text:
+    text = text.replace(
+        "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
+        "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
+        1,
+    )
+
+if "private final class GTKTextBindingIdleUpdate" not in text:
+    text_binding_helper = '''private final class GTKTextBindingIdleUpdate {
+    let binding: Binding<String>
+    let value: String
+
+    init(binding: Binding<String>, value: String) {
+        self.binding = binding
+        self.value = value
+    }
+
+    func apply() {
+        if binding.wrappedValue != value {
+            binding.wrappedValue = value
+        }
+    }
+}
+
+private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
+    let context = Unmanaged.passRetained(
+        GTKTextBindingIdleUpdate(binding: binding, value: value)
+    ).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKTextBindingIdleUpdate>.fromOpaque(userData).takeRetainedValue()
+        context.apply()
+        return 0
+    }, context)
+}
+
+'''
+    helper_marker = "// MARK: - GTK rendering protocol\n"
+    if helper_marker not in text:
+        raise SystemExit("SwiftOpenUI TextField idle binding helper insertion marker was not recognized")
+    text = text.replace(helper_marker, text_binding_helper + helper_marker, 1)
 
 if "case .quillPaintMacDefault:" not in text:
     extension_index = text.find("extension Button: GTKRenderable")
@@ -4592,6 +5521,7 @@ if "case .quillPaintMacDefault:" not in text:
         if !handledByQuillPaint {
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
+            gtkDisableButtonChildTargeting(childWidget)
             if !(label is Text) {
                 // Remove GTK default button border/padding so custom-styled
                 // labels (with .background/.frame) render cleanly.
@@ -4656,6 +5586,333 @@ if "case .quillPaintMacDefault:" not in text:
 
 '''
     text = text[:start] + replacement + text[end:]
+
+button_extension_index = text.find("extension Button: GTKRenderable")
+if button_extension_index == -1:
+    raise SystemExit("SwiftOpenUI Button GTKRenderable extension was not recognized")
+button_child_set = "            gtk_button_set_child(btnPtr, childWidget)\n"
+button_child_index = text.find(button_child_set, button_extension_index)
+if button_child_index == -1:
+    raise SystemExit("SwiftOpenUI Button child install shape was not recognized")
+button_targeting_call = "            gtkDisableButtonChildTargeting(childWidget)\n"
+button_targeting_window = text[
+    button_child_index: button_child_index + len(button_child_set) + len(button_targeting_call) + 80
+]
+if button_targeting_call not in button_targeting_window:
+    insert_index = button_child_index + len(button_child_set)
+    text = text[:insert_index] + button_targeting_call + text[insert_index:]
+
+text_field_index = text.find("extension TextField: GTKRenderable")
+if text_field_index == -1:
+    raise SystemExit("SwiftOpenUI TextField GTKRenderable extension was not recognized")
+text_field_end = text.find("\nextension ", text_field_index + 1)
+if text_field_end == -1:
+    text_field_end = len(text)
+
+if (
+    '"changed"' not in text[text_field_index:text_field_end]
+    and "gtk_entry_buffer_get_text" in text[text_field_index:text_field_end]
+):
+    style_comment = "        // Apply text field style from environment\n"
+    style_index = text.find(style_comment, text_field_index, text_field_end)
+    if style_index == -1:
+        raise SystemExit("SwiftOpenUI TextField changed-signal insert shape was not recognized")
+    text_field_changed_signal = '''        // GtkEntry also emits "changed" as a GtkEditable; keep this in sync with
+        // SecureField so user edits always reach SwiftUI bindings before dismissal.
+        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(entry),
+            "changed",
+            unsafeBitCast({ (editable: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<StringClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                let cStr = gtk_editable_get_text(OpaquePointer(editable))!
+                box.closure(String(cString: cStr))
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            changedBox,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<StringClosureBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+
+'''
+    text = text[:style_index] + text_field_changed_signal + text[style_index:]
+    text_field_end = text.find("\nextension ", text_field_index + 1)
+    if text_field_end == -1:
+        text_field_end = len(text)
+
+text_field_section = text[text_field_index:text_field_end]
+direct_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            // Avoid feedback loop: only set if value actually changed
+            if binding.wrappedValue != newText {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+'''
+idle_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+'''
+if direct_update in text_field_section:
+    text = (
+        text[:text_field_index]
+        + text_field_section.replace(direct_update, idle_update, 1)
+        + text[text_field_end:]
+    )
+    text_field_end = text.find("\nextension ", text_field_index + 1)
+    if text_field_end == -1:
+        text_field_end = len(text)
+    text_field_section = text[text_field_index:text_field_end]
+
+direct_changed_update = '''        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            if binding.wrappedValue != newText {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+'''
+idle_changed_update = '''        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+'''
+if direct_changed_update in text_field_section:
+    text = (
+        text[:text_field_index]
+        + text_field_section.replace(direct_changed_update, idle_changed_update, 1)
+        + text[text_field_end:]
+    )
+    text_field_end = text.find("\nextension ", text_field_index + 1)
+    if text_field_end == -1:
+        text_field_end = len(text)
+
+if "var useQuillPaintTextField = false" not in text[text_field_index:text_field_end]:
+    style_var = "        let textFieldStyleType = getCurrentEnvironment().textFieldStyle\n"
+    style_index = text.find(style_var, text_field_index)
+    if style_index == -1:
+        raise SystemExit("SwiftOpenUI TextField style variable shape was not recognized")
+    return_index = text.find("        gtkApplyEnabledState(to: entry)", style_index)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI TextField enabled-state shape was not recognized")
+    insert_index = style_index + len(style_var)
+    text = text[:insert_index] + "        var useQuillPaintTextField = false\n" + text[insert_index:]
+    return_index = text.find("        gtkApplyEnabledState(to: entry)", insert_index)
+    automatic_case = "        case .automatic, .roundedBorder:\n"
+    case_index = text.find(automatic_case, insert_index, return_index)
+    if case_index == -1:
+        raise SystemExit("SwiftOpenUI TextField automatic style case was not recognized")
+    body_index = case_index + len(automatic_case)
+    for old_body in (
+        "            break // default GTK entry styling\n",
+        "            break\n",
+    ):
+        if text.startswith(old_body, body_index):
+            text = text[:body_index] + "            useQuillPaintTextField = true\n" + text[body_index + len(old_body):]
+            break
+    else:
+        raise SystemExit("SwiftOpenUI TextField automatic style body was not recognized")
+    text_field_end = text.find("\nextension ", text_field_index + 1)
+    if text_field_end == -1:
+        text_field_end = len(text)
+
+if "quill_gtk_text_field_paint_hook?" not in text[text_field_index:text_field_end]:
+    old_text_field_return = '''        gtkApplyEnabledState(to: entry)
+        return opaqueFromWidget(entry)
+'''
+    new_text_field_return = '''        gtkApplyEnabledState(to: entry)
+        if useQuillPaintTextField,
+           let paintedEntry = quill_gtk_text_field_paint_hook?(
+               OpaquePointer(entry),
+               textFieldStyleType == .roundedBorder
+           ) {
+            return paintedEntry
+        }
+        return opaqueFromWidget(entry)
+'''
+    return_index = text.find(old_text_field_return, text_field_index)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI TextField return shape was not recognized")
+    text = text[:return_index] + new_text_field_return + text[return_index + len(old_text_field_return):]
+
+secure_field_index = text.find("extension SecureField: GTKRenderable")
+secure_field_hook_call = "quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true)"
+secure_field_end = text.find("\nextension ", secure_field_index + 1) if secure_field_index != -1 else -1
+if secure_field_end == -1:
+    secure_field_end = len(text)
+if secure_field_index != -1 and secure_field_hook_call not in text[secure_field_index:secure_field_end]:
+    old_secure_field_return = '''        gtkApplyEnabledState(to: entry)
+        return opaqueFromWidget(entry)
+'''
+    new_secure_field_return = '''        gtkApplyEnabledState(to: entry)
+        if let paintedEntry = quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true) {
+            return paintedEntry
+        }
+        return opaqueFromWidget(entry)
+'''
+    return_index = text.find(old_secure_field_return, secure_field_index)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI SecureField return shape was not recognized")
+    text = text[:return_index] + new_secure_field_return + text[return_index + len(old_secure_field_return):]
+
+text_editor_index = text.find("extension TextEditor: GTKRenderable")
+text_editor_end = text.find("\nextension ", text_editor_index + 1) if text_editor_index != -1 else -1
+if text_editor_end == -1:
+    text_editor_end = len(text)
+if "quill_gtk_text_editor_paint_hook?" not in text[text_editor_index:text_editor_end]:
+    old_text_editor_return = '''        gtkApplyEnabledState(to: textView)
+        return opaqueFromWidget(scrolled)
+'''
+    new_text_editor_return = '''        gtkApplyEnabledState(to: textView)
+        if let paintedEditor = quill_gtk_text_editor_paint_hook?(
+            OpaquePointer(scrolled),
+            OpaquePointer(textView)
+        ) {
+            return paintedEditor
+        }
+        return opaqueFromWidget(scrolled)
+'''
+    if text_editor_index == -1:
+        raise SystemExit("SwiftOpenUI TextEditor GTKRenderable extension was not recognized")
+    return_index = text.find(old_text_editor_return, text_editor_index)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI TextEditor return shape was not recognized")
+    text = text[:return_index] + new_text_editor_return + text[return_index + len(old_text_editor_return):]
+
+picker_index = text.find("extension Picker: GTKRenderable")
+if picker_index == -1:
+    raise SystemExit("SwiftOpenUI Picker GTKRenderable extension was not recognized")
+picker_end = text.find("\nextension ", picker_index + 1)
+if picker_end == -1:
+    picker_end = len(text)
+picker_section = text[picker_index:picker_end]
+if "gtk_swift_drop_down_new(stringList)" not in picker_section:
+    old_dropdown_model = '''        let cStrings: [UnsafeMutablePointer<CChar>?] = options.map { strdup($0) } + [nil]
+
+        let dropdown = cStrings.withUnsafeBufferPointer { buf -> UnsafeMutablePointer<GtkWidget> in
+            buf.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buf.count) { ptr in
+                gtk_drop_down_new_from_strings(ptr)!
+            }
+        }
+
+        for cStr in cStrings { cStr.map { free($0) } }
+
+        let dropdownOp = OpaquePointer(dropdown)
+'''
+    new_dropdown_model = '''        let stringList = gtk_swift_string_list_new()!
+        for option in options {
+            gtk_swift_string_list_append(stringList, option)
+        }
+
+        let dropdown = gtk_swift_drop_down_new(stringList)!
+        let dropdownOp = OpaquePointer(dropdown)
+'''
+    if old_dropdown_model not in picker_section:
+        raise SystemExit("SwiftOpenUI Picker dropdown model shape was not recognized")
+    text = (
+        text[:picker_index]
+        + picker_section.replace(old_dropdown_model, new_dropdown_model, 1)
+        + text[picker_end:]
+    )
+
+picker_index = text.find("extension Picker: GTKRenderable")
+picker_end = text.find("\nextension ", picker_index + 1)
+if picker_end == -1:
+    picker_end = len(text)
+picker_section = text[picker_index:picker_end]
+if "guard options.indices.contains(newIndex), newIndex != clampedSelection else" not in picker_section:
+    old_picker_callback = '''        if let onChanged = onChanged {
+            let box = Unmanaged.passRetained(IntClosureBox(onChanged)).toOpaque()
+            g_signal_connect_data(
+'''
+    new_picker_callback = '''        if let onChanged = onChanged {
+            let box = Unmanaged.passRetained(IntClosureBox { newIndex in
+                guard options.indices.contains(newIndex), newIndex != clampedSelection else {
+                    return
+                }
+                onChanged(newIndex)
+            }).toOpaque()
+            g_signal_connect_data(
+'''
+    if old_picker_callback not in picker_section:
+        raise SystemExit("SwiftOpenUI Picker dropdown callback shape was not recognized")
+    text = (
+        text[:picker_index]
+        + picker_section.replace(old_picker_callback, new_picker_callback, 1)
+        + text[picker_end:]
+    )
+
+toggle_index = text.find("extension Toggle: GTKRenderable")
+if toggle_index == -1:
+    raise SystemExit("SwiftOpenUI Toggle GTKRenderable extension was not recognized")
+toggle_end = text.find("\nextension ", toggle_index + 1)
+if toggle_end == -1:
+    toggle_end = len(text)
+toggle_section = text[toggle_index:toggle_end]
+
+old_check_create = '''        let check = label.isEmpty
+            ? gtk_check_button_new()!
+            : gtk_check_button_new_with_label(label)!
+'''
+new_check_create = '''        let check = label.isEmpty || quill_gtk_toggle_paint_hook != nil
+            ? gtk_check_button_new()!
+            : gtk_check_button_new_with_label(label)!
+'''
+if old_check_create in toggle_section:
+    create_index = text.find(old_check_create, toggle_index, toggle_end)
+    text = text[:create_index] + new_check_create + text[create_index + len(old_check_create):]
+    toggle_end = text.find("\nextension ", toggle_index + 1)
+    if toggle_end == -1:
+        toggle_end = len(text)
+
+toggle_section = text[toggle_index:toggle_end]
+if "quill_gtk_toggle_paint_hook?(" not in toggle_section:
+    old_check_return = '''        gtkApplyEnabledState(to: check)
+        return opaqueFromWidget(check)
+'''
+    new_check_return = '''        gtkApplyEnabledState(to: check)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(check),
+            isOn.wrappedValue,
+            false,
+            label
+        ) {
+            return paintedToggle
+        }
+        return opaqueFromWidget(check)
+'''
+    return_index = text.find(old_check_return, toggle_index, toggle_end)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI Toggle check-button return shape was not recognized")
+    text = text[:return_index] + new_check_return + text[return_index + len(old_check_return):]
+    toggle_end = text.find("\nextension ", toggle_index + 1)
+    if toggle_end == -1:
+        toggle_end = len(text)
+
+    old_switch_return = '''        if label.isEmpty {
+            gtkApplyEnabledState(to: sw)
+            return opaqueFromWidget(sw)
+        }
+
+'''
+    new_switch_return = '''        gtkApplyEnabledState(to: sw)
+        if let paintedToggle = quill_gtk_toggle_paint_hook?(
+            OpaquePointer(sw),
+            isOn.wrappedValue,
+            true,
+            label
+        ) {
+            return paintedToggle
+        }
+
+        if label.isEmpty {
+            return opaqueFromWidget(sw)
+        }
+
+'''
+    return_index = text.find(old_switch_return, toggle_index, toggle_end)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI Toggle switch return shape was not recognized")
+    text = text[:return_index] + new_switch_return + text[return_index + len(old_switch_return):]
 
 if "remainingTotalTicks: Int" not in text:
     old_scroll_retry_context = '''private final class GTKScrollToContext {
