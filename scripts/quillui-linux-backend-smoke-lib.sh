@@ -161,18 +161,6 @@ quillui_window_is_plausible_capture_target() {
   (( width >= min_dimension && height >= min_dimension ))
 }
 
-# Checksum of a window's current pixels (empty string on capture failure).
-# Used to detect whether a synthetic click visibly changed the UI — on
-# starved CI runners XTEST clicks are occasionally swallowed during early
-# app life even when the target window is mapped and correctly sized, so
-# interactions must verify-and-retry rather than fire-and-forget.
-quillui_window_content_checksum() {
-  local display_id="$1"
-  local window="$2"
-
-  DISPLAY="$display_id" import -window "$window" png:- 2>/dev/null | cksum 2>/dev/null || true
-}
-
 # Poll until a window's geometry differs from the given pre-interaction size
 # (or the timeout elapses — return 1, caller proceeds and the verifier's
 # diagnostics make the stale state visible). GTK sheets present INSIDE the

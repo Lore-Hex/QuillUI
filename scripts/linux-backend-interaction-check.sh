@@ -1288,21 +1288,16 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
         click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 34))}"
         ;;
     esac
-    # Click-and-verify with retry: on starved CI runners XTEST clicks are
-    # occasionally swallowed even when the window is mapped and the
-    # coordinates are correct (diagnosed via the app-log click marker never
-    # printing). Press, then check the app visibly reacted — sheet modes by
-    # the capture target leaving its pre-click geometry (sheets present as
-    # separate toplevels or by resizing the main window), panel/button modes
-    # by the window's pixel content changing — and re-press if it didn't.
-    # The pre-click checksum is taken with the pointer already hovering the
-    # target so hover chrome doesn't read as a reaction.
-    move_pointer_to "$click_x" "$click_y"
-    sleep "${QUILLUI_BACKEND_CLICK_SETTLE_SLEEP:-0.15}"
-    smoke_preclick_checksum=""
-    if ! quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
-      smoke_preclick_checksum="$(quillui_window_content_checksum "$DISPLAY_ID" "$capture_window")"
-    fi
+    # Click-and-converge on the row's verified state. On starved CI runners
+    # a click is occasionally delivered late or its action fires TWICE (the
+    # app-log marker showed isOpen=true then false from one synthetic click,
+    # toggling the panel straight back closed), so "did any pixel change" is
+    # unsound. Each attempt captures the window and checks the row's ACTUAL
+    # verifier condition, re-clicking until the expected post-interaction
+    # state is reached; the verified capture becomes the final screenshot.
+    smoke_attempt_screenshot="${SCREENSHOT_PATH%.png}-attempt.png"
+    smoke_verify_product=""
+    quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" smoke_verify_product
     smoke_click_attempts=0
     smoke_click_max="${QUILLUI_BACKEND_SMOKE_CLICK_ATTEMPTS:-3}"
     while true; do
@@ -1311,22 +1306,23 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
       sleep "$post_click_sleep"
       if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
         refresh_capture_window_for_sheet_interaction
-        if quillui_wait_for_window_geometry_change "$DISPLAY_ID" "$capture_window" \
-            "$window_width" "$window_height" "${QUILLUI_BACKEND_SHEET_WAIT_SECONDS:-8}"; then
-          break
-        fi
-      else
-        if [[ "$(quillui_window_content_checksum "$DISPLAY_ID" "$capture_window")" != "$smoke_preclick_checksum" ]]; then
-          break
-        fi
+        quillui_wait_for_window_geometry_change "$DISPLAY_ID" "$capture_window" \
+          "$window_width" "$window_height" "${QUILLUI_BACKEND_SHEET_WAIT_SECONDS:-8}" || true
       fi
-      if (( smoke_click_attempts >= smoke_click_max )); then
-        echo "interaction-check: smoke click produced no visible reaction after" \
-          "$smoke_click_attempts attempts at ($click_x,$click_y) mode='$INTERACTION_MODE'" >&2
+      DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$smoke_attempt_screenshot" 2>/dev/null || true
+      if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$smoke_attempt_screenshot" "$smoke_verify_product" >/dev/null 2>&1; then
+        mv -f "$smoke_attempt_screenshot" "$SCREENSHOT_PATH"
+        settled_capture_taken=1
         break
       fi
-      echo "interaction-check: smoke click attempt $smoke_click_attempts produced" \
-        "no visible reaction; re-clicking" >&2
+      if (( smoke_click_attempts >= smoke_click_max )); then
+        echo "interaction-check: smoke interaction did not reach its verified state after" \
+          "$smoke_click_attempts attempts at ($click_x,$click_y) mode='$INTERACTION_MODE'" >&2
+        mv -f "$smoke_attempt_screenshot" "$SCREENSHOT_PATH" 2>/dev/null || true
+        settled_capture_taken=1
+        break
+      fi
+      echo "interaction-check: smoke attempt $smoke_click_attempts not yet in verified state; re-clicking" >&2
     done
 else
     click_backend_header_action
