@@ -206,7 +206,12 @@ def lower_swift_source(text: str) -> str:
     if "os_unfair_lock" in lowered or "OSSpinLock" in lowered:
         lowered = insert_import(lowered, "COSUnfairLock")
 
-    if "CFAbsoluteTimeGetCurrent" in lowered or "CFString" in lowered:
+    # Any CF function call (CFAbsoluteTimeGetCurrent, CFRangeMake, CFRelease,
+    # CFNumberCreate, ...) or CFString reference needs corelibs CoreFoundation
+    # imported per-file; the Apple shims deliberately do not re-export the
+    # whole module (its stub CFString/CFArray classes collide with the bridged
+    # typealiases under `import Cocoa`).
+    if re.search(r"\bCF[A-Z][A-Za-z]*\s*\(", lowered) or "CFString" in lowered:
         lowered = insert_import(lowered, "CoreFoundation")
 
     if (
