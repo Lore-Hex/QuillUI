@@ -1758,7 +1758,11 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_backend_reference_window_defaults"))
         #expect(!backendScript.contains("reference_window_width=\"${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-2048}\""))
         #expect(backendScript.contains("quillui_backend_screen_size \"$PRODUCT\" \"${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-}\""))
-        #expect(backendScript.contains("quillui_find_visible_window_for_pid \"$DISPLAY_ID\" \"$app_pid\""))
+        // Interaction clicks must wait for a mapped, plausibly-sized app
+        // window (poll) rather than a one-shot pid lookup — the one-shot
+        // raced slow app startup on CI and clicked screen-sized geometry.
+        #expect(backendScript.contains("quillui_wait_for_app_window_for_pid \"$DISPLAY_ID\" \"$app_pid\""))
+        #expect(backendScript.contains("QUILLUI_BACKEND_WINDOW_WAIT_SECONDS"))
         #expect(backendScript.contains("quillui_find_visible_window_by_name \"$DISPLAY_ID\" \".*\""))
         #expect(backendScript.contains("quillui_place_reference_window \"$DISPLAY_ID\" \"$window_id\""))
         #expect(backendScript.contains("quillui_append_backend_runtime_environment"))
