@@ -1628,6 +1628,27 @@ values clipped at the window edge. `.background(Color(hex:))` maps to plain GTK 
 `background-color` on the content widget and lays out correctly; stretch rows with
 `HStack { ...; Spacer() }`. (First screenshot showed the bug; the rewrite rendered pixel-clean.)
 
+### STEP L: signal-chat -- full chat window vs the Track A bridge (2026-06-10) ✅
+`Sources/SignalChat/` (exe `signal-chat`, QuillUI+QuillUIGtk only -- no SSK link, 6s builds):
+conversation list w/ avatars+snippets+selection, thread view w/ in/out bubbles + group sender
+labels + `Image(filePath:)` thumbnails, composer w/ onSubmit+Send. Data layer = unix-socket
+line-JSON client (adapted from QuillSignalKit Phase-5a) + ChatStore: background threads for
+requests + a long-lived `receive` stream; UI polls `snapshot()` via Timer(0.4s) and re-renders
+when a generation counter moves. Validated against `.qa/stub-bridge.py` (full protocol stub w/
+scripted incoming): send, live receive, thread switch, auto-scroll, color emoji
+(fonts-noto-color-emoji) all WORK on aarch64 GTK -- xdotool-driven, screenshot-verified.
+
+**GTK renderer re-fires .onAppear on EVERY re-render** (stateful root rebuilds the tree; each
+rebuild runs onAppear again). Anything spawned there (threads, Timers, socket streams) MUST be
+idempotent-guarded in a singleton, or you get a thread/timer per generation bump -- symptom was
+each incoming message duplicating ~8x (8 receive streams) and typed composer text being eaten by
+the rebuild storm. Guard pattern: store-side `started`/`beginUIPolling()` flags under the lock.
+
+**Fixed-size avatar pills need an OUTER clamp frame.** `Text.frame(38x38).background(rounded)`
+alone stretches to a wide pill when a parent HStack proposes extra width (the thread header);
+append a second `.frame(width:38,height:38)` after the background to clamp. Sidebar rows didn't
+expose this -- only the header did. Empirical, like the ZStack/Color lesson.
+
 ### Smallest-milestone exe recipe (3 essential parts)
 1. **libsignal testing-gate** -- LibSignalClient's "testing endpoints" (FakeChat / OTP /
    comparable-backup helpers) are gated `#if !os(iOS) || targetEnvironment(simulator)`

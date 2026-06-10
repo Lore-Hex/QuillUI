@@ -1909,6 +1909,16 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: "Sources/SignalUI",
             swiftSettings: appSwiftSettings,
             linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
+        ),
+        // signal-chat: the full chat window (conversation list / thread /
+        // composer) driving quill-signal-bridge (presage + libsignal, real
+        // Signal protocol) over its unix-socket line-JSON protocol. Pure
+        // QuillUI -- no SSK link, so it builds in seconds.
+        .executableTarget(
+            name: "signal-chat",
+            dependencies: ["QuillUI", "QuillUIGtk"],
+            path: "Sources/SignalChat",
+            swiftSettings: appSwiftSettings
         )
     ]
 }
