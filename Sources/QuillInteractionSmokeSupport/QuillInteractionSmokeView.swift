@@ -105,6 +105,13 @@ public struct QuillInteractionSmokeView: View {
 
                 Button(isOpen ? "Hide Panel" : "Open Panel") {
                     isOpen.toggle()
+                    // Diagnostic for the CI interaction smoke: proves in the
+                    // captured app log whether the synthetic click actually
+                    // reached the Swift action (vs. being lost before the
+                    // app — wrong window, stale geometry, missed hit-test).
+                    FileHandle.standardError.write(
+                        Data("QUILL-INTERACTION-SMOKE: open-panel button clicked, isOpen=\(isOpen)\n".utf8)
+                    )
                 }
                 .frame(width: 132, height: 36)
             }
