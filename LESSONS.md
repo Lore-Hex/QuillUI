@@ -1595,6 +1595,39 @@ signal-gated and NOT built in CI, so they're inert and can't have caused it), HO
 admin-merge and keep building locally. Re-check main health each wake; merge only when its
 own run is green.
 
+### STEP K: signal-ui -- THE WINDOW (2026-06-10) ✅
+The visual half of Track B exists: `signal-ui` (`Sources/SignalUI/main.swift`), an
+.executableTarget linking **SignalServiceKit + LibSignalClient + QuillUI + QuillUIGtk into one
+process** (gated + lld-linked like signal-smoke). It reads the durably-persisted linked account
+via `quillLoadAccountDisplay` (QuillSmokeDB.swift -- same NewKeyValueStore keys
+TSAccountManagerImpl writes) and renders a Signal-branded GTK window: e164, Device #2, ACI,
+registration ID, "durable login active". Verified under Xvfb on aarch64 with the REAL account DB
+(qs-work volume): `.qa/signal-ui-linux.png`. Run:
+`docker run -v <worktree>:/qui -v qui-build:/qui/.build -v qs-work:/work quillui-signal-build`
+then `QUILL_SIGNAL_DB=/work/quill-signal-account.sqlite .build/debug/signal-ui` under `Xvfb :99`.
+
+**STALE-MODULE canImport CASCADE (the bug that ate the first build).** The persistent qui-build
+volume retained `.swiftmodule`s for targets DELETED from the tree long ago. SwiftPM never
+garbage-collects removed targets' artifacts, and `Modules/` is on every compile's search path, so:
+- A stale `ObjectiveC.swiftmodule` (from the abandoned fake-ObjectiveC-shim experiment) flipped
+  `canImport(ObjectiveC)` TRUE during a QuillFoundation recompile -> QuillFoundation skipped
+  defining `Selector` (its Linux branch) -> QuillUIKit failed "cannot find type 'Selector'".
+- A stale `zlib.swiftmodule` (inert framework shim, later replaced by the real zlib systemLibrary)
+  SHADOWED the clang `zlib` module -> SSK's GzipStreamTransform/CRC32 lost z_stream/crc32.
+Neither bit signal-smoke for days because cached green modules masked them; the new signal-ui
+target + manifest change forced recompiles that re-evaluated `canImport`. DIAGNOSIS: `import X`
+succeeds but exposes nothing -> look for a stale swiftmodule named X. SWEEP (run when a
+long-lived build volume acts haunted): for each `*.build/<t>.d`, if its primary source no longer
+exists in the tree, `rm -rf <t>.build Modules/<t>.*`. Lesson: a deleted experiment isn't gone
+until its artifacts are purged from every persistent build volume.
+
+**GTK layout: fill color via `.background(Color)`, NEVER `ZStack { Color; content }`.** The
+Color-as-first-child pattern routes through the overlay/fixed ZStack measure path, which sizes
+against the SCREEN (Xvfb 640px), not the window's requested width (440) -> rows overflowed and
+values clipped at the window edge. `.background(Color(hex:))` maps to plain GTK CSS
+`background-color` on the content widget and lays out correctly; stretch rows with
+`HStack { ...; Spacer() }`. (First screenshot showed the bug; the rewrite rendered pixel-clean.)
+
 ### Smallest-milestone exe recipe (3 essential parts)
 1. **libsignal testing-gate** -- LibSignalClient's "testing endpoints" (FakeChat / OTP /
    comparable-backup helpers) are gated `#if !os(iOS) || targetEnvironment(simulator)`

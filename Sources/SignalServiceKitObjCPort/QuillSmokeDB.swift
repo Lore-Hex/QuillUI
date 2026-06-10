@@ -191,6 +191,36 @@ public func quillLoadStoredAuth(path: String) throws -> (username: String, passw
     return (username, password)
 }
 
+// Display-facing snapshot of the persisted linked account, for a UI to render
+// (the real phone number, the server-assigned device id, the ACI/PNI). Reads via
+// the SAME NewKeyValueStore keys the real TSAccountManagerImpl + our
+// quillPersistLinkedAccount use. Returns nil if no linked account is stored.
+public struct QuillAccountDisplay {
+    public let e164: String
+    public let deviceId: Int64
+    public let aciUppercase: String
+    public let pniUuid: String
+    public let aciRegistrationId: Int64
+}
+
+public func quillLoadAccountDisplay(path: String) -> QuillAccountDisplay? {
+    var c = GRDB.Configuration(); c.acceptsDoubleQuotedStringLiterals = true
+    guard let q = try? DatabaseQueue(path: path, configuration: c) else { return nil }
+    let acct = NewKeyValueStore(collection: "TSStorageUserAccountCollection")
+    var display: QuillAccountDisplay?
+    try? q.read { db in
+        let tx = DBReadTransaction(database: db)
+        guard let e164 = acct.fetchValue(String.self, forKey: "TSStorageRegisteredNumberKey", tx: tx),
+              let aci = acct.fetchValue(String.self, forKey: "TSStorageRegisteredUUIDKey", tx: tx) else { return }
+        let deviceId = acct.fetchValue(Int64.self, forKey: "TSAccountManager_DeviceId", tx: tx) ?? 1
+        let pni = acct.fetchValue(String.self, forKey: "TSAccountManager_RegisteredPNIKey", tx: tx) ?? ""
+        let regId = acct.fetchValue(Int64.self, forKey: "TSStorageLocalRegistrationId", tx: tx) ?? 0
+        display = QuillAccountDisplay(
+            e164: e164, deviceId: deviceId, aciUppercase: aci, pniUuid: pni, aciRegistrationId: regId)
+    }
+    return display
+}
+
 // Faithful-persistence RUNTIME self-test: exercise the real
 // quillPersistLinkedAccount + quillLoadStoredAuth round-trip on a temp DB,
 // proving the NewKeyValueStore account-state writes + legacy-KeyValueStore

@@ -1896,6 +1896,19 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: "Sources/SignalSmoke",
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
+        ),
+        // signal-ui: the VISUAL half of Track B -- a QuillUI (SwiftUI-on-GTK)
+        // window that renders the state of the REAL Signal-iOS SignalServiceKit
+        // device this machine linked. Links SSK + libsignal AND QuillUIGtk into
+        // one process, proving Signal's own backend runs natively on Linux under
+        // QuillUI's frontend. Gated + lld-linked like signal-smoke (the 194MB
+        // libsignal_ffi.a needs lld). Absent from CI / fresh checkouts.
+        .executableTarget(
+            name: "signal-ui",
+            dependencies: ["SignalServiceKit", "LibSignalClient", "QuillUI", "QuillUIGtk"],
+            path: "Sources/SignalUI",
+            swiftSettings: appSwiftSettings,
+            linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
         )
     ]
 }
