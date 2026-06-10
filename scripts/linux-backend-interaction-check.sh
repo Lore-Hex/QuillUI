@@ -1282,6 +1282,16 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
     sleep "$post_click_sleep"
     if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
       refresh_capture_window_for_sheet_interaction
+      # GTK presents the sheet by RESIZING the main window
+      # (QUILLUI_GTK_SHEET_PRESENTATION=window); Qt swaps to a child window,
+      # whose geometry already differs. Either way the capture target must
+      # stop looking like the pre-click window before the screenshot — a
+      # fixed sleep raced the presentation on loaded CI runners.
+      if ! quillui_wait_for_window_geometry_change "$DISPLAY_ID" "$capture_window" \
+          "$window_width" "$window_height" "${QUILLUI_BACKEND_SHEET_WAIT_SECONDS:-20}"; then
+        echo "interaction-check: sheet capture window '$capture_window' kept its" \
+          "pre-click ${window_width}x${window_height} geometry past the wait" >&2
+      fi
     fi
 else
     click_backend_header_action

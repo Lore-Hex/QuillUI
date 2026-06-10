@@ -140,6 +140,41 @@ quillui_wait_for_app_window_for_pid() {
   done
 }
 
+# Poll until a window's geometry differs from the given pre-interaction size
+# (or the timeout elapses — return 1, caller proceeds and the verifier's
+# diagnostics make the stale state visible). GTK sheets present INSIDE the
+# main window by resizing it (QUILLUI_GTK_SHEET_PRESENTATION=window), so a
+# fixed post-click sleep raced the presentation on loaded CI runners: the
+# capture photographed the pre-sheet window ("Interaction sheet width is
+# unexpected: 640px") while fast local machines always won the race.
+quillui_wait_for_window_geometry_change() {
+  local display_id="$1"
+  local window="$2"
+  local old_width="$3"
+  local old_height="$4"
+  local timeout_seconds="${5:-20}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local width height key value
+
+  while true; do
+    width=""
+    height=""
+    while IFS='=' read -r key value; do
+      case "$key" in
+        WIDTH) width="$value" ;;
+        HEIGHT) height="$value" ;;
+      esac
+    done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$window" 2>/dev/null)
+    if [[ -n "$width" && -n "$height" ]] && (( width != old_width || height != old_height )); then
+      return 0
+    fi
+    if (( SECONDS >= deadline )); then
+      return 1
+    fi
+    sleep 0.25
+  done
+}
+
 quillui_find_visible_window_for_pid_except() {
   local display_id="$1"
   local pid="$2"
