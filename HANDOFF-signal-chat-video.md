@@ -103,3 +103,12 @@ fine June 4; presage rev 6793c3e in /work/presage).
   wants FAST. Honest-framing note: no native macOS Signal exists (Desktop is
   Electron, already on Linux) — Signal-iOS source is the only native codebase;
   explained and accepted.
+
+## UPDATE 12:1x — REAL SEND VERIFIED ✅
+Staged in qs-video2 (qs-bridge container STOPPED; chat-stage.sh ran bridge+app
+there). Live smoke: xdotool composer click at (700,728) — decorated window at
++100+30 shifts coords ~30px vs borderless! — typed + sent "QuillOS link test -
+this window is live" → blue bubble + sidebar snippet + persisted in store +
+delivered to user's real phone (Note to Self). Screenshot .qa/smoke-sent2.png.
+READY TO RECORD: awaiting user's choice of on-camera thread + whether someone
+can text them for a true left-side incoming bubble.
