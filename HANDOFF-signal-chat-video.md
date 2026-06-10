@@ -26,7 +26,18 @@ it too terminal-heavy; superseded by this effort.)
   .background(Color) not ZStack{Color}; onAppear re-fires per re-render —
   idempotency-guard; avatar pills need outer clamp frame).
 
-## What is IN FLIGHT — the real-account link (BLOCKED on QR scan)
+## UPDATE 12:0x — LINKED ✅
+
+The QR scan SUCCEEDED: `{"event":"linked","ok":true, aci 15c960a4-0d62-4e9c-
+bb97-a79d858d88c8, number 13059511381}` — store `/work/quill-signal-chat.db`
+is a REGISTERED presage device ("QuillOS"). whoami confirms. Receive stream
+running in qs-bridge (`/tmp/recv.log`). Waiting on CONTACT SYNC (0
+conversations at first check — user asked to open Signal on phone + send a
+Note-to-Self to push sync/seed a thread). Once a thread exists → stage take in
+qs-video2 (STOP qs-bridge container first — single store owner!) per
+choreography below.
+
+## (historical) the real-account link — was blocked on QR scan
 
 The chat backend is quill-signal-bridge (presage/libsignal, Track A — real
 Signal protocol). Its June-4 store died with a container /tmp; a FRESH link is
