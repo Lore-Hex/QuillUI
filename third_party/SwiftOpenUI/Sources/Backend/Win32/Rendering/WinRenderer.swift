@@ -4564,7 +4564,7 @@ extension SheetModifierView: WinRenderable {
                 onDismiss: onDismiss
             )
             win32PresentSheet(
-                sheet: sheetContent,
+                sheet: sheetContent(),
                 root: root,
                 hInstance: context.hInstance,
                 dismissInfo: dismissInfo

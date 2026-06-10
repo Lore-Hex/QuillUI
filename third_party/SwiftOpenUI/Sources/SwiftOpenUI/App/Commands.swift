@@ -48,6 +48,8 @@ extension Never: Commands {}
 public enum CommandGroupPlacement: Equatable, Hashable {
 	/// Replaces the New Item commands (File menu).
 	case newItem
+	/// Replaces the app settings command.
+	case appSettings
 	/// Replaces the Save commands (File menu).
 	case saveItem
 	/// Replaces the Print commands (File menu).
@@ -64,6 +66,8 @@ public enum CommandGroupPlacement: Equatable, Hashable {
 	case windowSize
 	/// Replaces the Help commands (Help menu).
 	case help
+	/// Replaces text formatting commands.
+	case textFormatting
 }
 
 // MARK: - CommandMenuItem
@@ -117,6 +121,31 @@ public struct CommandGroup: Commands {
 	public var body: Never { fatalError() }
 }
 
+public struct CommandMenu: Commands {
+	public typealias Body = Never
+
+	public let title: String
+	public let items: [CommandMenuItem]
+
+	public init(_ title: String, @CommandMenuBuilder content: () -> [CommandMenuItem]) {
+		self.title = title
+		self.items = content()
+	}
+
+	public var body: Never { fatalError() }
+}
+
+public struct CommandCollection: Commands {
+	public typealias Body = Never
+	public let commands: [any Commands]
+
+	public init(_ commands: [any Commands]) {
+		self.commands = commands
+	}
+
+	public var body: Never { fatalError() }
+}
+
 // MARK: - TupleCommands
 
 /// A composite commands type holding two children.
@@ -145,6 +174,22 @@ public struct CommandsBuilder {
 	public static func buildBlock<C0: Commands, C1: Commands>(_ c0: C0, _ c1: C1) -> TupleCommands<C0, C1> {
 		TupleCommands(c0, c1)
 	}
+
+	public static func buildBlock(_ components: any Commands...) -> CommandCollection {
+		CommandCollection(components)
+	}
+
+	public static func buildOptional(_ component: CommandCollection?) -> CommandCollection {
+		component ?? CommandCollection([])
+	}
+
+	public static func buildEither(first component: CommandCollection) -> CommandCollection {
+		component
+	}
+
+	public static func buildEither(second component: CommandCollection) -> CommandCollection {
+		component
+	}
 }
 
 // MARK: - CommandMenuBuilder
@@ -158,6 +203,11 @@ public struct CommandMenuBuilder {
 
 	public static func buildExpression(_ item: CommandMenuItem) -> [CommandMenuItem] {
 		[item]
+	}
+
+	public static func buildExpression<V: View>(_ view: V) -> [CommandMenuItem] {
+		_ = view
+		return []
 	}
 
 	public static func buildOptional(_ items: [CommandMenuItem]?) -> [CommandMenuItem] {
@@ -194,9 +244,29 @@ extension TupleCommands: TupleCommandsProtocol {
 	}
 }
 
+extension CommandCollection: TupleCommandsProtocol {
+	func collectInto(_ result: inout [CommandGroupPlacement: [CommandMenuItem]]) {
+		for command in commands {
+			collectKnownCommand(command, into: &result)
+		}
+	}
+}
+
+private func collectKnownCommand(_ command: any Commands, into result: inout [CommandGroupPlacement: [CommandMenuItem]]) {
+	if let group = command as? CommandGroup {
+		result[group.placement, default: []].append(contentsOf: group.items)
+	} else if let menu = command as? CommandMenu {
+		result[.newItem, default: []].append(contentsOf: menu.items)
+	} else if let tuple = command as? TupleCommandsProtocol {
+		tuple.collectInto(&result)
+	}
+}
+
 private func collectCommandGroups<C: Commands>(_ commands: C, into result: inout [CommandGroupPlacement: [CommandMenuItem]]) {
 	if let group = commands as? CommandGroup {
 		result[group.placement, default: []].append(contentsOf: group.items)
+	} else if let menu = commands as? CommandMenu {
+		result[.newItem, default: []].append(contentsOf: menu.items)
 	} else if let tuple = commands as? TupleCommandsProtocol {
 		tuple.collectInto(&result)
 	} else if !(commands is EmptyCommands) {

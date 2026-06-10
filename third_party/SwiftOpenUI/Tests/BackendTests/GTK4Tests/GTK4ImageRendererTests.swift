@@ -16,7 +16,7 @@ final class GTK4ImageRendererTests: XCTestCase {
     func testImageRendererRendersColoredViewToPNGBytes() throws {
         try requireGTK()
 
-        let renderer = ImageRenderer(content: Color.red.frame(width: 24, height: 16))
+        let renderer = OpenUIImageRenderer(content: Color.red.frame(width: 24, height: 16))
         renderer.proposedSize = CGSize(width: 24, height: 16)
 
         guard let data = renderer.nsImage?.data else {

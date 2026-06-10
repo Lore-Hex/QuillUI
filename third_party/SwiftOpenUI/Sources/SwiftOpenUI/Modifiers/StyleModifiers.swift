@@ -61,6 +61,7 @@ extension View {
     }
 
     /// Layer a background view behind this view.
+    @_disfavoredOverload
     public func background<V: View>(_ background: V, alignment: Alignment = .center) -> BackgroundView<Self, V> {
         BackgroundView(content: self, background: background, alignment: alignment)
     }

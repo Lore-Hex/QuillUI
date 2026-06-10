@@ -21,6 +21,18 @@ public struct DateComponents: Equatable {
     }
 }
 
+/// Component mask matching SwiftUI's `DatePickerComponents` surface.
+public struct DatePickerComponents: OptionSet, Sendable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let hourAndMinute = DatePickerComponents(rawValue: 1 << 0)
+    public static let date = DatePickerComponents(rawValue: 1 << 1)
+}
+
 /// A date picker backed by a native calendar widget.
 public struct DatePicker: View {
     public typealias Body = Never
@@ -33,6 +45,39 @@ public struct DatePicker: View {
     public init(_ title: String = "", selection: Binding<DateComponents>) {
         self.title = title
         self.selection = selection
+        self.onChange = nil
+    }
+
+    /// Creates a SwiftUI-compatible DatePicker with a Date binding. The current
+    /// GTK renderer presents the date component; time components are preserved
+    /// when callers mutate the selected day.
+    public init(
+        _ title: String = "",
+        selection dateSelection: Binding<Date>,
+        displayedComponents: DatePickerComponents = [.hourAndMinute, .date]
+    ) {
+        _ = displayedComponents
+        self.title = title
+        self.selection = Binding<DateComponents>(
+            get: {
+                let components = Calendar.current.dateComponents([.year, .month, .day], from: dateSelection.wrappedValue)
+                return DateComponents(
+                    year: components.year ?? 1970,
+                    month: components.month ?? 1,
+                    day: components.day ?? 1
+                )
+            },
+            set: { newValue in
+                var components = Calendar.current.dateComponents(
+                    [.hour, .minute, .second, .nanosecond],
+                    from: dateSelection.wrappedValue
+                )
+                components.year = newValue.year
+                components.month = newValue.month
+                components.day = newValue.day
+                dateSelection.wrappedValue = Calendar.current.date(from: components) ?? dateSelection.wrappedValue
+            }
+        )
         self.onChange = nil
     }
 

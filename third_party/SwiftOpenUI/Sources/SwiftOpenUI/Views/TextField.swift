@@ -9,7 +9,13 @@ public struct TextField: View {
     public let text: Binding<String>
 
     public init(_ title: String, text: Binding<String>) {
-        self.title = title
+        self.title = quillResolveLocalizedString(title)
+        self.text = text
+    }
+
+    public init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
+        _ = onCommit
+        self.title = quillResolveLocalizedString(title)
         self.text = text
     }
 

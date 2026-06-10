@@ -5,15 +5,18 @@ import Foundation
 ///
 /// Platform backends extend this class to add native focus management
 /// (e.g., GTK widget focus, Win32 SetFocus).
-open class FocusStateStorage<Value: Hashable>: AnyStateStorage {
+open class FocusStateStorage<Value: Hashable>: AnyStateStorage, GenerationTracked {
     private let lock = NSLock()
     var _value: Value?  // internal for restoreValue cross-storage access
+    private var forwardedStorage: FocusStateStorage<Value>?
     public let defaultValue: Value
     public weak var host: AnyViewHost?
+    public private(set) var generation: UInt64 = 0
 
     public var value: Value? {
         lock.lock()
         defer { lock.unlock() }
+        recordDependencyRead(self)
         return _value
     }
 
@@ -29,10 +32,18 @@ open class FocusStateStorage<Value: Hashable>: AnyStateStorage {
         lock.lock()
         let changed = _value != newValue
         _value = newValue
+        if changed {
+            generation += 1
+        }
         let programmatic = _programmatic
+        let forwarded = forwardedStorage
         lock.unlock()
 
         guard changed else { return }
+        if let forwarded {
+            forwarded.setValue(newValue)
+            return
+        }
 
         // Only drive native focus for programmatic changes.
         // UI-driven focus events (GTK enter/leave) should not loop back.
@@ -105,7 +116,18 @@ open class FocusStateStorage<Value: Hashable>: AnyStateStorage {
         if let typed = other as? FocusStateStorage<Value> {
             // Direct access without lock — called only during render pass (single-threaded)
             _value = typed._value
+            generation = typed.generation
         }
+    }
+
+    public func forwardMutations(to other: AnyStateStorage) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let typed = other as? FocusStateStorage<Value>, typed !== self else {
+            forwardedStorage = nil
+            return
+        }
+        forwardedStorage = typed
     }
 }
 
@@ -116,6 +138,36 @@ open class FocusStateStorage<Value: Hashable>: AnyStateStorage {
 @propertyWrapper
 public struct FocusState<Value: Hashable>: AnyStateStorageProvider {
     public let storage: FocusStateStorage<Value>
+
+    @propertyWrapper
+    public struct Binding: AnyStateStorageProvider {
+        public let storage: FocusStateStorage<Value>
+
+        public init(projectedValue: FocusState<Value>.Binding) {
+            self.storage = projectedValue.storage
+        }
+
+        public init(_ state: FocusState<Value>) {
+            self.storage = state.storage
+        }
+
+        init(storage: FocusStateStorage<Value>) {
+            self.storage = storage
+        }
+
+        public var wrappedValue: Value {
+            get { storage.value ?? storage.defaultValue }
+            nonmutating set { storage.setProgrammatic(newValue) }
+        }
+
+        public var projectedValue: FocusState<Value>.Binding { self }
+
+        public var anyStorage: AnyStateStorage { storage }
+
+        var focusState: FocusState<Value> {
+            FocusState(storage: storage)
+        }
+    }
 
     public init() where Value == Bool {
         self.storage = FocusStateStorage(false, default: false)
@@ -135,7 +187,9 @@ public struct FocusState<Value: Hashable>: AnyStateStorageProvider {
         nonmutating set { storage.setProgrammatic(newValue) }
     }
 
-    public var projectedValue: FocusState<Value> { self }
+    public var projectedValue: FocusState<Value>.Binding {
+        FocusState<Value>.Binding(storage: storage)
+    }
 
     public var anyStorage: AnyStateStorage { storage }
 }

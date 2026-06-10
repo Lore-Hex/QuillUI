@@ -206,7 +206,7 @@ final class ModifierTests: XCTestCase {
 
         XCTAssertTrue(view.isPresented.wrappedValue)
         XCTAssertNotNil(view.onDismiss)
-        XCTAssertEqual(view.sheetContent.content, "sheet")
+        XCTAssertEqual(view.sheetContent().content, "sheet")
     }
 
     func testItemSheetStoresItemBindingAndBuilder() {

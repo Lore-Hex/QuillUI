@@ -40,6 +40,12 @@ public struct TabView: View {
         self.tabs = content()
     }
 
+    public init<Selection: Hashable>(selection: Binding<Selection>, @TabBuilder content: () -> [AnyTab]) {
+        _ = selection
+        self.initialTab = nil
+        self.tabs = content()
+    }
+
     public var body: Never { fatalError("TabView is a primitive view") }
 }
 

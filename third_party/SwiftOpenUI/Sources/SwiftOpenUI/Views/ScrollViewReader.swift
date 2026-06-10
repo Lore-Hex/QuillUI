@@ -1,5 +1,40 @@
 import Foundation
 
+// MARK: - Optional ID compatibility
+
+fileprivate protocol _SwiftOpenUIOptionalHashableID {
+    var _swiftOpenUIWrappedHashableID: AnyHashable? { get }
+    var _swiftOpenUIIsNil: Bool { get }
+}
+
+extension Optional: _SwiftOpenUIOptionalHashableID where Wrapped: Hashable {
+    fileprivate var _swiftOpenUIWrappedHashableID: AnyHashable? {
+        switch self {
+        case .some(let value):
+            return AnyHashable(value)
+        case .none:
+            return nil
+        }
+    }
+
+    fileprivate var _swiftOpenUIIsNil: Bool {
+        switch self {
+        case .some:
+            return false
+        case .none:
+            return true
+        }
+    }
+}
+
+fileprivate func swiftOpenUIHashableScrollID<ID: Hashable>(_ id: ID) -> AnyHashable? {
+    if let optionalID = id as? _SwiftOpenUIOptionalHashableID {
+        guard !optionalID._swiftOpenUIIsNil else { return nil }
+        return optionalID._swiftOpenUIWrappedHashableID
+    }
+    return AnyHashable(id)
+}
+
 // MARK: - View Identity
 
 /// Wraps content with an explicit identity for programmatic access.
@@ -48,7 +83,8 @@ public func clearViewIDRegistry() {
 public struct ScrollViewProxy {
     /// Scroll to the view with the given identity.
     public func scrollTo<ID: Hashable>(_ id: ID, anchor: UnitPoint? = nil) {
-        scrollToAction?(AnyHashable(id), anchor)
+        guard let resolvedID = swiftOpenUIHashableScrollID(id) else { return }
+        scrollToAction?(resolvedID, anchor)
     }
 
     /// Backend-provided scroll action. Set by ScrollViewReader's renderer.

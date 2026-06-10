@@ -37,64 +37,97 @@ public struct ToolbarConfiguration: Equatable {
     }
 }
 
+public protocol ToolbarContent {
+    associatedtype Body: ToolbarContent
+
+    @ToolbarContentBuilder
+    var body: Body { get }
+}
+
+extension Never: ToolbarContent {}
+
+public protocol ToolbarContentItemsProvider {
+    var toolbarContentItems: [AnyToolbarItem] { get }
+}
+
+private func flattenToolbarContent<Content: ToolbarContent>(_ content: Content) -> [AnyToolbarItem] {
+    if let provider = content as? any ToolbarContentItemsProvider {
+        return provider.toolbarContentItems
+    }
+    if Content.Body.self != Never.self {
+        return flattenToolbarContent(content.body)
+    }
+    return []
+}
+
 /// Flattened toolbar content produced by `ToolbarContentBuilder`.
-public struct ToolbarContent {
+public struct ToolbarContentGroup: ToolbarContent, ToolbarContentItemsProvider {
+    public typealias Body = Never
+
     public let items: [AnyToolbarItem]
 
     public init(items: [AnyToolbarItem]) {
         self.items = items
     }
+
+    public var toolbarContentItems: [AnyToolbarItem] { items }
+    public var body: Never { return fatalError("ToolbarContentGroup is primitive toolbar content") }
 }
 
 /// Result builder for composing one or more toolbar items.
 @resultBuilder
 public enum ToolbarContentBuilder {
-    public static func buildBlock() -> ToolbarContent {
-        ToolbarContent(items: [])
+    public static func buildBlock() -> ToolbarContentGroup {
+        ToolbarContentGroup(items: [])
     }
 
-    public static func buildBlock(_ components: ToolbarContent...) -> ToolbarContent {
-        ToolbarContent(items: components.flatMap(\.items))
+    public static func buildBlock(_ components: ToolbarContentGroup...) -> ToolbarContentGroup {
+        ToolbarContentGroup(items: components.flatMap(\.items))
     }
 
-    public static func buildExpression<Content: View>(_ expression: ToolbarItem<Content>) -> ToolbarContent {
-        ToolbarContent(items: [AnyToolbarItem(expression)])
+    public static func buildExpression<Content: ToolbarContent>(_ expression: Content) -> ToolbarContentGroup {
+        ToolbarContentGroup(items: flattenToolbarContent(expression))
     }
 
-    public static func buildExpression(_ expression: ToolbarContent) -> ToolbarContent {
+    @_disfavoredOverload
+    public static func buildExpression<Content: View>(_ expression: Content) -> ToolbarContentGroup {
+        ToolbarContentGroup(items: [AnyToolbarItem(ToolbarItem { expression })])
+    }
+
+    public static func buildExpression(_ expression: ToolbarContentGroup) -> ToolbarContentGroup {
         expression
     }
 
-    public static func buildOptional(_ component: ToolbarContent?) -> ToolbarContent {
-        component ?? ToolbarContent(items: [])
+    public static func buildOptional(_ component: ToolbarContentGroup?) -> ToolbarContentGroup {
+        component ?? ToolbarContentGroup(items: [])
     }
 
-    public static func buildEither(first component: ToolbarContent) -> ToolbarContent {
+    public static func buildEither(first component: ToolbarContentGroup) -> ToolbarContentGroup {
         component
     }
 
-    public static func buildEither(second component: ToolbarContent) -> ToolbarContent {
+    public static func buildEither(second component: ToolbarContentGroup) -> ToolbarContentGroup {
         component
     }
 
-    public static func buildArray(_ components: [ToolbarContent]) -> ToolbarContent {
-        ToolbarContent(items: components.flatMap(\.items))
+    public static func buildArray(_ components: [ToolbarContentGroup]) -> ToolbarContentGroup {
+        ToolbarContentGroup(items: components.flatMap(\.items))
     }
 
-    public static func buildPartialBlock(first: ToolbarContent) -> ToolbarContent {
+    public static func buildPartialBlock(first: ToolbarContentGroup) -> ToolbarContentGroup {
         first
     }
 
     public static func buildPartialBlock(
-        accumulated: ToolbarContent,
-        next: ToolbarContent
-    ) -> ToolbarContent {
-        ToolbarContent(items: accumulated.items + next.items)
+        accumulated: ToolbarContentGroup,
+        next: ToolbarContentGroup
+    ) -> ToolbarContentGroup {
+        ToolbarContentGroup(items: accumulated.items + next.items)
     }
 }
 
 /// A single toolbar item with placement and content.
-public struct ToolbarItem<Content: View>: View {
+public struct ToolbarItem<Content: View>: View, ToolbarContent, ToolbarContentItemsProvider {
     public typealias Body = Never
 
     public let placement: ToolbarItemPlacement
@@ -106,17 +139,29 @@ public struct ToolbarItem<Content: View>: View {
         self.content = content()
     }
 
-    public var body: Never { fatalError("ToolbarItem is a primitive view") }
+    public var body: Never { return fatalError("ToolbarItem is a primitive view") }
+    public var toolbarContentItems: [AnyToolbarItem] { [AnyToolbarItem(self)] }
 }
 
 /// Type-erased toolbar item.
 public struct AnyToolbarItem {
     public let placement: ToolbarItemPlacement
     public let wrapped: any View
+    public let renderedViews: [any View]
 
     public init<Content: View>(_ item: ToolbarItem<Content>) {
         self.placement = item.placement
         self.wrapped = item.content
+        if let multi = item.content as? MultiChildView {
+            self.renderedViews = multi.children
+        } else if Content.Body.self != Never.self,
+                  let multi = item.content.body as? MultiChildView {
+            self.renderedViews = multi.children
+        } else if Content.Body.self != Never.self {
+            self.renderedViews = [item.content.body]
+        } else {
+            self.renderedViews = [item.content]
+        }
     }
 }
 
@@ -161,28 +206,28 @@ private func mergeRemovedPlacements(
 
 extension View {
     /// Adds one or more toolbar items.
-    public func toolbar(
-        @ToolbarContentBuilder content: () -> ToolbarContent
+    public func toolbar<Items: ToolbarContent>(
+        @ToolbarContentBuilder content: () -> Items
     ) -> ToolbarView<Self> {
         let toolbarContent = content()
         return ToolbarView(
             content: self,
             toolbarID: nil,
-            toolbarItems: toolbarContent.items,
+            toolbarItems: flattenToolbarContent(toolbarContent),
             toolbarConfiguration: ToolbarConfiguration()
         )
     }
 
     /// Adds one or more toolbar items with a stored toolbar identifier.
-    public func toolbar(
+    public func toolbar<Items: ToolbarContent>(
         id: String,
-        @ToolbarContentBuilder content: () -> ToolbarContent
+        @ToolbarContentBuilder content: () -> Items
     ) -> ToolbarView<Self> {
         let toolbarContent = content()
         return ToolbarView(
             content: self,
             toolbarID: id,
-            toolbarItems: toolbarContent.items,
+            toolbarItems: flattenToolbarContent(toolbarContent),
             toolbarConfiguration: ToolbarConfiguration()
         )
     }
@@ -216,28 +261,28 @@ extension View {
 
 extension ToolbarConfigurationView {
     /// Adds one or more toolbar items while preserving stored toolbar configuration.
-    public func toolbar(
-        @ToolbarContentBuilder content: () -> ToolbarContent
+    public func toolbar<Items: ToolbarContent>(
+        @ToolbarContentBuilder content: () -> Items
     ) -> ToolbarView<Content> {
         let toolbarContent = content()
         return ToolbarView(
             content: self.content,
             toolbarID: nil,
-            toolbarItems: toolbarContent.items,
+            toolbarItems: flattenToolbarContent(toolbarContent),
             toolbarConfiguration: toolbarConfiguration
         )
     }
 
     /// Adds one or more toolbar items with a stored identifier while preserving toolbar configuration.
-    public func toolbar(
+    public func toolbar<Items: ToolbarContent>(
         id: String,
-        @ToolbarContentBuilder content: () -> ToolbarContent
+        @ToolbarContentBuilder content: () -> Items
     ) -> ToolbarView<Content> {
         let toolbarContent = content()
         return ToolbarView(
             content: self.content,
             toolbarID: id,
-            toolbarItems: toolbarContent.items,
+            toolbarItems: flattenToolbarContent(toolbarContent),
             toolbarConfiguration: toolbarConfiguration
         )
     }
@@ -277,28 +322,28 @@ extension ToolbarConfigurationView {
 
 extension ToolbarView {
     /// Adds one or more toolbar items while preserving existing items and configuration.
-    public func toolbar(
-        @ToolbarContentBuilder content: () -> ToolbarContent
+    public func toolbar<Items: ToolbarContent>(
+        @ToolbarContentBuilder content: () -> Items
     ) -> ToolbarView<Content> {
         let toolbarContent = content()
         return ToolbarView(
             content: self.content,
             toolbarID: toolbarID,
-            toolbarItems: toolbarItems + toolbarContent.items,
+            toolbarItems: toolbarItems + flattenToolbarContent(toolbarContent),
             toolbarConfiguration: toolbarConfiguration
         )
     }
 
     /// Adds one or more toolbar items with a stored identifier while preserving configuration.
-    public func toolbar(
+    public func toolbar<Items: ToolbarContent>(
         id: String,
-        @ToolbarContentBuilder content: () -> ToolbarContent
+        @ToolbarContentBuilder content: () -> Items
     ) -> ToolbarView<Content> {
         let toolbarContent = content()
         return ToolbarView(
             content: self.content,
             toolbarID: id,
-            toolbarItems: toolbarItems + toolbarContent.items,
+            toolbarItems: toolbarItems + flattenToolbarContent(toolbarContent),
             toolbarConfiguration: toolbarConfiguration
         )
     }

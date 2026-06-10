@@ -1,3 +1,5 @@
+import Foundation
+
 /// A view that displays one or more lines of read-only text.
 public struct Text: View, PrimitiveView {
     public typealias Body = Never
@@ -23,8 +25,20 @@ public struct Text: View, PrimitiveView {
     public let content: String
 
     public init(_ content: String) {
-        self.content = content
-        self.runs = [Run(text: content)]
+        let resolved = quillResolveLocalizedString(content)
+        self.content = resolved
+        self.runs = [Run(text: resolved)]
+    }
+
+    public init(_ content: AttributedString) {
+        let resolved = String(content.characters)
+        self.content = resolved
+        self.runs = [Run(text: resolved)]
+    }
+
+    public init<T>(_ content: T) {
+        self.content = String(describing: content)
+        self.runs = [Run(text: self.content)]
     }
 
     /// Build a multi-color `Text` from styled runs. Additive — it does not

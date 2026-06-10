@@ -7,7 +7,7 @@ public protocol EnvironmentKey {
 }
 
 /// A collection of environment values propagated down the view tree.
-public struct EnvironmentValues {
+public struct EnvironmentValues: @unchecked Sendable {
     private var storage: [ObjectIdentifier: Any] = [:]
     private var objects: [ObjectIdentifier: AnyObject] = [:]
 
@@ -31,12 +31,15 @@ public struct EnvironmentValues {
     /// the newer `@Environment(SomeClass.self)` path (any reference type,
     /// typically an `@Observable` class).
     public mutating func setObject<T: AnyObject>(_ object: T) {
-        objects[ObjectIdentifier(T.self)] = object
+        let id = ObjectIdentifier(T.self)
+        objects[id] = object
+        EnvironmentObjectRegistry.shared.setObject(object, id: id)
     }
 
     /// Retrieve an object previously stored by `setObject`.
     public func getObject<T: AnyObject>(_ type: T.Type) -> T? {
-        objects[ObjectIdentifier(type)] as? T
+        let id = ObjectIdentifier(type)
+        return objects[id] as? T ?? EnvironmentObjectRegistry.shared.object(id: id) as? T
     }
 
     /// Type-erased object insertion for the environment-read tracker
@@ -48,6 +51,27 @@ public struct EnvironmentValues {
     /// reference body originally read.
     public mutating func setObjectByID(_ id: ObjectIdentifier, _ object: AnyObject) {
         objects[id] = object
+        EnvironmentObjectRegistry.shared.setObject(object, id: id)
+    }
+}
+
+private final class EnvironmentObjectRegistry: @unchecked Sendable {
+    static let shared = EnvironmentObjectRegistry()
+
+    private let lock = NSLock()
+    private var objects: [ObjectIdentifier: AnyObject] = [:]
+
+    func setObject(_ object: AnyObject, id: ObjectIdentifier) {
+        lock.lock()
+        objects[id] = object
+        lock.unlock()
+    }
+
+    func object(id: ObjectIdentifier) -> AnyObject? {
+        lock.lock()
+        let object = objects[id]
+        lock.unlock()
+        return object
     }
 }
 
@@ -109,6 +133,19 @@ internal func recordEnvironmentRead(typeID: ObjectIdentifier, object: AnyObject)
 
 // MARK: - Thread-local environment for render pass
 
+private enum EnvironmentTaskLocal {
+    @TaskLocal static var values: EnvironmentValues?
+}
+
+public func withTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () async -> T
+) async -> T {
+    await EnvironmentTaskLocal.$values.withValue(env) {
+        await operation()
+    }
+}
+
 #if canImport(Glibc) || canImport(Darwin)
 private let _envKey: pthread_key_t = {
     var key = pthread_key_t()
@@ -134,7 +171,9 @@ public func setCurrentEnvironment(_ env: EnvironmentValues?) {
 
 /// Get the current environment values (render-time only).
 public func getCurrentEnvironment() -> EnvironmentValues {
-    guard let ptr = pthread_getspecific(_envKey) else { return EnvironmentValues() }
+    guard let ptr = pthread_getspecific(_envKey) else {
+        return EnvironmentTaskLocal.values ?? EnvironmentValues()
+    }
     return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
 }
 #elseif canImport(WinSDK)
@@ -158,7 +197,9 @@ public func setCurrentEnvironment(_ env: EnvironmentValues?) {
 }
 
 public func getCurrentEnvironment() -> EnvironmentValues {
-    guard let ptr = TlsGetValue(_tlsIndex) else { return EnvironmentValues() }
+    guard let ptr = TlsGetValue(_tlsIndex) else {
+        return EnvironmentTaskLocal.values ?? EnvironmentValues()
+    }
     return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
 }
 #else
@@ -170,7 +211,7 @@ public func setCurrentEnvironment(_ env: EnvironmentValues?) {
 }
 
 public func getCurrentEnvironment() -> EnvironmentValues {
-    _currentEnvironment ?? EnvironmentValues()
+    _currentEnvironment ?? EnvironmentTaskLocal.values ?? EnvironmentValues()
 }
 #endif
 
@@ -363,5 +404,18 @@ extension EnvironmentValues {
     public var dismiss: DismissAction {
         get { self[DismissKey.self] }
         set { self[DismissKey.self] = newValue }
+    }
+}
+
+/// Internal presentation context used by backends to distinguish root
+/// window navigation chrome from navigation chrome inside sheets.
+public struct IsPresentedInSheetKey: EnvironmentKey {
+    public static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    public var isPresentedInSheet: Bool {
+        get { self[IsPresentedInSheetKey.self] }
+        set { self[IsPresentedInSheetKey.self] = newValue }
     }
 }

@@ -48,3 +48,10 @@ extension LazyHStack {
         self.contentBuilder = content
     }
 }
+
+extension LazyHStack where Data == Int {
+    public init(@ViewBuilder content: @escaping () -> Content) {
+        self.items = [0]
+        self.contentBuilder = { _ in content() }
+    }
+}

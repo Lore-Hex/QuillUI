@@ -77,7 +77,7 @@ public enum ImageRendererBackend {
 /// `Color` fast path. Platform backends install the general view renderer with
 /// `ImageRendererBackend.installViewRenderer`; the GTK4 backend realizes the
 /// view offscreen, snapshots it, and returns PNG bytes.
-public final class ImageRenderer<Content: View> {
+public final class OpenUIImageRenderer<Content: View> {
     public var content: Content
     public var scale: CGFloat = 1
     public var proposedSize: CGSize?

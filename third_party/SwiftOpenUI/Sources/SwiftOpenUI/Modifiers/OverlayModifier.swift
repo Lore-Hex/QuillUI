@@ -6,6 +6,12 @@ public struct OverlayView<Content: View, Overlay: View>: View {
     public let overlay: Overlay
     public let alignment: Alignment
 
+    public init(content: Content, overlay: Overlay, alignment: Alignment) {
+        self.content = content
+        self.overlay = overlay
+        self.alignment = alignment
+    }
+
     public var body: Never { fatalError("OverlayView is a primitive view") }
 }
 
@@ -18,5 +24,11 @@ extension View {
     /// Layer an overlay view on top of this view.
     public func overlay<V: View>(alignment: Alignment = .center, @ViewBuilder _ overlay: () -> V) -> OverlayView<Self, V> {
         OverlayView(content: self, overlay: overlay(), alignment: alignment)
+    }
+
+    /// SwiftUI-compatible labeled content closure.
+    @_disfavoredOverload
+    public func overlay<V: View>(alignment: Alignment = .center, @ViewBuilder content: () -> V) -> OverlayView<Self, V> {
+        OverlayView(content: self, overlay: content(), alignment: alignment)
     }
 }

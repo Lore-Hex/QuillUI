@@ -11,6 +11,11 @@ let gtkSwiftDividerMarker = "gtk-swift-divider"
 /// Marker string for backend-only layout helpers that should not be
 /// considered rendered SwiftOpenUI content by snapshot capture.
 let gtkSwiftLayoutHelperMarker = "gtk-swift-layout-helper"
+/// Marker string for SwiftUI ScrollView widgets that should receive
+/// ScrollViewReader target adjustments.
+let gtkSwiftScrollViewMarker = "gtk-swift-scroll-view"
+/// Marker string for vertical SwiftUI ScrollViews.
+let gtkSwiftVerticalScrollViewMarker = "gtk-swift-vertical-scroll-view"
 
 private func gtkMarkLayoutHelper(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
@@ -25,6 +30,20 @@ private func gtkHasLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: 
 private func gtkSetLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: String) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
     g_object_set_data(gobject, key, UnsafeMutableRawPointer(bitPattern: 1))
+}
+
+private func gtkMarkSwiftUIScrollView(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    hasVerticalAxis: Bool
+) {
+    gtkSetLayoutMarker(widget, key: gtkSwiftScrollViewMarker)
+    if hasVerticalAxis {
+        gtkSetLayoutMarker(widget, key: gtkSwiftVerticalScrollViewMarker)
+    }
+}
+
+private func gtkIsSwiftUIVerticalScrollView(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    gtkHasLayoutMarker(widget, key: gtkSwiftVerticalScrollViewMarker)
 }
 
 private func gtkPropagateSingleChildLayoutMarkers(
@@ -129,6 +148,192 @@ private func gtkTextInputFocusDescriptorContent(
 
 public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil
 
+
+private final class GTKScrollToContext {
+    let target: UnsafeMutablePointer<GtkWidget>
+    let targetID: AnyHashable?
+    let anchor: UnitPoint?
+    var remainingTicks: Int
+    var remainingTotalTicks: Int
+
+    init(target: UnsafeMutablePointer<GtkWidget>, targetID: AnyHashable? = nil, anchor: UnitPoint?, remainingTicks: Int = 180, remainingTotalTicks: Int = 600) {
+        self.target = target
+        self.targetID = targetID
+        self.anchor = anchor
+        self.remainingTicks = remainingTicks
+        self.remainingTotalTicks = remainingTotalTicks
+    }
+}
+
+private struct GTKPendingScrollRequest {
+    let anchor: UnitPoint?
+}
+
+private var gtkScrollTargetRegistry: [AnyHashable: UnsafeMutablePointer<GtkWidget>] = [:]
+private var gtkPendingScrollRequests: [AnyHashable: GTKPendingScrollRequest] = [:]
+
+private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    if let previous = gtkScrollTargetRegistry.updateValue(widget, forKey: id) {
+        g_object_unref(gpointer(previous))
+    }
+    registerViewID(id, element: widget)
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
+
+private func gtkClampScrollValue(_ value: Double, lower: Double, upper: Double) -> Double {
+    return min(max(value, lower), upper)
+}
+
+@discardableResult
+private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) -> Bool {
+    guard gtk_swift_is_widget(target) != 0 else { return false }
+
+    var fallbackVerticalApplied = false
+    var parent = gtk_widget_get_parent(target)
+    while let scrolled = parent {
+        let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(scrolled)))
+        if typeName == "GtkScrolledWindow" {
+            let anchorPoint = anchor ?? .top
+            let requiresVerticalAnchor = anchorPoint.y > 0.0
+            let isSwiftUIVerticalScrollView = gtkIsSwiftUIVerticalScrollView(scrolled)
+            var targetX = 0.0
+            var targetY = 0.0
+            let hasTargetCoordinates = gtk_widget_translate_coordinates(target, scrolled, 0, 0, &targetX, &targetY) != 0
+            if !hasTargetCoordinates && anchorPoint.y < 1.0 {
+                parent = gtk_widget_get_parent(scrolled)
+                continue
+            }
+
+            var verticalApplied = false
+            var horizontalApplied = false
+            if let vadjustment = gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(vadjustment)
+                let upper = gtk_adjustment_get_upper(vadjustment)
+                let pageSize = gtk_adjustment_get_page_size(vadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(vadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetHeight = max(1.0, Double(gtk_widget_get_height(target)))
+                    if anchorPoint.y >= 1.0 {
+                        gtk_adjustment_set_value(vadjustment, maxValue)
+                    } else {
+                        let desired = currentValue + targetY - ((pageSize - targetHeight) * anchorPoint.y)
+                        gtk_adjustment_set_value(
+                            vadjustment,
+                            gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                        )
+                    }
+                    verticalApplied = true
+                }
+            }
+
+            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+                let lower = gtk_adjustment_get_lower(hadjustment)
+                let upper = gtk_adjustment_get_upper(hadjustment)
+                let pageSize = gtk_adjustment_get_page_size(hadjustment)
+                if upper - lower > pageSize + 1.0 {
+                    let currentValue = gtk_adjustment_get_value(hadjustment)
+                    let maxValue = max(lower, upper - pageSize)
+                    let targetWidth = max(1.0, Double(gtk_widget_get_width(target)))
+                    let desired = currentValue + targetX - ((pageSize - targetWidth) * anchorPoint.x)
+                    gtk_adjustment_set_value(
+                        hadjustment,
+                        gtkClampScrollValue(desired, lower: lower, upper: maxValue)
+                    )
+                    horizontalApplied = true
+                }
+            }
+            if requiresVerticalAnchor {
+                if verticalApplied && isSwiftUIVerticalScrollView { return true }
+                if verticalApplied { fallbackVerticalApplied = true }
+            } else if verticalApplied || horizontalApplied {
+                return true
+            }
+        }
+        parent = gtk_widget_get_parent(scrolled)
+    }
+    return fallbackVerticalApplied
+}
+
+private func gtkScheduleScrollTo(id: AnyHashable? = nil, _ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
+    let context = GTKScrollToContext(target: target, targetID: id, anchor: anchor)
+    _ = g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+        let unmanaged = Unmanaged<GTKScrollToContext>.fromOpaque(userData)
+        let context = unmanaged.takeUnretainedValue()
+        let target = context.targetID.flatMap { gtkScrollTargetRegistry[$0] } ?? context.target
+        guard gtk_swift_is_widget(target) != 0 else {
+            g_object_unref(gpointer(context.target))
+            unmanaged.release()
+            return 0
+        }
+        let applied = gtkApplyScrollTo(target, anchor: context.anchor)
+        if applied {
+            context.remainingTicks -= 1
+        }
+        context.remainingTotalTicks -= 1
+        if context.remainingTicks > 0 && context.remainingTotalTicks > 0 { return 1 }
+        g_object_unref(gpointer(context.target))
+        unmanaged.release()
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
+}
+
+private func gtkScheduleIdleScrollTo(id: AnyHashable? = nil, _ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    guard gtk_swift_is_widget(target) != 0 else { return }
+    g_object_ref(gpointer(target))
+    let context = GTKScrollToContext(target: target, targetID: id, anchor: anchor)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKScrollToContext>.fromOpaque(userData).takeRetainedValue()
+        defer { g_object_unref(gpointer(context.target)) }
+        let target = context.targetID.flatMap { gtkScrollTargetRegistry[$0] } ?? context.target
+        guard gtk_swift_is_widget(target) != 0 else { return 0 }
+        gtkApplyOrScheduleScrollTo(id: context.targetID, target, anchor: context.anchor)
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
+}
+
+private func gtkApplyOrScheduleScrollTo(id: AnyHashable? = nil, _ widget: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
+    gtkApplyScrollTo(widget, anchor: anchor)
+    gtkScheduleScrollTo(id: id, widget, anchor: anchor)
+}
+
+private func gtkResolveOrQueueScrollTo(id: AnyHashable, anchor: UnitPoint?) {
+    let request = GTKPendingScrollRequest(anchor: anchor)
+    gtkPendingScrollRequests[id] = request
+    guard let widget = gtkScrollTargetRegistry[id] else { return }
+    gtkResolvePendingScrollTo(id: id, widget: widget)
+}
+
+private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>) {
+    guard let request = gtkPendingScrollRequests.removeValue(forKey: id) else { return }
+    gtkScheduleIdleScrollTo(id: id, widget, anchor: request.anchor)
+}
+
+
+
+private let gtkOnAppearTickCallback: GtkTickCallback = { _, _, userData in
+    guard let userData else { return 0 }
+    let box = Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue()
+    box.closure()
+    return 0
+}
+
+private func gtkScheduleOnAppear(_ action: @escaping () -> Void, on widget: UnsafeMutablePointer<GtkWidget>) {
+    let box = Unmanaged.passRetained(ClosureBox(action)).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        widget,
+        gtkOnAppearTickCallback,
+        box,
+        { userData in Unmanaged<ClosureBox>.fromOpaque(userData!).release() }
+    )
+}
+
+
 // MARK: - GTK rendering protocol
 
 /// Protocol that views implement (via extensions) to provide GTK widget creation.
@@ -140,6 +345,180 @@ public protocol GTKRenderable {
 /// Protocol for views that provide multiple GTK child widgets.
 public protocol GTKMultiChildRenderable {
     func gtkRenderChildren() -> [OpaquePointer]
+}
+
+// MARK: - Stateful view identity
+
+private var gtkStateCache: [String: [AnyStateStorage]] = [:]
+private var gtkStateTypeCounters: [String: [String: Int]] = [:]
+private var gtkStateIdentityNamespaceOverrideStack: [String] = []
+
+private final class GTKDeferredStateForwarding {
+    let key: String
+    let oldStorages: [AnyStateStorage]
+    let newStorages: [AnyStateStorage]
+    var didRun = false
+
+    init(key: String, oldStorages: [AnyStateStorage], newStorages: [AnyStateStorage]) {
+        self.key = key
+        self.oldStorages = oldStorages
+        self.newStorages = newStorages
+    }
+}
+
+private func gtkStateIdentityNamespace() -> String {
+    if let override = gtkStateIdentityNamespaceOverrideStack.last {
+        return override
+    }
+    return GTKViewHost.getCurrentRebuilding()?.stateIdentityNamespace ?? "root"
+}
+
+func gtkBeginStateIdentityPass() {
+    gtkStateTypeCounters[gtkStateIdentityNamespace()] = [:]
+}
+
+private func gtkWithStateIdentityNamespace<Result>(
+    _ namespace: String,
+    _ body: () -> Result
+) -> Result {
+    gtkStateIdentityNamespaceOverrideStack.append(namespace)
+    gtkBeginStateIdentityPass()
+    defer { _ = gtkStateIdentityNamespaceOverrideStack.popLast() }
+    return body()
+}
+
+private func gtkStateCacheKey<V>(for view: V) -> String {
+    let namespace = gtkStateIdentityNamespace()
+    let typeName = String(reflecting: type(of: view))
+    var counters = gtkStateTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    gtkStateTypeCounters[namespace] = counters
+    return "\(namespace)::\(typeName)#\(index)"
+}
+
+private func gtkStorageHostIsMapped(_ storage: AnyStateStorage) -> Bool {
+    guard let host = storage.host as? GTKViewHost else {
+        return false
+    }
+    return gtk_widget_get_mapped(host.container) != 0
+}
+
+private func gtkShouldDeferStateForwarding(
+    oldStorages: [AnyStateStorage],
+    newHost: GTKViewHost
+) -> Bool {
+    guard gtk_widget_get_mapped(newHost.container) == 0 else {
+        return false
+    }
+    return oldStorages.contains { gtkStorageHostIsMapped($0) }
+}
+
+private func gtkInstallDeferredStateForwarding(
+    key: String,
+    oldStorages: [AnyStateStorage],
+    newStorages: [AnyStateStorage],
+    on host: GTKViewHost
+) {
+    let box = Unmanaged.passRetained(GTKDeferredStateForwarding(
+        key: key,
+        oldStorages: oldStorages,
+        newStorages: newStorages
+    )).toOpaque()
+    g_signal_connect_data(
+        gpointer(host.container),
+        "map",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let deferred = Unmanaged<GTKDeferredStateForwarding>.fromOpaque(userData).takeUnretainedValue()
+            guard !deferred.didRun else { return }
+            deferred.didRun = true
+            if deferred.oldStorages.contains(where: gtkStorageHostIsMapped) {
+                for oldStorage in deferred.oldStorages {
+                    oldStorage.forwardMutations(to: oldStorage)
+                }
+                gtkDebugLog("state deferred forward skipped old-mapped key=\(deferred.key)")
+                return
+            }
+            for (newStorage, oldStorage) in zip(deferred.newStorages, deferred.oldStorages) {
+                newStorage.restoreValue(from: oldStorage)
+                oldStorage.forwardMutations(to: newStorage)
+            }
+            gtkStateCache[deferred.key] = deferred.newStorages
+            gtkDebugLog("state deferred forward key=\(deferred.key)")
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        box,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKDeferredStateForwarding>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+}
+
+private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {
+    let mirror = Mirror(reflecting: view)
+    let providers = mirror.children.compactMap { $0.value as? AnyStateStorageProvider }
+    guard !providers.isEmpty else { return }
+
+    let key = gtkStateCacheKey(for: view)
+    gtkDebugLog("state install host=\(ObjectIdentifier(host)) type=\(String(reflecting: type(of: view))) key=\(key) providers=\(providers.count) cached=\(gtkStateCache[key] != nil)")
+    host.stateIdentityNamespace = key
+    var shouldInstallCacheImmediately = true
+    let newStorages = providers.map { $0.anyStorage }
+    if let cached = gtkStateCache[key], cached.count == providers.count {
+        for (provider, old) in zip(providers, cached) {
+            provider.anyStorage.restoreValue(from: old)
+        }
+        if gtkShouldDeferStateForwarding(oldStorages: cached, newHost: host) {
+            shouldInstallCacheImmediately = false
+            gtkDebugLog("state defer forward key=\(key)")
+            gtkInstallDeferredStateForwarding(
+                key: key,
+                oldStorages: cached,
+                newStorages: newStorages,
+                on: host
+            )
+        } else {
+            for (newStorage, old) in zip(newStorages, cached) {
+                old.forwardMutations(to: newStorage)
+            }
+        }
+    }
+
+    for provider in providers {
+        provider.anyStorage.host = host
+    }
+    if shouldInstallCacheImmediately {
+        gtkStateCache[key] = newStorages
+    }
+}
+
+private func gtkDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
+        return
+    }
+    if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
+private func gtkConfigureWidgetToFillAllocation(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    gtk_widget_set_hexpand(widget, 1)
+    gtk_widget_set_vexpand(widget, 1)
+    gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+}
+
+private func gtkDisablePointerTargets(in widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    gtk_widget_set_can_target(widget, 0)
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        child = gtk_widget_get_next_sibling(current)
+        gtkDisablePointerTargets(in: current)
+    }
 }
 
 // MARK: - Rendering dispatch
@@ -267,10 +646,9 @@ func bindTaskActionToCurrentEnvironment(
 ) -> @Sendable () async -> Void {
     let capturedEnvironment = GTKEnvironmentCapture(getCurrentEnvironment())
     return {
-        let previousEnvironment = getCurrentEnvironment()
-        setCurrentEnvironment(capturedEnvironment.environment)
-        defer { setCurrentEnvironment(previousEnvironment) }
-        await action()
+        await withTaskEnvironment(capturedEnvironment.environment) {
+            await action()
+        }
     }
 }
 
@@ -403,7 +781,7 @@ extension TextField: GTKRenderable, GTKDescribable {
         let textFieldStyleType = getCurrentEnvironment().textFieldStyle
         switch textFieldStyleType {
         case .plain:
-            applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")
+            applyCSSToWidget(entry, properties: "background: transparent; background-color: transparent; border: none; outline: none; box-shadow: none; padding: 0;")
         case .automatic, .roundedBorder:
             break // default GTK entry styling
         }
@@ -601,12 +979,20 @@ extension Button: GTKRenderable, GTKDescribable {
             childWidget = widgetFromOpaque(textLabel.gtkCreateWidget())
         } else {
             childWidget = widgetFromOpaque(gtkRenderView(label))
+            let childTypeName = String(cString: g_type_name(gtk_swift_get_widget_type(childWidget)))
+            if childTypeName == "GtkBox" {
+                buttonWantsHExpand = true
+                gtk_widget_set_hexpand(childWidget, 1)
+                gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+            }
             if gtk_widget_get_hexpand(childWidget) != 0 {
                 buttonWantsHExpand = true
+                gtk_widget_set_hexpand(childWidget, 1)
                 gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
             }
             if gtk_widget_get_vexpand(childWidget) != 0 {
                 buttonWantsVExpand = true
+                gtk_widget_set_vexpand(childWidget, 1)
                 gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
             }
         }
@@ -710,8 +1096,15 @@ extension Button: GTKRenderable, GTKDescribable {
             gpointer(button),
             "clicked",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                let box = Unmanaged<ClosureBox>.fromOpaque(userData!).takeUnretainedValue()
-                box.closure()
+                guard let userData else { return }
+                gtkDebugLog("button clicked")
+                let retainedBox = Unmanaged<ClosureBox>.fromOpaque(userData).retain().toOpaque()
+                g_idle_add({ idleData -> gboolean in
+                    let box = Unmanaged<ClosureBox>.fromOpaque(idleData!).takeRetainedValue()
+                    gtkDebugLog("button action")
+                    box.closure()
+                    return 0
+                }, retainedBox)
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             box,
             { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
@@ -996,6 +1389,9 @@ extension VStack: GTKRenderable, GTKDescribable {
 }
 
 private func gtkCanUseSharedVStackLayout(_ children: [UnsafeMutablePointer<GtkWidget>]) -> Bool {
+    if children.contains(where: { !findAllGtkLabels(in: $0).isEmpty }) {
+        return false
+    }
     for widget in children {
         let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
         if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
@@ -1062,10 +1458,14 @@ private func gtkRenderFallbackVStack(
         if gtk_widget_get_hexpand(widget) != 0 {
             needsHExpand = true
             gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        } else if alignment == .leading {
+            needsHExpand = true
+            gtk_widget_set_hexpand(widget, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
         } else {
             gtk_widget_set_halign(widget, gtkAlign)
         }
-        if gtk_widget_get_vexpand(widget) != 0 { needsVExpand = true }
+        if gtk_widget_get_vexpand(widget) != 0 { needsVExpand = true; gtk_widget_set_valign(widget, GTK_ALIGN_FILL) }
         gtk_box_append(boxPointer(box), widget)
     }
     if needsHExpand { gtk_widget_set_hexpand(box, 1) }
@@ -1155,6 +1555,20 @@ private func gtkRenderFallbackHStack(
         return g_object_get_data(gobject, gtkSwiftSpacerMarker) == nil
             && gtk_widget_get_hexpand(widget) != 0
     }
+    let firstSpacerIndex = children.firstIndex { widget in
+        let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+        return g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil
+    }
+    let spacerDrivenContentIndex: Int? = {
+        guard !hasNonSpacerHExpand, let firstSpacerIndex, firstSpacerIndex > 0 else {
+            return nil
+        }
+        return children[..<firstSpacerIndex].indices.last { index in
+            let gobject = UnsafeMutableRawPointer(children[index]).assumingMemoryBound(to: GObject.self)
+            return g_object_get_data(gobject, gtkSwiftSpacerMarker) == nil
+                && g_object_get_data(gobject, gtkSwiftDividerMarker) == nil
+        }
+    }()
 
     let gtkAlign: GtkAlign
     switch alignment {
@@ -1163,10 +1577,10 @@ private func gtkRenderFallbackHStack(
     case .bottom: gtkAlign = GTK_ALIGN_END
     }
 
-    for widget in children {
+    for (index, widget) in children.enumerated() {
         let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
         if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
-            if hasNonSpacerHExpand {
+            if hasNonSpacerHExpand || spacerDrivenContentIndex != nil {
                 gtk_widget_set_size_request(widget, 8, -1)
                 gtk_widget_set_hexpand(widget, 0)
             } else {
@@ -1179,7 +1593,11 @@ private func gtkRenderFallbackHStack(
             gtk_widget_set_hexpand(widget, 0)
             gtk_widget_set_vexpand(widget, 1)
         }
-        if gtk_widget_get_hexpand(widget) != 0 { needsHExpand = true }
+        if index == spacerDrivenContentIndex {
+            gtk_widget_set_hexpand(widget, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        }
+        if gtk_widget_get_hexpand(widget) != 0 { needsHExpand = true; gtk_widget_set_halign(widget, GTK_ALIGN_FILL) }
         if gtk_widget_get_vexpand(widget) != 0 {
             needsVExpand = true
             gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
@@ -1391,8 +1809,18 @@ extension PaddedView: GTKRenderable, GTKDescribable {
         gtk_widget_set_margin_bottom(child, gint(bottom))
         gtk_widget_set_margin_start(child, gint(leading))
         gtk_widget_set_margin_end(child, gint(trailing))
-        if gtk_widget_get_hexpand(child) != 0 { gtk_widget_set_hexpand(wrapper, 1) }
-        if gtk_widget_get_vexpand(child) != 0 { gtk_widget_set_vexpand(wrapper, 1) }
+        // PaddedView must let expanding content fill its margin wrapper.
+        // This is what carries a fixed frame's proposed width into a
+        // padded VStack/HStack instead of clipping Spacer-based rows at
+        // their natural size.
+        if gtk_widget_get_hexpand(child) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        }
+        if gtk_widget_get_vexpand(child) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        }
         gtkMarkHostedNodeKind(wrapper, kind: .padding)
         gtk_box_append(boxPointer(wrapper), child)
         return opaqueFromWidget(wrapper)
@@ -1425,14 +1853,22 @@ extension FrameView: GTKRenderable, GTKDescribable {
         let widthFree  = width == nil && minWidth == nil && (maxWidth == nil || maxWidth == .infinity)
         let widthMayGrowWithParent = width == nil
             && (
-                (maxWidth != nil && maxWidth == .infinity)
+                (maxWidth != nil)
                 || (maxWidth == nil && childExpH)
             )
         let heightMayGrowWithParent = height == nil
             && (
-                (maxHeight != nil && maxHeight == .infinity)
+                (maxHeight != nil)
                 || (maxHeight == nil && childExpV)
             )
+
+        if width == nil,
+           minHeight == nil,
+           maxHeight == nil,
+           let fixedHeight = height,
+           (maxWidth != nil || childExpH) {
+            return gtkFrameFlexibleWidthFixedHeight(child: child, height: fixedHeight)
+        }
 
         if widthMayGrowWithParent || heightMayGrowWithParent {
             return gtkFrameParentFlexibleAxes(
@@ -1466,15 +1902,29 @@ extension FrameView: GTKRenderable, GTKDescribable {
             maxWidth: maxWidth,
             maxHeight: maxHeight,
             alignment: alignment,
-            expandsToFillWidth: childExpH,
-            expandsToFillHeight: childExpV
+            expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity),
+            expandsToFillHeight: childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)
         )
         let clampsChild =
             layout.childPlacement.size.width < naturalSize.width
             || layout.childPlacement.size.height < naturalSize.height
-        let slot: UnsafeMutablePointer<GtkWidget> = clampsChild
-            ? gtk_swift_scrolled_window_new()!
-            : gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        // Fixed-frame clipping uses a normal GtkBox allocation.
+        // GtkScrolledWindow preserves the child's wider natural width
+        // internally, which breaks SwiftUI Spacer rows inside clipped
+        // fixed-width sheets.
+        let slot: UnsafeMutablePointer<GtkWidget> = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+
+        // Expanding fixed-frame children receive the proposed frame size
+        // even when the child does not need clipping. Otherwise a padded
+        // VStack/HStack can keep its natural width and lose trailing
+        // Spacer-aligned controls.
+        if childExpH || childExpV {
+            gtk_widget_set_size_request(
+                child,
+                childExpH ? gtkPixelSize(layout.childPlacement.size.width) : -1,
+                childExpV ? gtkPixelSize(layout.childPlacement.size.height) : -1
+            )
+        }
 
         // Expanding children should fill the slot; non-expanding ones
         // are positioned by GtkFixed placement math.
@@ -1484,19 +1934,15 @@ extension FrameView: GTKRenderable, GTKDescribable {
         gtk_widget_set_valign(slot, GTK_ALIGN_START)
         if clampsChild {
             gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
-            if childExpH || childExpV {
-                gtk_widget_set_size_request(
-                    child,
-                    childExpH ? gint(layout.childPlacement.size.width) : -1,
-                    childExpV ? gint(layout.childPlacement.size.height) : -1
-                )
-            }
-            gtk_swift_scrolled_window_configure_clip(
-                slot,
-                gint(layout.childPlacement.size.width),
-                gint(layout.childPlacement.size.height)
+            // SwiftUI proposes the clamped fixed-frame size to children.
+            // Without this, HStacks with Spacer() inside fixed-width
+            // sheets keep their oversized natural width and GTK clips
+            // trailing controls such as Close/New/Edit/Delete buttons.
+            gtk_widget_set_size_request(
+                child,
+                gtkPixelSize(layout.childPlacement.size.width),
+                gtkPixelSize(layout.childPlacement.size.height)
             )
-            gtk_swift_scrolled_window_set_child(slot, child)
         }
         gtk_widget_set_size_request(
             slot,
@@ -1515,10 +1961,10 @@ extension FrameView: GTKRenderable, GTKDescribable {
         if height != nil {
             gtk_widget_set_vexpand(wrapper, 0)
         }
-        if let xw = maxWidth, xw == .infinity {
+        if maxWidth != nil {
             gtk_widget_set_hexpand(wrapper, 1)
         }
-        if let xh = maxHeight, xh == .infinity {
+        if maxHeight != nil {
             gtk_widget_set_vexpand(wrapper, 1)
         }
         // Propagate child expand flags to wrapper when the frame doesn't
@@ -1530,9 +1976,7 @@ extension FrameView: GTKRenderable, GTKDescribable {
         if height == nil && maxHeight == nil && gtk_widget_get_vexpand(child) != 0 {
             gtk_widget_set_vexpand(wrapper, 1)
         }
-        if !clampsChild {
-            gtk_box_append(boxPointer(slot), child)
-        }
+        gtk_box_append(boxPointer(slot), child)
         gtk_swift_fixed_put(
             wrapper,
             slot,
@@ -1546,6 +1990,30 @@ extension FrameView: GTKRenderable, GTKDescribable {
             layout.childPlacement.origin.y
         )
         return opaqueFromWidget(wrapper)
+    }
+
+    private func gtkFrameFlexibleWidthFixedHeight(
+        child: UnsafeMutablePointer<GtkWidget>,
+        height: Double
+    ) -> OpaquePointer {
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_NEVER, GTK_POLICY_NEVER)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+        gtk_widget_set_size_request(scrolled, -1, gtkPixelSize(height))
+        gtk_widget_set_hexpand(scrolled, 1)
+        gtk_widget_set_vexpand(scrolled, 0)
+        gtk_widget_set_halign(scrolled, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(scrolled, GTK_ALIGN_START)
+        gtk_widget_set_overflow(scrolled, GTK_OVERFLOW_HIDDEN)
+
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_overflow(child, GTK_OVERFLOW_HIDDEN)
+        gtk_scrolled_window_set_child(scrolledOp, child)
+        return opaqueFromWidget(scrolled)
     }
 
     /// Build a frame wrapper for cases where the parent may later allocate
@@ -1569,20 +2037,20 @@ extension FrameView: GTKRenderable, GTKDescribable {
             maxWidth: maxWidth,
             maxHeight: maxHeight,
             alignment: alignment,
-            expandsToFillWidth: childExpH,
-            expandsToFillHeight: childExpV
+            expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity),
+            expandsToFillHeight: childExpV || (height == nil && maxHeight != nil && maxHeight != .infinity)
         )
 
         let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
 
         let widthMayGrowWithParent = width == nil
             && (
-                (maxWidth != nil && maxWidth == .infinity)
+                (maxWidth != nil)
                 || (maxWidth == nil && childExpH)
             )
         let heightMayGrowWithParent = height == nil
             && (
-                (maxHeight != nil && maxHeight == .infinity)
+                (maxHeight != nil)
                 || (maxHeight == nil && childExpV)
             )
 
@@ -1707,8 +2175,8 @@ extension FrameView: GTKRenderable, GTKDescribable {
             maxWidth: maxWidth,
             maxHeight: maxHeight,
             alignment: alignment,
-            expandsToFillWidth: childExpH,
-            expandsToFillHeight: gtk_widget_get_vexpand(child) != 0
+            expandsToFillWidth: childExpH || (width == nil && maxWidth != nil && maxWidth != .infinity),
+            expandsToFillHeight: gtk_widget_get_vexpand(child) != 0 || (height == nil && maxHeight != nil && maxHeight != .infinity)
         )
 
         // Use GtkBox as wrapper — child fills the flexible axis via expand.
@@ -1718,13 +2186,13 @@ extension FrameView: GTKRenderable, GTKDescribable {
         if constrainedWidth {
             // Width constrained, height flexible
             gtk_widget_set_size_request(wrapper, gtkPixelSize(layout.containerSize.width), -1)
-            let hexp: gint = (maxWidth != nil && maxWidth == .infinity) ? 1 : 0
+            let hexp: gint = (maxWidth != nil) ? 1 : 0
             gtk_widget_set_hexpand(wrapper, hexp)
             gtk_widget_set_vexpand(wrapper, 1)
         } else {
             // Height constrained, width flexible
             gtk_widget_set_size_request(wrapper, -1, gtkPixelSize(layout.containerSize.height))
-            let vexp: gint = (maxHeight != nil && maxHeight == .infinity) ? 1 : 0
+            let vexp: gint = (maxHeight != nil) ? 1 : 0
             gtk_widget_set_hexpand(wrapper, 1)
             gtk_widget_set_vexpand(wrapper, vexp)
         }
@@ -2194,9 +2662,13 @@ extension AspectRatioView: GTKRenderable {
         }
         switch contentMode {
         case .fit:
-            css += " object-fit: contain;"
+            css += ""
         case .fill:
-            css += " object-fit: cover; overflow: hidden;"
+            gtk_widget_set_overflow(widget, GTK_OVERFLOW_HIDDEN)
+            if gtk_swift_is_picture(widget) != 0 {
+                gtk_swift_picture_set_content_fit(widget, GTK_CONTENT_FIT_COVER)
+                gtk_swift_picture_set_can_shrink(widget, 1)
+            }
         }
         if !css.isEmpty {
             applyCSSToWidget(widget, properties: css)
@@ -2358,8 +2830,19 @@ extension TextCaseView: GTKRenderable {
 extension IdView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        registerViewID(id, element: widget)
-        return opaqueFromWidget(widget)
+        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_box_append(boxPointer(wrapper), widget)
+        gtkPropagateSingleChildLayoutMarkers(from: [widget], to: wrapper)
+        if gtk_widget_get_hexpand(widget) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        }
+        if gtk_widget_get_vexpand(widget) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+        }
+        gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)
+        return opaqueFromWidget(wrapper)
     }
 }
 
@@ -2367,24 +2850,7 @@ extension ScrollViewReader: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         var proxy = ScrollViewProxy()
         proxy.scrollToAction = { anyID, anchor in
-            guard let widget = lookupViewID(anyID) as? UnsafeMutablePointer<GtkWidget> else { return }
-            // Verify the widget is still alive before operating on it
-            guard gtk_swift_is_widget(widget) != 0 else { return }
-            // Find the enclosing GtkScrolledWindow and scroll to the widget.
-            var parent = gtk_widget_get_parent(widget)
-            while let p = parent {
-                let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(p)))
-                if typeName == "GtkScrolledWindow" {
-                    // Temporarily make the widget focusable so grab_focus
-                    // triggers GTK4 auto-scroll. Restore after.
-                    let wasFocusable = gtk_widget_get_focusable(widget)
-                    gtk_widget_set_focusable(widget, 1)
-                    gtk_widget_grab_focus(widget)
-                    gtk_widget_set_focusable(widget, wasFocusable)
-                    break
-                }
-                parent = gtk_widget_get_parent(p)
-            }
+            gtkResolveOrQueueScrollTo(id: anyID, anchor: anchor)
         }
         return gtkRenderView(content(proxy))
     }
@@ -3106,11 +3572,12 @@ extension TaskView: GTKRenderable, GTKDescribable {
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
+        let boundAction = bindTaskActionToCurrentEnvironment(action)
         let widget = widgetFromOpaque(gtkRenderView(content))
         gtkAttachStandaloneTaskLifecycle(
             to: widget,
             priority: priority,
-            action: bindTaskActionToCurrentEnvironment(action)
+            action: boundAction
         )
         return opaqueFromWidget(widget)
     }
@@ -3163,6 +3630,10 @@ extension OnAppearView: GTKRenderable, GTKDescribable {
 private class DisappearBox {
     let action: () -> Void
     let hostContainer: UnsafeMutablePointer<GtkWidget>?
+    // GTK OnDisappear requires a prior map before firing. Sheet content can
+    // be temporarily unrealized while it is being attached to a window; SwiftUI
+    // does not treat that construction churn as a disappearance.
+    var hasMapped: Bool = false
     init(action: @escaping () -> Void, hostContainer: UnsafeMutablePointer<GtkWidget>?) {
         self.action = action
         self.hostContainer = hostContainer
@@ -3181,14 +3652,31 @@ extension OnDisappearView: GTKRenderable {
         }
 
         let boundAction = bindActionToCurrentEnvironment(action)
+        if let sheetLifecycleScope = gtkCurrentSheetLifecycleScope() {
+            sheetLifecycleScope.registerOnDisappear(boundAction)
+            return opaqueFromWidget(widget)
+        }
+
         let box = Unmanaged.passRetained(
             DisappearBox(action: boundAction, hostContainer: hostContainer)
         ).toOpaque()
         g_signal_connect_data(
             gpointer(widget),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<DisappearBox>.fromOpaque(userData!).takeUnretainedValue()
+                box.hasMapped = true
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            box,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(widget),
             "unmap",
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
                 let box = Unmanaged<DisappearBox>.fromOpaque(userData!).takeUnretainedValue()
+                guard box.hasMapped else { return }
                 // If the host container is still mapped, this is a rebuild — suppress.
                 if let container = box.hostContainer,
                    gtk_widget_get_mapped(container) != 0 {
@@ -3212,16 +3700,9 @@ extension OnDisappearView: GTKRenderable {
 /// Holds sheet configuration for deferred presentation.
 /// Extract dismissal-confirmation configuration from a view tree.
 private func gtkExtractDismissalConfig(from view: Any, depth: Int = 0) -> DismissalConfirmationConfiguration? {
-    guard depth < 20 else { return nil }
     if let provider = view as? DismissalConfirmationProvider {
         if let config = provider.dismissalConfirmationConfiguration {
             return config
-        }
-    }
-    let mirror = Mirror(reflecting: view)
-    for child in mirror.children {
-        if let result = gtkExtractDismissalConfig(from: child.value, depth: depth + 1) {
-            return result
         }
     }
     return nil
@@ -3324,18 +3805,333 @@ private func gtkPresentConfirmationDialog(
     gtk_window_present(dialogWin)
 }
 
+private final class GTKSheetLifecycleScope {
+    private var disappearActions: [() -> Void] = []
+    private var didRunDisappearActions = false
+
+    func registerOnDisappear(_ action: @escaping () -> Void) {
+        disappearActions.append(action)
+    }
+
+    func runDisappearActions() {
+        guard !didRunDisappearActions else { return }
+        didRunDisappearActions = true
+        for action in disappearActions {
+            action()
+        }
+    }
+}
+
+private var gtkSheetLifecycleScopes: [GTKSheetLifecycleScope] = []
+
+private func gtkCurrentSheetLifecycleScope() -> GTKSheetLifecycleScope? {
+    gtkSheetLifecycleScopes.last
+}
+
+private func gtkWithSheetLifecycleScope<T>(
+    _ scope: GTKSheetLifecycleScope,
+    perform body: () -> T
+) -> T {
+    gtkSheetLifecycleScopes.append(scope)
+    defer { _ = gtkSheetLifecycleScopes.popLast() }
+    return body()
+}
+
+private func gtkSheetDefaultWidth() -> gint {
+    guard let rawWidth = ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_DEFAULT_WIDTH"],
+          let width = Int(rawWidth),
+          width > 0
+    else {
+        return 900
+    }
+    return gint(width)
+}
+
+private func gtkSheetDefaultHeight() -> gint {
+    guard let rawHeight = ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_DEFAULT_HEIGHT"],
+          let height = Int(rawHeight),
+          height > 0
+    else {
+        return 650
+    }
+    return gint(height)
+}
+
+private func gtkSheetPresentationMode() -> String {
+    return (ProcessInfo.processInfo.environment["QUILLUI_BACKEND_SHEET_PRESENTATION"]
+        ?? ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_PRESENTATION"]
+        ?? "root-overlay")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+}
+
+private func gtkShouldRenderSheetInRootOverlay() -> Bool {
+    let mode = gtkSheetPresentationMode()
+    return mode.isEmpty || mode == "root" || mode == "root-overlay" || mode == "window-overlay"
+}
+
+private func gtkShouldRenderSheetInWindow() -> Bool {
+    let mode = gtkSheetPresentationMode()
+    return mode == "overlay" || mode == "in-window" || mode == "inline"
+}
+
+private func gtkRemoveSheetRootOverlay(
+    anchor: UnsafeMutablePointer<GtkWidget>,
+    overlayKey: String,
+    activeKey: String,
+    itemIDKey: String? = nil,
+    onDismiss: (() -> Void)? = nil
+) {
+    let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
+    guard let panelPtr = g_object_get_data(gobject, overlayKey) else {
+        return
+    }
+    let panel = panelPtr.assumingMemoryBound(to: GtkWidget.self)
+    gtk_widget_unparent(panel)
+    g_object_set_data(gobject, overlayKey, nil)
+    g_object_set_data(gobject, activeKey, nil)
+    if let itemIDKey {
+        g_object_set_data(gobject, itemIDKey, nil)
+    }
+    onDismiss?()
+}
+
+private func gtkRootPresentationOverlayWidget(
+    for anchor: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard let root = gtk_widget_get_root(anchor).map({ gpointer($0) })
+            ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot,
+          let rootOverlay = gtkRootPresentationOverlay(for: root) else {
+        return nil
+    }
+    return UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GtkWidget.self)
+}
+
+private func gtkCreateSheetOverlayPanel(
+    sheetWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtk_widget_set_size_request(panel, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())
+    gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(panel, GTK_ALIGN_CENTER)
+    applyCSSToWidget(
+        panel,
+        properties: "background: #f8f8fb; border: 1px solid rgba(0,0,0,0.12); border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.18);"
+    )
+
+    gtk_widget_set_hexpand(sheetWidget, 1)
+    gtk_widget_set_vexpand(sheetWidget, 1)
+    gtk_widget_set_halign(sheetWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(sheetWidget, GTK_ALIGN_FILL)
+    gtk_box_append(boxPointer(panel), sheetWidget)
+    gtkInstallResponsiveSheetPanelSizing(panel)
+    return panel
+}
+
+private let gtkSheetContentHostKey = "quillui-sheet-content-host"
+
+private final class GTKSheetContentHostBox {
+    var renderBody: () -> OpaquePointer
+    private var storedHost: GTKViewHost?
+
+    var host: GTKViewHost {
+        storedHost!
+    }
+
+    init(renderBody: @escaping () -> OpaquePointer) {
+        self.renderBody = renderBody
+        self.storedHost = nil
+        self.storedHost = GTKViewHost { [weak self] in
+            guard let self else {
+                return opaqueFromWidget(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!)
+            }
+            return self.renderBody()
+        }
+    }
+}
+
+private func gtkCreateHostedSheetContent(
+    renderBody: @escaping () -> OpaquePointer
+) -> (widget: UnsafeMutablePointer<GtkWidget>, hostBox: GTKSheetContentHostBox) {
+    let hostBox = GTKSheetContentHostBox(renderBody: renderBody)
+    let host = hostBox.host
+    gtkDebugLog("sheet hosted create host=\(ObjectIdentifier(host))")
+    let previousHost = GTKViewHost.getCurrentRebuilding()
+    GTKViewHost.setCurrentRebuilding(host)
+    beginDependencyTracking()
+    let widget = host.buildBodyWithTracking()
+    if let tracking = endDependencyTracking() {
+        host.lastReadSet = tracking.readSet
+        host.lastInputSnapshot = tracking.snapshots
+    }
+    GTKViewHost.setCurrentRebuilding(previousHost)
+
+    let child = widgetFromOpaque(widget)
+    gtk_widget_set_hexpand(child, 1)
+    gtk_widget_set_vexpand(child, 1)
+    gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+    gtk_box_append(boxPointer(host.container), child)
+    return (host.container, hostBox)
+}
+
+private func gtkAttachHostedSheetContent(
+    _ hostBox: GTKSheetContentHostBox,
+    to panel: UnsafeMutablePointer<GtkWidget>
+) {
+    let retained = Unmanaged.passRetained(hostBox).toOpaque()
+    let gobject = UnsafeMutableRawPointer(panel).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(
+        gobject,
+        gtkSheetContentHostKey,
+        retained,
+        { userData in
+            Unmanaged<GTKSheetContentHostBox>.fromOpaque(userData!).release()
+        }
+    )
+}
+
+@discardableResult
+private func gtkUpdateHostedSheetContent(
+    panel: UnsafeMutablePointer<GtkWidget>,
+    renderBody: @escaping () -> OpaquePointer
+) -> Bool {
+    let gobject = UnsafeMutableRawPointer(panel).assumingMemoryBound(to: GObject.self)
+    guard let rawHostBox = g_object_get_data(gobject, gtkSheetContentHostKey) else {
+        gtkDebugLog("sheet hosted update missing")
+        return false
+    }
+    let hostBox = Unmanaged<GTKSheetContentHostBox>.fromOpaque(rawHostBox).takeUnretainedValue()
+    hostBox.renderBody = renderBody
+    gtkDebugLog("sheet hosted update host=\(ObjectIdentifier(hostBox.host))")
+    hostBox.host.scheduleRebuild()
+    return true
+}
+
+private func gtkSheetRenderBody(
+    environment: EnvironmentValues,
+    namespace: String,
+    lifecycleScope: GTKSheetLifecycleScope,
+    render: @escaping () -> OpaquePointer
+) -> () -> OpaquePointer {
+    {
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return gtkWithStateIdentityNamespace(namespace) {
+            gtkWithSheetLifecycleScope(lifecycleScope) {
+                render()
+            }
+        }
+    }
+}
+
+private final class GTKResponsiveSheetPanelSizing {
+    let defaultWidth: gint
+    let defaultHeight: gint
+    var lastWidth: gint = -1
+    var lastHeight: gint = -1
+
+    init(defaultWidth: gint, defaultHeight: gint) {
+        self.defaultWidth = defaultWidth
+        self.defaultHeight = defaultHeight
+    }
+}
+
+private let gtkResponsiveSheetPanelSizingTickCallback: GtkTickCallback = { widget, _, userData in
+    guard let widget, let userData else {
+        return 0
+    }
+    let state = Unmanaged<GTKResponsiveSheetPanelSizing>.fromOpaque(userData).takeUnretainedValue()
+    guard let parent = gtk_widget_get_parent(widget) else {
+        return 1
+    }
+
+    let margin: gint = 48
+    let minWidth: gint = 320
+    let minHeight: gint = 240
+    let parentWidth = gtk_widget_get_width(parent)
+    let parentHeight = gtk_widget_get_height(parent)
+    guard parentWidth > 0, parentHeight > 0 else {
+        return 1
+    }
+
+    let availableWidth = max(minWidth, parentWidth - margin)
+    let availableHeight = max(minHeight, parentHeight - margin)
+    let width = min(state.defaultWidth, availableWidth)
+    let height = min(state.defaultHeight, availableHeight)
+    if width != state.lastWidth || height != state.lastHeight {
+        state.lastWidth = width
+        state.lastHeight = height
+        gtk_widget_set_size_request(widget, width, height)
+    }
+    return 1
+}
+
+private func gtkInstallResponsiveSheetPanelSizing(_ panel: UnsafeMutablePointer<GtkWidget>) {
+    let state = GTKResponsiveSheetPanelSizing(
+        defaultWidth: gtkSheetDefaultWidth(),
+        defaultHeight: gtkSheetDefaultHeight()
+    )
+    let retained = Unmanaged.passRetained(state).toOpaque()
+    gtk_widget_add_tick_callback(panel, gtkResponsiveSheetPanelSizingTickCallback, retained) { userData in
+        guard let userData else { return }
+        Unmanaged<GTKResponsiveSheetPanelSizing>.fromOpaque(userData).release()
+    }
+}
+
+private func gtkCreateSheetOverlay(
+    contentWidget: UnsafeMutablePointer<GtkWidget>,
+    sheetWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let overlay = gtk_overlay_new()!
+    gtk_widget_set_hexpand(overlay, 1)
+    gtk_widget_set_vexpand(overlay, 1)
+    gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+
+    gtk_widget_set_hexpand(contentWidget, 1)
+    gtk_widget_set_vexpand(contentWidget, 1)
+    gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+    gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
+
+    let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+    gtk_overlay_add_overlay(OpaquePointer(overlay), panel)
+    return overlay
+}
+
+private func gtkSheetDataKey(_ suffix: String, modifierType: Any.Type) -> String {
+    return "swift-sheet-\(String(reflecting: modifierType))-\(suffix)"
+}
+
 private class SheetInfo {
     let anchor: UnsafeMutablePointer<GtkWidget>
+    let activeKey: String
+    let windowKey: String
+    let itemIDKey: String
+    let transientRoot: gpointer?
+    let lifecycleScope: GTKSheetLifecycleScope
     let render: () -> OpaquePointer
     let onDismiss: () -> Void
     /// Dismissal config from sheet content, used to present confirmation dialog on intercept.
     let dismissalConfig: DismissalConfirmationConfiguration?
 
     init(anchor: UnsafeMutablePointer<GtkWidget>,
+         activeKey: String,
+         windowKey: String,
+         itemIDKey: String = "",
+         transientRoot: gpointer?,
+         lifecycleScope: GTKSheetLifecycleScope,
          render: @escaping () -> OpaquePointer,
          onDismiss: @escaping () -> Void,
          dismissalConfig: DismissalConfirmationConfiguration? = nil) {
         self.anchor = anchor
+        self.activeKey = activeKey
+        self.windowKey = windowKey
+        self.itemIDKey = itemIDKey
+        self.transientRoot = transientRoot
+        self.lifecycleScope = lifecycleScope
         self.render = render
         self.onDismiss = onDismiss
         self.dismissalConfig = dismissalConfig
@@ -3353,40 +4149,177 @@ extension SheetModifierView: GTKRenderable {
             anchor = widget
         }
         let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
+        let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
+        let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
+        gtkDebugLog("sheet bool presented=\(isPresented.wrappedValue) activeKey=\(activeKey)")
 
         if !isPresented.wrappedValue {
+            let overlayAnchor = gtkRootPresentationOverlayWidget(for: anchor) ?? anchor
+            gtkRemoveSheetRootOverlay(
+                anchor: overlayAnchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                onDismiss: onDismiss
+            )
             // Dismiss active sheet if binding turned false
-            if let dialogPtr = g_object_get_data(gobject, "swift-sheet-window") {
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
                 let dialog = dialogPtr.assumingMemoryBound(to: GtkWindow.self)
-                g_object_set_data(gobject, "swift-sheet-active", nil)
-                g_object_set_data(gobject, "swift-sheet-window", nil)
+                g_object_set_data(gobject, activeKey, nil)
+                g_object_set_data(gobject, windowKey, nil)
                 gtk_window_destroy(dialog)
                 onDismiss?()
             }
             return opaqueFromWidget(widget)
         }
 
-        // Guard against duplicate presentation on rebuild
-        guard g_object_get_data(gobject, "swift-sheet-active") == nil else {
+        if gtkShouldRenderSheetInWindow() {
+            let sheetView = sheetContent()
+            let binding = isPresented
+            let userOnDismiss = onDismiss
+            let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let lifecycleScope = GTKSheetLifecycleScope()
+            let previous = getCurrentEnvironment()
+            var env = previous
+            env.isPresentedInSheet = true
+            if let config = dismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    binding.wrappedValue = false
+                    lifecycleScope.runDisappearActions()
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetNamespace = "\(activeKey)::presented"
+            let sheetWidget = widgetFromOpaque(gtkWithStateIdentityNamespace(sheetNamespace) {
+                gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetView) }
+            })
+            setCurrentEnvironment(previous)
+            return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
+        }
+
+        if gtkShouldRenderSheetInRootOverlay(),
+           let rootOverlay = gtkRootPresentationOverlayWidget(for: anchor) {
+            let overlayObject = UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GObject.self)
+            if g_object_get_data(overlayObject, activeKey) != nil {
+                if let panelPtr = g_object_get_data(overlayObject, overlayKey) {
+                    let panel = panelPtr.assumingMemoryBound(to: GtkWidget.self)
+                    let sheetView = sheetContent()
+                    let binding = isPresented
+                    let userOnDismiss = onDismiss
+                    let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+                    let lifecycleScope = GTKSheetLifecycleScope()
+                    var env = getCurrentEnvironment()
+                    env.isPresentedInSheet = true
+                    if let config = dismissalConfig {
+                        env.dismiss = DismissAction {
+                            config.isPresented.wrappedValue = true
+                        }
+                    } else {
+                        env.dismiss = DismissAction {
+                            gtkRemoveSheetRootOverlay(anchor: rootOverlay, overlayKey: overlayKey, activeKey: activeKey)
+                            binding.wrappedValue = false
+                            lifecycleScope.runDisappearActions()
+                            userOnDismiss?()
+                        }
+                    }
+                    let sheetNamespace = "\(activeKey)::presented"
+                    gtkUpdateHostedSheetContent(
+                        panel: panel,
+                        renderBody: gtkSheetRenderBody(
+                            environment: env,
+                            namespace: sheetNamespace,
+                            lifecycleScope: lifecycleScope,
+                            render: { gtkRenderView(sheetView) }
+                        )
+                    )
+                }
+                return opaqueFromWidget(widget)
+            }
+            g_object_set_data(overlayObject, activeKey, gpointer(bitPattern: 1))
+            let sheetView = sheetContent()
+            let binding = isPresented
+            let userOnDismiss = onDismiss
+            let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let lifecycleScope = GTKSheetLifecycleScope()
+            let previous = getCurrentEnvironment()
+            var env = previous
+            env.isPresentedInSheet = true
+            if let config = dismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    gtkRemoveSheetRootOverlay(anchor: rootOverlay, overlayKey: overlayKey, activeKey: activeKey)
+                    binding.wrappedValue = false
+                    lifecycleScope.runDisappearActions()
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetNamespace = "\(activeKey)::presented"
+            let hosted = gtkCreateHostedSheetContent(
+                renderBody: gtkSheetRenderBody(
+                    environment: env,
+                    namespace: sheetNamespace,
+                    lifecycleScope: lifecycleScope,
+                    render: { gtkRenderView(sheetView) }
+                )
+            )
+            setCurrentEnvironment(previous)
+            let panel = gtkCreateSheetOverlayPanel(sheetWidget: hosted.widget)
+            gtkAttachHostedSheetContent(hosted.hostBox, to: panel)
+            g_object_set_data(overlayObject, overlayKey, gpointer(panel))
+            gtk_overlay_add_overlay(OpaquePointer(rootOverlay), panel)
+            return opaqueFromWidget(widget)
+        } else if gtkShouldRenderSheetInRootOverlay() {
+            gtkDebugLog("sheet bool root-overlay unavailable")
             return opaqueFromWidget(widget)
         }
-        g_object_set_data(gobject, "swift-sheet-active", gpointer(bitPattern: 1))
+
+        // Guard against duplicate presentation on rebuild
+        guard g_object_get_data(gobject, activeKey) == nil else {
+            return opaqueFromWidget(widget)
+        }
+        g_object_set_data(gobject, activeKey, gpointer(bitPattern: 1))
+        gtkDebugLog("sheet bool scheduling present activeKey=\(activeKey)")
         g_object_ref(gpointer(anchor))
 
-        let sheetView = sheetContent
+        let sheetView = sheetContent()
         let binding = isPresented
         let userOnDismiss = onDismiss
         let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+        let transientRoot = gtk_widget_get_root(anchor).map { gpointer($0) }
+            ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot
+        if let transientRoot {
+            g_object_ref(transientRoot)
+        }
+
+        let lifecycleScope = GTKSheetLifecycleScope()
         let info = Unmanaged.passRetained(SheetInfo(
             anchor: anchor,
-            render: { gtkRenderView(sheetView) },
+            activeKey: activeKey,
+            windowKey: windowKey,
+            transientRoot: transientRoot,
+            lifecycleScope: lifecycleScope,
+            render: {
+                gtkWithStateIdentityNamespace("\(activeKey)::presented") {
+                    gtkRenderView(sheetView)
+                }
+            },
             onDismiss: {
                 let obj = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
                 // Idempotent: guard against double-dismiss from both programmatic and signal paths
-                guard g_object_get_data(obj, "swift-sheet-active") != nil else { return }
-                g_object_set_data(obj, "swift-sheet-active", nil)
-                g_object_set_data(obj, "swift-sheet-window", nil)
+                guard g_object_get_data(obj, activeKey) != nil else { return }
+                g_object_set_data(obj, activeKey, nil)
+                g_object_set_data(obj, windowKey, nil)
                 binding.wrappedValue = false
+                lifecycleScope.runDisappearActions()
                 userOnDismiss?()
             },
             dismissalConfig: dismissalConfig
@@ -3394,8 +4327,12 @@ extension SheetModifierView: GTKRenderable {
 
         g_idle_add({ userData -> gboolean in
             let info = Unmanaged<SheetInfo>.fromOpaque(userData!).takeRetainedValue()
-            guard let root = gtk_widget_get_root(info.anchor) else {
+            let liveRoot = gtk_widget_get_root(info.anchor).map { gpointer($0) }
+            guard let root = liveRoot ?? info.transientRoot else {
                 info.onDismiss()
+                if let transientRoot = info.transientRoot {
+                    g_object_unref(transientRoot)
+                }
                 g_object_unref(gpointer(info.anchor))
                 return 0
             }
@@ -3404,7 +4341,7 @@ extension SheetModifierView: GTKRenderable {
             let dialogWin = windowPointer(dialog)
             gtk_window_set_modal(dialogWin, 1)
             gtk_window_set_title(dialogWin, "")
-            gtk_window_set_default_size(dialogWin, 400, 300)
+            gtk_window_set_default_size(dialogWin, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())
             gtk_window_set_transient_for(
                 dialogWin,
                 UnsafeMutableRawPointer(root).assumingMemoryBound(to: GtkWindow.self)
@@ -3413,6 +4350,7 @@ extension SheetModifierView: GTKRenderable {
             // Inject dismiss action into environment
             let previous = getCurrentEnvironment()
             var env = previous
+            env.isPresentedInSheet = true
             if let config = info.dismissalConfig {
                 // Dismiss action shows confirmation instead of destroying
                 env.dismiss = DismissAction {
@@ -3423,12 +4361,12 @@ extension SheetModifierView: GTKRenderable {
                 env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(info.render())
+            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(info.lifecycleScope) { info.render() })
             setCurrentEnvironment(previous)
             gtk_window_set_child(dialogWin, sheetWidget)
 
             let anchorObj = UnsafeMutableRawPointer(info.anchor).assumingMemoryBound(to: GObject.self)
-            g_object_set_data(anchorObj, "swift-sheet-window", gpointer(dialogWin))
+            g_object_set_data(anchorObj, info.windowKey, gpointer(dialogWin))
 
             if let config = info.dismissalConfig {
                 // User-triggered close: show confirmation dialog on top of the sheet
@@ -3467,7 +4405,11 @@ extension SheetModifierView: GTKRenderable {
                 )
             }
 
+            gtkDebugLog("sheet bool idle present window=\(dialogWin)")
             gtk_window_present(dialogWin)
+            if let transientRoot = info.transientRoot {
+                g_object_unref(transientRoot)
+            }
             g_object_unref(gpointer(info.anchor))
             return 0
         }, info)
@@ -3487,57 +4429,217 @@ extension ItemSheetModifierView: GTKRenderable {
             anchor = widget
         }
         let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
+        let activeKey = gtkSheetDataKey("active", modifierType: type(of: self))
+        let windowKey = gtkSheetDataKey("window", modifierType: type(of: self))
+        let overlayKey = gtkSheetDataKey("overlay", modifierType: type(of: self))
+        let itemIDKey = gtkSheetDataKey("item-id", modifierType: type(of: self))
 
         guard let currentItem = item.wrappedValue else {
+            let overlayAnchor = gtkRootPresentationOverlayWidget(for: anchor) ?? anchor
+            gtkRemoveSheetRootOverlay(
+                anchor: overlayAnchor,
+                overlayKey: overlayKey,
+                activeKey: activeKey,
+                itemIDKey: itemIDKey,
+                onDismiss: onDismiss
+            )
             // Dismiss active sheet if item became nil
-            if let dialogPtr = g_object_get_data(gobject, "swift-sheet-window") {
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
                 let dialog = dialogPtr.assumingMemoryBound(to: GtkWindow.self)
-                g_object_set_data(gobject, "swift-sheet-active", nil)
-                g_object_set_data(gobject, "swift-sheet-window", nil)
-                g_object_set_data(gobject, "swift-sheet-item-id", nil)
+                g_object_set_data(gobject, activeKey, nil)
+                g_object_set_data(gobject, windowKey, nil)
+                g_object_set_data(gobject, itemIDKey, nil)
                 gtk_window_destroy(dialog)
                 onDismiss?()
             }
             return opaqueFromWidget(widget)
         }
 
+        if gtkShouldRenderSheetInWindow() {
+            let sheetBuilder = sheetContent
+            let itemBinding = item
+            let userOnDismiss = onDismiss
+            let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+            let lifecycleScope = GTKSheetLifecycleScope()
+            let previous = getCurrentEnvironment()
+            var env = previous
+            env.isPresentedInSheet = true
+            if let config = itemDismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    itemBinding.wrappedValue = nil
+                    lifecycleScope.runDisappearActions()
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetNamespace = "\(activeKey)::\(String(reflecting: currentItem.id))"
+            let sheetWidget = widgetFromOpaque(gtkWithStateIdentityNamespace(sheetNamespace) {
+                gtkWithSheetLifecycleScope(lifecycleScope) { gtkRenderView(sheetBuilder(currentItem)) }
+            })
+            setCurrentEnvironment(previous)
+            return opaqueFromWidget(gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget))
+        }
+
+        if gtkShouldRenderSheetInRootOverlay(),
+           let rootOverlay = gtkRootPresentationOverlayWidget(for: anchor) {
+            let overlayObject = UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GObject.self)
+            let currentIdHash = currentItem.id.hashValue
+            let sheetBuilder = sheetContent
+            let itemBinding = item
+            let userOnDismiss = onDismiss
+            gtkDebugLog("sheet item root-overlay active=\(g_object_get_data(overlayObject, activeKey) != nil) currentHash=\(currentIdHash)")
+            if g_object_get_data(overlayObject, activeKey) != nil {
+                let storedHash = Int(bitPattern: g_object_get_data(overlayObject, itemIDKey))
+                gtkDebugLog("sheet item root-overlay storedHash=\(storedHash) currentHash=\(currentIdHash) hasPanel=\(g_object_get_data(overlayObject, overlayKey) != nil)")
+                if storedHash == currentIdHash {
+                    if let panelPtr = g_object_get_data(overlayObject, overlayKey) {
+                        let panel = panelPtr.assumingMemoryBound(to: GtkWidget.self)
+                        let sheetView = sheetBuilder(currentItem)
+                        let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+                        let lifecycleScope = GTKSheetLifecycleScope()
+                        var env = getCurrentEnvironment()
+                        env.isPresentedInSheet = true
+                        if let config = itemDismissalConfig {
+                            env.dismiss = DismissAction {
+                                config.isPresented.wrappedValue = true
+                            }
+                        } else {
+                            env.dismiss = DismissAction {
+                                gtkRemoveSheetRootOverlay(
+                                    anchor: rootOverlay,
+                                    overlayKey: overlayKey,
+                                    activeKey: activeKey,
+                                    itemIDKey: itemIDKey
+                                )
+                                itemBinding.wrappedValue = nil
+                                lifecycleScope.runDisappearActions()
+                                userOnDismiss?()
+                            }
+                        }
+                        let sheetNamespace = "\(activeKey)::\(String(reflecting: currentItem.id))"
+                        gtkUpdateHostedSheetContent(
+                            panel: panel,
+                            renderBody: gtkSheetRenderBody(
+                                environment: env,
+                                namespace: sheetNamespace,
+                                lifecycleScope: lifecycleScope,
+                                render: { gtkRenderView(sheetView) }
+                            )
+                        )
+                    }
+                    return opaqueFromWidget(widget)
+                }
+                gtkRemoveSheetRootOverlay(
+                    anchor: rootOverlay,
+                    overlayKey: overlayKey,
+                    activeKey: activeKey,
+                    itemIDKey: itemIDKey,
+                    onDismiss: onDismiss
+                )
+            }
+            g_object_set_data(overlayObject, activeKey, gpointer(bitPattern: 1))
+            g_object_set_data(overlayObject, itemIDKey, gpointer(bitPattern: currentIdHash))
+            let sheetView = sheetBuilder(currentItem)
+            let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetView)
+            let lifecycleScope = GTKSheetLifecycleScope()
+            let previous = getCurrentEnvironment()
+            var env = previous
+            env.isPresentedInSheet = true
+            if let config = itemDismissalConfig {
+                env.dismiss = DismissAction {
+                    config.isPresented.wrappedValue = true
+                }
+            } else {
+                env.dismiss = DismissAction {
+                    gtkRemoveSheetRootOverlay(
+                        anchor: rootOverlay,
+                        overlayKey: overlayKey,
+                        activeKey: activeKey,
+                        itemIDKey: itemIDKey
+                    )
+                    itemBinding.wrappedValue = nil
+                    lifecycleScope.runDisappearActions()
+                    userOnDismiss?()
+                }
+            }
+            setCurrentEnvironment(env)
+            let sheetNamespace = "\(activeKey)::\(String(reflecting: currentItem.id))"
+            let hosted = gtkCreateHostedSheetContent(
+                renderBody: gtkSheetRenderBody(
+                    environment: env,
+                    namespace: sheetNamespace,
+                    lifecycleScope: lifecycleScope,
+                    render: { gtkRenderView(sheetView) }
+                )
+            )
+            setCurrentEnvironment(previous)
+            let panel = gtkCreateSheetOverlayPanel(sheetWidget: hosted.widget)
+            gtkAttachHostedSheetContent(hosted.hostBox, to: panel)
+            g_object_set_data(overlayObject, overlayKey, gpointer(panel))
+            gtk_overlay_add_overlay(OpaquePointer(rootOverlay), panel)
+            return opaqueFromWidget(widget)
+        } else if gtkShouldRenderSheetInRootOverlay() {
+            gtkDebugLog("sheet item root-overlay unavailable")
+            return opaqueFromWidget(widget)
+        }
+
         // Check if the item identity changed while a sheet is already active
         let currentIdHash = currentItem.id.hashValue
-        if g_object_get_data(gobject, "swift-sheet-active") != nil {
-            let storedHash = Int(bitPattern: g_object_get_data(gobject, "swift-sheet-item-id"))
+        if g_object_get_data(gobject, activeKey) != nil {
+            let storedHash = Int(bitPattern: g_object_get_data(gobject, itemIDKey))
             if storedHash == currentIdHash {
                 // Same item — no change needed
                 return opaqueFromWidget(widget)
             }
             // Different item — dismiss old sheet, then fall through to present new one
-            if let dialogPtr = g_object_get_data(gobject, "swift-sheet-window") {
+            if let dialogPtr = g_object_get_data(gobject, windowKey) {
                 let dialog = dialogPtr.assumingMemoryBound(to: GtkWindow.self)
-                g_object_set_data(gobject, "swift-sheet-active", nil)
-                g_object_set_data(gobject, "swift-sheet-window", nil)
-                g_object_set_data(gobject, "swift-sheet-item-id", nil)
+                g_object_set_data(gobject, activeKey, nil)
+                g_object_set_data(gobject, windowKey, nil)
+                g_object_set_data(gobject, itemIDKey, nil)
                 gtk_window_destroy(dialog)
                 onDismiss?()
             }
         }
-        g_object_set_data(gobject, "swift-sheet-active", gpointer(bitPattern: 1))
-        g_object_set_data(gobject, "swift-sheet-item-id", gpointer(bitPattern: currentIdHash))
+        g_object_set_data(gobject, activeKey, gpointer(bitPattern: 1))
+        g_object_set_data(gobject, itemIDKey, gpointer(bitPattern: currentIdHash))
         g_object_ref(gpointer(anchor))
 
         let sheetBuilder = sheetContent
         let itemBinding = item
         let userOnDismiss = onDismiss
         let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
+        let transientRoot = gtk_widget_get_root(anchor).map { gpointer($0) }
+            ?? GTKViewHost.getCurrentRebuilding()?.rebuildPresentationRoot
+        if let transientRoot {
+            g_object_ref(transientRoot)
+        }
+        let lifecycleScope = GTKSheetLifecycleScope()
         let info = Unmanaged.passRetained(SheetInfo(
             anchor: anchor,
-            render: { gtkRenderView(sheetBuilder(currentItem)) },
+            activeKey: activeKey,
+            windowKey: windowKey,
+            itemIDKey: itemIDKey,
+            transientRoot: transientRoot,
+            lifecycleScope: lifecycleScope,
+            render: {
+                gtkWithStateIdentityNamespace("\(activeKey)::\(String(reflecting: currentItem.id))") {
+                    gtkRenderView(sheetBuilder(currentItem))
+                }
+            },
             onDismiss: {
                 let obj = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
                 // Idempotent: guard against double-dismiss from both programmatic and signal paths
-                guard g_object_get_data(obj, "swift-sheet-active") != nil else { return }
-                g_object_set_data(obj, "swift-sheet-active", nil)
-                g_object_set_data(obj, "swift-sheet-window", nil)
-                g_object_set_data(obj, "swift-sheet-item-id", nil)
+                guard g_object_get_data(obj, activeKey) != nil else { return }
+                g_object_set_data(obj, activeKey, nil)
+                g_object_set_data(obj, windowKey, nil)
+                g_object_set_data(obj, itemIDKey, nil)
                 itemBinding.wrappedValue = nil
+                lifecycleScope.runDisappearActions()
                 userOnDismiss?()
             },
             dismissalConfig: itemDismissalConfig
@@ -3545,8 +4647,12 @@ extension ItemSheetModifierView: GTKRenderable {
 
         g_idle_add({ userData -> gboolean in
             let info = Unmanaged<SheetInfo>.fromOpaque(userData!).takeRetainedValue()
-            guard let root = gtk_widget_get_root(info.anchor) else {
+            let liveRoot = gtk_widget_get_root(info.anchor).map { gpointer($0) }
+            guard let root = liveRoot ?? info.transientRoot else {
                 info.onDismiss()
+                if let transientRoot = info.transientRoot {
+                    g_object_unref(transientRoot)
+                }
                 g_object_unref(gpointer(info.anchor))
                 return 0
             }
@@ -3555,7 +4661,7 @@ extension ItemSheetModifierView: GTKRenderable {
             let dialogWin = windowPointer(dialog)
             gtk_window_set_modal(dialogWin, 1)
             gtk_window_set_title(dialogWin, "")
-            gtk_window_set_default_size(dialogWin, 400, 300)
+            gtk_window_set_default_size(dialogWin, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())
             gtk_window_set_transient_for(
                 dialogWin,
                 UnsafeMutableRawPointer(root).assumingMemoryBound(to: GtkWindow.self)
@@ -3563,6 +4669,7 @@ extension ItemSheetModifierView: GTKRenderable {
 
             let previous = getCurrentEnvironment()
             var env = previous
+            env.isPresentedInSheet = true
             if let config = info.dismissalConfig {
                 env.dismiss = DismissAction {
                     config.isPresented.wrappedValue = true
@@ -3572,12 +4679,12 @@ extension ItemSheetModifierView: GTKRenderable {
                 env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }
             }
             setCurrentEnvironment(env)
-            let sheetWidget = widgetFromOpaque(info.render())
+            let sheetWidget = widgetFromOpaque(gtkWithSheetLifecycleScope(info.lifecycleScope) { info.render() })
             setCurrentEnvironment(previous)
             gtk_window_set_child(dialogWin, sheetWidget)
 
             let anchorObj = UnsafeMutableRawPointer(info.anchor).assumingMemoryBound(to: GObject.self)
-            g_object_set_data(anchorObj, "swift-sheet-window", gpointer(dialogWin))
+            g_object_set_data(anchorObj, info.windowKey, gpointer(dialogWin))
 
             if let config = info.dismissalConfig {
                 let closeHandler: () -> Void = {
@@ -3616,6 +4723,9 @@ extension ItemSheetModifierView: GTKRenderable {
             }
 
             gtk_window_present(dialogWin)
+            if let transientRoot = info.transientRoot {
+                g_object_unref(transientRoot)
+            }
             g_object_unref(gpointer(info.anchor))
             return 0
         }, info)
@@ -4041,6 +5151,9 @@ extension HelpView: GTKRenderable {
         // whatever the caller provided — empty strings still register
         // so callers can intentionally clear a prior help value.
         gtk_widget_set_tooltip_text(widget, text)
+        text.withCString { textPointer in
+            gtk_swift_accessible_update_description(widget, textPointer)
+        }
         return opaqueFromWidget(widget)
     }
 }
@@ -4052,6 +5165,7 @@ extension ClippedView: GTKRenderable {
         let inner = widgetFromOpaque(gtkRenderView(content))
         let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_box_append(boxPointer(wrapper), inner)
+        gtk_widget_set_overflow(inner, GTK_OVERFLOW_HIDDEN)
         gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
         gtk_widget_set_hexpand(wrapper, gtk_widget_get_hexpand(inner))
         gtk_widget_set_vexpand(wrapper, gtk_widget_get_vexpand(inner))
@@ -4064,6 +5178,7 @@ extension ClipShapeView: GTKRenderable {
         let inner = widgetFromOpaque(gtkRenderView(content))
         let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_box_append(boxPointer(wrapper), inner)
+        gtk_widget_set_overflow(inner, GTK_OVERFLOW_HIDDEN)
         gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
         gtk_widget_set_hexpand(wrapper, gtk_widget_get_hexpand(inner))
         gtk_widget_set_vexpand(wrapper, gtk_widget_get_vexpand(inner))
@@ -4129,6 +5244,16 @@ extension RotationView: GTKRenderable, GTKDescribable {
     }
 }
 
+private protocol GTKDecorativeOverlay {}
+extension Circle: GTKDecorativeOverlay {}
+extension Rectangle: GTKDecorativeOverlay {}
+extension RoundedRectangle: GTKDecorativeOverlay {}
+extension Capsule: GTKDecorativeOverlay {}
+extension Ellipse: GTKDecorativeOverlay {}
+extension FilledShape: GTKDecorativeOverlay {}
+extension StrokedShape: GTKDecorativeOverlay {}
+
+
 // MARK: - Overlay GTK extension
 
 extension OverlayView: GTKRenderable {
@@ -4140,9 +5265,11 @@ extension OverlayView: GTKRenderable {
 
         if gtk_widget_get_hexpand(baseWidget) != 0 {
             gtk_widget_set_hexpand(container, 1)
+            gtk_widget_set_halign(baseWidget, GTK_ALIGN_FILL)
         }
         if gtk_widget_get_vexpand(baseWidget) != 0 {
             gtk_widget_set_vexpand(container, 1)
+            gtk_widget_set_valign(baseWidget, GTK_ALIGN_FILL)
         }
 
         let overlayWidget = widgetFromOpaque(gtkRenderView(overlay))
@@ -4159,6 +5286,9 @@ extension OverlayView: GTKRenderable {
         let overlayWantsVExpand = gtk_widget_get_vexpand(overlayWidget) != 0
         gtk_widget_set_halign(overlayWidget, overlayWantsHExpand ? GTK_ALIGN_FILL : hAlign)
         gtk_widget_set_valign(overlayWidget, overlayWantsVExpand ? GTK_ALIGN_FILL : vAlign)
+        if overlay is GTKDecorativeOverlay {
+            gtk_widget_set_can_target(overlayWidget, 0)
+        }
         gtk_overlay_add_overlay(OpaquePointer(container), overlayWidget)
 
         return opaqueFromWidget(container)
@@ -4411,6 +5541,7 @@ extension ScrollView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let scrolled = gtk_scrolled_window_new()!
+        gtkMarkSwiftUIScrollView(scrolled, hasVerticalAxis: axes.contains(.vertical))
         let scrolledOp = OpaquePointer(scrolled)
 
         let hPolicy: GtkPolicyType = axes.contains(.horizontal) ? GTK_POLICY_AUTOMATIC : GTK_POLICY_NEVER
@@ -4446,6 +5577,12 @@ extension ScrollView: GTKRenderable, GTKDescribable {
             gtk_widget_set_valign(child, GTK_ALIGN_FILL)
         }
         gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+        )
         gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
@@ -4500,6 +5637,7 @@ extension Image: GTKRenderable {
                 // disables aspect-ratio preservation to match SwiftUI.
                 gtk_swift_picture_set_content_fit(picture, GTK_CONTENT_FIT_FILL)
                 gtk_swift_picture_set_can_shrink(picture, 1)
+                gtk_widget_set_overflow(picture, GTK_OVERFLOW_HIDDEN)
                 gtk_widget_set_hexpand(picture, 1)
                 gtk_widget_set_vexpand(picture, 1)
                 gtk_widget_set_halign(picture, GTK_ALIGN_FILL)
@@ -4613,6 +5751,8 @@ extension List: GTKRenderable {
             gtk_widget_set_hexpand(widget, 1)
             gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
             let row = gtk_list_box_row_new()!
+            gtk_widget_set_hexpand(row, 1)
+            gtk_widget_set_halign(row, GTK_ALIGN_FILL)
             gtk_list_box_row_set_child(
                 UnsafeMutableRawPointer(row).assumingMemoryBound(to: GtkListBoxRow.self),
                 widget
@@ -4624,7 +5764,10 @@ extension List: GTKRenderable {
         let scrolled = gtk_scrolled_window_new()!
         let scrolledOp = OpaquePointer(scrolled)
         gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC)
-        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 1)
+        // A vertical SwiftUI List lays rows out in the viewport width.
+        // Propagating natural width lets fixed-width row content push
+        // trailing controls outside the visible sheet.
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
         // Mirror ScrollView: don't let the child listbox's full natural
         // height dictate the scroll's natural size. Otherwise a List
         // inside a VStack reports "I need N×row-height" as natural, and
@@ -4632,6 +5775,7 @@ extension List: GTKRenderable {
         // siblings (status bars, footers) swallow the remainder.
         gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
         gtk_scrolled_window_set_child(scrolledOp, listBox)
+        gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)
         gtk_widget_set_vexpand(scrolled, 1)
         gtk_widget_set_hexpand(scrolled, 1)
 
@@ -4725,16 +5869,18 @@ extension TupleView: GTKRenderable {
 
 // MARK: - TabView GTK extension
 
-// Note: `Tab<Content>` intentionally has no `GTKRenderable` conformance.
-// `TabBuilder` wraps every `Tab` into `AnyTab` at construction time, so
-// `TabView` iterates `[AnyTab]` and renders each `tab.wrapped` directly.
-// This matches the Win32 backend, which also does not render bare `Tab`.
+extension Tab: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        gtkRenderView(content)
+    }
+}
 
 extension TabView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let stack = gtk_stack_new()!
         gtk_swift_stack_set_transition_type(stack, GTK_STACK_TRANSITION_TYPE_SLIDE_LEFT_RIGHT)
 
+        gtkDebugLog("TabView render tabs=\(tabs.count) initial=\(String(describing: initialTab))")
         var usedIds = Set<String>()
         var orderedIds: [String] = []
         for tab in tabs {
@@ -4746,12 +5892,16 @@ extension TabView: GTKRenderable {
             }
             usedIds.insert(id)
             orderedIds.append(id)
+            gtkDebugLog("TabView add id=\(id) title=\(tab.title.isEmpty ? "<empty>" : tab.title) content=\(String(reflecting: type(of: tab.wrapped)))")
             let childWidget = widgetFromOpaque(gtkRenderAnyView(tab.wrapped))
+            gtkConfigureWidgetToFillAllocation(childWidget)
             gtk_swift_stack_add_titled(stack, childWidget, id, tab.title)
         }
 
         if let tabIndex = initialTab, tabIndex >= 0, tabIndex < orderedIds.count {
             gtk_swift_stack_set_visible_child_name(stack, orderedIds[tabIndex])
+        } else if let firstId = orderedIds.first {
+            gtk_swift_stack_set_visible_child_name(stack, firstId)
         }
 
         let switcher = gtk_stack_switcher_new()!
@@ -4760,7 +5910,14 @@ extension TabView: GTKRenderable {
         let vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_box_append(boxPointer(vbox), switcher)
         gtk_box_append(boxPointer(vbox), stack)
+        gtk_widget_set_hexpand(stack, 1)
         gtk_widget_set_vexpand(stack, 1)
+        gtk_widget_set_halign(stack, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(stack, GTK_ALIGN_FILL)
+        gtk_widget_set_hexpand(vbox, 1)
+        gtk_widget_set_vexpand(vbox, 1)
+        gtk_widget_set_halign(vbox, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(vbox, GTK_ALIGN_FILL)
 
         return opaqueFromWidget(vbox)
     }
@@ -5095,14 +6252,30 @@ extension Form: GTKRenderable {
         let boxPtr = boxPointer(box)
 
         for child in gtkRenderChildren(content) {
-            gtk_box_append(boxPtr, widgetFromOpaque(child))
+            let widget = widgetFromOpaque(child)
+            gtk_widget_set_hexpand(widget, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+            gtk_box_append(boxPtr, widget)
         }
 
         gtk_widget_set_hexpand(box, 1)
-        gtk_widget_set_vexpand(box, 1)
+        gtk_widget_set_vexpand(box, 0)
+        gtk_widget_set_halign(box, GTK_ALIGN_FILL)
         applyCSSToWidget(box, properties: "padding: 16px;")
 
-        return opaqueFromWidget(box)
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+        gtk_scrolled_window_set_child(scrolledOp, box)
+        gtkInstallScrollViewCrossAxisFill(on: scrolled, child: box, fillWidth: true, fillHeight: false)
+        gtk_widget_set_hexpand(scrolled, 1)
+        gtk_widget_set_vexpand(scrolled, 1)
+        gtk_widget_set_halign(scrolled, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(scrolled, GTK_ALIGN_FILL)
+
+        return opaqueFromWidget(scrolled)
     }
 }
 
@@ -5125,6 +6298,8 @@ extension Section: GTKRenderable {
         }
 
         let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        gtk_widget_set_hexpand(contentWidget, 1)
+        gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
         gtk_box_append(boxPtr, contentWidget)
 
         if let footer = footer {
@@ -5135,8 +6310,12 @@ extension Section: GTKRenderable {
         }
 
         let sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL)!
+        gtk_widget_set_hexpand(sep, 1)
+        gtk_widget_set_halign(sep, GTK_ALIGN_FILL)
         gtk_box_append(boxPtr, sep)
 
+        gtk_widget_set_hexpand(box, 1)
+        gtk_widget_set_halign(box, GTK_ALIGN_FILL)
         return opaqueFromWidget(box)
     }
 }
@@ -5302,17 +6481,75 @@ private class LazyGridContext {
             widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
         }
     }
+
+    init(views: [any View], cellMinWidth: Int) {
+        self.itemCount = views.count
+        self.cellMinWidth = cellMinWidth
+        self.renderItem = { index in
+            widgetFromOpaque(gtkRenderAnyView(views[index]))
+        }
+    }
 }
 
 /// Create a GtkGridView-based lazy grid widget.
+private func gtkCreateStaticLazyGridWidget(
+    views: [any View],
+    configuration: LazyGridConfiguration,
+    cellMinWidth: Int,
+    orientation: GtkOrientation
+) -> OpaquePointer? {
+    guard !views.isEmpty else { return nil }
+    guard orientation == GTK_ORIENTATION_VERTICAL else { return nil }
+    guard views.count <= 64 else { return nil }
+
+    let columns = max(1, min(max(configuration.maxColumns, configuration.minColumns), views.count))
+    let grid = gtk_grid_new()!
+    gtk_swift_grid_set_row_spacing(grid, 15)
+    gtk_swift_grid_set_column_spacing(grid, 15)
+    gtk_swift_grid_set_column_homogeneous(grid, 1)
+    gtk_widget_set_hexpand(grid, 1)
+    gtk_widget_set_halign(grid, GTK_ALIGN_FILL)
+
+    for (index, view) in views.enumerated() {
+        let child = widgetFromOpaque(gtkRenderAnyView(view))
+        let slot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_hexpand(slot, 1)
+        gtk_widget_set_halign(slot, GTK_ALIGN_FILL)
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        if cellMinWidth > 0 {
+            gtk_widget_set_size_request(slot, gint(cellMinWidth), -1)
+        }
+        gtk_box_append(boxPointer(slot), child)
+        gtk_swift_grid_attach(
+            grid,
+            slot,
+            gint(index % columns),
+            gint(index / columns),
+            1,
+            1
+        )
+    }
+
+    return opaqueFromWidget(grid)
+}
+
 private func gtkCreateLazyGridWidget<Data, Content: View>(
     items: [Data],
     contentBuilder: @escaping (Data) -> Content,
     gridItems: [GridItem],
     orientation: GtkOrientation
 ) -> OpaquePointer {
+    let expandedChildren: [any View]? = {
+        guard items.count == 1 else { return nil }
+        let built = contentBuilder(items[0])
+        guard let multi = built as? MultiChildView else { return nil }
+        return multi.children
+    }()
+    let itemCount = expandedChildren?.count ?? items.count
+
     let stringList = gtk_swift_string_list_new()!
-    for i in 0..<items.count {
+    for i in 0..<itemCount {
         gtk_swift_string_list_append(stringList, "\(i)")
     }
 
@@ -5320,9 +6557,26 @@ private func gtkCreateLazyGridWidget<Data, Content: View>(
     let factory = gtk_swift_signal_list_item_factory_new()!
 
     let configuration = computeLazyGridConfiguration(gridItems: gridItems)
-    let cellMinWidth = configuration.adaptiveMinimum
-    let context = LazyGridContext(items: items, contentBuilder: contentBuilder,
+    let cellMinWidth = configuration.adaptiveMinimum > 0
+        ? configuration.adaptiveMinimum
+        : (configuration.maxColumns > 1 ? 160 : 0)
+    if let expandedChildren,
+       let staticGrid = gtkCreateStaticLazyGridWidget(
+            views: expandedChildren,
+            configuration: configuration,
+            cellMinWidth: cellMinWidth,
+            orientation: orientation
+       ) {
+        return staticGrid
+    }
+
+    let context: LazyGridContext
+    if let expandedChildren {
+        context = LazyGridContext(views: expandedChildren, cellMinWidth: cellMinWidth)
+    } else {
+        context = LazyGridContext(items: items, contentBuilder: contentBuilder,
                                   cellMinWidth: cellMinWidth)
+    }
     let contextPtr = Unmanaged.passRetained(context).toOpaque()
     g_object_set_data_full(
         factory.assumingMemoryBound(to: GObject.self),
@@ -6634,7 +7888,7 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
         gtkDescribeView(view.body)
     }
 
-    installState(view, host: host)
+    gtkRestoreAndInstallState(view, host: host)
 
     let previousHost = GTKViewHost.getCurrentRebuilding()
     GTKViewHost.setCurrentRebuilding(host)
@@ -6649,6 +7903,7 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
     let child = widgetFromOpaque(widget)
     let childHexpand = gtk_widget_get_hexpand(child) != 0
     let childVexpand = gtk_widget_get_vexpand(child) != 0
+    gtkDebugLog("stateful initial type=\(String(reflecting: V.self)) child=\(String(cString: g_type_name(gtk_swift_get_widget_type(child)))) hexpand=\(childHexpand) vexpand=\(childVexpand)")
     gtk_widget_set_hexpand(host.container, childHexpand ? 1 : 0)
     gtk_widget_set_vexpand(host.container, childVexpand ? 1 : 0)
     if childHexpand {

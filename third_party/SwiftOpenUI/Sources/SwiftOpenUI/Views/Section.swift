@@ -7,14 +7,14 @@ public struct Section<Content: View>: View {
     public let content: Content
 
     public init(_ header: String? = nil, @ViewBuilder content: () -> Content) {
-        self.header = header
+        self.header = header.map { quillResolveLocalizedString($0) }
         self.footer = nil
         self.content = content()
     }
 
     public init(header: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
-        self.header = header
-        self.footer = footer
+        self.header = header.map { quillResolveLocalizedString($0) }
+        self.footer = footer.map { quillResolveLocalizedString($0) }
         self.content = content()
     }
 

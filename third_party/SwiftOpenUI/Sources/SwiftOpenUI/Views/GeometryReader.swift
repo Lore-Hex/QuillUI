@@ -1,13 +1,7 @@
-/// The size component of a GeometryProxy.
-public struct GeometrySize {
-    public let width: Double
-    public let height: Double
+import Foundation
 
-    public init(width: Double, height: Double) {
-        self.width = width
-        self.height = height
-    }
-}
+/// The size component of a GeometryProxy.
+public typealias GeometrySize = CGSize
 
 /// Provides layout dimensions to a GeometryReader's content builder.
 public struct GeometryProxy {

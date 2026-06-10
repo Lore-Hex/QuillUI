@@ -3,6 +3,8 @@ public enum PickerStyle {
     case automatic
     case segmented
     case palette
+    case menu
+    case inline
 }
 
 /// A dropdown picker or segmented toggle control.
@@ -18,8 +20,8 @@ public struct Picker: View {
     /// Callback-based initializer.
     public init(_ label: String, selection: Int = 0, options: [String],
                 onChanged: ((Int) -> Void)? = nil) {
-        self.label = label
-        self.options = options
+        self.label = quillResolveLocalizedString(label)
+        self.options = options.map { quillResolveLocalizedString($0) }
         self.selected = selection
         self.onChanged = onChanged
         self.style = .automatic
@@ -27,8 +29,8 @@ public struct Picker: View {
 
     /// Binding-based initializer (Int-indexed).
     public init(_ label: String, selection: Binding<Int>, options: [String]) {
-        self.label = label
-        self.options = options
+        self.label = quillResolveLocalizedString(label)
+        self.options = options.map { quillResolveLocalizedString($0) }
         self.selected = selection.wrappedValue
         self.onChanged = { newValue in
             if newValue != selection.wrappedValue {
@@ -71,8 +73,8 @@ public struct Picker: View {
         @ViewBuilder content: () -> Content
     ) {
         let extracted = walkForTags(content())
-        self.label = label
-        self.options = extracted.map { $0.label }
+        self.label = quillResolveLocalizedString(label)
+        self.options = extracted.map { quillResolveLocalizedString($0.label) }
         self.style = .automatic
 
         let tags = extracted.map { $0.tag }
@@ -89,11 +91,29 @@ public struct Picker: View {
         }
     }
 
+    public init<SelectionValue: Hashable, Content: View>(
+        selection: Binding<SelectionValue>,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder label: () -> some View
+    ) {
+        _ = label()
+        self.init("", selection: selection, content: content)
+    }
+
+    public init<SelectionValue: Hashable, Label: View, Content: View>(
+        selection: Binding<SelectionValue>,
+        label: Label,
+        @ViewBuilder content: () -> Content
+    ) {
+        _ = label
+        self.init("", selection: selection, content: content)
+    }
+
     /// Internal initializer with style.
     init(_ label: String, options: [String], selected: Int,
          onChanged: ((Int) -> Void)?, style: PickerStyle) {
-        self.label = label
-        self.options = options
+        self.label = quillResolveLocalizedString(label)
+        self.options = options.map { quillResolveLocalizedString($0) }
         self.selected = selected
         self.onChanged = onChanged
         self.style = style

@@ -19,3 +19,15 @@ public struct List<Content: View>: View {
 
     public var body: Never { fatalError("List is a primitive view") }
 }
+
+public extension List {
+    init<Data, RowContent>(
+        _ data: Data,
+        @ViewBuilder rowContent: @escaping (Data.Element) -> RowContent
+    ) where Content == ForEach<Data.Element, Data.Element.ID, RowContent>,
+            Data: RandomAccessCollection,
+            Data.Element: Identifiable,
+            RowContent: View {
+        self.content = ForEach(Array(data), content: rowContent)
+    }
+}

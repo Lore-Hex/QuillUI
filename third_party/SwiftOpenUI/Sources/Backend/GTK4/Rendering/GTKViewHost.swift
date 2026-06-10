@@ -6,6 +6,15 @@ import Foundation
 import Observation
 #endif
 
+private func gtkViewHostDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
+        return
+    }
+    if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
 /// Thread-local key for the ViewHost currently performing a rebuild.
 private var rebuildingViewHostKey: pthread_key_t = {
     var key: pthread_key_t = 0
@@ -47,6 +56,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     /// and can't see @Observable mutations, so it would wrongly declare the inputs
     /// unchanged and leave observation permanently unsubscribed.
     private var observationDidFire = false
+    var rebuildPresentationRoot: gpointer?
+    var stateIdentityNamespace = "root"
     var capturedEnvironment: EnvironmentValues
 
     /// Objects read by body via `@Environment(Type.self)` during the
@@ -268,7 +279,10 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         lock.lock()
         let currentAnimation = getCurrentAnimation()
         defer { lock.unlock() }
-        guard isContainerAlive else { return }
+        guard isContainerAlive else {
+            gtkViewHostDebugLog("host schedule ignored alive=false host=\(ObjectIdentifier(self))")
+            return
+        }
         // Defer rebuild while interactive (e.g. slider drag)
         if interactiveUpdateDepth > 0 {
             rebuildDeferredDuringInteraction = true
@@ -277,8 +291,12 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         if let currentAnimation {
             pendingAnimation = currentAnimation
         }
-        guard !scheduled else { return }
+        guard !scheduled else {
+            gtkViewHostDebugLog("host schedule coalesced host=\(ObjectIdentifier(self))")
+            return
+        }
         scheduled = true
+        gtkViewHostDebugLog("host schedule host=\(ObjectIdentifier(self))")
         let retained = Unmanaged.passRetained(self)
         g_idle_add({ userData -> gboolean in
             let host = Unmanaged<GTKViewHost>.fromOpaque(userData!).takeRetainedValue()
@@ -340,6 +358,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: OpaquePointer!
             withObservationTracking {
+                gtkBeginStateIdentityPass()
                 result = buildBody()
             } onChange: { [weak self] in
                 guard let self else { return }
@@ -355,6 +374,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         }
         #endif
 
+        gtkBeginStateIdentityPass()
         let result = buildBody()
         if let reads = endEnvironmentReadTracking() {
             capturedInjectedObjects = reads
@@ -363,10 +383,12 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     }
 
     func rebuild() {
+        gtkViewHostDebugLog("host rebuild start host=\(ObjectIdentifier(self))")
         lock.lock()
         scheduled = false
         guard isContainerAlive else {
             lock.unlock()
+            gtkViewHostDebugLog("host rebuild ignored alive=false host=\(ObjectIdentifier(self))")
             return
         }
         let shouldRestoreFocus = !suppressFocusRestoreOnce
@@ -434,11 +456,23 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         if !fromObservation,
            let snapshot = lastInputSnapshot,
            inputsUnchanged(snapshot: snapshot) {
+            gtkViewHostDebugLog("host rebuild skipped inputs unchanged host=\(ObjectIdentifier(self))")
             return
         }
 
         g_object_ref(gpointer(container))
         defer { g_object_unref(gpointer(container)) }
+        let presentationRoot = gtk_widget_get_root(container).map { gpointer($0) }
+        if let presentationRoot {
+            g_object_ref(presentationRoot)
+        }
+        rebuildPresentationRoot = presentationRoot
+        defer {
+            if let presentationRoot {
+                g_object_unref(presentationRoot)
+            }
+            rebuildPresentationRoot = nil
+        }
 
         // Always save focus state before teardown — cursor/selection must
         // survive even when focus restore is suppressed (parity with Win32/Web).

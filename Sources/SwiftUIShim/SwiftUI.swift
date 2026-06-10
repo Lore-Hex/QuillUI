@@ -1,6 +1,11 @@
 @_exported import Foundation
 @_exported import Dispatch
+@_exported import Observation
+@_exported import SwiftOpenUI
 @_exported import QuillSwiftUICompatibility
+@_exported import UIKit
+@_exported import CoreImage
+@_exported import CoreTransferable
 
 // NOTE: do NOT add `@_exported import QuillUI` here. QuillUI
 // declares its own `NSImage`, `FocusState`, and other

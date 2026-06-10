@@ -3656,9 +3656,10 @@ extension SheetModifierView: WebRenderable {
         if isPresented.wrappedValue {
             // Register this sheet as active for transition detection
             host?.currentSheetState[sheetKey] = onDismiss
+            let sheetView = sheetContent()
 
             // Check for dismissal-confirmation interception in sheet content
-            let dismissalConfig = webFindDismissalConfig(sheetContent)
+            let dismissalConfig = webFindDismissalConfig(sheetView)
             let interceptor: (() -> Void)? = dismissalConfig.map { config in
                 { config.isPresented.wrappedValue = true }
             }
@@ -3676,7 +3677,7 @@ extension SheetModifierView: WebRenderable {
                 // Set intercepted sheet dismiss so confirmation buttons can close the sheet
                 let previousInterceptedDismiss = _webInterceptedSheetDismiss
                 _webInterceptedSheetDismiss = { presentedBinding.wrappedValue = false }
-                sheetEl = webRenderView(sheetContent)
+                sheetEl = webRenderView(sheetView)
                 _webInterceptedSheetDismiss = previousInterceptedDismiss
                 setCurrentEnvironment(previousEnv)
             } else {
@@ -3684,7 +3685,7 @@ extension SheetModifierView: WebRenderable {
                 var env = previousEnv
                 env.dismiss = DismissAction { presentedBinding.wrappedValue = false }
                 setCurrentEnvironment(env)
-                sheetEl = webRenderView(sheetContent)
+                sheetEl = webRenderView(sheetView)
                 setCurrentEnvironment(previousEnv)
             }
 

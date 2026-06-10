@@ -92,8 +92,12 @@ public func computeFrameLayout(
     if let height { containerHeight = height }
     if let minWidth { containerWidth = max(containerWidth, minWidth) }
     if let minHeight { containerHeight = max(containerHeight, minHeight) }
-    if let maxWidth, maxWidth != .infinity { containerWidth = min(containerWidth, maxWidth) }
-    if let maxHeight, maxHeight != .infinity { containerHeight = min(containerHeight, maxHeight) }
+    if let maxWidth, maxWidth != .infinity {
+        containerWidth = expandsToFillWidth && width == nil ? maxWidth : min(containerWidth, maxWidth)
+    }
+    if let maxHeight, maxHeight != .infinity {
+        containerHeight = expandsToFillHeight && height == nil ? maxHeight : min(containerHeight, maxHeight)
+    }
 
     let childWidth = expandsToFillWidth ? containerWidth : min(childNaturalSize.width, containerWidth)
     let childHeight = expandsToFillHeight ? containerHeight : min(childNaturalSize.height, containerHeight)

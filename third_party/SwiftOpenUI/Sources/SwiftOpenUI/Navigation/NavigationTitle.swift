@@ -11,6 +11,11 @@ public struct TitledView<Content: View>: View, NavigationTitled {
 extension View {
     /// Set the navigation title for this view (displayed in the header bar).
     public func navigationTitle(_ title: String) -> TitledView<Self> {
-        TitledView(content: self, navigationTitle: title)
+        TitledView(content: self, navigationTitle: quillResolveLocalizedString(title))
+    }
+
+    /// Set the navigation title from a `Text` value.
+    public func navigationTitle(_ title: Text) -> TitledView<Self> {
+        TitledView(content: self, navigationTitle: title.content)
     }
 }

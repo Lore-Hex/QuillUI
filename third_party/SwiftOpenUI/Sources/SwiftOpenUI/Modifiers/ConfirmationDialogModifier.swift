@@ -3,6 +3,7 @@ public enum Visibility: Equatable {
     case automatic
     case visible
     case hidden
+    case never
 }
 
 /// Stored dismissal-confirmation configuration carried by a view tree.
@@ -125,6 +126,26 @@ extension View {
             titleVisibility: titleVisibility,
             message: message,
             buttons: actions,
+            participatesInDismissalInterception: false
+        )
+    }
+
+    /// SwiftUI-shaped builder overload with a message view.
+    public func confirmationDialog<Actions: View, Message: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        @ViewBuilder actions: () -> Actions,
+        @ViewBuilder message: () -> Message
+    ) -> ConfirmationDialogView<Self> {
+        _ = actions()
+        _ = message()
+        return ConfirmationDialogView(
+            content: self,
+            title: title,
+            isPresented: isPresented,
+            titleVisibility: .automatic,
+            message: "",
+            buttons: [],
             participatesInDismissalInterception: false
         )
     }

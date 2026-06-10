@@ -102,6 +102,10 @@ public struct AsyncImage: View {
             phase = .failure(URLError(.badURL))
             return
         }
+        if let cachedPath = AsyncImageFileCache.shared.filePath(for: url) {
+            phase = .success(Image(filePath: cachedPath))
+            return
+        }
         Task { await load(url) }
     }
 
@@ -109,12 +113,42 @@ public struct AsyncImage: View {
     private func load(_ url: URL) async {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            let file = FileManager.default.temporaryDirectory
-                .appendingPathComponent("swiftopenui-asyncimage-\(UUID().uuidString)")
-            try data.write(to: file)
-            phase = .success(Image(filePath: file.path))
+            let path = try AsyncImageFileCache.shared.store(data, for: url)
+            phase = .success(Image(filePath: path))
         } catch {
             phase = .failure(error)
         }
+    }
+}
+
+private final class AsyncImageFileCache: @unchecked Sendable {
+    static let shared = AsyncImageFileCache()
+
+    private let lock = NSLock()
+    private var paths: [URL: String] = [:]
+
+    func filePath(for url: URL) -> String? {
+        lock.lock()
+        let path = paths[url]
+        lock.unlock()
+        guard let path, FileManager.default.fileExists(atPath: path) else {
+            return nil
+        }
+        return path
+    }
+
+    func store(_ data: Data, for url: URL) throws -> String {
+        if let path = filePath(for: url) {
+            return path
+        }
+
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiftopenui-asyncimage-\(UUID().uuidString)")
+        try data.write(to: file, options: [.atomic])
+
+        lock.lock()
+        paths[url] = file.path
+        lock.unlock()
+        return file.path
     }
 }

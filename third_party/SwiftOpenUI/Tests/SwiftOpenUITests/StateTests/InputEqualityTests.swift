@@ -27,6 +27,15 @@ final class InputEqualityTests: XCTestCase {
         XCTAssertEqual(storage.generation, 0, "Reading should not change generation")
     }
 
+    func testFocusStateGenerationIncrementsOnProgrammaticChange() {
+        let storage = FocusStateStorage(false, default: false)
+        XCTAssertEqual(storage.generation, 0)
+
+        storage.setProgrammatic(true)
+
+        XCTAssertEqual(storage.generation, 1)
+    }
+
     // MARK: - Snapshot capture
 
     func testSnapshotCapturedDuringTracking() {
@@ -46,6 +55,18 @@ final class InputEqualityTests: XCTestCase {
         for snap in tracking!.snapshots {
             XCTAssertEqual(snap.generation, 1)
         }
+    }
+
+    func testFocusStateSnapshotCapturedDuringTracking() {
+        let storage = FocusStateStorage(false, default: false)
+
+        beginDependencyTracking()
+        _ = storage.value
+        let tracking = endDependencyTracking()
+
+        XCTAssertNotNil(tracking)
+        XCTAssertEqual(tracking!.snapshots.count, 1)
+        XCTAssertEqual(tracking!.snapshots.first?.generation, 0)
     }
 
     // MARK: - inputsUnchanged
@@ -73,6 +94,18 @@ final class InputEqualityTests: XCTestCase {
         storage.setValue(99)
 
         // Inputs should be changed (generation mismatch)
+        XCTAssertFalse(inputsUnchanged(snapshot: tracking.snapshots))
+    }
+
+    func testInputsChangedAfterFocusStateMutation() {
+        let storage = FocusStateStorage(false, default: false)
+
+        beginDependencyTracking()
+        _ = storage.value
+        let tracking = endDependencyTracking()!
+
+        storage.setProgrammatic(true)
+
         XCTAssertFalse(inputsUnchanged(snapshot: tracking.snapshots))
     }
 

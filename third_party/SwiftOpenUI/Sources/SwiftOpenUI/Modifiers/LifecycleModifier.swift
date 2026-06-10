@@ -26,7 +26,25 @@ public struct TaskView<Content: View>: View {
     public let priority: TaskPriority
     public let action: @Sendable () async -> Void
 
+    public init(content: Content, priority: TaskPriority, action: @escaping @Sendable () async -> Void) {
+        self.content = content
+        self.priority = priority
+        self.action = action
+    }
+
     public var body: Never { fatalError("TaskView is a primitive view") }
+}
+
+private final class TaskActionBox: @unchecked Sendable {
+    private let action: () async -> Void
+
+    init(_ action: @escaping () async -> Void) {
+        self.action = action
+    }
+
+    func run() async {
+        await action()
+    }
 }
 
 extension View {
@@ -43,8 +61,9 @@ extension View {
     /// Start an asynchronous task for this view's lifecycle.
     public func task(
         priority: TaskPriority = .userInitiated,
-        _ action: @escaping @Sendable () async -> Void
+        _ action: @escaping () async -> Void
     ) -> TaskView<Self> {
-        TaskView(content: self, priority: priority, action: action)
+        let box = TaskActionBox(action)
+        return TaskView(content: self, priority: priority, action: { await box.run() })
     }
 }

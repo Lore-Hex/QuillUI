@@ -272,6 +272,11 @@ gtk_swift_picture_new_for_filename(const char *filename) {
     return gtk_picture_new_for_filename(filename);
 }
 
+static inline gboolean
+gtk_swift_is_picture(GtkWidget *widget) {
+    return GTK_IS_PICTURE(widget);
+}
+
 static inline void
 gtk_swift_picture_set_content_fit(GtkWidget *picture, GtkContentFit fit) {
     gtk_picture_set_content_fit(GTK_PICTURE(picture), fit);

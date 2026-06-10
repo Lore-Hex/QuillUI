@@ -408,7 +408,7 @@ func qtTextLabel(from view: any View) -> String {
         return text.content
     }
 
-    if let label = view as? Label {
+    if let label = view as? any AnyLabelView {
         return label.title
     }
 

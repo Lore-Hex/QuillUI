@@ -74,3 +74,5 @@ public struct Binding<Value> {
         )
     }
 }
+
+extension Binding: @unchecked Sendable where Value: Sendable {}

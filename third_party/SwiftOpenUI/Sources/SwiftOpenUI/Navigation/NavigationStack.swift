@@ -22,5 +22,17 @@ public struct NavigationStack<Content: View>: View {
         self.pathBinding = path
     }
 
+    /// Compatibility initializer for SwiftUI apps that bind navigation to a
+    /// typed array/path. Backends currently render the root content and ignore
+    /// the typed path until full value navigation is implemented for that type.
+    public init<Path: RangeReplaceableCollection>(
+        path: Binding<Path>,
+        @ViewBuilder root: () -> Content
+    ) where Path.Element: Hashable {
+        _ = path
+        self.content = root()
+        self.pathBinding = nil
+    }
+
     public var body: Never { fatalError("NavigationStack is a primitive view") }
 }

@@ -11,7 +11,7 @@ public struct MenuItem {
     public let action: () -> Void
 
     public init(_ label: String, action: @escaping () -> Void) {
-        self.label = label
+        self.label = quillResolveLocalizedString(label)
         self.action = action
     }
 }
@@ -27,7 +27,7 @@ public struct SubMenu {
     public let children: [MenuElement]
 
     public init(_ label: String, @MenuBuilder content: () -> [MenuElement]) {
-        self.label = label
+        self.label = quillResolveLocalizedString(label)
         self.children = content()
     }
 }
@@ -40,7 +40,7 @@ public struct Menu: View {
     public let elements: [MenuElement]
 
     public init(_ title: String, @MenuBuilder content: () -> [MenuElement]) {
-        self.title = title
+        self.title = quillResolveLocalizedString(title)
         self.elements = content()
     }
 
@@ -64,6 +64,11 @@ public struct MenuBuilder {
 
     public static func buildExpression(_ submenu: SubMenu) -> [MenuElement] {
         [.submenu(label: submenu.label, children: submenu.children)]
+    }
+
+    public static func buildExpression<V: View>(_ view: V) -> [MenuElement] {
+        _ = view
+        return []
     }
 
     public static func buildOptional(_ elements: [MenuElement]?) -> [MenuElement] {

@@ -5,6 +5,16 @@ import Foundation
 
 // MARK: - Helpers
 
+private func gtkNavigationDebugLog(_ message: String) {
+    let env = ProcessInfo.processInfo.environment
+    guard env["QUILLUI_GTK_DEBUG_ACTIONS"] == "1"
+        || env["QUILLUI_GTK_DEBUG"] == "1"
+        || env["SWIFTOPENUI_GTK_DEBUG"] == "1" else {
+        return
+    }
+    FileHandle.standardError.write(Data("[SwiftOpenUI][Navigation] \(message)\n".utf8))
+}
+
 /// Box for passing a widget pointer through a C callback.
 private class WidgetRef {
     let widget: UnsafeMutablePointer<GtkWidget>
@@ -54,6 +64,7 @@ class GTKNavigationContext {
         removeCurrentToolbarWidgets()
 
         let widget = widgetFromOpaque(content())
+        gtkConfigureNavigationPageToFillAllocation(widget)
         gtk_stack_add_named(stack, widget, name)
 
         var entry = GTKNavigationEntry(title: title, name: name, widget: widget)
@@ -413,6 +424,7 @@ extension NavigationStack: GTKRenderable {
         setCurrentEnvironment(env)
         let title = gtkExtractTitle(from: content)
         let rootWidget = widgetFromOpaque(gtkRenderView(content))
+        gtkConfigureNavigationPageToFillAllocation(rootWidget)
         setCurrentEnvironment(prevEnv)
         setCurrentNavigationContext(nil)
 
@@ -459,15 +471,38 @@ extension NavigationStack: GTKRenderable {
             }
         }
 
-        // Expose the header bar to Window via widget data
-        g_object_ref(gpointer(headerBar))
-        let stackObject = UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GObject.self)
-        g_object_set_data_full(stackObject, "gtk-swift-window-titlebar", headerBar, { userData in
-            g_object_unref(userData)
-        })
+        if getCurrentEnvironment().isPresentedInSheet {
+            let container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+            let inlineBar = gtkCreateInlineNavigationBar(
+                title: title,
+                toolbarItems: toolbarItems,
+                hidden: toolbarHidden
+            )
+            gtk_widget_set_hexpand(container, 1)
+            gtk_widget_set_vexpand(container, 1)
+            gtk_widget_set_halign(container, GTK_ALIGN_FILL)
+            gtk_widget_set_valign(container, GTK_ALIGN_FILL)
+            gtk_box_append(boxPointer(container), inlineBar)
+            gtk_box_append(boxPointer(container), stack)
+            return opaqueFromWidget(container)
+        } else {
+            // Expose the header bar to Window via widget data
+            g_object_ref(gpointer(headerBar))
+            let stackObject = UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GObject.self)
+            g_object_set_data_full(stackObject, "gtk-swift-window-titlebar", headerBar, { userData in
+                g_object_unref(userData)
+            })
 
-        return opaqueFromWidget(stack)
+            return opaqueFromWidget(stack)
+        }
     }
+}
+
+private func gtkConfigureNavigationPageToFillAllocation(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    gtk_widget_set_hexpand(widget, 1)
+    gtk_widget_set_vexpand(widget, 1)
+    gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
 }
 
 extension NavigationLink: GTKRenderable {
@@ -646,6 +681,319 @@ private func gtkExtractColumnWidth<V: View>(from view: V) -> Double? {
 
 /// Install toolbar items from a view tree into a GtkHeaderBar, attaching
 /// it to the given widget via "gtk-swift-window-titlebar" for Window pickup.
+private func gtkRenderToolbarWidgets<V: View>(from view: V) -> [UnsafeMutablePointer<GtkWidget>] {
+    if view is GTKRenderable {
+        return [widgetFromOpaque(gtkRenderView(view))]
+    }
+    if let multi = view as? MultiChildView {
+        return multi.children.flatMap { child in
+            gtkRenderToolbarWidgets(from: child)
+        }
+    }
+    if V.Body.self != Never.self {
+        return gtkRenderToolbarWidgets(from: view.body)
+    }
+    return [widgetFromOpaque(gtkRenderView(view))]
+}
+
+private func gtkRenderToolbarItemWidgets(_ item: AnyToolbarItem) -> [UnsafeMutablePointer<GtkWidget>] {
+    item.renderedViews.flatMap { view in
+        gtkRenderToolbarWidgets(from: view)
+    }
+}
+
+private func gtkBackendEnvironmentValue(_ canonical: String, legacy: String) -> String? {
+    let environment = ProcessInfo.processInfo.environment
+    return environment[canonical] ?? environment[legacy]
+}
+
+private func gtkBackendEnvironmentDouble(_ canonical: String, legacy: String) -> Double? {
+    gtkBackendEnvironmentValue(canonical, legacy: legacy).flatMap(Double.init)
+}
+
+private var gtkBackendLayoutDebugEnabled: Bool {
+    gtkBackendEnvironmentValue(
+        "QUILLUI_BACKEND_LAYOUT_DEBUG",
+        legacy: "QUILLUI_GTK_LAYOUT_DEBUG"
+    ) == "1"
+}
+
+private func gtkRequestedDefaultWindowHeight() -> gint {
+    guard let height = gtkBackendEnvironmentDouble(
+        "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT",
+        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"
+    ), height > 0
+    else {
+        return -1
+    }
+    return gint(height)
+}
+
+private func gtkResolvedDefaultSidebarWidth(fallback: Double) -> Double {
+    guard let width = gtkBackendEnvironmentDouble(
+        "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH",
+        legacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
+    ), width > 0
+    else {
+        if gtkBackendLayoutDebugEnabled {
+            print("QuillUI GTK split fallback sidebar width=\(max(320.0, fallback)) env=nil")
+        }
+        return max(320.0, fallback)
+    }
+    let resolved = max(320.0, min(600.0, width * 0.27))
+    if gtkBackendLayoutDebugEnabled {
+        print("QuillUI GTK split env width=\(width) sidebar=\(resolved)")
+    }
+    return resolved
+}
+
+private let gtkProportionalSidebarMapCallback: @convention(c) (gpointer?, gpointer?) -> Void = { widgetPtr, _ in
+    guard let widgetPtr else { return }
+    let widget = UnsafeMutableRawPointer(widgetPtr).assumingMemoryBound(to: GtkWidget.self)
+    let width = Double(gtk_widget_get_width(widget))
+    guard width > 0 else { return }
+    let sidebarW = max(320.0, min(600.0, width * 0.27))
+    gtk_swift_paned_set_position(widget, gint(sidebarW))
+}
+
+private let gtkProportionalSidebarTickCallback: GtkTickCallback = { widget, _, _ in
+    guard let widget else { return 1 }
+    let width = Double(gtk_widget_get_width(widget))
+    guard width > 0 else { return 1 }
+    let sidebarW = max(320.0, min(600.0, width * 0.27))
+    gtk_swift_paned_set_position(widget, gint(sidebarW))
+    return 1
+}
+
+private func gtkInstallProportionalSidebarPosition(on paned: UnsafeMutablePointer<GtkWidget>) {
+    g_signal_connect_data(
+        gpointer(paned),
+        "map",
+        unsafeBitCast(gtkProportionalSidebarMapCallback, to: GCallback.self),
+        nil, nil,
+        GConnectFlags(rawValue: 0)
+    )
+    _ = gtk_widget_add_tick_callback(
+        paned,
+        gtkProportionalSidebarTickCallback,
+        nil, nil
+    )
+}
+
+private func gtkCreateToolbarRow<V: View>(from view: V) -> UnsafeMutablePointer<GtkWidget>? {
+    let rawItems = gtkExtractToolbarItems(from: view)
+    let config = gtkExtractToolbarConfiguration(from: view)
+    let (toolbarItems, hidden) = gtkApplyToolbarConfiguration(items: rawItems, configuration: config)
+    guard !hidden, !toolbarItems.isEmpty else { return nil }
+
+    let row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14)!
+    gtk_widget_set_size_request(row, -1, 48)
+    gtk_widget_set_hexpand(row, 1)
+    gtk_widget_set_halign(row, GTK_ALIGN_FILL)
+
+    for item in toolbarItems where item.placement == .leading {
+        for widget in gtkRenderToolbarItemWidgets(item) {
+            gtk_box_append(boxPointer(row), widget)
+        }
+    }
+
+    let trailingCluster = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14)!
+    gtk_widget_set_margin_start(trailingCluster, 620)
+
+    for item in toolbarItems where item.placement != .leading {
+        for widget in gtkRenderToolbarItemWidgets(item) {
+            gtk_box_append(boxPointer(trailingCluster), widget)
+        }
+    }
+    gtk_box_append(boxPointer(row), trailingCluster)
+
+    return row
+}
+
+private func gtkCreateInlineNavigationBar(
+    title: String,
+    toolbarItems: [AnyToolbarItem],
+    hidden: Bool
+) -> UnsafeMutablePointer<GtkWidget> {
+    gtkNavigationDebugLog("inline title=\(title.isEmpty ? "<empty>" : title) items=\(toolbarItems.count) hidden=\(hidden)")
+    let row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12)!
+    gtk_widget_set_size_request(row, -1, 52)
+    gtk_widget_set_hexpand(row, 1)
+    gtk_widget_set_vexpand(row, 0)
+    gtk_widget_set_halign(row, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(row, GTK_ALIGN_START)
+    applyCSSToWidget(
+        row,
+        properties: "background: #f8f8fb; border-bottom: 1px solid rgba(0,0,0,0.12); min-height: 52px; padding: 6px 10px;"
+    )
+
+    let leading = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8)!
+    let trailing = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8)!
+    gtk_widget_set_halign(leading, GTK_ALIGN_START)
+    gtk_widget_set_halign(trailing, GTK_ALIGN_END)
+    gtk_widget_set_valign(leading, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(trailing, GTK_ALIGN_CENTER)
+    gtk_widget_set_margin_top(leading, 18)
+    gtk_widget_set_margin_top(trailing, 18)
+
+    if !hidden {
+        for item in toolbarItems where item.placement == .leading {
+            for widget in gtkRenderToolbarItemWidgets(item) {
+                gtk_box_append(boxPointer(leading), widget)
+            }
+        }
+        for item in toolbarItems where item.placement != .leading {
+            for widget in gtkRenderToolbarItemWidgets(item) {
+                gtk_box_append(boxPointer(trailing), widget)
+            }
+        }
+    }
+
+    let titleLabel = gtk_label_new(title)!
+    gtk_widget_set_hexpand(titleLabel, 1)
+    gtk_widget_set_halign(titleLabel, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(titleLabel, GTK_ALIGN_CENTER)
+    gtk_widget_set_margin_top(titleLabel, 18)
+    applyCSSToWidget(titleLabel, properties: "font-weight: 600;")
+
+    gtk_box_append(boxPointer(row), leading)
+    gtk_box_append(boxPointer(row), titleLabel)
+    gtk_box_append(boxPointer(row), trailing)
+    return row
+}
+
+private func gtkWrapWithToolbarRow<V: View>(
+    _ contentWidget: UnsafeMutablePointer<GtkWidget>,
+    toolbarSource view: V
+) -> UnsafeMutablePointer<GtkWidget> {
+    guard let toolbarRow = gtkCreateToolbarRow(from: view) else {
+        return contentWidget
+    }
+
+    let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtk_box_append(boxPointer(box), toolbarRow)
+    gtk_box_append(boxPointer(box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL))
+    gtk_box_append(boxPointer(box), contentWidget)
+    gtk_widget_set_hexpand(box, 1)
+    gtk_widget_set_vexpand(box, 1)
+    gtk_widget_set_hexpand(contentWidget, 1)
+    gtk_widget_set_vexpand(contentWidget, 1)
+    return box
+}
+
+private func gtkConfigureFixedSplitColumn(_ widget: UnsafeMutablePointer<GtkWidget>, width: Double) {
+    gtk_widget_set_size_request(widget, gint(width), gtkRequestedDefaultWindowHeight())
+    gtk_widget_set_hexpand(widget, 0)
+    gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+    gtk_widget_set_vexpand(widget, 1)
+    gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+}
+
+private func gtkConfigureFillingSplitColumn(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    gtk_widget_set_hexpand(widget, 1)
+    gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+    gtk_widget_set_vexpand(widget, 1)
+    gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+}
+
+private func gtkCreateSplitDivider() -> UnsafeMutablePointer<GtkWidget> {
+    let divider = gtk_separator_new(GTK_ORIENTATION_VERTICAL)!
+    gtk_widget_set_size_request(divider, 1, gtkRequestedDefaultWindowHeight())
+    applyCSSToWidget(divider, properties: "background: #d1d2cf; min-width: 1px;")
+    return divider
+}
+
+private let gtkFixedSplitSidebarTickCallback: GtkTickCallback = { widget, _, userData in
+    guard let widget, let userData else { return 1 }
+    let sidebar = Unmanaged<WidgetRef>.fromOpaque(userData).takeUnretainedValue().widget
+    let width = Double(gtk_widget_get_width(widget))
+    guard width > 0 else { return 1 }
+    let sidebarW = max(320.0, min(600.0, width * 0.27))
+    gtk_widget_set_size_request(sidebar, gint(sidebarW), gtkRequestedDefaultWindowHeight())
+    gtk_widget_queue_resize(sidebar)
+    gtk_widget_queue_resize(widget)
+    if gtkBackendLayoutDebugEnabled {
+        print("QuillUI GTK split allocated width=\(width) sidebar=\(sidebarW)")
+    }
+    return 1
+}
+
+private func gtkInstallProportionalFixedSidebar(
+    on splitBox: UnsafeMutablePointer<GtkWidget>,
+    sidebarWidget: UnsafeMutablePointer<GtkWidget>
+) {
+    _ = gtk_widget_add_tick_callback(
+        splitBox,
+        gtkFixedSplitSidebarTickCallback,
+        Unmanaged.passRetained(WidgetRef(sidebarWidget)).toOpaque(),
+        { userData in
+            if let userData {
+                Unmanaged<WidgetRef>.fromOpaque(userData).release()
+            }
+        }
+    )
+}
+
+private func gtkCreateTwoColumnSplitBox(
+    sidebarWidget: UnsafeMutablePointer<GtkWidget>,
+    detailWidget: UnsafeMutablePointer<GtkWidget>,
+    sidebarWidth: Double
+) -> UnsafeMutablePointer<GtkWidget> {
+    let splitBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+    gtkConfigureFixedSplitColumn(sidebarWidget, width: sidebarWidth)
+    applyCSSToWidget(sidebarWidget, properties: "background: #e8e9e6;")
+    gtkConfigureFillingSplitColumn(detailWidget)
+
+    gtk_box_append(boxPointer(splitBox), sidebarWidget)
+    gtk_box_append(boxPointer(splitBox), gtkCreateSplitDivider())
+    gtk_box_append(boxPointer(splitBox), detailWidget)
+    gtkConfigureFillingSplitColumn(splitBox)
+    gtkInstallProportionalFixedSidebar(on: splitBox, sidebarWidget: sidebarWidget)
+    return splitBox
+}
+
+private func gtkCreateThreeColumnSplitBox(
+    sidebarWidget: UnsafeMutablePointer<GtkWidget>,
+    contentWidget: UnsafeMutablePointer<GtkWidget>,
+    detailWidget: UnsafeMutablePointer<GtkWidget>,
+    sidebarWidth: Double,
+    contentWidth: Double
+) -> UnsafeMutablePointer<GtkWidget> {
+    let splitBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+    gtkConfigureFixedSplitColumn(sidebarWidget, width: sidebarWidth)
+    gtkConfigureFixedSplitColumn(contentWidget, width: contentWidth)
+    applyCSSToWidget(sidebarWidget, properties: "background: #e8e9e6;")
+    applyCSSToWidget(contentWidget, properties: "background: #f6f6f4;")
+    gtkConfigureFillingSplitColumn(detailWidget)
+
+    gtk_box_append(boxPointer(splitBox), sidebarWidget)
+    gtk_box_append(boxPointer(splitBox), gtkCreateSplitDivider())
+    gtk_box_append(boxPointer(splitBox), contentWidget)
+    gtk_box_append(boxPointer(splitBox), gtkCreateSplitDivider())
+    gtk_box_append(boxPointer(splitBox), detailWidget)
+    gtkConfigureFillingSplitColumn(splitBox)
+    gtkInstallProportionalFixedSidebar(on: splitBox, sidebarWidget: sidebarWidget)
+    return splitBox
+}
+
+private func gtkApplyFixedSplitVisibility(
+    _ visibility: NavigationSplitViewVisibility,
+    sidebar: UnsafeMutablePointer<GtkWidget>,
+    content: UnsafeMutablePointer<GtkWidget>?
+) {
+    switch visibility {
+    case .automatic, .all:
+        gtk_widget_set_visible(sidebar, 1)
+        if let content = content { gtk_widget_set_visible(content, 1) }
+    case .doubleColumn:
+        gtk_widget_set_visible(sidebar, 1)
+        if let content = content { gtk_widget_set_visible(content, 0) }
+    case .detailOnly:
+        gtk_widget_set_visible(sidebar, 0)
+        if let content = content { gtk_widget_set_visible(content, 0) }
+    }
+}
+
 private func gtkInstallToolbar<V: View>(from view: V, on widget: UnsafeMutablePointer<GtkWidget>) {
     let rawItems = gtkExtractToolbarItems(from: view)
     let config = gtkExtractToolbarConfiguration(from: view)
@@ -656,12 +1004,13 @@ private func gtkInstallToolbar<V: View>(from view: V, on widget: UnsafeMutablePo
     let headerBarOp = OpaquePointer(headerBar)
     gtk_header_bar_set_title_widget(headerBarOp, gtk_label_new(""))
     for item in toolbarItems {
-        let itemWidget = widgetFromOpaque(gtkRenderAnyView(item.wrapped))
-        switch item.placement {
-        case .leading:
-            gtk_header_bar_pack_start(headerBarOp, itemWidget)
-        case .primaryAction, .trailing:
-            gtk_header_bar_pack_end(headerBarOp, itemWidget)
+        for itemWidget in gtkRenderToolbarItemWidgets(item) {
+            switch item.placement {
+            case .leading:
+                gtk_header_bar_pack_start(headerBarOp, itemWidget)
+            case .primaryAction, .trailing:
+                gtk_header_bar_pack_end(headerBarOp, itemWidget)
+            }
         }
     }
 
@@ -702,90 +1051,69 @@ extension NavigationSplitView: GTKRenderable {
     }
 
     private func gtkCreateTwoColumnWidget() -> OpaquePointer {
-        let paned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL)!
+        let sidebarW = max(gtkExtractColumnWidth(from: sidebar) ?? 0, gtkResolvedDefaultSidebarWidth(fallback: Double(sidebarWidth)))
+        let sidebarMinW = gtkExtractColumnWidthProvider(from: sidebar)?.columnMinWidth ?? 0
+        let resolvedSidebarW = max(sidebarMinW, sidebarW)
 
-        let sidebarW = gtkExtractColumnWidth(from: sidebar) ?? Double(sidebarWidth)
+        let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))
+        let sidebarWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_hexpand(sidebarContentWidget, 1)
+        gtk_widget_set_halign(sidebarContentWidget, GTK_ALIGN_FILL)
+        gtk_widget_set_vexpand(sidebarContentWidget, 1)
+        gtk_widget_set_valign(sidebarContentWidget, GTK_ALIGN_FILL)
+        gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)
 
-        let sidebarWidget = widgetFromOpaque(gtkRenderView(sidebar))
-        let detailWidget = widgetFromOpaque(gtkRenderView(detail))
-
-        // Apply min width from column width modifier (walks modifier chain)
-        if let provider = gtkExtractColumnWidthProvider(from: sidebar),
-           let minW = provider.columnMinWidth {
-            gtk_widget_set_size_request(sidebarWidget, gint(minW), -1)
-        }
-
-        gtkInstallToolbar(from: detail, on: paned)
-
-        gtk_swift_paned_set_start_child(paned, sidebarWidget)
-        gtk_swift_paned_set_end_child(paned, detailWidget)
-        gtk_swift_paned_set_position(paned, gint(sidebarW))
-        gtk_swift_paned_set_shrink_start_child(paned, 0)
-        gtk_swift_paned_set_shrink_end_child(paned, 0)
-
-        gtk_widget_set_hexpand(paned, 1)
-        gtk_widget_set_vexpand(paned, 1)
+        let detailWidget = gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)
+        let splitBox = gtkCreateTwoColumnSplitBox(
+            sidebarWidget: sidebarWidget,
+            detailWidget: detailWidget,
+            sidebarWidth: resolvedSidebarW
+        )
 
         if let visibility = columnVisibility {
-            gtkApplyVisibility(visibility.wrappedValue,
-                               sidebar: sidebarWidget, content: nil, paned: paned)
+            gtkApplyFixedSplitVisibility(visibility.wrappedValue,
+                                         sidebar: sidebarWidget,
+                                         content: nil)
         }
 
-        return opaqueFromWidget(paned)
+        return opaqueFromWidget(splitBox)
     }
 
     private func gtkCreateThreeColumnWidget() -> OpaquePointer {
-        // Outer paned: [innerPaned | detail]
-        let outerPaned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL)!
-        // Inner paned: [sidebar | content]
-        let innerPaned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL)!
-
-        let sidebarWidget = widgetFromOpaque(gtkRenderView(sidebar))
-        let contentWidget = widgetFromOpaque(gtkRenderView(content))
-        let detailWidget = widgetFromOpaque(gtkRenderView(detail))
-
-        let sidebarW = gtkExtractColumnWidth(from: sidebar) ?? Double(sidebarWidth)
+        let sidebarW = max(gtkExtractColumnWidth(from: sidebar) ?? 0, gtkResolvedDefaultSidebarWidth(fallback: Double(sidebarWidth)))
         let contentW = gtkExtractColumnWidth(from: content) ?? 250.0
+        let sidebarMinW = gtkExtractColumnWidthProvider(from: sidebar)?.columnMinWidth ?? 0
+        let contentMinW = gtkExtractColumnWidthProvider(from: content)?.columnMinWidth ?? 0
+        let resolvedSidebarW = max(sidebarMinW, sidebarW)
+        let resolvedContentW = max(contentMinW, contentW)
 
-        // Apply min widths from column width modifiers (walks modifier chain)
-        if let provider = gtkExtractColumnWidthProvider(from: sidebar),
-           let minW = provider.columnMinWidth {
-            gtk_widget_set_size_request(sidebarWidget, gint(minW), -1)
-        }
-        if let provider = gtkExtractColumnWidthProvider(from: content),
-           let minW = provider.columnMinWidth {
-            gtk_widget_set_size_request(contentWidget, gint(minW), -1)
-        }
+        let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))
+        let sidebarWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_hexpand(sidebarContentWidget, 1)
+        gtk_widget_set_halign(sidebarContentWidget, GTK_ALIGN_FILL)
+        gtk_widget_set_vexpand(sidebarContentWidget, 1)
+        gtk_widget_set_valign(sidebarContentWidget, GTK_ALIGN_FILL)
+        gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)
 
-        // Inner paned: sidebar + content
-        gtk_swift_paned_set_start_child(innerPaned, sidebarWidget)
-        gtk_swift_paned_set_end_child(innerPaned, contentWidget)
-        gtk_swift_paned_set_position(innerPaned, gint(sidebarW))
-        gtk_swift_paned_set_shrink_start_child(innerPaned, 0)
-        gtk_swift_paned_set_shrink_end_child(innerPaned, 0)
-
-        // Outer paned: inner + detail
-        gtk_swift_paned_set_start_child(outerPaned, innerPaned)
-        gtk_swift_paned_set_end_child(outerPaned, detailWidget)
-        gtk_swift_paned_set_position(outerPaned, gint(sidebarW + contentW))
-        gtk_swift_paned_set_shrink_start_child(outerPaned, 0)
-        gtk_swift_paned_set_shrink_end_child(outerPaned, 0)
-
-        gtkInstallToolbar(from: detail, on: outerPaned)
-
-        gtk_widget_set_hexpand(outerPaned, 1)
-        gtk_widget_set_vexpand(outerPaned, 1)
-        gtk_widget_set_hexpand(innerPaned, 1)
-        gtk_widget_set_vexpand(innerPaned, 1)
+        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let detailWidget = gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)
+        let splitBox = gtkCreateThreeColumnSplitBox(
+            sidebarWidget: sidebarWidget,
+            contentWidget: contentWidget,
+            detailWidget: detailWidget,
+            sidebarWidth: resolvedSidebarW,
+            contentWidth: resolvedContentW
+        )
 
         if let visibility = columnVisibility {
-            gtkApplyVisibility(visibility.wrappedValue,
-                               sidebar: sidebarWidget, content: contentWidget,
-                               paned: outerPaned)
+            gtkApplyFixedSplitVisibility(visibility.wrappedValue,
+                                         sidebar: sidebarWidget,
+                                         content: contentWidget)
         }
 
-        return opaqueFromWidget(outerPaned)
+        return opaqueFromWidget(splitBox)
     }
+
 }
 
 extension NavigationSplitViewColumnWidthView: GTKRenderable {

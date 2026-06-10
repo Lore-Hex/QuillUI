@@ -23,11 +23,21 @@ public struct FocusedEqualsView<Content: View, Value: Hashable>: View {
 
 extension View {
     /// Binds the focus state of this view to a boolean @FocusState.
+    public func focused(_ state: FocusState<Bool>.Binding) -> FocusedView<Self> {
+        FocusedView(content: self, focusState: state.focusState)
+    }
+
+    /// Binds the focus state of this view to a boolean FocusState value.
     public func focused(_ state: FocusState<Bool>) -> FocusedView<Self> {
         FocusedView(content: self, focusState: state)
     }
 
     /// Binds the focus state of this view to an enum @FocusState case.
+    public func focused<V: Hashable>(_ state: FocusState<V?>.Binding, equals value: V) -> FocusedEqualsView<Self, V> {
+        FocusedEqualsView(content: self, focusState: state.focusState, value: value)
+    }
+
+    /// Binds the focus state of this view to an enum FocusState value.
     public func focused<V: Hashable>(_ state: FocusState<V?>, equals value: V) -> FocusedEqualsView<Self, V> {
         FocusedEqualsView(content: self, focusState: state, value: value)
     }

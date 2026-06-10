@@ -41,6 +41,13 @@ public struct NavigationLink<Destination: View>: View {
         self.pushValue = nil
     }
 
+    public init<Label: View>(
+        destination: Destination,
+        @ViewBuilder label: () -> Label
+    ) {
+        self.init(destination: { destination }, label: label)
+    }
+
     public var body: Never { fatalError("NavigationLink is a primitive view") }
 }
 

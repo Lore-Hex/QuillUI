@@ -749,7 +749,7 @@ extension SheetModifierView: AndroidRenderable {
             let sheetNode = RenderNode(type: "sheet")
             let nodeId = androidPushChild(typeTag: "sheet")
             sheetNode.id = nodeId
-            sheetNode.children = [androidRenderView(sheetContent)]
+            sheetNode.children = [androidRenderView(sheetContent())]
             androidPopChild()
             
             // Register a dismissal action

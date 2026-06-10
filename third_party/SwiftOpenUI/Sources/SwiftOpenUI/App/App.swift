@@ -9,6 +9,13 @@ public protocol App {
     init()
 }
 
+public extension App {
+    @_disfavoredOverload
+    static func main() {
+        _ = Self().body
+    }
+}
+
 /// A part of an app's user interface with a lifecycle managed by the system.
 public protocol Scene {
     associatedtype Body: Scene
@@ -32,9 +39,26 @@ public struct WindowGroup<Content: View>: Scene {
     public let windowSizing: WindowSizing?
     public let windowResizeBehavior: WindowResizeBehavior?
     public let windowResizability: WindowResizability?
+    public let launchesAtStartup: Bool
 
     public init(_ title: String, @ViewBuilder content: () -> Content) {
         self.init(title: title, content: content())
+    }
+
+    public init(@ViewBuilder content: () -> Content) {
+        self.init(title: "", content: content())
+    }
+
+    public init(id: String, @ViewBuilder content: () -> Content) {
+        self.init(title: id, content: content(), launchesAtStartup: true)
+    }
+
+    public init<Value>(for valueType: Value.Type, @ViewBuilder content: (Binding<Value?>) -> Content) {
+        self.init(
+            title: String(describing: valueType),
+            content: content(.constant(nil)),
+            launchesAtStartup: false
+        )
     }
 
     init(
@@ -48,7 +72,8 @@ public struct WindowGroup<Content: View>: Scene {
         maxWindowHeight: Double? = nil,
         windowSizing: WindowSizing? = nil,
         windowResizeBehavior: WindowResizeBehavior? = nil,
-        windowResizability: WindowResizability? = nil
+        windowResizability: WindowResizability? = nil,
+        launchesAtStartup: Bool = true
     ) {
         self.title = title
         self.content = content
@@ -61,6 +86,7 @@ public struct WindowGroup<Content: View>: Scene {
         self.windowSizing = windowSizing
         self.windowResizeBehavior = windowResizeBehavior
         self.windowResizability = windowResizability
+        self.launchesAtStartup = launchesAtStartup
     }
 
     public var body: Never { fatalError("WindowGroup is a primitive scene") }
@@ -79,6 +105,28 @@ public struct TupleScene<S0: Scene, S1: Scene>: Scene {
     }
 
     public var body: Never { fatalError("TupleScene is a primitive scene") }
+}
+
+public extension Scene {
+    func onChange<Value: Equatable>(
+        of value: Value,
+        _ action: @escaping (Value, Value) -> Void
+    ) -> Self {
+        _ = value
+        _ = action
+        return self
+    }
+
+    func windowResizability(_ resizability: WindowResizability) -> Self {
+        _ = resizability
+        return self
+    }
+
+    func defaultSize(width: Double, height: Double) -> Self {
+        _ = width
+        _ = height
+        return self
+    }
 }
 
 /// Result builder for composing scenes.

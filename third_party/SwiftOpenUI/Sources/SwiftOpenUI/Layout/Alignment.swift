@@ -1,3 +1,5 @@
+import Foundation
+
 /// Horizontal alignment for children within a VStack.
 public enum HorizontalAlignment {
     case leading
@@ -10,6 +12,25 @@ public enum VerticalAlignment {
     case top
     case center
     case bottom
+
+    public init(_ id: any AlignmentID.Type) {
+        _ = id
+        self = .bottom
+    }
+}
+
+public struct ViewDimensions {
+    public var width: CGFloat
+    public var height: CGFloat
+
+    public init(width: CGFloat = 0, height: CGFloat = 0) {
+        self.width = width
+        self.height = height
+    }
+}
+
+public protocol AlignmentID {
+    static func defaultValue(in context: ViewDimensions) -> CGFloat
 }
 
 /// Two-dimensional alignment for ZStack and frame alignment.

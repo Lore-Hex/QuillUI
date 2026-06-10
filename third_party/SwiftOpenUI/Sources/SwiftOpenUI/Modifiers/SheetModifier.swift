@@ -5,7 +5,7 @@ public struct SheetModifierView<Content: View, SheetContent: View>: View {
     public let content: Content
     public let isPresented: Binding<Bool>
     public let onDismiss: (() -> Void)?
-    public let sheetContent: SheetContent
+    public let sheetContent: () -> SheetContent
 
     public var body: Never { fatalError("SheetModifierView is a primitive view") }
 }
@@ -26,13 +26,13 @@ extension View {
     /// Present a modal sheet when `isPresented` becomes true.
     public func sheet<V: View>(
         isPresented: Binding<Bool>,
-        @ViewBuilder content: () -> V
+        @ViewBuilder content: @escaping () -> V
     ) -> SheetModifierView<Self, V> {
         SheetModifierView(
             content: self,
             isPresented: isPresented,
             onDismiss: nil,
-            sheetContent: content()
+            sheetContent: content
         )
     }
 
@@ -41,13 +41,13 @@ extension View {
     public func sheet<V: View>(
         isPresented: Binding<Bool>,
         onDismiss: (() -> Void)?,
-        @ViewBuilder content: () -> V
+        @ViewBuilder content: @escaping () -> V
     ) -> SheetModifierView<Self, V> {
         SheetModifierView(
             content: self,
             isPresented: isPresented,
             onDismiss: onDismiss,
-            sheetContent: content()
+            sheetContent: content
         )
     }
 

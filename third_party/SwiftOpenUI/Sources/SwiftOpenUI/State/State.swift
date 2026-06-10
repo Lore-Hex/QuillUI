@@ -1,5 +1,14 @@
 import Foundation
 
+private func swiftOpenUIStateDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
+        return
+    }
+    if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
 /// Protocol for type-erased access to StateStorage from @State wrappers.
 public protocol AnyStateStorageProvider {
     var anyStorage: AnyStateStorage { get }
@@ -10,6 +19,12 @@ public protocol AnyStateStorage: AnyObject {
     var host: AnyViewHost? { get set }
     /// Copy the stored value from another storage of the same concrete type.
     func restoreValue(from other: AnyStateStorage)
+    /// Forward writes from stale widget closures to the current render storage.
+    func forwardMutations(to other: AnyStateStorage)
+}
+
+public extension AnyStateStorage {
+    func forwardMutations(to other: AnyStateStorage) {}
 }
 
 /// A property wrapper that stores mutable state for a view.
@@ -47,7 +62,24 @@ public struct State<Value>: AnyStateStorageProvider {
 public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
     private let lock = NSLock()
     var _value: Value  // internal for restoreValue cross-storage access
-    public weak var host: AnyViewHost?
+    private var forwardedStorage: StateStorage<Value>?
+    public weak var host: AnyViewHost? {
+        didSet { wireObservableObjectStateValueIfNeeded() }
+    }
+
+    private func wireObservableObjectStateValueIfNeeded() {
+        guard let object = _value as? any ObservableObject else { return }
+        var mirror: Mirror? = Mirror(reflecting: object)
+        while let current = mirror {
+            for child in current.children {
+                guard let provider = child.value as? AnyPublishedProvider else { continue }
+                provider.anyPublished.setObserver(token: ObjectIdentifier(self)) { [weak self] in
+                    self?.host?.scheduleRebuild()
+                }
+            }
+            mirror = current.superclassMirror
+        }
+    }
     public private(set) var generation: UInt64 = 0
 
     public init(_ value: Value) {
@@ -65,12 +97,34 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
         lock.lock()
         _value = newValue
         generation += 1
+        let forwarded = forwardedStorage
+        let currentHost = host
         lock.unlock()
+        let hostDescription = currentHost.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        let forwardedHostDescription = forwarded?.host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        swiftOpenUIStateDebugLog("state set type=\(Value.self) forwarded=\(forwarded != nil) host=\(hostDescription) forwardedHost=\(forwardedHostDescription)")
+        if let forwarded {
+            forwarded.setValue(newValue)
+            return
+        }
         // @State always rebuilds its declaring host — no dependency gating.
         // The declaring host is the only host notified, and it may pass
         // the value to children via Binding. Skipping its rebuild would
         // leave bound children stale.
         host?.scheduleRebuild()
+    }
+
+    public func forwardMutations(to other: AnyStateStorage) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let typed = other as? StateStorage<Value>, typed !== self else {
+            forwardedStorage = nil
+            return
+        }
+        forwardedStorage = typed
+        let currentHost = host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        let forwardedHost = typed.host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        swiftOpenUIStateDebugLog("state forward type=\(Value.self) host=\(currentHost) forwardedHost=\(forwardedHost)")
     }
 
     public func restoreValue(from other: AnyStateStorage) {

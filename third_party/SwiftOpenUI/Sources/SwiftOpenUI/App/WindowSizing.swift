@@ -52,6 +52,11 @@ public enum WindowResizeBehavior: Sendable {
 }
 
 extension WindowGroup {
+    /// SwiftUI-compatible alias for setting the initial window size.
+    public func defaultSize(width: Double, height: Double) -> WindowGroup<Content> {
+        defaultWindowSize(width: width, height: height)
+    }
+
     /// Sets the initial window size.
     public func defaultWindowSize(width: Double, height: Double) -> WindowGroup<Content> {
         WindowGroup(
@@ -65,7 +70,8 @@ extension WindowGroup {
             maxWindowHeight: maxWindowHeight,
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
-            windowResizability: windowResizability
+            windowResizability: windowResizability,
+            launchesAtStartup: launchesAtStartup
         )
     }
 
@@ -87,7 +93,8 @@ extension WindowGroup {
             maxWindowHeight: maxHeight ?? maxWindowHeight,
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
-            windowResizability: windowResizability
+            windowResizability: windowResizability,
+            launchesAtStartup: launchesAtStartup
         )
     }
 
@@ -104,7 +111,8 @@ extension WindowGroup {
             maxWindowHeight: maxWindowHeight,
             windowSizing: sizing,
             windowResizeBehavior: windowResizeBehavior,
-            windowResizability: windowResizability
+            windowResizability: windowResizability,
+            launchesAtStartup: launchesAtStartup
         )
     }
 
@@ -121,7 +129,8 @@ extension WindowGroup {
             maxWindowHeight: maxWindowHeight,
             windowSizing: windowSizing,
             windowResizeBehavior: behavior,
-            windowResizability: windowResizability
+            windowResizability: windowResizability,
+            launchesAtStartup: launchesAtStartup
         )
     }
 
@@ -141,7 +150,8 @@ extension WindowGroup {
             maxWindowHeight: maxWindowHeight,
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
-            windowResizability: resizability
+            windowResizability: resizability,
+            launchesAtStartup: launchesAtStartup
         )
     }
 }
