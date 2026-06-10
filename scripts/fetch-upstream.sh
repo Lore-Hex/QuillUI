@@ -865,20 +865,29 @@ PY
         python3 - "$lvc" <<'PY'
 import sys
 path = sys.argv[1]; src = open(path).read()
-needle = '    func copy(_ sender: Any?) {\n'
+# The Linux lowering strips @objc before this patch runs on Linux fetches,
+# so match either form of the signature.
+needles = [
+    '    @objc func copy(_ sender: Any?) {\n',
+    '    func copy(_ sender: Any?) {\n',
+]
+needle = next((n for n in needles if n in src), None)
+assert needle is not None, "LogViewController copy(_:) signature not found"
 replacement = (
     '    #if os(Linux)\n'
+    '    // NSResponder.copy(_:) is nonisolated in the QuillAppKit shadow; the\n'
+    '    // responder chain invokes it on the main thread, so bridge into the\n'
+    '    // MainActor-isolated view-controller helper.\n'
     '    override func copy(_ sender: Any?) {\n'
-    '        quillCopySelectedLogLines(sender)\n'
+    '        MainActor.assumeIsolated { quillCopySelectedLogLines(sender) }\n'
     '    }\n'
     '    #else\n'
-    '    func copy(_ sender: Any?) {\n'
+    + needle +
     '        quillCopySelectedLogLines(sender)\n'
     '    }\n'
     '    #endif\n'
     '    private func quillCopySelectedLogLines(_ sender: Any?) {\n'
 )
-assert needle in src, "LogViewController copy(_:) signature not found"
 open(path, "w").write(src.replace(needle, replacement, 1))
 print("patched LogViewController copy(_:) override split")
 PY
