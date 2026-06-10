@@ -6,6 +6,7 @@
 // transitively.
 
 @_exported import Foundation
+@_exported import CoreTransferable
 @_exported import QuillFoundation
 @_exported import QuillUIKit
 // Re-export the UserNotifications shim so the many `import UIKit`-only SSK files
@@ -33,17 +34,23 @@ public typealias UIScreen = NSScreen
 #else
 // Linux: no AppKit/UIKit fonts. Provide the UIFont surface upstream UI uses
 // (scaled system fonts, the `.rounded` design). Metrics are identity on Linux.
-public final class UIFont: Equatable, @unchecked Sendable {
+public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public let pointSize: CGFloat
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
     public init(descriptor: UIFontDescriptor, size: CGFloat) {
         self.pointSize = size; self.fontName = descriptor.name; self.fontDescriptor = descriptor
+        super.init()
     }
     init(pointSize: CGFloat, fontName: String) {
         self.pointSize = pointSize; self.fontName = fontName
         self.fontDescriptor = UIFontDescriptor(name: fontName)
+        super.init()
     }
+    public required convenience init?(coder: NSCoder) {
+        self.init(pointSize: 17, fontName: ".AppleSystemUIFont")
+    }
+    public func encode(with coder: NSCoder) {}
     public static func systemFont(ofSize size: CGFloat) -> UIFont {
         UIFont(pointSize: size, fontName: ".AppleSystemUIFont")
     }
@@ -60,6 +67,7 @@ public final class UIFont: Equatable, @unchecked Sendable {
     public func withSize(_ size: CGFloat) -> UIFont {
         UIFont(descriptor: fontDescriptor, size: size)
     }
+    public var capHeight: CGFloat { pointSize * 0.7 }
     public struct Weight: Equatable, Sendable {
         public let rawValue: CGFloat
         public init(rawValue: CGFloat) { self.rawValue = rawValue }
@@ -128,52 +136,59 @@ public final class UIFontMetrics: @unchecked Sendable {
 }
 #endif
 
-// MARK: - UIApplication (macOS-shape)
+public enum UIApplicationState: Int { case active, inactive, background }
 
-public class UIApplication: NSObject {
-    @MainActor public static let shared = UIApplication()
-    @MainActor @discardableResult public func open(
-        _ url: URL,
-        options: [AnyHashable: Any] = [:],
-        completionHandler: ((Bool) -> Void)? = nil
-    ) -> Bool {
-        #if canImport(AppKit) && !os(Linux)
-        return NSWorkspace.shared.open(url)
-        #else
-        return false
-        #endif
-    }
-    // Async form used by SwiftUI/UIKit real source (`await UIApplication.shared.open(url)`).
-    // Disambiguate to the completion-handler overload to avoid recursing into itself.
-    @MainActor @discardableResult public func open(_ url: URL) async -> Bool {
+public extension UIApplication {
+    @MainActor @discardableResult
+    func open(_ url: URL) async -> Bool {
         open(url, options: [:], completionHandler: nil)
+        return true
     }
-    @MainActor public func registerForRemoteNotifications() {}
-    public enum LaunchOptionsKey: Hashable { case remoteNotification }
-    @MainActor public var connectedScenes: Set<UIScene> = []
-    @MainActor public var applicationState: UIApplicationState { .active }
+
+    @MainActor var applicationState: UIApplicationState { .active }
 
     /// UIKit (and SignalServiceKit's AppContext) name the application-state enum
     /// `UIApplication.State`; `UIApplicationState` is its top-level alias on iOS.
-    public typealias State = UIApplicationState
+    typealias State = UIApplicationState
 
-    // App-lifecycle notification names. Real UIKit members; SignalServiceKit's
-    // lifecycle observers subscribe to these. No source posts them on Linux yet.
-    public static let didBecomeActiveNotification = Notification.Name("UIApplicationDidBecomeActiveNotification")
-    public static let willResignActiveNotification = Notification.Name("UIApplicationWillResignActiveNotification")
-    public static let didEnterBackgroundNotification = Notification.Name("UIApplicationDidEnterBackgroundNotification")
-    public static let willEnterForegroundNotification = Notification.Name("UIApplicationWillEnterForegroundNotification")
-    public static let willTerminateNotification = Notification.Name("UIApplicationWillTerminateNotification")
-    public static let didReceiveMemoryWarningNotification = Notification.Name("UIApplicationDidReceiveMemoryWarningNotification")
-    public static let significantTimeChangeNotification = Notification.Name("UIApplicationSignificantTimeChangeNotification")
+    // App-lifecycle notification names. Real UIKit members; no source posts
+    // them on Linux yet.
+    static var didBecomeActiveNotification: Notification.Name {
+        Notification.Name("UIApplicationDidBecomeActiveNotification")
+    }
+    static var willResignActiveNotification: Notification.Name {
+        Notification.Name("UIApplicationWillResignActiveNotification")
+    }
+    static var didEnterBackgroundNotification: Notification.Name {
+        Notification.Name("UIApplicationDidEnterBackgroundNotification")
+    }
+    static var willEnterForegroundNotification: Notification.Name {
+        Notification.Name("UIApplicationWillEnterForegroundNotification")
+    }
+    static var willTerminateNotification: Notification.Name {
+        Notification.Name("UIApplicationWillTerminateNotification")
+    }
+    static var didReceiveMemoryWarningNotification: Notification.Name {
+        Notification.Name("UIApplicationDidReceiveMemoryWarningNotification")
+    }
+    static var significantTimeChangeNotification: Notification.Name {
+        Notification.Name("UIApplicationSignificantTimeChangeNotification")
+    }
 
-    @MainActor public func setAlternateIconName(_ name: String?, completionHandler: ((Error?) -> Void)? = nil) {
+    @MainActor func setAlternateIconName(_ name: String?, completionHandler: ((Error?) -> Void)? = nil) {
+        _ = name
         completionHandler?(nil)
     }
-    @MainActor public var alternateIconName: String? { nil }
+
+    @MainActor var alternateIconName: String? { nil }
+    static var openSettingsURLString: String { "app-settings:" }
 }
 
-public enum UIApplicationState: Int { case active, inactive, background }
+public enum UIBackgroundFetchResult: Sendable {
+    case newData
+    case noData
+    case failed
+}
 
 // Text alignment. On iOS this lives in UIKit (and in AppKit on macOS, where
 // QuillAppKit already mirrors it). SignalServiceKit reaches it via `import
@@ -292,8 +307,307 @@ public extension NSAttributedString {
     }
 }
 
+public extension NSMutableAttributedString {
+    convenience init() {
+        self.init(string: "")
+    }
+
+    convenience init(_ attributedString: AttributedString) {
+        self.init(string: String(attributedString.characters))
+    }
+}
+
 public class UIScene: NSObject {
     @MainActor public var delegate: Any?
+    public enum ActivationState: Sendable {
+        case unattached
+        case foregroundActive
+        case foregroundInactive
+        case background
+    }
+    @MainActor public var activationState: ActivationState = .foregroundActive
+    public struct ConnectionOptions: Sendable {
+        public init() {}
+    }
+}
+
+public class UISceneSession: NSObject {
+    public struct Role: Hashable, Sendable {
+        public let rawValue: String
+        public init(_ rawValue: String) { self.rawValue = rawValue }
+        public static let windowApplication = Role("windowApplication")
+    }
+
+    public var role: Role
+
+    public init(role: Role = .windowApplication) {
+        self.role = role
+        super.init()
+    }
+}
+
+public class UISceneConfiguration: NSObject {
+    public var name: String?
+    public var sessionRole: UISceneSession.Role
+    public var delegateClass: AnyClass?
+
+    public init(name: String?, sessionRole: UISceneSession.Role) {
+        self.name = name
+        self.sessionRole = sessionRole
+        super.init()
+    }
+}
+
+@MainActor public protocol UIWindowSceneDelegate: AnyObject {}
+
+@MainActor public class UIWindowScene: UIScene {
+    public var windows: [UIWindow] = []
+    public var keyWindow: UIWindow? { windows.first }
+}
+
+@MainActor public protocol UIFontPickerViewControllerDelegate: AnyObject {
+    func fontPickerViewControllerDidCancel(_ viewController: UIFontPickerViewController)
+    func fontPickerViewControllerDidPickFont(_ viewController: UIFontPickerViewController)
+}
+
+@MainActor open class UIFontPickerViewController: UIViewController {
+    public weak var delegate: UIFontPickerViewControllerDelegate?
+    public var selectedFontDescriptor: UIFontDescriptor?
+    public override init() {
+        self.selectedFontDescriptor = UIFontDescriptor()
+        super.init()
+    }
+}
+
+public extension UIColor {
+    convenience init<T>(_ color: T) {
+        self.init()
+    }
+
+    static let placeholderText = RSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
+}
+
+public class NSItemProvider: NSObject {
+    public let suggestedName: String?
+    private let fileURL: URL?
+    private let object: Any?
+
+    public init?(contentsOf url: URL) {
+        self.fileURL = url
+        self.object = nil
+        self.suggestedName = url.lastPathComponent
+        super.init()
+    }
+
+    public init(object: Any) {
+        self.fileURL = nil
+        self.object = object
+        self.suggestedName = nil
+        super.init()
+    }
+
+    public override init() {
+        self.fileURL = nil
+        self.object = nil
+        self.suggestedName = nil
+        super.init()
+    }
+
+    public func registeredContentTypes(conformingTo contentType: UTType) -> [UTType] {
+        guard let url = fileURL,
+              let type = UTType(filenameExtension: url.pathExtension),
+              type.conforms(to: contentType)
+        else { return [] }
+        return [type]
+    }
+
+    public var registeredTypeIdentifiers: [String] {
+        guard let url = fileURL,
+              let type = UTType(filenameExtension: url.pathExtension)
+        else { return [] }
+        return [type.identifier]
+    }
+
+    public func loadItem(
+        forTypeIdentifier typeIdentifier: String,
+        options: [AnyHashable: Any]? = nil,
+        completionHandler: @escaping (Any?, Error?) -> Void
+    ) {
+        _ = typeIdentifier
+        _ = options
+        completionHandler(fileURL ?? object, nil)
+    }
+
+    @discardableResult
+    public func loadTransferable<T: Transferable>(
+        type: T.Type,
+        completionHandler: @escaping (Result<T?, Error>) -> Void
+    ) -> Progress {
+        _ = type
+        completionHandler(.success(nil))
+        return Progress(totalUnitCount: 1)
+    }
+}
+
+public enum UIKeyboardType: Sendable {
+    case `default`
+    case asciiCapable
+    case numbersAndPunctuation
+    case URL
+    case numberPad
+    case phonePad
+    case namePhonePad
+    case emailAddress
+    case decimalPad
+    case twitter
+    case webSearch
+}
+
+public enum UITextAutocapitalizationType: Sendable {
+    case none
+    case words
+    case sentences
+    case allCharacters
+}
+
+public enum UITextAutocorrectionType: Sendable {
+    case `default`
+    case no
+    case yes
+}
+
+public enum UIReturnKeyType: Sendable {
+    case `default`
+    case go
+    case google
+    case join
+    case next
+    case route
+    case search
+    case send
+    case yahoo
+    case done
+    case emergencyCall
+}
+
+public enum UITextInlinePredictionType: Sendable {
+    case `default`
+    case no
+    case yes
+}
+
+public struct UIDataDetectorTypes: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let phoneNumber = UIDataDetectorTypes(rawValue: 1 << 0)
+    public static let link = UIDataDetectorTypes(rawValue: 1 << 1)
+    public static let address = UIDataDetectorTypes(rawValue: 1 << 2)
+    public static let calendarEvent = UIDataDetectorTypes(rawValue: 1 << 3)
+    public static let all: UIDataDetectorTypes = [.phoneNumber, .link, .address, .calendarEvent]
+}
+
+public final class NSTextContainer {
+    public var lineFragmentPadding: CGFloat = 0
+    public init() {}
+}
+
+public class UITextRange: NSObject {}
+
+@MainActor public protocol UITextViewDelegate: AnyObject {
+    func textViewDidBeginEditing(_ textView: UITextView)
+    func textViewDidChange(_ textView: UITextView)
+    func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool
+}
+
+public extension UITextViewDelegate {
+    @MainActor func textViewDidBeginEditing(_ textView: UITextView) {}
+    @MainActor func textViewDidChange(_ textView: UITextView) {}
+    @MainActor func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool { true }
+}
+
+@MainActor public protocol UITextPasteConfigurationSupporting: AnyObject {}
+
+public protocol UITextPasteDelegate: AnyObject {
+    func textPasteConfigurationSupporting(
+        _ textPasteConfigurationSupporting: UITextPasteConfigurationSupporting,
+        transform item: UITextPasteItem
+    )
+}
+
+public final class UITextPasteItem {
+    public let itemProvider: NSItemProvider
+    public init(itemProvider: NSItemProvider) {
+        self.itemProvider = itemProvider
+    }
+    public func setNoResult() {}
+    public func setDefaultResult() {}
+}
+
+@MainActor open class UITextView: UIView, UITextPasteConfigurationSupporting {
+    public weak var delegate: UITextViewDelegate?
+    public weak var pasteDelegate: UITextPasteDelegate?
+    public var attributedText: NSAttributedString = NSAttributedString(string: "")
+    public var selectedRange: NSRange = NSRange(location: 0, length: 0)
+    public var markedTextRange: UITextRange?
+    public var textContainer = NSTextContainer()
+    public var textContainerInset: UIEdgeInsets = .zero
+    public var font: UIFont?
+    public var adjustsFontForContentSizeCategory = false
+    public var autocapitalizationType: UITextAutocapitalizationType = .sentences
+    public var autocorrectionType: UITextAutocorrectionType = .default
+    public var isEditable = true
+    public var isSelectable = true
+    public var isScrollEnabled = true
+    public var dataDetectorTypes: UIDataDetectorTypes = []
+    public var allowsEditingTextAttributes = false
+    public var returnKeyType: UIReturnKeyType = .default
+    public var inlinePredictionType: UITextInlinePredictionType = .default
+    public var keyboardType: UIKeyboardType = .default
+    public var textColor: UIColor?
+
+    open func sizeThatFits(_ size: CGSize) -> CGSize {
+        let width = max(size.width, 1)
+        let lineHeight = font?.pointSize ?? 17
+        let lines = max(1, ceil(Double(attributedText.string.count) * 8.5 / width))
+        return CGSize(width: width, height: CGFloat(lines) * lineHeight * 1.35)
+    }
+
+    public func select(_ sender: Any?) {
+        _ = sender
+    }
+}
+
+@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
+
+@MainActor public protocol UIImagePickerControllerDelegate: AnyObject {
+    func imagePickerController(
+        _ picker: UIImagePickerController,
+        didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+    )
+}
+
+public extension UIImagePickerControllerDelegate {
+    @MainActor func imagePickerController(
+        _ picker: UIImagePickerController,
+        didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+    ) {}
+}
+
+@MainActor public final class UIImagePickerController: UIViewController {
+    public struct InfoKey: Hashable, RawRepresentable, Sendable {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public static let originalImage = InfoKey(rawValue: "UIImagePickerControllerOriginalImage")
+    }
+
+    public enum SourceType: Sendable {
+        case camera
+        case photoLibrary
+        case savedPhotosAlbum
+    }
+
+    public var sourceType: SourceType = .photoLibrary
+    public weak var delegate: (any UINavigationControllerDelegate & UIImagePickerControllerDelegate)?
 }
 
 // MARK: - Haptic feedback (no-op on non-iOS)
@@ -419,6 +733,32 @@ public struct UIEdgeInsets: Equatable, Sendable {
         self.right = right
     }
     public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+}
+
+public extension UIView {
+    var safeAreaInsets: UIEdgeInsets { .zero }
+}
+
+public extension UIWindow {
+    var isKeyWindow: Bool { false }
+    @MainActor var windowScene: UIWindowScene? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { scene in scene.windows.contains { $0 === self } }
+    }
+
+    convenience init(windowScene: UIWindowScene) {
+        self.init()
+        windowScene.windows.append(self)
+    }
+
+    var rootViewController: UIViewController? {
+        get { nil }
+        set { _ = newValue }
+    }
+
+    func makeKeyAndVisible() {}
+    func resignKey() {}
 }
 
 // MARK: - NSDirectionalEdgeInsets

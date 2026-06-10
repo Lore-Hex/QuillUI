@@ -28,7 +28,29 @@ public typealias ASPresentationAnchor = NSObject
 
 // MARK: - UIResponder / UIView / UIViewController stubs
 
-@MainActor open class UIResponder: NSObject {}
+@MainActor open class UIResponder: NSObject {
+    open var keyCommands: [UIKeyCommand]? { nil }
+    @discardableResult open func becomeFirstResponder() -> Bool { true }
+    @discardableResult open func resignFirstResponder() -> Bool { true }
+    open func buildMenu(with builder: UIMenuBuilder) {
+        _ = builder
+    }
+}
+
+public class UIMenu: NSObject {
+    public struct Identifier: Hashable, Sendable {
+        public let rawValue: String
+        public init(_ rawValue: String) { self.rawValue = rawValue }
+        public static let document = Identifier("document")
+        public static let toolbar = Identifier("toolbar")
+    }
+}
+
+public class UIMenuBuilder: NSObject {
+    public func remove(menu: UIMenu.Identifier) {
+        _ = menu
+    }
+}
 
 /// The layout attribute an anchor represents. QuillUIKit-local (the public
 /// `NSLayoutConstraint.Attribute` enum lives in QuillAppKit, which depends on
@@ -97,6 +119,7 @@ public extension NSLayoutAnchor {
 
 public class NSLayoutConstraint: NSObject {
     public enum QuillRelation: Sendable { case equal, lessThanOrEqual, greaterThanOrEqual }
+    public enum Axis: Sendable { case horizontal, vertical }
 
     /// Constraint priority (NSLayoutConstraint.Priority): a Float wrapper with
     /// the standard named levels and +/- arithmetic (so `.defaultHigh + 1`
@@ -193,6 +216,19 @@ public class UIWindow: UIView {}
 #endif
 
 @MainActor open class UIView: UIResponder {
+    public enum ContentMode: Sendable {
+        case scaleAspectFit
+        case scaleAspectFill
+        case center
+    }
+
+    public struct AutoresizingMask: OptionSet, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let flexibleWidth = AutoresizingMask(rawValue: 1 << 0)
+        public static let flexibleHeight = AutoresizingMask(rawValue: 1 << 1)
+    }
+
     public override init() { super.init() }
     public init(frame: CGRect) { super.init() }
     public var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
@@ -200,11 +236,13 @@ public class UIWindow: UIView {}
     public var subviews: [UIView] = []
     public func removeFromSuperview() {}
     public var backgroundColor: UIColor?
-    public func addSubview(_: UIView) {}
+    public func addSubview(_ view: UIView) { subviews.append(view) }
     public var window: UIWindow?
+    public var autoresizingMask: AutoresizingMask = []
     public typealias UserInterfaceStyle = UIUserInterfaceStyle
     public var overrideUserInterfaceStyle: UserInterfaceStyle = .unspecified
     public var isHidden: Bool = false
+    public var isUserInteractionEnabled: Bool = true
     public var alpha: CGFloat = 1.0
     public var tintColor: UIColor?
 
@@ -217,7 +255,15 @@ public class UIWindow: UIView {}
     public var heightAnchor = NSLayoutDimension()
 
     public func setNeedsLayout() {}
+    public func setNeedsDisplay() {}
     public func layoutIfNeeded() {}
+    public func setContentCompressionResistancePriority(
+        _ priority: NSLayoutConstraint.Priority,
+        for axis: NSLayoutConstraint.Axis
+    ) {
+        _ = priority
+        _ = axis
+    }
 
     public struct AnimationOptions: OptionSet, Sendable {
         public let rawValue: UInt
@@ -280,12 +326,16 @@ public class UIWindow: UIView {}
 
     public var traitCollection = UITraitCollection()
     public func didMoveToSuperview() {}
+    open func willMove(toWindow newWindow: UIWindow?) {
+        _ = newWindow
+    }
     public var translatesAutoresizingMaskIntoConstraints: Bool = true
 }
 
 @MainActor open class UIViewController: UIResponder {
     public var view: UIView!
     public var children: [UIViewController] = []
+    public var presentedViewController: UIViewController?
     public func present(_: Any, animated: Bool) {}
     public func dismiss(animated: Bool, completion: (() -> Void)? = nil) {}
     open func viewDidLoad() {}
@@ -373,6 +423,7 @@ public class UIWindow: UIView {}
     public func pushViewController(_: UIViewController, animated: Bool) {}
     public func popViewController(animated: Bool) -> UIViewController? { nil }
     public var topViewController: UIViewController?
+    public var visibleViewController: UIViewController?
     public var modalPresentationStyle: Int = 0
 
     /// Inert: UIDevice+FeatureSupport.ows_setOrientation calls this to nudge the
@@ -382,8 +433,19 @@ public class UIWindow: UIView {}
     public static func attemptRotationToDeviceOrientation() {}
 }
 
+@MainActor public class UITabBarController: UIViewController {
+    public var selectedViewController: UIViewController?
+}
+
 @MainActor public class UINavigationBar: UIView {
+    private static let sharedAppearance = UINavigationBar()
     public var topItem: UINavigationItem?
+    public var isTranslucent: Bool = false
+    public var barTintColor: UIColor?
+
+    public static func appearance() -> UINavigationBar {
+        sharedAppearance
+    }
 }
 
 @MainActor public class UINavigationItem: NSObject {
@@ -455,6 +517,7 @@ public class UIPasteboard: NSObject {
     @MainActor public static let general = UIPasteboard()
     public var url: URL?
     public var string: String?
+    public var image: UIImage?
 }
 
 @MainActor public class SLComposeServiceViewController: UIViewController {
@@ -503,7 +566,7 @@ public class SLComposeSheetConfigurationItem: NSObject {
 
 @MainActor open class UIImageView: UIView {
     public init(image: UIImage?) { super.init() }
-    public var contentMode: Int = 0
+    public var contentMode: ContentMode = .center
     public var image: UIImage?
 }
 
@@ -515,6 +578,21 @@ public class SLComposeSheetConfigurationItem: NSObject {
 
 public class UIKeyCommand: NSObject {
     public init(title: String, image: Any?, action: Selector, input: String, modifierFlags: Any?, propertyList: Any? = nil) {}
+    public static let inputEscape = "\u{1B}"
+    public init(input: String, modifierFlags: UIKeyModifierFlags, action: Selector) {
+        _ = input
+        _ = modifierFlags
+        _ = action
+    }
+}
+
+public struct UIKeyModifierFlags: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let command = UIKeyModifierFlags(rawValue: 1 << 0)
+    public static let shift = UIKeyModifierFlags(rawValue: 1 << 1)
+    public static let alternate = UIKeyModifierFlags(rawValue: 1 << 2)
+    public static let control = UIKeyModifierFlags(rawValue: 1 << 3)
 }
 
 public protocol UIViewControllerTransitionCoordinator: AnyObject {
@@ -543,6 +621,7 @@ open class UIActivity: NSObject {
 public class UIApplication: NSObject {
     @MainActor public static let shared = UIApplication()
     @MainActor public func open(_: URL, options: [AnyHashable: Any] = [:], completionHandler: ((Bool) -> Void)? = nil) {}
+    @MainActor public func canOpenURL(_: URL) -> Bool { true }
     @MainActor public func registerForRemoteNotifications() {}
     public enum LaunchOptionsKey: Hashable { case remoteNotification }
     @MainActor public var connectedScenes: Set<UIScene> = []
@@ -550,6 +629,13 @@ public class UIApplication: NSObject {
 
 public class UIScene: NSObject {
     @MainActor public var delegate: Any?
+    public enum ActivationState: Sendable {
+        case unattached
+        case foregroundActive
+        case foregroundInactive
+        case background
+    }
+    @MainActor public var activationState: ActivationState = .foregroundActive
 }
 
 public class UITraitCollection: NSObject {
@@ -567,10 +653,46 @@ public class UITraitCollection: NSObject {
 
     public weak var delegate: UIScrollViewDelegate?
     public var contentInsetAdjustmentBehavior: ContentInsetAdjustmentBehavior = .automatic
+    public var maximumZoomScale: CGFloat = 1
+    public var minimumZoomScale: CGFloat = 1
+    public var zoomScale: CGFloat = 1
+    public var bouncesZoom: Bool = false
+    public var showsHorizontalScrollIndicator: Bool = true
+    public var showsVerticalScrollIndicator: Bool = true
+    public var clipsToBounds: Bool = true
+
+    public func setZoomScale(_ scale: CGFloat, animated: Bool) {
+        _ = animated
+        zoomScale = scale
+    }
+
+    public func zoom(to rect: CGRect, animated: Bool) {
+        _ = rect
+        _ = animated
+        zoomScale = maximumZoomScale
+    }
 }
 
 public protocol UIScrollViewDelegate: AnyObject {
     @MainActor func scrollViewDidScroll(_: UIScrollView)
+}
+
+public extension UIScrollViewDelegate {
+    @MainActor func scrollViewDidScroll(_: UIScrollView) {}
+    @MainActor func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+        _ = scrollView
+        return nil
+    }
+    @MainActor func scrollViewDidEndZooming(_: UIScrollView, with: UIView?, atScale: CGFloat) {}
+}
+
+@MainActor public final class UIHostingController<Content>: UIViewController {
+    public var rootView: Content
+
+    public init(rootView: Content) {
+        self.rootView = rootView
+        super.init()
+    }
 }
 
 public class UIGestureRecognizer: NSObject {

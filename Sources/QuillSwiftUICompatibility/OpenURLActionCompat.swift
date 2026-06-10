@@ -6,7 +6,7 @@ import SwiftOpenUI
 // — and to vendored real source via the SwiftUI shim, which re-exports this
 // module. Vendored apps (e.g. the IceCubes Router) use the nested `Result` as
 // a url-handler return type.
-public struct OpenURLAction: Sendable {
+public struct OpenURLAction: @unchecked Sendable {
     /// The outcome a URL handler reports back to `openURL`. Mirrors SwiftUI's
     /// `OpenURLAction.Result`.
     public struct Result: Sendable {
@@ -24,30 +24,36 @@ public struct OpenURLAction: Sendable {
         public static func systemAction(_ url: URL?) -> Result { Result(.systemAction(url)) }
     }
 
-    private let handler: @Sendable (URL) -> Bool
+    private let handler: @MainActor (URL) -> Result
 
-    public init(handler: @escaping @Sendable (URL) -> Bool = OpenURLAction.defaultHandler) {
+    public init(handler: @escaping @MainActor (URL) -> Result = OpenURLAction.defaultHandler) {
         self.handler = handler
     }
 
+    public init(handler: @escaping @MainActor (URL) -> Bool) {
+        self.handler = { url in handler(url) ? .handled : .discarded }
+    }
+
     @discardableResult
-    public func callAsFunction(_ url: URL) -> Bool {
+    @MainActor
+    public func callAsFunction(_ url: URL) -> Result {
         handler(url)
     }
 
-    public static func defaultHandler(_ url: URL) -> Bool {
+    @MainActor
+    public static func defaultHandler(_ url: URL) -> Result {
         #if os(Linux)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
         process.arguments = [url.absoluteString]
         do {
             try process.run()
-            return true
+            return .handled
         } catch {
-            return false
+            return .discarded
         }
         #else
-        return false
+        return .discarded
         #endif
     }
 }

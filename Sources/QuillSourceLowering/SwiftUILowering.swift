@@ -10,6 +10,8 @@ import SwiftSyntaxBuilder
 ///
 ///   * `@main` attribute removal from any declaration
 ///   * `@MainActor` attribute removal from any declaration
+///   * Objective-C-only attribute removal (`@objc`, `@IBAction`, etc.)
+///   * `#selector(x)` → `Selector("x")` for Linux builds without ObjC interop
 ///   * `@MainActor` removal from inline function type expressions
 ///     (e.g. `let action: (@MainActor () -> Void)?` → `let action: (() -> Void)?`)
 ///   * `@Observable` class lowering to `QuillObservableObject` inheritance
@@ -79,7 +81,12 @@ public struct SwiftUILowering {
 private final class SwiftUIRewriter: SyntaxRewriter {
     /// Attribute names removed wholesale whether they appear on a declaration
     /// or wrapped around an inline type expression.
-    private static let strippedAttributeNames: Set<String> = ["main", "MainActor", "Observable"]
+    private static let strippedAttributeNames: Set<String> = [
+        "main", "MainActor", "Observable",
+        "objc", "objcMembers",
+        "IBAction", "IBOutlet", "IBInspectable", "IBDesignable",
+        "NSManaged", "GKInspectable", "NSApplicationMain",
+    ]
 
     override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
         // Check the input node before recursion: the AttributeListSyntax
@@ -177,6 +184,25 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         return filtered
     }
 
+    /// Rewrite `#selector(x)` into QuillFoundation's plain selector token.
+    /// Swift on Linux has no Objective-C selector expression support, but the
+    /// source only needs a stable opaque value that the shim APIs can accept.
+    override func visit(_ node: MacroExpansionExprSyntax) -> ExprSyntax {
+        let recursed = super.visit(node)
+        guard let macro = recursed.as(MacroExpansionExprSyntax.self),
+              macro.macroName.text == "selector" else {
+            return recursed
+        }
+        let key = Self.selectorKey(from: macro.arguments.trimmedDescription)
+        let escaped = key
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        var replacement = ExprSyntax("Selector(\"\(raw: escaped)\")")
+        replacement.leadingTrivia = node.leadingTrivia
+        replacement.trailingTrivia = node.trailingTrivia
+        return replacement
+    }
+
     /// Widen `os(macOS)` to `(os(macOS) || os(Linux))` inside `#if` condition
     /// expression trees. The rewrite only fires inside compile-config
     /// conditions, never in regular code, so we run a nested rewriter
@@ -195,6 +221,17 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         var updated = recursed
         updated.condition = newCondition
         return updated
+    }
+
+    /// Normalize a selector expression into a stable key by dropping any leading
+    /// type qualifier (`Type.method(_:)` and `method(_:)` become the same key).
+    private static func selectorKey(from arguments: String) -> String {
+        let trimmed = arguments.trimmingCharacters(in: .whitespacesAndNewlines)
+        let qualifierPath = trimmed.prefix { $0 != "(" }
+        guard let lastDot = qualifierPath.range(of: ".", options: .backwards) else {
+            return trimmed
+        }
+        return String(trimmed[trimmed.index(after: lastDot.lowerBound)...])
     }
 
     // MARK: Observable lowering helpers

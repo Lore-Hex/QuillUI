@@ -3,6 +3,9 @@ import QuillKit
 import QuillFoundation  // CGImage (AVAssetImageGenerator.copyCGImage return type)
 
 #if os(Linux)
+public let AVAssetExportPreset1280x720 = "AVAssetExportPreset1280x720"
+public let AVAssetExportPreset1920x1080 = "AVAssetExportPreset1920x1080"
+
 public protocol AVSpeechSynthesizerDelegate: AnyObject {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance)
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance)
@@ -97,12 +100,46 @@ public final class AVAudioSession: @unchecked Sendable {
     public init() {}
     public static func sharedInstance() -> AVAudioSession { AVAudioSession() }
     public func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws {}
+    public func setCategory(_ category: Category, options: CategoryOptions = []) throws {
+        try setCategory(category, mode: .moviePlayback, options: options)
+    }
     public func setActive(_ active: Bool, options: SetActiveOptions = []) throws {}
 }
 
 public final class AVPlayer: @unchecked Sendable {
+    public var currentItem: AVPlayerItem?
+    public var audiovisualBackgroundPlaybackPolicy: AVPlayerAudiovisualBackgroundPlaybackPolicy = .automatic
+    public var preventsDisplaySleepDuringVideoPlayback: Bool = false
+    public var isMuted: Bool = false
+
     public init() {}
-    public init(url: URL) {}
+    public init(url: URL) {
+        self.currentItem = AVPlayerItem(url: url)
+    }
+
+    public func play() {}
+    public func pause() {}
+    public func seek(to time: CMTime) {
+        _ = time
+    }
+}
+
+public final class AVPlayerItem: @unchecked Sendable {
+    public let url: URL?
+
+    public init(url: URL? = nil) {
+        self.url = url
+    }
+}
+
+public enum AVPlayerAudiovisualBackgroundPlaybackPolicy: Sendable {
+    case automatic
+    case pauses
+    case continuesIfPossible
+}
+
+public extension Notification.Name {
+    static let AVPlayerItemDidPlayToEndTime = Notification.Name("AVPlayerItemDidPlayToEndTimeNotification")
 }
 
 // Real AVAudioEngine drives the macOS/iOS CoreAudio graph (input
@@ -368,6 +405,12 @@ public final class AVAssetImageGenerator: @unchecked Sendable {
     public init(asset: AVAsset) {}
     public func copyCGImage(at requestedTime: CMTime, actualTime: UnsafeMutablePointer<CMTime>?) throws -> CGImage {
         throw AVMediaUnavailableOnLinux()
+    }
+    public func generateCGImageAsynchronously(
+        for requestedTime: CMTime,
+        completionHandler handler: @escaping (CGImage?, CMTime, (any Error)?) -> Void
+    ) {
+        handler(nil, requestedTime, AVMediaUnavailableOnLinux())
     }
 }
 

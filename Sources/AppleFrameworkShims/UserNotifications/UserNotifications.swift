@@ -52,6 +52,16 @@ public struct UNNotificationCategoryOptions: OptionSet, Sendable {
     public static let allowAnnouncement = UNNotificationCategoryOptions(rawValue: 1 << 4)
 }
 
+public struct UNNotificationPresentationOptions: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let badge = UNNotificationPresentationOptions(rawValue: 1 << 0)
+    public static let sound = UNNotificationPresentationOptions(rawValue: 1 << 1)
+    public static let alert = UNNotificationPresentationOptions(rawValue: 1 << 2)
+    public static let banner = UNNotificationPresentationOptions(rawValue: 1 << 3)
+    public static let list = UNNotificationPresentationOptions(rawValue: 1 << 4)
+}
+
 // MARK: - Sound
 
 public struct UNNotificationSoundName: RawRepresentable, Hashable, Sendable {
@@ -209,6 +219,16 @@ public final class UNNotification: @unchecked Sendable {
     }
 }
 
+public final class UNNotificationResponse: @unchecked Sendable {
+    public let notification: UNNotification
+    public let actionIdentifier: String
+
+    public init(notification: UNNotification, actionIdentifier: String = "") {
+        self.notification = notification
+        self.actionIdentifier = actionIdentifier
+    }
+}
+
 public final class UNNotificationSettings: @unchecked Sendable {
     public let authorizationStatus: UNAuthorizationStatus
     public init(authorizationStatus: UNAuthorizationStatus = .notDetermined) {
@@ -238,6 +258,15 @@ public final class UNUserNotificationCenter: @unchecked Sendable {
     }
 
     public func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {}
+
+    public func setBadgeCount(_ count: Int) async throws {
+        _ = count
+    }
+
+    public func setBadgeCount(_ count: Int, withCompletionHandler completionHandler: ((Error?) -> Void)? = nil) {
+        _ = count
+        completionHandler?(nil)
+    }
 
     /// No-op: the request is silently dropped (nothing is presented on Linux).
     public func add(_ request: UNNotificationRequest) async throws {}

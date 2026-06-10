@@ -154,16 +154,8 @@ public struct QuillPlatformColor: @unchecked Sendable {
 }
 
 public extension Color {
-    enum RGBColorSpace {
-        case sRGB
-    }
-
     init(_ platformColor: QuillPlatformColor) {
         self = platformColor.color
-    }
-
-    init(_ colorSpace: RGBColorSpace, red: Double, green: Double, blue: Double, opacity: Double = 1.0) {
-        self.init(red: red, green: green, blue: blue, opacity: opacity)
     }
 
     // SwiftOpenUI ships its own `Color.init(hex:)` — don't redeclare on
@@ -188,7 +180,7 @@ public extension Color {
     }
 
     static var foreground: Color { primary }
-    static var label: Color { Color(.label) }
+    static var label: Color { Color(QuillPlatformColor.label) }
     static var labelCustom: Color { Color("label") }
     static var systemGray: Color { Color(.systemGray) }
     static var systemGray2: Color { Color(.systemGray2) }
@@ -465,7 +457,7 @@ public extension Image {
             return PlatformImage(data: data)
         }
 
-        let renderer = SwiftOpenUI.ImageRenderer(content: self)
+        let renderer = SwiftOpenUI.OpenUIImageRenderer(content: self)
         if let data = renderer.platformImage?.data,
            let image = PlatformImage(data: data) {
             return image
@@ -481,27 +473,6 @@ public extension Image {
 
 public protocol KeyboardReadable {}
 
-public struct PlainListStyle: Sendable {
-    public init() {}
-}
-
-public enum ButtonRole {
-    case cancel
-    case destructive
-}
-
-public extension Button where Label == Text {
-    init(_ title: String, role: ButtonRole?, action: @escaping () -> Void) {
-        self.init(title, action: action)
-    }
-}
-
-public extension Button {
-    init(role: ButtonRole?, action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
-        self.init(action: action, label: label)
-    }
-}
-
 public extension TextField {
     init(_ title: String, text: Binding<String>, axis: Axis) {
         self.init(title, text: text)
@@ -509,15 +480,6 @@ public extension TextField {
 
     init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
         self.init(title, text: text)
-    }
-}
-
-public extension Axis {
-    struct Set: OptionSet, Sendable {
-        public let rawValue: Int
-        public init(rawValue: Int) { self.rawValue = rawValue }
-        public static let horizontal = Set(rawValue: Axis.horizontal.rawValue)
-        public static let vertical = Set(rawValue: Axis.vertical.rawValue)
     }
 }
 

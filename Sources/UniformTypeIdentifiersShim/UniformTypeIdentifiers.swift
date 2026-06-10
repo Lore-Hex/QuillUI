@@ -49,7 +49,9 @@ public struct UTType: Hashable, Sendable {
     public static let heif = UTType("public.heif")!
     public static let webP = UTType("org.webmproject.webp")!
     public static let movie = UTType("public.movie")!
+    public static let video = UTType("public.video")!
     public static let mpeg4Movie = UTType("public.mpeg-4")!
+    public static let quickTimeMovie = UTType("com.apple.quicktime-movie")!
     public static let audio = UTType("public.audio")!
     public static let mp3 = UTType("public.mp3")!
     public static let pdf = UTType("com.adobe.pdf")!
@@ -102,7 +104,9 @@ public struct UTType: Hashable, Sendable {
         UTType.heif.identifier: [UTType.image.identifier],
         UTType.webP.identifier: [UTType.image.identifier],
         UTType.movie.identifier: [UTType.data.identifier],
-        UTType.mpeg4Movie.identifier: [UTType.movie.identifier],
+        UTType.video.identifier: [UTType.movie.identifier],
+        UTType.mpeg4Movie.identifier: [UTType.video.identifier],
+        UTType.quickTimeMovie.identifier: [UTType.video.identifier],
         UTType.audio.identifier: [UTType.data.identifier],
         UTType.mp3.identifier: [UTType.audio.identifier],
         UTType.pdf.identifier: [UTType.data.identifier]
@@ -128,6 +132,7 @@ public struct UTType: Hashable, Sendable {
         "pdf": .pdf,
         "json": .json,
         "mp4": .mpeg4Movie,
+        "mov": .quickTimeMovie,
         "mp3": .mp3
     ]
 
@@ -147,6 +152,7 @@ public struct UTType: Hashable, Sendable {
         UTType.heif.identifier: "heif",
         UTType.webP.identifier: "webp",
         UTType.mpeg4Movie.identifier: "mp4",
+        UTType.quickTimeMovie.identifier: "mov",
         UTType.mp3.identifier: "mp3",
         UTType.pdf.identifier: "pdf"
     ]
@@ -166,6 +172,7 @@ public struct UTType: Hashable, Sendable {
         UTType.heif.identifier: "image/heif",
         UTType.webP.identifier: "image/webp",
         UTType.mpeg4Movie.identifier: "video/mp4",
+        UTType.quickTimeMovie.identifier: "video/quicktime",
         UTType.mp3.identifier: "audio/mpeg",
         UTType.pdf.identifier: "application/pdf"
     ]
@@ -194,7 +201,9 @@ public struct UTType: Hashable, Sendable {
         UTType.heif.identifier: "HEIF image",
         UTType.webP.identifier: "WebP image",
         UTType.movie.identifier: "movie",
+        UTType.video.identifier: "video",
         UTType.mpeg4Movie.identifier: "MPEG-4 movie",
+        UTType.quickTimeMovie.identifier: "QuickTime movie",
         UTType.audio.identifier: "audio",
         UTType.mp3.identifier: "MP3 audio",
         UTType.pdf.identifier: "PDF"

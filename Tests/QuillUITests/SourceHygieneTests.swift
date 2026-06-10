@@ -2926,6 +2926,8 @@ struct SourceHygieneTests {
         )
 
         let expectedMappings: [(sf: String, material: String)] = [
+            ("checkmark.seal", "verified"),
+            ("checkmark.seal.fill", "verified"),
             ("checkmark.square.fill", "check_box"),
             ("curlybraces", "data_object"),
             ("keyboard.fill", "keyboard"),

@@ -40,3 +40,17 @@ public class CIContext {
     /// No rasterizer on Linux -> nil. The caller treats nil as "QR unavailable".
     public func createCGImage(_ image: CIImage, from fromRect: CGRect) -> CGImage? { nil }
 }
+
+public final class CIColor {
+    public let red: CGFloat
+    public let green: CGFloat
+    public let blue: CGFloat
+    public let alpha: CGFloat
+
+    public init(color: UIColor) {
+        self.red = color._red
+        self.green = color._green
+        self.blue = color._blue
+        self.alpha = color._alpha
+    }
+}

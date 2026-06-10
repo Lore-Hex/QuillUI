@@ -1,5 +1,5 @@
+import QuillFoundation
 import SwiftUI
-import QuillUI
 
 public protocol CustomEmoji: Sendable {
     var shortcode: String { get }
@@ -23,7 +23,7 @@ public struct EmojiText: View {
     private let append: (() -> Text)?
     
     public init(markdown: String, emojis: [any CustomEmoji]) {
-        self.markdown = markdown
+        self.markdown = HTMLText.plainText(fromMarkdown: markdown)
         self.emojis = emojis
         self.append = nil
     }
@@ -109,5 +109,25 @@ public struct EmojiText: View {
 }
 
 public extension View {
+    var emojiText: EmojiTextViewProxy<Self> {
+        EmojiTextViewProxy(base: self)
+    }
+
     func emojiText(emojis: [any CustomEmoji]) -> some View { self }
+}
+
+public struct EmojiTextViewProxy<Base: View>: View {
+    public let base: Base
+
+    public var body: some View { base }
+
+    public func size(_ size: Double) -> Base {
+        _ = size
+        return base
+    }
+
+    public func baselineOffset(_ offset: Double) -> Base {
+        _ = offset
+        return base
+    }
 }

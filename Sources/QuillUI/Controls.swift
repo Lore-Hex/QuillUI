@@ -39,7 +39,7 @@ public struct QuillFloatingIconButton: View {
     public var body: some View {
         Button(action: action) {
             Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
-                .renderingMode(.template)
+                .renderingMode(Image.TemplateRenderingMode.template)
                 .resizable()
                 .scaledToFit()
                 .foregroundColor(.primary)
@@ -432,7 +432,7 @@ public struct QuillPromptGrid: View {
             .frame(width: promptIconSize, height: promptIconSize)
         } else {
             Image(systemName: QuillSystemSymbol.compatibleName(prompt.systemImage))
-                .renderingMode(.template)
+                .renderingMode(Image.TemplateRenderingMode.template)
                 .resizable()
                 .scaledToFit()
                 .frame(width: promptIconSize, height: promptIconSize)
@@ -744,7 +744,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
                 }
             }
         }
-        .scrollIndicators(.never)
+        .scrollIndicators(ScrollIndicatorVisibility.never)
     }
 
     private var dayGroups: [QuillConversationHistoryDayGroup] {
@@ -1168,7 +1168,7 @@ public extension View {
     func quillSyncEditableMessage<Message: Equatable>(
         _ editMessage: Binding<Message?>,
         draft: Binding<String>,
-        isFocused: FocusState<Bool>,
+        isFocused: FocusState<Bool>.Binding,
         content: @escaping (Message) -> String
     ) -> some View {
         quillSyncEditableMessageBody(editMessage, draft: draft, setFocused: { isFocused.wrappedValue = true }, content: content)
@@ -1243,14 +1243,14 @@ public struct QuillSidebarNavigationButton: View {
                 .frame(width: 24, height: 24, alignment: .leading)
         } else {
             Image(systemName: sidebarSystemImageName)
-                .renderingMode(.template)
+                .renderingMode(Image.TemplateRenderingMode.template)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 17, height: 17, alignment: .center)
         }
         #else
         Image(systemName: sidebarSystemImageName)
-            .renderingMode(.template)
+            .renderingMode(Image.TemplateRenderingMode.template)
             .resizable()
             .scaledToFit()
             .frame(width: 17, height: 17, alignment: .center)
@@ -2263,7 +2263,7 @@ private struct QuillMessageHoverActionBar: View {
                 Button(action: { action.perform() }) {
                     if let systemImage = action.systemImage {
                         Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
-                            .renderingMode(.template)
+                            .renderingMode(Image.TemplateRenderingMode.template)
                             .resizable()
                             .scaledToFit()
                             .frame(width: 13, height: 13)
@@ -2786,14 +2786,14 @@ public struct QuillToolbarIconButton: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
-                    .renderingMode(.template)
+                    .renderingMode(Image.TemplateRenderingMode.template)
                     .resizable()
                     .scaledToFit()
                     .frame(width: iconSize, height: iconSize)
 
                 if showsChevron {
                     Image(systemName: QuillSystemSymbol.compatibleName("chevron.down"))
-                        .renderingMode(.template)
+                        .renderingMode(Image.TemplateRenderingMode.template)
                         .resizable()
                         .scaledToFit()
                         .frame(width: chevronSize, height: chevronSize)
@@ -2912,7 +2912,7 @@ public struct QuillToolbarMenuButton: View {
     private func menuIcon(for action: QuillMenuAction) -> some View {
         if let systemImage = action.systemImage {
             Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
-                .renderingMode(.template)
+                .renderingMode(Image.TemplateRenderingMode.template)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 15, height: 15)

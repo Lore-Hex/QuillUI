@@ -55,6 +55,17 @@ struct QuillUITests {
         _ = QuillAppWindow.self
     }
 
+    @Test("LocalizedStringKey interpolation keeps catalog keys and formatted arguments")
+    func localizedStringKeyInterpolationKeepsCatalogShape() throws {
+        let count = 872_850
+        let key: LocalizedStringKey =
+            "account.label.followers \(count) \(count, format: .number.notation(.compactName))"
+
+        #expect(key.key == "account.label.followers %lld %@")
+        #expect(key.arguments == ["872850", "872.9K"])
+        #expect(Text(count, format: .number.notation(.compactName)).content == "872.9K")
+    }
+
     // MARK: - QuillPromptGridLayout
 
     @Test("QuillPromptGridLayout exposes reusable desktop prompt presets")

@@ -231,18 +231,6 @@ public struct Namespace: Sendable {
     }
 }
 
-public struct SymbolEffect: Sendable {
-    public init() {}
-    public static let variableColor = SymbolEffect()
-    public var iterative: SymbolEffect { self }
-}
-
-public struct SymbolEffectOptions: Sendable {
-    public init() {}
-    public static let `default` = SymbolEffectOptions()
-    public static func `repeat`(_ count: Int) -> SymbolEffectOptions { SymbolEffectOptions() }
-}
-
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -267,41 +255,6 @@ public extension FocusState {
         self.init()
         self.wrappedValue = wrappedValue
     }
-}
-
-public struct AnyTransition: Sendable, CustomStringConvertible {
-    public let quillDescription: String
-
-    public init() {
-        self.quillDescription = "identity"
-    }
-
-    private init(quillDescription: String) {
-        self.quillDescription = quillDescription
-    }
-
-    public static let opacity = AnyTransition(quillDescription: "opacity")
-    public static let slide = AnyTransition(quillDescription: "slide")
-
-    public static func scale(scale: Double = 1.0, anchor: UnitPoint = .center) -> AnyTransition {
-        AnyTransition(quillDescription: "scale(scale: \(scale), anchor: \(anchor))")
-    }
-
-    public static func asymmetric(insertion: AnyTransition, removal: AnyTransition) -> AnyTransition {
-        AnyTransition(
-            quillDescription: "asymmetric(insertion: \(insertion.quillDescription), removal: \(removal.quillDescription))"
-        )
-    }
-
-    public init(_ transition: AnyTransition) {
-        self = transition
-    }
-
-    public func combined(with transition: AnyTransition) -> AnyTransition {
-        AnyTransition(quillDescription: "combined(\(quillDescription), \(transition.quillDescription))")
-    }
-
-    public var description: String { quillDescription }
 }
 
 public struct PinnedScrollableViews: OptionSet, Sendable {
@@ -386,13 +339,6 @@ public struct PlainButtonStyle: ButtonStyle {
 #if !os(macOS) && !os(iOS) && !os(visionOS)
 public typealias ToolbarItemGroup<Content: View> = ToolbarItem<Content>
 
-public extension ToolbarItemPlacement {
-    static var automatic: ToolbarItemPlacement { .primaryAction }
-    static var navigation: ToolbarItemPlacement { .leading }
-    static var navigationBarTrailing: ToolbarItemPlacement { .trailing }
-    static var topBarLeading: ToolbarItemPlacement { .leading }
-}
-
 // `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`
 // live in `QuillSwiftUICompatibility`, which both `QuillUI` and
 // the Linux `SwiftUI` shadow re-export. Keeping one defining
@@ -475,34 +421,6 @@ public func withAnimation(_ animation: Animation = .default, _ body: @MainActor 
         MainActor.assumeIsolated {
             body()
         }
-    }
-}
-
-public extension HStack {
-    init(
-        alignment: VerticalAlignment = .center,
-        spacing: Double?,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.init(
-            alignment: alignment,
-            spacing: spacing.map { Int($0) } ?? stackDefaultSpacing,
-            content: content
-        )
-    }
-}
-
-public extension VStack {
-    init(
-        alignment: HorizontalAlignment = .center,
-        spacing: Double?,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.init(
-            alignment: alignment,
-            spacing: spacing.map { Int($0) } ?? stackDefaultSpacing,
-            content: content
-        )
     }
 }
 
@@ -591,15 +509,6 @@ public extension MenuBuilder {
         quillMenuElements(from: view)
     }
 
-}
-
-public extension Label {
-    init<Title: View, Icon: View>(
-        @ViewBuilder title: () -> Title,
-        @ViewBuilder icon: () -> Icon
-    ) {
-        self.init(quillTextLabel(from: title()), systemImage: quillSystemImageName(from: icon()))
-    }
 }
 
 public extension PickerStyle {
@@ -725,6 +634,10 @@ public extension Image {
         case multicolor
     }
 
+    func renderingMode(_ mode: TemplateRenderingMode) -> Image {
+        renderingMode(Optional(mode))
+    }
+
     func renderingMode(_ mode: TemplateRenderingMode?) -> Image {
         recordQuillUIFallback(
             "renderingMode",
@@ -778,10 +691,17 @@ public struct LabeledContent<Content: View>: View {
         self.content = content()
     }
 
+    public init<Value>(_ title: String, value: Value) where Content == Text {
+        self.title = title
+        self.content = Text(String(describing: value))
+    }
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(title)
+            Spacer(minLength: 16)
             content
+                .multilineTextAlignment(.trailing)
         }
     }
 }
@@ -862,6 +782,7 @@ public struct AccessibilityChildBehavior: Hashable, Sendable {
     }
 
     public static let combine = AccessibilityChildBehavior("combine")
+    public static let ignore = AccessibilityChildBehavior("ignore")
 }
 
 public struct AccessibilityLabelView<Content: View>: View {
@@ -1228,14 +1149,6 @@ public extension Shape {
 }
 
 public extension View {
-    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
-        recordQuillUIFallback(
-            "allowsHitTesting",
-            message: "allowsHitTesting is preserved as hit-testing metadata on Linux."
-        )
-        return AllowsHitTestingView(content: self, enabled: enabled)
-    }
-
     func contentShape<S: Shape>(_ shape: S) -> ContentShapeView<Self, S> {
         recordQuillUIFallback(
             "contentShape",
@@ -1325,12 +1238,20 @@ public extension View {
         return AccessibilityLabelView(content: self, label: label)
     }
 
+    func accessibilityLabel<T>(_ label: T) -> AccessibilityLabelView<Self> {
+        accessibilityLabel(String(describing: label))
+    }
+
     func accessibilityValue(_ value: String) -> AccessibilityValueView<Self> {
         recordQuillUIFallback(
             "accessibilityValue",
             message: "View accessibility values are propagated to GTK accessibility metadata on Linux."
         )
         return AccessibilityValueView(content: self, value: value)
+    }
+
+    func accessibilityValue<T>(_ value: T) -> AccessibilityValueView<Self> {
+        accessibilityValue(String(describing: value))
     }
 
     func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self> {
@@ -1498,26 +1419,6 @@ public extension View {
         }
     }
 
-    func transition(_ transition: AnyTransition) -> TransitionView<Self> {
-        recordQuillUIFallback(
-            "transition",
-            message: "transition is preserved as transition metadata on Linux."
-        )
-        return TransitionView(content: self, transition: transition)
-    }
-
-    func symbolEffect<Value: Equatable>(
-        _ effect: SymbolEffect,
-        options: SymbolEffectOptions = .default,
-        value: Value
-    ) -> AnimatedView<Self> {
-        recordQuillUIFallback(
-            "symbolEffect",
-            message: "symbolEffect is approximated with value-driven animation on Linux."
-        )
-        return animation(.easeInOut(duration: 0.2), value: value)
-    }
-
     func matchedGeometryEffect<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -1654,12 +1555,6 @@ public extension Array {
         }
         let insertion = Swift.max(0, Swift.min(destination, count))
         insert(contentsOf: moving, at: insertion)
-    }
-}
-
-public extension AnyTransition {
-    static var scale: AnyTransition {
-        .scale()
     }
 }
 
@@ -1924,7 +1819,7 @@ public func quillTextLabel(from view: any View) -> String {
         return text.content
     }
 
-    if let label = view as? Label {
+    if let label = view as? any AnyLabelView {
         return label.title
     }
 

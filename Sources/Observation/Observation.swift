@@ -1,8 +1,20 @@
 import Foundation
 
 #if os(Linux)
-@attached(member, names: named(access), named(withMutation))
-@attached(memberAttribute)
-@attached(conformance)
+@attached(member)
 public macro Observable() = #externalMacro(module: "QuillDataMacros", type: "QuillObservableMacro")
+
+@attached(peer)
+public macro ObservationIgnored() = #externalMacro(module: "QuillDataMacros", type: "QuillAttributeMacro")
+
+public protocol Observable {}
+
+@discardableResult
+public func withObservationTracking<T>(
+    _ apply: () throws -> T,
+    onChange: @escaping @Sendable () -> Void
+) rethrows -> T {
+    _ = onChange
+    return try apply()
+}
 #endif

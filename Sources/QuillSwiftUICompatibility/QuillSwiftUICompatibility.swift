@@ -68,8 +68,8 @@ public typealias PlatformImage = RSImage
 
 /// SwiftUI-compatible image renderer that bridges SwiftOpenUI's rendered bytes
 /// into QuillFoundation's canonical app image container.
-public final class ImageRenderer<Content: View> {
-    private let renderer: SwiftOpenUI.ImageRenderer<Content>
+public final class ImageRenderer<Content: View>: ObservableObject {
+    private let renderer: SwiftOpenUI.OpenUIImageRenderer<Content>
 
     public var content: Content {
         get { renderer.content }
@@ -86,8 +86,10 @@ public final class ImageRenderer<Content: View> {
         set { renderer.proposedSize = newValue }
     }
 
+    public var isOpaque: Bool = false
+
     public init(content: Content) {
-        self.renderer = SwiftOpenUI.ImageRenderer(content: content)
+        self.renderer = SwiftOpenUI.OpenUIImageRenderer(content: content)
     }
 
     public var platformImage: PlatformImage? {

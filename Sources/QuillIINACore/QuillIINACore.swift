@@ -119,7 +119,7 @@ public struct QuillIINAContentView: View {
             Spacer()
             HStack(spacing: 14) {
                 Image(systemName: QuillSystemSymbol.compatibleName(isPlaying ? "play.fill" : "pause.fill"))
-                    .renderingMode(.template)
+                    .renderingMode(Image.TemplateRenderingMode.template)
                     .resizable()
                     .scaledToFit()
                     .foregroundColor(.secondary)

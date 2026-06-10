@@ -13,6 +13,30 @@ struct HTMLTextTests {
         #expect(HTMLText.plainText(fromHTML: "") == "")
     }
 
+    // MARK: - Markdown display text
+
+    @Test("plainText(fromMarkdown:) renders inline links as visible labels")
+    func markdownPlainTextRendersLinksAsLabels() {
+        #expect(
+            HTMLText.plainText(
+                fromMarkdown: "follow [@MastodonEngineering](https://mastodon.social/@MastodonEngineering)"
+            ) == "follow @MastodonEngineering"
+        )
+        #expect(HTMLText.plainText(fromMarkdown: "[#swift](https://mastodon.social/tags/swift)") == "#swift")
+    }
+
+    @Test("plainText(fromMarkdown:) strips inline styling and restores escaped punctuation")
+    func markdownPlainTextStripsStyling() {
+        #expect(HTMLText.plainText(fromMarkdown: #"This \[\*is\*] \`a\` \*\*test\*\*"#) == "This [*is*] `a` **test**")
+        #expect(HTMLText.plainText(fromMarkdown: "This is **bold**, _em_, `code`, and ~~gone~~") == "This is bold, em, code, and gone")
+    }
+
+    @Test("plainText(fromMarkdown:) preserves autolinks and decodes entities")
+    func markdownPlainTextAutolinksAndEntities() {
+        #expect(HTMLText.plainText(fromMarkdown: "Read <https://swift.org> &amp; share") == "Read https://swift.org & share")
+        #expect(HTMLText.plainText(fromMarkdown: "mail <hello@example.com>") == "mail hello@example.com")
+    }
+
     // MARK: - paragraphs
 
     @Test("paragraphs splits on block boundaries and drops empties")

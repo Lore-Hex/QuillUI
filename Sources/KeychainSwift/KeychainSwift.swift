@@ -139,6 +139,11 @@ open class KeychainSwift: @unchecked Sendable {
     }
 
     @discardableResult
+    open func set(_ value: String, forKey key: String, withAccess: KeychainSwiftAccessOptions) -> Bool {
+        set(value, forKey: key, withAccess: withAccess as Any)
+    }
+
+    @discardableResult
     open func set(_ value: Data, forKey key: String, withAccess: Any? = nil) -> Bool {
         Self.storage.set(value, access: accessValue(from: withAccess), forKey: storageKey(key))
         lastResultCode = keychainSwiftSuccessStatus
@@ -146,8 +151,18 @@ open class KeychainSwift: @unchecked Sendable {
     }
 
     @discardableResult
+    open func set(_ value: Data, forKey key: String, withAccess: KeychainSwiftAccessOptions) -> Bool {
+        set(value, forKey: key, withAccess: withAccess as Any)
+    }
+
+    @discardableResult
     open func set(_ value: Bool, forKey key: String, withAccess: Any? = nil) -> Bool {
         set(Data([value ? 1 : 0]), forKey: key, withAccess: withAccess)
+    }
+
+    @discardableResult
+    open func set(_ value: Bool, forKey key: String, withAccess: KeychainSwiftAccessOptions) -> Bool {
+        set(value, forKey: key, withAccess: withAccess as Any)
     }
 
     open func get(_ key: String) -> String? {

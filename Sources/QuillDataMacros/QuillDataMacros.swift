@@ -184,6 +184,18 @@ public struct QuillRelationshipMacro: PeerMacro {
     public static func expansion(of node: AttributeSyntax, providingPeersOf declaration: some DeclSyntaxProtocol, in context: some MacroExpansionContext) throws -> [DeclSyntax] { [] }
 }
 
+/// `@Observable` (Observation, iOS 17) — source-compatibility shim. The
+/// renderer still relies on QuillSourceLowering for full observable-object
+/// publishing today; this no-op macro lets real upstream packages that only
+/// need the declaration shape compile unchanged.
+public struct QuillObservableMacro: MemberMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingMembersOf declaration: some DeclGroupSyntax,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] { [] }
+}
+
 /// `@Entry` (SwiftUI, iOS 18) — declares a property in an `EnvironmentValues`
 /// extension as an environment entry. Generates the computed get/set backed by
 /// a private `EnvironmentKey` peer that holds the default value. Mirrors
@@ -239,4 +251,4 @@ public struct QuillPreviewMacro: DeclarationMacro {
     ) throws -> [DeclSyntax] { [] }
 }
 
-@main struct QuillDataMacrosPlugin: CompilerPlugin { let providingMacros: [Macro.Type] = [QuillModelMacro.self, QuillPredicateMacro.self, QuillAttributeMacro.self, QuillRelationshipMacro.self, QuillEntryMacro.self, QuillPreviewMacro.self] }
+@main struct QuillDataMacrosPlugin: CompilerPlugin { let providingMacros: [Macro.Type] = [QuillModelMacro.self, QuillPredicateMacro.self, QuillAttributeMacro.self, QuillRelationshipMacro.self, QuillObservableMacro.self, QuillEntryMacro.self, QuillPreviewMacro.self] }

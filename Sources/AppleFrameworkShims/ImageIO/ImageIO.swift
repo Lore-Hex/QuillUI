@@ -11,13 +11,17 @@
 // references so the upstream Swift compiles. CGImage comes from QuillFoundation.
 //
 import Foundation
-import CoreFoundation
+@_exported import CoreFoundation
 import QuillFoundation
 
 // MARK: - Opaque source types
 
 public class CGImageSource {}
 public class CGDataProvider {}
+
+public extension CGImage {
+    var utType: String? { nil }
+}
 
 // MARK: - CGImagePropertyOrientation
 //
@@ -44,17 +48,19 @@ public enum CGImagePropertyOrientation: UInt32, Sendable {
 // Takes `Data` (not `CFData`): swift-corelibs has no Data<->CFData bridge, so
 // `someData as CFData` fails at call sites. Inert (returns nil on Linux). The
 // fetch-patch drops the `as CFData` casts at the SSK call sites.
-public func CGImageSourceCreateWithData(_ data: Data, _ options: CFDictionary?) -> CGImageSource? { nil }
+public func CGImageSourceCreateWithData(_ data: Data, _ options: Any?) -> CGImageSource? { nil }
 
-public func CGImageSourceCreateWithDataProvider(_ provider: CGDataProvider, _ options: CFDictionary?) -> CGImageSource? { nil }
+public func CGImageSourceCreateWithDataProvider(_ provider: CGDataProvider, _ options: Any?) -> CGImageSource? { nil }
 
 // Takes URL (not CFURL): swift-corelibs has no URL<->CFURL bridge, so callers
 // can't write `url as CFURL`; the fetch-patch drops that cast and passes the URL.
-public func CGImageSourceCreateWithURL(_ url: URL, _ options: CFDictionary?) -> CGImageSource? { nil }
+public func CGImageSourceCreateWithURL(_ url: URL, _ options: Any?) -> CGImageSource? { nil }
 
 public func CGImageSourceGetCount(_ isrc: CGImageSource) -> Int { 0 }
 
-public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: CFDictionary?) -> CGImage? { nil }
+public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: Any?) -> CGImage? { nil }
+
+public func CGImageSourceCreateThumbnailAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: Any?) -> CGImage? { nil }
 
 // options takes `Any?` (not CFDictionary?) so SSK callers can pass a native
 // [String: Any] / [String: Bool] without an `as CFDictionary` bridge (absent on
@@ -72,6 +78,9 @@ public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: I
 
 public let kCGImageSourceShouldCache: String = "kCGImageSourceShouldCache"
 public let kCGImageSourceShouldAllowFloat: String = "kCGImageSourceShouldAllowFloat"
+public let kCGImageSourceCreateThumbnailFromImageAlways: String = "kCGImageSourceCreateThumbnailFromImageAlways"
+public let kCGImageSourceCreateThumbnailWithTransform: String = "kCGImageSourceCreateThumbnailWithTransform"
+public let kCGImageSourceThumbnailMaxPixelSize: String = "kCGImageSourceThumbnailMaxPixelSize"
 
 public let kCGImagePropertyOrientation: String = "Orientation"
 public let kCGImagePropertyPixelWidth: String = "PixelWidth"
@@ -152,14 +161,29 @@ public func CGImageDestinationCreateWithURL(
     _ url: URL,
     _ type: String,
     _ count: Int,
-    _ options: CFDictionary?
+    _ options: Any?
 ) -> CGImageDestination? { nil }
+
+public func CGImageDestinationCreateWithData(
+    _ data: NSMutableData,
+    _ type: String,
+    _ count: Int,
+    _ options: Any?
+) -> CGImageDestination? {
+    _ = data
+    _ = type
+    _ = count
+    _ = options
+    return nil
+}
 
 public func CGImageDestinationAddImage(
     _ idst: CGImageDestination,
     _ image: CGImage,
-    _ properties: CFDictionary?
+    _ properties: Any?
 ) {}
+
+public let kCGImageDestinationLossyCompressionQuality: String = "kCGImageDestinationLossyCompressionQuality"
 
 @discardableResult
 public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool { false }
