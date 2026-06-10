@@ -6,7 +6,7 @@ public typealias CVReturn = Int32
 public typealias CVOptionFlags = UInt64
 public typealias OSType = UInt32
 
-public final class CVPixelBuffer: @unchecked Sendable {
+public final class CVImageBuffer: @unchecked Sendable {
     public let width: Int
     public let height: Int
     public let pixelFormatType: OSType
@@ -26,7 +26,10 @@ public final class CVPixelBuffer: @unchecked Sendable {
     }
 }
 
-public typealias CVImageBuffer = CVPixelBuffer
+/// Apple's CoreVideo models CVPixelBuffer as a typealias of CVImageBuffer;
+/// mirroring that shape keeps `as CVImageBuffer` / `as CVPixelBuffer`
+/// conversions in upstream sources compiling unchanged.
+public typealias CVPixelBuffer = CVImageBuffer
 public final class CVPixelBufferPool: @unchecked Sendable {
     public let width: Int
     public let height: Int

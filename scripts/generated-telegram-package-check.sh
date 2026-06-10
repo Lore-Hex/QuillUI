@@ -108,21 +108,21 @@ swift_build_flags=()
 
 mirror_package_like_dir() {
   local source_dir="$1"
-  local mirror_dir="$2"
+  local mirror_package_dir="$2"
   local overlay_name="$3"
   local overlay_dir="$overlay_root/$overlay_name"
 
-  mkdir -p "$mirror_dir"
-  cp -R "$source_dir"/. "$mirror_dir"
+  mkdir -p "$mirror_package_dir"
+  cp -R "$source_dir"/. "$mirror_package_dir"
 
   if [[ -d "$overlay_dir" ]]; then
-    cp -R "$overlay_dir"/. "$mirror_dir"
+    cp -R "$overlay_dir"/. "$mirror_package_dir"
     overlaid_packages+=("$overlay_name")
   fi
 
-  python3 "$ROOT_DIR/scripts/lower-telegram-linux-source.py" "$mirror_dir"
-  python3 "$ROOT_DIR/scripts/generate-telegram-image-resource-symbols.py" "$mirror_dir"
-  python3 "$ROOT_DIR/scripts/patch-telegram-package-manifest.py" "$mirror_dir" "$ROOT_DIR"
+  python3 "$ROOT_DIR/scripts/lower-telegram-linux-source.py" "$mirror_package_dir"
+  python3 "$ROOT_DIR/scripts/generate-telegram-image-resource-symbols.py" "$mirror_package_dir"
+  python3 "$ROOT_DIR/scripts/patch-telegram-package-manifest.py" "$mirror_package_dir" "$ROOT_DIR"
 }
 
 link_package_sibling_if_free() {

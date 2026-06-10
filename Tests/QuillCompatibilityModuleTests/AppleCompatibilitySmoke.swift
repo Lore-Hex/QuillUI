@@ -12,6 +12,10 @@ import ApplicationServices
 import CoreGraphics
 import Alamofire
 import os
+// QuillUI supplies the gdk-pixbuf-backed RSImage.tiffRepresentation (the
+// QuillFoundation member is @_disfavoredOverload passthrough), which the
+// images round-trip below depends on for PNG -> TIFF transcoding.
+import QuillUI
 
 enum AppleCompatibilitySmoke {
     struct AppleServiceResult {
@@ -500,11 +504,16 @@ enum AppleCompatibilitySmoke {
     }
 
     static func runLowerLevelServiceSmoke() throws -> Bool {
-        guard let certificate = SecCertificateCreateWithData(nil, Data([1, 2, 3]) as CFData) else {
+        // No `as CFData`/`as CFArray`: the shim typealiases are Data/[Any], and
+        // the bare names are ambiguous with CoreFoundation's own under
+        // swift-corelibs-foundation.
+        guard let certificate = SecCertificateCreateWithData(nil, Data([1, 2, 3])) else {
             return false
         }
         let trust = SecTrust()
-        guard SecTrustSetAnchorCertificates(trust, [certificate] as CFArray) == errSecSuccess else {
+        // Module-qualified: QuillFoundation (re-exported via QuillKit) also
+        // declares errSecSuccess for Security-less Telegram islands.
+        guard SecTrustSetAnchorCertificates(trust, [certificate]) == Security.errSecSuccess else {
             return false
         }
         SecTrustSetAnchorCertificatesOnly(trust, true)

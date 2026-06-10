@@ -21,6 +21,10 @@ import OllamaKit
 import AsyncAlgorithms
 import Carbon
 import CoreSpotlight
+// Scoped: the AppKit shadow supplies kUTTypeData (upstream Telegram pairs
+// `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
+// `import AppKit` here would collide with the UIKit shim surface.
+import let AppKit.kUTTypeData
 import Vision
 import IOKit
 import IOKit.pwr_mgt

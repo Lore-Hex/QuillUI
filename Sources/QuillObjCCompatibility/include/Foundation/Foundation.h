@@ -840,6 +840,18 @@ static NSString * const NSStreamDataWrittenToMemoryStreamKey = @"NSStreamDataWri
 - (void)start;
 @end
 
+@interface NSLock : NSObject
+- (void)lock;
+- (void)unlock;
+- (BOOL)tryLock;
+@end
+
+@interface NSRecursiveLock : NSObject
+- (void)lock;
+- (void)unlock;
+- (BOOL)tryLock;
+@end
+
 @interface NSCharacterSet : NSObject
 + (instancetype)characterSetWithCharactersInString:(NSString *)string;
 + (instancetype)alphanumericCharacterSet;
@@ -1177,6 +1189,10 @@ NSString *NSStringFromSelector(SEL aSelector);
 NSString *NSHomeDirectory(void);
 void NSLog(NSString *format, ...);
 
+/* glibc 2.36+ declares the arc4random family in <stdlib.h>; a static inline
+ * redefinition is a compile error once both declarations are visible. */
+#include <stdlib.h>
+#if !(defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 36)))
 static inline uint32_t arc4random(void) {
 #if defined(__linux__)
     uint32_t value = 0;
@@ -1211,6 +1227,7 @@ static inline uint32_t arc4random_uniform(uint32_t upperBound) {
         }
     }
 }
+#endif /* !glibc >= 2.36 */
 
 static inline uint16_t OSSwapInt16(uint16_t value) {
     return __builtin_bswap16(value);

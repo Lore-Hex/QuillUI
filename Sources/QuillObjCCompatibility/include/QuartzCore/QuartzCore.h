@@ -1,3 +1,5 @@
+/* QuartzCore (CoreAnimation) Objective-C compatibility surface for Telegram
+ * package islands compiled through QuillObjCCompatibility. */
 #ifndef QUILL_OBJC_QUARTZCORE_H
 #define QUILL_OBJC_QUARTZCORE_H
 

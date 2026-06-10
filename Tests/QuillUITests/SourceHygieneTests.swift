@@ -521,7 +521,7 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\"], path: \"Sources/AVFoundation\")"))
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"], path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
     }
 
@@ -2606,6 +2606,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AppleFrameworkShims/CoreVideo/CoreVideo.swift"),
             encoding: .utf8
         )
+        let coreTextSwiftShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/AppleFrameworkShims/CoreText/CoreText.swift"),
+            encoding: .utf8
+        )
         let objcJavaScriptCoreHeader = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/JavaScriptCore/JavaScriptCore.h"),
             encoding: .utf8
@@ -2805,7 +2809,7 @@ struct SourceHygieneTests {
         #expect(objcFoundationHeader.contains("@interface NSDataDetector : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSRegularExpression : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSFileManager : NSObject"))
-        #expect(objcFoundationHeader.contains("@interface NSMutableAttributedString : NSObject"))
+        #expect(objcFoundationHeader.contains("@interface NSMutableAttributedString : NSAttributedString"))
         #expect(objcFoundationHeader.contains("NSHomeDirectory"))
         #expect(objcFoundationHeader.contains("arc4random"))
         #expect(objcFoundationHeader.contains("- (void)getBytes:(void *)buffer range:(NSRange)range"))
@@ -2865,7 +2869,10 @@ struct SourceHygieneTests {
         #expect(apiCredentialsOverlay.contains("func CC_SHA1"))
         #expect(apiCredentialsOverlay.contains("containerURL(forSecurityApplicationGroupIdentifier"))
         #expect(stringsOverlay.contains("static let byWords"))
-        #expect(stringsOverlay.contains("func CTLineCreateWithAttributedString"))
+        // Strings' CoreText glyph-count path resolves to the shared CoreText
+        // shim product (added by the manifest patcher), not the overlay.
+        #expect(coreTextSwiftShim.contains("func CTLineCreateWithAttributedString"))
+        #expect(coreTextSwiftShim.contains("func CTLineGetGlyphCount"))
         #expect(stringsOverlay.contains("quillIsTelegramWordCharacter"))
         #expect(telegramSystemOverlay.contains("func sysctlbyname"))
         #expect(telegramSystemOverlay.contains("oldlenp?.pointee = 0"))

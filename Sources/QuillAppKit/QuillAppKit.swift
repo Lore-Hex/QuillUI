@@ -3271,19 +3271,33 @@ open class NSMenu: NSObject {
         lastPopUpView = view
         update()
         isTracking = true
-        delegate?.menuWillOpen(self)
+        // AppKit invokes menu delegates on the main thread; assumeIsolated is
+        // the same bridge NSApplication.sendEvent uses for responder calls.
+        if let delegate {
+            MainActor.assumeIsolated { delegate.menuWillOpen(self) }
+        }
         return true
     }
     public func cancelTracking() {
         guard isTracking else { return }
         isTracking = false
-        delegate?.menuDidClose(self)
+        if let delegate {
+            MainActor.assumeIsolated { delegate.menuDidClose(self) }
+        }
     }
     public func update() {
-        _ = delegate?.numberOfItems(in: self)
-        delegate?.menuNeedsUpdate(self)
+        if let delegate {
+            MainActor.assumeIsolated {
+                _ = delegate.numberOfItems(in: self)
+                delegate.menuNeedsUpdate(self)
+            }
+        }
         for (index, item) in items.enumerated() {
-            _ = delegate?.menu(self, update: item, at: index, shouldCancel: false)
+            if let delegate {
+                MainActor.assumeIsolated {
+                    _ = delegate.menu(self, update: item, at: index, shouldCancel: false)
+                }
+            }
             if autoenablesItems, let validator = item.target as? NSMenuItemValidation {
                 item.isEnabled = validator.validateMenuItem(item)
             }
@@ -3334,7 +3348,7 @@ open class NSMenuItem: NSObject {
     open var isSeparatorItem: Bool { false }
 }
 
-public protocol NSMenuDelegate: AnyObject {
+@MainActor public protocol NSMenuDelegate: AnyObject {
     func menuWillOpen(_ menu: NSMenu)
     func menuDidClose(_ menu: NSMenu)
     func numberOfItems(in menu: NSMenu) -> Int
@@ -4921,13 +4935,16 @@ open class NSTableView: NSControl {
     }
 
     public func reloadData() {
-        replaceLoadedRows(count: dataSource?.numberOfRows(in: self) ?? 0)
+        let rowCount = MainActor.assumeIsolated { dataSource?.numberOfRows(in: self) ?? 0 }
+        replaceLoadedRows(count: rowCount)
     }
 
     public func reloadData(forRowIndexes rowIndexes: IndexSet, columnIndexes: IndexSet) {
         for row in rowIndexes {
             if let rowView = cachedRowViews.removeValue(forKey: row) {
-                delegate?.tableView(self, didRemove: rowView, forRow: row)
+                if let delegate {
+                    MainActor.assumeIsolated { delegate.tableView(self, didRemove: rowView, forRow: row) }
+                }
             }
             if columnIndexes.isEmpty {
                 cachedCellViews.keys
@@ -4984,7 +5001,9 @@ open class NSTableView: NSControl {
         }
         rowView.isSelected = selectedRowIndexes.contains(row)
         cachedRowViews[row] = rowView
-        delegate?.tableView(self, didAdd: rowView, forRow: row)
+        if let delegate {
+            MainActor.assumeIsolated { delegate.tableView(self, didAdd: rowView, forRow: row) }
+        }
         return rowView
     }
 
@@ -5052,7 +5071,9 @@ open class NSTableView: NSControl {
 
         for row in removedRows {
             if let rowView = cachedRowViews[row] {
-                delegate?.tableView(self, didRemove: rowView, forRow: row)
+                if let delegate {
+                    MainActor.assumeIsolated { delegate.tableView(self, didRemove: rowView, forRow: row) }
+                }
             }
         }
         recacheRowViews { shiftedRowAfterRemoval(row: $0, removedRows: removedRows) }
@@ -5238,11 +5259,13 @@ open class NSTableView: NSControl {
         }
         guard notify && oldSelection != rowIndexes else { return }
         let notification = Notification(name: Self.selectionDidChangeNotification, object: self)
-        if self is NSOutlineView,
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            outlineDelegate.outlineViewSelectionDidChange(notification)
-        } else {
-            delegate?.tableViewSelectionDidChange(notification)
+        MainActor.assumeIsolated {
+            if self is NSOutlineView,
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                outlineDelegate.outlineViewSelectionDidChange(notification)
+            } else {
+                delegate?.tableViewSelectionDidChange(notification)
+            }
         }
     }
 
@@ -5254,40 +5277,48 @@ open class NSTableView: NSControl {
     }
 
     private func shouldSelectRow(_ row: Int) -> Bool {
-        if let outlineView = self as? NSOutlineView,
-           let item = outlineView.item(atRow: row),
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            return outlineDelegate.outlineView(outlineView, shouldSelectItem: item)
+        MainActor.assumeIsolated {
+            if let outlineView = self as? NSOutlineView,
+               let item = outlineView.item(atRow: row),
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                return outlineDelegate.outlineView(outlineView, shouldSelectItem: item)
+            }
+            return delegate?.tableView(self, shouldSelectRow: row) ?? true
         }
-        return delegate?.tableView(self, shouldSelectRow: row) ?? true
     }
 
     private func makeRowView(forRow row: Int) -> NSTableRowView? {
-        if let outlineView = self as? NSOutlineView,
-           let item = outlineView.item(atRow: row),
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            return outlineDelegate.outlineView(outlineView, rowViewForItem: item)
+        MainActor.assumeIsolated {
+            if let outlineView = self as? NSOutlineView,
+               let item = outlineView.item(atRow: row),
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                return outlineDelegate.outlineView(outlineView, rowViewForItem: item)
+            }
+            return delegate?.tableView(self, rowViewForRow: row)
         }
-        return delegate?.tableView(self, rowViewForRow: row)
     }
 
     private func makeCellView(forColumn column: Int, row: Int) -> NSView? {
         let tableColumn = tableColumns[column]
-        if let outlineView = self as? NSOutlineView,
-           let item = outlineView.item(atRow: row),
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            return outlineDelegate.outlineView(outlineView, viewFor: tableColumn, item: item)
+        return MainActor.assumeIsolated {
+            if let outlineView = self as? NSOutlineView,
+               let item = outlineView.item(atRow: row),
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                return outlineDelegate.outlineView(outlineView, viewFor: tableColumn, item: item)
+            }
+            return delegate?.tableView(self, viewFor: tableColumn, row: row)
         }
-        return delegate?.tableView(self, viewFor: tableColumn, row: row)
     }
 
     private func heightOfRow(_ row: Int) -> CGFloat {
-        if let outlineView = self as? NSOutlineView,
-           let item = outlineView.item(atRow: row),
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            return outlineDelegate.outlineView(outlineView, heightOfRowByItem: item)
+        MainActor.assumeIsolated {
+            if let outlineView = self as? NSOutlineView,
+               let item = outlineView.item(atRow: row),
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                return outlineDelegate.outlineView(outlineView, heightOfRowByItem: item)
+            }
+            return delegate?.tableView(self, heightOfRow: row) ?? 0
         }
-        return delegate?.tableView(self, heightOfRow: row) ?? 0
     }
 
     private func shiftedColumnSelection(afterRemovingColumnAt removedIndex: Int) -> IndexSet {
@@ -5366,7 +5397,7 @@ open class NSTableColumn: NSObject {
     }
 }
 
-public protocol NSTableViewDelegate: AnyObject {
+@MainActor public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat
@@ -5387,7 +5418,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {}
 }
 
-public protocol NSTableViewDataSource: AnyObject {
+@MainActor public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
 }
@@ -5456,9 +5487,13 @@ open class NSOutlineView: NSTableView {
             expandDescendants(of: item)
         }
         reloadData()
-        (delegate as? NSOutlineViewDelegate)?.outlineViewItemDidExpand(
-            Notification(name: Notification.Name("NSOutlineViewItemDidExpandNotification"), object: self)
-        )
+        if let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            MainActor.assumeIsolated {
+                outlineDelegate.outlineViewItemDidExpand(
+                    Notification(name: Notification.Name("NSOutlineViewItemDidExpandNotification"), object: self)
+                )
+            }
+        }
     }
 
     public func collapseItem(_ item: Any?) {
@@ -5478,9 +5513,13 @@ open class NSOutlineView: NSTableView {
             collapseDescendants(of: item)
         }
         reloadData()
-        (delegate as? NSOutlineViewDelegate)?.outlineViewItemDidCollapse(
-            Notification(name: Notification.Name("NSOutlineViewItemDidCollapseNotification"), object: self)
-        )
+        if let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            MainActor.assumeIsolated {
+                outlineDelegate.outlineViewItemDidCollapse(
+                    Notification(name: Notification.Name("NSOutlineViewItemDidCollapseNotification"), object: self)
+                )
+            }
+        }
     }
 
     public func isItemExpanded(_ item: Any?) -> Bool {
@@ -5513,12 +5552,16 @@ open class NSOutlineView: NSTableView {
     }
 
     public func numberOfChildren(ofItem item: Any?) -> Int {
-        max(0, outlineDataSource?.outlineView(self, numberOfChildrenOfItem: item) ?? 0)
+        MainActor.assumeIsolated {
+            max(0, outlineDataSource?.outlineView(self, numberOfChildrenOfItem: item) ?? 0)
+        }
     }
 
     public func child(_ index: Int, ofItem item: Any?) -> Any? {
         guard index >= 0 && index < numberOfChildren(ofItem: item) else { return nil }
-        return outlineDataSource?.outlineView(self, child: index, ofItem: item)
+        return MainActor.assumeIsolated {
+            outlineDataSource?.outlineView(self, child: index, ofItem: item)
+        }
     }
 
     public func selectRowIndexesInOutlineView(_ s: IndexSet) {
@@ -5537,7 +5580,9 @@ open class NSOutlineView: NSTableView {
 
     public func isExpandable(_ item: Any?) -> Bool {
         guard let item else { return false }
-        return outlineDataSource?.outlineView(self, isItemExpandable: item) ?? false
+        return MainActor.assumeIsolated {
+            outlineDataSource?.outlineView(self, isItemExpandable: item) ?? false
+        }
     }
 
     private func rebuildVisibleItems() {
@@ -5601,7 +5646,7 @@ open class NSOutlineView: NSTableView {
     }
 }
 
-public protocol NSOutlineViewDelegate: NSTableViewDelegate {
+@MainActor public protocol NSOutlineViewDelegate: NSTableViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView?
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool
@@ -5622,7 +5667,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
-public protocol NSOutlineViewDataSource: NSTableViewDataSource {
+@MainActor public protocol NSOutlineViewDataSource: NSTableViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool

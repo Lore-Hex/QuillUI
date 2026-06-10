@@ -827,6 +827,10 @@ open class RSImage: NSObject, @unchecked Sendable {
     public var resizingMode: ResizingMode = .tile
     public func pngData() -> Data? { data }
     public func dataRepresentation() -> Data? { data }
+    /// Disfavored so QuillUI's gdk-pixbuf-backed `RSImage.tiffRepresentation`
+    /// extension wins wherever both modules are visible; Telegram package
+    /// islands that only see QuillFoundation get this passthrough.
+    @_disfavoredOverload
     public var tiffRepresentation: Data? { data }
     public func addRepresentation(_ imageRep: Any) { _ = imageRep }
     public func tinted(with: Any) -> RSImage { self }
@@ -1199,10 +1203,16 @@ public class RSScreen: NSObject, @unchecked Sendable {
 }
 public typealias UIScreen = RSScreen
 
+// Disfavored: glibc 2.36+ exports the arc4random family, and both
+// declarations are visible wherever Glibc is (often transitively) imported.
+// The attribute lets the libc declaration win instead of erroring as
+// ambiguous, while these stay available when only QuillFoundation is visible.
+@_disfavoredOverload
 public func arc4random() -> UInt32 {
     UInt32.random(in: UInt32.min...UInt32.max)
 }
 
+@_disfavoredOverload
 public func arc4random_uniform(_ upperBound: UInt32) -> UInt32 {
     guard upperBound > 0 else {
         return 0

@@ -23,15 +23,18 @@ repeatable source checkout plus Linux compile ratchet:
 - `Sources/QuillTelegramBuildOverlays` provides generic generated build overlays
   for Swift-only ambient Apple symbols that cannot be supplied by C headers.
   `ApiCredentials` uses this for Security/CommonCrypto and app-group container
-  fallbacks, `Strings` uses it for CoreText glyph-count and swift-corelibs
-  word-enumeration fallbacks, and `TelegramSystem` uses it for a Linux
-  `sysctlbyname` fallback, while leaving the upstream checkout untouched.
+  fallbacks, `Strings` uses it for swift-corelibs word-enumeration fallbacks
+  (its CoreText glyph-count path resolves to the shared CoreText shim product),
+  and `TelegramSystem` uses it for a Linux `sysctlbyname` fallback, while
+  leaving the upstream checkout untouched. AppKit/Cocoa-shaped source compiles
+  against the QuillAppKit/QuillKit shims exported as Apple-named products.
 - The generated package check builds from a mirrored package tree and lowers
   package manifests to add local QuillUI Apple-module products when Swift source
   imports frameworks such as `AppKit`, `Cocoa`, `CoreGraphics`, or `Security`.
   The mirror exposes upstream `submodules` at both relative depths used by
   Telegram package manifests (`../submodules` and `../../submodules`), so
-  packages can build without editing their path dependencies. Nested
+  packages can build without editing their path dependencies — e.g. TGUIKit's
+  transitive `Colors` package resolves from the mirrored sibling tree. Nested
   `telegram-ios/submodules` packages are also mirrored so Linux-only source
   lowering can happen in generated working copies instead of mutating upstream.
 - `scripts/lower-telegram-linux-source.py` performs mirror-only lowering for

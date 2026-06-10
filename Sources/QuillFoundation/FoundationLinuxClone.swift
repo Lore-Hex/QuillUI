@@ -164,12 +164,30 @@ public extension DispatchSource {
     }
 }
 
-public func arc4random_buf(_ buffer: UnsafeMutableRawPointer?, _ length: Int) {
-    guard let buffer else { return }
+/// CoreFoundation's absolute-time clock is absent from swift-corelibs-foundation
+/// on Linux (probe: `CFAbsoluteTimeGetCurrent` does not resolve via Foundation),
+/// so Telegram sources that consult it compile against this clone.
+public typealias CFAbsoluteTime = Double
+
+public func CFAbsoluteTimeGetCurrent() -> CFAbsoluteTime {
+    Date().timeIntervalSinceReferenceDate
+}
+
+// glibc 2.36+ exports its own arc4random_buf, and Glibc is visible here, so
+// internal callers route through this helper instead of the ambiguous name.
+private func quillRandomFill(_ buffer: UnsafeMutableRawPointer, _ length: Int) {
     let bytes = buffer.assumingMemoryBound(to: UInt8.self)
     for index in 0 ..< Swift.max(0, length) {
         bytes[index] = UInt8.random(in: UInt8.min ... UInt8.max)
     }
+}
+
+// Disfavored for the same reason as arc4random()/arc4random_uniform(_:) in
+// QuillFoundation.swift: glibc 2.36+ has its own, and both can be visible.
+@_disfavoredOverload
+public func arc4random_buf(_ buffer: UnsafeMutableRawPointer?, _ length: Int) {
+    guard let buffer else { return }
+    quillRandomFill(buffer, length)
 }
 
 public let errSecSuccess: Int32 = 0
@@ -177,14 +195,14 @@ public let errSecSuccess: Int32 = 0
 public func SecRandomCopyBytes(_ rnd: Any?, _ count: Int, _ bytes: UnsafeMutablePointer<UInt8>?) -> Int32 {
     _ = rnd
     guard let bytes else { return -1 }
-    arc4random_buf(bytes, count)
+    quillRandomFill(bytes, count)
     return errSecSuccess
 }
 
 public func SecRandomCopyBytes(_ rnd: Any?, _ count: Int, _ bytes: UnsafeMutablePointer<Int8>?) -> Int32 {
     _ = rnd
     guard let bytes else { return -1 }
-    arc4random_buf(bytes, count)
+    quillRandomFill(bytes, count)
     return errSecSuccess
 }
 
