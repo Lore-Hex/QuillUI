@@ -3348,7 +3348,7 @@ open class NSMenuItem: NSObject {
     open var isSeparatorItem: Bool { false }
 }
 
-@MainActor public protocol NSMenuDelegate: AnyObject {
+public protocol NSMenuDelegate: AnyObject {
     func menuWillOpen(_ menu: NSMenu)
     func menuDidClose(_ menu: NSMenu)
     func numberOfItems(in menu: NSMenu) -> Int
@@ -5397,7 +5397,7 @@ open class NSTableColumn: NSObject {
     }
 }
 
-@MainActor public protocol NSTableViewDelegate: AnyObject {
+public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat
@@ -5418,7 +5418,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {}
 }
 
-@MainActor public protocol NSTableViewDataSource: AnyObject {
+public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
 }
@@ -5646,7 +5646,7 @@ open class NSOutlineView: NSTableView {
     }
 }
 
-@MainActor public protocol NSOutlineViewDelegate: NSTableViewDelegate {
+public protocol NSOutlineViewDelegate: NSTableViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView?
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool
@@ -5667,7 +5667,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
-@MainActor public protocol NSOutlineViewDataSource: NSTableViewDataSource {
+public protocol NSOutlineViewDataSource: NSTableViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool

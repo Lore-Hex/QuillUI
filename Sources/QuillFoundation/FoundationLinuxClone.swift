@@ -164,11 +164,14 @@ public extension DispatchSource {
     }
 }
 
-/// CoreFoundation's absolute-time clock is absent from swift-corelibs-foundation
-/// on Linux (probe: `CFAbsoluteTimeGetCurrent` does not resolve via Foundation),
-/// so Telegram sources that consult it compile against this clone.
+/// CoreFoundation's absolute-time clock does not resolve via plain
+/// `import Foundation` on Linux, so Telegram sources that consult it compile
+/// against this clone. Disfavored because the Telegram source lowering adds
+/// `import CoreFoundation` to files that use it, and corelibs CoreFoundation
+/// exports the real function.
 public typealias CFAbsoluteTime = Double
 
+@_disfavoredOverload
 public func CFAbsoluteTimeGetCurrent() -> CFAbsoluteTime {
     Date().timeIntervalSinceReferenceDate
 }

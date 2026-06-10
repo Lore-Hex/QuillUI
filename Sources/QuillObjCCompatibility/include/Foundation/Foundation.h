@@ -122,6 +122,10 @@ static inline NSRange NSMakeRange(NSUInteger location, NSUInteger length) {
     return range;
 }
 
+static inline BOOL NSEqualRanges(NSRange range1, NSRange range2) {
+    return range1.location == range2.location && range1.length == range2.length;
+}
+
 static inline NSUInteger NSMaxRange(NSRange range) {
     return range.location + range.length;
 }
@@ -310,6 +314,7 @@ typedef NS_ENUM(NSInteger, NSComparisonResult) {
 __attribute__((objc_root_class))
 @interface NSObject <NSObject>
 + (instancetype)alloc;
++ (instancetype)allocWithZone:(NSZone *)zone;
 + (instancetype)new;
 + (Class)class;
 + (BOOL)instancesRespondToSelector:(SEL)aSelector;
@@ -355,6 +360,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 @property (nonatomic, readonly) NSString *lastPathComponent;
 + (instancetype)string;
 + (instancetype)stringWithFormat:(NSString *)format, ...;
++ (instancetype)stringWithString:(NSString *)string;
 + (instancetype)stringWithUTF8String:(const char *)bytes;
 + (instancetype)stringWithCString:(const char *)cString encoding:(NSUInteger)encoding;
 + (instancetype)stringWithContentsOfFile:(NSString *)path encoding:(NSUInteger)encoding error:(NSError **)error;
@@ -379,6 +385,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 - (NSString *)lowercaseString;
 - (NSString *)uppercaseString;
 - (NSArray *)componentsSeparatedByString:(NSString *)separator;
+- (NSArray *)componentsSeparatedByCharactersInSet:(NSCharacterSet *)separator;
 - (NSString *)stringByTrimmingCharactersInSet:(NSCharacterSet *)set;
 - (NSString *)stringByAppendingString:(NSString *)string;
 - (NSString *)stringByAppendingFormat:(NSString *)format, ...;
@@ -386,11 +393,13 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 - (NSString *)stringByReplacingOccurrencesOfString:(NSString *)target withString:(NSString *)replacement options:(NSStringCompareOptions)options range:(NSRange)searchRange;
 - (NSString *)stringByReplacingCharactersInRange:(NSRange)range withString:(NSString *)replacement;
 - (NSString *)stringByDeletingPathExtension;
+- (NSString *)stringByAppendingPathComponent:(NSString *)pathComponent;
 - (NSString *)stringByAddingPercentEscapesUsingEncoding:(NSUInteger)encoding;
 - (NSString *)stringByReplacingPercentEscapesUsingEncoding:(NSUInteger)encoding;
 - (NSString *)stringByAddingPercentEncodingWithAllowedCharacters:(NSCharacterSet *)allowedCharacters;
 - (NSString *)stringByRemovingPercentEncoding;
 - (NSInteger)integerValue;
+- (long long)longLongValue;
 - (float)floatValue;
 - (double)doubleValue;
 - (unichar)characterAtIndex:(NSUInteger)index;
@@ -443,6 +452,9 @@ typedef NS_OPTIONS(NSUInteger, NSStringCompareOptions) {
 - (double)doubleValue;
 - (long long)longLongValue;
 - (unsigned long long)unsignedLongLongValue;
+- (NSString *)stringValue;
+- (BOOL)isEqualToNumber:(NSNumber *)number;
+- (NSComparisonResult)compare:(NSNumber *)otherNumber;
 - (NSComparisonResult)compare:(NSNumber *)otherNumber;
 @end
 
@@ -791,6 +803,8 @@ typedef NS_ENUM(NSInteger, NSDateComponentsFormatterUnitsStyle) {
 + (instancetype)localeWithLocaleIdentifier:(NSString *)identifier;
 + (NSString *)canonicalLanguageIdentifierFromString:(NSString *)string;
 + (NSArray<NSString *> *)preferredLanguages;
++ (NSArray<NSString *> *)ISOCountryCodes;
++ (NSString *)localeIdentifierFromComponents:(NSDictionary<NSString *, NSString *> *)dict;
 - (instancetype)initWithLocaleIdentifier:(NSString *)identifier;
 - (id)objectForKey:(NSString *)key;
 - (NSString *)displayNameForKey:(id)key value:(id)value;
@@ -809,6 +823,7 @@ typedef NS_ENUM(NSInteger, NSLocaleLanguageDirection) {
 @end
 
 static NSString * const NSLocaleCountryCode = @"kCFLocaleCountryCode";
+static NSString * const NSLocaleIdentifier = @"kCFLocaleIdentifierKey";
 
 @interface NSInputStream : NSObject
 - (instancetype)initWithData:(NSData *)data;
@@ -863,6 +878,12 @@ static NSString * const NSStreamDataWrittenToMemoryStreamKey = @"NSStreamDataWri
 - (NSCharacterSet *)invertedSet;
 - (BOOL)characterIsMember:(unichar)aCharacter;
 - (BOOL)isSupersetOfSet:(NSCharacterSet *)other;
+@end
+
+@interface NSMutableCharacterSet : NSCharacterSet
+- (void)addCharactersInString:(NSString *)string;
+- (void)removeCharactersInString:(NSString *)string;
+- (void)formUnionWithCharacterSet:(NSCharacterSet *)other;
 @end
 
 @protocol NSXMLParserDelegate
@@ -926,13 +947,29 @@ static NSString * const NSGregorianCalendar = @"gregorian";
 - (NSString *)operatingSystemVersionString;
 @end
 
+typedef NSUInteger NSSearchPathDirectory;
+typedef NSUInteger NSSearchPathDomainMask;
+static const NSSearchPathDirectory NSDocumentDirectory = 9;
+static const NSSearchPathDomainMask NSUserDomainMask = 1;
+
+NSArray<NSString *> *NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory directory, NSSearchPathDomainMask domainMask, BOOL expandTilde);
+
+@class NSURL;
+
 @interface NSFileManager : NSObject
 + (instancetype)defaultManager;
 - (NSString *)displayNameAtPath:(NSString *)path;
 - (NSArray<NSString *> *)contentsOfDirectoryAtPath:(NSString *)path error:(NSError **)error;
 - (BOOL)removeItemAtPath:(NSString *)path error:(NSError **)error;
 - (BOOL)removeItemAtURL:(NSURL *)URL error:(NSError **)error;
+- (BOOL)fileExistsAtPath:(NSString *)path;
+- (BOOL)fileExistsAtPath:(NSString *)path isDirectory:(BOOL *)isDirectory;
+- (BOOL)createFileAtPath:(NSString *)path contents:(NSData *)data attributes:(NSDictionary *)attr;
+- (BOOL)createDirectoryAtPath:(NSString *)path withIntermediateDirectories:(BOOL)createIntermediates attributes:(NSDictionary *)attributes error:(NSError **)error;
+- (BOOL)createDirectoryAtURL:(NSURL *)url withIntermediateDirectories:(BOOL)createIntermediates attributes:(NSDictionary *)attributes error:(NSError **)error;
 @end
+
+static NSString * const NSURLIsExcludedFromBackupKey = @"NSURLIsExcludedFromBackupKey";
 
 @interface NSURL : NSObject
 + (instancetype)fileURLWithPath:(NSString *)path;
@@ -940,7 +977,9 @@ static NSString * const NSGregorianCalendar = @"gregorian";
 @property (nonatomic, readonly) NSString *path;
 @property (nonatomic, readonly) NSString *scheme;
 @property (nonatomic, readonly) NSString *query;
+@property (nonatomic, readonly) NSString *lastPathComponent;
 @property (nonatomic, readonly) const char *fileSystemRepresentation;
+- (BOOL)setResourceValue:(id)value forKey:(NSString *)key error:(NSError **)error;
 @end
 
 @interface NSURLComponents : NSObject
@@ -1054,6 +1093,7 @@ typedef NSUInteger NSRegularExpressionOptions;
 
 static const NSRegularExpressionOptions NSRegularExpressionCaseInsensitive = 1UL << 0;
 static const NSRegularExpressionOptions NSRegularExpressionDotMatchesLineSeparators = 1UL << 3;
+static const NSMatchingOptions NSMatchingAnchored = 1UL << 2;
 static const NSMatchingOptions NSMatchingWithoutAnchoringBounds = 1UL << 4;
 
 @interface NSTextCheckingResult : NSObject
@@ -1080,6 +1120,12 @@ static const NSMatchingOptions NSMatchingWithoutAnchoringBounds = 1UL << 4;
                       usingBlock:(void (^)(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop))block;
 - (NSUInteger)numberOfMatchesInString:(NSString *)string options:(NSMatchingOptions)options range:(NSRange)range;
 - (NSTextCheckingResult *)firstMatchInString:(NSString *)string options:(NSMatchingOptions)options range:(NSRange)range;
+- (NSArray<NSTextCheckingResult *> *)matchesInString:(NSString *)string options:(NSMatchingOptions)options range:(NSRange)range;
+- (NSRange)rangeOfFirstMatchInString:(NSString *)string options:(NSMatchingOptions)options range:(NSRange)range;
+- (NSString *)stringByReplacingMatchesInString:(NSString *)string
+                                       options:(NSMatchingOptions)options
+                                         range:(NSRange)range
+                                  withTemplate:(NSString *)templ;
 - (NSUInteger)replaceMatchesInString:(NSMutableString *)string
                               options:(NSMatchingOptions)options
                                 range:(NSRange)range
@@ -1097,6 +1143,9 @@ static const NSMatchingOptions NSMatchingWithoutAnchoringBounds = 1UL << 4;
 - (BOOL)scanInteger:(NSInteger *)result;
 - (BOOL)scanLongLong:(long long *)result;
 - (BOOL)scanHexInt:(unsigned *)result;
+- (BOOL)scanFloat:(float *)result;
+- (BOOL)scanDouble:(double *)result;
+@property (readonly, getter=isAtEnd) BOOL atEnd;
 - (BOOL)scanHexLongLong:(unsigned long long *)result;
 @end
 

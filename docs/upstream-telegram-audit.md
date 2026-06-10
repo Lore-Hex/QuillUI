@@ -19,7 +19,10 @@ repeatable source checkout plus Linux compile ratchet:
 - `scripts/generated-telegram-package-check.sh` now compiles all 49 SwiftPM
   package manifests in the current Telegram checkout on Linux, including the
   central UI/media packages `TGUIKit`, `TelegramMedia`, `TextRecognizing`,
-  `PrivateCallScreen`, `InputView`, and `TGVideoCameraMovie`.
+  `PrivateCallScreen`, `InputView`, and `TGVideoCameraMovie`, plus the
+  telegram-ios submodule packages `MediaPlayer`, `TelegramAudio`,
+  `YuvConversion`, and `libphonenumber` in the default compile set
+  (53 packages total).
 - `Sources/QuillTelegramBuildOverlays` provides generic generated build overlays
   for Swift-only ambient Apple symbols that cannot be supplied by C headers.
   `ApiCredentials` uses this for Security/CommonCrypto and app-group container
@@ -50,6 +53,11 @@ repeatable source checkout plus Linux compile ratchet:
   mirror-only lowering for nullability and macOS xattr signatures. Current
   coverage includes the media packages that import ImageIO, AVFoundation,
   CoreVideo, CoreMedia, and macOS OpenGL/CGL headers.
+
+The only telegram-ios submodule package still outside the compile set is
+`OpenSSLEncryptionProvider`, blocked on the EncryptionProvider overlay
+exporting the upstream Objective-C header that its public header imports
+(and on an OpenSSL header surface for Linux).
 
 Current Linux blocker classes:
 

@@ -486,12 +486,20 @@ struct SourceHygieneTests {
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
         #expect(appKit.contains("@MainActor public protocol NSApplicationDelegate"))
-        #expect(appKit.contains("@MainActor public protocol NSMenuDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
-        #expect(appKit.contains("@MainActor public protocol NSTableViewDelegate"))
-        #expect(appKit.contains("@MainActor public protocol NSTableViewDataSource"))
-        #expect(appKit.contains("@MainActor public protocol NSOutlineViewDelegate"))
-        #expect(appKit.contains("@MainActor public protocol NSOutlineViewDataSource"))
+        // The menu/table/outline delegate protocols must stay nonisolated:
+        // @MainActor on a protocol infers @MainActor on conforming classes,
+        // which breaks upstream Telegram TGUIKit types (TableView, ContextMenu)
+        // that conform from nonisolated code. The shim bridges its delegate
+        // call sites with MainActor.assumeIsolated instead.
+        #expect(appKit.contains("public protocol NSMenuDelegate"))
+        #expect(appKit.contains("public protocol NSTableViewDelegate"))
+        #expect(appKit.contains("public protocol NSTableViewDataSource"))
+        #expect(appKit.contains("public protocol NSOutlineViewDelegate"))
+        #expect(appKit.contains("public protocol NSOutlineViewDataSource"))
+        #expect(!appKit.contains("@MainActor public protocol NSMenuDelegate"))
+        #expect(!appKit.contains("@MainActor public protocol NSTableViewDelegate"))
+        #expect(appKit.contains("MainActor.assumeIsolated { delegate.menuWillOpen(self) }"))
         #expect(appKit.contains("public static let borderless: StyleMask = []"))
         #expect(appKit.contains("open class NSTextStorage: NSMutableAttributedString {"))
         #expect(!appKit.contains("public static let borderless = StyleMask(rawValue: 0)"))
@@ -2687,6 +2695,12 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("TextRecognizing"))
         #expect(telegramPackageCheck.contains("ThemeSettings"))
         #expect(telegramPackageCheck.contains("Translate"))
+        // telegram-ios submodule packages promoted into the default compile
+        // set once the mirror + ObjC compatibility surface covered them.
+        #expect(telegramPackageCheck.contains("MediaPlayer"))
+        #expect(telegramPackageCheck.contains("TelegramAudio"))
+        #expect(telegramPackageCheck.contains("YuvConversion"))
+        #expect(telegramPackageCheck.contains("libphonenumber"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/include"))
         #expect(telegramPackageCheck.contains("QuillObjCCompatibility/Prelude.h"))
         #expect(telegramPackageCheck.contains("overlay_root=\"$ROOT_DIR/Sources/QuillTelegramBuildOverlays\""))

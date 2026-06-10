@@ -59,6 +59,7 @@ default_packages=(
   InputView
   KeyboardKey
   Localization
+  MediaPlayer
   MergeLists
   NumberPluralization
   OCR
@@ -75,12 +76,15 @@ default_packages=(
   TGPassportMRZ
   TGUIKit
   TGVideoCameraMovie
+  TelegramAudio
   TelegramMedia
   TelegramIconsTheme
   TelegramSystem
   TextRecognizing
   ThemeSettings
   Translate
+  YuvConversion
+  libphonenumber
 )
 
 if [[ -n "${QUILLUI_TELEGRAM_PACKAGE_CHECK_PACKAGES:-}" ]]; then
