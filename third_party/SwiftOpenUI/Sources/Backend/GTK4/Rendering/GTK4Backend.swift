@@ -668,10 +668,12 @@ public struct GTK4Backend: RenderBackend {
             }
             setCurrentEnvironment(env)
 
-            // App.body is @MainActor (Apple semantics); the GTK app
+            // App.init/App.body are @MainActor (Apple semantics); the GTK app
             // activate callback runs on the GTK main loop == main thread.
-            let instance = A()
-            MainActor.assumeIsolated { gtkRenderScene(instance.body, app: appPtr) }
+            MainActor.assumeIsolated {
+                let instance = A()
+                gtkRenderScene(instance.body, app: appPtr)
+            }
         }
 
         // Pump Foundation RunLoop sources (Timer, etc.) periodically.

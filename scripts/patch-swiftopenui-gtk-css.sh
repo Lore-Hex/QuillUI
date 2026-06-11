@@ -4825,8 +4825,10 @@ plain_lifecycle = '''        let factory: (OpaquePointer?) -> Void = { appPtr in
             }
             setCurrentEnvironment(env)
 
-            let instance = A()
-            gtkRenderScene(instance.body, app: appPtr)
+            MainActor.assumeIsolated {
+                let instance = A()
+                gtkRenderScene(instance.body, app: appPtr)
+            }
         }
 
         // Pump Foundation RunLoop sources (Timer, etc.) periodically.
