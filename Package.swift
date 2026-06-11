@@ -548,7 +548,11 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "KeychainSwift"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
-    "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
+    // "SwiftUI" was always imported by these tests but reached the module via
+    // the shared-build-dir canImport leak; now that the SwiftUI shim carries
+    // CGtk4/QuillAppKitGTK (NSViewRepresentable GTK mount), the dependency
+    // must be declared for SwiftPM to pass the C module search paths along.
+    "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os", "SwiftUI"
 ] + quillLinuxShimTestDependencies
 let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = appSwiftSettings + [
     // Swift Testing declares platform cross-import overlays such as
@@ -2251,9 +2255,23 @@ targets.append(contentsOf: [
     .target(
         name: "SwiftUI",
         // AppKit + Combine: Apple's macOS SwiftUI re-exports both; mirror it
-        // (see Sources/SwiftUIShim/SwiftUI.swift).
-        dependencies: ["QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine"],
-        path: "Sources/SwiftUIShim"
+        // (see Sources/SwiftUIShim/SwiftUI.swift). BackendGTK4 + QuillAppKitGTK
+        // power the NSViewRepresentable GTK mount (GtkDrawingArea + Cairo-backed
+        // CGContext custom drawing).
+        dependencies: [
+            "QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine",
+            "QuillAppKitGTK",
+            .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+        ],
+        path: "Sources/SwiftUIShim",
+        // CGtk4 headers reach this module through the QuillAppKitGTK import;
+        // v5 + minimal concurrency matches the house settings (the GTK mount
+        // crosses MainActor.assumeIsolated with non-Sendable view values).
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"]),
+            .unsafeFlags(gtk4SwiftImporterFlags)
+        ]
     ),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
@@ -3017,7 +3035,10 @@ let packageTestTargets: [Target] = {
         // itself on the test-target scorecard.
         .testTarget(
             name: "QuillUITests",
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"],
+            // "SwiftUI": always imported by these tests, previously reached via
+            // the shared-build-dir leak; must be declared now that the shadow
+            // carries CGtk4/QuillAppKitGTK (NSViewRepresentable GTK mount).
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo", "SwiftUI"],
             swiftSettings: appSwiftSettings
         )
     ]

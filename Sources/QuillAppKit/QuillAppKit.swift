@@ -1029,7 +1029,14 @@ open class NSView: NSResponder {
         child.viewDidMoveToSuperview()
     }
 
+    /// Toolkit hook: a GTK (or other) backing installs this to translate
+    /// needsDisplay/setNeedsDisplay into a widget invalidation
+    /// (gtk_widget_queue_draw). Fired on every mark, including propagated
+    /// child marks.
+    public var quillDisplayInvalidationHandler: (() -> Void)?
+
     private func quillMarkNeedsDisplay() {
+        quillDisplayInvalidationHandler?()
         guard window != nil else {
             quillNeedsDisplay = false
             return
