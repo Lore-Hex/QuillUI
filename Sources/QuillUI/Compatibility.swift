@@ -379,6 +379,34 @@ public extension Image {
 
 public protocol KeyboardReadable {}
 
+public struct PlainListStyle: Sendable {
+    public init() {}
+}
+
+// `ButtonRole` and the role-taking Button inits moved to
+// QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that
+// only `import SwiftUI`s sees them (SolderScope's alert buttons); QuillUI
+// re-exports that module.
+
+public extension TextField {
+    init(_ title: String, text: Binding<String>, axis: Axis) {
+        self.init(title, text: text)
+    }
+
+    init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
+        self.init(title, text: text)
+    }
+}
+
+public extension Axis {
+    struct Set: OptionSet, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let horizontal = Set(rawValue: Axis.horizontal.rawValue)
+        public static let vertical = Set(rawValue: Axis.vertical.rawValue)
+    }
+}
+
 public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
     public var rawValue: Double
     public init(_ value: Double) { self.rawValue = value }

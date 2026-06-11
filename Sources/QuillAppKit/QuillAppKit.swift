@@ -730,6 +730,23 @@ open class NSView: NSResponder {
         bounds = NSRect(origin: .zero, size: frame.size)
     }
 
+    /// NSCoding designated init — `required`, exactly as on Apple (where NSView
+    /// adopts NSCoding), so an unmodified upstream subclass can declare
+    /// `required init?(coder:)` WITHOUT `override` and call `super.init(coder:)`
+    /// (SolderScope's MicroscopeNSView does both). There is no unarchiving on
+    /// Linux: the coder is ignored and the view starts zero-framed, equivalent
+    /// to `init(frame: .zero)`. NOTE: because this is `required`, any NSView
+    /// subclass that declares its own designated init must also declare it —
+    /// real AppKit forces the exact same boilerplate, so upstream app sources
+    /// already carry it; QuillAppKit's own designated-init subclasses
+    /// (NSScrollView, NSButton, NSPopUpButton, NSHostingView, WKWebView)
+    /// declare it alongside their inits. Convenience-only subclasses (e.g.
+    /// NSTextField, NSSlider, NSStackView) inherit it automatically.
+    /// Class-isolated like Apple's (no nonisolated delegation path needs it).
+    public required init?(coder: NSCoder) {
+        super.init()
+    }
+
     open func addSubview(_ v: NSView) {
         insertSubview(v, at: subviews.count)
     }
@@ -3684,6 +3701,14 @@ open class NSScrollView: NSView {
             quillInstallContentView()
         }
     }
+    /// Required NSCoding init (NSView's coder init is `required`; declaring a
+    /// designated init suppresses inheritance). Coder ignored — mirrors
+    /// `init(frame:)` so the clip view is still installed. Class-isolated, so
+    /// the install needs no hop.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        quillInstallContentView()
+    }
     public func flashScrollers() {}
     open func tile() {}
     open func reflectScrolledClipView(_ clipView: NSClipView) { _ = clipView }
@@ -4347,6 +4372,10 @@ open class NSButton: NSControl {
     /// NSView's, so subclasses like WireGuard's FillerButton (super.init(frame:)) need it.
     public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
 
+    /// Required NSCoding init (NSView's coder init is `required`; the
+    /// title/image designated inits suppress inheritance). Coder ignored.
+    public required init?(coder: NSCoder) { super.init(coder: coder) }
+
     public var title: String {
         get { storedTitle }
         set {
@@ -4687,6 +4716,13 @@ open class NSPopUpButton: NSButton {
             self.pullsDown = pullsDown
             self.cell = NSPopUpButtonCell()
         }
+    }
+    /// Required NSCoding init (NSView's coder init is `required`; the
+    /// designated inits above suppress inheritance). Coder ignored — mirrors
+    /// the designated inits' cell setup. Class-isolated, so no hop needed.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        self.cell = NSPopUpButtonCell()
     }
     public convenience init() { self.init(frame: .zero, pullsDown: false) }
 
@@ -5902,6 +5938,12 @@ public class NSHostingView<Content>: NSView {
     }
     public override init(frame: NSRect) {
         fatalError("NSHostingView(frame:) requires a rootView")
+    }
+    /// Required NSCoding init (NSView's coder init is `required`). Like
+    /// `init(frame:)`, unsupported — a generic SwiftUI root view cannot be
+    /// unarchived.
+    public required init?(coder: NSCoder) {
+        fatalError("NSHostingView(coder:) requires a rootView")
     }
 }
 

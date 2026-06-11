@@ -8,6 +8,15 @@ import QuillKit
 import QuillFoundation
 import class UIKit.NSItemProvider
 import enum UIKit.UIKeyboardType
+// App-chrome shims that BOTH `import QuillUI` and the Linux `import SwiftUI`
+// shadow must see (Material, the ButtonStyle protocol, ButtonRole, the
+// command/menu builder expressions, WindowGroup conveniences, …) are
+// canonical in QuillSwiftUICompatibility — QuillUI re-exports that module,
+// so keeping ONE defining module avoids ambiguous lookups in files that
+// import both (see the firstTextBaseline note below for the same pattern).
+// This file still references several of those names (Shape.fill(_ material:),
+// PlainButtonStyle, …), hence the direct import.
+import QuillSwiftUICompatibility
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -156,6 +165,9 @@ public enum QuillFileImporter {
     }
 }
 
+// `Material` moved to QuillSwiftUICompatibility so real source that only
+// `import SwiftUI`s sees it; QuillUI re-exports that module. (Namespace
+// lives in DesignSystemSurfaceCompat.swift.)
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -256,19 +268,11 @@ public extension Animation {
         return .easeOut(duration: duration)
     }
 
-    func repeatForever(autoreverses: Bool = true) -> Animation {
-        recordQuillUIFallback(
-            "Animation.repeatForever",
-            message: "Animation.repeatForever metadata is preserved on Linux; GTK transition repeat loops are not yet implemented."
-        )
-        return Animation(
-            curve: curve,
-            duration: duration,
-            delay: delay,
-            repeatsForever: true,
-            autoreverses: autoreverses
-        )
-    }
+    // `repeatForever(autoreverses:)` moved to QuillSwiftUICompatibility
+    // (SolderScopeChrome.swift) so `import SwiftUI` files see it as well.
+    // (The compatibility-diagnostics record was dropped in the move — the
+    // compat module doesn't link QuillKit; the repeat metadata note now
+    // lives in the doc comment there.)
 
     func delay(_ delay: Double) -> Animation {
         recordQuillUIFallback(
@@ -307,83 +311,14 @@ public extension CommandGroup {
     }
 }
 
-public extension WindowGroup {
-    func defaultSize(width: Double, height: Double) -> WindowGroup<Content> {
-        defaultWindowSize(width: width, height: height)
-    }
-}
-
-// @MainActor: buildExpression reads isolated View members (label/action) and
-// calls the isolated walkers; builder closures run in isolated Commands.body.
-@MainActor
-public extension CommandMenuBuilder {
-    static func buildExpression<Label: View>(_ button: Button<Label>) -> [CommandMenuItem] {
-        [
-            CommandMenuItem(
-                quillTextLabel(from: button.label),
-                action: button.action
-            )
-        ]
-    }
-
-    static func buildExpression<Label: View>(_ shortcutView: KeyboardShortcutView<Button<Label>>) -> [CommandMenuItem] {
-        [
-            CommandMenuItem(
-                quillTextLabel(from: shortcutView.content.label),
-                shortcut: shortcutView.shortcut,
-                action: shortcutView.content.action
-            )
-        ]
-    }
-
-    static func buildExpression<Content: View>(_ disabledView: DisabledView<Content>) -> [CommandMenuItem] {
-        quillCommandMenuItems(from: disabledView.content)
-            .map { quillCommandMenuItem($0, disabled: disabledView.isDisabled) }
-    }
-
-    static func buildExpression<Content: View>(_ view: Content) -> [CommandMenuItem] {
-        quillCommandMenuItems(from: view)
-    }
-}
-
-public extension Menu {
-    init<LabelContent: View>(
-        @MenuBuilder content: () -> [MenuElement],
-        @ViewBuilder label: () -> LabelContent
-    ) {
-        self.init(quillTextLabel(from: label()), content: content)
-    }
-}
-
-// @MainActor: same reasoning as the CommandMenuBuilder extension above.
-@MainActor
-public extension MenuBuilder {
-    static func buildExpression(_ elements: [MenuElement]) -> [MenuElement] {
-        elements
-    }
-
-    static func buildExpression<Label: View>(_ button: Button<Label>) -> [MenuElement] {
-        [.item(label: quillTextLabel(from: button.label), action: button.action)]
-    }
-
-    static func buildExpression<Label: View>(_ shortcutView: KeyboardShortcutView<Button<Label>>) -> [MenuElement] {
-        [.item(label: quillTextLabel(from: shortcutView.content.label), action: shortcutView.content.action)]
-    }
-
-    static func buildExpression<Content: View>(_ disabledView: DisabledView<Content>) -> [MenuElement] {
-        quillMenuElements(from: disabledView.content)
-            .map { quillMenuElement($0, disabled: disabledView.isDisabled) }
-    }
-
-    static func buildExpression(_ divider: Divider) -> [MenuElement] {
-        [.divider]
-    }
-
-    static func buildExpression<Content: View>(_ view: Content) -> [MenuElement] {
-        quillMenuElements(from: view)
-    }
-
-}
+// `WindowGroup.defaultSize(width:height:)`, the `CommandMenuBuilder` /
+// `MenuBuilder` view-expression overloads, and `Menu(content:label:)` moved
+// to QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that
+// only `import SwiftUI`s sees them (SolderScope's camera-picker Menu and
+// command menus); QuillUI re-exports that module. The moved builder
+// expressions walk view trees with self-contained equivalents of the
+// quill* helpers below (which stay here — Picker/Section/Label inits and
+// the @_spi(QuillTesting) surface still use them).
 
 public extension PickerStyle {
     static var menu: PickerStyle { .automatic }
@@ -498,11 +433,8 @@ extension Image: @retroactive Equatable {
     }
 }
 
-public extension WindowGroup {
-    init(@ViewBuilder content: () -> Content) {
-        self.init("Quill", content: content)
-    }
-}
+// Title-less `WindowGroup { … }` init + State(initialValue:) live in
+// QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift).
 
 public struct LabeledContent<Content: View>: View {
     public var title: String
@@ -1156,6 +1088,10 @@ public extension View {
         )
         return animation(.easeInOut(duration: 0.2), value: AnyHashable(id))
     }
+
+    // `buttonStyle<S: ButtonStyle>` moved to QuillSwiftUICompatibility
+    // (SolderScopeChrome.swift) alongside the ButtonStyle protocol; custom
+    // styles still fall back to the plain GTK chrome there.
 
     func focusedSceneValue<K: FocusedValueKey>(
         _ keyPath: WritableKeyPath<FocusedValues, K.Value?>,
