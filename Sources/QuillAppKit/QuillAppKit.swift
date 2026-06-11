@@ -495,6 +495,12 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 
 // MARK: - NSResponder / NSView / NSViewController / NSWindow
 
+// EPIC #512: Apple's NSResponder is @MainActor. The entire responder tree —
+// NSView, NSControl and every view subclass, NSWindow + panels,
+// NSWindowController, NSApplication, NSPopover — inherits this isolation,
+// matching the macOS SDK. GTK/Qt callbacks enter via MainActor.assumeIsolated
+// (the GTK main loop IS the main thread), the blessed boundary pattern.
+@MainActor
 open class NSResponder: NSObject {
     fileprivate weak var quillExplicitNextResponder: NSResponder?
 
@@ -505,7 +511,9 @@ open class NSResponder: NSObject {
     /// prefer side tables (QuillAppKitGTK today) may ignore this.
     public var quillBackendHandle: UnsafeMutableRawPointer?
 
-    public override init() {}
+    // nonisolated: pure storage init, so nonisolated subclass inits
+    // (NSViewController/NSView lowering ergonomics) can delegate to it.
+    nonisolated public override init() {}
     open var nextResponder: NSResponder? {
         get { quillExplicitNextResponder }
         set { quillExplicitNextResponder = newValue }
@@ -1170,6 +1178,9 @@ open class NSView: NSResponder {
     }
 }
 
+// @MainActor: constructs NSView (isolated via NSResponder). Lowering-generated
+// callers run on the main thread by AppKit contract.
+@MainActor
 public func QuillInstantiateView<T: NSView>(_ viewType: T.Type, frame: NSRect) -> T {
     _ = viewType
     return NSView(frame: frame) as! T
@@ -1739,12 +1750,14 @@ open class NSCustomTouchBarItem: NSTouchBarItem {
 
 // MARK: - NSApplication
 
-// Drop `@MainActor` from the Linux NSApplication stub. Real
-// AppKit's NSApplication has main-actor isolation, but our
-// Linux stub is just compile-time scaffolding — generated
-// Enchanted source reads `NSApp.currentEvent` from nonisolated
-// SwiftUI closures, which the unannotated class allows without
-// the `nonisolated(unsafe)` patchwork that broke the init().
+// NSApplication inherits @MainActor through NSResponder (EPIC #512), matching
+// Apple. The old "drop @MainActor" workaround (generated Enchanted source read
+// `NSApp.currentEvent` from nonisolated SwiftUI closures) is obsolete: with
+// SwiftOpenUI.View now @MainActor, closures formed inside `body` inherit
+// main-actor isolation, so those reads type-check without patchwork.
+// @unchecked Sendable is retained (pre-existing; Apple's NSApplication is not
+// Sendable, but removing it would break existing cross-module storage and it
+// is inert under -strict-concurrency=minimal).
 open class NSApplication: NSResponder, @unchecked Sendable {
     public static let shared = NSApplication()
     public weak var delegate: NSApplicationDelegate?
@@ -1892,10 +1905,9 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     }
 }
 
-// Top-level globals. NSApplication itself is no longer
-// `@MainActor` (see comment above) so the accessor doesn't
-// need any isolation override.
-public var NSApp: NSApplication { NSApplication.shared }
+// Top-level globals. @MainActor like Apple's `NSApp` global —
+// NSApplication.shared is main-actor isolated via NSResponder.
+@MainActor public var NSApp: NSApplication { NSApplication.shared }
 
 open class NSDockTile: NSObject, @unchecked Sendable {
     public var badgeLabel: String?
@@ -2112,6 +2124,9 @@ open class NSEvent: NSObject, @unchecked Sendable {
     private static var globalEventMonitors: [EventMonitor] = []
 }
 
+// Apple parity (#512): gesture recognizers are @MainActor; NSClick/NSPress
+// subclasses inherit.
+@MainActor
 open class NSGestureRecognizer: NSObject {
     public enum State: Int, Sendable {
         case possible
@@ -3143,6 +3158,10 @@ open class NSShadow: NSObject, @unchecked Sendable {
 
 // MARK: - NSMenu / NSMenuItem
 
+// Apple parity (#512). The existing MainActor.assumeIsolated bridges around
+// delegate calls inside this class become load-bearing once NSMenuDelegate is
+// isolated in the follow-up sweep.
+@MainActor
 open class NSMenu: NSObject {
     public var title: String = ""
     open var items: [NSMenuItem] = []
@@ -3253,6 +3272,8 @@ open class NSMenu: NSObject {
     }
 }
 
+// Apple parity (#512).
+@MainActor
 open class NSMenuItem: NSObject {
     open var title: String = ""
     public var action: Selector?
@@ -3313,6 +3334,9 @@ public protocol NSMenuItemValidation: AnyObject {
 
 // MARK: - NSToolbar / NSToolbarItem
 
+// Apple parity (#512); makes the existing per-member @MainActor annotations
+// inside redundant (harmless).
+@MainActor
 open class NSToolbar: NSObject {
     public var identifier: String = ""
     public weak var delegate: NSToolbarDelegate?
@@ -3357,6 +3381,8 @@ open class NSToolbar: NSObject {
     }
 }
 
+// Apple parity (#512); NSTrackingSeparatorToolbarItem/NSToolbarItemGroup inherit.
+@MainActor
 open class NSToolbarItem: NSObject {
     public struct Identifier: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
@@ -3414,6 +3440,8 @@ public extension NSToolbarDelegate {
 
 // MARK: - NSAlert / NSSavePanel / NSOpenPanel
 
+// Apple parity (#512).
+@MainActor
 open class NSAlert: NSObject {
     public var messageText: String = ""
     public var informativeText: String = ""
@@ -4767,6 +4795,8 @@ open class NSSplitViewController: NSViewController {
     public var splitView: NSSplitView = NSSplitView()
 }
 
+// Apple parity (#512).
+@MainActor
 open class NSSplitViewItem: NSObject {
     public var viewController: NSViewController = NSViewController()
     public var behavior: Behavior = .default
@@ -5319,6 +5349,8 @@ open class NSTableCellView: NSView {
     public enum BackgroundStyle: Int, Sendable { case normal, emphasized, raised, lowered }
 }
 
+// Apple parity (#512).
+@MainActor
 open class NSTableColumn: NSObject {
     public var identifier: NSUserInterfaceItemIdentifier
     public var title: String = ""
@@ -5626,6 +5658,8 @@ public extension NSOutlineViewDataSource {
 
 // MARK: - Document support
 
+// Apple parity (#512): NSDocument is @MainActor in the macOS SDK.
+@MainActor
 open class NSDocument: NSObject {
     public var fileURL: URL?
     public var fileType: String?
@@ -5693,6 +5727,8 @@ open class NSDocument: NSObject {
     public enum ChangeType: UInt, Sendable { case changeDone, changeUndone, changeRedone, changeCleared, changeReadOtherContents, changeAutosaved, changeDiscardable }
 }
 
+// Apple parity (#512).
+@MainActor
 open class NSDocumentController: NSObject {
     public static let shared = NSDocumentController()
     public var documents: [NSDocument] = []
@@ -5760,6 +5796,8 @@ public class NSHostingController<Content>: NSViewController {
 
 // MARK: - NSStatusBar / NSStatusItem (menu-bar widgets)
 
+// Apple parity (#512).
+@MainActor
 open class NSStatusBar: NSObject {
     public static let system = NSStatusBar()
     public func statusItem(withLength: CGFloat) -> NSStatusItem { NSStatusItem() }
@@ -5769,6 +5807,8 @@ open class NSStatusBar: NSObject {
     public var thickness: CGFloat = 22
 }
 
+// Apple parity (#512).
+@MainActor
 open class NSStatusItem: NSObject {
     public var button: NSStatusBarButton? = NSStatusBarButton()
     public var menu: NSMenu?
@@ -5877,6 +5917,8 @@ open class NSGlassEffectView: NSView {
 
 // MARK: - NSAnimationContext
 
+// Apple parity (#512).
+@MainActor
 open class NSAnimationContext: NSObject {
     public static var current: NSAnimationContext = NSAnimationContext()
     public var duration: TimeInterval = 0.25
@@ -6019,6 +6061,11 @@ public struct NSWindowEnvironmentKey {
 
 // MARK: - NSCell (legacy, but referenced)
 
+// Apple parity (#512): Apple's NSCell is @MainActor (NSPopUpButtonCell
+// inherits). @unchecked Sendable retained — pre-existing deviation (Apple's
+// NSCell is not Sendable); inert under minimal checking and existing
+// cross-actor storage keeps compiling.
+@MainActor
 open class NSCell: NSObject, @unchecked Sendable {
     public override init() {}
     public var title: String = ""
