@@ -54,7 +54,10 @@ public struct WrappingHStack<Content: View>: View, MultiChildView {
         .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .center)
     }
 
-    public var children: [any View] {
+    // nonisolated: MultiChildView's requirement is nonisolated and this is a
+    // pure stored-data traversal; keeps the conformance non-crossing now that
+    // View conformers are type-isolated (whole-protocol isolation).
+    nonisolated public var children: [any View] {
         if let multi = content as? MultiChildView {
             return multi.children
         }
