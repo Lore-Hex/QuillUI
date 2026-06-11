@@ -1,10 +1,13 @@
 #if os(Linux)
 #if QUILLUI_SWIFTUI_GTK_MOUNT
-import BackendGTK4
-// Implementation-only: keeps CGtk4 (which QuillAppKitGTK references) OUT of
-// the SwiftUI swiftmodule, so dependents without gtk -Xcc flags can still
-// load this module (the house bans systemLibrary pkgConfig, so flag
-// propagation is manual — hide the dependency instead).
+// Implementation-only on BOTH: keeps CGTK (via BackendGTK4) and CGtk4 (via
+// QuillAppKitGTK) OUT of the SwiftUI swiftmodule entirely, so dependents and
+// sibling build graphs without gtk -Xcc flags can still load this module
+// (the house bans systemLibrary pkgConfig, so C-module flag propagation is
+// manual — hide the dependencies instead of propagating flags). The public
+// host therefore must NOT conform to BackendGTK4's GTKRenderable; an
+// INTERNAL leaf behind an opaque `body` carries the conformance.
+@_implementationOnly import BackendGTK4
 @_implementationOnly import QuillAppKitGTK
 #endif
 
@@ -59,20 +62,44 @@ extension NSViewRepresentable {
 /// GTK leaf that mounts an NSViewRepresentable: creates the Coordinator and
 /// NSViewType, then backs the view with a GtkDrawingArea whose draw func runs
 /// `draw(_:)` through the Cairo-backed CGContext (QuillAppKitGTK).
-public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View, PrimitiveView {
-    public typealias Body = Never
+public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
+#if QUILLUI_SWIFTUI_GTK_MOUNT
     let representable: R
 
     init(_ representable: R) { self.representable = representable }
 
-    public var body: Never {
-        fatalError("QuillNSViewRepresentableHostView is a primitive view")
+    public var body: some View {
+        _QuillGTKRepresentableMountLeaf(representable: representable)
     }
+#else
+    let representable: R
+
+    init(_ representable: R) { self.representable = representable }
+
+    // Non-GTK graphs (qt) keep compile-only representables: rendering one
+    // traps with a clear message until a Qt mount exists.
+    public var body: Never {
+        fatalError("""
+        NSViewRepresentable (\(R.self)) rendering requires the GTK backend \
+        graph; the qt mount does not exist yet.
+        """)
+    }
+#endif
 }
 
 #if QUILLUI_SWIFTUI_GTK_MOUNT
-extension QuillNSViewRepresentableHostView: GTKRenderable {
-    public func gtkCreateWidget() -> OpaquePointer {
+/// Internal renderable leaf: carries the GTKRenderable conformance so the
+/// PUBLIC host never references an implementation-only protocol. The
+/// renderer reaches it by walking the host's opaque body.
+struct _QuillGTKRepresentableMountLeaf<R: NSViewRepresentable>: View, PrimitiveView, GTKRenderable {
+    typealias Body = Never
+    let representable: R
+
+    var body: Never {
+        fatalError("_QuillGTKRepresentableMountLeaf is a primitive view")
+    }
+
+    func gtkCreateWidget() -> OpaquePointer {
         // The GTK renderer runs on the GTK main loop == the main thread; the
         // representable protocol is @MainActor (as on Apple). OpaquePointer
         // isn't Sendable, so it crosses the assumeIsolated boundary through an
