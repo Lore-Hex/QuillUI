@@ -4,7 +4,7 @@
 /// Win32 message loop, etc.).
 public protocol App {
     associatedtype Body: Scene
-    @SceneBuilder var body: Body { get }
+    @MainActor @SceneBuilder var body: Body { get }
 
     init()
 }
@@ -19,7 +19,7 @@ public extension App {
 /// A part of an app's user interface with a lifecycle managed by the system.
 public protocol Scene {
     associatedtype Body: Scene
-    @SceneBuilder var body: Body { get }
+    @MainActor @SceneBuilder var body: Body { get }
 }
 
 extension Never: Scene {}

@@ -557,7 +557,9 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
         )
     }
     if V.Body.self != Never.self {
-        return gtkDescribeAnyView(view.body)
+        // View.body is @MainActor (Apple semantics); description passes run
+        // on the GTK main loop == the main thread.
+        return MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
     }
     // Generic describe-through for single-content wrappers (font/style/line
     // modifiers and similar): a Body=Never primitive whose only stored View
