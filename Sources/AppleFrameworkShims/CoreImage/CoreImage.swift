@@ -5,6 +5,7 @@
 //
 import Foundation
 import QuillFoundation
+import CoreVideo
 
 // MARK: - CIImage / CIFilter / CIContext
 //
@@ -16,12 +17,57 @@ import QuillFoundation
 // safety-number QR code is not generated on Linux yet (a real QR encoder would be
 // needed). The type surface exists only so the upstream Swift compiles.
 
+/// Pixel format for CIImage bitmap construction (Apple: a Int32 raw struct).
+public struct CIFormat: RawRepresentable, Equatable, Hashable, Sendable {
+    public var rawValue: Int32
+    public init(rawValue: Int32) { self.rawValue = rawValue }
+    public static let BGRA8 = CIFormat(rawValue: 1)
+    public static let RGBA8 = CIFormat(rawValue: 2)
+    public static let ARGB8 = CIFormat(rawValue: 3)
+    public static let RGBA16 = CIFormat(rawValue: 4)
+}
+
 open class CIImage {
+    /// Real BGRA backing when constructed from a pixel buffer or bitmap data
+    /// (the camera frame pipeline: CVPixelBuffer → CIImage →
+    /// CIContext.createCGImage → CGContext.draw). nil = the historical inert
+    /// placeholder.
+    public internal(set) var quillBGRAPixels: [UInt8]?
+    public internal(set) var quillBytesPerRow: Int = 0
+    public internal(set) var quillSize: CGSize = .zero
+
     public init() {}
 
-    /// The image's bounds. Inert (no pixels); only read to pass to createCGImage,
-    /// which returns nil anyway.
-    open var extent: CGRect { CGRect.zero }
+    /// Wrap a CoreVideo pixel buffer (BGRA after capture-side conversion).
+    /// Copies the bytes — the buffer may be recycled into the capture ring.
+    public init(cvPixelBuffer pixelBuffer: CVPixelBuffer) {
+        let width = pixelBuffer.width
+        let height = pixelBuffer.height
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        self.quillBGRAPixels = pixelBuffer.quillWithReadOnlyBytes { raw in
+            Array(raw.prefix(bytesPerRow * height))
+        }
+        self.quillBytesPerRow = bytesPerRow
+        self.quillSize = CGSize(width: CGFloat(width), height: CGFloat(height))
+    }
+
+    /// Construct from raw bitmap bytes (FrameProcessor's frame-integration
+    /// output path). Only .BGRA8 carries pixels; other formats keep the
+    /// placeholder semantics.
+    public init(bitmapData data: Data, bytesPerRow: Int, size: CGSize,
+                format: CIFormat, colorSpace: CGColorSpace?) {
+        _ = colorSpace
+        if format == .BGRA8 {
+            self.quillBGRAPixels = [UInt8](data)
+            self.quillBytesPerRow = bytesPerRow
+            self.quillSize = size
+        }
+    }
+
+    /// The image's bounds — real when pixel-backed.
+    open var extent: CGRect {
+        CGRect(origin: .zero, size: quillSize)
+    }
 }
 
 open class CIColor {
@@ -110,8 +156,38 @@ open class CIContext {
         _ = options
     }
 
-    /// No rasterizer on Linux -> nil. The caller treats nil as "QR unavailable".
-    open func createCGImage(_ image: CIImage, from fromRect: CGRect) -> CGImage? { nil }
+    /// Real when the CIImage is pixel-backed (camera frames, bitmap inits):
+    /// produces a CGImage whose quillBGRAPixels feed the Cairo draw path.
+    /// Crops to `fromRect` (clamped to the image extent). Placeholder CIImages
+    /// still return nil — callers treat that as "no frame yet".
+    open func createCGImage(_ image: CIImage, from fromRect: CGRect) -> CGImage? {
+        guard let pixels = image.quillBGRAPixels, image.quillSize.width > 0 else { return nil }
+        let srcWidth = Int(image.quillSize.width)
+        let srcHeight = Int(image.quillSize.height)
+        let srcStride = image.quillBytesPerRow > 0 ? image.quillBytesPerRow : srcWidth * 4
+
+        let crop = fromRect.intersection(CGRect(origin: .zero, size: image.quillSize))
+        guard !crop.isNull, crop.width >= 1, crop.height >= 1 else { return nil }
+        let x = Int(crop.origin.x), y = Int(crop.origin.y)
+        let w = Int(crop.width), h = Int(crop.height)
+
+        let outStride = w * 4
+        var out = [UInt8](repeating: 0, count: outStride * h)
+        for row in 0..<h {
+            let srcStart = (y + row) * srcStride + x * 4
+            let srcEnd = srcStart + outStride
+            guard srcEnd <= pixels.count else { break }
+            out.replaceSubrange(row * outStride..<(row + 1) * outStride,
+                                with: pixels[srcStart..<srcEnd])
+        }
+
+        let cgImage = CGImage()
+        cgImage.width = w
+        cgImage.height = h
+        cgImage.quillBGRAPixels = out
+        cgImage.quillBytesPerRow = outStride
+        return cgImage
+    }
 }
 
 open class CIColorKernel {
