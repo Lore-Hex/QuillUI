@@ -699,6 +699,14 @@ let swiftSyntaxOSLinkDependencies: [Target.Dependency] = ["os"]
 let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
 #endif
 
+// The SwiftUI SHADOW target exists only on Linux; on Apple platforms
+// `import SwiftUI` is the real SDK and there is no target to depend on.
+#if os(Linux)
+let swiftUIShadowTestDependencies: [Target.Dependency] = ["SwiftUI"]
+#else
+let swiftUIShadowTestDependencies: [Target.Dependency] = []
+#endif
+
 let quillDataMacroTarget: Target = .macro(
     name: "QuillDataMacros",
     dependencies: [
@@ -3035,10 +3043,11 @@ let packageTestTargets: [Target] = {
         // itself on the test-target scorecard.
         .testTarget(
             name: "QuillUITests",
-            // "SwiftUI": always imported by these tests, previously reached via
-            // the shared-build-dir leak; must be declared now that the shadow
-            // carries CGtk4/QuillAppKitGTK (NSViewRepresentable GTK mount).
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo", "SwiftUI"],
+            // + SwiftUI shadow on Linux only: always imported by these tests,
+            // previously reached via the shared-build-dir leak; must be declared
+            // now that the shadow carries CGtk4/QuillAppKitGTK (representable
+            // GTK mount). On Apple `import SwiftUI` is the real SDK — no target.
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies,
             swiftSettings: appSwiftSettings
         )
     ]
