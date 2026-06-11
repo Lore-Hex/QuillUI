@@ -2,7 +2,7 @@
 /// of the original value.
 public protocol ViewModifier {
     associatedtype Body: View
-    @ViewBuilder func body(content: Content) -> Body
+    @MainActor @ViewBuilder func body(content: Content) -> Body
 
     /// The type representing the content view being modified.
     typealias Content = _ViewModifierContent<Self>

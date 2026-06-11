@@ -2,7 +2,7 @@
 /// Conforming types declare their body as a composition of other views.
 public protocol View {
     associatedtype Body: View
-    @ViewBuilder var body: Body { get }
+    @MainActor @ViewBuilder var body: Body { get }
 }
 
 /// A marker protocol for views that have no reactive properties (@State, etc.)
