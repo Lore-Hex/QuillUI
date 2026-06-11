@@ -10,7 +10,7 @@ parallelized to the swarm via the issues below.
 | Rung | State | Work |
 |---|---|---|
 | 1. Compiles unmodified | ~80% (152 → ~124 unique errors) | #506 AVFoundation surface, #507 AppKit members, #508 SwiftUI chrome, #512 @MainActor AppKit tree, #513 @MainActor View.body |
-| 2. Launches + renders | in progress (main agent) | NSViewRepresentable GTK mount: GtkDrawingArea-backed custom-draw NSView + Cairo-backed CGContext; #510 CALayer painting |
+| 2. Launches + renders | **mount PROVEN** (visual smoke: crosshair+circle PNG via Xvfb, Tests/QuillUITests/RepresentableRenderSmokeTests.swift) | remaining: app chrome renders once rung 1 completes; #510 CALayer painting |
 | 3. Live camera | spec'd | #515 V4L2 AVCaptureSession backend |
 | 4. Recording/snapshots | queued | AVAssetWriter→encoder; NSBitmapImageRep→PNG (part of #507 acceptance) |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once 2–4 are real |
@@ -51,6 +51,13 @@ Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderSc
   rebases; the UIKit⊃QuartzCore + os-dep hunks are intentionally identical.
 - Swarm: #506–#510, #512, #513, #515 all `loom:issue`d with acceptance criteria;
   workers claim via `codex:claimed`.
+
+## Ultracode workbench pattern
+
+Workflow subagents cannot read the repo (sandbox) but CAN read `~/.claude` —
+stage artifacts (diffs, error lists, app source, shim snapshots) into
+`~/.claude/tmp/ss-workbench/` and fan agents out over those. Used for the
+PR #511 adversarial review panel + SolderScope API-coverage audit.
 
 ## Verification recipes
 
