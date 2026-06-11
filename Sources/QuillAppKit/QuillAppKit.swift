@@ -1322,7 +1322,7 @@ open class NSWindowController: NSResponder {
     }
 }
 
-@MainActor public protocol NSWindowDelegate: AnyObject {
+@preconcurrency @MainActor public protocol NSWindowDelegate: AnyObject {
     func windowWillClose(_ notification: Notification)
     func windowDidBecomeKey(_ notification: Notification)
     func windowDidResignKey(_ notification: Notification)
@@ -1723,6 +1723,7 @@ open class NSTouchBar: NSObject, @unchecked Sendable {
     public override init() {}
 }
 
+@preconcurrency @MainActor
 public protocol NSTouchBarDelegate: AnyObject {
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem?
 }
@@ -1926,7 +1927,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
     public func display() {}
 }
 
-@MainActor public protocol NSApplicationDelegate: AnyObject {
+@preconcurrency @MainActor public protocol NSApplicationDelegate: AnyObject {
     func applicationDidFinishLaunching(_ notification: Notification)
     func applicationWillTerminate(_ notification: Notification)
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool
@@ -3323,6 +3324,7 @@ open class NSMenuItem: NSObject {
     open var isSeparatorItem: Bool { false }
 }
 
+@preconcurrency @MainActor
 public protocol NSMenuDelegate: AnyObject {
     func menuWillOpen(_ menu: NSMenu)
     func menuDidClose(_ menu: NSMenu)
@@ -3437,7 +3439,7 @@ open class NSToolbarItemGroup: NSToolbarItem {
     public enum ControlRepresentation: Int, Sendable { case automatic, expanded, collapsed }
 }
 
-@MainActor public protocol NSToolbarDelegate: AnyObject {
+@preconcurrency @MainActor public protocol NSToolbarDelegate: AnyObject {
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem?
@@ -3792,6 +3794,7 @@ open class NSTextField: NSControl {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSTextFieldDelegate: AnyObject {
     func controlTextDidChange(_ obj: Notification)
     func controlTextDidBeginEditing(_ obj: Notification)
@@ -3821,6 +3824,7 @@ open class NSTokenField: NSTextField {
 /// NSTokenFieldDelegate refines NSTextFieldDelegate; on macOS its methods are
 /// @objc-optional. Declared with a default impl so conformers (e.g. WireGuard's
 /// OnDemandControlsRow) only override what they need.
+@preconcurrency @MainActor
 public protocol NSTokenFieldDelegate: NSTextFieldDelegate {
     func tokenField(_ tokenField: NSTokenField, completionsForSubstring substring: String, indexOfToken tokenIndex: Int, indexOfSelectedItem selectedIndex: UnsafeMutablePointer<Int>?) -> [Any]?
 }
@@ -3984,7 +3988,9 @@ open class NSTextView: NSText {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSLayoutManagerDelegate: AnyObject {}
+@preconcurrency @MainActor
 public protocol NSTextStorageDelegate: AnyObject {}
 
 open class NSTextStorage: NSMutableAttributedString {
@@ -4106,6 +4112,7 @@ open class NSTextContainer: NSObject, @unchecked Sendable {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSTextViewDelegate: NSTextDelegate {
     func textViewDidChangeSelection(_ notification: Notification)
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool
@@ -4115,6 +4122,7 @@ public extension NSTextViewDelegate {
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool { true }
 }
 
+@preconcurrency @MainActor
 public protocol NSTextDelegate: AnyObject {
     func textDidChange(_ notification: Notification)
     func textDidBeginEditing(_ notification: Notification)
@@ -4676,6 +4684,7 @@ open class NSSearchField: NSTextField {
     public weak var searchDelegate: NSSearchFieldDelegate?
 }
 
+@preconcurrency @MainActor
 public protocol NSSearchFieldDelegate: NSTextFieldDelegate {
     func searchFieldDidStartSearching(_ sender: NSSearchField)
     func searchFieldDidEndSearching(_ sender: NSSearchField)
@@ -4801,6 +4810,7 @@ open class NSSplitView: NSView {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSSplitViewDelegate: AnyObject {
     func splitView(_ splitView: NSSplitView, canCollapseSubview: NSView) -> Bool
     func splitViewDidResizeSubviews(_ notification: Notification)
@@ -5413,6 +5423,7 @@ open class NSTableColumn: NSObject {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
@@ -5434,6 +5445,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {}
 }
 
+@preconcurrency @MainActor
 public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
@@ -5662,6 +5674,7 @@ open class NSOutlineView: NSTableView {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSOutlineViewDelegate: NSTableViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView?
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool
@@ -5683,6 +5696,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
+@preconcurrency @MainActor
 public protocol NSOutlineViewDataSource: NSTableViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
@@ -5909,6 +5923,7 @@ open class NSPopover: NSResponder {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSPopoverDelegate: AnyObject {
     func popoverWillShow(_ notification: Notification)
     func popoverDidShow(_ notification: Notification)

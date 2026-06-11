@@ -366,6 +366,9 @@ public struct ButtonStyleConfiguration {
     }
 }
 
+// @MainActor @preconcurrency: Apple's exact shape for style protocols —
+// makeBody composes isolated View values on the main actor.
+@MainActor @preconcurrency
 public protocol ButtonStyle {
     associatedtype Body: View
     typealias Configuration = ButtonStyleConfiguration
