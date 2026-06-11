@@ -16,20 +16,15 @@ import SwiftOpenUI
 // real SwiftUI / Foundation supply these, so the shim must not shadow them.
 
 /// SwiftUI's localized-string key. Upstream uses it only as a return type
-/// built from string literals / interpolation.
-public struct LocalizedStringKey: Equatable, ExpressibleByStringLiteral, ExpressibleByStringInterpolation {
-    public let key: String
-    public init(stringLiteral value: String) { self.key = value }
-    public init(_ value: String) { self.key = value }
-    public init(stringInterpolation: StringInterpolation) { self.key = stringInterpolation.value }
-
-    public struct StringInterpolation: StringInterpolationProtocol {
-        public var value = ""
-        public init(literalCapacity: Int, interpolationCount: Int) {}
-        public mutating func appendLiteral(_ literal: String) { value += literal }
-        public mutating func appendInterpolation<T>(_ v: T) { value += "\(v)" }
-    }
-}
+/// built from string literals / interpolation — which String satisfies
+/// directly (Apple's LocalizedStringKey exposes no public accessors).
+///
+/// MUST stay the same underlying type as QuillSwiftUICompatibility's
+/// `LocalizedStringKey` (also = String): icecubes' Models sees BOTH modules,
+/// and two same-named aliases are unambiguous only while they denote one
+/// canonical type. The previous standalone struct collided with the compat
+/// alias the moment both were visible ("'LocalizedStringKey' is ambiguous").
+public typealias LocalizedStringKey = String
 
 /// Minimal Foundation `RelativeDateTimeFormatter` (missing on Linux Foundation).
 /// Covers the surface upstream `DateFormatterCache` uses.
