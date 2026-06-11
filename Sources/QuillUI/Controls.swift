@@ -304,7 +304,14 @@ public struct QuillPromptGrid: View {
     #endif
 
     private var gridColumns: [GridItem] {
+        #if os(Linux)
+        Array(
+            repeating: GridItem(.adaptive(minimum: Double(max(80, cardWidth))), spacing: gridSpacing),
+            count: columns
+        )
+        #else
         Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columns)
+        #endif
     }
 
     @ViewBuilder

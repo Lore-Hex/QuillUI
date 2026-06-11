@@ -1,6 +1,17 @@
 import SwiftUI
+#if os(Linux) && canImport(BackendGTK4) && canImport(CGTK) && canImport(CGTKBridge)
+import BackendGTK4
+import CGTK
+import CGTKBridge
+#endif
 
-public struct WrappingHStack<Content: View>: View {
+@_spi(QuillTesting) public enum QuillWrappingHStackAlignment: Equatable {
+    case leading
+    case center
+    case trailing
+}
+
+public struct WrappingHStack<Content: View>: View, MultiChildView {
     private let alignment: HorizontalAlignment
     private let spacing: CGFloat?
     private let content: Content
@@ -42,4 +53,66 @@ public struct WrappingHStack<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .center)
     }
+
+    public var children: [any View] {
+        if let multi = content as? MultiChildView {
+            return multi.children
+        }
+        return [content]
+    }
+
+    @_spi(QuillTesting) public var quillResolvedSpacing: Int {
+        spacing.map { max(0, Int($0.rounded())) } ?? 8
+    }
+
+    @_spi(QuillTesting) public var quillResolvedAlignment: QuillWrappingHStackAlignment {
+        switch alignment {
+        case .leading:
+            return .leading
+        case .trailing:
+            return .trailing
+        default:
+            return .center
+        }
+    }
 }
+
+#if os(Linux) && canImport(BackendGTK4) && canImport(CGTK) && canImport(CGTKBridge)
+extension WrappingHStack: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "WrappingHStack",
+            children: children.map(gtkDescribeAnyView)
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let flow = gtk_swift_flow_box_new()!
+        let resolvedSpacing = quillResolvedSpacing
+
+        gtk_swift_flow_box_configure(flow, guint(resolvedSpacing))
+
+        switch quillResolvedAlignment {
+        case .leading:
+            gtk_widget_set_halign(flow, GTK_ALIGN_START)
+        case .center:
+            gtk_widget_set_halign(flow, GTK_ALIGN_CENTER)
+        case .trailing:
+            gtk_widget_set_halign(flow, GTK_ALIGN_END)
+        }
+        gtk_widget_set_valign(flow, GTK_ALIGN_START)
+        gtk_widget_set_hexpand(flow, 1)
+
+        for child in children {
+            let widget = widgetFromOpaque(gtkRenderAnyView(child))
+            gtk_widget_set_hexpand(widget, 0)
+            gtk_widget_set_halign(widget, GTK_ALIGN_START)
+            gtk_widget_set_valign(widget, GTK_ALIGN_START)
+            gtk_swift_flow_box_insert(flow, widget)
+        }
+
+        return opaqueFromWidget(flow)
+    }
+}
+#endif

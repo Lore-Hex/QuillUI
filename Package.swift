@@ -421,6 +421,17 @@ let quillUIDependencies: [Target.Dependency] = [
 #endif
 
 #if os(Linux)
+let wrappingHStackDependencies: [Target.Dependency] = [
+    "SwiftUI",
+    .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+    .product(name: "CGTK", package: "SwiftOpenUI"),
+    .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+]
+#else
+let wrappingHStackDependencies: [Target.Dependency] = ["SwiftUI"]
+#endif
+
+#if os(Linux)
 let quillChatKitDependencies: [Target.Dependency] = ["QuillFoundation", "SwiftUI"]
 #else
 let quillChatKitDependencies: [Target.Dependency] = ["QuillFoundation"]
@@ -2308,7 +2319,7 @@ targets.append(contentsOf: [
     .target(name: "MarkdownUI", dependencies: ["SwiftUI"], path: "Sources/MarkdownUI"),
     .target(name: "Splash", dependencies: ["SwiftUI"], path: "Sources/Splash"),
     .target(name: "ActivityIndicatorView", dependencies: ["SwiftUI"], path: "Sources/ActivityIndicatorView"),
-    .target(name: "WrappingHStack", dependencies: ["SwiftUI"], path: "Sources/WrappingHStack"),
+    .target(name: "WrappingHStack", dependencies: wrappingHStackDependencies, path: "Sources/WrappingHStack"),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),
     .target(name: "PhotosUI", dependencies: ["SwiftUI"], path: "Sources/PhotosUI"),
