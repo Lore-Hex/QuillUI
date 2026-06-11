@@ -25,6 +25,12 @@ public class AVCaptureSession: @unchecked Sendable {
     }
 
     public var sessionPreset: Preset = .high
+
+    /// V4L2 hook (#515): while running with a /dev/video* device input, holds
+    /// the QuillV4L2SessionBridge feeding real frames to this session's video
+    /// data outputs. AnyObject-typed so this file builds with or without the
+    /// CV4L2 shim target.
+    var quillV4L2Bridge: AnyObject?
     public private(set) var inputs: [AVCaptureInput] = []
     public private(set) var outputs: [AVCaptureOutput] = []
     public private(set) var isRunning: Bool = false
@@ -48,8 +54,17 @@ public class AVCaptureSession: @unchecked Sendable {
         outputs.removeAll { $0 === output }
     }
 
-    public func startRunning() { isRunning = true }
-    public func stopRunning() { isRunning = false }
+    public func startRunning() {
+        isRunning = true
+        // V4L2 backend (#515): begin real frame delivery when a /dev/video*
+        // device is attached (no-op otherwise, preserving the inert surface).
+        quillV4L2StartIfAvailable()
+    }
+
+    public func stopRunning() {
+        quillV4L2StopIfAvailable()
+        isRunning = false
+    }
 }
 
 open class AVCaptureInput: @unchecked Sendable {
