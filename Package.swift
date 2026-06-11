@@ -448,6 +448,9 @@ let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
 let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore"]
 let uiKitShimDependencies: [Target.Dependency] =
     ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore", "CoreTransferable"]
+// V4L2 capture backend (#515): Linux-only system library; Apple graphs
+// keep the pure compile-surface AVFoundation.
+let quillV4L2Dependencies: [Target.Dependency] = ["CV4L2"]
 #else
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
@@ -456,6 +459,7 @@ let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation"]
 let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit"]
 let uiKitShimDependencies: [Target.Dependency] =
     ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "CoreTransferable"]
+let quillV4L2Dependencies: [Target.Dependency] = []
 #endif
 
 #if os(Linux)
@@ -2261,6 +2265,15 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
 }
 #endif
 
+// V4L2 capture backend (#515): named non-variadic ioctl wrappers + the V4L2
+// constants the Swift importer can't surface. shim.h self-gates on __linux__;
+// no linkerSettings needed (ioctl/mmap live in libc).
+#if os(Linux)
+targets += [
+    .systemLibrary(name: "CV4L2", path: "Sources/CV4L2"),
+]
+#endif
+
 // SolderScope (rjwalters/SolderScope) — real macOS SwiftUI USB-microscope
 // viewer compiled UNMODIFIED on Linux (no @objc/#selector anywhere; the only
 // build-prep transform is quill-lower-appkit's `import os.log` → `import os`
@@ -2501,6 +2514,12 @@ targets.append(contentsOf: [
     .target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
     .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
     .target(name: "FoundationModels", dependencies: ["QuillDataMacros"], path: "Sources/FoundationModels"),
+    // CV4L2 (Linux): named non-variadic ioctl wrappers + V4L2 constants the
+    // Swift importer can't surface (variadic ioctl, _IOWR function-like
+    // macros). The shim header self-gates on __linux__; the AVFoundation
+    // capture/bridge code double-gates on canImport(CV4L2), so Apple-host
+    // graphs never see it (the dependency is appended below, Linux-only).
+    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo"] + quillV4L2Dependencies, path: "Sources/AVFoundation"),
     .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
     .target(name: "ApplicationServices", dependencies: ["QuillKit"], path: "Sources/ApplicationServices"),
     .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement"),

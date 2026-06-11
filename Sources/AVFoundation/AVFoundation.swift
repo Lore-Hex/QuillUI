@@ -294,13 +294,15 @@ public final class AVCaptureDevice: @unchecked Sendable {
         return true
     }
 
-    /// Device discovery. Returns no devices until the V4L2 backend (#515)
-    /// provides real /dev/video* enumeration behind this same API.
+    /// Device discovery, backed on Linux by the V4L2 backend (#515):
+    /// /dev/video* nodes that report VIDEO_CAPTURE+STREAMING, with their
+    /// node path as `uniqueID` (the marker the session bridge keys on).
+    /// Empty when the CV4L2 shim isn't built or no camera is attached.
     public final class DiscoverySession: @unchecked Sendable {
         public let devices: [AVCaptureDevice]
         public init(deviceTypes: [DeviceType], mediaType: AVMediaType?, position: Position) {
             _ = (deviceTypes, mediaType, position)
-            self.devices = []
+            self.devices = AVCaptureDevice.quillV4L2DiscoveredDevices()
         }
     }
 }
