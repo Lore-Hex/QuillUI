@@ -333,6 +333,7 @@ static inline NSSize NSMakeSize(CGFloat width, CGFloat height) {
 @end
 
 @interface NSImage : NSObject
++ (instancetype)imageNamed:(NSString *)name;
 + (NSArray<NSString *> *)imageTypes;
 - (instancetype)initWithSize:(NSSize)size;
 - (instancetype)initWithData:(NSData *)data;
