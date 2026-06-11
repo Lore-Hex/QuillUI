@@ -7,6 +7,11 @@
 // QuillOS is the macOS-flavored desktop, so mirror that topology. First
 // conformance driver: rjwalters/SolderScope (compiled unmodified on Linux).
 @_exported import AppKit
+// Apple's SwiftUI also re-exports Combine (Publisher pipelines, AnyCancellable,
+// .onReceive arguments are usable from a SwiftUI-only import). Safe here now
+// that ObservableObject/Published are ONE canonical pair (SwiftOpenUI aliases
+// OpenCombine on Linux — the same module this Combine shim re-exports).
+@_exported import Combine
 
 // NOTE: do NOT add `@_exported import QuillUI` here. QuillUI
 // declares its own `NSImage`, `FocusState`, and other

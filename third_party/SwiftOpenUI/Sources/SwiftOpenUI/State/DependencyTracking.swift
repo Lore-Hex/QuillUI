@@ -10,7 +10,7 @@
 // MARK: - Generation tracking
 
 /// Protocol for storages that track a mutation generation counter.
-/// Both StateStorage and PublishedStorage conform.
+/// StateStorage and the observable-object storages conform.
 public protocol GenerationTracked: AnyObject {
     var generation: UInt64 { get }
 }
@@ -61,7 +61,8 @@ public func beginDependencyTracking() {
     _trackingStack.append(TrackingSession())
 }
 
-/// Record a storage read. Called from StateStorage/PublishedStorage value getters.
+/// Record a storage read. Called from StateStorage value getters and the
+/// observable-object storage accessors.
 /// Captures both the ObjectIdentifier (Phase 6) and generation snapshot (Phase 7).
 public func recordDependencyRead(_ storage: AnyObject) {
     guard !_trackingStack.isEmpty else { return }

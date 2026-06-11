@@ -803,10 +803,17 @@ var targets: [Target] = [
     // contract for generated-source profiles.
     .target(
         name: "QuillSourceLowering",
+        // "os": swift-syntax's SwiftSyntaxBuilder/SwiftParser have a
+        // `#if canImport(os)` logging path. In this workspace `canImport(os)`
+        // can find the os SHADOW module once it's built (SwiftPM exposes
+        // sibling modules in the shared build dir), and then every executable
+        // linking QuillSourceLowering needs the os symbols. Declaring the dep
+        // here makes the link deterministic instead of build-order-dependent.
         dependencies: [
             .product(name: "SwiftSyntax", package: "swift-syntax"),
             .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
-            .product(name: "SwiftParser", package: "swift-syntax")
+            .product(name: "SwiftParser", package: "swift-syntax"),
+            "os"
         ],
         path: "Sources/QuillSourceLowering"
     ),
@@ -894,7 +901,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIKit",
-        dependencies: ["QuillFoundation"],
+        dependencies: ["QuillFoundation", "QuillKit"],
         path: "Sources/QuillUIKit"
     ),
     .target(
@@ -2154,7 +2161,14 @@ if solderScopeUpstreamPresent {
                 "Metadata/SolderScope.entitlements",
                 "Metadata/Info.plist",
             ],
-            swiftSettings: appSwiftSettings
+            // -import-module Combine: on Apple platforms Foundation re-exports
+            // Combine, so files with only `import Foundation` freely use
+            // ObservableObject/@Published (SolderScope's CalibrationManager
+            // does exactly this). corelibs Foundation can't, so emulate the
+            // re-export at the app-target boundary.
+            swiftSettings: appSwiftSettings + [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "Combine"])
+            ]
         ),
     ]
 }
@@ -2224,9 +2238,9 @@ targets.append(contentsOf: [
     ),
     .target(
         name: "SwiftUI",
-        // AppKit: Apple's macOS SwiftUI re-exports AppKit; mirror it (see
-        // Sources/SwiftUIShim/SwiftUI.swift).
-        dependencies: ["QuillUI", "QuillSwiftUICompatibility", "AppKit"],
+        // AppKit + Combine: Apple's macOS SwiftUI re-exports both; mirror it
+        // (see Sources/SwiftUIShim/SwiftUI.swift).
+        dependencies: ["QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine"],
         path: "Sources/SwiftUIShim"
     ),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
@@ -2539,7 +2553,7 @@ if quillUILinuxBuildBackend == .qt {
         // rendered through Qt6. All GTK-free.
         .target(
             name: "QuillUIKit",
-            dependencies: ["QuillFoundation"],
+            dependencies: ["QuillFoundation", "QuillKit"],
             path: "Sources/QuillUIKit"
         ),
         // Inert GTK-free Apple-framework shims the AppKit shadow
