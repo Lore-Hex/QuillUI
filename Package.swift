@@ -390,11 +390,22 @@ let appKitShadowDependencies: [Target.Dependency] = [
     "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage",
 ]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
+// UIView.layer: on Linux, QuillUIKit (and the UIKit umbrella that re-exports
+// it) needs the in-tree QuartzCore shim. On Apple platforms CALayer comes from
+// the real QuartzCore via AppKit/UIKit — and the shim target doesn't exist, so
+// the dependency must vanish entirely (a `.when(platforms:)` condition would
+// still dangle: SwiftPM validates named targets even when the condition is off).
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuartzCore"]
+let uiKitShimDependencies: [Target.Dependency] =
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore"]
 #else
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
 ]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation"]
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation"]
+let uiKitShimDependencies: [Target.Dependency] =
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"]
 #endif
 
 #if os(Linux)
@@ -667,6 +678,21 @@ let cZlibTarget: Target = .systemLibrary(
 // build plugin; without a `.macro(…)` declaration here,
 // `#externalMacro(module: "QuillDataMacros", …)` references
 // fail with "plugin for module 'QuillDataMacros' not found".
+// swift-syntax's SwiftSyntaxBuilder compiles inside this package's unified
+// build directory, where the in-repo `os` shim's .swiftmodule can make its
+// `#if canImport(os)` flip TRUE on Linux (module visibility in a shared build
+// dir is build-order-dependent, not dependency-declared). When it flips,
+// SwiftSyntaxBuilder emits os.Logger calls and every product linking it needs
+// the shim at link time or dies with "undefined reference to $s2os…" — which
+// then surfaces as the macro plugin failing with opaque "error: fatalError" /
+// "Corrupted JSON" diagnostics. Declaring the dependency makes the link
+// deterministic. Empty on Apple platforms (real os framework; no shim target).
+#if os(Linux)
+let swiftSyntaxOSLinkDependencies: [Target.Dependency] = ["os"]
+#else
+let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
+#endif
+
 let quillDataMacroTarget: Target = .macro(
     name: "QuillDataMacros",
     dependencies: [
@@ -674,7 +700,7 @@ let quillDataMacroTarget: Target = .macro(
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
-    ],
+    ] + swiftSyntaxOSLinkDependencies,
     path: "Sources/QuillDataMacros"
 )
 
@@ -792,7 +818,7 @@ var targets: [Target] = [
             .product(name: "SwiftSyntax", package: "swift-syntax"),
             .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
             .product(name: "SwiftParser", package: "swift-syntax")
-        ],
+        ] + swiftSyntaxOSLinkDependencies,
         path: "Sources/QuillSourceLowering"
     ),
     .executableTarget(
@@ -879,7 +905,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIKit",
-        dependencies: ["QuillFoundation"],
+        dependencies: quillUIKitDependencies,
         path: "Sources/QuillUIKit"
     ),
     .target(
@@ -2287,7 +2313,7 @@ targets.append(contentsOf: [
     // CYCLE-BREAK: these UI-adjacent shims re-export
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
-    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"], path: "Sources/UIKitShim"),
+    .target(name: "UIKit", dependencies: uiKitShimDependencies, path: "Sources/UIKitShim"),
     // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow +
     // common AppKit-adjacent Apple modules, so source that relies on Cocoa as
     // an umbrella import recompiles unchanged.
@@ -3048,6 +3074,19 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
         ),
     ]
 }
+#endif
+
+// QuartzCore shim tests — the functional CALayer model, transform math, and
+// async animation/transaction/display-link timing engine. Linux-only because
+// the target under test is (on Apple platforms the real QuartzCore exists).
+#if os(Linux)
+targets += [
+    .testTarget(
+        name: "QuartzCoreTests",
+        dependencies: ["QuartzCore"],
+        path: "Tests/QuartzCoreTests"
+    ),
+]
 #endif
 
 let package = Package(

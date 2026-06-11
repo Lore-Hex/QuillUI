@@ -12,6 +12,12 @@
 // (e.g. ExperienceUpgradeManifest) still resolve UNUserNotificationCenter & co.
 // now that QuillUIKit's stub was removed in favor of the dedicated shim.
 @_exported import UserNotifications
+#if os(Linux)
+// On Apple platforms `import UIKit` transitively re-exports QuartzCore — UIKit
+// apps use CALayer & friends bare, without an explicit `import QuartzCore`
+// (SignalUI alone has ~1,000 such references). Mirror that contract here.
+@_exported import QuartzCore
+#endif
 import QuillKit
 
 #if !os(iOS)
