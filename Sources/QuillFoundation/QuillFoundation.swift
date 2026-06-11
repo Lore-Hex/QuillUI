@@ -951,6 +951,16 @@ public struct RSCGColor: Equatable, Sendable {
     public static let clear = RSCGColor(components: [0, 0, 0, 0])
     public static let white = RSCGColor(components: [1, 1, 1, 1])
     public static let black = RSCGColor(components: [0, 0, 0, 1])
+
+    /// Apple's sRGB convenience initializer (`CGColor(red:green:blue:alpha:)`).
+    public init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        self.init(components: [red, green, blue, alpha])
+    }
+
+    /// Apple's grayscale convenience initializer.
+    public init(gray: CGFloat, alpha: CGFloat) {
+        self.init(components: [gray, gray, gray, alpha])
+    }
 }
 public typealias CGColor = RSCGColor
 
@@ -1119,7 +1129,11 @@ public class RSFont: NSObject, @unchecked Sendable {
     public var ascender: CGFloat { pointSize * 0.95 }
     public var descender: CGFloat { -pointSize * 0.25 }
 }
-public typealias UIFont = RSFont
+// NOTE: no `UIFont` alias here. The UIKit shim owns the Linux UIFont class
+// (since #427), and SignalServiceKit sees BOTH modules (QuillFoundation is
+// re-exported through UIKit→QuartzCore), so a second public UIFont made every
+// unqualified `UIFont` in SSK ambiguous. RSFont remains QuillFoundation's
+// own font type for RS*-namespace consumers (NetNewsWire-family code).
 
 // MARK: - UIFontDescriptor (Linux)
 //

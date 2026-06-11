@@ -13,6 +13,12 @@
 import QuillFoundation
 import QuillKit
 
+#if os(Linux)
+// CALayer for UIView.layer. On Apple platforms the real QuartzCore arrives
+// transitively via AppKit/UIKit; on Linux it's the in-tree shim module.
+import QuartzCore
+#endif
+
 #if os(iOS)
 // On iOS the real UIKit / AuthenticationServices / WebKit are auto-imported.
 import AuthenticationServices
@@ -196,13 +202,69 @@ public class UIWindow: UIView {}
 
 @MainActor open class UIView: UIResponder {
     public override init() { super.init() }
-    public init(frame: CGRect) { super.init() }
-    public var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
-    public var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
+    public init(frame: CGRect) {
+        super.init()
+        self.frame = frame
+    }
+    public var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
+        didSet {
+            #if os(Linux)
+            _layer?.frame = frame
+            #endif
+        }
+    }
+    public var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
+        didSet {
+            #if os(Linux)
+            _layer?.bounds = bounds
+            #endif
+        }
+    }
+    public private(set) weak var superview: UIView?
     public var subviews: [UIView] = []
-    public func removeFromSuperview() {}
+    open func removeFromSuperview() {
+        superview?.subviews.removeAll { $0 === self }
+        superview = nil
+        #if os(Linux)
+        _layer?.removeFromSuperlayer()
+        #endif
+    }
     public var backgroundColor: UIColor?
-    public func addSubview(_: UIView) {}
+    open func addSubview(_ view: UIView) {
+        view.removeFromSuperview()
+        subviews.append(view)
+        view.superview = self
+        #if os(Linux)
+        layer.addSublayer(view.layer)
+        #endif
+    }
+
+    #if os(Linux)
+    // UIView.layer — Apple's view/layer pairing. Created lazily (first access)
+    // via `layerClass` so subclasses that override `layerClass` (CAShapeLayer-
+    // backed views etc.) get the right class; geometry writes mirror into it.
+    // There is no compositor on Linux yet, so the layer is a faithful MODEL
+    // (geometry, hierarchy, animation timing) — not pixels. Linux-only block:
+    // on macOS this module builds against real AppKit and predates the shim.
+    private var _layer: CALayer?
+    open class var layerClass: AnyClass { CALayer.self }
+    open var layer: CALayer {
+        if let existing = _layer { return existing }
+        let cls = type(of: self).layerClass as? CALayer.Type ?? CALayer.self
+        let created = cls.init()
+        // Seed from BOTH stored geometry properties: a bounds set before the
+        // first layer access must survive (frame alone would reset the
+        // layer's bounds to the possibly-zero stored frame). frame first —
+        // it derives position + bounds.size — then bounds wins where the
+        // caller set it explicitly.
+        created.frame = frame
+        if bounds != .zero {
+            created.bounds = bounds
+        }
+        _layer = created
+        return created
+    }
+    #endif
     public var window: UIWindow?
     public typealias UserInterfaceStyle = UIUserInterfaceStyle
     public var overrideUserInterfaceStyle: UserInterfaceStyle = .unspecified

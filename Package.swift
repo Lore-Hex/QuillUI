@@ -394,11 +394,22 @@ let appKitShadowDependencies: [Target.Dependency] = [
     "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage",
 ]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
+// UIView.layer: on Linux, QuillUIKit (and the UIKit umbrella that re-exports
+// it) needs the in-tree QuartzCore shim. On Apple platforms CALayer comes from
+// the real QuartzCore via AppKit/UIKit — and the shim target doesn't exist, so
+// the dependency must vanish entirely (a `.when(platforms:)` condition would
+// still dangle: SwiftPM validates named targets even when the condition is off).
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore"]
+let uiKitShimDependencies: [Target.Dependency] =
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore"]
 #else
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
 ]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation"]
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit"]
+let uiKitShimDependencies: [Target.Dependency] =
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"]
 #endif
 
 #if os(Linux)
@@ -954,7 +965,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIKit",
-        dependencies: ["QuillFoundation", "QuillKit"],
+        dependencies: quillUIKitDependencies,
         path: "Sources/QuillUIKit"
     ),
     .target(
@@ -2410,7 +2421,7 @@ targets.append(contentsOf: [
     // CYCLE-BREAK: these UI-adjacent shims re-export
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
-    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore"], path: "Sources/UIKitShim"),
+    .target(name: "UIKit", dependencies: uiKitShimDependencies, path: "Sources/UIKitShim"),
     // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow +
     // common AppKit-adjacent Apple modules, so source that relies on Cocoa as
     // an umbrella import recompiles unchanged.
@@ -3175,6 +3186,19 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
         ),
     ]
 }
+#endif
+
+// QuartzCore shim tests — the functional CALayer model, transform math, and
+// async animation/transaction/display-link timing engine. Linux-only because
+// the target under test is (on Apple platforms the real QuartzCore exists).
+#if os(Linux)
+targets += [
+    .testTarget(
+        name: "QuartzCoreTests",
+        dependencies: ["QuartzCore"],
+        path: "Tests/QuartzCoreTests"
+    ),
+]
 #endif
 
 let package = Package(

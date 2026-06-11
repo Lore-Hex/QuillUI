@@ -15,7 +15,9 @@
 // On iOS, Apple's UIKit re-exports QuartzCore — `import UIKit` alone exposes
 // CALayer/CAShapeLayer/CATransaction. Signal-iOS's SignalUI relies on this
 // (~4.8k of its conformance-build errors were CA* names with no QuartzCore
-// import in sight). Mirror that topology here.
+// import in sight). Mirror that topology here: on Linux this resolves to the
+// in-tree QuartzCore shim (a declared target dependency); on Apple platforms
+// it resolves to the real framework, exactly like Apple's UIKit.
 @_exported import QuartzCore
 import QuillKit
 

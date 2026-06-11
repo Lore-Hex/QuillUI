@@ -1,14 +1,20 @@
 import Foundation
 import QuillPaint
 
-#if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
+// os(macOS), NOT canImport(CoreGraphics): this package ships a Linux
+// CoreGraphics shim target, so in a unified build directory canImport()
+// can flip true on Linux (the .swiftmodule is on the search path even
+// without a declared dependency) while QuillPaintCoreGraphics' renderer
+// types stay Apple-gated — breaking `swift test` on Linux. The tool is
+// Apple-only by design; gate it on the platform, not module visibility.
+#if os(macOS)
 import QuillPaintCoreGraphics
 #endif
 
 @main
 struct QuillRenderMacReferences {
     static func main() {
-        #if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
+        #if os(macOS)
         let arguments = CommandLine.arguments
         let toolName = (arguments.first as NSString?)?.lastPathComponent ?? "quill-render-mac-references"
 
@@ -74,7 +80,7 @@ struct QuillRenderMacReferences {
         #endif
     }
 
-    #if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
+    #if os(macOS)
     /// Default output path: walk up from the cwd looking for a Package.swift
     /// alongside a Tests/ directory. If found, write to
     /// `Tests/Fixtures/MacReference/`. Otherwise fall back to ./MacReference/.

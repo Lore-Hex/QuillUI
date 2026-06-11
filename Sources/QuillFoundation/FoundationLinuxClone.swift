@@ -113,17 +113,47 @@ public extension NSObject {
         return nil
     }
 
+    // KVC entry points. corelibs has no ObjC-runtime key-value coding, so
+    // these forward to QuillKeyValueCoding when the receiver adopts it
+    // (CALayer/CAAnimation in the QuartzCore shim carry real key tables);
+    // for every other NSObject they remain the historical no-op stubs.
     func value(forKey key: String) -> Any? {
-        _ = key
-        return nil
+        (self as? QuillKeyValueCoding)?.quillValue(forKey: key)
+    }
+
+    func value(forKeyPath keyPath: String) -> Any? {
+        (self as? QuillKeyValueCoding)?.quillValue(forKeyPath: keyPath)
     }
 
     func setValue(_ value: Any?, forKey key: String) {
-        _ = (value, key)
+        (self as? QuillKeyValueCoding)?.quillSetValue(value, forKey: key)
     }
 
     func setValue(_ value: Any?, forKeyPath keyPath: String) {
-        _ = (value, keyPath)
+        (self as? QuillKeyValueCoding)?.quillSetValue(value, forKeyPath: keyPath)
+    }
+}
+
+/// Functional key-value coding opt-in. NSObject's KVC stubs above cannot be
+/// overridden (extension methods), so types that genuinely answer KVC —
+/// QuartzCore's CALayer and CAAnimation, whose consumers address properties
+/// by key path constantly — adopt this protocol; the stubs dynamic-cast and
+/// forward. Mirrors the QuillSelectorDispatching pattern.
+public protocol QuillKeyValueCoding {
+    func quillValue(forKey key: String) -> Any?
+    func quillValue(forKeyPath keyPath: String) -> Any?
+    func quillSetValue(_ value: Any?, forKey key: String)
+    func quillSetValue(_ value: Any?, forKeyPath keyPath: String)
+}
+
+public extension QuillKeyValueCoding {
+    // Key-path forms default to the plain-key forms for adopters without
+    // path-structured keys.
+    func quillValue(forKeyPath keyPath: String) -> Any? {
+        quillValue(forKey: keyPath)
+    }
+    func quillSetValue(_ value: Any?, forKeyPath keyPath: String) {
+        quillSetValue(value, forKey: keyPath)
     }
 }
 
@@ -193,7 +223,13 @@ public func arc4random_buf(_ buffer: UnsafeMutableRawPointer?, _ length: Int) {
     quillRandomFill(buffer, length)
 }
 
-public let errSecSuccess: Int32 = 0
+// @_disfavoredOverload: the Security shim also declares errSecSuccess (it is
+// the canonical owner of errSec* constants), and SignalServiceKit sees BOTH —
+// QuillFoundation arrives module-wide via the UIKit→QuartzCore re-export
+// chain. Disfavoring this copy keeps it available to QuillFoundation-only
+// consumers (the Telegram package islands) without making every
+// `== errSecSuccess` in SSK ambiguous.
+@_disfavoredOverload public let errSecSuccess: Int32 = 0
 
 public func SecRandomCopyBytes(_ rnd: Any?, _ count: Int, _ bytes: UnsafeMutablePointer<UInt8>?) -> Int32 {
     _ = rnd
