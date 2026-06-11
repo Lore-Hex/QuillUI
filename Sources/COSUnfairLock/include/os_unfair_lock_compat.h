@@ -20,10 +20,17 @@ typedef struct os_unfair_lock_s {
 
 #define OS_UNFAIR_LOCK_INIT ((struct os_unfair_lock_s){0})
 
+typedef int32_t OSSpinLock;
+#define OS_SPINLOCK_INIT 0
+
 void os_unfair_lock_lock(os_unfair_lock_t lock);
 void os_unfair_lock_unlock(os_unfair_lock_t lock);
 int  os_unfair_lock_trylock(os_unfair_lock_t lock);
 void os_unfair_lock_assert_owner(os_unfair_lock_t lock);
 void os_unfair_lock_assert_not_owner(os_unfair_lock_t lock);
+
+void OSSpinLockLock(volatile OSSpinLock *lock);
+void OSSpinLockUnlock(volatile OSSpinLock *lock);
+int  OSSpinLockTry(volatile OSSpinLock *lock);
 
 #endif /* QUILL_OS_UNFAIR_LOCK_COMPAT_H */

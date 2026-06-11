@@ -6,6 +6,8 @@
 
 typedef int32_t OSStatus;
 typedef uint32_t OSType;
+typedef uint32_t AudioFormatID;
+typedef uint32_t AudioChannelLayoutTag;
 typedef uint32_t AudioUnitPropertyID;
 typedef uint32_t AudioUnitScope;
 typedef uint32_t AudioUnitElement;
@@ -14,7 +16,12 @@ typedef struct OpaqueAudioComponent *AudioComponent;
 typedef struct OpaqueAudioUnit *AudioUnit;
 typedef AudioUnit AudioComponentInstance;
 
-static const OSStatus noErr = 0;
+#ifndef QUILL_OBJC_NOERR_DEFINED
+#define QUILL_OBJC_NOERR_DEFINED
+#ifndef noErr
+#define noErr ((OSStatus)0)
+#endif
+#endif
 
 typedef struct AudioComponentDescription {
     OSType componentType;
@@ -24,6 +31,26 @@ typedef struct AudioComponentDescription {
     UInt32 componentFlagsMask;
 } AudioComponentDescription;
 
+typedef struct AudioBuffer {
+    UInt32 mNumberChannels;
+    UInt32 mDataByteSize;
+    void *mData;
+} AudioBuffer;
+
+typedef struct AudioBufferList {
+    UInt32 mNumberBuffers;
+    AudioBuffer mBuffers[1];
+} AudioBufferList;
+
+typedef struct AudioChannelLayout {
+    AudioChannelLayoutTag mChannelLayoutTag;
+    UInt32 mChannelBitmap;
+    UInt32 mNumberChannelDescriptions;
+} AudioChannelLayout;
+
+static const AudioFormatID kAudioFormatMPEG4AAC = 0x61616320U;
+static const AudioChannelLayoutTag kAudioChannelLayoutTag_Mono = 0x00640001U;
+static const AudioChannelLayoutTag kAudioChannelLayoutTag_Stereo = 0x00650002U;
 static const OSType kAudioUnitType_Output = 0x61756f75U;
 static const OSType kAudioUnitSubType_VoiceProcessingIO = 0x7670696fU;
 static const OSType kAudioUnitManufacturer_Apple = 0x6170706cU;

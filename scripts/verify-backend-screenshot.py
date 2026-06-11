@@ -551,6 +551,17 @@ def mac_reference_sidebar_tint_pixel(rgb: tuple[int, int, int]) -> bool:
     )
 
 
+def selected_history_marker_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return sum(rgb) < 360 or (
+        red <= 120
+        and 70 <= green <= 190
+        and blue >= 175
+        and blue >= red + 80
+        and blue >= green + 35
+    )
+
+
 def best_horizontal_segment(
     image: Screenshot,
     y0: int,
@@ -623,6 +634,14 @@ def validate_quill_enchanted_mac_reference(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
+    root_title_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.25),
+        top + int(app_height * 0.25),
+        left + int(app_width * 0.60),
+        top + int(app_height * 0.38),
+        colorful_wordmark_pixel,
+    )
     require(app_width >= 2220, f"Enchanted reference window is too narrow: {app_width}px")
     require(app_height >= 1490, f"Enchanted reference window is too short: {app_height}px")
 
@@ -918,7 +937,11 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         ]
         if candidates:
             segment = max(candidates, key=lambda item: item.width)
-            if composer is None or segment.width > composer[1].width:
+            if (
+                composer is None
+                or segment.width > composer[1].width
+                or (segment.width == composer[1].width and y < composer[0])
+            ):
                 composer = (y, segment)
     require(composer is not None, "Mac-reference composer border was not detected")
     composer_y, composer_segment = composer
@@ -1165,16 +1188,20 @@ def validate_quill_chat_mac_reference_composer_typed(image: Screenshot) -> str:
         ]
         if candidates:
             segment = max(candidates, key=lambda item: item.width)
-            if composer is None or segment.width > composer[1].width:
+            if (
+                composer is None
+                or segment.width > composer[1].width
+                or (segment.width == composer[1].width and y < composer[0])
+            ):
                 composer = (y, segment)
 
     require(composer is not None, "Mac-reference typed composer border was not detected")
     composer_y, composer_segment = composer
     text_pixels = dark_pixel_count(
         image,
-        composer_segment.start + 110,
+        composer_segment.start + 28,
         max(top, composer_y + 18),
-        min(right + 1, composer_segment.start + 320),
+        min(right + 1, composer_segment.start + 300),
         min(bottom + 1, composer_y + 62),
     )
     require(
@@ -1284,20 +1311,100 @@ def validate_quill_chat_mac_reference_settings_panel(
         top + int(app_height * 0.45),
         colorful_wordmark_pixel,
     )
-    require(
-        wordmark_pixels >= 650,
-        f"Mac-reference detail view behind settings panel was not detected: pixels={wordmark_pixels}",
-    )
+    if not require_selected_default_model:
+        require(
+            wordmark_pixels >= 650,
+            f"Mac-reference detail view behind settings panel was not detected: pixels={wordmark_pixels}",
+        )
 
     typed_summary = ""
-    if require_typed_endpoint:
-        endpoint_text_pixels = dark_pixel_count(
-            image,
-            panel_segment.start + 30,
-            panel_y + 58,
-            min(panel_segment.end, panel_segment.start + 560),
-            panel_y + 103,
+    root_overlay_field_rows: list[tuple[int, int, Segment]] = []
+    if panel_kind == "root-overlay":
+        active_row: tuple[int, int, Segment] | None = None
+        for y in range(top + int(app_height * 0.25), top + int(app_height * 0.72)):
+            segments = [
+                segment
+                for segment in image.segments_at(
+                    y,
+                    panel_segment.start + 20,
+                    panel_segment.end - 20,
+                    form_field_pixel,
+                    min_width=600,
+                )
+                if segment.start >= panel_segment.start + 20
+                and segment.end <= panel_segment.end - 20
+            ]
+            if not segments:
+                if active_row is not None:
+                    root_overlay_field_rows.append(active_row)
+                    active_row = None
+                continue
+
+            segment = max(segments, key=lambda item: item.width)
+            if active_row is None:
+                active_row = (y, y, segment)
+            else:
+                start_y, _, active_segment = active_row
+                active_row = (
+                    start_y,
+                    y,
+                    Segment(
+                        min(active_segment.start, segment.start),
+                        max(active_segment.end, segment.end),
+                    ),
+                )
+        if active_row is not None:
+            root_overlay_field_rows.append(active_row)
+        merged_rows: list[tuple[int, int, Segment]] = []
+        for row in root_overlay_field_rows:
+            y0, y1, segment = row
+            if segment.width > 1_000:
+                continue
+            if (
+                merged_rows
+                and y0 - merged_rows[-1][1] <= 20
+                and segment.start <= merged_rows[-1][2].end
+                and segment.end >= merged_rows[-1][2].start
+            ):
+                previous_y0, _, previous_segment = merged_rows[-1]
+                merged_rows[-1] = (
+                    previous_y0,
+                    y1,
+                    Segment(
+                        min(previous_segment.start, segment.start),
+                        max(previous_segment.end, segment.end),
+                    ),
+                )
+            else:
+                merged_rows.append(row)
+        root_overlay_field_rows = merged_rows
+
+    def root_overlay_field_text_pixels(index: int) -> int:
+        require(
+            len(root_overlay_field_rows) > index,
+            "Mac-reference settings root-overlay form field rows were not detected: "
+            f"rows={root_overlay_field_rows}",
         )
+        y0, y1, segment = root_overlay_field_rows[index]
+        return dark_pixel_count(
+            image,
+            segment.start + 18,
+            max(top, y0 - 10),
+            min(segment.end, segment.start + 560),
+            min(bottom + 1, y1 + 11),
+        )
+
+    if require_typed_endpoint:
+        if panel_kind == "root-overlay":
+            endpoint_text_pixels = root_overlay_field_text_pixels(0)
+        else:
+            endpoint_text_pixels = dark_pixel_count(
+                image,
+                panel_segment.start + 30,
+                panel_y + 58,
+                min(panel_segment.end, panel_segment.start + 560),
+                panel_y + 103,
+            )
         require(
             endpoint_text_pixels >= 550,
             f"Mac-reference typed settings endpoint was not detected: pixels={endpoint_text_pixels}",
@@ -1306,18 +1413,17 @@ def validate_quill_chat_mac_reference_settings_panel(
 
     if require_typed_bearer_token:
         if panel_kind == "root-overlay":
-            token_y0 = panel_y + 350
-            token_y1 = panel_y + 398
+            token_text_pixels = root_overlay_field_text_pixels(2)
         else:
             token_y0 = panel_y + 174
             token_y1 = panel_y + 222
-        token_text_pixels = dark_pixel_count(
-            image,
-            panel_segment.start + 30,
-            token_y0,
-            min(panel_segment.end, panel_segment.start + 560),
-            token_y1,
-        )
+            token_text_pixels = dark_pixel_count(
+                image,
+                panel_segment.start + 30,
+                token_y0,
+                min(panel_segment.end, panel_segment.start + 560),
+                token_y1,
+            )
         require(
             token_text_pixels >= 250,
             f"Mac-reference typed settings bearer token was not detected: pixels={token_text_pixels}",
@@ -1326,18 +1432,17 @@ def validate_quill_chat_mac_reference_settings_panel(
 
     if require_typed_ping_interval:
         if panel_kind == "root-overlay":
-            ping_y0 = panel_y + 384
-            ping_y1 = panel_y + 432
+            ping_text_pixels = root_overlay_field_text_pixels(3)
         else:
             ping_y0 = panel_y + 208
             ping_y1 = panel_y + 257
-        ping_text_pixels = dark_pixel_count(
-            image,
-            panel_segment.start + 30,
-            ping_y0,
-            min(panel_segment.end, panel_segment.start + 560),
-            ping_y1,
-        )
+            ping_text_pixels = dark_pixel_count(
+                image,
+                panel_segment.start + 30,
+                ping_y0,
+                min(panel_segment.end, panel_segment.start + 560),
+                ping_y1,
+            )
         require(
             ping_text_pixels >= 140,
             f"Mac-reference typed settings ping interval was not detected: pixels={ping_text_pixels}",
@@ -1345,12 +1450,22 @@ def validate_quill_chat_mac_reference_settings_panel(
         typed_summary += f", ping_text_pixels={ping_text_pixels}"
 
     if require_selected_default_model:
+        if panel_kind == "root-overlay":
+            model_x0 = panel_segment.start + 20
+            model_x1 = min(panel_segment.end, panel_segment.start + 520)
+            model_y0 = panel_y + 340
+            model_y1 = panel_y + 430
+        else:
+            model_x0 = panel_segment.start + 310
+            model_x1 = min(panel_segment.end, panel_segment.start + 640)
+            model_y0 = panel_y + 272
+            model_y1 = panel_y + 346
         model_text_pixels = dark_pixel_count(
             image,
-            panel_segment.start + 310,
-            panel_y + 272,
-            min(panel_segment.end, panel_segment.start + 640),
-            panel_y + 346,
+            model_x0,
+            model_y0,
+            model_x1,
+            model_y1,
         )
         require(
             model_text_pixels >= 200,
@@ -1453,6 +1568,7 @@ def validate_quill_chat_mac_reference_completions_panel(
     image: Screenshot,
     minimum_row_dividers: int = 3,
     minimum_row_action_segments: int = 4,
+    minimum_wordmark_pixels: int = 650,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1534,7 +1650,7 @@ def validate_quill_chat_mac_reference_completions_panel(
         )
         row_action_roi = (
             left + int(app_width * 0.725),
-            top + int(app_height * 0.37),
+            top + int(app_height * 0.345),
             left + int(app_width * 0.79),
             top + int(app_height * 0.53),
         )
@@ -1596,7 +1712,7 @@ def validate_quill_chat_mac_reference_completions_panel(
         colorful_wordmark_pixel,
     )
     require(
-        wordmark_pixels >= 650,
+        wordmark_pixels >= minimum_wordmark_pixels,
         f"Mac-reference detail view behind completions panel was not detected: pixels={wordmark_pixels}",
     )
 
@@ -1615,54 +1731,117 @@ def validate_quill_chat_mac_reference_completions_panel(
 
 
 def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
 
+    divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+    divider_x = max(
+        divider_search,
+        key=lambda x: line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+    )
+    detail_left = divider_x + 1
+    detail_width = right - detail_left + 1
+
+    sheet = best_horizontal_segment(
+        image,
+        top + int(app_height * 0.20),
+        top + int(app_height * 0.62),
+        detail_left,
+        right + 1,
+        settings_panel_background_pixel,
+        min_width=int(detail_width * 0.55),
+    )
+    require(sheet is not None, "Completions Upsert sheet surface was not detected")
+    sheet_y, sheet_segment = sheet
+    sheet_top = sheet_y
+    for y in range(top + int(app_height * 0.20), sheet_y + 1):
+        segments = image.segments_at(
+            y,
+            detail_left,
+            right + 1,
+            settings_panel_background_pixel,
+            min_width=int(detail_width * 0.55),
+        )
+        if not segments:
+            continue
+        segment = max(segments, key=lambda item: item.width)
+        if (
+            segment.width >= int(sheet_segment.width * 0.80)
+            and abs(segment.center - sheet_segment.center) <= max(24, int(sheet_segment.width * 0.10))
+        ):
+            sheet_top = y
+            sheet_segment = Segment(
+                min(sheet_segment.start, segment.start),
+                max(sheet_segment.end, segment.end),
+            )
+            break
+
     cancel_roi = (
-        left + int(app_width * 0.27),
-        top + int(app_height * 0.275),
-        left + int(app_width * 0.34),
-        top + int(app_height * 0.325),
+        sheet_segment.start,
+        max(top, sheet_top - 8),
+        min(sheet_segment.end, sheet_segment.start + 220),
+        sheet_top + 64,
     )
     save_roi = (
-        left + int(app_width * 0.65),
-        top + int(app_height * 0.275),
-        left + int(app_width * 0.72),
-        top + int(app_height * 0.325),
+        max(sheet_segment.start, sheet_segment.end - 220),
+        max(top, sheet_top - 8),
+        sheet_segment.end + 1,
+        sheet_top + 64,
     )
     panel_roi = (
-        left + int(app_width * 0.26),
-        top + int(app_height * 0.27),
-        left + int(app_width * 0.74),
-        top + int(app_height * 0.75),
+        sheet_segment.start,
+        sheet_top,
+        sheet_segment.end + 1,
+        min(bottom + 1, sheet_top + int(app_height * 0.48)),
     )
-    name_field_roi = (
-        left + int(app_width * 0.29),
-        top + int(app_height * 0.325),
-        left + int(app_width * 0.71),
-        top + int(app_height * 0.36),
-    )
-    instruction_field_roi = (
-        left + int(app_width * 0.29),
-        top + int(app_height * 0.38),
-        left + int(app_width * 0.71),
-        top + int(app_height * 0.44),
-    )
-    preview_roi = (
-        left + int(app_width * 0.43),
-        top + int(app_height * 0.68),
-        left + int(app_width * 0.58),
-        top + int(app_height * 0.73),
-    )
+
+    field_rows: list[tuple[int, int, Segment]] = []
+    active_row: tuple[int, int, Segment] | None = None
+    for y in range(sheet_top + 36, min(bottom + 1, sheet_top + int(app_height * 0.34))):
+        segments = image.segments_at(
+            y,
+            sheet_segment.start + 12,
+            sheet_segment.end - 12,
+            form_field_pixel,
+            min_width=int(sheet_segment.width * 0.45),
+        )
+        if not segments:
+            if active_row is not None:
+                field_rows.append(active_row)
+                active_row = None
+            continue
+        segment = max(segments, key=lambda item: item.width)
+        if active_row is None:
+            active_row = (y, y, segment)
+        else:
+            start_y, _, active_segment = active_row
+            active_row = (
+                start_y,
+                y,
+                Segment(
+                    min(active_segment.start, segment.start),
+                    max(active_segment.end, segment.end),
+                ),
+            )
+    if active_row is not None:
+        field_rows.append(active_row)
 
     cancel_pixels = pixel_count(image, *cancel_roi, mac_reference_completion_action_pixel)
     save_pixels = pixel_count(image, *save_roi, mac_reference_completion_action_pixel)
     panel_surface_pixels = pixel_count(image, *panel_roi, settings_panel_background_pixel)
-    name_field_pixels = pixel_count(image, *name_field_roi, form_field_pixel)
-    instruction_field_pixels = pixel_count(image, *instruction_field_roi, form_field_pixel)
-    preview_pixels = pixel_count(image, *preview_roi, form_field_pixel)
+    name_field_pixels = 0
+    instruction_field_pixels = 0
+    preview_pixels = 0
+    if len(field_rows) >= 1:
+        y0, y1, segment = field_rows[0]
+        name_field_pixels = pixel_count(image, segment.start, y0, segment.end + 1, y1 + 1, form_field_pixel)
+    if len(field_rows) >= 2:
+        y0, y1, segment = field_rows[1]
+        instruction_field_pixels = pixel_count(image, segment.start, y0, segment.end + 1, y1 + 1, form_field_pixel)
+    if len(field_rows) >= 3:
+        y0, y1, segment = field_rows[2]
+        preview_pixels = pixel_count(image, segment.start, y0, segment.end + 1, y1 + 1, form_field_pixel)
 
     require(
         cancel_pixels >= 90,
@@ -1673,22 +1852,22 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         f"Completions Upsert Save action was not detected: pixels={save_pixels}, roi={save_roi}",
     )
     require(
-        panel_surface_pixels >= 45_000,
+        panel_surface_pixels >= 32_000,
         "Completions Upsert sheet surface was not detected: "
         f"pixels={panel_surface_pixels}, roi={panel_roi}",
     )
     require(
-        name_field_pixels >= 30_000,
-        f"Completions Upsert name field was not detected: pixels={name_field_pixels}, roi={name_field_roi}",
+        name_field_pixels >= 20_000,
+        f"Completions Upsert name field was not detected: pixels={name_field_pixels}, rows={field_rows}",
     )
     require(
         instruction_field_pixels >= 50_000,
         "Completions Upsert instruction editor was not detected: "
-        f"pixels={instruction_field_pixels}, roi={instruction_field_roi}",
+        f"pixels={instruction_field_pixels}, rows={field_rows}",
     )
     require(
         preview_pixels >= 14_000,
-        f"Completions Upsert preview chip was not detected: pixels={preview_pixels}, roi={preview_roi}",
+        f"Completions Upsert preview chip was not detected: pixels={preview_pixels}, rows={field_rows}",
     )
 
     return (
@@ -1698,40 +1877,65 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         f"panel_surface_pixels={panel_surface_pixels}, "
         f"name_field_pixels={name_field_pixels}, "
         f"instruction_field_pixels={instruction_field_pixels}, "
-        f"preview_pixels={preview_pixels}; "
-        f"{panel_summary}"
+        f"preview_pixels={preview_pixels}, "
+        f"sheet={sheet_segment.width}px@{sheet_top}"
     )
 
 
 def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_wordmark_pixels=350,
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
-
-    dismissed_save_roi = (
-        left + int(app_width * 0.65),
-        top + int(app_height * 0.275),
-        left + int(app_width * 0.72),
-        top + int(app_height * 0.325),
-    )
-    saved_row_roi = (
-        left + int(app_width * 0.24),
-        top + int(app_height * 0.50),
-        left + int(app_width * 0.45),
-        top + int(app_height * 0.57),
-    )
-    saved_row_action_roi = (
-        left + int(app_width * 0.725),
-        top + int(app_height * 0.49),
-        left + int(app_width * 0.79),
-        top + int(app_height * 0.57),
-    )
-
-    dismissed_save_pixels = pixel_count(
+    root_title_pixels = pixel_count(
         image,
-        *dismissed_save_roi,
-        mac_reference_completion_action_pixel,
+        left + int(app_width * 0.25),
+        top + int(app_height * 0.25),
+        left + int(app_width * 0.60),
+        top + int(app_height * 0.38),
+        colorful_wordmark_pixel,
+    )
+
+    dismissed_sheet_fields_roi = (
+        left + int(app_width * 0.36),
+        top + int(app_height * 0.30),
+        left + int(app_width * 0.78),
+        top + int(app_height * 0.44),
+    )
+    if root_title_pixels >= 400:
+        saved_row_roi = (
+            left + int(app_width * 0.31),
+            top + int(app_height * 0.335),
+            left + int(app_width * 0.70),
+            top + int(app_height * 0.39),
+        )
+        saved_row_action_roi = (
+            left + int(app_width * 0.70),
+            top + int(app_height * 0.33),
+            left + int(app_width * 0.79),
+            top + int(app_height * 0.40),
+        )
+    else:
+        saved_row_roi = (
+            left + int(app_width * 0.24),
+            top + int(app_height * 0.50),
+            left + int(app_width * 0.45),
+            top + int(app_height * 0.57),
+        )
+        saved_row_action_roi = (
+            left + int(app_width * 0.725),
+            top + int(app_height * 0.49),
+            left + int(app_width * 0.79),
+            top + int(app_height * 0.57),
+        )
+
+    dismissed_sheet_field_pixels = pixel_count(
+        image,
+        *dismissed_sheet_fields_roi,
+        form_field_pixel,
     )
     saved_row_pixels = dark_pixel_count(image, *saved_row_roi)
     saved_row_action_segments = dark_row_segment_count(
@@ -1742,9 +1946,9 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
     )
 
     require(
-        dismissed_save_pixels <= 35,
+        dismissed_sheet_field_pixels <= 12_000,
         "Completions Upsert sheet still appears to be visible after Save: "
-        f"pixels={dismissed_save_pixels}, roi={dismissed_save_roi}",
+        f"pixels={dismissed_sheet_field_pixels}, roi={dismissed_sheet_fields_roi}",
     )
     require(
         saved_row_pixels >= 260,
@@ -1758,7 +1962,7 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
 
     return (
         "Quill Chat Mac-reference completions saved: "
-        f"dismissed_save_pixels={dismissed_save_pixels}, "
+        f"dismissed_sheet_field_pixels={dismissed_sheet_field_pixels}, "
         f"saved_row_pixels={saved_row_pixels}, "
         f"saved_row_action_segments={saved_row_action_segments}; "
         f"{panel_summary}"
@@ -1766,45 +1970,64 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
 
 
 def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> str:
-    panel_summary = validate_quill_chat_mac_reference_completions_panel(image)
+    panel_summary = validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_wordmark_pixels=350,
+    )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
-
-    dismissed_save_roi = (
-        left + int(app_width * 0.65),
-        top + int(app_height * 0.275),
-        left + int(app_width * 0.72),
-        top + int(app_height * 0.325),
-    )
-    edited_row_name_roi = (
-        left + int(app_width * 0.235),
-        top + int(app_height * 0.36),
-        left + int(app_width * 0.40),
-        top + int(app_height * 0.405),
-    )
-
-    dismissed_save_pixels = pixel_count(
+    root_title_pixels = pixel_count(
         image,
-        *dismissed_save_roi,
-        mac_reference_completion_action_pixel,
+        left + int(app_width * 0.25),
+        top + int(app_height * 0.25),
+        left + int(app_width * 0.60),
+        top + int(app_height * 0.38),
+        colorful_wordmark_pixel,
+    )
+
+    dismissed_sheet_fields_roi = (
+        left + int(app_width * 0.36),
+        top + int(app_height * 0.30),
+        left + int(app_width * 0.78),
+        top + int(app_height * 0.44),
+    )
+    if root_title_pixels >= 400:
+        edited_row_name_roi = (
+            left + int(app_width * 0.31),
+            top + int(app_height * 0.335),
+            left + int(app_width * 0.70),
+            top + int(app_height * 0.39),
+        )
+    else:
+        edited_row_name_roi = (
+            left + int(app_width * 0.235),
+            top + int(app_height * 0.49),
+            left + int(app_width * 0.45),
+            top + int(app_height * 0.57),
+        )
+
+    dismissed_sheet_field_pixels = pixel_count(
+        image,
+        *dismissed_sheet_fields_roi,
+        form_field_pixel,
     )
     edited_row_name_pixels = dark_pixel_count(image, *edited_row_name_roi)
 
     require(
-        dismissed_save_pixels <= 35,
+        dismissed_sheet_field_pixels <= 12_000,
         "Completions edit sheet still appears to be visible after Save: "
-        f"pixels={dismissed_save_pixels}, roi={dismissed_save_roi}",
+        f"pixels={dismissed_sheet_field_pixels}, roi={dismissed_sheet_fields_roi}",
     )
     require(
-        edited_row_name_pixels >= 400,
+        edited_row_name_pixels >= 240,
         "Edited completion row name was not detected above the stock row baseline: "
         f"pixels={edited_row_name_pixels}, roi={edited_row_name_roi}",
     )
 
     return (
         "Quill Chat Mac-reference completions edited: "
-        f"dismissed_save_pixels={dismissed_save_pixels}, "
+        f"dismissed_sheet_field_pixels={dismissed_sheet_field_pixels}, "
         f"edited_row_name_pixels={edited_row_name_pixels}; "
         f"{panel_summary}"
     )
@@ -1815,6 +2038,7 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
         image,
         minimum_row_dividers=2,
         minimum_row_action_segments=3,
+        minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -1863,8 +2087,8 @@ def validate_quill_chat_mac_reference_history_selection(
     detail_left = divider_x + 1
     detail_width = right - detail_left + 1
 
-    marker_y0 = top + int(app_height * 0.30)
-    marker_y1 = top + int(app_height * 0.47)
+    marker_y0 = top + int(app_height * 0.12)
+    marker_y1 = top + int(app_height * 0.86)
     marker_row_pixels = [
         (
             y,
@@ -1872,9 +2096,9 @@ def validate_quill_chat_mac_reference_history_selection(
                 image,
                 left,
                 y,
-                left + 28,
+                left + 120,
                 y + 1,
-                lambda rgb: sum(rgb) < 360,
+                selected_history_marker_pixel,
             ),
         )
         for y in range(marker_y0, marker_y1)

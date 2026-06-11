@@ -1,4 +1,9 @@
-#if canImport(SwiftUI)
+#if os(macOS) || os(iOS) || os(visionOS)
+// Real Apple SwiftUI. NEVER gate this on canImport(SwiftUI): on Linux the
+// workspace BUILDS a module named SwiftUI (the shadow, which depends on
+// QuillUI), so the canImport probe loads it from the shared build dir —
+// a circular import that breaks the moment the shadow references C modules
+// (CGtk4) this target doesn't declare. os() gates express the real intent.
 import SwiftUI
 #else
 import SwiftOpenUI

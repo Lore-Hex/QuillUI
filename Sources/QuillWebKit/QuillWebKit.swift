@@ -8,20 +8,44 @@
 import QuillFoundation
 
 #if !os(macOS) && !os(iOS)
+import AppKit
 
-public enum WKAudiovisualMediaTypes: Int, Sendable {
-    case all = 1
+public struct WKAudiovisualMediaTypes: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let audio = WKAudiovisualMediaTypes(rawValue: 1 << 0)
+    public static let video = WKAudiovisualMediaTypes(rawValue: 1 << 1)
+    public static let all: WKAudiovisualMediaTypes = [.audio, .video]
 }
 
-@MainActor open class WKWebView: @unchecked Sendable {
-    public init() {}
-    public init(frame: CGRect, configuration: WKWebViewConfiguration) {}
-    public init(coder: NSCoder) {}
+@MainActor open class WKWebView: NSView, @unchecked Sendable {
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+    }
+
+    public convenience init() {
+        self.init(frame: .zero)
+    }
+
+    public init(frame: CGRect, configuration: WKWebViewConfiguration) {
+        self.configuration = configuration
+        super.init(frame: frame)
+    }
+
+    public init(coder: NSCoder) {
+        super.init(frame: .zero)
+    }
+
     public var configuration = WKWebViewConfiguration()
     public weak var navigationDelegate: WKNavigationDelegate?
+    public var allowsBackForwardNavigationGestures = false
+    public var customUserAgent: String?
     public func loadFileURL(_: URL, allowingReadAccessTo: URL) {}
     public func reload() {}
     @MainActor public func evaluateJavaScript(_: String) async throws -> Any? { nil }
+    public func evaluateJavaScript(_ javaScriptString: String, completionHandler: ((Any?, Error?) -> Void)? = nil) {
+        completionHandler?(nil, nil)
+    }
     public func load(_: URLRequest) -> WKNavigation? { nil }
     public func loadHTMLString(_: String, baseURL: URL?) -> WKNavigation? { nil }
     public func stopLoading() {}
@@ -32,7 +56,13 @@ public class WKContentRuleList: NSObject {}
 public class WKUserContentController: NSObject {
     public func addUserScript(_: WKUserScript) {}
     public func add(_: WKContentRuleList) {}
+    public func add(_ scriptMessageHandler: WKScriptMessageHandler, name: String) {
+        _ = (scriptMessageHandler, name)
+    }
     public func removeAllUserScripts() {}
+    public func removeScriptMessageHandler(forName name: String) {
+        _ = name
+    }
 }
 
 public class WKWebViewConfiguration: NSObject {
@@ -68,6 +98,23 @@ public enum WKUserScriptInjectionTime: Int, Sendable {
 
 public class WKUserScript: NSObject {
     public init(source: String, injectionTime: WKUserScriptInjectionTime, forMainFrameOnly: Bool) {}
+}
+
+public class WKScriptMessage: NSObject {
+    public let name: String
+    public let body: Any
+    public weak var webView: WKWebView?
+
+    public init(name: String = "", body: Any = NSNull(), webView: WKWebView? = nil) {
+        self.name = name
+        self.body = body
+        self.webView = webView
+        super.init()
+    }
+}
+
+public protocol WKScriptMessageHandler: AnyObject {
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage)
 }
 
 public class WKContentRuleListStore: NSObject {

@@ -151,9 +151,14 @@ public struct OSLogFormat: Sendable {
 
 public class OSAllocatedUnfairLock<T>: @unchecked Sendable {
     public init(initialState: T) { self._state = initialState }
-    public func withLock<U>(_ block: (inout T) throws -> U) rethrows -> U { 
+    public func withLock<U>(_ block: (inout T) throws -> U) rethrows -> U {
+        _lock.lock()
+        defer { _lock.unlock() }
         return try block(&_state)
     }
+    // NSLock, not an unfair lock: callers need the mutual exclusion, not the
+    // priority-donation behavior.
+    private let _lock = NSLock()
     private var _state: T
 }
 

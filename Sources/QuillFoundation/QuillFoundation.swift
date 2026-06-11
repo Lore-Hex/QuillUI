@@ -29,12 +29,19 @@ public struct Selector: Hashable, Sendable {
 }
 #endif
 
+public protocol QuillSelectorDispatching: AnyObject {
+    func quillPerform(_ selector: Selector, with sender: Any?)
+}
+
+public extension QuillSelectorDispatching {
+    func quillPerform(_ selector: Selector, with sender: Any?) {}
+}
+
 // MARK: - Apple-platform image / color / font / screen typealiases
 
 #if os(macOS)
 @_exported import AppKit
 @_exported import CoreGraphics
-@_exported import WebKit
 
 public typealias RSImage = NSImage
 public typealias RSColor = NSColor
@@ -76,7 +83,6 @@ public extension NSScreen {
 #elseif os(iOS)
 @_exported import UIKit
 @_exported import CoreGraphics
-@_exported import WebKit
 
 public typealias RSImage = UIImage
 public typealias RSColor = UIColor
@@ -106,6 +112,14 @@ public extension UIScreen {
 // lookup" in upstream code. CGImage is the only Apple type we still
 // stub here (Linux Foundation has no equivalent).
 
+public struct QuillCFAllocator: Sendable {
+    public init() {}
+}
+
+public let kCFAllocatorDefault = QuillCFAllocator()
+public let kCFBooleanTrue: NSNumber = NSNumber(value: true)
+public let kCFBooleanFalse: NSNumber = NSNumber(value: false)
+
 public enum CGColorRenderingIntent: Int32, Sendable {
     case defaultIntent = 0
     case absoluteColorimetric = 1
@@ -114,7 +128,14 @@ public enum CGColorRenderingIntent: Int32, Sendable {
     case saturation = 4
 }
 
-public class CGImage {
+public class CGImage: Equatable, @unchecked Sendable {
+    /// Raw premultiplied-BGRA pixel backing (Cairo ARGB32 byte order on
+    /// little-endian). Optional: a nil value keeps the historical "blank
+    /// image" semantics. The V4L2 capture path and CIContext.createCGImage
+    /// populate it; the Cairo CGContext backend draws it.
+    public var quillBGRAPixels: [UInt8]?
+    public var quillBytesPerRow: Int = 0
+
     public init() {}
 
     // PNG/JPEG decode inits (SSK's UIImage+Attachment). The dataProviderSource is
@@ -137,6 +158,25 @@ public class CGImage {
         _ = (source, decode, shouldInterpolate, intent)
     }
 
+    public convenience init?(
+        width: Int,
+        height: Int,
+        bitsPerComponent: Int,
+        bitsPerPixel: Int,
+        bytesPerRow: Int,
+        space: CGColorSpace,
+        bitmapInfo: CGBitmapInfo,
+        provider: Any,
+        decode: UnsafePointer<CGFloat>?,
+        shouldInterpolate: Bool,
+        intent: CGColorRenderingIntent
+    ) {
+        self.init()
+        self.width = width
+        self.height = height
+        _ = (bitsPerComponent, bitsPerPixel, bytesPerRow, space, bitmapInfo, provider, decode, shouldInterpolate, intent)
+    }
+
     // Pixel dimensions + cropping (BadgeAssets spritesheets, image utilities).
     // Inert decode means dimensions are 0 and cropping yields a blank sub-image
     // until a real decoder (libpng/Cairo) lands.
@@ -145,6 +185,10 @@ public class CGImage {
     public func cropping(to rect: CGRect) -> CGImage? {
         _ = rect
         return CGImage()
+    }
+
+    public static func == (lhs: CGImage, rhs: CGImage) -> Bool {
+        lhs === rhs
     }
 }
 
@@ -181,13 +225,47 @@ public final class NSHashTable<ObjectType>: @unchecked Sendable {
 // inert handles (no real geometry is recorded).
 public class CGPath {
     public init() {}
+
+    public convenience init(
+        roundedRect rect: CGRect,
+        cornerWidth: CGFloat,
+        cornerHeight: CGFloat,
+        transform: UnsafePointer<CGAffineTransform>?
+    ) {
+        self.init()
+        _ = (rect, cornerWidth, cornerHeight, transform)
+    }
+
+    public func copy() -> CGPath? { self }
+    public func copy(using transform: UnsafePointer<CGAffineTransform>?) -> CGPath? {
+        _ = transform
+        return self
+    }
+    public func contains(_ point: CGPoint) -> Bool {
+        _ = point
+        return false
+    }
 }
 public final class CGMutablePath: CGPath {
     public override init() { super.init() }
     public func move(to point: CGPoint) {}
     public func addLine(to point: CGPoint) {}
+    public func addLines(between points: [CGPoint]) {
+        guard let first = points.first else { return }
+        move(to: first)
+        for point in points.dropFirst() {
+            addLine(to: point)
+        }
+    }
     public func addRect(_ rect: CGRect) {}
     public func addEllipse(in rect: CGRect) {}
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {}
+    public func addQuadCurve(to end: CGPoint, control: CGPoint) {}
+    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {}
+    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {}
+    public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {}
+    public func addPath(_ path: CGPath) { _ = path }
+    public func addPath(_ path: CGPath, transform: CGAffineTransform) { _ = (path, transform) }
     public func closeSubpath() {}
 }
 
@@ -298,16 +376,60 @@ public struct CGGradientDrawingOptions: OptionSet, Sendable {
     public static let drawsAfterEndLocation = CGGradientDrawingOptions(rawValue: 1 << 1)
 }
 
-public final class CGColorSpace {
-    public init() {}
+public final class CGColorSpace: Equatable {
+    public enum Model: Int32, Sendable {
+        case unknown = -1
+        case monochrome = 0
+        case rgb = 1
+        case cmyk = 2
+        case lab = 3
+        case deviceN = 4
+        case indexed = 5
+        case pattern = 6
+    }
+
+    public let name: String?
+
+    public init() {
+        self.name = nil
+    }
+
+    public init?(name: String) {
+        self.name = name
+    }
+
+    public var model: Model { .rgb }
+
+    public static let displayP3 = "kCGColorSpaceDisplayP3"
+
+    public static func == (lhs: CGColorSpace, rhs: CGColorSpace) -> Bool {
+        lhs === rhs
+    }
 }
 
 public func CGColorSpaceCreateDeviceRGB() -> CGColorSpace { CGColorSpace() }
 public func CGColorSpaceCreateDeviceGray() -> CGColorSpace { CGColorSpace() }
 
+public struct CGVector: Equatable, Sendable {
+    public var dx: CGFloat
+    public var dy: CGFloat
+
+    public init() {
+        self.init(dx: 0, dy: 0)
+    }
+
+    public init(dx: CGFloat, dy: CGFloat) {
+        self.dx = dx
+        self.dy = dy
+    }
+
+    public static let zero = CGVector()
+}
+
 public final class CGGradient {
     /// Inert: no color stops are retained (nothing is drawn on Linux).
     public init?(colorsSpace space: Any?, colors: Any?, locations: Any?) {}
+    public init?(colorsSpace space: CGColorSpace?, colors: Any, locations: UnsafePointer<CGFloat>?) {}
 }
 
 // Pixel-format flags for a CGContext bitmap context. Raw values match Apple's
@@ -339,7 +461,43 @@ public enum CGImageAlphaInfo: UInt32, Sendable {
     case alphaOnly = 7
 }
 
+public enum CGLineCap: Int32, Sendable {
+    case butt = 0
+    case round = 1
+    case square = 2
+}
+
+public enum CGLineJoin: Int32, Sendable {
+    case miter = 0
+    case round = 1
+    case bevel = 2
+}
+
+public enum CGPathFillRule: Int32, Sendable {
+    case winding = 0
+    case evenOdd = 1
+}
+
 public final class CGContext {
+    /// Pluggable real-drawing backend (see CGContextBackend.swift). nil keeps
+    /// the historical compile-only no-op behavior.
+    public var quillBackend: QuillCGContextBackend?
+
+    public convenience init(quillBackend: QuillCGContextBackend) {
+        self.init()
+        self.quillBackend = quillBackend
+    }
+
+    public var width: Int = 0
+    public var height: Int = 0
+    public var bitsPerComponent: Int = 8
+    public var bitsPerPixel: Int = 32
+    public var bytesPerRow: Int = 0
+    public var bitmapInfo: CGBitmapInfo = []
+    public var colorSpace: CGColorSpace?
+    public var textMatrix: CGAffineTransform = .identity
+    public var textPosition: CGPoint = .zero
+
     public init() {}
 
     /// Bitmap-context initializer. Inert on Linux: no pixel buffer is allocated
@@ -356,6 +514,36 @@ public final class CGContext {
         bitmapInfo: UInt32
     ) {
         self.init()
+        self.width = width
+        self.height = height
+        self.bitsPerComponent = bitsPerComponent
+        self.bitsPerPixel = bitsPerComponent * 4
+        self.bytesPerRow = bytesPerRow
+        self.colorSpace = space
+        self.bitmapInfo = CGBitmapInfo(rawValue: bitmapInfo)
+    }
+
+    public convenience init?(
+        data: UnsafeMutableRawPointer?,
+        width: Int,
+        height: Int,
+        bitsPerComponent: Int,
+        bytesPerRow: Int,
+        space: CGColorSpace,
+        bitmapInfo: UInt32,
+        releaseCallback: Any?,
+        releaseInfo: Any?
+    ) {
+        self.init(
+            data: data,
+            width: width,
+            height: height,
+            bitsPerComponent: bitsPerComponent,
+            bytesPerRow: bytesPerRow,
+            space: space,
+            bitmapInfo: bitmapInfo
+        )
+        _ = (releaseCallback, releaseInfo)
     }
 
     /// Inert: there is no backing bitmap on Linux, so no image is produced.
@@ -364,44 +552,121 @@ public final class CGContext {
     public var interpolationQuality: CGInterpolationQuality = .default
 
     public func setFillColor(_ color: Any?) {}
-    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {}
+    public func setFillColor(_ color: RSCGColor) { quillBackend?.setFillColor(quillNormalizedRGBA(color)) }
+    public func setFillColor(_ color: RSCGColor?) { if let color { quillBackend?.setFillColor(quillNormalizedRGBA(color)) } }
+    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setFillColor([red, green, blue, alpha]) }
     public func setStrokeColor(_ color: Any?) {}
-    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {}
-    public func setLineWidth(_ width: CGFloat) {}
-    public func setAlpha(_ alpha: CGFloat) {}
+    public func setStrokeColor(_ color: RSCGColor) { quillBackend?.setStrokeColor(quillNormalizedRGBA(color)) }
+    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setStrokeColor([red, green, blue, alpha]) }
+    public func setLineWidth(_ width: CGFloat) { quillBackend?.setLineWidth(width) }
+    public func setLineCap(_ cap: CGLineCap) { quillBackend?.setLineCap(cap) }
+    public func setLineJoin(_ join: CGLineJoin) { quillBackend?.setLineJoin(join) }
+    public func setMiterLimit(_ limit: CGFloat) {}
+    public func setShadow(offset: CGSize, blur: CGFloat) {}
+    public func setShadow(offset: CGSize, blur: CGFloat, color: CGColor?) {}
+    public func setAllowsAntialiasing(_ allowsAntialiasing: Bool) {}
+    public func setShouldAntialias(_ shouldAntialias: Bool) {}
+    public func setAllowsFontSmoothing(_ allowsFontSmoothing: Bool) {}
+    public func setShouldSmoothFonts(_ shouldSmoothFonts: Bool) {}
+    public func setAllowsFontSubpixelPositioning(_ allowsFontSubpixelPositioning: Bool) {}
+    public func setShouldSubpixelPositionFonts(_ shouldSubpixelPositionFonts: Bool) {}
+    public func setAllowsFontSubpixelQuantization(_ allowsFontSubpixelQuantization: Bool) {}
+    public func setShouldSubpixelQuantizeFonts(_ shouldSubpixelQuantizeFonts: Bool) {}
+    public func setAlpha(_ alpha: CGFloat) { quillBackend?.setAlpha(alpha) }
     public func setBlendMode(_ mode: CGBlendMode) {}
 
-    public func fill(_ rect: CGRect) {}
-    public func fill(_ rects: [CGRect]) {}
-    public func fillPath() {}
-    public func stroke(_ rect: CGRect) {}
-    public func strokePath() {}
+    public func fill(_ rect: CGRect) { quillBackend?.fill(rect) }
+    public func fill(_ rects: [CGRect]) { for r in rects { quillBackend?.fill(r) } }
+    public func fillEllipse(in rect: CGRect) { quillBackend?.fillEllipse(in: rect) }
+    public func fillPath() { quillBackend?.fillPath() }
+    public func fillPath(using rule: CGPathFillRule) { _ = rule }
+    public func clear(_ rect: CGRect) { quillBackend?.clear(rect) }
+    public func stroke(_ rect: CGRect) { quillBackend?.stroke(rect) }
+    public func strokeEllipse(in rect: CGRect) { quillBackend?.strokeEllipse(in: rect) }
+    public func strokeLineSegments(between points: [CGPoint]) { quillBackend?.strokeLineSegments(between: points) }
+    public func strokePath() { quillBackend?.strokePath() }
 
-    public func beginPath() {}
-    public func closePath() {}
-    public func move(to point: CGPoint) {}
-    public func addLine(to point: CGPoint) {}
-    public func addRect(_ rect: CGRect) {}
-    public func addEllipse(in rect: CGRect) {}
+    public func beginPath() { quillBackend?.beginPath() }
+    public func closePath() { quillBackend?.closePath() }
+    public func move(to point: CGPoint) { quillBackend?.move(to: point) }
+    public func addLine(to point: CGPoint) { quillBackend?.addLine(to: point) }
+    public func addRect(_ rect: CGRect) { quillBackend?.addRect(rect) }
+    public func addRects(_ rects: [CGRect]) {}
+    public func addLines(between points: [CGPoint]) {
+        guard let first = points.first else { return }
+        move(to: first)
+        for point in points.dropFirst() {
+            addLine(to: point)
+        }
+    }
+    public func addEllipse(in rect: CGRect) { quillBackend?.addEllipse(in: rect) }
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {}
+    public func addQuadCurve(to end: CGPoint, control: CGPoint) {}
+    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) { quillBackend?.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise) }
+    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {}
     public func addPath(_ path: Any?) {}
-    public func clip() {}
-    public func clip(to rect: CGRect) {}
+    public func clip() { quillBackend?.clip() }
+    public func clip(using rule: CGPathFillRule) { _ = rule }
+    public func clip(to rect: CGRect) { quillBackend?.clip(to: rect) }
+    public func resetClip() {}
     // CGContext.clip(to:mask:) — clips to a rect using an image mask. Inert on
     // Linux (no real raster). SSK: AvatarBuilder masks a tinted icon.
     public func clip(to rect: CGRect, mask image: Any) {}
 
-    public func saveGState() {}
-    public func restoreGState() {}
-    public func translateBy(x: CGFloat, y: CGFloat) {}
-    public func scaleBy(x: CGFloat, y: CGFloat) {}
-    public func rotate(by angle: CGFloat) {}
+    public func saveGState() { quillBackend?.saveGState() }
+    public func restoreGState() { quillBackend?.restoreGState() }
+    public func beginTransparencyLayer(auxiliaryInfo: Any?) {}
+    public func endTransparencyLayer() {}
+    public func endPage() {}
+    public func translateBy(x: CGFloat, y: CGFloat) { quillBackend?.translateBy(x: x, y: y) }
+    public func scaleBy(x: CGFloat, y: CGFloat) { quillBackend?.scaleBy(x: x, y: y) }
+    public func rotate(by angle: CGFloat) { quillBackend?.rotate(by: angle) }
     // `CGAffineTransform` is absent from swift-corelibs Foundation on this
     // toolchain, so the param is typed `Any` (the op is an inert no-op anyway).
     public func concatenate(_ transform: Any) {}
 
-    public func draw(_ image: Any, in rect: CGRect) {}
+    public func draw(_ image: Any, in rect: CGRect) { quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality) }
     public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}
     public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
+}
+
+public typealias CGWindowID = UInt32
+
+public struct CGWindowListOption: OptionSet, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+    public static let optionAll = CGWindowListOption(rawValue: 0)
+    public static let optionIncludingWindow = CGWindowListOption(rawValue: 1 << 0)
+}
+
+public struct CGWindowImageOption: OptionSet, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+    public static let `default` = CGWindowImageOption(rawValue: 0)
+    public static let boundsIgnoreFraming = CGWindowImageOption(rawValue: 1 << 0)
+}
+
+public func CGWindowListCreateImage(
+    _ screenBounds: CGRect,
+    _ listOption: CGWindowListOption,
+    _ windowID: CGWindowID,
+    _ imageOption: CGWindowImageOption
+) -> CGImage? {
+    _ = (screenBounds, listOption, windowID, imageOption)
+    return nil
+}
+
+@discardableResult
+public func sysctlbyname(
+    _ name: UnsafePointer<CChar>!,
+    _ oldp: UnsafeMutableRawPointer!,
+    _ oldlenp: UnsafeMutablePointer<Int>!,
+    _ newp: UnsafeMutableRawPointer!,
+    _ newlen: Int
+) -> Int32 {
+    oldlenp?.pointee = 0
+    _ = (name, oldp, newp, newlen)
+    return -1
 }
 
 // `open` (not just `public`) so framework shims can subclass it — e.g.
@@ -517,9 +782,15 @@ public enum QuillResourceLookup {
 
 public enum QuillImageCompositingOperation: Sendable {
     case copy
+    case sourceOver
 }
 
 open class RSImage: NSObject, @unchecked Sendable {
+    public enum ResizingMode: Int, Sendable {
+        case tile
+        case stretch
+    }
+
     public override init() {}
     public init?(data: Data) {
         super.init()
@@ -566,8 +837,16 @@ open class RSImage: NSObject, @unchecked Sendable {
     /// compatibility shape — readers reach back to the original
     /// bytes for re-encoding (e.g. `tiffRepresentation`).
     public var data: Data?
+    public var capInsets: NSEdgeInsets = NSEdgeInsets()
+    public var resizingMode: ResizingMode = .tile
     public func pngData() -> Data? { data }
     public func dataRepresentation() -> Data? { data }
+    /// Disfavored so QuillUI's gdk-pixbuf-backed `RSImage.tiffRepresentation`
+    /// extension wins wherever both modules are visible; Telegram package
+    /// islands that only see QuillFoundation get this passthrough.
+    @_disfavoredOverload
+    public var tiffRepresentation: Data? { data }
+    public func addRepresentation(_ imageRep: Any) { _ = imageRep }
     public func tinted(with: Any) -> RSImage { self }
     public static func image(with data: Data, imageResultBlock: @escaping (RSImage?) -> Void) {
         imageResultBlock(RSImage(data: data))
@@ -576,6 +855,11 @@ open class RSImage: NSObject, @unchecked Sendable {
     public static func scaledImageData(_ data: Data, maxPixelSize: Int) -> Data? { data }
     public static var smartBadgeTemplateName: String { "" }
     public func maskWithColor(color: Any) -> RSImage? { self }
+    public func resizableImage(withCapInsets capInsets: NSEdgeInsets, resizingMode: ResizingMode = .tile) -> RSImage {
+        self.capInsets = capInsets
+        self.resizingMode = resizingMode
+        return self
+    }
 
     public func lockFocus() {
         QuillCompatibilityDiagnostics.shared.record(
@@ -584,6 +868,11 @@ open class RSImage: NSObject, @unchecked Sendable {
             severity: .warning,
             message: "NSImage.lockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
         )
+    }
+
+    public func lockFocusFlipped(_ flipped: Bool) {
+        _ = flipped
+        lockFocus()
     }
 
     public func unlockFocus() {
@@ -616,6 +905,10 @@ open class RSImage: NSObject, @unchecked Sendable {
     }
     public func jpegData(compressionQuality: CGFloat) -> Data? { data }
     public var cgImage: CGImage? { nil }
+    public func cgImage(forProposedRect rect: UnsafeMutablePointer<CGRect>?, context: Any?, hints: [AnyHashable: Any]?) -> CGImage? {
+        _ = (rect, context, hints)
+        return cgImage
+    }
     public var scale: CGFloat { 1 }
 
     public enum Orientation: Int, Sendable {
@@ -638,17 +931,28 @@ open class RSImage: NSObject, @unchecked Sendable {
         self.init()
         self.size = CGSize(width: 0, height: 0)
     }
+
+    public convenience init(cgImage: CGImage, size: CGSize) {
+        self.init()
+        self.size = size
+    }
 }
 public typealias UIImage = RSImage
 
-public struct RSCGColor: Sendable {
+public struct RSCGColor: Equatable, Sendable {
     public var components: [CGFloat]?
     public var numberOfComponents: Int { components?.count ?? 0 }
+    public static var typeID: UInt { 0 }
 
     public init(components: [CGFloat]?) {
         self.components = components
     }
+
+    public static let clear = RSCGColor(components: [0, 0, 0, 0])
+    public static let white = RSCGColor(components: [1, 1, 1, 1])
+    public static let black = RSCGColor(components: [0, 0, 0, 1])
 }
+public typealias CGColor = RSCGColor
 
 public class RSColor: NSObject, @unchecked Sendable {
     // Phase B: real RGBA storage so callers get sensible values back
@@ -701,6 +1005,7 @@ public class RSColor: NSObject, @unchecked Sendable {
 
     /// Returns a 4-tuple [R, G, B, A]. Matches the CGColor.components shape.
     public var cgColor: RSCGColor { RSCGColor(components: [_red, _green, _blue, _alpha]) }
+    public func set() {}
     public var components: [CGFloat]? { [_red, _green, _blue, _alpha] }
     public var numberOfComponents: Int { 4 }
 
@@ -787,7 +1092,7 @@ public class RSFont: NSObject, @unchecked Sendable {
     public init(pointSize: CGFloat) { self.pointSize = pointSize }
     public override init() { self.pointSize = 13 }
     public static func systemFont(ofSize size: CGFloat) -> RSFont { RSFont(pointSize: size) }
-    public enum Weight { case regular, bold }
+    public enum Weight { case ultraLight, light, regular, medium, semibold, bold, heavy, black }
 
     // UIFont descriptor surface (SSK's bold/italic body-range styling).
     public var fontDescriptor: UIFontDescriptor { UIFontDescriptor() }
@@ -823,6 +1128,16 @@ public typealias UIFont = RSFont
 // (no real font substitution on Linux) but withSymbolicTraits round-trips the
 // requested traits so callers get a non-nil descriptor + a same-size font back.
 public final class UIFontDescriptor: @unchecked Sendable {
+    public struct SystemDesign: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
+        public static let `default` = SystemDesign(rawValue: "default")
+        public static let rounded = SystemDesign(rawValue: "rounded")
+        public static let monospaced = SystemDesign(rawValue: "monospaced")
+        public static let serif = SystemDesign(rawValue: "serif")
+    }
+
     public struct SymbolicTraits: OptionSet, Sendable {
         public let rawValue: UInt32
         public init(rawValue: UInt32) { self.rawValue = rawValue }
@@ -843,6 +1158,27 @@ public final class UIFontDescriptor: @unchecked Sendable {
     public func withSymbolicTraits(_ traits: SymbolicTraits) -> UIFontDescriptor? {
         UIFontDescriptor(symbolicTraits: symbolicTraits.union(traits))
     }
+
+    public func withDesign(_ design: SystemDesign) -> UIFontDescriptor? {
+        _ = design
+        return self
+    }
+}
+
+public extension CGSize {
+    func equalTo(_ other: CGSize) -> Bool { self == other }
+}
+
+public extension CGPoint {
+    func equalTo(_ other: CGPoint) -> Bool { self == other }
+}
+
+public extension CGRect {
+    func applying(_ transform: CGAffineTransform) -> CGRect {
+        offsetBy(dx: transform.tx, dy: transform.ty)
+    }
+
+    func fill() {}
 }
 
 public class RSScreen: NSObject, @unchecked Sendable {
@@ -881,6 +1217,16 @@ public class RSScreen: NSObject, @unchecked Sendable {
 }
 public typealias UIScreen = RSScreen
 
+// Disfavored: glibc 2.36+ exports the arc4random family, and both
+// declarations are visible wherever Glibc is (often transitively) imported.
+// The attribute lets the libc declaration win instead of erroring as
+// ambiguous, while these stay available when only QuillFoundation is visible.
+@_disfavoredOverload
+public func arc4random() -> UInt32 {
+    UInt32.random(in: UInt32.min...UInt32.max)
+}
+
+@_disfavoredOverload
 public func arc4random_uniform(_ upperBound: UInt32) -> UInt32 {
     guard upperBound > 0 else {
         return 0

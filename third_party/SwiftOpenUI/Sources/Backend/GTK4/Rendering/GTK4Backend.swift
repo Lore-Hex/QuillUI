@@ -50,22 +50,15 @@ private func findTitlebar(in widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeM
     return nil
 }
 
-/// Box for passing an activate closure through C user_data.
-private class AppActivateBox {
-    let activate: (OpaquePointer) -> Void
-    init(_ activate: @escaping (OpaquePointer) -> Void) {
-        self.activate = activate
-    }
-}
-
-/// Protocol for scenes that can render onto a GtkApplication.
+/// Protocol for scenes that can render onto GTK top-level windows.
 protocol GTKWindowRenderable {
-    func gtkRender(app: OpaquePointer)
+    func gtkRender(app: OpaquePointer?)
 }
 
 /// Root GTK window content should fill the proposed size; leaf alignment is
 /// handled by child containers, not by centering the hosted root widget.
 private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
+private var gtkRootPresentationOverlayFallback: OpaquePointer?
 
 func gtkCreateRootPresentationContainer(
     winPtr: UnsafeMutablePointer<GtkWindow>,
@@ -83,18 +76,34 @@ func gtkCreateRootPresentationContainer(
     gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
     gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
 
-    let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
-    g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: overlay)
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)
+    gtkRootPresentationOverlayFallback = OpaquePointer(overlay)
     return overlay
 }
 
-func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
-    let gobject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
-    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else {
-        return nil
-    }
+func gtkStoreRootPresentationOverlay(
+    _ rootOverlay: OpaquePointer,
+    on widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, gtkRootPresentationOverlayKey, UnsafeMutableRawPointer(rootOverlay))
+}
+
+func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer? {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else { return nil }
     let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
     return OpaquePointer(overlay)
+}
+
+func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
+    gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback
+}
+
+func gtkFallbackRootPresentationOverlay() -> OpaquePointer? {
+    gtkRootPresentationOverlayFallback
 }
 
 func gtkConfigureRootContentToFillWindow(_ contentWidget: UnsafeMutablePointer<GtkWidget>) {
@@ -108,21 +117,9 @@ extension WindowGroup: GTKWindowRenderable {
     func gtkResolvedDefaultWindowSize() -> (width: Double, height: Double)? {
         switch windowSizing ?? .automatic {
         case .automatic:
-            let environment = ProcessInfo.processInfo.environment
-            func environmentDouble(_ canonical: String, legacy: String) -> Double? {
-                (environment[canonical] ?? environment[legacy]).flatMap(Double.init)
-            }
-            let requestedWidth = environmentDouble(
-                "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH",
-                legacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
-            )
-            let requestedHeight = environmentDouble(
-                "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT",
-                legacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"
-            )
             return (
-                requestedWidth ?? defaultWindowWidth ?? defaultAutomaticWindowWidth,
-                requestedHeight ?? defaultWindowHeight ?? defaultAutomaticWindowHeight
+                defaultWindowWidth ?? defaultAutomaticWindowWidth,
+                defaultWindowHeight ?? defaultAutomaticWindowHeight
             )
         case .content:
             guard let width = defaultWindowWidth, let height = defaultWindowHeight else {
@@ -139,8 +136,13 @@ extension WindowGroup: GTKWindowRenderable {
         }
     }
 
-    func gtkRender(app: OpaquePointer) {
-        let window = gtk_application_window_new(gtkApplicationPointer(app))!
+    func gtkRender(app: OpaquePointer?) {
+        let window: UnsafeMutablePointer<GtkWidget>
+        if let app {
+            window = gtk_application_window_new(gtkApplicationPointer(app))!
+        } else {
+            window = gtk_window_new()!
+        }
         let winPtr = windowPointer(window)
         gtk_window_set_title(winPtr, title)
 
@@ -165,11 +167,6 @@ extension WindowGroup: GTKWindowRenderable {
         if let defaultSize = gtkResolvedDefaultWindowSize() {
             gtk_window_set_default_size(
                 winPtr,
-                gint(defaultSize.width),
-                gint(defaultSize.height)
-            )
-            gtk_widget_set_size_request(
-                contentWidget,
                 gint(defaultSize.width),
                 gint(defaultSize.height)
             )
@@ -204,9 +201,9 @@ extension WindowGroup: GTKWindowRenderable {
             break
         }
 
-        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
-        gtkConfigureRootContentToFillWindow(rootContentWidget)
+        gtkConfigureRootContentToFillWindow(contentWidget)
 
+        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
         gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
         gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
@@ -482,12 +479,7 @@ final class GTK4MenuBarHost {
             }
         }
 
-        let environment = ProcessInfo.processInfo.environment
-        let topLevelMenuTitle = (
-            environment["QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL"]
-                ?? environment["QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"]
-        ) == "1" ? " " : "File"
-        gtk_swift_menu_append_submenu(menuModel, topLevelMenuTitle, fileMenu)
+        gtk_swift_menu_append_submenu(menuModel, "File", fileMenu)
 
         // Create the popover menu bar
         let bar = gtk_swift_popover_menu_bar_new_from_model(menuModel)!
@@ -631,10 +623,7 @@ public struct GTK4Backend: RenderBackend {
         // asks Pango to resolve the "Material Symbols Rounded" family.
         gtkRegisterBundledIconFont()
 
-        let gtkApp = gtk_application_new(nil, G_APPLICATION_DEFAULT_FLAGS)!
-        let appPtr = OpaquePointer(gtkApp)
-
-        let factory: (OpaquePointer) -> Void = { appPtr in
+        let factory: (OpaquePointer?) -> Void = { appPtr in
             // Inject openWindow action into the environment so views
             // can programmatically open Window scenes by id.
             var env = getCurrentEnvironment()
@@ -647,23 +636,8 @@ public struct GTK4Backend: RenderBackend {
             gtkRenderScene(instance.body, app: appPtr)
         }
 
-        let box = Unmanaged.passRetained(AppActivateBox(factory)).toOpaque()
-        g_signal_connect_data(
-            gpointer(appPtr),
-            "activate",
-            unsafeBitCast({ (app: gpointer?, userData: gpointer?) in
-                let box = Unmanaged<AppActivateBox>.fromOpaque(userData!).takeUnretainedValue()
-                box.activate(OpaquePointer(app!))
-            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-            box,
-            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                Unmanaged<AppActivateBox>.fromOpaque(userData!).release()
-            },
-            GConnectFlags(rawValue: 0)
-        )
-
         // Pump Foundation RunLoop sources (Timer, etc.) periodically.
-        // GTK4's g_application_run blocks in GMainLoop, so Foundation
+        // GTK4's GMainLoop blocks the thread, so Foundation
         // timers (e.g. Timer.scheduledTimer) never fire unless we
         // explicitly spin RunLoop.main from a GLib timeout source.
         g_timeout_add(5, { _ -> gboolean in
@@ -672,18 +646,20 @@ public struct GTK4Backend: RenderBackend {
             return 1 // G_SOURCE_CONTINUE
         }, nil)
 
-        let status = g_application_run(applicationPointer(appPtr), 0, nil)
-        g_object_unref(gpointer(appPtr))
-
-        if status != 0 {
-            print("GTK application exited with status \(status)")
+        if gtk_init_check() == 0 {
+            return
         }
+        factory(nil)
+
+        let loop = g_main_loop_new(nil, 0)
+        g_main_loop_run(loop)
+        g_main_loop_unref(loop)
     }
 }
 
 /// GTK4 rendering for Window scenes (single-instance, identified windows).
 extension Window: GTKWindowRenderable {
-    func gtkRender(app: OpaquePointer) {
+    func gtkRender(app: OpaquePointer?) {
         // Register a factory for all Window scenes so openWindow(id:) works
         // regardless of launch behavior.
         GTK4WindowRegistry.shared.register(id: id) { [self] in
@@ -698,8 +674,13 @@ extension Window: GTKWindowRenderable {
         }
     }
 
-    func gtkCreateWindow(app: OpaquePointer) {
-        let window = gtk_application_window_new(gtkApplicationPointer(app))!
+    func gtkCreateWindow(app: OpaquePointer?) {
+        let window: UnsafeMutablePointer<GtkWidget>
+        if let app {
+            window = gtk_application_window_new(gtkApplicationPointer(app))!
+        } else {
+            window = gtk_window_new()!
+        }
         let winPtr = windowPointer(window)
         gtk_window_set_title(winPtr, title)
 
@@ -720,9 +701,9 @@ extension Window: GTKWindowRenderable {
             gtk_widget_set_size_request(contentWidget, minReqW, minReqH)
         }
 
-        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
-        gtkConfigureRootContentToFillWindow(rootContentWidget)
+        gtkConfigureRootContentToFillWindow(contentWidget)
 
+        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
         gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
         gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
@@ -758,7 +739,7 @@ extension Window: GTKWindowRenderable {
 
 /// GTK4 rendering for TupleScene — renders both child scenes.
 extension TupleScene: GTKWindowRenderable {
-    func gtkRender(app: OpaquePointer) {
+    func gtkRender(app: OpaquePointer?) {
         gtkRenderScene(scene0, app: app)
         gtkRenderScene(scene1, app: app)
     }
@@ -800,7 +781,7 @@ class GTK4WindowRegistry {
 
 /// Recursively render a Scene. Terminal scenes (WindowGroup, Window) render
 /// directly; composite scenes recurse through their body.
-private func gtkRenderScene<S: Scene>(_ scene: S, app: OpaquePointer) {
+private func gtkRenderScene<S: Scene>(_ scene: S, app: OpaquePointer?) {
     if let renderable = scene as? GTKWindowRenderable {
         renderable.gtkRender(app: app)
         return

@@ -548,6 +548,10 @@ struct LinuxBackendAppMatrixTests {
         #expect(interactionScript.contains("run_list_selection_or_header_interaction \"generic Qt\" click_generic_backend_list_selection"))
         #expect(interactionScript.contains("quillui_is_backend_chat_gtk_list_selection_app_product \"$PRODUCT\""))
         #expect(interactionScript.contains("INTERACTION_MODE=\"$(quillui_backend_default_interaction_mode_for_product \"$PRODUCT\")\""))
+        #expect(interactionScript.contains("INTERACTION_VERIFY_PRODUCT=\"\""))
+        #expect(interactionScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" INTERACTION_VERIFY_PRODUCT"))
+        #expect(interactionScript.contains("[[ -z \"${QUILLUI_BACKEND_MAC_REFERENCE:-}\" && \"$INTERACTION_VERIFY_PRODUCT\" == *mac-reference* ]]"))
+        #expect(interactionScript.contains("export QUILLUI_BACKEND_MAC_REFERENCE"))
         #expect(!interactionScript.contains("quill-wireguard|quill-wireguard-qt)"))
 
         #expect(productsScript.contains("quillui_backend_default_interaction_mode_for_product()"))

@@ -10,15 +10,17 @@
 
 import Foundation
 
-public enum TransportError: LocalizedError, Equatable {
+public enum TransportError: LocalizedError, Equatable, Sendable {
     case noData
     case noURL
+    case suspended
     case httpError(status: Int)
 
     public var errorDescription: String? {
         switch self {
         case .noData: return "No data received."
         case .noURL: return "No URL available."
+        case .suspended: return "The request was not sent because syncing is suspended."
         case .httpError(let status): return "An HTTP error (status \(status)) occurred."
         }
     }

@@ -15,7 +15,11 @@
 #if os(Linux)
 
 @_exported import QuillFoundation
+@_exported import CoreImage
 @_exported import QuillUIKit
+@_exported import QuartzCore
+@_exported import CoreVideo
+@_exported import ImageIO
 import QuillKit
 import Glibc
 
@@ -41,8 +45,6 @@ public typealias NSRectPointer = UnsafeMutablePointer<NSRect>
 
 // NSStringFromRect and NSRectFromString come from Foundation through QuillFoundation.
 
-public let NSNotFound: Int = Int.max
-
 // MARK: - NSImage / NSColor / NSFont / NSScreen
 //
 // These are typealiased to the cross-platform RS* types in
@@ -52,6 +54,23 @@ public let NSNotFound: Int = Int.max
 public typealias NSImage = RSImage
 public typealias NSColor = RSColor
 public typealias NSFont = RSFont
+public let kUTTypeData = "public.data"
+public let kUTTypeText = "public.text"
+public let kUTTypeURL = "public.url"
+public let kUTTypeFileURL = "public.file-url"
+
+public struct ImageResource: Hashable, Sendable, ExpressibleByStringLiteral {
+    public var name: String
+
+    public init(name: String, bundle: Bundle? = nil) {
+        self.name = name
+        _ = bundle
+    }
+
+    public init(stringLiteral value: String) {
+        self.init(name: value)
+    }
+}
 
 public extension NSImage {
     /// Apple's `NSImage.Name` (a String). Apps construct/extend it
@@ -67,6 +86,22 @@ public extension NSImage {
     static let statusNoneName: Name = "NSStatusNone"
     static let statusPartiallyAvailableName: Name = "NSStatusPartiallyAvailable"
     static let statusUnavailableName: Name = "NSStatusUnavailable"
+    static let imageTypes: [String] = [
+        "public.image",
+        "public.png",
+        "public.jpeg",
+        "public.tiff",
+        "com.compuserve.gif",
+    ]
+
+    convenience init(resource: ImageResource) {
+        if let image = NSImage(named: resource.name) {
+            self.init(size: image.size)
+            self.data = image.data
+        } else {
+            self.init(size: CGSize(width: 32, height: 32))
+        }
+    }
 }
 public typealias NSScreen = RSScreen
 
@@ -82,6 +117,13 @@ public struct NSColorSpaceName: RawRepresentable, Hashable, Sendable, Expressibl
     }
 
     public static let deviceRGB = NSColorSpaceName(rawValue: "NSDeviceRGBColorSpace")
+}
+
+open class NSColorSpace: NSObject, @unchecked Sendable {
+    public static let deviceRGB = NSColorSpace()
+    public static let genericRGB = NSColorSpace()
+    public static let sRGB = NSColorSpace()
+    public override init() {}
 }
 
 // `NSBitmapImageRep` is the AppKit type that converts between
@@ -192,6 +234,14 @@ public extension NSColor {
     convenience init(calibratedRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
         self.init(red: calibratedRed, green: green, blue: blue, alpha: alpha)
     }
+    convenience init?(cgColor: CGColor) {
+        let components = cgColor.components ?? [0, 0, 0, 1]
+        let red = components.count > 0 ? components[0] : 0
+        let green = components.count > 1 ? components[1] : red
+        let blue = components.count > 2 ? components[2] : red
+        let alpha = components.count > 3 ? components[3] : 1
+        self.init(red: red, green: green, blue: blue, alpha: alpha)
+    }
 
     func withAlphaComponent(_ alpha: CGFloat) -> NSColor {
         NSColor(red: _red, green: _green, blue: _blue, alpha: alpha)
@@ -206,7 +256,7 @@ public extension NSColor {
             alpha: _alpha + (c._alpha - _alpha) * fraction
         )
     }
-    func usingColorSpace(_ space: Any) -> NSColor? { self }
+    func usingColorSpace(_ space: NSColorSpace) -> NSColor? { self }
     func usingColorSpaceName(_ colorSpaceName: NSColorSpaceName) -> NSColor? { self }
     var redComponent: CGFloat { _red }
     var greenComponent: CGFloat { _green }
@@ -215,6 +265,18 @@ public extension NSColor {
     var hueComponent: CGFloat { 0 }
     var saturationComponent: CGFloat { 0 }
     var brightnessComponent: CGFloat { 0 }
+}
+
+open class NSGraphicsContext: NSObject, @unchecked Sendable {
+    public static var current: NSGraphicsContext? = NSGraphicsContext(cgContext: CGContext(), flipped: false)
+    public let cgContext: CGContext
+    public let isFlipped: Bool
+
+    public init(cgContext: CGContext, flipped: Bool) {
+        self.cgContext = cgContext
+        self.isFlipped = flipped
+        super.init()
+    }
 }
 
 /// NSFontManager font-trait mask. WireGuard's ConfTextStorage derives its italic
@@ -234,7 +296,6 @@ public struct NSFontTraitMask: OptionSet, Sendable {
 }
 
 public extension NSFont {
-    static func systemFont(ofSize: CGFloat) -> NSFont { NSFont() }
     static func systemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
     static func boldSystemFont(ofSize: CGFloat) -> NSFont { NSFont() }
     static func monospacedSystemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
@@ -243,7 +304,6 @@ public extension NSFont {
     static var systemFontSize: CGFloat { 13 }
     static var smallSystemFontSize: CGFloat { 11 }
 
-    var pointSize: CGFloat { 13 }
     var fontName: String { "System" }
     var familyName: String? { "System" }
 
@@ -452,8 +512,12 @@ open class NSResponder: NSObject {
     }
     open func mouseDown(with event: NSEvent) { nextResponder?.mouseDown(with: event) }
     open func mouseUp(with event: NSEvent) { nextResponder?.mouseUp(with: event) }
+    open func rightMouseDown(with event: NSEvent) { nextResponder?.rightMouseDown(with: event) }
+    open func rightMouseUp(with event: NSEvent) { nextResponder?.rightMouseUp(with: event) }
     open func mouseDragged(with event: NSEvent) { nextResponder?.mouseDragged(with: event) }
     open func mouseMoved(with event: NSEvent) { nextResponder?.mouseMoved(with: event) }
+    open func mouseEntered(with event: NSEvent) { nextResponder?.mouseEntered(with: event) }
+    open func mouseExited(with event: NSEvent) { nextResponder?.mouseExited(with: event) }
     // @MainActor: key events are delivered on the main thread, and overrides
     // (e.g. WireGuard's TunnelsListTableViewController.keyDown calling the
     // @MainActor handleRemoveTunnelAction on Delete) need that isolation. Same
@@ -462,9 +526,38 @@ open class NSResponder: NSObject {
     open func keyUp(with event: NSEvent) { nextResponder?.keyUp(with: event) }
     open func flagsChanged(with event: NSEvent) { nextResponder?.flagsChanged(with: event) }
     open func scrollWheel(with event: NSEvent) { nextResponder?.scrollWheel(with: event) }
+    open func cursorUpdate(with event: NSEvent) { nextResponder?.cursorUpdate(with: event) }
+    open func pressureChange(with event: NSEvent) { nextResponder?.pressureChange(with: event) }
+    open func smartMagnify(with event: NSEvent) { nextResponder?.smartMagnify(with: event) }
+    open func magnify(with event: NSEvent) { nextResponder?.magnify(with: event) }
+    open func swipe(with event: NSEvent) { nextResponder?.swipe(with: event) }
+    open func beginGesture(with event: NSEvent) { nextResponder?.beginGesture(with: event) }
+    open func endGesture(with event: NSEvent) { nextResponder?.endGesture(with: event) }
+    open func rotate(with event: NSEvent) { nextResponder?.rotate(with: event) }
+    open func touchesBegan(with event: NSEvent) { nextResponder?.touchesBegan(with: event) }
+    open func touchesMoved(with event: NSEvent) { nextResponder?.touchesMoved(with: event) }
+    open func touchesEnded(with event: NSEvent) { nextResponder?.touchesEnded(with: event) }
+    open func touchesCancelled(with event: NSEvent) { nextResponder?.touchesCancelled(with: event) }
+    open func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { nextResponder?.draggingEntered(sender) ?? [] }
+    open func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { nextResponder?.draggingUpdated(sender) ?? [] }
+    open func draggingExited(_ sender: NSDraggingInfo?) { nextResponder?.draggingExited(sender) }
+    open func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { nextResponder?.prepareForDragOperation(sender) ?? false }
+    open func performDragOperation(_ sender: NSDraggingInfo) -> Bool { nextResponder?.performDragOperation(sender) ?? false }
+    open func concludeDragOperation(_ sender: NSDraggingInfo?) { nextResponder?.concludeDragOperation(sender) }
+    open func draggingEnded(_ sender: NSDraggingInfo?) { nextResponder?.draggingEnded(sender) }
+    open func menu(for event: NSEvent) -> NSMenu? { nextResponder?.menu(for: event) }
+    open class func accessibilityFocusedUIElement() -> Any? { nil }
+    open func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    open var mouseDownCanMoveWindow: Bool { false }
     open var acceptsFirstResponder: Bool { false }
     open func becomeFirstResponder() -> Bool { true }
     open func resignFirstResponder() -> Bool { true }
+    open func copy(_ sender: Any?) { _ = sender }
+    open func paste(_ sender: Any?) { _ = sender }
+    open func responds(to aSelector: Selector!) -> Bool {
+        _ = aSelector
+        return false
+    }
     /// `cancelOperation(_:)` — the Esc / Cmd-. action method. Apple's NSResponder
     /// is @MainActor, so this method is marked @MainActor: subclass overrides that
     /// call @MainActor UI methods (e.g. WireGuard's LogViewController.cancelOperation
@@ -501,6 +594,38 @@ public final class NSLayoutGuide: NSObject {
     public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .centerY) }
 }
 
+public protocol NSViewToolTipOwner: AnyObject {
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String
+}
+
+public extension NSViewToolTipOwner {
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
+        _ = (view, tag, point, data)
+        return ""
+    }
+}
+
+public enum NSFocusRingType: UInt, Sendable {
+    case `default`, none, exterior
+}
+
+public enum NSPressureBehavior: Int, Sendable {
+    case unknown = -1
+    case primaryDefault = 0
+    case primaryClick = 1
+    case primaryGeneric = 2
+    case primaryAccelerator = 3
+    case primaryDeepClick = 5
+}
+
+open class NSPressureConfiguration: NSObject, @unchecked Sendable {
+    public let pressureBehavior: NSPressureBehavior
+    public init(pressureBehavior: NSPressureBehavior) {
+        self.pressureBehavior = pressureBehavior
+        super.init()
+    }
+}
+
 open class NSView: NSResponder {
     /// Posted when a view's frame/bounds change (when posts*ChangedNotifications
     /// is set). WireGuard's LogViewController observes these to autoscroll.
@@ -511,18 +636,18 @@ open class NSView: NSResponder {
     /// `scroll(_:)` — scroll the view's content so `point` is at the origin.
     /// WireGuard's LogViewController calls it on the table to keep the tail
     /// visible. Compile-stub until the Qt scroll-view backend honors it.
-    public func scroll(_ point: NSPoint) {}
+    open func scroll(_ point: NSPoint) { setBoundsOrigin(point) }
     /// Hover tooltip. WireGuard sets it on detail-row buttons (ButtonRow.buttonToolTip)
     /// and table cells. Compile-stub (stored) until the Qt backend wires native tooltips.
     public var toolTip: String?
-    public var frame: NSRect = .zero {
+    open var frame: NSRect = .zero {
         didSet {
             guard frame != oldValue else { return }
             quillUpdateBoundsSize(from: oldValue.size, to: frame.size)
             needsLayout = true
         }
     }
-    public var bounds: NSRect = .zero {
+    open var bounds: NSRect = .zero {
         didSet {
             if bounds != oldValue {
                 needsLayout = true
@@ -530,16 +655,27 @@ open class NSView: NSResponder {
         }
     }
     public var subviews: [NSView] = []
+    public private(set) var constraints: [NSLayoutConstraint] = []
+    private var nextToolTipTag: ToolTipTag = 1
     public weak var superview: NSView?
     public weak var window: NSWindow?
-    public var isHidden: Bool = false
-    public var alphaValue: CGFloat = 1
-    public var wantsLayer: Bool = false
-    public var layer: Any?
+    open var isHidden: Bool = false
+    open var alphaValue: CGFloat = 1
+    open var isOpaque: Bool { false }
+    open var wantsLayer: Bool = false
+    open var layer: CALayer?
+    open var shadow: NSShadow?
+    open var focusRingType: NSFocusRingType = .default
+    open var pressureConfiguration: NSPressureConfiguration?
     public var translatesAutoresizingMaskIntoConstraints: Bool = true
-    public var needsLayout: Bool = true
+    open var tag: Int = 0
+    open var frameCenterRotation: CGFloat = 0
+    open var animations: [String: Any]? = nil
+    open var contentFilters: [Any]?
+    public private(set) var gestureRecognizers: [NSGestureRecognizer] = []
+    open var needsLayout: Bool = true
     private var quillNeedsDisplay: Bool = false
-    public var needsDisplay: Bool {
+    open var needsDisplay: Bool {
         get { window == nil ? false : quillNeedsDisplay }
         set {
             guard newValue else { return }
@@ -550,10 +686,12 @@ open class NSView: NSResponder {
     /// (a default NSAppearance); WireGuard's ConfTextView reads it to theme its
     /// syntax colors, and overrides `viewDidChangeEffectiveAppearance()` to re-theme.
     public var effectiveAppearance: NSAppearance = NSAppearance()
+    open var appearance: NSAppearance?
     open func viewDidChangeEffectiveAppearance() {}
     public var clipsToBounds: Bool = false
     public var autoresizingMask: AutoresizingMask = []
     public var identifier: NSUserInterfaceItemIdentifier?
+    open var documentVisibleRect: NSRect { bounds }
 
     open override var nextResponder: NSResponder? {
         get { quillExplicitNextResponder ?? superview ?? window }
@@ -584,11 +722,11 @@ open class NSView: NSResponder {
         bounds = NSRect(origin: .zero, size: frame.size)
     }
 
-    public func addSubview(_ v: NSView) {
+    open func addSubview(_ v: NSView) {
         insertSubview(v, at: subviews.count)
     }
 
-    public func addSubview(_ v: NSView, positioned: NSWindow.OrderingMode, relativeTo: NSView?) {
+    open func addSubview(_ v: NSView, positioned: NSWindow.OrderingMode, relativeTo: NSView?) {
         let index: Int
         if let relativeTo, let relativeIndex = subviews.firstIndex(where: { $0 === relativeTo }) {
             switch positioned {
@@ -609,8 +747,9 @@ open class NSView: NSResponder {
         insertSubview(v, at: index)
     }
 
-    public func removeFromSuperview() {
+    open func removeFromSuperview() {
         guard let parent = superview else { return }
+        parent.willRemoveSubview(self)
         viewWillMove(toSuperview: nil)
         parent.subviews.removeAll { $0 === self }
         superview = nil
@@ -618,8 +757,14 @@ open class NSView: NSResponder {
         parent.quillMarkNeedsDisplay()
         viewDidMoveToSuperview()
     }
-    public func setFrameSize(_ s: NSSize) { frame.size = s }
-    public func setFrameOrigin(_ p: NSPoint) { frame.origin = p }
+    open func setFrameSize(_ s: NSSize) { frame.size = s }
+    open func setFrameOrigin(_ p: NSPoint) { frame.origin = p }
+    open func setBoundsOrigin(_ p: NSPoint) { bounds.origin = p }
+    open func scroll(to newOrigin: NSPoint) { setBoundsOrigin(newOrigin) }
+    open func scrollToVisible(_ rect: NSRect) -> Bool {
+        _ = rect
+        return true
+    }
     public func layoutSubtreeIfNeeded() {
         if needsLayout {
             layout()
@@ -638,6 +783,15 @@ open class NSView: NSResponder {
         quillDisplayIfWindowBacked()
     }
 
+    open func bitmapImageRepForCachingDisplay(in rect: NSRect) -> NSBitmapImageRep? {
+        _ = rect
+        return NSBitmapImageRep(data: Data())
+    }
+
+    open func cacheDisplay(in rect: NSRect, to bitmapImageRep: NSBitmapImageRep) {
+        _ = (rect, bitmapImageRep)
+    }
+
     open func displayIfNeeded() {
         quillDisplayIfWindowBacked()
     }
@@ -646,7 +800,12 @@ open class NSView: NSResponder {
         quillDisplayIfWindowBacked()
     }
 
-    public func setNeedsDisplay(_ rect: NSRect) {
+    open func invalidateIntrinsicContentSize() {
+        needsLayout = true
+        superview?.needsLayout = true
+    }
+
+    open func setNeedsDisplay(_ rect: NSRect) {
         guard rect.size.width > 0, rect.size.height > 0 else { return }
         quillMarkNeedsDisplay()
     }
@@ -674,7 +833,7 @@ open class NSView: NSResponder {
         )
     }
 
-    public func hitTest(_ p: NSPoint) -> NSView? {
+    open func hitTest(_ p: NSPoint) -> NSView? {
         guard !isHidden, quillBoundsContains(p) else { return nil }
 
         for child in subviews.reversed() {
@@ -718,6 +877,64 @@ open class NSView: NSResponder {
 
     open func layout() {}
     open func draw(_ rect: NSRect) {}
+    open func displayLayer() {}
+    open var wantsUpdateLayer: Bool { false }
+    open func updateLayer() {}
+    open func makeBackingLayer() -> CALayer { CALayer() }
+    open func animator() -> Self { self }
+    open func rotate(byDegrees angle: CGFloat) {
+        frameCenterRotation += angle
+    }
+    open func replaceSubview(_ oldView: NSView, with newView: NSView) {
+        guard let index = subviews.firstIndex(where: { $0 === oldView }) else {
+            addSubview(newView)
+            return
+        }
+        oldView.removeFromSuperview()
+        insertSubview(newView, at: index)
+    }
+    open var isFlipped: Bool { false }
+    open var canBecomeKeyView: Bool { false }
+    open class var isCompatibleWithResponsiveScrolling: Bool { false }
+    open var visibleRect: NSRect { bounds }
+    open var inLiveResize: Bool { false }
+    open func viewWillStartLiveResize() {}
+    open func viewDidEndLiveResize() {}
+    open func knowsPageRange(_ range: NSRangePointer) -> Bool {
+        _ = range
+        return false
+    }
+    open func viewDidChangeBackingProperties() {}
+    open func isAccessibilityElement() -> Bool { false }
+    open func accessibilityLabel() -> String? { nil }
+    open func accessibilityParent() -> Any? { superview }
+    open func isMousePoint(_ point: NSPoint, in rect: NSRect) -> Bool {
+        rect.contains(point)
+    }
+    open var wantsDefaultClipping: Bool { true }
+    open var autoresizesSubviews: Bool = true
+    public enum LayerContentsRedrawPolicy: Int, Sendable {
+        case never, onSetNeedsDisplay, duringViewResize, beforeViewResize, crossfade
+    }
+    open var layerContentsRedrawPolicy: LayerContentsRedrawPolicy = .never
+    open var acceptsTouchEvents: Bool = false
+    open func addGestureRecognizer(_ gestureRecognizer: NSGestureRecognizer) {
+        gestureRecognizers.append(gestureRecognizer)
+        gestureRecognizer.view = self
+    }
+    open func removeGestureRecognizer(_ gestureRecognizer: NSGestureRecognizer) {
+        gestureRecognizers.removeAll { $0 === gestureRecognizer }
+        if gestureRecognizer.view === self {
+            gestureRecognizer.view = nil
+        }
+    }
+    public struct TouchTypeMask: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let direct = TouchTypeMask(rawValue: 1 << 0)
+        public static let indirect = TouchTypeMask(rawValue: 1 << 1)
+    }
+    open var allowedTouchTypes: TouchTypeMask = []
 
     /// AppKit intrinsic content size. Default: no intrinsic size on either axis;
     /// content views (labels, buttons) and custom rows override this. A native
@@ -737,12 +954,41 @@ open class NSView: NSResponder {
     /// authoritative — feeding hugging/compression in is a fidelity refinement).
     open func setContentHuggingPriority(_ priority: NSLayoutConstraint.Priority, for orientation: NSLayoutConstraint.Orientation) {}
     open func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for orientation: NSLayoutConstraint.Orientation) {}
+    open func addConstraint(_ constraint: NSLayoutConstraint) {
+        constraints.append(constraint)
+        constraint.isActive = true
+    }
+    open func removeConstraint(_ constraint: NSLayoutConstraint) {
+        constraints.removeAll { $0 === constraint }
+        constraint.isActive = false
+    }
+    open func addConstraints(_ constraints: [NSLayoutConstraint]) {
+        for constraint in constraints { addConstraint(constraint) }
+    }
+    open func removeConstraints(_ constraints: [NSLayoutConstraint]) {
+        for constraint in constraints { removeConstraint(constraint) }
+    }
+    public typealias ToolTipTag = Int
+    open func addToolTip(_ rect: NSRect, owner: NSViewToolTipOwner, userData data: UnsafeMutableRawPointer?) -> ToolTipTag {
+        _ = (rect, owner, data)
+        let tag = nextToolTipTag
+        nextToolTipTag += 1
+        return tag
+    }
+    open func removeToolTip(_ tag: ToolTipTag) { _ = tag }
+    open func removeAllToolTips() {}
+    open func registerForDraggedTypes(_ types: [NSPasteboard.PasteboardType]) { _ = types }
+    open func unregisterDraggedTypes() {}
     open func viewWillMove(toWindow: NSWindow?) {}
     open func viewDidMoveToWindow() {}
     open func viewWillMove(toSuperview: NSView?) {}
     open func viewDidMoveToSuperview() {}
+    open func viewDidHide() {}
+    open func viewDidUnhide() {}
     open func updateTrackingAreas() {}
     open func resetCursorRects() {}
+    open func didAddSubview(_ subview: NSView) { _ = subview }
+    open func willRemoveSubview(_ subview: NSView) { _ = subview }
 
     public func addTrackingArea(_ a: NSTrackingArea) {
         guard !trackingAreas.contains(where: { $0 === a }) else { return }
@@ -778,11 +1024,19 @@ open class NSView: NSResponder {
         child.superview = self
         child.quillMoveWindowRecursively(newWindow)
         quillMarkNeedsDisplay()
+        didAddSubview(child)
 
         child.viewDidMoveToSuperview()
     }
 
+    /// Toolkit hook: a GTK (or other) backing installs this to translate
+    /// needsDisplay/setNeedsDisplay into a widget invalidation
+    /// (gtk_widget_queue_draw). Fired on every mark, including propagated
+    /// child marks.
+    public var quillDisplayInvalidationHandler: (() -> Void)?
+
     private func quillMarkNeedsDisplay() {
+        quillDisplayInvalidationHandler?()
         guard window != nil else {
             quillNeedsDisplay = false
             return
@@ -916,6 +1170,11 @@ open class NSView: NSResponder {
     }
 }
 
+public func QuillInstantiateView<T: NSView>(_ viewType: T.Type, frame: NSRect) -> T {
+    _ = viewType
+    return NSView(frame: frame) as! T
+}
+
 open class NSTrackingArea: NSObject, @unchecked Sendable {
     public struct Options: OptionSet, Sendable {
         public let rawValue: Int
@@ -929,6 +1188,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
         public static let activeWhenFirstResponder = Options(rawValue: 1 << 6)
         public static let inVisibleRect = Options(rawValue: 1 << 7)
         public static let assumeInside = Options(rawValue: 1 << 8)
+        public static let enabledDuringMouseDrag = Options(rawValue: 1 << 9)
     }
     public let rect: NSRect
     public let options: Options
@@ -1091,6 +1351,7 @@ open class NSWindow: NSResponder {
         public static let utilityWindow = StyleMask(rawValue: 1 << 4)
         public static let docModalWindow = StyleMask(rawValue: 1 << 6)
         public static let nonactivatingPanel = StyleMask(rawValue: 1 << 7)
+        public static let fullScreen = StyleMask(rawValue: 1 << 14)
     }
 
     public enum BackingStoreType: UInt, Sendable {
@@ -1106,6 +1367,18 @@ open class NSWindow: NSResponder {
     // `NSWindow.allowsAutomaticWindowTabbing = false`. No-op on
     // Linux but stored so reads round-trip.
     public static var allowsAutomaticWindowTabbing: Bool = true
+    public static let didMoveNotification = Notification.Name("NSWindowDidMoveNotification")
+    public static let didResizeNotification = Notification.Name("NSWindowDidResizeNotification")
+    public static let didBecomeKeyNotification = Notification.Name("NSWindowDidBecomeKeyNotification")
+    public static let didResignKeyNotification = Notification.Name("NSWindowDidResignKeyNotification")
+    public static let didExitFullScreenNotification = Notification.Name("NSWindowDidExitFullScreenNotification")
+    public static let didChangeOcclusionStateNotification = Notification.Name("NSWindowDidChangeOcclusionStateNotification")
+    open class func windowNumber(at point: NSPoint, belowWindowWithWindowNumber windowNumber: Int) -> Int {
+        _ = (point, windowNumber)
+        return 0
+    }
+
+    public var menu: NSMenu?
 
     public struct CollectionBehavior: OptionSet, Sendable {
         public let rawValue: UInt
@@ -1122,6 +1395,12 @@ open class NSWindow: NSResponder {
         public static let fullScreenAuxiliary = CollectionBehavior(rawValue: 1 << 8)
         public static let fullScreenAllowsTiling = CollectionBehavior(rawValue: 1 << 11)
         public static let fullScreenDisallowsTiling = CollectionBehavior(rawValue: 1 << 12)
+    }
+
+    public struct OcclusionState: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let visible = OcclusionState(rawValue: 1 << 1)
     }
 
     public var frame: NSRect = .zero
@@ -1159,12 +1438,14 @@ open class NSWindow: NSResponder {
     public var isZoomed: Bool = false
     public var isKeyWindow: Bool = false
     public var isMainWindow: Bool = false
-    public var canBecomeKey: Bool = true
-    public var canBecomeMain: Bool = true
+    open var canBecomeKey: Bool { true }
+    open var canBecomeMain: Bool { true }
+    open var acceptsMouseMovedEvents: Bool = false
     public var level: Level = .normal
     public var alphaValue: CGFloat = 1
     public var animationBehavior: AnimationBehavior = .default
     public var toolbar: NSToolbar?
+    public var touchBar: NSTouchBar?
     public var toolbarStyle: ToolbarStyle = .automatic
     public var contentMinSize: NSSize = .zero
     public var contentMaxSize: NSSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
@@ -1174,9 +1455,15 @@ open class NSWindow: NSResponder {
     public var contentAspectRatio: NSSize = .zero
     public var contentResizeIncrements: NSSize = .zero
     public var frameAutosaveName: String = ""
+    public var currentEvent: NSEvent? { NSApp.currentEvent }
     public var identifier: NSUserInterfaceItemIdentifier?
     public var firstResponder: NSResponder?
     public var screen: NSScreen? { .main }
+    open var windowNumber: Int { 0 }
+    open var backingScaleFactor: CGFloat { screen?.backingScaleFactor ?? 1 }
+    open var mouseLocationOutsideOfEventStream: NSPoint { NSEvent.mouseLocation }
+    open var graphicsContext: Any? { nil }
+    open var occlusionState: OcclusionState { .visible }
     public var representedURL: URL?
     public var appearance: NSAppearance?
     public var effectiveAppearance: NSAppearance = NSAppearance()
@@ -1229,33 +1516,58 @@ open class NSWindow: NSResponder {
         self.styleMask = styleMask
         contentView?.quillSetWindowRecursively(self)
     }
+
+    public convenience init(contentRect: NSRect, styleMask: StyleMask, backing: BackingStoreType, defer: Bool, screen: NSScreen?) {
+        self.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: `defer`)
+        _ = screen
+    }
+
     /// Window hosting a view controller (WireGuard's AppDelegate manage-tunnels window).
     public convenience init(contentViewController: NSViewController) {
         self.init(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)
         self.contentViewController = contentViewController
     }
 
-    public func makeKeyAndOrderFront(_ sender: Any?) { isVisible = true; isKeyWindow = true }
-    public func makeKey() { isKeyWindow = true }
-    public func makeMain() { isMainWindow = true }
-    public func orderFront(_ sender: Any?) { isVisible = true }
-    public func orderOut(_ sender: Any?) { isVisible = false }
-    public func close() { isVisible = false }
-    public func performClose(_ sender: Any?) { close() }
-    public func miniaturize(_ sender: Any?) { isMiniaturized = true }
-    public func deminiaturize(_ sender: Any?) { isMiniaturized = false }
-    public func zoom(_ sender: Any?) { isZoomed.toggle() }
-    public func toggleFullScreen(_ sender: Any?) {}
-    public func setFrame(_ rect: NSRect, display: Bool) { self.frame = rect }
-    public func setFrame(_ rect: NSRect, display: Bool, animate: Bool) { self.frame = rect }
-    public func setFrameOrigin(_ p: NSPoint) { self.frame.origin = p }
+    open func makeKeyAndOrderFront(_ sender: Any?) { isVisible = true; isKeyWindow = true }
+    open func makeKey() { isKeyWindow = true }
+    open func makeMain() { isMainWindow = true }
+    open func orderFront(_ sender: Any?) { isVisible = true }
+    open func orderFrontRegardless() { isVisible = true }
+    open func orderOut(_ sender: Any?) { isVisible = false }
+    open func close() { isVisible = false }
+    open func performClose(_ sender: Any?) { close() }
+    open func miniaturize(_ sender: Any?) { isMiniaturized = true }
+    open func deminiaturize(_ sender: Any?) { isMiniaturized = false }
+    open func zoom(_ sender: Any?) { isZoomed.toggle() }
+    open func toggleFullScreen(_ sender: Any?) {}
+    open func setFrame(_ rect: NSRect, display: Bool) { self.frame = rect }
+    open func setFrame(_ rect: NSRect, display: Bool, animate: Bool) { self.frame = rect }
+    open func setFrameOrigin(_ p: NSPoint) { self.frame.origin = p }
     public func setFrameTopLeftPoint(_ p: NSPoint) { self.frame.origin = p }
     public func center() {}
     public func setContentSize(_ s: NSSize) { contentView?.frame.size = s }
-    public func setIsVisible(_ v: Bool) { isVisible = v }
+    public var isOnActiveSpace: Bool { true }
+    open func animator() -> Self { self }
+    open func convertToScreen(_ rect: NSRect) -> NSRect {
+        NSRect(
+            x: frame.origin.x + rect.origin.x,
+            y: frame.origin.y + rect.origin.y,
+            width: rect.size.width,
+            height: rect.size.height
+        )
+    }
+    open func convertFromScreen(_ rect: NSRect) -> NSRect {
+        NSRect(
+            x: rect.origin.x - frame.origin.x,
+            y: rect.origin.y - frame.origin.y,
+            width: rect.size.width,
+            height: rect.size.height
+        )
+    }
+    open func setIsVisible(_ v: Bool) { isVisible = v }
     public func setIsMiniaturized(_ v: Bool) { isMiniaturized = v }
     public func setIsZoomed(_ v: Bool) { isZoomed = v }
-    public func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+    open func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         if firstResponder === responder { return true }
         if let responder, !responder.acceptsFirstResponder { return false }
         if let current = firstResponder, !current.resignFirstResponder() { return false }
@@ -1263,8 +1575,24 @@ open class NSWindow: NSResponder {
         firstResponder = responder
         return true
     }
+    open func fieldEditor(_ createFlag: Bool, for object: Any?) -> NSText? {
+        _ = (createFlag, object)
+        return createFlag ? NSTextView() : nil
+    }
     public func performMiniaturize(_ sender: Any?) {}
     public func performZoom(_ sender: Any?) {}
+    open func performKeyEquivalent(with event: NSEvent) -> Bool {
+        _ = event
+        return false
+    }
+    open func sendEvent(_ event: NSEvent) {
+        event.window = self
+    }
+    open func layoutIfNeeded() {
+        contentView?.layoutSubtreeIfNeeded()
+    }
+    open func updateConstraintsIfNeeded() {}
+    open func makeTouchBar() -> NSTouchBar? { nil }
     public func setFrameAutosaveName(_ name: String) -> Bool { frameAutosaveName = name; return true }
     public func saveFrame(usingName: String) {}
     public func setFrameUsingName(_ name: String) -> Bool { false }
@@ -1365,6 +1693,50 @@ open class NSPanel: NSWindow {
     public var worksWhenModal: Bool = false
 }
 
+// MARK: - NSTouchBar
+
+open class NSTouchBar: NSObject, @unchecked Sendable {
+    public weak var delegate: NSTouchBarDelegate?
+    public var defaultItemIdentifiers: [NSTouchBarItem.Identifier] = []
+    public var customizationIdentifier: String?
+    public override init() {}
+}
+
+public protocol NSTouchBarDelegate: AnyObject {
+    func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem?
+}
+
+public extension NSTouchBarDelegate {
+    func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
+        _ = (touchBar, identifier)
+        return nil
+    }
+}
+
+open class NSTouchBarItem: NSObject, @unchecked Sendable {
+    public struct Identifier: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
+        public let rawValue: String
+        public init(_ rawValue: String) { self.rawValue = rawValue }
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
+        public static let flexibleSpace = Identifier("NSTouchBarItemIdentifierFlexibleSpace")
+        public static let fixedSpaceSmall = Identifier("NSTouchBarItemIdentifierFixedSpaceSmall")
+        public static let fixedSpaceLarge = Identifier("NSTouchBarItemIdentifierFixedSpaceLarge")
+    }
+
+    public let identifier: Identifier
+    public var customizationLabel: String = ""
+
+    public init(identifier: Identifier) {
+        self.identifier = identifier
+        super.init()
+    }
+}
+
+open class NSCustomTouchBarItem: NSTouchBarItem {
+    public var view: NSView?
+}
+
 // MARK: - NSApplication
 
 // Drop `@MainActor` from the Linux NSApplication stub. Real
@@ -1384,6 +1756,7 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     public var orderedDocuments: [NSDocument] = []
     public var isActive: Bool = false
     private var _activationPolicy: ActivationPolicy = .regular
+    public var applicationIconImage: NSImage?
     public var dockTile: NSDockTile = NSDockTile()
     public var presentationOptions: PresentationOptions = []
     public var currentEvent: NSEvent?
@@ -1513,7 +1886,7 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         case .scrollWheel:
             responder.scrollWheel(with: event)
         case .mouseEntered, .mouseExited, .appKitDefined, .systemDefined,
-             .applicationDefined, .periodic, .cursorUpdate:
+             .applicationDefined, .periodic, .cursorUpdate, .magnify, .smartMagnify:
             break
         }
     }
@@ -1585,7 +1958,7 @@ open class NSEvent: NSObject, @unchecked Sendable {
         case mouseEntered = 8, mouseExited = 9
         case keyDown = 10, keyUp = 11, flagsChanged = 12
         case appKitDefined = 13, systemDefined = 14, applicationDefined = 15, periodic = 16
-        case cursorUpdate = 17, scrollWheel = 22
+        case cursorUpdate = 17, scrollWheel = 22, magnify = 30, smartMagnify = 32
     }
     public struct EventTypeMask: OptionSet, Sendable {
         public let rawValue: UInt64
@@ -1627,6 +2000,8 @@ open class NSEvent: NSObject, @unchecked Sendable {
     public var scrollingDeltaX: CGFloat = 0
     public var scrollingDeltaY: CGFloat = 0
     public var hasPreciseScrollingDeltas: Bool = false
+    public var magnification: CGFloat = 0
+    public var stage: Int = 0
     public var locationInWindow: NSPoint = .zero
     public var timestamp: TimeInterval = 0
     public weak var window: NSWindow?
@@ -1648,6 +2023,36 @@ open class NSEvent: NSObject, @unchecked Sendable {
 
     public static var modifierFlags: ModifierFlags { [] }
     public static var mouseLocation: NSPoint { .zero }
+    public static var pressedMouseButtons: Int { 0 }
+    public func touches(matching phase: NSTouch.Phase, in view: NSView?) -> Set<NSTouch> {
+        _ = (phase, view)
+        return []
+    }
+
+    public static func keyEvent(
+        with type: EventType,
+        location: NSPoint,
+        modifierFlags flags: ModifierFlags,
+        timestamp: TimeInterval,
+        windowNumber: Int,
+        context: Any?,
+        characters: String,
+        charactersIgnoringModifiers: String,
+        isARepeat: Bool,
+        keyCode: UInt16
+    ) -> NSEvent? {
+        let event = NSEvent()
+        event.type = type
+        event.locationInWindow = location
+        event.modifierFlags = flags
+        event.timestamp = timestamp
+        event.characters = characters
+        event.charactersIgnoringModifiers = charactersIgnoringModifiers
+        event.isARepeat = isARepeat
+        event.keyCode = keyCode
+        _ = (windowNumber, context)
+        return event
+    }
 
     public static func addLocalMonitorForEvents(matching: EventTypeMask, handler: @escaping (NSEvent) -> NSEvent?) -> Any? {
         let monitor = EventMonitor(mask: matching, localHandler: handler, globalHandler: nil)
@@ -1707,6 +2112,67 @@ open class NSEvent: NSObject, @unchecked Sendable {
     private static var globalEventMonitors: [EventMonitor] = []
 }
 
+open class NSGestureRecognizer: NSObject {
+    public enum State: Int, Sendable {
+        case possible
+        case began
+        case changed
+        case ended
+        case cancelled
+        case failed
+    }
+
+    public weak var view: NSView?
+    public weak var target: AnyObject?
+    public var action: Selector?
+    public var state: State = .possible
+
+    public init(target: AnyObject?, action: Selector?) {
+        self.target = target
+        self.action = action
+        super.init()
+    }
+
+    public override init() {
+        super.init()
+    }
+}
+
+open class NSClickGestureRecognizer: NSGestureRecognizer {}
+open class NSPressGestureRecognizer: NSGestureRecognizer {}
+
+public struct NSTouch: Hashable, Sendable {
+    public struct Phase: OptionSet, Hashable, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let began = Phase(rawValue: 1 << 0)
+        public static let moved = Phase(rawValue: 1 << 1)
+        public static let stationary = Phase(rawValue: 1 << 2)
+        public static let ended = Phase(rawValue: 1 << 3)
+        public static let cancelled = Phase(rawValue: 1 << 4)
+        public static let touching: Phase = [.began, .moved, .stationary]
+        public static let any = Phase(rawValue: UInt.max)
+    }
+
+    public var identity: AnyHashable
+    public var normalizedPosition: NSPoint
+    public var phase: Phase
+
+    public init(identity: AnyHashable = 0, normalizedPosition: NSPoint = .zero, phase: Phase = []) {
+        self.identity = identity
+        self.normalizedPosition = normalizedPosition
+        self.phase = phase
+    }
+
+    public static func == (lhs: NSTouch, rhs: NSTouch) -> Bool {
+        lhs.identity == rhs.identity
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(identity)
+    }
+}
+
 // MARK: - NSPasteboard
 //
 // Phase B (real backing): NSPasteboard.general is now backed by a
@@ -1728,12 +2194,16 @@ public protocol NSPasteboardOwner: AnyObject {
 }
 
 open class NSPasteboard: NSObject, @unchecked Sendable {
-    public struct PasteboardType: RawRepresentable, Hashable, Sendable {
+    public struct PasteboardType: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
+        public init(_ rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
         public static let string = PasteboardType(rawValue: "public.utf8-plain-text")
         public static let URL = PasteboardType(rawValue: "public.url")
         public static let fileURL = PasteboardType(rawValue: "public.file-url")
+        public static let kUrl = PasteboardType(rawValue: "public.url")
+        public static let kFilenames = PasteboardType(rawValue: "NSFilenamesPboardType")
         public static let html = PasteboardType(rawValue: "public.html")
         public static let pdf = PasteboardType(rawValue: "com.adobe.pdf")
         public static let png = PasteboardType(rawValue: "public.png")
@@ -1877,6 +2347,26 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
         guard let availableTypes = self.types(), !availableTypes.isEmpty else { return nil }
         let available = Set(availableTypes)
         return types.first { available.contains($0) }
+    }
+
+    public func canReadItem(withDataConformingToTypes types: [String]) -> Bool {
+        let pasteboardTypes = types.map(PasteboardType.init(rawValue:))
+        if availableType(from: pasteboardTypes) != nil {
+            return true
+        }
+        guard let availableTypes = self.types(), !availableTypes.isEmpty else {
+            return false
+        }
+        let availableRawValues = Set(availableTypes.map(\.rawValue))
+        return types.contains { requestedType in
+            availableRawValues.contains(requestedType)
+                || (requestedType == "public.image" && availableRawValues.contains { rawValue in
+                    rawValue == "public.png"
+                        || rawValue == "public.jpeg"
+                        || rawValue == "public.tiff"
+                        || rawValue == "com.compuserve.gif"
+                })
+        }
     }
 
     @discardableResult
@@ -2474,58 +2964,188 @@ open class NSCursor: NSObject {
 //
 // Linux Foundation already declares `NSAttributedString.Key` (it's a
 // pure-Foundation type). We just extend it with the AppKit-side static
-// keys that upstream code reads (`.font`, `.foregroundColor`, etc.).
+// Shared text-layout types (NSTextAlignment/NSParagraphStyle/NSUnderlineStyle/
+// NSStringDrawing*/NSAttributedString.Key additions) moved to QuillFoundation
+// (NSTextLayoutShared.swift) — single canonical declarations that both this
+// module and the UIKit shim @_exported-import, so files seeing both worlds
+// (SwiftUI re-exports AppKit; Signal imports SwiftUI + UIKit) hit no
+// ambiguity. NSTextStorage stays here: its members are AppKit-flavored.
 
-public extension NSAttributedString.Key {
-    static let font = NSAttributedString.Key(rawValue: "NSFont")
-    static let foregroundColor = NSAttributedString.Key(rawValue: "NSColor")
-    static let backgroundColor = NSAttributedString.Key(rawValue: "NSBackgroundColor")
-    static let paragraphStyle = NSAttributedString.Key(rawValue: "NSParagraphStyle")
-    static let underlineStyle = NSAttributedString.Key(rawValue: "NSUnderline")
-    static let underlineColor = NSAttributedString.Key(rawValue: "NSUnderlineColor")
-    static let strikethroughStyle = NSAttributedString.Key(rawValue: "NSStrikethrough")
-    static let strikethroughColor = NSAttributedString.Key(rawValue: "NSStrikethroughColor")
-    static let kern = NSAttributedString.Key(rawValue: "NSKern")
-    static let link = NSAttributedString.Key(rawValue: "NSLink")
-    static let attachment = NSAttributedString.Key(rawValue: "NSAttachment")
-    static let baselineOffset = NSAttributedString.Key(rawValue: "NSBaselineOffset")
-    static let writingDirection = NSAttributedString.Key(rawValue: "NSWritingDirection")
+
+
+
+private func quillEstimatedAppKitTextRect(
+    _ string: String,
+    proposed size: NSSize,
+    attributes: [NSAttributedString.Key: Any]?
+) -> NSRect {
+    let fontSize = (attributes?[.font] as? NSFont)?.pointSize ?? 13
+    let characterWidth = max(1, fontSize * 0.6)
+    let lineHeight = max(1, fontSize * 1.2)
+    let rawWidth = CGFloat(string.count) * characterWidth
+    let proposedWidth = size.width.isFinite ? max(1, size.width) : rawWidth
+    let width = min(proposedWidth, max(rawWidth, characterWidth))
+    let lines = max(1, ceil(rawWidth / max(1, width)))
+    let proposedHeight = size.height.isFinite ? size.height : CGFloat.greatestFiniteMagnitude
+    return NSRect(x: 0, y: 0, width: width, height: min(proposedHeight, lines * lineHeight))
 }
 
-open class NSMutableParagraphStyle: NSObject, @unchecked Sendable {
+public extension NSString {
+    func boundingRect(
+        with size: NSSize,
+        options: NSStringDrawingOptions = [],
+        attributes: [NSAttributedString.Key: Any]? = nil,
+        context: NSStringDrawingContext? = nil
+    ) -> NSRect {
+        _ = (options, context)
+        return quillEstimatedAppKitTextRect(self as String, proposed: size, attributes: attributes)
+    }
+}
+
+
+open class NSTextAttachment: NSObject {
+    public var image: NSImage?
+    public var bounds: NSRect = .zero
+    public var contents: Data?
+    public var fileType: String?
+
+    public override init() {
+        super.init()
+    }
+
+    public init(data contentData: Data?, ofType uti: String?) {
+        self.contents = contentData
+        self.fileType = uti
+        super.init()
+    }
+
+    public required init?(coder: NSCoder) {
+        super.init()
+    }
+}
+
+public extension NSAttributedString {
+    convenience init(attachment: NSTextAttachment) {
+        self.init(string: "\u{FFFC}", attributes: [.attachment: attachment])
+    }
+
+    func boundingRect(with size: NSSize, options: NSStringDrawingOptions = []) -> NSRect {
+        _ = options
+        let rawWidth = CGFloat(length) * 7
+        let width = min(size.width, rawWidth)
+        let lines = max(1, ceil(rawWidth / max(1, size.width)))
+        return NSRect(x: 0, y: 0, width: width, height: min(size.height, lines * 14))
+    }
+
+    func boundingRect(with size: NSSize, options: NSStringDrawingOptions = [], context: Any?) -> NSRect {
+        _ = context
+        return boundingRect(with: size, options: options)
+    }
+
+    func doubleClick(at index: Int) -> NSRange {
+        guard length > 0 else { return NSRange(location: 0, length: 0) }
+        let clamped = Swift.max(0, Swift.min(index, length - 1))
+        let text = string as NSString
+        let separators = CharacterSet.whitespacesAndNewlines
+        var start = clamped
+        var end = clamped
+        while start > 0 {
+            let scalar = UnicodeScalar(text.character(at: start - 1))
+            if scalar.map({ separators.contains($0) }) ?? false { break }
+            start -= 1
+        }
+        while end < length {
+            let scalar = UnicodeScalar(text.character(at: end))
+            if scalar.map({ separators.contains($0) }) ?? false { break }
+            end += 1
+        }
+        return NSRange(location: start, length: Swift.max(0, end - start))
+    }
+}
+
+
+
+
+
+
+open class NSBezierPath: NSObject, @unchecked Sendable {
+    public enum Element: Int, Sendable {
+        case moveTo, lineTo, curveTo, closePath
+    }
+
+    private var elements: [(Element, [NSPoint])] = []
+    open var lineWidth: CGFloat = 1
+    open var elementCount: Int { elements.count }
+
     public override init() {}
-    public var alignment: NSTextAlignment = .natural
-    public var lineHeightMultiple: CGFloat = 0
-    public var lineSpacing: CGFloat = 0
-    public var paragraphSpacing: CGFloat = 0
-    public var firstLineHeadIndent: CGFloat = 0
-    public var headIndent: CGFloat = 0
-    public var tailIndent: CGFloat = 0
-    public var lineBreakMode: NSLineBreakMode = .byWordWrapping
-    public var minimumLineHeight: CGFloat = 0
-    public var maximumLineHeight: CGFloat = 0
-    public var baseWritingDirection: NSWritingDirection = .natural
-    public var defaultTabInterval: CGFloat = 0
-    public var tabStops: [Any] = []
+
+    open func move(to point: NSPoint) {
+        elements.append((.moveTo, [point]))
+    }
+
+    open func line(to point: NSPoint) {
+        elements.append((.lineTo, [point]))
+    }
+
+    open func curve(to endPoint: NSPoint, controlPoint1: NSPoint, controlPoint2: NSPoint) {
+        elements.append((.curveTo, [controlPoint1, controlPoint2, endPoint]))
+    }
+
+    open func close() {
+        elements.append((.closePath, []))
+    }
+
+    open func appendRect(_ rect: NSRect) {
+        move(to: NSPoint(x: rect.minX, y: rect.minY))
+        line(to: NSPoint(x: rect.maxX, y: rect.minY))
+        line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+        line(to: NSPoint(x: rect.minX, y: rect.maxY))
+        close()
+    }
+
+    open func appendOval(in rect: NSRect) {
+        appendRect(rect)
+    }
+
+    open func append(_ path: NSBezierPath) {
+        elements.append(contentsOf: path.elements)
+    }
+
+    open func element(at index: Int, associatedPoints points: UnsafeMutablePointer<NSPoint>?) -> Element {
+        guard elements.indices.contains(index) else { return .closePath }
+        let element = elements[index]
+        for (pointIndex, point) in element.1.enumerated() {
+            points?.advanced(by: pointIndex).pointee = point
+        }
+        return element.0
+    }
+
+    open func fill() {}
+    open func stroke() {}
 }
 
-public enum NSTextAlignment: Int, Sendable {
-    case left, right, center, justified, natural
+open class NSAffineTransform: NSObject, @unchecked Sendable {
+    public override init() {}
+    open func rotate(byDegrees angle: CGFloat) { _ = angle }
+    open func translateX(by deltaX: CGFloat, yBy deltaY: CGFloat) { _ = (deltaX, deltaY) }
+    open func scaleX(by scaleX: CGFloat, yBy scaleY: CGFloat) { _ = (scaleX, scaleY) }
+    open func transform(_ path: NSBezierPath) -> NSBezierPath { path }
 }
 
-public enum NSLineBreakMode: Int, Sendable {
-    case byWordWrapping, byCharWrapping, byClipping, byTruncatingHead, byTruncatingTail, byTruncatingMiddle
-}
+open class NSShadow: NSObject, @unchecked Sendable {
+    open var shadowColor: NSColor?
+    open var shadowOffset: NSSize = .zero
+    open var shadowBlurRadius: CGFloat = 0
 
-public enum NSWritingDirection: Int, Sendable {
-    case natural = -1, leftToRight = 0, rightToLeft = 1
+    public override init() {}
+    open func set() {}
 }
 
 // MARK: - NSMenu / NSMenuItem
 
 open class NSMenu: NSObject {
     public var title: String = ""
-    public var items: [NSMenuItem] = []
+    open var items: [NSMenuItem] = []
     public weak var delegate: NSMenuDelegate?
     public var supermenu: NSMenu?
     public var autoenablesItems: Bool = true
@@ -2543,7 +3163,7 @@ open class NSMenu: NSObject {
     // keyword — matching the unmodified upstream source.
     public init(title: String) { super.init(); self.title = title }
     public override convenience init() { self.init(title: "") }
-    public func addItem(_ i: NSMenuItem) {
+    open func addItem(_ i: NSMenuItem) {
         i.menu = self
         items.append(i)
     }
@@ -2589,38 +3209,52 @@ open class NSMenu: NSObject {
         item.submenu = menu
         menu?.supermenu = self
     }
-    @MainActor
     public func popUp(positioning item: NSMenuItem?, at location: NSPoint, in view: NSView?) -> Bool {
         lastPopUpPositioningItem = item
         lastPopUpLocation = location
         lastPopUpView = view
         update()
         isTracking = true
-        delegate?.menuWillOpen(self)
+        // AppKit invokes menu delegates on the main thread; assumeIsolated is
+        // the same bridge NSApplication.sendEvent uses for responder calls.
+        if let delegate {
+            MainActor.assumeIsolated { delegate.menuWillOpen(self) }
+        }
         return true
     }
-    @MainActor
     public func cancelTracking() {
         guard isTracking else { return }
         isTracking = false
-        delegate?.menuDidClose(self)
+        if let delegate {
+            MainActor.assumeIsolated { delegate.menuDidClose(self) }
+        }
     }
-    @MainActor
     public func update() {
-        _ = delegate?.numberOfItems(in: self)
-        delegate?.menuNeedsUpdate(self)
+        if let delegate {
+            MainActor.assumeIsolated {
+                _ = delegate.numberOfItems(in: self)
+                delegate.menuNeedsUpdate(self)
+            }
+        }
         for (index, item) in items.enumerated() {
-            _ = delegate?.menu(self, update: item, at: index, shouldCancel: false)
+            if let delegate {
+                MainActor.assumeIsolated {
+                    _ = delegate.menu(self, update: item, at: index, shouldCancel: false)
+                }
+            }
             if autoenablesItems, let validator = item.target as? NSMenuItemValidation {
                 item.isEnabled = validator.validateMenuItem(item)
             }
         }
     }
     public static var menuBarVisible: Bool = true
+    open class func popUpContextMenu(_ menu: NSMenu, with event: NSEvent, for view: NSView) {
+        _ = menu.popUp(positioning: nil, at: event.locationInWindow, in: view)
+    }
 }
 
 open class NSMenuItem: NSObject {
-    public var title: String = ""
+    open var title: String = ""
     public var action: Selector?
     public weak var target: AnyObject?
     public var keyEquivalent: String = ""
@@ -2643,13 +3277,7 @@ open class NSMenuItem: NSObject {
     public var view: NSView?
     public var identifier: NSUserInterfaceItemIdentifier?
 
-    public struct StateValue: RawRepresentable, Sendable {
-        public var rawValue: Int
-        public init(rawValue: Int) { self.rawValue = rawValue }
-        public static let off = StateValue(rawValue: 0)
-        public static let on = StateValue(rawValue: 1)
-        public static let mixed = StateValue(rawValue: -1)
-    }
+    public typealias StateValue = NSControl.StateValue
 
     public init(title: String, action: Selector?, keyEquivalent: String) {
         super.init()
@@ -2661,9 +3289,10 @@ open class NSMenuItem: NSObject {
     // func so those call sites resolve. separatorItem() kept as the legacy alias.
     public static func separator() -> NSMenuItem { NSMenuItem() }
     public static func separatorItem() -> NSMenuItem { NSMenuItem() }
+    open var isSeparatorItem: Bool { false }
 }
 
-@MainActor public protocol NSMenuDelegate: AnyObject {
+public protocol NSMenuDelegate: AnyObject {
     func menuWillOpen(_ menu: NSMenu)
     func menuDidClose(_ menu: NSMenu)
     func numberOfItems(in menu: NSMenu) -> Int
@@ -2896,15 +3525,24 @@ open class NSOpenPanel: NSSavePanel {
 // MARK: - NSScrollView / NSScroller / NSTextField / NSTextView / NSImageView / NSButton / NSPopUpButton / NSSearchField / NSSplitView / NSSlider
 
 open class NSScrollView: NSView {
+    public static let willStartLiveScrollNotification = Notification.Name("NSScrollViewWillStartLiveScrollNotification")
+    public static let didLiveScrollNotification = Notification.Name("NSScrollViewDidLiveScrollNotification")
+    public static let didEndLiveScrollNotification = Notification.Name("NSScrollViewDidEndLiveScrollNotification")
+
+    public enum Elasticity: Int, Sendable {
+        case automatic, none, allowed
+    }
+
     /// Whether the scroll view paints its background. WireGuard's TunnelDetail table
     /// sets it false for a transparent detail view. Compile-stub (stored).
-    public var drawsBackground: Bool = true
-    public var contentView: NSClipView = NSClipView() {
+    open var drawsBackground: Bool = true
+    open var backgroundColor: NSColor = .clear
+    open var contentView: NSClipView = NSClipView() {
         didSet {
             quillInstallContentView(replacing: oldValue)
         }
     }
-    public var documentView: NSView? {
+    open var documentView: NSView? {
         get { contentView.documentView }
         set {
             let oldValue = contentView.documentView
@@ -2918,13 +3556,15 @@ open class NSScrollView: NSView {
             }
         }
     }
-    public var hasVerticalScroller: Bool = false
-    public var hasHorizontalScroller: Bool = false
-    public var verticalScroller: NSScroller?
-    public var horizontalScroller: NSScroller?
-    public var autohidesScrollers: Bool = true
-    public var scrollerStyle: NSScroller.Style = .overlay
-    public var borderType: BorderType = .noBorder
+    open var hasVerticalScroller: Bool = false
+    open var hasHorizontalScroller: Bool = false
+    open var verticalScroller: NSScroller?
+    open var horizontalScroller: NSScroller?
+    open var autohidesScrollers: Bool = true
+    open var scrollerStyle: NSScroller.Style = .overlay
+    open var borderType: NSBorderType = .noBorder
+    open var verticalScrollElasticity: Elasticity = .automatic
+    open var horizontalScrollElasticity: Elasticity = .automatic
     public var hasMagnification: Bool = false
     public var allowsMagnification: Bool = false
     public var magnification: CGFloat = 1
@@ -2938,8 +3578,8 @@ open class NSScrollView: NSView {
         quillInstallContentView()
     }
     public func flashScrollers() {}
-    public enum BorderType: UInt, Sendable { case noBorder, lineBorder, bezelBorder, grooveBorder }
-
+    open func tile() {}
+    open func reflectScrolledClipView(_ clipView: NSClipView) { _ = clipView }
     private func quillInstallContentView(replacing oldValue: NSClipView? = nil) {
         if let oldValue, oldValue !== contentView {
             oldValue.removeFromSuperview()
@@ -2948,6 +3588,10 @@ open class NSScrollView: NSView {
             addSubview(contentView)
         }
     }
+}
+
+public enum NSBorderType: UInt, Sendable {
+    case noBorder, lineBorder, bezelBorder, grooveBorder
 }
 
 /// Mirrors `NSBox`: a titled/bordered container. COMPILE-stub — properties are
@@ -2995,12 +3639,24 @@ open class NSClipView: NSView {
             }
         }
     }
-    public var documentRect: NSRect = .zero
-    public var documentVisibleRect: NSRect = .zero
+    open var backgroundColor: NSColor = .clear
+    open var documentRect: NSRect = .zero
+    open override var documentVisibleRect: NSRect {
+        get { documentRect == .zero ? bounds : documentRect }
+        set { documentRect = newValue }
+    }
+    open var contentInsets: NSEdgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+    open func autoscroll(with event: NSEvent) -> Bool {
+        _ = event
+        return false
+    }
 }
 
 open class NSScroller: NSView {
     public enum Style: Int, Sendable { case legacy, overlay }
+    open var scrollerStyle: Style = .overlay
+    public static var preferredScrollerStyle: Style { .overlay }
+    open func drawKnob() {}
 }
 
 open class NSTextField: NSControl {
@@ -3131,6 +3787,7 @@ public extension NSTokenFieldDelegate {
 }
 
 open class NSText: NSView {
+    public static let didChangeNotification = Notification.Name("NSTextDidChangeNotification")
     open var string: String = ""
     /// Layout bounds for the text (WireGuard's ConfTextView sets these to size the
     /// config editor). Compile-stubs.
@@ -3141,40 +3798,55 @@ open class NSText: NSView {
 }
 
 open class NSTextView: NSText {
+    public static let didChangeSelectionNotification = Notification.Name("NSTextViewDidChangeSelectionNotification")
     public var textStorage: NSTextStorage? = NSTextStorage(string: "")
     public var layoutManager: NSLayoutManager? = NSLayoutManager()
     public var textContainer: NSTextContainer? = NSTextContainer()
     public var textContainerInset: NSSize = .zero
-    public var allowsUndo: Bool = false
-    public var isEditable: Bool = true
-    public var isSelectable: Bool = true
-    public var isRichText: Bool = false
-    public var importsGraphics: Bool = false
-    public var smartInsertDeleteEnabled: Bool = true
-    public var isAutomaticQuoteSubstitutionEnabled: Bool = true
-    public var isAutomaticDashSubstitutionEnabled: Bool = true
-    public var isAutomaticTextReplacementEnabled: Bool = true
-    public var isAutomaticSpellingCorrectionEnabled: Bool = true
-    public var continuousSpellCheckingEnabled: Bool = true
-    public var grammarCheckingEnabled: Bool = true
-    public var usesRuler: Bool = false
-    public var usesFontPanel: Bool = false
-    public var usesFindBar: Bool = false
-    public var usesFindPanel: Bool = false
-    public var rulerVisible: Bool = false
+    open var allowsUndo: Bool = false
+    open var isEditable: Bool = true
+    open var isSelectable: Bool = true
+    open var isRichText: Bool = false
+    open var importsGraphics: Bool = false
+    open var smartInsertDeleteEnabled: Bool = true
+    open var isAutomaticQuoteSubstitutionEnabled: Bool = true
+    open var isAutomaticDashSubstitutionEnabled: Bool = true
+    open var isAutomaticTextReplacementEnabled: Bool = true
+    open var isAutomaticSpellingCorrectionEnabled: Bool = true
+    open var isContinuousSpellCheckingEnabled: Bool = true
+    open var isGrammarCheckingEnabled: Bool = true
+    open var continuousSpellCheckingEnabled: Bool {
+        get { isContinuousSpellCheckingEnabled }
+        set { isContinuousSpellCheckingEnabled = newValue }
+    }
+    open var grammarCheckingEnabled: Bool {
+        get { isGrammarCheckingEnabled }
+        set { isGrammarCheckingEnabled = newValue }
+    }
+    open var usesRuler: Bool = false
+    open var usesFontPanel: Bool = false
+    open var usesFindBar: Bool = false
+    open var usesFindPanel: Bool = false
+    open var rulerVisible: Bool = false
     public var selectedRange: NSRange = NSRange(location: 0, length: 0)
     public var selectedRanges: [NSValue] = []
-    public var insertionPointColor: NSColor?
-    public var typingAttributes: [NSAttributedString.Key: Any] = [:]
-    public var defaultParagraphStyle: NSMutableParagraphStyle?
-    public var font: NSFont?
-    public var textColor: NSColor?
-    public var backgroundColor: NSColor?
-    public var drawsBackground: Bool = true
+    open var insertionPointColor: NSColor?
+    open var typingAttributes: [NSAttributedString.Key: Any] = [:]
+    open var selectedTextAttributes: [NSAttributedString.Key: Any] = [:]
+    open var defaultParagraphStyle: NSMutableParagraphStyle?
+    open var font: NSFont?
+    open var textColor: NSColor?
+    open var backgroundColor: NSColor?
+    open var drawsBackground: Bool = true
+    open var allowsDocumentBackgroundColorChange: Bool = false
+    open var allowsCharacterPickerTouchBarItem: Bool = true
     public weak var delegate: NSTextViewDelegate?
-    public var isAutomaticDataDetectionEnabled: Bool = false
-    public var isAutomaticLinkDetectionEnabled: Bool = false
-    public var isAutomaticTextCompletionEnabled: Bool = false
+    open var isAutomaticDataDetectionEnabled: Bool = false
+    open var isAutomaticLinkDetectionEnabled: Bool = false
+    open var isAutomaticTextCompletionEnabled: Bool = false
+    open var undoManager: UndoManager? = UndoManager()
+    open func hasMarkedText() -> Bool { false }
+    open var textContainerOrigin: NSPoint { .zero }
     public var attributedString: NSAttributedString { NSAttributedString(string: string) }
     /// NSTextView's designated init is `init(frame:textContainer:)` (Apple-faithful;
     /// WireGuard's ConfTextView calls it). Declaring it means NSTextView stops
@@ -3199,6 +3871,21 @@ open class NSTextView: NSText {
         )
     }
     public func scrollRangeToVisible(_ r: NSRange) {}
+    open func firstRect(forCharacterRange range: NSRange, actualCharacterRange: NSRangePointer?) -> NSRect {
+        actualCharacterRange?.pointee = range
+        return NSRect(origin: textContainerOrigin, size: NSSize(width: 1, height: font?.pointSize ?? 14))
+    }
+    open func validRequestor(forSendType sendType: NSPasteboard.PasteboardType?, returnType: NSPasteboard.PasteboardType?) -> Any? {
+        _ = (sendType, returnType)
+        return nil
+    }
+    open func readSelection(from pboard: NSPasteboard) -> Bool {
+        _ = pboard
+        return false
+    }
+    open func insertNewline(_ sender: Any?) {
+        insertText("\n", replacementRange: selectedRange)
+    }
     public func replaceCharacters(in r: NSRange, with s: String) {
         let range = clampedTextRange(r)
         guard delegate?.textView(self, shouldChangeTextIn: range, replacementString: s) ?? true else {
@@ -3254,11 +3941,22 @@ open class NSTextView: NSText {
     }
 }
 
+public protocol NSLayoutManagerDelegate: AnyObject {}
+public protocol NSTextStorageDelegate: AnyObject {}
+
 open class NSTextStorage: NSMutableAttributedString {
-    public weak var delegate: AnyObject?
+    public weak var delegate: NSTextStorageDelegate?
     public var layoutManagers: [NSLayoutManager] = []
-    public func addLayoutManager(_ m: NSLayoutManager) { layoutManagers.append(m) }
-    public func removeLayoutManager(_ m: NSLayoutManager) {}
+    public func addLayoutManager(_ m: NSLayoutManager) {
+        layoutManagers.append(m)
+        m.textStorage = self
+    }
+    public func removeLayoutManager(_ m: NSLayoutManager) {
+        layoutManagers.removeAll { $0 === m }
+        if m.textStorage === self {
+            m.textStorage = nil
+        }
+    }
     /// Edit-notification mask passed to `edited(_:range:changeInLength:)`. A
     /// custom NSTextStorage (e.g. WireGuard's ConfTextStorage) calls it after
     /// mutating its backing store so layout managers can re-lay-out. Compile-stub
@@ -3277,15 +3975,67 @@ open class NSTextStorage: NSMutableAttributedString {
     /// corelibs designated `init(string:)`) so subclasses can override it; re-declare
     /// `init(string:)` so NSTextStorage(string:) still works; + the required NSCoding init.
     public init() { super.init(string: "") }
+    public override init(attributedString attrStr: NSAttributedString) { super.init(attributedString: attrStr) }
     public override init(string str: String) { super.init(string: str) }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
 open class NSLayoutManager: NSObject, @unchecked Sendable {
     public override init() {}
+    public weak var delegate: NSLayoutManagerDelegate?
     public weak var textStorage: NSTextStorage?
     public var textContainers: [NSTextContainer] = []
-    public func addTextContainer(_ c: NSTextContainer) { textContainers.append(c) }
+    public func addTextContainer(_ c: NSTextContainer) {
+        textContainers.append(c)
+        c.layoutManager = self
+    }
+    public func glyphRange(for container: NSTextContainer) -> NSRange {
+        _ = container
+        return NSRange(location: 0, length: textStorage?.length ?? 0)
+    }
+    public func glyphRange(forCharacterRange charRange: NSRange, actualCharacterRange: NSRangePointer?) -> NSRange {
+        actualCharacterRange?.pointee = charRange
+        return charRange
+    }
+    public func glyphRange(forBoundingRect bounds: NSRect, in container: NSTextContainer) -> NSRange {
+        _ = (bounds, container)
+        return NSRange(location: 0, length: textStorage?.length ?? 0)
+    }
+    public func characterIndexForGlyph(at glyphIndex: Int) -> Int {
+        Swift.max(0, Swift.min(glyphIndex, textStorage?.length ?? glyphIndex))
+    }
+    public func isValidGlyphIndex(_ glyphIndex: Int) -> Bool {
+        let upperBound = textStorage?.length ?? 0
+        return glyphIndex >= 0 && glyphIndex < upperBound
+    }
+    open func ensureLayout(for textContainer: NSTextContainer) {
+        _ = textContainer
+    }
+    open func invalidateLayout(forCharacterRange range: NSRange, actualCharacterRange: NSRangePointer?) {
+        actualCharacterRange?.pointee = range
+    }
+    public func boundingRect(forGlyphRange glyphRange: NSRange, in container: NSTextContainer) -> NSRect {
+        let used = usedRect(for: container)
+        guard glyphRange.length > 0 else {
+            return NSRect(x: used.minX, y: used.minY, width: 0, height: used.height)
+        }
+        let start = CGFloat(glyphRange.location) * 7
+        let width = CGFloat(glyphRange.length) * 7
+        return NSRect(x: used.minX + start, y: used.minY, width: width, height: used.height)
+    }
+    public func lineFragmentUsedRect(forGlyphAt glyphIndex: Int, effectiveRange: NSRangePointer?) -> NSRect {
+        let clampedIndex = Swift.max(0, Swift.min(glyphIndex, Swift.max((textStorage?.length ?? 1) - 1, 0)))
+        effectiveRange?.pointee = NSRange(location: clampedIndex, length: 1)
+        return NSRect(x: CGFloat(clampedIndex) * 7, y: 0, width: 7, height: 14)
+    }
+    public func lineFragmentRect(forGlyphAt glyphIndex: Int, effectiveRange: NSRangePointer?) -> NSRect {
+        lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: effectiveRange)
+    }
+    public func usedRect(for container: NSTextContainer) -> NSRect {
+        _ = container
+        let length = CGFloat(textStorage?.length ?? 0)
+        return NSRect(x: 0, y: 0, width: length * 7, height: 14)
+    }
 }
 
 open class NSTextContainer: NSObject, @unchecked Sendable {
@@ -3298,7 +4048,19 @@ open class NSTextContainer: NSObject, @unchecked Sendable {
     public var widthTracksTextView: Bool = false
     public var heightTracksTextView: Bool = false
     public var lineFragmentPadding: CGFloat = 0
+    public var maximumNumberOfLines: Int = 0
     public weak var layoutManager: NSLayoutManager?
+    open var isSimpleRectangularTextContainer: Bool { true }
+    open func lineFragmentRect(
+        forProposedRect proposedRect: NSRect,
+        at characterIndex: Int,
+        writingDirection baseWritingDirection: NSWritingDirection,
+        remaining remainingRect: NSRectPointer?
+    ) -> NSRect {
+        _ = (characterIndex, baseWritingDirection)
+        remainingRect?.pointee = .zero
+        return proposedRect
+    }
 }
 
 public protocol NSTextViewDelegate: NSTextDelegate {
@@ -3327,11 +4089,16 @@ open class NSImageView: NSControl {
     public var imageAlignment: ImageAlignment = .alignCenter
     public var animates: Bool = true
     public var symbolConfiguration: Any?
+    public var contentTintColor: NSColor?
     public enum ImageScaling: UInt, Sendable { case scaleProportionallyDown, scaleAxesIndependently, scaleNone, scaleProportionallyUpOrDown }
     public enum ImageAlignment: UInt, Sendable { case alignCenter, alignTop, alignTopLeft, alignTopRight, alignLeft, alignBottom, alignBottomLeft, alignBottomRight, alignRight }
 }
 
 open class NSControl: NSView {
+    public static let textDidChangeNotification = Notification.Name("NSControlTextDidChangeNotification")
+    public static let textDidBeginEditingNotification = Notification.Name("NSControlTextDidBeginEditingNotification")
+    public static let textDidEndEditingNotification = Notification.Name("NSControlTextDidEndEditingNotification")
+
     /// The control's backing cell (legacy AppKit). WireGuard's tunnels list reaches
     /// it as `(popup.cell as? NSPopUpButtonCell)?.arrowPosition`. NSPopUpButton seeds
     /// it with an NSPopUpButtonCell so that downcast succeeds; nil elsewhere.
@@ -3347,7 +4114,6 @@ open class NSControl: NSView {
     public var action: Selector?
     public var isEnabled: Bool = true
     public var isHighlighted: Bool = false
-    public var tag: Int = 0
     public var doubleValue: Double {
         get { storedDoubleValue }
         set { setNumericValue(newValue, stringValue: String(newValue), objectValue: newValue) }
@@ -3540,7 +4306,7 @@ open class NSButton: NSControl {
 }
 
 public extension NSControl {
-    struct StateValue: RawRepresentable, Equatable, Sendable {
+    public struct StateValue: RawRepresentable, Equatable, Sendable {
         public var rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
         public static let off = StateValue(rawValue: 0)
@@ -3695,6 +4461,19 @@ extension NSLayoutConstraint {
         case width, height, centerX, centerY, lastBaseline, firstBaseline
         case notAnAttribute
     }
+
+    public convenience init(
+        item view1: Any,
+        attribute attr1: Attribute,
+        relatedBy relation: Relation,
+        toItem view2: Any?,
+        attribute attr2: Attribute,
+        multiplier: CGFloat,
+        constant c: CGFloat
+    ) {
+        self.init()
+        _ = (view1, attr1, relation, view2, attr2, multiplier, c)
+    }
 }
 
 open class NSProgressIndicator: NSView {
@@ -3768,7 +4547,8 @@ open class NSPopUpButton: NSButton {
     public func itemWithTitle(_ t: String) -> NSMenuItem? {
         menu?.items.first { $0.title == t }
     }
-    public init(frame: NSRect, pullsDown: Bool) { super.init(title: "", target: nil, action: nil); self.pullsDown = pullsDown; self.cell = NSPopUpButtonCell() }
+    public override init(frame: NSRect) { super.init(frame: frame); self.cell = NSPopUpButtonCell() }
+    public init(frame: NSRect, pullsDown: Bool) { super.init(frame: frame); self.pullsDown = pullsDown; self.cell = NSPopUpButtonCell() }
     public convenience init() { self.init(frame: .zero, pullsDown: false) }
 
     private func ensureMenu() -> NSMenu {
@@ -4022,7 +4802,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
 
 // MARK: - NSOutlineView / NSTableView
 
-@MainActor open class NSTableView: NSControl {
+open class NSTableView: NSControl {
     public static let selectionDidChangeNotification = Notification.Name("NSTableViewSelectionDidChangeNotification")
     /// Auto row-height mode (WireGuard's LogViewController log table). No-op on Linux.
     public var usesAutomaticRowHeights: Bool = false
@@ -4070,6 +4850,7 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     public var sortDescriptors: [NSSortDescriptor] = []
     public var autosaveName: String?
     public var autosaveTableColumns: Bool = false
+    public var columnAutoresizingStyle: ColumnAutoresizingStyle = .uniformColumnAutoresizingStyle
 
     private struct CellKey: Hashable {
         var column: Int
@@ -4088,15 +4869,26 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     }
     public enum RowSizeStyle: Int, Sendable { case `default` = -1, custom = 0, small, medium, large }
     public enum Style: Int, Sendable { case automatic, fullWidth, inset, sourceList, plain }
+    public enum ColumnAutoresizingStyle: Int, Sendable {
+        case noColumnAutoresizing = 0
+        case uniformColumnAutoresizingStyle = 1
+        case sequentialColumnAutoresizingStyle = 2
+        case reverseSequentialColumnAutoresizingStyle = 3
+        case lastColumnOnlyAutoresizingStyle = 4
+        case firstColumnOnlyAutoresizingStyle = 5
+    }
 
     public func reloadData() {
-        replaceLoadedRows(count: dataSource?.numberOfRows(in: self) ?? 0)
+        let rowCount = MainActor.assumeIsolated { dataSource?.numberOfRows(in: self) ?? 0 }
+        replaceLoadedRows(count: rowCount)
     }
 
     public func reloadData(forRowIndexes rowIndexes: IndexSet, columnIndexes: IndexSet) {
         for row in rowIndexes {
             if let rowView = cachedRowViews.removeValue(forKey: row) {
-                delegate?.tableView(self, didRemove: rowView, forRow: row)
+                if let delegate {
+                    MainActor.assumeIsolated { delegate.tableView(self, didRemove: rowView, forRow: row) }
+                }
             }
             if columnIndexes.isEmpty {
                 cachedCellViews.keys
@@ -4153,7 +4945,9 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
         }
         rowView.isSelected = selectedRowIndexes.contains(row)
         cachedRowViews[row] = rowView
-        delegate?.tableView(self, didAdd: rowView, forRow: row)
+        if let delegate {
+            MainActor.assumeIsolated { delegate.tableView(self, didAdd: rowView, forRow: row) }
+        }
         return rowView
     }
 
@@ -4221,7 +5015,9 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
 
         for row in removedRows {
             if let rowView = cachedRowViews[row] {
-                delegate?.tableView(self, didRemove: rowView, forRow: row)
+                if let delegate {
+                    MainActor.assumeIsolated { delegate.tableView(self, didRemove: rowView, forRow: row) }
+                }
             }
         }
         recacheRowViews { shiftedRowAfterRemoval(row: $0, removedRows: removedRows) }
@@ -4242,13 +5038,16 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
         clickedRow = clickedRow >= 0 ? movedRow(row: clickedRow, from: oldIndex, to: newIndex) : clickedRow
     }
     public func setDropRow(_ row: Int, dropOperation: DropOperation) {}
-    public func registerForDraggedTypes(_ types: [NSPasteboard.PasteboardType]) {}
     public func enumerateAvailableRowViews(_ block: (NSTableRowView, Int) -> Void) {
         for row in cachedRowViews.keys.sorted() {
             if let rowView = cachedRowViews[row] {
                 block(rowView, row)
             }
         }
+    }
+
+    public func noteHeightOfRows(withIndexesChanged indexes: IndexSet) {
+        _ = indexes
     }
 
     public func row(for view: NSView) -> Int {
@@ -4261,7 +5060,22 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     /// `row(at:)` — the row index under a point in the table's coordinates.
     /// WireGuard's LogViewController uses it to detect scrolled-to-end.
     /// Compile-stub (-1 = no row) until Qt-backed hit-testing lands.
-    public func row(at point: NSPoint) -> Int { -1 }
+    open func row(at point: NSPoint) -> Int { -1 }
+    open func rect(ofRow row: Int) -> NSRect {
+        guard row >= 0, row < numberOfRows else { return .zero }
+        let y = CGFloat(row) * (rowHeight + intercellSpacing.height)
+        let delegateHeight = heightOfRow(row)
+        let height = delegateHeight > 0 ? delegateHeight : rowHeight
+        return NSRect(x: 0, y: y, width: bounds.width, height: height)
+    }
+    open func rows(in rect: NSRect) -> NSRange {
+        guard numberOfRows > 0 else { return NSRange(location: NSNotFound, length: 0) }
+        let stride = max(rowHeight + intercellSpacing.height, 1)
+        let start = max(0, Int(floor(rect.minY / stride)))
+        guard start < numberOfRows else { return NSRange(location: NSNotFound, length: 0) }
+        let end = min(numberOfRows, Int(ceil(rect.maxY / stride)))
+        return NSRange(location: start, length: max(0, end - start))
+    }
 
     public func column(for view: NSView) -> Int {
         cachedCellViews.first(where: { $0.value === view })?.key.column ?? -1
@@ -4389,11 +5203,13 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
         }
         guard notify && oldSelection != rowIndexes else { return }
         let notification = Notification(name: Self.selectionDidChangeNotification, object: self)
-        if self is NSOutlineView,
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            outlineDelegate.outlineViewSelectionDidChange(notification)
-        } else {
-            delegate?.tableViewSelectionDidChange(notification)
+        MainActor.assumeIsolated {
+            if self is NSOutlineView,
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                outlineDelegate.outlineViewSelectionDidChange(notification)
+            } else {
+                delegate?.tableViewSelectionDidChange(notification)
+            }
         }
     }
 
@@ -4405,40 +5221,48 @@ public enum NSTitlebarSeparatorStyle: Int, Sendable {
     }
 
     private func shouldSelectRow(_ row: Int) -> Bool {
-        if let outlineView = self as? NSOutlineView,
-           let item = outlineView.item(atRow: row),
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            return outlineDelegate.outlineView(outlineView, shouldSelectItem: item)
+        MainActor.assumeIsolated {
+            if let outlineView = self as? NSOutlineView,
+               let item = outlineView.item(atRow: row),
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                return outlineDelegate.outlineView(outlineView, shouldSelectItem: item)
+            }
+            return delegate?.tableView(self, shouldSelectRow: row) ?? true
         }
-        return delegate?.tableView(self, shouldSelectRow: row) ?? true
     }
 
     private func makeRowView(forRow row: Int) -> NSTableRowView? {
-        if let outlineView = self as? NSOutlineView,
-           let item = outlineView.item(atRow: row),
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            return outlineDelegate.outlineView(outlineView, rowViewForItem: item)
+        MainActor.assumeIsolated {
+            if let outlineView = self as? NSOutlineView,
+               let item = outlineView.item(atRow: row),
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                return outlineDelegate.outlineView(outlineView, rowViewForItem: item)
+            }
+            return delegate?.tableView(self, rowViewForRow: row)
         }
-        return delegate?.tableView(self, rowViewForRow: row)
     }
 
     private func makeCellView(forColumn column: Int, row: Int) -> NSView? {
         let tableColumn = tableColumns[column]
-        if let outlineView = self as? NSOutlineView,
-           let item = outlineView.item(atRow: row),
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            return outlineDelegate.outlineView(outlineView, viewFor: tableColumn, item: item)
+        return MainActor.assumeIsolated {
+            if let outlineView = self as? NSOutlineView,
+               let item = outlineView.item(atRow: row),
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                return outlineDelegate.outlineView(outlineView, viewFor: tableColumn, item: item)
+            }
+            return delegate?.tableView(self, viewFor: tableColumn, row: row)
         }
-        return delegate?.tableView(self, viewFor: tableColumn, row: row)
     }
 
     private func heightOfRow(_ row: Int) -> CGFloat {
-        if let outlineView = self as? NSOutlineView,
-           let item = outlineView.item(atRow: row),
-           let outlineDelegate = delegate as? NSOutlineViewDelegate {
-            return outlineDelegate.outlineView(outlineView, heightOfRowByItem: item)
+        MainActor.assumeIsolated {
+            if let outlineView = self as? NSOutlineView,
+               let item = outlineView.item(atRow: row),
+               let outlineDelegate = delegate as? NSOutlineViewDelegate {
+                return outlineDelegate.outlineView(outlineView, heightOfRowByItem: item)
+            }
+            return delegate?.tableView(self, heightOfRow: row) ?? 0
         }
-        return delegate?.tableView(self, heightOfRow: row) ?? 0
     }
 
     private func shiftedColumnSelection(afterRemovingColumnAt removedIndex: Int) -> IndexSet {
@@ -4484,6 +5308,7 @@ open class NSTableRowView: NSView {
     public var isSelected: Bool = false
     public var isEmphasized: Bool = false
     public var isGroupRowStyle: Bool = false
+    open var backgroundColor: NSColor = .clear
 }
 open class NSTableCellView: NSView {
     public var textField: NSTextField?
@@ -4516,7 +5341,7 @@ open class NSTableColumn: NSObject {
     }
 }
 
-@MainActor public protocol NSTableViewDelegate: AnyObject {
+public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat
@@ -4537,7 +5362,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {}
 }
 
-@MainActor public protocol NSTableViewDataSource: AnyObject {
+public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
 }
@@ -4606,9 +5431,13 @@ open class NSOutlineView: NSTableView {
             expandDescendants(of: item)
         }
         reloadData()
-        (delegate as? NSOutlineViewDelegate)?.outlineViewItemDidExpand(
-            Notification(name: Notification.Name("NSOutlineViewItemDidExpandNotification"), object: self)
-        )
+        if let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            MainActor.assumeIsolated {
+                outlineDelegate.outlineViewItemDidExpand(
+                    Notification(name: Notification.Name("NSOutlineViewItemDidExpandNotification"), object: self)
+                )
+            }
+        }
     }
 
     public func collapseItem(_ item: Any?) {
@@ -4628,9 +5457,13 @@ open class NSOutlineView: NSTableView {
             collapseDescendants(of: item)
         }
         reloadData()
-        (delegate as? NSOutlineViewDelegate)?.outlineViewItemDidCollapse(
-            Notification(name: Notification.Name("NSOutlineViewItemDidCollapseNotification"), object: self)
-        )
+        if let outlineDelegate = delegate as? NSOutlineViewDelegate {
+            MainActor.assumeIsolated {
+                outlineDelegate.outlineViewItemDidCollapse(
+                    Notification(name: Notification.Name("NSOutlineViewItemDidCollapseNotification"), object: self)
+                )
+            }
+        }
     }
 
     public func isItemExpanded(_ item: Any?) -> Bool {
@@ -4663,12 +5496,16 @@ open class NSOutlineView: NSTableView {
     }
 
     public func numberOfChildren(ofItem item: Any?) -> Int {
-        max(0, outlineDataSource?.outlineView(self, numberOfChildrenOfItem: item) ?? 0)
+        MainActor.assumeIsolated {
+            max(0, outlineDataSource?.outlineView(self, numberOfChildrenOfItem: item) ?? 0)
+        }
     }
 
     public func child(_ index: Int, ofItem item: Any?) -> Any? {
         guard index >= 0 && index < numberOfChildren(ofItem: item) else { return nil }
-        return outlineDataSource?.outlineView(self, child: index, ofItem: item)
+        return MainActor.assumeIsolated {
+            outlineDataSource?.outlineView(self, child: index, ofItem: item)
+        }
     }
 
     public func selectRowIndexesInOutlineView(_ s: IndexSet) {
@@ -4687,7 +5524,9 @@ open class NSOutlineView: NSTableView {
 
     public func isExpandable(_ item: Any?) -> Bool {
         guard let item else { return false }
-        return outlineDataSource?.outlineView(self, isItemExpandable: item) ?? false
+        return MainActor.assumeIsolated {
+            outlineDataSource?.outlineView(self, isItemExpandable: item) ?? false
+        }
     }
 
     private func rebuildVisibleItems() {
@@ -4751,7 +5590,7 @@ open class NSOutlineView: NSTableView {
     }
 }
 
-@MainActor public protocol NSOutlineViewDelegate: NSTableViewDelegate {
+public protocol NSOutlineViewDelegate: NSTableViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView?
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool
@@ -4772,7 +5611,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
-@MainActor public protocol NSOutlineViewDataSource: NSTableViewDataSource {
+public protocol NSOutlineViewDataSource: NSTableViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool
@@ -4902,6 +5741,9 @@ open class NSDocumentController: NSObject {
 public class NSHostingView<Content>: NSView {
     public var rootView: Content
     public init(rootView: Content) { self.rootView = rootView; super.init(frame: .zero) }
+    public override init(frame: NSRect) {
+        fatalError("NSHostingView(frame:) requires a rootView")
+    }
 }
 
 public class NSHostingController<Content>: NSViewController {
@@ -4909,24 +5751,12 @@ public class NSHostingController<Content>: NSViewController {
     public init(rootView: Content) { self.rootView = rootView; super.init(nibName: nil, bundle: nil) }
 }
 
-// SwiftUI bridging protocols (these get re-exported by the SwiftUI shim
-// too — declared here so `import AppKit` alone is enough).
-public protocol NSViewRepresentable: AnyObject {
-    associatedtype NSViewType: NSView
-    func makeNSView(context: NSViewRepresentableContext<Self>) -> NSViewType
-    func updateNSView(_ nsView: NSViewType, context: NSViewRepresentableContext<Self>)
-}
-public protocol NSViewControllerRepresentable: AnyObject {
-    associatedtype NSViewControllerType: NSViewController
-    func makeNSViewController(context: NSViewControllerRepresentableContext<Self>) -> NSViewControllerType
-    func updateNSViewController(_ nsViewController: NSViewControllerType, context: NSViewControllerRepresentableContext<Self>)
-}
-public struct NSViewRepresentableContext<Coordinator> {
-    public let coordinator: Coordinator? = nil
-}
-public struct NSViewControllerRepresentableContext<Coordinator> {
-    public let coordinator: Coordinator? = nil
-}
+// NSViewRepresentable / NSViewControllerRepresentable moved to the SwiftUI
+// shim (Sources/SwiftUIShim/NSViewRepresentable.swift) — Apple ships them in
+// SwiftUI, not AppKit (`import AppKit` alone does not resolve them on macOS),
+// and the old AnyObject-constrained shape here rejected every real STRUCT
+// conformer (e.g. SolderScope's `struct MicroscopeView: NSViewRepresentable`).
+// SwiftUI re-exports AppKit, so SwiftUI-importing files see both worlds.
 
 // MARK: - NSStatusBar / NSStatusItem (menu-bar widgets)
 
@@ -5021,10 +5851,6 @@ public extension NSNotification.Name {
     static let NSPopoverDidClose = NSNotification.Name(rawValue: "NSPopoverDidCloseNotification")
 }
 
-public enum NSRectEdge: UInt, Sendable {
-    case minX, minY, maxX, maxY
-}
-
 // MARK: - NSVisualEffectView / NSGlassEffectView
 
 open class NSVisualEffectView: NSView {
@@ -5034,6 +5860,7 @@ open class NSVisualEffectView: NSView {
     public var isEmphasized: Bool = false
     public var maskImage: NSImage?
     public enum Material: Int, Sendable {
+        case light = 0, dark = 1, ultraDark = 2
         case titlebar = 3, selection = 4, menu = 5, popover = 6, sidebar = 7, headerView = 10
         case sheet = 11, windowBackground = 12, hudWindow = 13, fullScreenUI = 15
         case toolTip = 17, contentBackground = 18, underWindowBackground = 21, underPageBackground = 22
@@ -5053,7 +5880,7 @@ open class NSGlassEffectView: NSView {
 open class NSAnimationContext: NSObject {
     public static var current: NSAnimationContext = NSAnimationContext()
     public var duration: TimeInterval = 0.25
-    public var timingFunction: Any?
+    public var timingFunction: CAMediaTimingFunction?
     public var allowsImplicitAnimation: Bool = false
     public var completionHandler: (() -> Void)?
     public static func runAnimationGroup(_ block: (NSAnimationContext) -> Void, completionHandler: (() -> Void)? = nil) {
@@ -5147,6 +5974,7 @@ public protocol NSDraggingInfo: AnyObject {
     var draggingPasteboard: NSPasteboard { get }
     var draggingLocation: NSPoint { get }
     var draggingSource: Any? { get }
+    var draggingSourceOperationMask: NSDragOperation { get }
     var draggingSequenceNumber: Int { get }
     var draggingFormation: NSDraggingFormation { get set }
     var animatesToDestination: Bool { get set }

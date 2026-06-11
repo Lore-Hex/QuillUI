@@ -20,9 +20,16 @@ import Splash
 import OllamaKit
 import AsyncAlgorithms
 import Carbon
+import CoreSpotlight
+// Scoped: the AppKit shadow supplies kUTTypeData (upstream Telegram pairs
+// `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
+// `import AppKit` here would collide with the UIKit shim surface.
+import let AppKit.kUTTypeData
+import Vision
 import IOKit
+import IOKit.pwr_mgt
 import IOKit.usb
-import WrappingHStack
+@_spi(QuillTesting) import WrappingHStack
 import Vortex
 import KeyboardShortcuts
 import Magnet
@@ -320,10 +327,13 @@ struct CompatibilityModuleTests {
         _ = Markdown("# Heading\n\n```swift\nprint(\"Quill\")\n```")
             .markdownCodeSyntaxHighlighter(PlainTextCodeSyntaxHighlighter())
             .markdownTheme(markdownContractTheme)
-        _ = WrappingHStack(alignment: .leading) {
+        let wrapping = WrappingHStack(alignment: .leading, spacing: 12) {
             Text("One")
             Text("Two")
         }
+        #expect(wrapping.children.count == 2)
+        #expect(wrapping.quillResolvedSpacing == 12)
+        #expect(wrapping.quillResolvedAlignment == .leading)
         _ = VortexView(.splash.makeUniqueCopy()) {
             Circle()
                 .fill(.white)
@@ -1445,6 +1455,78 @@ struct CompatibilityModuleTests {
         IONotificationPortDestroy(port)
     }
 
+    @Test("IOKit power-management compatibility covers Telegram call-screen imports")
+    func ioKitPowerManagementContractsCompile() {
+        var assertionID: IOPMAssertionID = 123
+        let createResult = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypeNoDisplaySleep,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            "QuillUI Telegram call",
+            &assertionID
+        )
+
+        #expect(createResult == kIOReturnUnsupported)
+        #expect(assertionID == kIOPMNullAssertionID)
+        #expect(IOPMAssertionRelease(assertionID) == kIOReturnSuccess)
+        #expect(kIOPMAssertionLevelOff == 0)
+        #expect(kIOPMAssertionLevelOn > kIOPMAssertionLevelOff)
+    }
+
+    @Test("CoreSpotlight compatibility covers Telegram search indexing imports")
+    func coreSpotlightContractsCompile() async {
+        let attributes = CSSearchableItemAttributeSet(itemContentType: kUTTypeData)
+        attributes.title = "Quill"
+        attributes.contentDescription = "Linux compatibility"
+        attributes.thumbnailData = Data([1, 2, 3])
+        attributes.creator = "QuillUI"
+        attributes.kind = "Contact"
+
+        let item = CSSearchableItem(
+            uniqueIdentifier: "accountId=1&source=peerId:2",
+            domainIdentifier: "quill.telegram",
+            attributeSet: attributes
+        )
+
+        var indexed = false
+        CSSearchableIndex.default().indexSearchableItems([item]) { error in
+            indexed = error == nil
+        }
+        var deleted = false
+        CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [item.uniqueIdentifier]) { error in
+            deleted = error == nil
+        }
+
+        #expect(indexed)
+        #expect(deleted)
+        #expect(CSSearchableItemActionType == "com.apple.corespotlightitem")
+        #expect(CSSearchableItemActivityIdentifier == "kCSSearchableItemActivityIdentifier")
+    }
+
+    @Test("Vision compatibility covers Telegram text-recognition imports")
+    func visionTextRecognitionContractsCompile() throws {
+        let image = CGImage()
+        let handler = VNImageRequestHandler(cgImage: image)
+        var completed = false
+        let request = VNRecognizeTextRequest { request, error in
+            #expect(error == nil)
+            #expect((request.results as? [VNRecognizedTextObservation])?.isEmpty == true)
+            completed = true
+        }
+        request.preferBackgroundProcessing = true
+        request.usesLanguageCorrection = true
+        request.recognitionLevel = .accurate
+        request.revision = VNRecognizeTextRequestRevision3
+        request.automaticallyDetectsLanguage = true
+        request.progressHandler = { _, progress, error in
+            #expect(error == nil)
+            #expect(progress == 1.0)
+        }
+
+        try handler.perform([request])
+        #expect(completed)
+        request.cancel()
+    }
+
     @Test("Apple service modules provide diagnostic Linux fallbacks")
     @MainActor
     func appleServiceModulesCompile() throws {
@@ -2241,6 +2323,7 @@ struct CompatibilityModuleTests {
     func environmentPresentationModeFallsBackToDismiss() {
         let fallbackInvoked = QuillTestBox<Int>(0)
         let explicitInvoked = QuillTestBox<Int>(nil)
+        let contextualInvoked = QuillTestBox<Int>(nil)
         var environment = EnvironmentValues()
 
         environment.dismiss = DismissAction {
@@ -2249,6 +2332,15 @@ struct CompatibilityModuleTests {
         environment.presentationMode.dismiss()
         #expect(fallbackInvoked.value == 1)
         #expect(explicitInvoked.value == nil)
+        #expect(contextualInvoked.value == nil)
+
+        swiftOpenUIWithPresentationDismissAction({
+            contextualInvoked.value = (contextualInvoked.value ?? 0) + 1
+        }) {
+            environment.presentationMode.dismiss()
+        }
+        #expect(fallbackInvoked.value == 1)
+        #expect(contextualInvoked.value == 1)
 
         environment.presentationMode = PresentationMode {
             explicitInvoked.value = (explicitInvoked.value ?? 0) + 1
