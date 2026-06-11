@@ -185,6 +185,10 @@ let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsy
 // QuillUI's Apple-framework shim products, so the targets are `#if os(Linux)`.
 let signalUpstreamPresent: Bool = upstreamPresent(".upstream/signal-ios/SignalServiceKit")
 let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/Sources/LibSignalClient")
+// rjwalters/SolderScope — first community-requested conformance app: a real
+// macOS SwiftUI USB-microscope viewer (MIT) compiled UNMODIFIED on Linux
+// against the SwiftUI/AppKit/AVFoundation/CoreImage shim surface.
+let solderScopeUpstreamPresent: Bool = upstreamPresent(".upstream/solderscope/SolderScope")
 // Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
 // The upstream iOS platform pin is a manifest constraint, not a source one —
 // the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
@@ -2128,6 +2132,34 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
 }
 #endif
 
+// SolderScope (rjwalters/SolderScope) — real macOS SwiftUI USB-microscope
+// viewer compiled UNMODIFIED on Linux (no @objc/#selector anywhere; the only
+// build-prep transform is quill-lower-appkit's `import os.log` → `import os`
+// clang-submodule lowering). Exercises the SwiftUI app lifecycle +
+// AVFoundation capture + CoreImage/CoreVideo surface. Inert on CI until
+// fetch-upstream.sh populates .upstream/solderscope (gitignored).
+#if os(Linux)
+if solderScopeUpstreamPresent {
+    targets += [
+        .executableTarget(
+            name: "QuillSolderScope",
+            dependencies: [
+                "QuillUI", "SwiftUI", "AppKit", "Combine", "os",
+                "AVFoundation", "CoreImage", "CoreGraphics", "CoreVideo",
+                "CoreMedia", "Accelerate", "UniformTypeIdentifiers",
+                "QuillFoundation",
+            ],
+            path: ".upstream/solderscope/SolderScope",
+            exclude: [
+                "Metadata/SolderScope.entitlements",
+                "Metadata/Info.plist",
+            ],
+            swiftSettings: appSwiftSettings
+        ),
+    ]
+}
+#endif
+
 // CodeEdit upstream — macOS-only (it's a pure AppKit/SwiftUI Mac app
 // using NSTextView, NSDocument, NSApplicationDelegateAdaptor, Sparkle,
 // and a stack of CodeEditApp's own packages). The Linux path can't
@@ -2192,7 +2224,9 @@ targets.append(contentsOf: [
     ),
     .target(
         name: "SwiftUI",
-        dependencies: ["QuillUI", "QuillSwiftUICompatibility"],
+        // AppKit: Apple's macOS SwiftUI re-exports AppKit; mirror it (see
+        // Sources/SwiftUIShim/SwiftUI.swift).
+        dependencies: ["QuillUI", "QuillSwiftUICompatibility", "AppKit"],
         path: "Sources/SwiftUIShim"
     ),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
@@ -2298,7 +2332,7 @@ targets.append(contentsOf: [
     // CYCLE-BREAK: these UI-adjacent shims re-export
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
-    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"], path: "Sources/UIKitShim"),
+    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore"], path: "Sources/UIKitShim"),
     // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow +
     // common AppKit-adjacent Apple modules, so source that relies on Cocoa as
     // an umbrella import recompiles unchanged.
@@ -2309,7 +2343,7 @@ targets.append(contentsOf: [
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
     .target(name: "AsyncAlgorithms", dependencies: [], path: "Sources/AsyncAlgorithms"),
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
-    .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
+    .target(name: "CoreGraphics", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
     .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo"], path: "Sources/AVFoundation"),
     .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
@@ -2512,7 +2546,7 @@ if quillUILinuxBuildBackend == .qt {
         // (appKitShadowDependencies) and the Cocoa umbrella below now
         // re-export. The default/GTK graph gets these from the
         // signalAppleFrameworkShims loop, which this replacement list bypasses.
-        .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
+        .target(name: "CoreGraphics", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/CoreGraphics"),
         .target(name: "Metal", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/Metal"),
         .target(name: "QuartzCore", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/QuartzCore"),
         .target(name: "CoreVideo", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/CoreVideo"),
