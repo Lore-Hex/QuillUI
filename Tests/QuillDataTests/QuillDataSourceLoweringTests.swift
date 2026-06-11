@@ -384,8 +384,15 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains("publicHeadersPath: \".\""))
         // UserNotifications is @_exported by the UIKit shim so SignalServiceKit's
         // `import UIKit`-only files resolve UNUserNotificationCenter & co. (Track B).
-        #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\"], path: \"Sources/UIKitShim\")"))
-        #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: [\"QuillFoundation\"],\n        path: \"Sources/QuillUIKit\"\n    )"))
+        // Both targets take their dependencies from #if os(Linux)-swapped lists:
+        // on Linux they add the QuartzCore shim (UIView.layer; UIKit re-exports
+        // QuartzCore exactly like iOS), on Apple platforms the real QuartzCore
+        // exists and the shim target doesn't.
+        #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
+        #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\"]"))
+        #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuartzCore\"]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
