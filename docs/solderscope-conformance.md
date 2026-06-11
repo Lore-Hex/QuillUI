@@ -52,6 +52,18 @@ Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderSc
 - Swarm: #506–#510, #512, #513, #515 all `loom:issue`d with acceptance criteria;
   workers claim via `codex:claimed`.
 
+## Review-fleet round 2 outcomes (2026-06-11)
+
+9 adversarially-sustained findings; must-fix bucket landed on the branch:
+representable lifecycle (mount registry + updateNSView reuse + dismantle —
+remount-per-render would have been ~30/s under a live camera), CG image-draw
+orientation/alpha, canImport pins in the fork state core, StateObject lazy-
+wiring guard, gtk/qt graph separation (QUILLUI_SWIFTUI_GTK_MOUNT). Deferred
+with owners: NSTextAttachment/NSTextStorage flavor-neutral core (needed before
+the next Signal rebase), vendoring the OpenCombineDispatch Scheduler guard
+(prep rm-hack stands until then). Verified-safe: ViewHost.scheduleRebuild is
+idle-coalesced, so willSet-time objectWillChange is sound.
+
 ## Ultracode workbench pattern
 
 Workflow subagents cannot read the repo (sandbox) but CAN read `~/.claude` —
