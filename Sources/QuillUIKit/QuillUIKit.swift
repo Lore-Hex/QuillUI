@@ -11,6 +11,7 @@
 // flow (presentation context, callback) belongs alongside UI plumbing.
 
 import QuillFoundation
+import QuillKit
 
 #if os(Linux)
 // CALayer for UIView.layer. On Apple platforms the real QuartzCore arrives
@@ -595,13 +596,68 @@ open class UIActivity: NSObject {
     public func activityDidFinish(_: Bool) {}
 }
 
-public class UIApplication: NSObject {
+// THE canonical UIApplication (the UIKit shim re-exports this module; a twin
+// declaration there made `UIApplication.shared` ambiguous once SwiftUI began
+// re-exporting AppKit, whose QuillUIKit re-export exposes this copy).
+public class UIApplication: NSObject, @unchecked Sendable {
     @MainActor public static let shared = UIApplication()
-    @MainActor public func open(_: URL, options: [AnyHashable: Any] = [:], completionHandler: ((Bool) -> Void)? = nil) {}
-    @MainActor public func registerForRemoteNotifications() {}
+    @MainActor @discardableResult public func open(
+        _ url: URL,
+        options: [AnyHashable: Any] = [:],
+        completionHandler: ((Bool) -> Void)? = nil
+    ) -> Bool {
+        #if canImport(AppKit) && !os(Linux)
+        let didOpen = NSWorkspace.shared.open(url)
+        completionHandler?(didOpen)
+        return didOpen
+        #elseif os(Linux)
+        let didOpen = QuillWorkspace.open(url)
+        completionHandler?(didOpen)
+        return didOpen
+        #else
+        completionHandler?(false)
+        return false
+        #endif
+    }
+    // Async form used by SwiftUI/UIKit real source (`await UIApplication.shared.open(url)`).
+    // Disambiguate to the completion-handler overload to avoid recursing into itself.
+    @MainActor @discardableResult public func open(_ url: URL) async -> Bool {
+        open(url, options: [:], completionHandler: nil)
+    }
+    @MainActor public func registerForRemoteNotifications() {
+        QuillNotificationService.shared.registerForRemoteNotifications()
+    }
+    @MainActor public func unregisterForRemoteNotifications() {
+        QuillNotificationService.shared.unregisterForRemoteNotifications()
+    }
+    @MainActor public var isRegisteredForRemoteNotifications: Bool {
+        QuillNotificationService.shared.remoteNotificationsRegistered
+    }
     public enum LaunchOptionsKey: Hashable { case remoteNotification }
     @MainActor public var connectedScenes: Set<UIScene> = []
+    @MainActor public var applicationState: UIApplicationState { .active }
+
+    /// UIKit (and SignalServiceKit's AppContext) name the application-state enum
+    /// `UIApplication.State`; `UIApplicationState` is its top-level alias on iOS.
+    public typealias State = UIApplicationState
+
+    // App-lifecycle notification names. Real UIKit members; SignalServiceKit's
+    // lifecycle observers subscribe to these. No source posts them on Linux yet.
+    public static let didBecomeActiveNotification = Notification.Name("UIApplicationDidBecomeActiveNotification")
+    public static let willResignActiveNotification = Notification.Name("UIApplicationWillResignActiveNotification")
+    public static let didEnterBackgroundNotification = Notification.Name("UIApplicationDidEnterBackgroundNotification")
+    public static let willEnterForegroundNotification = Notification.Name("UIApplicationWillEnterForegroundNotification")
+    public static let willTerminateNotification = Notification.Name("UIApplicationWillTerminateNotification")
+    public static let didReceiveMemoryWarningNotification = Notification.Name("UIApplicationDidReceiveMemoryWarningNotification")
+    public static let significantTimeChangeNotification = Notification.Name("UIApplicationSignificantTimeChangeNotification")
+
+    @MainActor public func setAlternateIconName(_ name: String?, completionHandler: ((Error?) -> Void)? = nil) {
+        completionHandler?(nil)
+    }
+    @MainActor public var alternateIconName: String? { nil }
 }
+
+public enum UIApplicationState: Int { case active, inactive, background }
 
 public class UIScene: NSObject {
     @MainActor public var delegate: Any?

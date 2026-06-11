@@ -1,11 +1,64 @@
 // swift-tools-version: 5.10
 
 import PackageDescription
+import Foundation
+
+#if os(Linux)
+func swiftOpenUIPkgConfigArguments(_ name: String, _ arguments: [String]) -> [String] {
+    let process = Process()
+    let output = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["pkg-config"] + arguments + [name]
+    process.standardOutput = output
+    process.standardError = Pipe()
+
+    do {
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            return []
+        }
+        return String(decoding: data, as: UTF8.self)
+            .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
+            .map(String.init)
+    } catch {
+        return []
+    }
+}
+
+func swiftOpenUIPkgConfigIncludeFlags(_ name: String) -> [String] {
+    swiftOpenUIPkgConfigArguments(name, ["--cflags-only-I"])
+}
+
+func swiftOpenUIPkgConfigSwiftImporterFlags(_ name: String) -> [String] {
+    swiftOpenUIPkgConfigIncludeFlags(name).flatMap { ["-Xcc", $0] }
+}
+
+func swiftOpenUIPkgConfigLinkerFlags(_ name: String) -> [String] {
+    swiftOpenUIPkgConfigArguments(name, ["--libs-only-L", "--libs-only-l"])
+}
+
+let swiftOpenUIGTKSwiftImporterFlags: [String] = swiftOpenUIPkgConfigSwiftImporterFlags("gtk4")
+let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags("gtk4")
+#else
+let swiftOpenUIGTKSwiftImporterFlags: [String] = []
+let swiftOpenUIGTKLinkerFlags: [String] = []
+#endif
+
 
 var targets: [Target] = [
     // Core framework (platform-independent)
     .target(
         name: "SwiftOpenUI",
+        // OpenCombine backs ObservableObject/Published on non-Apple platforms
+        // (on Apple they alias to real Combine and OpenCombine goes unused);
+        // see State/ObservableObject.swift and
+        // docs/issues/observable-namespace-conflict.md.
+        dependencies: [
+            .product(name: "OpenCombine", package: "OpenCombine",
+                     condition: .when(platforms: [.linux, .wasi, .windows, .android])),
+        ],
         path: "Sources/SwiftOpenUI"
     ),
 
@@ -61,19 +114,25 @@ targets += [
     .systemLibrary(
         name: "CGTK",
         path: "Sources/Backend/GTK4/CGTK",
-        pkgConfig: "gtk4",
         providers: [.apt(["libgtk-4-dev"])]
     ),
     .target(
         name: "CGTKBridge",
         dependencies: ["CGTK"],
-        path: "Sources/Backend/GTK4/CGTKBridge"
+        path: "Sources/Backend/GTK4/CGTKBridge",
+        swiftSettings: [
+            .unsafeFlags(swiftOpenUIGTKSwiftImporterFlags),
+        ]
     ),
     .target(
         name: "BackendGTK4",
         dependencies: ["SwiftOpenUI", "CGTK", "CGTKBridge", "SwiftOpenUISymbols"],
         path: "Sources/Backend/GTK4/Rendering",
+        swiftSettings: [
+            .unsafeFlags(swiftOpenUIGTKSwiftImporterFlags),
+        ],
         linkerSettings: [
+            .unsafeFlags(swiftOpenUIGTKLinkerFlags),
             // FontConfig is used by the process-local font registration
             // path that loads SwiftOpenUISymbols' bundled Material Symbols
             // font. GTK/Pango pull libfontconfig in transitively for
@@ -86,13 +145,19 @@ targets += [
     .testTarget(
         name: "GTK4RenderTests",
         dependencies: ["SwiftOpenUI", "BackendGTK4", "CGTK", "CGTKBridge"],
-        path: "Tests/BackendTests/GTK4Tests"
+        path: "Tests/BackendTests/GTK4Tests",
+        swiftSettings: [
+            .unsafeFlags(swiftOpenUIGTKSwiftImporterFlags),
+        ]
     ),
     // Layout parity — GTK comparison against macOS reference
     .testTarget(
         name: "GTKLayoutParityTests",
         dependencies: ["SwiftOpenUI", "BackendGTK4", "CGTK", "CGTKBridge", "LayoutParityShared"],
-        path: "Tests/LayoutParityTests/GTKComparison"
+        path: "Tests/LayoutParityTests/GTKComparison",
+        swiftSettings: [
+            .unsafeFlags(swiftOpenUIGTKSwiftImporterFlags),
+        ]
     ),
 ]
 exampleDeps.append("BackendGTK4")
@@ -341,9 +406,12 @@ targets += [
 #if os(macOS)
 let deps: [Package.Dependency] = [
     .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.20.0"),
+    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0"),
 ]
 #else
-let deps: [Package.Dependency] = []
+let deps: [Package.Dependency] = [
+    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0"),
+]
 #endif
 
 // App bundle packaging plugin

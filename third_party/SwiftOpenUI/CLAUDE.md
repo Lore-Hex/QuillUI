@@ -94,7 +94,7 @@ swift package create-bundle HelloWorld --allow-writing-to-package-directory
 - **Protocol-based rendering**: Backends extend core views with `GTKRenderable` / `WebRenderable` / etc. The renderer checks `if let renderable = view as? Renderable` before falling back to body recursion.
 - **On macOS, examples use real SwiftUI**: `#if os(macOS) import SwiftUI` — validates API compatibility.
 - **Manifest conditionals check HOST, not target**: `#if os()` and `#if arch()` in Package.swift evaluate the build machine. Example deps always include SwiftOpenUI. Web backend + JavaScriptKit are gated to `#if os(macOS)` (Wasm cross-compilation always happens from macOS). GTK4 and Win32 backends are gated to their native OS.
-- **Namespace conflicts**: On macOS, `ObservableObject` and `Published` clash with Combine. Tests qualify as `SwiftOpenUI.ObservableObject` and `@SwiftOpenUI.Published`. See `docs/issues/observable-namespace-conflict.md`.
+- **Namespace conflicts (RESOLVED)**: `ObservableObject`/`Published` ARE Combine's pair — typealiased to real Combine on Apple platforms and OpenCombine elsewhere — so importing SwiftOpenUI alongside Foundation/Combine no longer creates ambiguity, and `$property` projections are Combine's real ones. See `docs/issues/observable-namespace-conflict.md`.
 - **State management** (@State, @Binding, @ObservedObject, @Published, @StateObject, @EnvironmentObject, @FocusState, @Observable) is fully platform-independent with thread-safe storage.
 - **Environment TLS**: pthread on Linux/macOS, TlsAlloc on Windows, simple global on Wasm (single-threaded).
 - **Scene rendering is recursive**: `renderScene` walks `Scene.body` until it hits a terminal `WindowGroup` or `Window`.

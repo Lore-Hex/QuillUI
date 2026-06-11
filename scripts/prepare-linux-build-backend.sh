@@ -69,6 +69,20 @@ REQUESTED_BACKEND="$(quillui_require_linux_build_backend_identifier "${REQUESTED
 case "$REQUESTED_BACKEND" in
   gtk)
     "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$SCRATCH_PATH"
+
+# OpenCombineDispatch guards its `extension DispatchQueue: Scheduler` (and
+# OpenCombineFoundation its RunLoop twin) behind `#if !canImport(Combine)`.
+# SwiftPM exposes OUR Combine shim module to dependency compiles via the
+# shared build dir, so on warm builds the probe flips TRUE and the
+# conformances vanish — unmodified `receive(on: DispatchQueue.main)` then
+# fails ("requires DispatchQueue conform to Scheduler") depending on build
+# history. Force clean-order semantics: drop the stale products so these
+# targets recompile before the Combine shim exists, keeping the probe FALSE
+# deterministically (matches what a clean CI build does).
+for ocd in OpenCombineDispatch OpenCombineFoundation; do
+    rm -rf "$SCRATCH_PATH"/*/debug/"$ocd".build            "$SCRATCH_PATH"/*/debug/Modules/"$ocd".swiftmodule            "$SCRATCH_PATH"/*/release/"$ocd".build            "$SCRATCH_PATH"/*/release/Modules/"$ocd".swiftmodule 2>/dev/null || true
+done
+rm -f "$SCRATCH_PATH"/*/debug/Modules/Combine.swiftmodule       "$SCRATCH_PATH"/*/release/Modules/Combine.swiftmodule 2>/dev/null || true
     ;;
   qt)
     ;;

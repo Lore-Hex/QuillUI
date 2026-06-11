@@ -659,8 +659,8 @@ app progress can be audited with the same status ladder.
 | API or function | Linux status | Notes |
 | --- | --- | --- |
 | `WrappingHStack.init(...)` | Usable | Captures alignment, spacing, and content for current source compatibility. |
-| `WrappingHStack.body` | Partial | Renders a plain `HStack`; it does not measure and wrap children. |
-| Dynamic wrapping, line spacing, measurement, accessibility order, upstream layout parity | Incomplete | Required for WrappingHStack parity. |
+| `WrappingHStack.body` | Usable | Provides a portable `HStack` fallback outside native backends. |
+| GTK dynamic wrapping, line spacing, natural child sizing, accessibility order | Partial-real | Linux GTK renders through `GtkFlowBox`, so Enchanted prompt and completion chips wrap as rows instead of a compressed plain stack. Remaining work is pixel-level parity with the upstream package across all alignment/spacing combinations and Qt native wrapping. |
 
 ### Vortex
 

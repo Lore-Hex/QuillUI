@@ -1687,6 +1687,22 @@ PY
 }
 
 want=("$@")
+patch_solderscope() {
+    # SolderScope compiles UNMODIFIED on Linux except for one clang-submodule
+    # import (`import os.log` in Utilities/Logger.swift) that pure-Swift module
+    # shims cannot express. quill-lower-appkit's standard lowering (the same
+    # pass WireGuard/Signal use) rewrites it to `import os`. Self-guarded +
+    # idempotent: the trigger grep goes false after lowering. Linux-only: on
+    # macOS the real SDK provides os.log.
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        local dir="$UPSTREAM_DIR/solderscope/SolderScope"
+        if [[ -d "$dir" ]] && grep -rqE 'import os\.log' "$dir" 2>/dev/null; then
+            echo "==> lowering solderscope for Linux (import os.log)"
+            ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$dir" )
+        fi
+    fi
+}
+
 patch_libsignal() {
     # libsignal's LibSignalClient ships "testing endpoints" (FakeChat / OTP /
     # comparable-backup test helpers) gated `#if !os(iOS) || targetEnvironment(simulator)`
@@ -1753,6 +1769,12 @@ for name in "${want[@]}"; do
             ;;
         telegram)
             fetch_repo telegram-swift https://github.com/overtake/TelegramSwift.git master
+            ;;
+        solderscope)
+            # First community-requested conformance app (MIT): real macOS
+            # SwiftUI USB-microscope viewer, compiled unmodified on Linux.
+            fetch_repo solderscope https://github.com/rjwalters/SolderScope.git
+            patch_solderscope
             ;;
         *)
             echo "unknown upstream: $name" >&2
