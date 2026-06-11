@@ -470,22 +470,10 @@ public struct PlainListStyle: Sendable {
     public init() {}
 }
 
-public enum ButtonRole {
-    case cancel
-    case destructive
-}
-
-public extension Button where Label == Text {
-    init(_ title: String, role: ButtonRole?, action: @escaping () -> Void) {
-        self.init(title, action: action)
-    }
-}
-
-public extension Button {
-    init(role: ButtonRole?, action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
-        self.init(action: action, label: label)
-    }
-}
+// `ButtonRole` and the role-taking Button inits moved to
+// QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that
+// only `import SwiftUI`s sees them (SolderScope's alert buttons); QuillUI
+// re-exports that module.
 
 public extension TextField {
     init(_ title: String, text: Binding<String>, axis: Axis) {
