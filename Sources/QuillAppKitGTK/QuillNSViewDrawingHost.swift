@@ -205,9 +205,13 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
             defer { cairo_surface_destroy(surface) }
 
             cairo_save(cr)
-            cairo_translate(cr, Double(rect.origin.x), Double(rect.origin.y))
+            // CG semantics: image row 0 maps to the rect's MAX-Y edge in the
+            // CURRENT user space (which is why raw CGContext.draw renders
+            // images "upside-down" in flipped contexts on Apple too). Flip
+            // vertically around the rect so the mapping matches exactly.
+            cairo_translate(cr, Double(rect.origin.x), Double(rect.maxY))
             cairo_scale(cr, Double(rect.size.width) / Double(width),
-                        Double(rect.size.height) / Double(height))
+                        -Double(rect.size.height) / Double(height))
             cairo_set_source_surface(cr, surface, 0, 0)
             if let pattern = cairo_get_source(cr) {
                 let filter: cairo_filter_t =
@@ -215,7 +219,8 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
                 cairo_pattern_set_filter(pattern, filter)
             }
             cairo_rectangle(cr, 0, 0, Double(width), Double(height))
-            cairo_fill(cr)
+            cairo_clip(cr)
+            cairo_paint_with_alpha(cr, Double(state.alpha))
             cairo_restore(cr)
         }
     }
@@ -289,6 +294,28 @@ extension NSView {
             gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(live))
         }
         return areaPointer
+    }
+}
+
+
+// MARK: - Widget lifetime helpers for the SwiftUI representable mount
+
+/// Take a strong (sunk) reference so a cached widget survives the teardown of
+/// the render tree it was last parented in.
+public func quillGtkRetainWidget(_ widget: OpaquePointer) {
+    g_object_ref_sink(UnsafeMutableRawPointer(widget))
+}
+
+public func quillGtkReleaseWidget(_ widget: OpaquePointer) {
+    g_object_unref(UnsafeMutableRawPointer(widget))
+}
+
+/// Detach a cached widget from its previous parent (if any) so the renderer
+/// can insert it into the freshly built tree.
+public func quillGtkDetachFromParent(_ widget: OpaquePointer) {
+    let w = UnsafeMutablePointer<GtkWidget>(widget)
+    if gtk_widget_get_parent(w) != nil {
+        gtk_widget_unparent(w)
     }
 }
 

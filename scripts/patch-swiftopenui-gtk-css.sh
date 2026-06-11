@@ -1204,8 +1204,29 @@ private func gtkStateIdentityNamespace() -> String {
         ?? "root"
 }
 
-func gtkBeginStateIdentityPass() {
+public func gtkBeginStateIdentityPass() {
     gtkStateTypeCounters[gtkStateIdentityNamespace()] = [:]
+    gtkMountTypeCounters[gtkStateIdentityNamespace()] = [:]
+}
+
+// MARK: - Mount identity for external renderable leaves
+
+// Renderable LEAF views (GTKRenderable) skip gtkRestoreAndInstallState, so a
+// leaf that owns long-lived native state (e.g. the SwiftUI shim's
+// NSViewRepresentable host, which owns a Coordinator + NSView + GtkDrawingArea)
+// needs its own stable identity across rebuilds to reuse that state instead of
+// remounting per re-render. Same scheme as gtkStateCacheKey: enclosing
+// stateful-view namespace + leaf type + per-pass occurrence index.
+private var gtkMountTypeCounters: [String: [String: Int]] = [:]
+
+public func gtkMountIdentity(for type: Any.Type) -> String {
+    let namespace = gtkStateIdentityNamespace()
+    let typeName = String(reflecting: type)
+    var counters = gtkMountTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    gtkMountTypeCounters[namespace] = counters
+    return "\(namespace)|mount|\(typeName)#\(index)"
 }
 
 /// Claims a stable child namespace slot in the current namespace. Deferred

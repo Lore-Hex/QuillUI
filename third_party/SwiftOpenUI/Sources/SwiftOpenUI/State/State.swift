@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(Combine)
+#if canImport(Combine) && !os(Linux)
 import Combine
 #else
 import OpenCombine

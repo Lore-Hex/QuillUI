@@ -384,8 +384,14 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains("publicHeadersPath: \".\""))
         // UserNotifications is @_exported by the UIKit shim so SignalServiceKit's
         // `import UIKit`-only files resolve UNUserNotificationCenter & co. (Track B).
-        #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\"], path: \"Sources/UIKitShim\")"))
-        #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: [\"QuillFoundation\"],\n        path: \"Sources/QuillUIKit\"\n    )"))
+        // QuartzCore: iOS UIKit re-exports it (CALayer reaches `import UIKit`
+        // files); the shim mirrors that topology since the SolderScope/Signal
+        // conformance work.
+        #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\"], path: \"Sources/UIKitShim\")"))
+        // QuillKit: the canonical UIApplication (single owner after the
+        // cross-module de-dup) opens URLs / registers notifications through
+        // QuillWorkspace + QuillNotificationService.
+        #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: [\"QuillFoundation\", \"QuillKit\"],\n        path: \"Sources/QuillUIKit\"\n    )"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))

@@ -61,7 +61,37 @@ private struct SolidProbe: NSViewRepresentable {
 }
 
 @MainActor
+private final class ReuseCountingView: NSView {
+    override var isFlipped: Bool { true }
+}
+
+private struct ReuseProbe: NSViewRepresentable {
+    nonisolated(unsafe) static var makeCount = 0
+    nonisolated(unsafe) static var updateCount = 0
+
+    func makeNSView(context: Context) -> ReuseCountingView {
+        Self.makeCount += 1
+        return ReuseCountingView()
+    }
+    func updateNSView(_ nsView: ReuseCountingView, context: Context) {
+        Self.updateCount += 1
+    }
+}
+
+@MainActor
 struct RepresentableRenderSmokeTests {
+
+    @Test func secondRenderReusesTheMountedNSView() throws {
+        guard quillRenderViewToImage(ReuseProbe(), width: 60, height: 40) != nil else {
+            return // no display / flag off
+        }
+        _ = quillRenderViewToImage(ReuseProbe(), width: 60, height: 40)
+        // Apple lifecycle: ONE makeNSView per mount identity, updateNSView on
+        // every subsequent render. Without the mount registry this is 2/2
+        // (remount per render — the camera-view-resets-every-frame bug).
+        #expect(ReuseProbe.makeCount == 1)
+        #expect(ReuseProbe.updateCount == 2)
+    }
 
     @Test func customDrawRepresentableProducesStructuredPixels() throws {
         guard let crosshair = quillRenderViewToImage(CrosshairProbe(), width: 240, height: 200) else {

@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(Combine)
+#if canImport(Combine) && !os(Linux)
 import Combine
 #else
 import OpenCombine
@@ -24,7 +24,7 @@ import OpenCombine
 // of Mirror-walking for the old `AnyPublishedProvider`; the storages below
 // stay `GenerationTracked` so Phase 6/7 dependency gating still proves
 // "nothing I read has changed" before skipping a rebuild.
-#if canImport(Combine)
+#if canImport(Combine) && !os(Linux)
 public typealias ObservableObject = Combine.ObservableObject
 public typealias Published = Combine.Published
 public typealias ObservableObjectPublisher = Combine.ObservableObjectPublisher
@@ -182,11 +182,17 @@ public class StateObjectStorage<ObjectType: ObservableObject>: AnyStateStorage, 
     }
 
     private func wireObjectWillChange() {
-        guard host != nil else {
+        // Subscribe only to an ALREADY-created object: host attachment must
+        // not force the lazy factory (Apple defers creation to first access,
+        // and eager creation here would race restoreValue's adoption of the
+        // previous instance — creating a second object only to discard it).
+        // The `object` getter wires after first creation; restoreValue
+        // re-wires after adoption.
+        guard host != nil, let existing = _object else {
             cancellable = nil
             return
         }
-        cancellable = subscribeToObjectWillChange(object) { [weak self] in
+        cancellable = subscribeToObjectWillChange(existing) { [weak self] in
             guard let self else { return }
             self.generation &+= 1
             self.host?.scheduleRebuild()

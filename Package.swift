@@ -693,8 +693,12 @@ let cZlibTarget: Target = .systemLibrary(
 // os symbols — a failed macro-plugin link surfaces as bare `error: fatalError`
 // "Corrupted JSON" diagnostics. Declaring the dependency makes the link
 // deterministic. Empty on Apple platforms (real os framework; no shim target).
+// gtk-graph only: the qt manifest graph does not declare the os shadow
+// target (and without the module present, the canImport(os) race this dep
+// neutralizes cannot occur there).
 #if os(Linux)
-let swiftSyntaxOSLinkDependencies: [Target.Dependency] = ["os"]
+let swiftSyntaxOSLinkDependencies: [Target.Dependency] =
+    quillUILinuxBuildBackend == .gtk ? ["os"] : []
 #else
 let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
 #endif
@@ -705,6 +709,18 @@ let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
 let swiftUIShadowTestDependencies: [Target.Dependency] = ["SwiftUI"]
 #else
 let swiftUIShadowTestDependencies: [Target.Dependency] = []
+#endif
+
+// The representable GTK mount rides only in the gtk graph; the qt graph keeps
+// the SwiftUI shadow GTK-free (CGtk4 headers reach the module through the
+// QuillAppKitGTK import, hence the importer flags travel with the deps).
+#if os(Linux)
+let swiftUIShadowMountDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .gtk
+    ? ["QuillAppKitGTK", .product(name: "BackendGTK4", package: "SwiftOpenUI")]
+    : []
+let swiftUIShadowMountSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
+    ? [.define("QUILLUI_SWIFTUI_GTK_MOUNT"), .unsafeFlags(gtk4SwiftImporterFlags)]
+    : []
 #endif
 
 let quillDataMacroTarget: Target = .macro(
@@ -815,13 +831,13 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGtk4",
         path: "Sources/CGtk4",
-        // pkgConfig is what makes SwiftPM hand the gtk include paths to EVERY
-        // consumer's clang-module build. Without it, any target that loads a
-        // CGtk4-referencing swiftmodule (e.g. SwiftUI, which carries the
-        // NSViewRepresentable GTK mount) without its own -Xcc gtk flags dies
-        // with "gtk/gtk.h file not found" — exactly what flagless test
-        // targets did under swift test in CI.
-        pkgConfig: "gtk4",
+        // NO pkgConfig here (SourceHygiene contract): SwiftPM's native
+        // pkg-config emits prohibited-flag warnings, so gtk flags route
+        // through the filtered helpers. Consumers that import CGtk4 carry
+        // gtk4SwiftImporterFlags; modules that embed it as an implementation
+        // detail (the SwiftUI shadow's GTK mount) use @_implementationOnly
+        // imports so their swiftmodules never expose CGtk4 to flagless
+        // dependents.
         providers: [
             .apt(["libgtk-4-dev"])
         ]
@@ -2270,23 +2286,20 @@ targets.append(contentsOf: [
     .target(
         name: "SwiftUI",
         // AppKit + Combine: Apple's macOS SwiftUI re-exports both; mirror it
-        // (see Sources/SwiftUIShim/SwiftUI.swift). BackendGTK4 + QuillAppKitGTK
-        // power the NSViewRepresentable GTK mount (GtkDrawingArea + Cairo-backed
-        // CGContext custom drawing).
+        // (see Sources/SwiftUIShim/SwiftUI.swift). The NSViewRepresentable
+        // GTK mount (GtkDrawingArea + Cairo-backed CGContext) is gtk-graph
+        // only — the qt graph keeps the shadow GTK-free (compile-only
+        // representables there until the Qt mount exists).
         dependencies: [
             "QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine",
-            "QuillAppKitGTK",
-            .product(name: "BackendGTK4", package: "SwiftOpenUI"),
-        ],
+        ] + swiftUIShadowMountDependencies,
         path: "Sources/SwiftUIShim",
-        // CGtk4 headers reach this module through the QuillAppKitGTK import;
         // v5 + minimal concurrency matches the house settings (the GTK mount
         // crosses MainActor.assumeIsolated with non-Sendable view values).
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"]),
-            .unsafeFlags(gtk4SwiftImporterFlags)
-        ]
+        ] + swiftUIShadowMountSwiftSettings
     ),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),

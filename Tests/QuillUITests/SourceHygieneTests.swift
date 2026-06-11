@@ -546,7 +546,11 @@ struct SourceHygieneTests {
 
         #expect(manifest.contains("name: \"QuillSwiftUICompatibility\""))
         #expect(manifest.contains("\"QuillFoundation\",\n    \"QuillSwiftUICompatibility\","))
-        #expect(manifest.contains("dependencies: [\"QuillUI\", \"QuillSwiftUICompatibility\"]"))
+        // The SwiftUI shadow now mirrors Apple's macOS re-export topology
+        // (AppKit + Combine) and carries the gtk-graph-only representable
+        // mount via swiftUIShadowMountDependencies.
+        #expect(manifest.contains("\"QuillUI\", \"QuillSwiftUICompatibility\", \"AppKit\", \"Combine\","))
+        #expect(manifest.contains("] + swiftUIShadowMountDependencies"))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))

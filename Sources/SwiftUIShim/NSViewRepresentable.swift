@@ -1,6 +1,12 @@
 #if os(Linux)
+#if QUILLUI_SWIFTUI_GTK_MOUNT
 import BackendGTK4
-import QuillAppKitGTK
+// Implementation-only: keeps CGtk4 (which QuillAppKitGTK references) OUT of
+// the SwiftUI swiftmodule, so dependents without gtk -Xcc flags can still
+// load this module (the house bans systemLibrary pkgConfig, so flag
+// propagation is manual — hide the dependency instead).
+@_implementationOnly import QuillAppKitGTK
+#endif
 
 // NSViewRepresentable / NSViewControllerRepresentable — Apple ships these in
 // SwiftUI (NOT AppKit; `import AppKit` alone does not resolve them on macOS),
@@ -53,7 +59,7 @@ extension NSViewRepresentable {
 /// GTK leaf that mounts an NSViewRepresentable: creates the Coordinator and
 /// NSViewType, then backs the view with a GtkDrawingArea whose draw func runs
 /// `draw(_:)` through the Cairo-backed CGContext (QuillAppKitGTK).
-public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View, PrimitiveView, GTKRenderable {
+public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View, PrimitiveView {
     public typealias Body = Never
     let representable: R
 
@@ -62,7 +68,10 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View, Pr
     public var body: Never {
         fatalError("QuillNSViewRepresentableHostView is a primitive view")
     }
+}
 
+#if QUILLUI_SWIFTUI_GTK_MOUNT
+extension QuillNSViewRepresentableHostView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         // The GTK renderer runs on the GTK main loop == the main thread; the
         // representable protocol is @MainActor (as on Apple). OpaquePointer
@@ -70,16 +79,42 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View, Pr
         // unsafe slot (same thread throughout — the annotation is a formality).
         nonisolated(unsafe) var slot: OpaquePointer?
         MainActor.assumeIsolated {
+            // Stable identity across rebuilds (enclosing stateful-view
+            // namespace + type + per-pass occurrence index, same scheme as
+            // @State storage identity). Re-renders REUSE the mounted
+            // Coordinator + NSViewType and get Apple's updateNSView call;
+            // without this, every observable tick would destroy and recreate
+            // the native view (losing its state — a live camera view would
+            // remount per frame).
+            let key = gtkMountIdentity(for: Self.self)
+            if let mounted = QuillRepresentableMountRegistry.entry(for: key),
+               let nsView = mounted.nsView as? R.NSViewType,
+               let coordinator = mounted.coordinator as? R.Coordinator {
+                let context = NSViewRepresentableContext<R>(coordinator: coordinator)
+                representable.updateNSView(nsView, context: context)
+                quillGtkDetachFromParent(mounted.widget)
+                slot = mounted.widget
+                return
+            }
+
             let coordinator = representable.makeCoordinator()
             let context = NSViewRepresentableContext<R>(coordinator: coordinator)
             let nsView = representable.makeNSView(context: context)
             representable.updateNSView(nsView, context: context)
-            // Apple's host owns the coordinator for the view's lifetime; app
-            // code wires it as an unowned/weak delegate (SolderScope does
-            // `view.delegate = context.coordinator`). Retain it alongside the
-            // view so that pattern holds.
-            QuillRepresentableCoordinatorStore.retain(coordinator, for: nsView)
-            slot = nsView.ensureGtkCustomDrawWidget()
+            guard let widget = nsView.ensureGtkCustomDrawWidget() else {
+                preconditionFailure(
+                    "NSViewRepresentable (\(R.self)) mounted without a usable GTK display")
+            }
+            // Own the widget so it survives teardown of whichever render tree
+            // it was parented in between rebuilds.
+            quillGtkRetainWidget(widget)
+            QuillRepresentableMountRegistry.store(
+                key: key,
+                entry: .init(coordinator: coordinator, nsView: nsView, widget: widget) {
+                    R.dismantleNSView(nsView, coordinator: coordinator)
+                    quillGtkReleaseWidget(widget)
+                })
+            slot = widget
         }
         guard let widget = slot else {
             preconditionFailure(
@@ -89,19 +124,32 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View, Pr
     }
 }
 
-/// Retains coordinators for mounted representables, keyed by the NSView
-/// identity. Entries live as long as the process (v1: mounts are recreated on
-/// re-render and views are few; replace with dismantle-driven release when the
-/// renderer grows teardown hooks).
+/// Mounted-representable registry, keyed by render-tree mount identity.
+/// One entry per mount SITE (same lifetime semantics as the renderer's
+/// @State storage cache): replacing a key dismantles the previous mount
+/// (Apple's dismantleNSView + widget release). Entries for mount sites that
+/// disappear entirely persist like stale @State cache entries do — bounded
+/// by distinct mount sites, not by render count.
 @MainActor
-enum QuillRepresentableCoordinatorStore {
-    private static var store: [ObjectIdentifier: Any] = [:]
-    static func retain(_ coordinator: Any, for view: NSView) {
-        store[ObjectIdentifier(view)] = coordinator
+enum QuillRepresentableMountRegistry {
+    struct Entry {
+        let coordinator: Any
+        let nsView: NSView
+        let widget: OpaquePointer
+        let dismantle: () -> Void
+    }
+
+    private static var store: [String: Entry] = [:]
+
+    static func entry(for key: String) -> Entry? { store[key] }
+
+    static func store(key: String, entry: Entry) {
+        if let previous = store[key] { previous.dismantle() }
+        store[key] = entry
     }
 }
+#endif
 
-@MainActor
 public struct NSViewRepresentableContext<Representable: NSViewRepresentable> {
     public let coordinator: Representable.Coordinator
     public var environment: EnvironmentValues
@@ -140,7 +188,6 @@ extension NSViewControllerRepresentable {
     }
 }
 
-@MainActor
 public struct NSViewControllerRepresentableContext<Representable: NSViewControllerRepresentable> {
     public let coordinator: Representable.Coordinator
     public var environment: EnvironmentValues
