@@ -184,13 +184,24 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
         let width = cgImage.width
         let height = cgImage.height
 
+        // Cairo's ARGB32 stride contract: must match
+        // cairo_format_stride_for_width (word-aligned). Camera/decoder BGRA
+        // buffers are width*4 which satisfies it; reject anything else rather
+        // than hand cairo a mis-strided buffer.
+        guard stride == Int(cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, Int32(width))) else { return }
         pixels.withUnsafeMutableBytes { buf in
             guard let base = buf.baseAddress else { return }
-            guard let surface = cairo_image_surface_create_for_data(
+            // Note: this call never returns nil — failures come back as an
+            // error surface, so check the status.
+            let surface = cairo_image_surface_create_for_data(
                 base.assumingMemoryBound(to: UInt8.self),
                 CAIRO_FORMAT_ARGB32,
                 Int32(width), Int32(height), Int32(stride)
-            ) else { return }
+            )
+            guard let surface, cairo_surface_status(surface) == CAIRO_STATUS_SUCCESS else {
+                if let surface { cairo_surface_destroy(surface) }
+                return
+            }
             defer { cairo_surface_destroy(surface) }
 
             cairo_save(cr)
@@ -214,6 +225,9 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
 
 private final class _DrawingHostBox {
     let view: NSView
+    /// Cleared by the GTK destroy notify so the invalidation handler can
+    /// never queue_draw a dangling widget (re-renders replace the area).
+    var area: OpaquePointer?
     init(view: NSView) { self.view = view }
 }
 
@@ -260,14 +274,19 @@ extension NSView {
             userData,
             { userData in
                 guard let userData else { return }
-                Unmanaged<_DrawingHostBox>.fromOpaque(userData).release()
+                let box = Unmanaged<_DrawingHostBox>.fromOpaque(userData)
+                box.takeUnretainedValue().area = nil
+                box.release()
             }
         )
 
         let areaPointer = OpaquePointer(area)
-        quillDisplayInvalidationHandler = { [weak self] in
-            _ = self
-            gtk_widget_queue_draw(area)
+        box.area = areaPointer
+        // The handler holds the box strongly (it outlives GTK's user-data ref);
+        // after widget destruction box.area is nil and this becomes a no-op.
+        quillDisplayInvalidationHandler = {
+            guard let live = box.area else { return }
+            gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(live))
         }
         return areaPointer
     }
