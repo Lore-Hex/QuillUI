@@ -188,8 +188,14 @@ open class CADisplayLink: NSObject {
             repeating: interval,
             leeway: .milliseconds(2)
         )
-        source.setEventHandler { [weak self] in
-            self?.fire()
+        // STRONG capture, deliberately: on Apple the run loop RETAINS a
+        // scheduled display link until invalidate()/remove(from:forMode:) —
+        // the fire-and-forget pattern (a link created without being stored
+        // anywhere) must keep ticking. The self → timer → handler → self
+        // cycle IS that keep-alive; remove()/invalidate() break it by
+        // cancelling and nilling the timer.
+        source.setEventHandler {
+            self.fire()
         }
         source.resume()
         timer = source

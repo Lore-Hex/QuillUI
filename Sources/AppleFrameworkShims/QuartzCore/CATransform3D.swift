@@ -211,6 +211,12 @@ public func CATransform3DInvert(_ t: CATransform3D) -> CATransform3D {
     var m = t.quartzRows
     var inv = CATransform3DIdentity.quartzRows
 
+    // Non-finite entries make elimination produce garbage even when they
+    // never become the pivot (Inf passes the pivot guard; an off-diagonal
+    // NaN poisons rows through the elimination factors) — screen them out
+    // up front so the documented return-unchanged contract actually holds.
+    guard m.allSatisfy({ row in row.allSatisfy(\.isFinite) }) else { return t }
+
     for column in 0..<4 {
         // Partial pivoting: bring the largest remaining entry in this
         // column onto the diagonal for numerical stability.

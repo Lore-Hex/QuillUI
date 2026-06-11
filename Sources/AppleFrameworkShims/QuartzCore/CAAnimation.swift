@@ -370,10 +370,16 @@ internal final class _CATransactionRecord: @unchecked Sendable {
     var animationDuration: CFTimeInterval
     var animationTimingFunction: CAMediaTimingFunction?
     var completionBlock: (() -> Void)?
-    /// Number of animations added while this transaction was the innermost
-    /// open one that have not yet completed or been removed.
+    /// Number of animations added while this transaction was open (anywhere
+    /// on the stack — nested begin/commit pairs form one transaction group,
+    /// so an outer record also counts animations added inside nested
+    /// transactions) that have not yet completed or been removed.
     var pendingAnimations: Int = 0
     var isCommitted: Bool = false
+    /// True once the OUTERMOST transaction of this record's group has
+    /// committed. On Apple nothing in a nested group commits — and no
+    /// completion block can fire — until the outermost commit().
+    var groupCommitted: Bool = false
 
     init(disableActions: Bool,
          animationDuration: CFTimeInterval,
@@ -397,6 +403,10 @@ open class CATransaction: NSObject {
 
     private static let _lock = NSLock()
     nonisolated(unsafe) private static var _stack: [_CATransactionRecord] = []
+    /// Records popped by non-outermost commit()s, parked until the outermost
+    /// commit of their group arrives (nested begin/commit pairs are ONE
+    /// transaction group on Apple; nothing settles early).
+    nonisolated(unsafe) private static var _awaitingGroup: [_CATransactionRecord] = []
 
     /// Implicit-transaction default duration, used when the stack is empty.
     private static let _defaultDuration: CFTimeInterval = 0.25
@@ -421,16 +431,30 @@ open class CATransaction: NSObject {
             return // unbalanced commit: ignore
         }
         record.isCommitted = true
-        var due: (() -> Void)? = nil
-        if record.pendingAnimations <= 0, let block = record.completionBlock {
-            record.completionBlock = nil
-            due = block
+        // A nested commit only parks its record: the GROUP commits — and
+        // completion blocks become eligible — at the outermost commit().
+        guard _stack.isEmpty else {
+            _awaitingGroup.append(record)
+            _lock.unlock()
+            return
+        }
+        var group = _awaitingGroup
+        group.append(record)
+        _awaitingGroup = []
+        var due: [() -> Void] = []
+        for member in group {
+            member.groupCommitted = true
+            if member.pendingAnimations <= 0, let block = member.completionBlock {
+                member.completionBlock = nil
+                due.append(block)
+            }
         }
         _lock.unlock()
-        // Completion contract: no pending animations at commit time means the
-        // block fires on the next main-queue hop. Otherwise the engine fires
-        // it when the last of this transaction's animations completes.
-        if let due { quartzCoreMainAsync(due) }
+        // Completion contract: no pending animations at group-commit time
+        // means the block fires on the next main-queue hop (inner records
+        // first — they committed first). Otherwise the engine fires it when
+        // the last animation registered against that record completes.
+        for block in due { quartzCoreMainAsync(block) }
     }
 
     /// On Apple this pushes pending model changes to the render server.
@@ -522,6 +546,9 @@ open class CATransaction: NSObject {
             _stack.remove(at: index)
         }
         record.isCommitted = true
+        // The implicit record is its own group (it is only ever pushed onto
+        // an empty stack), so group commit coincides with this commit.
+        record.groupCommitted = true
         var due: (() -> Void)? = nil
         if record.pendingAnimations <= 0, let block = record.completionBlock {
             record.completionBlock = nil
@@ -533,26 +560,29 @@ open class CATransaction: NSObject {
 
     // MARK: Internal hooks for QuartzCoreAnimationEngine
 
-    /// Registers one in-flight animation against the innermost open
-    /// transaction, if any, and returns the record the engine must later
-    /// report completion or removal to.
-    internal static func _noteAnimationScheduled() -> _CATransactionRecord? {
+    /// Registers one in-flight animation against EVERY open transaction —
+    /// nested begin/commit pairs form one group on Apple, and an outer
+    /// transaction's completion block waits for animations added while a
+    /// nested transaction was open. Returns the records the engine must
+    /// later report completion or removal to (empty when no transaction is
+    /// open).
+    internal static func _noteAnimationScheduled() -> [_CATransactionRecord] {
         _lock.lock()
         defer { _lock.unlock() }
-        guard let top = _stack.last else { return nil }
-        top.pendingAnimations += 1
-        return top
+        for record in _stack { record.pendingAnimations += 1 }
+        return _stack
     }
 
     /// Reports that an animation registered with `record` completed or was
     /// removed. Returns the transaction's completion block if this was the
-    /// last pending animation of an already-committed transaction; the
+    /// last pending animation of a record whose GROUP has committed; the
     /// caller is responsible for invoking it on the main queue.
     internal static func _noteAnimationFinished(_ record: _CATransactionRecord) -> (() -> Void)? {
         _lock.lock()
         defer { _lock.unlock() }
         record.pendingAnimations -= 1
         guard record.isCommitted,
+              record.groupCommitted,
               record.pendingAnimations <= 0,
               let block = record.completionBlock
         else { return nil }
@@ -582,8 +612,16 @@ internal enum QuartzCoreAnimationEngine {
         /// nil for animations that never auto-complete (speed <= 0 or
         /// infinite repeatCount); those stay pending until removed.
         let workItem: DispatchWorkItem?
-        /// The transaction that was open when the animation was added.
-        let transaction: _CATransactionRecord?
+        /// Every transaction that was open when the animation was added
+        /// (nested transactions form one group; each open record counts it).
+        let transactions: [_CATransactionRecord]
+        /// The layer that owns this schedule. Weak reference for the
+        /// displacement callback; the identity token gates deinit-cancel so
+        /// a dying former owner cannot kill the schedule after the same
+        /// animation object was re-added to a different layer.
+        weak var owner: CALayer?
+        let ownerID: ObjectIdentifier
+        let key: String
     }
 
     private static let _lock = NSLock()
@@ -599,16 +637,21 @@ internal enum QuartzCoreAnimationEngine {
     static func didAdd(_ animation: CAAnimation, forKey key: String, to layer: CALayer) {
         // Replace any previous schedule for this same object (see NOTE on
         // `_pending`). The old schedule is cancelled without delegate
-        // callbacks; its transaction bookkeeping is still settled.
+        // callbacks; its transaction bookkeeping is still settled, and the
+        // PREVIOUS owner's (key, animation) bookkeeping pair is dropped so
+        // its animationKeys() stops reporting a schedule it no longer owns
+        // and its deinit cannot cancel the new owner's schedule. Skipped for
+        // a same-layer same-key re-add, where the fresh pair must survive.
         if let stale = takeEntry(for: animation) {
             stale.workItem?.cancel()
-            if let record = stale.transaction,
-               let block = CATransaction._noteAnimationFinished(record) {
-                quartzCoreMainAsync(block)
+            settle(stale.transactions)
+            if let previousOwner = stale.owner,
+               !(previousOwner === layer && stale.key == key) {
+                previousOwner._animationWasDisplaced(key: stale.key, animation: animation)
             }
         }
 
-        let record = CATransaction._noteAnimationScheduled()
+        let records = CATransaction._noteAnimationScheduled()
 
         // didStart fires asynchronously, matching Apple: it must never run
         // inside the caller's add(_:forKey:) stack frame.
@@ -625,8 +668,9 @@ internal enum QuartzCoreAnimationEngine {
 
         if neverCompletes {
             _lock.lock()
-            _pending[ObjectIdentifier(animation)] =
-                PendingEntry(animation: animation, workItem: nil, transaction: record)
+            _pending[ObjectIdentifier(animation)] = PendingEntry(
+                animation: animation, workItem: nil, transactions: records,
+                owner: layer, ownerID: ObjectIdentifier(layer), key: key)
             _lock.unlock()
             return
         }
@@ -655,7 +699,7 @@ internal enum QuartzCoreAnimationEngine {
             // (cancel() can miss an already-dequeued item), the entry is
             // gone and the removal path owns the callbacks.
             guard let entry = takeEntry(for: animation) else { return }
-            let completion = entry.transaction.flatMap { CATransaction._noteAnimationFinished($0) }
+            let blocks = takeDueBlocks(entry.transactions)
             // Drop the layer's bookkeeping entry BEFORE the delegate fires:
             // didStop handlers routinely re-add an animation under the same
             // key, and removal-after would silently strip the new one.
@@ -663,12 +707,13 @@ internal enum QuartzCoreAnimationEngine {
                 layer?._animationDidComplete(key: key)
             }
             animation.delegate?.animationDidStop(animation, finished: true)
-            completion?() // already on the main queue; runs after didStop
+            for block in blocks { block() } // already on main; after didStop
         }
 
         _lock.lock()
-        _pending[ObjectIdentifier(animation)] =
-            PendingEntry(animation: animation, workItem: item, transaction: record)
+        _pending[ObjectIdentifier(animation)] = PendingEntry(
+            animation: animation, workItem: item, transactions: records,
+            owner: layer, ownerID: ObjectIdentifier(layer), key: key)
         _lock.unlock()
         DispatchQueue.main.asyncAfter(deadline: .now() + total, execute: item)
     }
@@ -679,33 +724,53 @@ internal enum QuartzCoreAnimationEngine {
         // animationDidStop.
         guard let entry = takeEntry(for: animation) else { return }
         entry.workItem?.cancel()
-        let completion = entry.transaction.flatMap { CATransaction._noteAnimationFinished($0) }
+        let blocks = takeDueBlocks(entry.transactions)
         quartzCoreMainAsync {
             animation.delegate?.animationDidStop(animation, finished: false)
-            completion?() // after didStop, preserving Apple's ordering
+            for block in blocks { block() } // after didStop, per Apple order
         }
     }
 
     /// CALayer.deinit teardown: cancels any pending schedule for `animation`
     /// WITHOUT delegate callbacks and without touching the deinitializing
-    /// layer (passing it here would risk resurrection). Never-completing
-    /// entries (speed <= 0, infinite repeatCount) would otherwise pin the
-    /// engine table forever. Transaction bookkeeping is still settled.
-    static func cancelForLayerDeinit(_ animation: CAAnimation) {
-        guard let entry = takeEntry(for: animation) else { return }
+    /// layer (passing it here would risk resurrection — hence the identity
+    /// token). Only the schedule's CURRENT owner may cancel it: if the same
+    /// animation object was re-added to another layer, the schedule belongs
+    /// to that layer now and the former owner's deinit must leave it alone.
+    /// Never-completing entries (speed <= 0, infinite repeatCount) would
+    /// otherwise pin the engine table forever. Transaction bookkeeping is
+    /// still settled.
+    static func cancelForLayerDeinit(_ animation: CAAnimation, ownedBy layerID: ObjectIdentifier) {
+        guard let entry = takeEntry(for: animation, ifOwnedBy: layerID) else { return }
         entry.workItem?.cancel()
-        if let record = entry.transaction,
-           let block = CATransaction._noteAnimationFinished(record) {
-            quartzCoreMainAsync(block)
-        }
+        settle(entry.transactions)
     }
 
     // MARK: Helpers
 
-    /// Atomically removes and returns the pending entry for `animation`.
-    private static func takeEntry(for animation: CAAnimation) -> PendingEntry? {
+    /// Atomically removes and returns the pending entry for `animation`,
+    /// optionally only when owned by the given layer identity.
+    private static func takeEntry(
+        for animation: CAAnimation,
+        ifOwnedBy layerID: ObjectIdentifier? = nil
+    ) -> PendingEntry? {
         _lock.lock()
         defer { _lock.unlock() }
-        return _pending.removeValue(forKey: ObjectIdentifier(animation))
+        let id = ObjectIdentifier(animation)
+        guard let entry = _pending[id] else { return nil }
+        if let layerID, entry.ownerID != layerID { return nil }
+        return _pending.removeValue(forKey: id)
+    }
+
+    /// Collects the completion blocks that became due from finishing one
+    /// animation across all its registered transaction records.
+    private static func takeDueBlocks(_ records: [_CATransactionRecord]) -> [() -> Void] {
+        records.compactMap { CATransaction._noteAnimationFinished($0) }
+    }
+
+    /// Settles transaction bookkeeping for a cancelled schedule, firing any
+    /// now-due completion blocks on the main queue.
+    private static func settle(_ records: [_CATransactionRecord]) {
+        for block in takeDueBlocks(records) { quartzCoreMainAsync(block) }
     }
 }

@@ -244,7 +244,10 @@ open class CALayer: NSObject, CAMediaTiming {
     /// exactly like Apple's model — coordinate conversion honors it.
     open var bounds: CGRect = .zero {
         didSet {
-            if oldValue.size.width != bounds.size.width || oldValue.size.height != bounds.size.height {
+            // Apple invalidates on ANY bounds change, origin included:
+            // scrolling is bounds.origin mutation and fires layout every
+            // frame, and needsDisplayOnBoundsChange keys off the whole rect.
+            if oldValue != bounds {
                 setNeedsLayout()
                 if needsDisplayOnBoundsChange { setNeedsDisplay() }
             }
@@ -675,14 +678,27 @@ open class CALayer: NSObject, CAMediaTiming {
         animationEntries.removeAll { $0.key == key }
     }
 
+    /// Engine → layer: this animation OBJECT was re-added elsewhere (Apple
+    /// copies on add; this shim reschedules the same object), so this layer's
+    /// bookkeeping pair is dead — animationKeys()/animation(forKey:) must stop
+    /// reporting it, and deinit must not cancel the new owner's schedule.
+    /// Identity-checked so a same-key replace never strips a fresh entry.
+    internal func _animationWasDisplaced(key: String, animation: CAAnimation) {
+        animationEntries.removeAll { $0.key == key && $0.animation === animation }
+    }
+
     deinit {
         // Never-completing animations (speed <= 0, infinite repeatCount)
         // would otherwise pin their engine entries forever once the layer
         // goes away. Deliberately bypasses the open removeAllAnimations()
         // (no overridable calls from deinit) and fires no delegate
-        // callbacks; the engine path never touches the dying layer.
+        // callbacks; the engine path never touches the dying layer. The
+        // ownership token restricts the cancel to schedules this layer still
+        // owns — an animation object re-added to ANOTHER layer must keep
+        // running there (the engine re-keyed it to the new owner).
+        let ownership = ObjectIdentifier(self)
         for entry in animationEntries {
-            QuartzCoreAnimationEngine.cancelForLayerDeinit(entry.animation)
+            QuartzCoreAnimationEngine.cancelForLayerDeinit(entry.animation, ownedBy: ownership)
         }
         animationEntries.removeAll()
     }
@@ -876,9 +892,56 @@ extension CALayer: QuillKeyValueCoding {
             if let v = CALayer.scalar(value) { bounds.size.width = v }
         case "bounds.size.height":
             if let v = CALayer.scalar(value) { bounds.size.height = v }
+        // Transform sub-key-path WRITES, mirroring the getters above (Apple's
+        // CAValueFunction mapping; same shear-free assumption). Rotation and
+        // scale rebuild the matrix from the decomposed scale/rotation/
+        // translation; translation writes go straight to m41/m42/m43.
+        case "transform.scale":
+            if let v = CALayer.scalar(value) { quillRebuildTransform(scaleX: v, scaleY: v, scaleZ: v) }
+        case "transform.scale.x":
+            if let v = CALayer.scalar(value) { quillRebuildTransform(scaleX: v) }
+        case "transform.scale.y":
+            if let v = CALayer.scalar(value) { quillRebuildTransform(scaleY: v) }
+        case "transform.scale.z":
+            if let v = CALayer.scalar(value) { quillRebuildTransform(scaleZ: v) }
+        case "transform.rotation", "transform.rotation.z":
+            if let v = CALayer.scalar(value) { quillRebuildTransform(rotationZ: v) }
+        case "transform.translation.x":
+            if let v = CALayer.scalar(value) { transform.m41 = v }
+        case "transform.translation.y":
+            if let v = CALayer.scalar(value) { transform.m42 = v }
+        case "transform.translation.z":
+            if let v = CALayer.scalar(value) { transform.m43 = v }
         default:
             quillSetValue(value, forKey: keyPath)
         }
+    }
+
+    /// Rebuilds `transform` with the given components replaced, decomposing
+    /// the current matrix the same way the transform.* getters do (scale from
+    /// the basis-vector magnitudes m11/m22/m33, z-rotation from atan2(m12,
+    /// m11), translation from m41/m42/m43 — valid under the documented
+    /// shear-free assumption).
+    private func quillRebuildTransform(
+        scaleX: CGFloat? = nil, scaleY: CGFloat? = nil, scaleZ: CGFloat? = nil,
+        rotationZ: CGFloat? = nil
+    ) {
+        let currentRotation = CGFloat(atan2(Double(transform.m12), Double(transform.m11)))
+        let cosR = CGFloat(cos(Double(currentRotation)))
+        // Recover signed scale: m11 = sx*cos(r), so divide out the rotation
+        // unless cos(r) ~ 0, where m12 = sx*sin(r) is the stable choice.
+        let sinR = CGFloat(sin(Double(currentRotation)))
+        let currentSX = abs(cosR) > 0.0001 ? transform.m11 / cosR : transform.m12 / sinR
+        let currentSY = abs(cosR) > 0.0001 ? transform.m22 / cosR : -transform.m21 / sinR
+        let sx = scaleX ?? currentSX
+        let sy = scaleY ?? currentSY
+        let sz = scaleZ ?? transform.m33
+        let rz = rotationZ ?? currentRotation
+        let tx = transform.m41, ty = transform.m42, tz = transform.m43
+        var rebuilt = CATransform3DMakeRotation(rz, 0, 0, 1)
+        rebuilt = CATransform3DConcat(CATransform3DMakeScale(sx, sy, sz), rebuilt)
+        rebuilt.m41 = tx; rebuilt.m42 = ty; rebuilt.m43 = tz
+        transform = rebuilt
     }
 
 }

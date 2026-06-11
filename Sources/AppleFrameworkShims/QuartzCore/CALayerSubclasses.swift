@@ -100,6 +100,28 @@ open class CAShapeLayer: CALayer {
     open var lineJoin: CAShapeLayerLineJoin = .miter
     open var lineDashPhase: CGFloat = 0
     open var lineDashPattern: [NSNumber]?
+
+    public override init() { super.init() }
+
+    /// Apple's built-in subclasses copy their own state in init(layer:) —
+    /// the contract custom subclasses rely on when they override it and
+    /// call super.
+    public override init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? CAShapeLayer else { return }
+        path = other.path
+        fillColor = other.fillColor
+        fillRule = other.fillRule
+        strokeColor = other.strokeColor
+        strokeStart = other.strokeStart
+        strokeEnd = other.strokeEnd
+        lineWidth = other.lineWidth
+        miterLimit = other.miterLimit
+        lineCap = other.lineCap
+        lineJoin = other.lineJoin
+        lineDashPhase = other.lineDashPhase
+        lineDashPattern = other.lineDashPattern
+    }
 }
 
 extension CAShapeLayer {
@@ -140,6 +162,18 @@ open class CAGradientLayer: CALayer {
     open var endPoint: CGPoint = CGPoint(x: 0.5, y: 1)
 
     open var type: CAGradientLayerType = .axial
+
+    public override init() { super.init() }
+
+    public override init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? CAGradientLayer else { return }
+        colors = other.colors
+        locations = other.locations
+        startPoint = other.startPoint
+        endPoint = other.endPoint
+        type = other.type
+    }
 }
 
 extension CAGradientLayer {
@@ -207,15 +241,32 @@ open class CATextLayer: CALayer {
 
     /// Apple default false. No-op on Linux until rasterization exists.
     open var allowsFontSubpixelQuantization: Bool = false
+
+    public override init() { super.init() }
+
+    public override init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? CATextLayer else { return }
+        string = other.string
+        font = other.font
+        fontSize = other.fontSize
+        foregroundColor = other.foregroundColor
+        isWrapped = other.isWrapped
+        truncationMode = other.truncationMode
+        alignmentMode = other.alignmentMode
+        allowsFontSubpixelQuantization = other.allowsFontSubpixelQuantization
+    }
 }
 
 // MARK: - CAEmitterCell
 
 /// The definition of one species of particle emitted by a CAEmitterLayer.
 ///
-/// Model-only on Linux today: a full Apple-typed parameter set is stored so
+/// Model-only on Linux today: the Apple-typed parameter set is stored so
 /// particle configurations survive round-trips and animation key paths
 /// resolve; QuillPaint's particle pass will simulate/draw them later.
+/// Known gap: Apple's CAEmitterCell also conforms to CAMediaTiming
+/// (beginTime/duration scheduling of cells); not modeled here yet.
 /// `open` (matching Apple) — the previous shim's `final` broke subclassers.
 open class CAEmitterCell: NSObject {
     open var name: String?
@@ -254,9 +305,29 @@ open class CAEmitterCell: NSObject {
     /// Constant acceleration applied to particles, per axis.
     open var xAcceleration: CGFloat = 0
     open var yAcceleration: CGFloat = 0
+    open var zAcceleration: CGFloat = 0
 
     /// Particle tint. Opaque white default, per Apple.
     open var color: CGColor? = CGColor.white
+
+    /// Per-channel color randomization range. Apple defaults 0.
+    open var redRange: Float = 0
+    open var greenRange: Float = 0
+    open var blueRange: Float = 0
+
+    /// Per-channel color change rate (per second). Apple defaults 0.
+    open var redSpeed: Float = 0
+    open var greenSpeed: Float = 0
+    open var blueSpeed: Float = 0
+
+    /// Whether this cell emits. Apple default true.
+    open var isEnabled: Bool = true
+
+    /// Nested cells: emitted particles can themselves emit, per Apple.
+    open var emitterCells: [CAEmitterCell]?
+
+    /// Cell style dictionary, per Apple's surface. Stored, not interpreted.
+    open var style: [AnyHashable: Any]?
 }
 
 // MARK: - CAEmitterLayer string constants
@@ -313,12 +384,17 @@ open class CAEmitterLayer: CALayer {
 
     /// Center of the emission shape, in layer coordinates.
     open var emitterPosition: CGPoint = CGPoint(x: 0, y: 0)
+    /// Z-component of the emission shape's center. Apple default 0.
+    open var emitterZPosition: CGFloat = 0
     open var emitterSize: CGSize = CGSize(width: 0, height: 0)
     open var emitterDepth: CGFloat = 0
 
     open var emitterShape: CAEmitterLayerEmitterShape = .point
     open var emitterMode: CAEmitterLayerEmitterMode = .volume
     open var renderMode: CAEmitterLayerRenderMode = .unordered
+
+    /// Whether particles keep 3D ordering. Apple default false.
+    open var preservesDepth: Bool = false
 
     /// Multiplies the birth rate of each cell. Apple default 1.
     open var birthRate: Float = 1
@@ -333,6 +409,28 @@ open class CAEmitterLayer: CALayer {
 
     /// Seed for the particle randomizer. Apple default 0.
     open var seed: UInt32 = 0
+
+    public override init() { super.init() }
+
+    public override init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? CAEmitterLayer else { return }
+        emitterCells = other.emitterCells
+        emitterPosition = other.emitterPosition
+        emitterZPosition = other.emitterZPosition
+        emitterSize = other.emitterSize
+        emitterDepth = other.emitterDepth
+        emitterShape = other.emitterShape
+        emitterMode = other.emitterMode
+        renderMode = other.renderMode
+        preservesDepth = other.preservesDepth
+        birthRate = other.birthRate
+        lifetime = other.lifetime
+        velocity = other.velocity
+        scale = other.scale
+        spin = other.spin
+        seed = other.seed
+    }
 }
 
 // MARK: - CAReplicatorLayer
@@ -366,6 +464,22 @@ open class CAReplicatorLayer: CALayer {
     open var instanceGreenOffset: Float = 0
     open var instanceBlueOffset: Float = 0
     open var instanceAlphaOffset: Float = 0
+
+    public override init() { super.init() }
+
+    public override init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? CAReplicatorLayer else { return }
+        instanceCount = other.instanceCount
+        instanceDelay = other.instanceDelay
+        instanceTransform = other.instanceTransform
+        preservesDepth = other.preservesDepth
+        instanceColor = other.instanceColor
+        instanceRedOffset = other.instanceRedOffset
+        instanceGreenOffset = other.instanceGreenOffset
+        instanceBlueOffset = other.instanceBlueOffset
+        instanceAlphaOffset = other.instanceAlphaOffset
+    }
 }
 
 // MARK: - CAScrollLayer
@@ -392,6 +506,14 @@ public struct CAScrollLayerScrollMode: RawRepresentable, Hashable, Sendable, Exp
 /// not constrained by it (matching Apple).
 open class CAScrollLayer: CALayer {
     open var scrollMode: CAScrollLayerScrollMode = .both
+
+    public override init() { super.init() }
+
+    public override init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? CAScrollLayer else { return }
+        scrollMode = other.scrollMode
+    }
 
     /// Scrolls so that `p` becomes the bounds origin.
     open func scroll(to p: CGPoint) { bounds.origin = p }

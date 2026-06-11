@@ -252,7 +252,15 @@ public class UIWindow: UIView {}
         if let existing = _layer { return existing }
         let cls = type(of: self).layerClass as? CALayer.Type ?? CALayer.self
         let created = cls.init()
+        // Seed from BOTH stored geometry properties: a bounds set before the
+        // first layer access must survive (frame alone would reset the
+        // layer's bounds to the possibly-zero stored frame). frame first —
+        // it derives position + bounds.size — then bounds wins where the
+        // caller set it explicitly.
         created.frame = frame
+        if bounds != .zero {
+            created.bounds = bounds
+        }
         _layer = created
         return created
     }
