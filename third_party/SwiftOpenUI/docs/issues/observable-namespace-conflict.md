@@ -1,5 +1,14 @@
 # Issue: `ObservableObject` / `Published` namespace conflict on macOS
 
+> **RESOLVED (2026-06-11).** SwiftOpenUI no longer declares its own
+> `ObservableObject`/`Published`. They are typealiases to Combine's pair (real
+> Combine on Apple platforms, OpenCombine on Linux/Windows/Wasm), so the
+> ambiguity below cannot occur and `$property` projections gained Combine's
+> real Publisher semantics. Re-render wiring subscribes to `objectWillChange`
+> instead of Mirror-walking a custom property wrapper; the @StateObject /
+> @ObservedObject / @EnvironmentObject storages stay generation-tracked for
+> Phase 6/7 dependency gating. Original analysis kept for history.
+
 ## Problem
 
 SwiftOpenUI defines its own `ObservableObject` protocol and `Published` property wrapper for platforms where Combine is unavailable (Linux, Windows). On macOS, Foundation re-exports these same names as typealiases to Combine's implementations:

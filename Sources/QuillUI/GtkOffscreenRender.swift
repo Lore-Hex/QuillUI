@@ -155,6 +155,10 @@ public func quillRenderViewToImage<V: View>(
     guard resolvedWidth > 0, resolvedHeight > 0 else { return nil }
     guard isGTKOffscreenRenderEnabled() else { return nil }
     guard ensureGTKInitialized() else { return nil }
+    // Each offscreen render is its own identity pass: reset the per-pass
+    // @State / mount occurrence counters so repeated renders of the same view
+    // resolve to the SAME identities (state restore + representable reuse).
+    gtkBeginStateIdentityPass()
 
     // 1. Translate the SwiftUI-shaped view into a GtkWidget tree via
     //    SwiftOpenUI's public renderer entry point. The result is a borrowed

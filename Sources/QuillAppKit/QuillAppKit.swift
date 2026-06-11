@@ -1029,7 +1029,14 @@ open class NSView: NSResponder {
         child.viewDidMoveToSuperview()
     }
 
+    /// Toolkit hook: a GTK (or other) backing installs this to translate
+    /// needsDisplay/setNeedsDisplay into a widget invalidation
+    /// (gtk_widget_queue_draw). Fired on every mark, including propagated
+    /// child marks.
+    public var quillDisplayInvalidationHandler: (() -> Void)?
+
     private func quillMarkNeedsDisplay() {
+        quillDisplayInvalidationHandler?()
         guard window != nil else {
             quillNeedsDisplay = false
             return
@@ -2957,39 +2964,15 @@ open class NSCursor: NSObject {
 //
 // Linux Foundation already declares `NSAttributedString.Key` (it's a
 // pure-Foundation type). We just extend it with the AppKit-side static
-// keys that upstream code reads (`.font`, `.foregroundColor`, etc.).
+// Shared text-layout types (NSTextAlignment/NSParagraphStyle/NSUnderlineStyle/
+// NSStringDrawing*/NSAttributedString.Key additions) moved to QuillFoundation
+// (NSTextLayoutShared.swift) — single canonical declarations that both this
+// module and the UIKit shim @_exported-import, so files seeing both worlds
+// (SwiftUI re-exports AppKit; Signal imports SwiftUI + UIKit) hit no
+// ambiguity. NSTextStorage stays here: its members are AppKit-flavored.
 
-public extension NSAttributedString.Key {
-    static let font = NSAttributedString.Key(rawValue: "NSFont")
-    static let foregroundColor = NSAttributedString.Key(rawValue: "NSColor")
-    static let backgroundColor = NSAttributedString.Key(rawValue: "NSBackgroundColor")
-    static let paragraphStyle = NSAttributedString.Key(rawValue: "NSParagraphStyle")
-    static let underlineStyle = NSAttributedString.Key(rawValue: "NSUnderline")
-    static let underlineColor = NSAttributedString.Key(rawValue: "NSUnderlineColor")
-    static let strikethroughStyle = NSAttributedString.Key(rawValue: "NSStrikethrough")
-    static let strikethroughColor = NSAttributedString.Key(rawValue: "NSStrikethroughColor")
-    static let kern = NSAttributedString.Key(rawValue: "NSKern")
-    static let link = NSAttributedString.Key(rawValue: "NSLink")
-    static let attachment = NSAttributedString.Key(rawValue: "NSAttachment")
-    static let baselineOffset = NSAttributedString.Key(rawValue: "NSBaselineOffset")
-    static let writingDirection = NSAttributedString.Key(rawValue: "NSWritingDirection")
-}
 
-public struct NSStringDrawingOptions: OptionSet, Sendable {
-    public let rawValue: Int
-    public init(rawValue: Int) { self.rawValue = rawValue }
-    public static let usesLineFragmentOrigin = NSStringDrawingOptions(rawValue: 1 << 0)
-    public static let usesFontLeading = NSStringDrawingOptions(rawValue: 1 << 1)
-    public static let usesDeviceMetrics = NSStringDrawingOptions(rawValue: 1 << 3)
-    public static let truncatesLastVisibleLine = NSStringDrawingOptions(rawValue: 1 << 5)
-}
 
-public final class NSStringDrawingContext {
-    public init() {}
-    public var minimumScaleFactor: CGFloat = 0
-    public var actualScaleFactor: CGFloat = 1
-    public var totalBounds: NSRect = .zero
-}
 
 private func quillEstimatedAppKitTextRect(
     _ string: String,
@@ -3019,19 +3002,6 @@ public extension NSString {
     }
 }
 
-public struct NSUnderlineStyle: OptionSet, Sendable {
-    public let rawValue: Int
-    public init(rawValue: Int) { self.rawValue = rawValue }
-    public static let single = NSUnderlineStyle(rawValue: 0x01)
-    public static let thick = NSUnderlineStyle(rawValue: 0x02)
-    public static let double = NSUnderlineStyle(rawValue: 0x09)
-    public static let patternSolid: NSUnderlineStyle = []
-    public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
-    public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
-    public static let patternDashDot = NSUnderlineStyle(rawValue: 0x0300)
-    public static let patternDashDotDot = NSUnderlineStyle(rawValue: 0x0400)
-    public static let byWord = NSUnderlineStyle(rawValue: 0x8000)
-}
 
 open class NSTextAttachment: NSObject {
     public var image: NSImage?
@@ -3093,36 +3063,10 @@ public extension NSAttributedString {
     }
 }
 
-open class NSParagraphStyle: NSObject, @unchecked Sendable {
-    public override init() {}
-    public var alignment: NSTextAlignment = .natural
-    public var lineHeightMultiple: CGFloat = 0
-    public var lineSpacing: CGFloat = 0
-    public var paragraphSpacing: CGFloat = 0
-    public var firstLineHeadIndent: CGFloat = 0
-    public var headIndent: CGFloat = 0
-    public var tailIndent: CGFloat = 0
-    public var lineBreakMode: NSLineBreakMode = .byWordWrapping
-    public var minimumLineHeight: CGFloat = 0
-    public var maximumLineHeight: CGFloat = 0
-    public var baseWritingDirection: NSWritingDirection = .natural
-    public var defaultTabInterval: CGFloat = 0
-    public var tabStops: [Any] = []
-}
 
-open class NSMutableParagraphStyle: NSParagraphStyle {}
 
-public enum NSTextAlignment: Int, Sendable {
-    case left, right, center, justified, natural
-}
 
-public enum NSLineBreakMode: Int, Sendable {
-    case byWordWrapping, byCharWrapping, byClipping, byTruncatingHead, byTruncatingTail, byTruncatingMiddle
-}
 
-public enum NSWritingDirection: Int, Sendable {
-    case natural = -1, leftToRight = 0, rightToLeft = 1
-}
 
 open class NSBezierPath: NSObject, @unchecked Sendable {
     public enum Element: Int, Sendable {
@@ -5807,24 +5751,12 @@ public class NSHostingController<Content>: NSViewController {
     public init(rootView: Content) { self.rootView = rootView; super.init(nibName: nil, bundle: nil) }
 }
 
-// SwiftUI bridging protocols (these get re-exported by the SwiftUI shim
-// too — declared here so `import AppKit` alone is enough).
-public protocol NSViewRepresentable: AnyObject {
-    associatedtype NSViewType: NSView
-    func makeNSView(context: NSViewRepresentableContext<Self>) -> NSViewType
-    func updateNSView(_ nsView: NSViewType, context: NSViewRepresentableContext<Self>)
-}
-public protocol NSViewControllerRepresentable: AnyObject {
-    associatedtype NSViewControllerType: NSViewController
-    func makeNSViewController(context: NSViewControllerRepresentableContext<Self>) -> NSViewControllerType
-    func updateNSViewController(_ nsViewController: NSViewControllerType, context: NSViewControllerRepresentableContext<Self>)
-}
-public struct NSViewRepresentableContext<Coordinator> {
-    public let coordinator: Coordinator? = nil
-}
-public struct NSViewControllerRepresentableContext<Coordinator> {
-    public let coordinator: Coordinator? = nil
-}
+// NSViewRepresentable / NSViewControllerRepresentable moved to the SwiftUI
+// shim (Sources/SwiftUIShim/NSViewRepresentable.swift) — Apple ships them in
+// SwiftUI, not AppKit (`import AppKit` alone does not resolve them on macOS),
+// and the old AnyObject-constrained shape here rejected every real STRUCT
+// conformer (e.g. SolderScope's `struct MicroscopeView: NSViewRepresentable`).
+// SwiftUI re-exports AppKit, so SwiftUI-importing files see both worlds.
 
 // MARK: - NSStatusBar / NSStatusItem (menu-bar widgets)
 
