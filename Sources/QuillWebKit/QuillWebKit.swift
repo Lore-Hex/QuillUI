@@ -32,7 +32,10 @@ public struct WKAudiovisualMediaTypes: OptionSet, Sendable {
         super.init(frame: frame)
     }
 
-    public init(coder: NSCoder) {
+    /// Apple-exact `required init?(coder:)` (WKWebView adopts NSCoding there;
+    /// QuillAppKit's NSView coder init is now `required` to match AppKit, so
+    /// this override must be too). Coder ignored — no unarchiving on Linux.
+    public required init?(coder: NSCoder) {
         super.init(frame: .zero)
     }
 

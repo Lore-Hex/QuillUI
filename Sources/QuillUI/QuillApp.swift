@@ -13,6 +13,9 @@ import SwiftOpenUI
 import BackendGTK4
 import CGTK
 import QuillKit
+// `WindowGroup.defaultSize(width:height:)` is canonical in
+// QuillSwiftUICompatibility (used by `QuillAppWindow.scene` below).
+import QuillSwiftUICompatibility
 #endif
 
 /// Shared scene builder for QuillUI executable targets.
