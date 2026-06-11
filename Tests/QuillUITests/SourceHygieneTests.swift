@@ -3717,6 +3717,7 @@ struct SourceHygieneTests {
     func gtkPatcherPreservesFixedFrameAndListViewportSizingContracts() throws {
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let backend = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift")
         let environment = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Environment/Environment.swift")
         let compatibility = try packageSource("Sources/QuillUI/Compatibility.swift")
 
@@ -3767,6 +3768,13 @@ struct SourceHygieneTests {
         #expect(patcher.contains("func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer?"))
         #expect(patcher.contains("gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback"))
         #expect(patcher.contains("func gtkFallbackRootPresentationOverlay() -> OpaquePointer?"))
+        #expect(backend.contains("private let gtkRootPresentationOverlayKey"))
+        #expect(backend.contains("func gtkCreateRootPresentationContainer("))
+        #expect(backend.contains("gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))"))
+        #expect(backend.contains("gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)"))
+        #expect(backend.contains("func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer?"))
+        #expect(backend.contains("let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)"))
+        #expect(backend.contains("gtk_window_set_child(winPtr, rootContentWidget)"))
         #expect(patcher.contains("sheet item root present activeKey="))
         #expect(patcher.contains("sheet item root unavailable activeKey="))
         #expect(patcher.contains("if gtkShouldRenderSheetInWindow() {\n            let sheetBuilder = sheetContent"))

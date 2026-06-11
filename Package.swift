@@ -457,6 +457,18 @@ let appSwiftSettings: [SwiftSetting] = [
 ] + quillUIGTKSwiftImporterSettings
 
 #if os(Linux)
+let quillSwiftTestingAppleOverlaySwiftSettings: [SwiftSetting] = appSwiftSettings + [
+    // Swift Testing declares platform cross-import overlays such as
+    // _Testing_UIKit/_Testing_CoreImage on Apple SDKs. Linux test targets
+    // intentionally import QuillUI's shadow Apple modules, so disable those
+    // SDK overlay lookups when Testing and SwiftUI/AppKit/UIKit meet.
+    .unsafeFlags(["-Xfrontend", "-disable-cross-import-overlays"])
+]
+#else
+let quillSwiftTestingAppleOverlaySwiftSettings: [SwiftSetting] = appSwiftSettings
+#endif
+
+#if os(Linux)
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
 // QuillRSCoreShim's vendored Cache uses OSAllocatedUnfairLock via `import os`
 // (the os shadow target on Linux), same as Articles' AuthorCache.
@@ -548,18 +560,12 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "KeychainSwift"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
-    // "SwiftUI" was always imported by these tests but reached the module via
-    // the shared-build-dir canImport leak; now that the SwiftUI shim carries
-    // CGtk4/QuillAppKitGTK (NSViewRepresentable GTK mount), the dependency
-    // must be declared for SwiftPM to pass the C module search paths along.
-    "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os", "SwiftUI"
+    // "SwiftUI" comes from quillLinuxShimTestDependencies; keep it in that
+    // shared list so SwiftPM passes the C module search paths for the
+    // GTK-backed NSViewRepresentable mount everywhere the shadow is imported.
+    "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
 ] + quillLinuxShimTestDependencies
-let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = appSwiftSettings + [
-    // Swift Testing declares platform cross-import overlays such as
-    // _Testing_UIKit on Apple SDKs. This Linux-only target intentionally imports
-    // QuillUI's shadow Apple modules, so disable those SDK overlay lookups here.
-    .unsafeFlags(["-Xfrontend", "-disable-cross-import-overlays"])
-]
+let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = quillSwiftTestingAppleOverlaySwiftSettings
 #endif
 #if os(Linux)
 func quillLinuxBackendDependencies(
@@ -3055,7 +3061,7 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillParityTests",
             dependencies: quillParityTestDependencies,
-            swiftSettings: appSwiftSettings
+            swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
         ),
         // Pins the QuillUI core library's public surface:
         // QuillPlatform.name reports the host, QuillUIVersion is
@@ -3068,7 +3074,7 @@ let packageTestTargets: [Target] = {
             // now that the shadow carries CGtk4/QuillAppKitGTK (representable
             // GTK mount). On Apple `import SwiftUI` is the real SDK — no target.
             dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies,
-            swiftSettings: appSwiftSettings
+            swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
         )
     ]
 
