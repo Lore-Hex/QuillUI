@@ -1874,6 +1874,36 @@ final class GTK4RenderTests: XCTestCase {
                        ".task should not re-run for unrelated rebuilds of the same descriptor identity")
     }
 
+    func testTaskRunsOnceAcrossFullTeardownRebuilds() throws {
+        try requireGTK()
+
+        let tick = State(wrappedValue: 0)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKTaskFullRebuildProbeView(tick: tick, counter: counter)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertNotNil(widget)
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial .task should run")
+
+        for value in 1...5 {
+            tick.storage.setValue(value)
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        Thread.sleep(forTimeInterval: 0.1)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(counter.value, 1,
+                       ".task should not re-run when a stable task view's child subtree is torn down and rebuilt")
+    }
+
     func testOnAppearRunsOnceAcrossUnrelatedStateRebuilds() throws {
         try requireGTK()
 
@@ -2422,6 +2452,32 @@ private struct GTKTaskOnceProbeView: View {
             .task {
                 counter.increment()
             }
+    }
+}
+
+private struct GTKTaskFullRebuildProbeView: View {
+    @State private var tick: Int
+    let counter: GTKTaskRunCounter
+
+    init(tick: State<Int>, counter: GTKTaskRunCounter) {
+        self._tick = tick
+        self.counter = counter
+    }
+
+    var body: some View {
+        VStack {
+            if tick.isMultiple(of: 2) {
+                Text("even \(tick)")
+            } else {
+                HStack {
+                    Text("odd \(tick)")
+                    Text("detail")
+                }
+            }
+        }
+        .task {
+            counter.increment()
+        }
     }
 }
 

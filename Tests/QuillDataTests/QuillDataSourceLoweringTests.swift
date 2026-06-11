@@ -2882,9 +2882,11 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("extension TaskView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("extension OnAppearView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("gtkAttachStandaloneTaskLifecycle("))
+        #expect(rendererSource.contains("gtkCollectTaskPayload("))
+        #expect(rendererSource.contains("GTK4TaskPayload("))
         #expect(rendererSource.contains("gtkCollectOnAppearPayload("))
         #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
-        #expect(!rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
+        #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("let boundAction = bindActionToCurrentEnvironment(action)"))
         #expect(rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))
     }

@@ -30,6 +30,14 @@ if [[ -z "${QUILLUI_BACKEND_INTERACTION_MAX_ATTEMPTS:-}" \
   INTERACTION_MAX_ATTEMPTS=4
 fi
 
+INTERACTION_VERIFY_PRODUCT=""
+if quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" INTERACTION_VERIFY_PRODUCT 2>/dev/null; then
+  if [[ -z "${QUILLUI_BACKEND_MAC_REFERENCE:-}" && "$INTERACTION_VERIFY_PRODUCT" == *mac-reference* ]]; then
+    QUILLUI_BACKEND_MAC_REFERENCE=1
+    export QUILLUI_BACKEND_MAC_REFERENCE
+  fi
+fi
+
 quillui_install_linux_backend_smoke_packages
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 quillui_resolve_linux_backend_executable "$PRODUCT" APP_EXECUTABLE
