@@ -2595,7 +2595,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "CQuillQt6WidgetsShim",
-            dependencies: ["CQt6Widgets"],
+            dependencies: ["CQt6Widgets", "CSQLite"],
             path: "Sources/CQuillQt6WidgetsShim",
             publicHeadersPath: "include",
             cxxSettings: [
