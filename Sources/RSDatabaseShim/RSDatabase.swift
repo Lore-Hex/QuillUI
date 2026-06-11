@@ -5,7 +5,9 @@ public typealias DatabaseResult = Result<FMDatabase, Error>
 // Upstream NetNewsWire (2026-06) hands the database directly to the block;
 // the older DatabaseResult-based shape is kept above for source back-compat.
 public typealias DatabaseBlock = @Sendable (FMDatabase) -> Void
-public typealias DatabaseCompletionBlock = @Sendable (Error?) -> Void
+// Upstream RSDatabase (2026-06) completion blocks take no arguments
+// (call sites pass `{ continuation.resume() }` / `completion()`).
+public typealias DatabaseCompletionBlock = @Sendable () -> Void
 public typealias DatabaseDictionary = [String: Any]
 
 public extension DatabaseResult {
