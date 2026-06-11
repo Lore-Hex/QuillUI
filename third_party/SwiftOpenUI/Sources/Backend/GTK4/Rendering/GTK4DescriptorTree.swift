@@ -492,6 +492,9 @@ public struct GTK4HookResult: Equatable {
 // MARK: - Describe protocol
 
 /// Protocol for GTK4 views that can produce a descriptor without creating widgets.
+/// @MainActor: same reasoning as GTKRenderable — witnesses are members of
+/// main-actor-isolated View types; describe passes run on the GTK main loop.
+@MainActor
 public protocol GTKDescribable {
     func gtkDescribeNode() -> GTK4DescriptorNode
 }
@@ -547,7 +550,7 @@ public func gtkDescribeCapturingCanvasPayloads(
 /// Build a GTK4-local descriptor tree without creating widgets.
 public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
     if let describable = view as? GTKDescribable {
-        return describable.gtkDescribeNode()
+        return MainActor.assumeIsolated { describable.gtkDescribeNode() }
     }
     if let multi = view as? MultiChildView {
         return GTK4DescriptorNode(
@@ -836,11 +839,27 @@ public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
     case .create, .replace:
         return false
     case .reuse:
+        // Reused buttons stay on the narrow path: host state identity is
+        // stable across rebuilds (structural-path namespaces), so the action
+        // closure captured at widget creation writes to the same @State
+        // storage the current pass reads. Without this, any host containing a
+        // button tears down on every keystroke and the focused entry is
+        // destroyed mid-typing. A button whose own props changed plans as
+        // .update (intent .none) and still takes the full rebuild.
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            return false
+            // Props-bearing leaves (TextField & co.) compare meaningfully:
+            // identical descriptors mean nothing changed, and the native
+            // widget owns its visible state, so reuse is safe. Only
+            // prop-less childless composites are opaque.
+            if case .none = plan.newDescriptor.props {
+                return false
+            }
         }
         return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
     case .update:
+        if plan.newDescriptor.kind == .button {
+            return false
+        }
         guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
                 || plan.updateIntent == .canvasContent
                 || plan.updateIntent == .sliderValue
