@@ -488,7 +488,7 @@ final class CAAnimationTimingTests: XCTestCase {
         weak var weakLink: CADisplayLink?
         let ticked = expectation(description: "fire-and-forget tick")
         let target = TickTarget(expectation: ticked, fulfillAtTick: 1)
-        autoreleasepool {
+        do { // plain scope: autoreleasepool doesn't exist on Linux
             let link = CADisplayLink(target: target, selector: Selector("tick"))
             link.preferredFramesPerSecond = 60
             link.add(to: .main, forMode: .common)
