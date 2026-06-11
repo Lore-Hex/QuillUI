@@ -436,6 +436,12 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         observationDidFire = false
         lock.unlock()
 
+        // A full rebuild recreates text inputs from the bound model, so any
+        // debounced entry->binding write still pending would be silently
+        // discarded with the old widget. Flush first: the describe pass then
+        // also sees the typed text.
+        gtkFlushPendingTextBindingUpdate()
+
         // --- Narrow mutation path: try text/color in-place update ---
         // Observation-driven rebuilds stay eligible: withObservationTracking's
         // onChange is one-shot, so re-subscribe by running the DESCRIBE pass
