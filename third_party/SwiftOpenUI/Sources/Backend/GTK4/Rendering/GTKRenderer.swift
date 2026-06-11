@@ -3758,6 +3758,12 @@ private func gtkScheduleOnAppear(_ action: @escaping () -> Void, on widget: Unsa
 
 extension TaskView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
+        gtkCollectTaskPayload(
+            GTK4TaskPayload(
+                priority: priority,
+                action: bindTaskActionToCurrentEnvironment(action)
+            )
+        )
         return GTK4DescriptorNode(
             kind: .task,
             typeName: "TaskView",
@@ -3767,11 +3773,17 @@ extension TaskView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        gtkAttachStandaloneTaskLifecycle(
-            to: widget,
-            priority: priority,
-            action: bindTaskActionToCurrentEnvironment(action)
-        )
+
+        // Stateful hosts reconcile `.task` by descriptor identity so a full
+        // child teardown during rebuild does not re-run the task. Standalone
+        // renders still need native map/unmap hooks.
+        if GTKViewHost.getCurrentRebuilding() == nil {
+            gtkAttachStandaloneTaskLifecycle(
+                to: widget,
+                priority: priority,
+                action: bindTaskActionToCurrentEnvironment(action)
+            )
+        }
         return opaqueFromWidget(widget)
     }
 }
