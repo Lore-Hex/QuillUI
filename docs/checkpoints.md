@@ -3404,3 +3404,25 @@ future account/database work.
 Remaining NetNewsWire database work is still real: this is a QuillData-backed
 adapter, not a full `RSDatabase`/`FMDatabase` SQL implementation with upstream
 migrations, FTS/search indexes, sync-account semantics, and columnar hot paths.
+
+## Checkpoint 206: Enchanted Interaction Sweep Stabilized
+
+Status: implemented locally; guarded by source hygiene, backend matrix tests,
+focused QuillData lowering tests, and a full real-source GTK Quill Chat
+mac-reference interaction sweep.
+
+The Enchanted/Quill Chat verifier now accepts the actual thin GTK/Pango text
+signal for typed Settings endpoint and ping-interval fields while keeping the
+surrounding structural checks intact. The Completions upsert validator now
+recognizes the in-window sheet shape by its modal surface and pure-white input
+field stack, and the saved/edited validators distinguish the dismissed editor
+from the bright Completions list panel.
+
+The mode runner also fixes its default app-log template so Bash does not
+misparse `{product}` inside parameter expansion. The full 23-mode GTK
+mac-reference sweep passed locally, including Settings, delete-all,
+Completions create/save/edit/delete, New Chat, model selection, prompt send,
+copy/copy JSON, history/transcript/markdown transcript selection, hover
+actions, and long transcript auto-selection. One long-transcript launch crashed
+once during the full sweep and then passed on the built-in retry; three
+standalone long-transcript repeats passed cleanly.

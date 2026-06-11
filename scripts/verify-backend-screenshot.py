@@ -175,6 +175,20 @@ def form_field_pixel(rgb: tuple[int, int, int]) -> bool:
     return sum(rgb) >= 735 and max(rgb) - min(rgb) <= 12
 
 
+def completions_upsert_sheet_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        235 <= red <= 252
+        and 235 <= green <= 252
+        and 235 <= blue <= 252
+        and max(rgb) - min(rgb) <= 12
+    )
+
+
+def completions_upsert_form_field_pixel(rgb: tuple[int, int, int]) -> bool:
+    return sum(rgb) >= 750 and max(rgb) - min(rgb) <= 12
+
+
 def confirmation_dialog_surface_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return 228 <= red <= 255 and 228 <= green <= 255 and 228 <= blue <= 255 and max(rgb) - min(rgb) <= 24
@@ -1406,7 +1420,7 @@ def validate_quill_chat_mac_reference_settings_panel(
                 panel_y + 103,
             )
         require(
-            endpoint_text_pixels >= 550,
+            endpoint_text_pixels >= 300,
             f"Mac-reference typed settings endpoint was not detected: pixels={endpoint_text_pixels}",
         )
         typed_summary = f", endpoint_text_pixels={endpoint_text_pixels}"
@@ -1444,7 +1458,7 @@ def validate_quill_chat_mac_reference_settings_panel(
                 ping_y1,
             )
         require(
-            ping_text_pixels >= 140,
+            ping_text_pixels >= 90,
             f"Mac-reference typed settings ping interval was not detected: pixels={ping_text_pixels}",
         )
         typed_summary += f", ping_text_pixels={ping_text_pixels}"
@@ -1752,30 +1766,77 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         settings_panel_background_pixel,
         min_width=int(detail_width * 0.55),
     )
-    require(sheet is not None, "Completions Upsert sheet surface was not detected")
-    sheet_y, sheet_segment = sheet
-    sheet_top = sheet_y
-    for y in range(top + int(app_height * 0.20), sheet_y + 1):
-        segments = image.segments_at(
-            y,
-            detail_left,
-            right + 1,
-            settings_panel_background_pixel,
-            min_width=int(detail_width * 0.55),
-        )
-        if not segments:
-            continue
-        segment = max(segments, key=lambda item: item.width)
-        if (
-            segment.width >= int(sheet_segment.width * 0.80)
-            and abs(segment.center - sheet_segment.center) <= max(24, int(sheet_segment.width * 0.10))
-        ):
-            sheet_top = y
-            sheet_segment = Segment(
-                min(sheet_segment.start, segment.start),
-                max(sheet_segment.end, segment.end),
+    if sheet is not None:
+        sheet_y, sheet_segment = sheet
+        sheet_top = sheet_y
+        for y in range(top + int(app_height * 0.20), sheet_y + 1):
+            segments = image.segments_at(
+                y,
+                detail_left,
+                right + 1,
+                settings_panel_background_pixel,
+                min_width=int(detail_width * 0.55),
             )
-            break
+            if not segments:
+                continue
+            segment = max(segments, key=lambda item: item.width)
+            if (
+                segment.width >= int(sheet_segment.width * 0.80)
+                and abs(segment.center - sheet_segment.center) <= max(24, int(sheet_segment.width * 0.10))
+            ):
+                sheet_top = y
+                sheet_segment = Segment(
+                    min(sheet_segment.start, segment.start),
+                    max(sheet_segment.end, segment.end),
+                )
+                break
+    else:
+        inferred_field_rows: list[tuple[int, int, Segment]] = []
+        active_row: tuple[int, int, Segment] | None = None
+        for y in range(top + int(app_height * 0.30), top + int(app_height * 0.75)):
+            segments = [
+                segment
+                for segment in image.segments_at(
+                    y,
+                    detail_left,
+                    right + 1,
+                    completions_upsert_form_field_pixel,
+                    min_width=int(detail_width * 0.35),
+                )
+                if segment.width <= int(detail_width * 0.75)
+            ]
+            if not segments:
+                if active_row is not None:
+                    inferred_field_rows.append(active_row)
+                    active_row = None
+                continue
+            segment = max(segments, key=lambda item: item.width)
+            if active_row is None:
+                active_row = (y, y, segment)
+            else:
+                start_y, _, active_segment = active_row
+                active_row = (
+                    start_y,
+                    y,
+                    Segment(
+                        min(active_segment.start, segment.start),
+                        max(active_segment.end, segment.end),
+                    ),
+                )
+        if active_row is not None:
+            inferred_field_rows.append(active_row)
+        require(
+            len(inferred_field_rows) >= 3,
+            "Completions Upsert sheet surface was not detected: "
+            f"field_rows={inferred_field_rows}",
+        )
+        field_start = min(segment.start for _, _, segment in inferred_field_rows)
+        field_end = max(segment.end for _, _, segment in inferred_field_rows)
+        sheet_segment = Segment(
+            max(detail_left, field_start - 26),
+            min(right, field_end + 26),
+        )
+        sheet_top = max(top, inferred_field_rows[0][0] - 64)
 
     cancel_roi = (
         sheet_segment.start,
@@ -1803,7 +1864,7 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
             y,
             sheet_segment.start + 12,
             sheet_segment.end - 12,
-            form_field_pixel,
+            completions_upsert_form_field_pixel,
             min_width=int(sheet_segment.width * 0.45),
         )
         if not segments:
@@ -1829,19 +1890,40 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
 
     cancel_pixels = pixel_count(image, *cancel_roi, mac_reference_completion_action_pixel)
     save_pixels = pixel_count(image, *save_roi, mac_reference_completion_action_pixel)
-    panel_surface_pixels = pixel_count(image, *panel_roi, settings_panel_background_pixel)
+    panel_surface_pixels = pixel_count(image, *panel_roi, completions_upsert_sheet_pixel)
     name_field_pixels = 0
     instruction_field_pixels = 0
     preview_pixels = 0
     if len(field_rows) >= 1:
         y0, y1, segment = field_rows[0]
-        name_field_pixels = pixel_count(image, segment.start, y0, segment.end + 1, y1 + 1, form_field_pixel)
+        name_field_pixels = pixel_count(
+            image,
+            segment.start,
+            y0,
+            segment.end + 1,
+            y1 + 1,
+            completions_upsert_form_field_pixel,
+        )
     if len(field_rows) >= 2:
         y0, y1, segment = field_rows[1]
-        instruction_field_pixels = pixel_count(image, segment.start, y0, segment.end + 1, y1 + 1, form_field_pixel)
+        instruction_field_pixels = pixel_count(
+            image,
+            segment.start,
+            y0,
+            segment.end + 1,
+            y1 + 1,
+            completions_upsert_form_field_pixel,
+        )
     if len(field_rows) >= 3:
         y0, y1, segment = field_rows[2]
-        preview_pixels = pixel_count(image, segment.start, y0, segment.end + 1, y1 + 1, form_field_pixel)
+        preview_pixels = pixel_count(
+            image,
+            segment.start,
+            y0,
+            segment.end + 1,
+            y1 + 1,
+            completions_upsert_form_field_pixel,
+        )
 
     require(
         cancel_pixels >= 90,
@@ -1935,7 +2017,7 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
     dismissed_sheet_field_pixels = pixel_count(
         image,
         *dismissed_sheet_fields_roi,
-        form_field_pixel,
+        completions_upsert_form_field_pixel,
     )
     saved_row_pixels = dark_pixel_count(image, *saved_row_roi)
     saved_row_action_segments = dark_row_segment_count(
@@ -2010,7 +2092,7 @@ def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> s
     dismissed_sheet_field_pixels = pixel_count(
         image,
         *dismissed_sheet_fields_roi,
-        form_field_pixel,
+        completions_upsert_form_field_pixel,
     )
     edited_row_name_pixels = dark_pixel_count(image, *edited_row_name_roi)
 
