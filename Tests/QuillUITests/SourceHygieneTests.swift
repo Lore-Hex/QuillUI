@@ -616,6 +616,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/lower-swiftui-source-for-linux.sh"),
             encoding: .utf8
         )
+        let enchantedProfileLowering = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/lower-profile-source.sh"),
+            encoding: .utf8
+        )
+        let enchantedSpeechRecognizerProfile = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/Recorder/SpeechRecogniser.swift.pl"),
+            encoding: .utf8
+        )
         let coreGraphics = try String(
             contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
             encoding: .utf8
@@ -639,7 +647,17 @@ struct SourceHygieneTests {
         }
         #expect(quillShims.contains("@_exported import QuillKit"))
         #expect(quillShims.contains("@_exported import CoreGraphics"))
+        #expect(quillShims.contains("@_exported import AppKit"))
+        #expect(quillShims.contains("@_exported import Combine"))
         #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
+        #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;"#))
+        #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+(\[[^\]]+\][ \t]+in)/Task { $1/g;"#))
+        #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" AppKit"))
+        #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" SwiftUI"))
+        #expect(!enchantedSpeechRecognizerProfile.contains(#"Task \{[ \t]*\@MainActor"#))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/__all__.pl").path
+        ))
         #expect(quillKit.contains("quill-pasteboard"))
         #expect(quillKit.contains("Apple.NSGeneralPboard"))
         #expect(quillKit.contains("writeFileBackedPasteboardString(string, forType: type)"))
@@ -3717,6 +3735,7 @@ struct SourceHygieneTests {
     func gtkPatcherPreservesFixedFrameAndListViewportSizingContracts() throws {
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let backend = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift")
         let environment = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Environment/Environment.swift")
         let compatibility = try packageSource("Sources/QuillUI/Compatibility.swift")
 
@@ -3767,6 +3786,13 @@ struct SourceHygieneTests {
         #expect(patcher.contains("func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer?"))
         #expect(patcher.contains("gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback"))
         #expect(patcher.contains("func gtkFallbackRootPresentationOverlay() -> OpaquePointer?"))
+        #expect(backend.contains("private let gtkRootPresentationOverlayKey"))
+        #expect(backend.contains("func gtkCreateRootPresentationContainer("))
+        #expect(backend.contains("gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))"))
+        #expect(backend.contains("gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)"))
+        #expect(backend.contains("func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer?"))
+        #expect(backend.contains("let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)"))
+        #expect(backend.contains("gtk_window_set_child(winPtr, rootContentWidget)"))
         #expect(patcher.contains("sheet item root present activeKey="))
         #expect(patcher.contains("sheet item root unavailable activeKey="))
         #expect(patcher.contains("if gtkShouldRenderSheetInWindow() {\n            let sheetBuilder = sheetContent"))

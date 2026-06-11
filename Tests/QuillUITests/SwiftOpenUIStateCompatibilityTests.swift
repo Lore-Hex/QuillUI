@@ -45,6 +45,36 @@ struct SwiftOpenUIStateCompatibilityTests {
         #expect(currentStorage.value == "new")
         #expect(host.rebuilds == 1)
     }
+
+    @Test("SwiftUI text-input prompt overloads are visible through the shim")
+    func swiftUITextInputPromptOverloadsCompileThroughSwiftUIShim() {
+        var draft = ""
+        let binding = Binding<String>(
+            get: { draft },
+            set: { draft = $0 }
+        )
+
+        let promptedField = TextField("Message", text: binding, prompt: Text("Ask anything"))
+        let labeledField = TextField(text: binding, prompt: nil) {
+            Text("Composer")
+        }
+        let promptedSecureField = SecureField("Token", text: binding, prompt: Text("API token"))
+        let labeledSecureField = SecureField(text: binding, prompt: nil) {
+            Text("Password")
+        }
+
+        #expect(promptedField.title == "Ask anything")
+        #expect(labeledField.title == "Composer")
+        #expect(promptedSecureField.placeholder == "API token")
+        #expect(labeledSecureField.placeholder == "Password")
+    }
+
+    @Test("SwiftUI submitLabel metadata is visible through the shim")
+    func swiftUISubmitLabelCompilesThroughSwiftUIShim() {
+        let submitted = Text("Send").submitLabel(.send)
+
+        #expect(submitted.submitLabel == .send)
+    }
 }
 
 private final class StateObservableProbe: ObservableObject {

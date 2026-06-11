@@ -6,7 +6,9 @@
 
 #if os(Linux)
 @_exported import CoreGraphics
+@_exported import AppKit
 @_exported import UIKit
+@_exported import Combine
 @_exported import MessageUI
 @_exported import SafariServices
 @_exported import MobileCoreServices
