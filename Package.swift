@@ -493,7 +493,7 @@ if iceCubesUpstreamPresent && quillUILinuxBuildBackend == .gtk {
 let quillShimsDependencies: [Target.Dependency] = [
     "QuillKit", "QuillData", "CoreGraphics", "os",
     "QuillFoundation", "QuillWebKit", "QuillUIKit", "QuillRS",
-    "UIKit", "MessageUI", "SafariServices", "MobileCoreServices",
+    "AppKit", "UIKit", "Combine", "MessageUI", "SafariServices", "MobileCoreServices",
     "Zip", "Tidemark", "UniformTypeIdentifiers", "Network", "NetworkExtension",
     "KeychainSwift"
 ]

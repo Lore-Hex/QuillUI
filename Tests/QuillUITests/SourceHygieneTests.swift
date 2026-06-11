@@ -616,6 +616,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/lower-swiftui-source-for-linux.sh"),
             encoding: .utf8
         )
+        let enchantedProfileLowering = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/lower-profile-source.sh"),
+            encoding: .utf8
+        )
         let coreGraphics = try String(
             contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
             encoding: .utf8
@@ -639,7 +643,11 @@ struct SourceHygieneTests {
         }
         #expect(quillShims.contains("@_exported import QuillKit"))
         #expect(quillShims.contains("@_exported import CoreGraphics"))
+        #expect(quillShims.contains("@_exported import AppKit"))
+        #expect(quillShims.contains("@_exported import Combine"))
         #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
+        #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" AppKit"))
+        #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" SwiftUI"))
         #expect(quillKit.contains("quill-pasteboard"))
         #expect(quillKit.contains("Apple.NSGeneralPboard"))
         #expect(quillKit.contains("writeFileBackedPasteboardString(string, forType: type)"))
