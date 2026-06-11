@@ -1,14 +1,14 @@
 import Foundation
 import QuillPaint
 
-#if canImport(CoreGraphics) && canImport(ImageIO)
+#if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
 import QuillPaintCoreGraphics
 #endif
 
 @main
 struct QuillRenderMacReferences {
     static func main() {
-        #if canImport(CoreGraphics) && canImport(ImageIO)
+        #if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
         let arguments = CommandLine.arguments
         let toolName = (arguments.first as NSString?)?.lastPathComponent ?? "quill-render-mac-references"
 
@@ -74,7 +74,7 @@ struct QuillRenderMacReferences {
         #endif
     }
 
-    #if canImport(CoreGraphics) && canImport(ImageIO)
+    #if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
     /// Default output path: walk up from the cwd looking for a Package.swift
     /// alongside a Tests/ directory. If found, write to
     /// `Tests/Fixtures/MacReference/`. Otherwise fall back to ./MacReference/.

@@ -5807,24 +5807,12 @@ public class NSHostingController<Content>: NSViewController {
     public init(rootView: Content) { self.rootView = rootView; super.init(nibName: nil, bundle: nil) }
 }
 
-// SwiftUI bridging protocols (these get re-exported by the SwiftUI shim
-// too — declared here so `import AppKit` alone is enough).
-public protocol NSViewRepresentable: AnyObject {
-    associatedtype NSViewType: NSView
-    func makeNSView(context: NSViewRepresentableContext<Self>) -> NSViewType
-    func updateNSView(_ nsView: NSViewType, context: NSViewRepresentableContext<Self>)
-}
-public protocol NSViewControllerRepresentable: AnyObject {
-    associatedtype NSViewControllerType: NSViewController
-    func makeNSViewController(context: NSViewControllerRepresentableContext<Self>) -> NSViewControllerType
-    func updateNSViewController(_ nsViewController: NSViewControllerType, context: NSViewControllerRepresentableContext<Self>)
-}
-public struct NSViewRepresentableContext<Coordinator> {
-    public let coordinator: Coordinator? = nil
-}
-public struct NSViewControllerRepresentableContext<Coordinator> {
-    public let coordinator: Coordinator? = nil
-}
+// NSViewRepresentable / NSViewControllerRepresentable moved to the SwiftUI
+// shim (Sources/SwiftUIShim/NSViewRepresentable.swift) — Apple ships them in
+// SwiftUI, not AppKit (`import AppKit` alone does not resolve them on macOS),
+// and the old AnyObject-constrained shape here rejected every real STRUCT
+// conformer (e.g. SolderScope's `struct MicroscopeView: NSViewRepresentable`).
+// SwiftUI re-exports AppKit, so SwiftUI-importing files see both worlds.
 
 // MARK: - NSStatusBar / NSStatusItem (menu-bar widgets)
 
