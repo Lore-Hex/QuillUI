@@ -1,9 +1,7 @@
 #if os(Linux)
 import Foundation
 import Testing
-// @testable: the objc associated-object clones are deliberately internal
-// (ObjCAssoc owns the public API; see KeyValueObservingLinuxClone.swift).
-@testable import QuillFoundation
+import QuillFoundation
 
 /// Covers the Linux KVO + ObjC associated-object compile-clones in
 /// QuillFoundation (KeyValueObservingLinuxClone.swift). They let verbatim Apple
