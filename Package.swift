@@ -682,6 +682,19 @@ let cZlibTarget: Target = .systemLibrary(
 // build plugin; without a `.macro(…)` declaration here,
 // `#externalMacro(module: "QuillDataMacros", …)` references
 // fail with "plugin for module 'QuillDataMacros' not found".
+// swift-syntax's SwiftSyntaxBuilder/SwiftParser have a `#if canImport(os)`
+// logging path. In this workspace `canImport(os)` can find the os SHADOW
+// module once it's built (SwiftPM exposes sibling modules in the shared
+// build dir), and then executables/plugins linking these targets need the
+// os symbols — a failed macro-plugin link surfaces as bare `error: fatalError`
+// "Corrupted JSON" diagnostics. Declaring the dependency makes the link
+// deterministic. Empty on Apple platforms (real os framework; no shim target).
+#if os(Linux)
+let swiftSyntaxOSLinkDependencies: [Target.Dependency] = ["os"]
+#else
+let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
+#endif
+
 let quillDataMacroTarget: Target = .macro(
     name: "QuillDataMacros",
     dependencies: [
@@ -689,7 +702,7 @@ let quillDataMacroTarget: Target = .macro(
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
-    ],
+    ] + swiftSyntaxOSLinkDependencies,
     path: "Sources/QuillDataMacros"
 )
 
@@ -812,11 +825,8 @@ var targets: [Target] = [
         dependencies: [
             .product(name: "SwiftSyntax", package: "swift-syntax"),
             .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
-            .product(name: "SwiftParser", package: "swift-syntax"),
-            // Linux-only: the os shadow target exists only in the Linux
-            // manifest branch (on Apple, canImport(os) finds the real SDK os).
-            .byName(name: "os", condition: .when(platforms: [.linux]))
-        ],
+            .product(name: "SwiftParser", package: "swift-syntax")
+        ] + swiftSyntaxOSLinkDependencies,
         path: "Sources/QuillSourceLowering"
     ),
     .executableTarget(
