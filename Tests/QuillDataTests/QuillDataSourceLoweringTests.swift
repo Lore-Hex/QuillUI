@@ -1223,6 +1223,15 @@ struct QuillDataSourceLoweringTests {
         struct DesktopRoot: View, Sendable {
             let action: (@MainActor () -> Void)?
 
+            func schedule(action: (() -> Void)?) {
+                Task { @MainActor in
+                    action?()
+                }
+                Task { @MainActor [action] in
+                    action?()
+                }
+            }
+
             var body: some View {
         #if os(macOS) && canImport(AppKit)
                 Text("desktop")
@@ -1254,6 +1263,16 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("#elseif !os(macOS) && canImport(UIKit)"))
         #expect(lowered.contains("#if os(macOS) || os(Linux)"))
         #expect(lowered.contains("let action: (() -> Void)?"))
+        #expect(lowered.contains("""
+        Task {
+            action?()
+        }
+"""))
+        #expect(lowered.contains("""
+        Task { [action] in
+            action?()
+        }
+"""))
         #expect(lowered.contains("final class AppModel: QuillObservableObject"))
         #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
         #expect(lowered.contains("private var cachedTitle = \"\""))

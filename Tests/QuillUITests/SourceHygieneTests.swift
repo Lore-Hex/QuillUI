@@ -620,6 +620,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/lower-profile-source.sh"),
             encoding: .utf8
         )
+        let enchantedSpeechRecognizerProfile = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/Shared/Chat/Components/Recorder/SpeechRecogniser.swift.pl"),
+            encoding: .utf8
+        )
         let coreGraphics = try String(
             contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
             encoding: .utf8
@@ -646,8 +650,11 @@ struct SourceHygieneTests {
         #expect(quillShims.contains("@_exported import AppKit"))
         #expect(quillShims.contains("@_exported import Combine"))
         #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
+        #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;"#))
+        #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+(\[[^\]]+\][ \t]+in)/Task { $1/g;"#))
         #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" AppKit"))
         #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" SwiftUI"))
+        #expect(!enchantedSpeechRecognizerProfile.contains(#"Task \{[ \t]*\@MainActor"#))
         #expect(!FileManager.default.fileExists(
             atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/__all__.pl").path
         ))
