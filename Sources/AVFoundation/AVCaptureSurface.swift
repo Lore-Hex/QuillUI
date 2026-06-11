@@ -172,10 +172,51 @@ public class AVAssetWriter: @unchecked Sendable {
         self.outputFileType = fileType
     }
 
+    #if os(Linux)
+    /// Live H.264 encoder (rung 4) — created in `startWriting()` from the
+    /// first video input's settings; nil when ffmpeg is unavailable.
+    private var quillEncoder: QuillFFmpegMovieEncoder?
+    #endif
+
     public func canAdd(_ input: AVAssetWriterInput) -> Bool { status == .unknown }
-    public func add(_ input: AVAssetWriterInput) { inputs.append(input) }
+    public func add(_ input: AVAssetWriterInput) {
+        inputs.append(input)
+        input.quillWriter = self
+    }
 
     public func startWriting() -> Bool {
+        #if os(Linux)
+        guard let videoInput = inputs.first(where: { $0.mediaType == .video }),
+              let settings = videoInput.outputSettings,
+              let width = settings[AVVideoWidthKey] as? Int,
+              let height = settings[AVVideoHeightKey] as? Int else {
+            // No video geometry to encode — keep the historical inert-success
+            // shape so audio-only/compile-only callers proceed.
+            status = .writing
+            return true
+        }
+        let compression = settings[AVVideoCompressionPropertiesKey] as? [String: Any]
+        let frameRate = (compression?[AVVideoExpectedSourceFrameRateKey] as? Double)
+            ?? (compression?[AVVideoExpectedSourceFrameRateKey] as? Int).map(Double.init)
+            ?? 30
+        guard let encoder = QuillFFmpegMovieEncoder(
+            outputURL: outputURL,
+            width: width,
+            height: height,
+            framesPerSecond: frameRate,
+            averageBitRate: compression?[AVVideoAverageBitRateKey] as? Int,
+            maxKeyFrameInterval: compression?[AVVideoMaxKeyFrameIntervalKey] as? Int
+        ) else {
+            status = .failed
+            error = NSError(
+                domain: "QuillAVFoundation", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Movie encoding needs ffmpeg (apt install ffmpeg, or set QUILL_FFMPEG)."
+                ])
+            return false
+        }
+        quillEncoder = encoder
+        #endif
         status = .writing
         return true
     }
@@ -183,15 +224,57 @@ public class AVAssetWriter: @unchecked Sendable {
     public func startSession(atSourceTime startTime: CMTime) { _ = startTime }
     public func endSession(atSourceTime endTime: CMTime) { _ = endTime }
 
-    public func cancelWriting() { status = .cancelled }
+    public func cancelWriting() {
+        #if os(Linux)
+        quillEncoder?.cancel()
+        quillEncoder = nil
+        #endif
+        status = .cancelled
+    }
+
+    /// Frame entry point used by the input/adaptor `append` paths.
+    internal func quillAppendFrame(_ pixelBuffer: CVPixelBuffer) -> Bool {
+        guard status == .writing else { return false }
+        #if os(Linux)
+        if let encoder = quillEncoder {
+            return encoder.appendFrame(pixelBuffer)
+        }
+        #endif
+        return true
+    }
 
     public func finishWriting(completionHandler handler: @escaping () -> Void) {
+        #if os(Linux)
+        if let encoder = quillEncoder {
+            // ffmpeg finalizes the container on stdin close; do the wait off
+            // the caller's thread, exactly like Apple's async finish. The
+            // handler crosses in a box (Apple marks the parameter @Sendable;
+            // we keep the laxer historical signature for source compat).
+            let writer = self
+            let boxedHandler = QuillSendableCompletionBox(handler: handler)
+            Thread.detachNewThread {
+                let ok = encoder.finish()
+                writer.status = ok ? .completed : .failed
+                if !ok, writer.error == nil {
+                    writer.error = NSError(
+                        domain: "QuillAVFoundation", code: 2, userInfo: [
+                            NSLocalizedDescriptionKey: "ffmpeg exited with a failure while finalizing the recording."
+                        ])
+                }
+                writer.quillEncoder = nil
+                boxedHandler.handler()
+            }
+            return
+        }
+        #endif
         status = .completed
         handler()
     }
 
     public func finishWriting() async {
-        status = .completed
+        await withCheckedContinuation { continuation in
+            finishWriting { continuation.resume() }
+        }
     }
 }
 
@@ -201,6 +284,9 @@ public class AVAssetWriterInput: @unchecked Sendable {
     public var expectsMediaDataInRealTime: Bool = false
     public var isReadyForMoreMediaData: Bool { true }
     public private(set) var isFinished = false
+    /// Back-reference set by `AVAssetWriter.add(_:)` so append paths reach
+    /// the live encoder.
+    internal weak var quillWriter: AVAssetWriter?
 
     public init(mediaType: AVMediaType, outputSettings: [String: Any]?) {
         self.mediaType = mediaType
@@ -208,8 +294,8 @@ public class AVAssetWriterInput: @unchecked Sendable {
     }
 
     public func append(_ sampleBuffer: CMSampleBuffer) -> Bool {
-        _ = sampleBuffer
-        return true
+        guard let imageBuffer = sampleBuffer.imageBuffer else { return true }
+        return quillWriter?.quillAppendFrame(imageBuffer) ?? true
     }
 
     public func markAsFinished() { isFinished = true }
@@ -228,9 +314,20 @@ public class AVAssetWriterInputPixelBufferAdaptor: @unchecked Sendable {
 
     public func append(_ pixelBuffer: CVPixelBuffer,
                        withPresentationTime presentationTime: CMTime) -> Bool {
-        _ = (pixelBuffer, presentationTime)
-        return true
+        // Constant-frame-rate encode: the pipe carries no per-frame PTS, so
+        // presentation times are accepted (Apple shape) but pacing comes from
+        // the configured frame rate. SolderScope appends at camera delivery
+        // rate with expectsMediaDataInRealTime, which matches.
+        _ = presentationTime
+        return assetWriterInput.quillWriter?.quillAppendFrame(pixelBuffer) ?? true
     }
+}
+
+/// Carries the finish-completion handler onto the finalizer thread (Apple's
+/// own parameter is @Sendable; ours stays source-compatible and crosses in a
+/// box — single hop, invoked exactly once).
+private struct QuillSendableCompletionBox: @unchecked Sendable {
+    let handler: () -> Void
 }
 
 // MARK: - Video codec/settings constants

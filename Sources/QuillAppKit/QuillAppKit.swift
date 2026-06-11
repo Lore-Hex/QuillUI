@@ -149,19 +149,27 @@ public final class NSBitmapImageRep: @unchecked Sendable {
     }
 
     private let data: Data
+    /// Raw BGRA pixels + geometry when the rep was built from a CGImage
+    /// (camera/snapshot path). nil when built from container bytes.
+    internal let quillBGRAGeometry: (width: Int, height: Int, bytesPerRow: Int)?
 
     public init?(data: Data) {
         self.data = data
+        self.quillBGRAGeometry = nil
+    }
+
+    /// Pixel-carrying designated init (the `init(cgImage:)` convenience in
+    /// QuillAppKitCursorTrackingImaging.swift funnels through this).
+    internal init(quillBGRA bgra: Data, width: Int, height: Int, bytesPerRow: Int) {
+        self.data = bgra
+        self.quillBGRAGeometry = (width, height, bytesPerRow)
     }
 
     public func representation(
         using storageType: FileType,
         properties: [PropertyKey: Any]
     ) -> Data? {
-        // Pass-through. Real format conversion needs a codec
-        // backend; until then return the source bytes so callers
-        // (e.g. Enchanted's base64 upload) see non-empty data.
-        data
+        quillRepresentation(using: storageType, properties: properties)
     }
 
     /// Looser key signature for upstream call sites that hand in
@@ -170,7 +178,64 @@ public final class NSBitmapImageRep: @unchecked Sendable {
         using storageType: FileType,
         properties: [K: V]
     ) -> Data? {
-        data
+        var typed: [PropertyKey: Any] = [:]
+        for (key, value) in properties {
+            if let propertyKey = key as? PropertyKey { typed[propertyKey] = value }
+        }
+        return quillRepresentation(using: storageType, properties: typed)
+    }
+
+    private func quillRepresentation(
+        using storageType: FileType,
+        properties: [PropertyKey: Any]
+    ) -> Data? {
+        #if os(Linux)
+        let format: QuillBitmapEncodeFormat?
+        switch storageType {
+        case .png: format = .png
+        case .jpeg: format = .jpeg
+        case .tiff: format = .tiff
+        case .bmp: format = .bmp
+        case .gif, .jpeg2000: format = nil
+        }
+        guard let format else {
+            // gdk-pixbuf has no GIF/JPEG2000 writer; fall back to the
+            // pass-through so callers still see bytes (pre-rung-4 behavior).
+            return data
+        }
+        var options: [(key: String, value: String)] = []
+        if format == .jpeg {
+            let factor = (properties[.compressionFactor] as? Double)
+                ?? (properties[.compressionFactor] as? CGFloat).map(Double.init)
+                ?? (properties[.compressionFactor] as? Float).map(Double.init)
+                ?? 0.9
+            let quality = Int((factor * 100).rounded())
+            options.append(("quality", String(max(1, min(100, quality)))))
+        }
+        if format == .tiff,
+           let method = properties[.compressionMethod] as? TIFFCompression {
+            // gdk-pixbuf's TIFF "compression" option takes libtiff codes;
+            // LZW (5) and none (1) map directly. Unsupported schemes fall
+            // back to the writer default rather than failing the save.
+            switch method {
+            case .lzw: options.append(("compression", "5"))
+            case .none: options.append(("compression", "1"))
+            default: break
+            }
+        }
+        if let geometry = quillBGRAGeometry {
+            return quillEncodeBGRAPixels(
+                data, width: geometry.width, height: geometry.height,
+                bytesPerRow: geometry.bytesPerRow, format: format, options: options
+            )
+        }
+        // Container bytes in: transcode to the requested format; if the bytes
+        // don't decode, fall back to pass-through (Apple returns nil for
+        // corrupt input, but pre-rung-4 callers relied on bytes out).
+        return quillTranscodeEncodedImageData(data, format: format, options: options) ?? data
+        #else
+        return data
+        #endif
     }
 }
 

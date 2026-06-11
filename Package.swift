@@ -438,6 +438,8 @@ products += [
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
     "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage",
+    // NSBitmapImageRep's real raster encode (rung 4) goes through gdk-pixbuf.
+    "CGdkPixbuf",
 ]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
 // UIView.layer: on Linux, QuillUIKit (and the UIKit umbrella that re-exports
