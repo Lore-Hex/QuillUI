@@ -2,6 +2,8 @@ import Foundation
 import QuillPaint
 
 <<<<<<< HEAD
+#if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
+=======
 // os(macOS), NOT canImport(CoreGraphics): this package ships a Linux
 // CoreGraphics shim target, so in a unified build directory canImport()
 // can flip true on Linux (the .swiftmodule is on the search path even
@@ -9,9 +11,7 @@ import QuillPaint
 // types stay Apple-gated — breaking `swift test` on Linux. The tool is
 // Apple-only by design; gate it on the platform, not module visibility.
 #if os(macOS)
-=======
-#if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
->>>>>>> origin/main
+>>>>>>> 2f9a8591 (QuartzCore goes functional: real CALayer model + timing engine, UIView.layer, UIKit re-export)
 import QuillPaintCoreGraphics
 #endif
 
@@ -19,10 +19,10 @@ import QuillPaintCoreGraphics
 struct QuillRenderMacReferences {
     static func main() {
 <<<<<<< HEAD
-        #if os(macOS)
-=======
         #if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
->>>>>>> origin/main
+=======
+        #if os(macOS)
+>>>>>>> 2f9a8591 (QuartzCore goes functional: real CALayer model + timing engine, UIView.layer, UIKit re-export)
         let arguments = CommandLine.arguments
         let toolName = (arguments.first as NSString?)?.lastPathComponent ?? "quill-render-mac-references"
 
@@ -89,10 +89,10 @@ struct QuillRenderMacReferences {
     }
 
 <<<<<<< HEAD
-    #if os(macOS)
-=======
     #if canImport(CoreGraphics) && canImport(ImageIO) && !os(Linux)
->>>>>>> origin/main
+=======
+    #if os(macOS)
+>>>>>>> 2f9a8591 (QuartzCore goes functional: real CALayer model + timing engine, UIView.layer, UIKit re-export)
     /// Default output path: walk up from the cwd looking for a Package.swift
     /// alongside a Tests/ directory. If found, write to
     /// `Tests/Fixtures/MacReference/`. Otherwise fall back to ./MacReference/.

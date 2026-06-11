@@ -13,19 +13,19 @@
 // now that QuillUIKit's stub was removed in favor of the dedicated shim.
 @_exported import UserNotifications
 <<<<<<< HEAD
+// On iOS, Apple's UIKit re-exports QuartzCore — `import UIKit` alone exposes
+// CALayer/CAShapeLayer/CATransaction. Signal-iOS's SignalUI relies on this
+// (~4.8k of its conformance-build errors were CA* names with no QuartzCore
+// import in sight). Mirror that topology here.
+@_exported import QuartzCore
+=======
 #if os(Linux)
 // On Apple platforms `import UIKit` transitively re-exports QuartzCore — UIKit
 // apps use CALayer & friends bare, without an explicit `import QuartzCore`
 // (SignalUI alone has ~1,000 such references). Mirror that contract here.
 @_exported import QuartzCore
 #endif
-=======
-// On iOS, Apple's UIKit re-exports QuartzCore — `import UIKit` alone exposes
-// CALayer/CAShapeLayer/CATransaction. Signal-iOS's SignalUI relies on this
-// (~4.8k of its conformance-build errors were CA* names with no QuartzCore
-// import in sight). Mirror that topology here.
-@_exported import QuartzCore
->>>>>>> origin/main
+>>>>>>> 2f9a8591 (QuartzCore goes functional: real CALayer model + timing engine, UIView.layer, UIKit re-export)
 import QuillKit
 
 #if !os(iOS)
