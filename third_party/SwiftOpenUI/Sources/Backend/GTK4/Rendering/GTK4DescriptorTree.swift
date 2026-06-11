@@ -492,6 +492,9 @@ public struct GTK4HookResult: Equatable {
 // MARK: - Describe protocol
 
 /// Protocol for GTK4 views that can produce a descriptor without creating widgets.
+/// @MainActor: same reasoning as GTKRenderable — witnesses are members of
+/// main-actor-isolated View types; describe passes run on the GTK main loop.
+@MainActor
 public protocol GTKDescribable {
     func gtkDescribeNode() -> GTK4DescriptorNode
 }
@@ -547,7 +550,7 @@ public func gtkDescribeCapturingCanvasPayloads(
 /// Build a GTK4-local descriptor tree without creating widgets.
 public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
     if let describable = view as? GTKDescribable {
-        return describable.gtkDescribeNode()
+        return MainActor.assumeIsolated { describable.gtkDescribeNode() }
     }
     if let multi = view as? MultiChildView {
         return GTK4DescriptorNode(
