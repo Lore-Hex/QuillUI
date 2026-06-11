@@ -648,6 +648,9 @@ struct SourceHygieneTests {
         #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
         #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" AppKit"))
         #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" SwiftUI"))
+        #expect(!FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/__all__.pl").path
+        ))
         #expect(quillKit.contains("quill-pasteboard"))
         #expect(quillKit.contains("Apple.NSGeneralPboard"))
         #expect(quillKit.contains("writeFileBackedPasteboardString(string, forType: type)"))
