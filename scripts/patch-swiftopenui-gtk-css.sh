@@ -5827,6 +5827,11 @@ text = text.replace(
     "includeValueWhenUnidentified: Bool = false",
 )
 
+text = text.replace(
+    "includeValueWhenUnidentified: Bool = true",
+    "includeValueWhenUnidentified: Bool = false",
+)
+
 if "case .quillPaintMacDefault:" not in text:
     extension_index = text.find("extension Button: GTKRenderable")
     if extension_index == -1:

@@ -42,7 +42,6 @@ public extension QuillSelectorDispatching {
 #if os(macOS)
 @_exported import AppKit
 @_exported import CoreGraphics
-@_exported import WebKit
 
 public typealias RSImage = NSImage
 public typealias RSColor = NSColor
@@ -84,7 +83,6 @@ public extension NSScreen {
 #elseif os(iOS)
 @_exported import UIKit
 @_exported import CoreGraphics
-@_exported import WebKit
 
 public typealias RSImage = UIImage
 public typealias RSColor = UIColor

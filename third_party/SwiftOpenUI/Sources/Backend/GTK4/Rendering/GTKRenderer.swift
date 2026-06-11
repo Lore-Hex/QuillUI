@@ -6832,12 +6832,6 @@ private func gtkCreateLazyGridWidget<Data, Content: View>(
     let configuration = computeLazyGridConfiguration(gridItems: gridItems)
     let cellMinWidth = configuration.adaptiveMinimum > 0
         ? configuration.adaptiveMinimum
-        : (configuration.maxColumns > 1 ? 160 : 0) > 0
-        ? configuration.adaptiveMinimum
-        : (configuration.maxColumns > 1 ? 160 : 0) > 0
-        ? configuration.adaptiveMinimum
-        : (configuration.maxColumns > 1 ? 160 : 0) > 0
-        ? configuration.adaptiveMinimum
         : (configuration.maxColumns > 1 ? 160 : 0)
     if let expandedChildren,
        let staticGrid = gtkCreateStaticLazyGridWidget(
