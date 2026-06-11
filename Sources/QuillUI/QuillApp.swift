@@ -27,6 +27,9 @@ public enum QuillAppDefaultSizePolicy: Equatable, Sendable {
 }
 
 public enum QuillAppWindow {
+    // @MainActor: Scene is whole-protocol isolated (#512/#513), so WindowGroup
+    // construction is too; callers are App.body/Scene builders, already isolated.
+    @MainActor
     public static func scene<Content: View>(
         _ title: String,
         width: Double,

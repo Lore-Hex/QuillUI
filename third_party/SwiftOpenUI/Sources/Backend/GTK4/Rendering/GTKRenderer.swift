@@ -363,8 +363,10 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
         return gtkRenderStatefulView(view)
     }
 
-    // Stateless composite view — recurse through body
-    return gtkRenderView(view.body)
+    // Stateless composite view — recurse through body. View.body is
+    // @MainActor (Apple semantics); the GTK renderer runs on the GTK main
+    // loop == main thread, so the hop is sound.
+    return MainActor.assumeIsolated { gtkRenderView(view.body) }
 }
 
 /// Render children from a view.
@@ -8168,11 +8170,13 @@ extension StrokedShape: GTKRenderable {
 // MARK: - Stateful view rendering
 
 private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
+    // body reads hop onto the main actor (View.body is @MainActor; host
+    // rebuilds always run on the GTK main loop == main thread).
     let host = GTKViewHost(buildBody: {
-        gtkRenderView(view.body)
+        MainActor.assumeIsolated { gtkRenderView(view.body) }
     })
     host.describeBody = {
-        gtkDescribeView(view.body)
+        MainActor.assumeIsolated { gtkDescribeView(view.body) }
     }
 
     gtkRestoreAndInstallState(view, host: host)
