@@ -1998,6 +1998,9 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "QuillKit"]
     case "CoreMedia":
         dependencies = ["QuillFoundation", "CoreVideo", "AudioToolbox"]
+    case "CoreImage":
+        // CIImage(cvPixelBuffer:) — the camera frame pipeline (#516).
+        dependencies = ["QuillFoundation", "CoreVideo"]
     case "CoreVideo", "MetalKit", "MetalPerformanceShaders":
         dependencies = ["QuillFoundation", "Metal"]
     case "VideoToolbox":
@@ -2624,7 +2627,7 @@ if quillUILinuxBuildBackend == .qt {
         .target(name: "CoreVideo", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/CoreVideo"),
         .target(name: "ImageIO", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/ImageIO"),
         .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
-        .target(name: "CoreImage", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreImage"),
+        .target(name: "CoreImage", dependencies: ["QuillFoundation", "CoreVideo"], path: "Sources/AppleFrameworkShims/CoreImage"),
         .target(
             name: "AppKit",
             dependencies: appKitShadowDependencies,
