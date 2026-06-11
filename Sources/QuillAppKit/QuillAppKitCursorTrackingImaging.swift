@@ -55,15 +55,21 @@ extension NSBitmapImageRep {
     /// `init(cgImage:)` — wrap a CGImage in a rep. Non-failable, exactly as on
     /// Apple (SolderScope chains `NSBitmapImageRep(cgImage:).representation(…)`
     /// without unwrapping). The Linux CGImage carries raw BGRA bytes when it
-    /// came through the camera pipeline (CIContext.createCGImage); those bytes
-    /// become the rep's pass-through data so `representation(using:properties:)`
-    /// returns non-empty Data and save paths proceed. NOT a real
-    /// TIFF/PNG/JPEG encode — that needs a codec backend (gdk-pixbuf/libpng/
-    /// libjpeg); files written this way are raw pixels, not decodable images,
-    /// until one lands.
+    /// came through the camera pipeline (CIContext.createCGImage); the rep
+    /// keeps them WITH their geometry, and `representation(using:)` performs
+    /// a REAL gdk-pixbuf encode (PNG/JPEG/TIFF/BMP) — snapshot files written
+    /// through this path are decodable images (rung 4).
     public convenience init(cgImage: CGImage) {
-        // `init?(data:)` never actually fails, so the force-unwrap is safe.
-        self.init(data: Data(cgImage.quillBGRAPixels ?? []))!
+        let pixels = Data(cgImage.quillBGRAPixels ?? [])
+        let bytesPerRow = cgImage.quillBytesPerRow > 0
+            ? cgImage.quillBytesPerRow
+            : cgImage.width * 4
+        self.init(
+            quillBGRA: pixels,
+            width: cgImage.width,
+            height: cgImage.height,
+            bytesPerRow: bytesPerRow
+        )
     }
 }
 
