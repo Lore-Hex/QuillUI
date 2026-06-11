@@ -124,6 +124,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("SwiftUI and SwiftData module aliases expose Quill APIs")
+    @MainActor
     func swiftUIAndSwiftDataAliasesExposeQuillAPIs() throws {
         _ = Text("Quill")
             .foregroundStyle(Color("label"))
@@ -344,6 +345,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit image and KeyboardShortcuts compatibility cover Enchanted full source")
+    @MainActor
     func appKitImageAndKeyboardShortcutCompatibility() throws {
         let shortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .shift])
         let name = KeyboardShortcuts.Name("togglePanelMode", default: shortcut)
@@ -376,6 +378,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit audio compatibility routes NSSound through QuillKit")
+    @MainActor
     func appKitAudioCompatibilityRoutesNSSoundThroughQuillKit() {
         let result = AppleCompatibilitySmoke.runAppKitAudioSmoke()
         #expect(result.dataSoundCreated)
@@ -391,6 +394,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit workspace open routes through QuillWorkspace")
+    @MainActor
     func appKitWorkspaceOpenRoutesThroughQuillWorkspace() {
         let result = AppleCompatibilitySmoke.runAppKitWorkspaceOpenSmoke()
         let expectedURL = URL(string: "https://example.com/quill-appkit-workspace")!
@@ -402,6 +406,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit rect string helpers round-trip common geometry formats")
+    @MainActor
     func appKitRectStringHelpersRoundTripCommonFormats() {
         let result = AppleCompatibilitySmoke.runAppKitGeometrySmoke()
 
@@ -413,6 +418,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit appearance smoke covers names and best matches")
+    @MainActor
     func appKitAppearanceSmokeCoversNamesAndBestMatches() {
         let result = AppleCompatibilitySmoke.runAppKitAppearanceSmoke()
 
@@ -425,6 +431,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit font manager exposes deterministic fallback fonts")
+    @MainActor
     func appKitFontManagerExposesDeterministicFallbackFonts() {
         let result = AppleCompatibilitySmoke.runAppKitFontSmoke()
 
@@ -477,6 +484,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit controls mirror values and button factories")
+    @MainActor
     func appKitControlsMirrorValuesAndButtonFactories() {
         let result = AppleCompatibilitySmoke.runAppKitControlSmoke()
 
@@ -499,6 +507,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit pop-up buttons preserve menu selection state")
+    @MainActor
     func appKitPopUpButtonsPreserveMenuSelectionState() {
         let result = AppleCompatibilitySmoke.runAppKitPopUpButtonSmoke()
 
@@ -707,6 +716,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit undo managers maintain action stacks")
+    @MainActor
     func appKitUndoManagersMaintainActionStacks() {
         let result = AppleCompatibilitySmoke.runAppKitUndoSmoke()
 
@@ -1564,6 +1574,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("os Logger compatibility records privacy-aware diagnostics")
+    @MainActor
     func osLoggerCompatibilityRecordsDiagnostics() {
         let result = AppleCompatibilitySmoke.runOSLogSmoke()
         #expect(result.operations.contains("Logger.info"))

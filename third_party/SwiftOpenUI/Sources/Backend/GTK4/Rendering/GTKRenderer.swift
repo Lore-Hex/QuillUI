@@ -210,11 +210,18 @@ private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: Str
 
 /// Protocol that views implement (via extensions) to provide GTK widget creation.
 /// Backend code extends each SwiftOpenUI view type to conform.
+/// @MainActor: View is whole-protocol main-actor isolated (Apple shape), so
+/// conforming view types are isolated and their witnesses must match the
+/// requirement's isolation; widget creation always runs on the GTK main
+/// loop == main thread.
+@MainActor
 public protocol GTKRenderable {
     func gtkCreateWidget() -> OpaquePointer
 }
 
 /// Protocol for views that provide multiple GTK child widgets.
+/// @MainActor: same reasoning as GTKRenderable.
+@MainActor
 public protocol GTKMultiChildRenderable {
     func gtkRenderChildren() -> [OpaquePointer]
 }
@@ -326,9 +333,10 @@ private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {
 
 /// Render any SwiftOpenUI View into a GTK widget pointer.
 public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
-    // Primitive views with known GTK rendering
+    // Primitive views with known GTK rendering. gtkCreateWidget is @MainActor
+    // (GTKRenderable); the renderer runs on the GTK main loop == main thread.
     if let renderable = view as? GTKRenderable {
-        return renderable.gtkCreateWidget()
+        return MainActor.assumeIsolated { renderable.gtkCreateWidget() }
     }
 
     // MultiChildView (TupleView4-12, Group, ForEach, etc.) — render children
@@ -372,7 +380,7 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
 /// Render children from a view.
 public func gtkRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
     if let multi = view as? GTKMultiChildRenderable {
-        return multi.gtkRenderChildren()
+        return MainActor.assumeIsolated { multi.gtkRenderChildren() }
     }
     if let multi = view as? MultiChildView {
         return multi.children.map { child in

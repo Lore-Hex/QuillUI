@@ -313,6 +313,9 @@ public extension WindowGroup {
     }
 }
 
+// @MainActor: buildExpression reads isolated View members (label/action) and
+// calls the isolated walkers; builder closures run in isolated Commands.body.
+@MainActor
 public extension CommandMenuBuilder {
     static func buildExpression<Label: View>(_ button: Button<Label>) -> [CommandMenuItem] {
         [
@@ -352,6 +355,8 @@ public extension Menu {
     }
 }
 
+// @MainActor: same reasoning as the CommandMenuBuilder extension above.
+@MainActor
 public extension MenuBuilder {
     static func buildExpression(_ elements: [MenuElement]) -> [MenuElement] {
         elements
@@ -477,7 +482,9 @@ public extension Image {
 }
 
 extension Image: @retroactive Equatable {
-    public static func == (lhs: Image, rhs: Image) -> Bool {
+    // nonisolated: Equatable's requirement is nonisolated and == is pure
+    // value comparison of stored data.
+    nonisolated public static func == (lhs: Image, rhs: Image) -> Bool {
         switch (lhs.source, rhs.source) {
         case (.systemName(let left), .systemName(let right)):
             return left == right && lhs.scale == rhs.scale && lhs.isResizable == rhs.isResizable
@@ -1216,6 +1223,9 @@ public extension View {
 
 }
 
+// @MainActor: witnesses are members of main-actor-isolated View types
+// (whole-protocol View isolation, Apple shape); walkers are isolated too.
+@MainActor
 private protocol QuillButtonRepresentable {
     var quillButtonLabel: String { get }
     var quillButtonAction: () -> Void { get }
@@ -1226,6 +1236,9 @@ extension Button: QuillButtonRepresentable {
     fileprivate var quillButtonAction: () -> Void { action }
 }
 
+// @MainActor: witnesses are members of main-actor-isolated View types
+// (whole-protocol View isolation, Apple shape); walkers are isolated too.
+@MainActor
 private protocol QuillDisabledRepresentable {
     var quillDisabledContent: any View { get }
     var quillIsDisabled: Bool { get }
@@ -1236,6 +1249,9 @@ extension DisabledView: QuillDisabledRepresentable {
     fileprivate var quillIsDisabled: Bool { isDisabled }
 }
 
+// @MainActor: witnesses are members of main-actor-isolated View types
+// (whole-protocol View isolation, Apple shape); walkers are isolated too.
+@MainActor
 private protocol QuillKeyboardShortcutRepresentable {
     var quillShortcutContent: any View { get }
     var quillShortcut: KeyboardShortcut { get }
@@ -1246,10 +1262,14 @@ extension KeyboardShortcutView: QuillKeyboardShortcutRepresentable {
     fileprivate var quillShortcut: KeyboardShortcut { shortcut }
 }
 
+// @MainActor: witnesses are members of main-actor-isolated View types
+// (whole-protocol View isolation, Apple shape); walkers are isolated too.
+@MainActor
 private protocol QuillWrappedViewRepresentable {
     var quillWrappedContent: any View { get }
 }
 
+@MainActor
 private protocol QuillAccessibilityLabelRepresentable: QuillWrappedViewRepresentable {
     var quillAccessibilityLabel: String { get }
 }
@@ -1460,6 +1480,7 @@ extension HelpView: QuillWrappedViewRepresentable {
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillTextLabel(from view: any View) -> String {
     if let text = view as? Text {
         return text.content
@@ -1495,6 +1516,7 @@ public func quillTextLabel(from view: any View) -> String {
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillSystemImageName(from view: any View) -> String {
     guard let image = view as? Image else {
         return "circle"
@@ -1509,6 +1531,7 @@ public func quillSystemImageName(from view: any View) -> String {
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillMenuElements(from view: any View) -> [MenuElement] {
     if let button = view as? any QuillButtonRepresentable {
         return [.item(label: button.quillButtonLabel, action: button.quillButtonAction)]
@@ -1534,6 +1557,7 @@ public func quillMenuElements(from view: any View) -> [MenuElement] {
     return []
 }
 
+@MainActor
 private func quillConfirmationDialogButtons(from view: any View) -> [AlertButton] {
     quillMenuElements(from: view).flatMap(quillAlertButtons)
 }
@@ -1562,6 +1586,7 @@ private func quillMenuElement(_ element: MenuElement, disabled: Bool) -> MenuEle
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
     if let button = view as? any QuillButtonRepresentable {
         return [CommandMenuItem(button.quillButtonLabel, action: button.quillButtonAction)]
@@ -1602,6 +1627,7 @@ private func quillCommandMenuItem(_ item: CommandMenuItem, disabled: Bool) -> Co
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillPickerOptions(from view: any View) -> [(label: String, tag: AnyHashable)] {
     if let tagged = view as? AnyTagView {
         let label = quillTextLabel(from: tagged.anyTagContent)

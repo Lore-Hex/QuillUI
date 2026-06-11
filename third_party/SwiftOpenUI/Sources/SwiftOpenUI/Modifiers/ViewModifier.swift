@@ -1,5 +1,7 @@
 /// A modifier that you apply to a view, producing a different version
 /// of the original value.
+/// `@MainActor @preconcurrency` is Apple's exact shape (see View).
+@MainActor @preconcurrency
 public protocol ViewModifier {
     associatedtype Body: View
     @MainActor @ViewBuilder func body(content: Content) -> Body
