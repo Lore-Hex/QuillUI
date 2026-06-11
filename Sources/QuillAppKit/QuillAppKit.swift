@@ -500,7 +500,7 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 // NSWindowController, NSApplication, NSPopover — inherits this isolation,
 // matching the macOS SDK. GTK/Qt callbacks enter via MainActor.assumeIsolated
 // (the GTK main loop IS the main thread), the blessed boundary pattern.
-@MainActor
+@preconcurrency @MainActor
 open class NSResponder: NSObject {
     fileprivate weak var quillExplicitNextResponder: NSResponder?
 
@@ -2136,7 +2136,7 @@ open class NSEvent: NSObject, @unchecked Sendable {
 
 // Apple parity (#512): gesture recognizers are @MainActor; NSClick/NSPress
 // subclasses inherit.
-@MainActor
+@preconcurrency @MainActor
 open class NSGestureRecognizer: NSObject {
     public enum State: Int, Sendable {
         case possible
@@ -3171,7 +3171,7 @@ open class NSShadow: NSObject, @unchecked Sendable {
 // Apple parity (#512). The existing MainActor.assumeIsolated bridges around
 // delegate calls inside this class become load-bearing once NSMenuDelegate is
 // isolated in the follow-up sweep.
-@MainActor
+@preconcurrency @MainActor
 open class NSMenu: NSObject {
     public var title: String = ""
     open var items: [NSMenuItem] = []
@@ -3283,7 +3283,7 @@ open class NSMenu: NSObject {
 }
 
 // Apple parity (#512).
-@MainActor
+@preconcurrency @MainActor
 open class NSMenuItem: NSObject {
     open var title: String = ""
     public var action: Selector?
@@ -3346,7 +3346,7 @@ public protocol NSMenuItemValidation: AnyObject {
 
 // Apple parity (#512); makes the existing per-member @MainActor annotations
 // inside redundant (harmless).
-@MainActor
+@preconcurrency @MainActor
 open class NSToolbar: NSObject {
     public var identifier: String = ""
     public weak var delegate: NSToolbarDelegate?
@@ -3392,7 +3392,7 @@ open class NSToolbar: NSObject {
 }
 
 // Apple parity (#512); NSTrackingSeparatorToolbarItem/NSToolbarItemGroup inherit.
-@MainActor
+@preconcurrency @MainActor
 open class NSToolbarItem: NSObject {
     public struct Identifier: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
@@ -3451,7 +3451,7 @@ public extension NSToolbarDelegate {
 // MARK: - NSAlert / NSSavePanel / NSOpenPanel
 
 // Apple parity (#512).
-@MainActor
+@preconcurrency @MainActor
 open class NSAlert: NSObject {
     public var messageText: String = ""
     public var informativeText: String = ""
@@ -4836,7 +4836,7 @@ open class NSSplitViewController: NSViewController {
 }
 
 // Apple parity (#512).
-@MainActor
+@preconcurrency @MainActor
 open class NSSplitViewItem: NSObject {
     public var viewController: NSViewController = NSViewController()
     public var behavior: Behavior = .default
@@ -5390,7 +5390,7 @@ open class NSTableCellView: NSView {
 }
 
 // Apple parity (#512).
-@MainActor
+@preconcurrency @MainActor
 open class NSTableColumn: NSObject {
     public var identifier: NSUserInterfaceItemIdentifier
     public var title: String = ""
@@ -5699,7 +5699,7 @@ public extension NSOutlineViewDataSource {
 // MARK: - Document support
 
 // Apple parity (#512): NSDocument is @MainActor in the macOS SDK.
-@MainActor
+@preconcurrency @MainActor
 open class NSDocument: NSObject {
     public var fileURL: URL?
     public var fileType: String?
@@ -5768,7 +5768,7 @@ open class NSDocument: NSObject {
 }
 
 // Apple parity (#512).
-@MainActor
+@preconcurrency @MainActor
 open class NSDocumentController: NSObject {
     public static let shared = NSDocumentController()
     public var documents: [NSDocument] = []
@@ -5837,7 +5837,7 @@ public class NSHostingController<Content>: NSViewController {
 // MARK: - NSStatusBar / NSStatusItem (menu-bar widgets)
 
 // Apple parity (#512).
-@MainActor
+@preconcurrency @MainActor
 open class NSStatusBar: NSObject {
     public static let system = NSStatusBar()
     public func statusItem(withLength: CGFloat) -> NSStatusItem { NSStatusItem() }
@@ -5848,7 +5848,7 @@ open class NSStatusBar: NSObject {
 }
 
 // Apple parity (#512).
-@MainActor
+@preconcurrency @MainActor
 open class NSStatusItem: NSObject {
     public var button: NSStatusBarButton? = NSStatusBarButton()
     public var menu: NSMenu?
@@ -5958,7 +5958,7 @@ open class NSGlassEffectView: NSView {
 // MARK: - NSAnimationContext
 
 // Apple parity (#512).
-@MainActor
+@preconcurrency @MainActor
 open class NSAnimationContext: NSObject {
     public static var current: NSAnimationContext = NSAnimationContext()
     public var duration: TimeInterval = 0.25
@@ -6105,7 +6105,7 @@ public struct NSWindowEnvironmentKey {
 // inherits). @unchecked Sendable retained — pre-existing deviation (Apple's
 // NSCell is not Sendable); inert under minimal checking and existing
 // cross-actor storage keeps compiling.
-@MainActor
+@preconcurrency @MainActor
 open class NSCell: NSObject, @unchecked Sendable {
     // nonisolated: pure storage (empty), so isolated-and-nonisolated init
     // paths alike (e.g. NSPopUpButton's nonisolated init(frame:)) can construct

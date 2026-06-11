@@ -5,7 +5,7 @@
 /// @MainActor matches Apple's SwiftUI App protocol: `init()` and `body` are
 /// main-actor isolated; conforming app types infer the isolation, so e.g.
 /// constructing a @MainActor StateObject inside the app's init type-checks.
-@MainActor
+@MainActor @preconcurrency
 public protocol App {
     associatedtype Body: Scene
     @MainActor @SceneBuilder var body: Body { get }
@@ -15,7 +15,7 @@ public protocol App {
 
 /// A part of an app's user interface with a lifecycle managed by the system.
 /// @MainActor like Apple's SwiftUI.Scene.
-@MainActor
+@MainActor @preconcurrency
 public protocol Scene {
     associatedtype Body: Scene
     @MainActor @SceneBuilder var body: Body { get }
