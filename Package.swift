@@ -813,7 +813,9 @@ var targets: [Target] = [
             .product(name: "SwiftSyntax", package: "swift-syntax"),
             .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
             .product(name: "SwiftParser", package: "swift-syntax"),
-            "os"
+            // Linux-only: the os shadow target exists only in the Linux
+            // manifest branch (on Apple, canImport(os) finds the real SDK os).
+            .byName(name: "os", condition: .when(platforms: [.linux]))
         ],
         path: "Sources/QuillSourceLowering"
     ),
