@@ -30,6 +30,12 @@
 // QuillNSViewDrawingHost.swift). NSViewControllerRepresentable is still
 // compile-only (its body traps).
 
+// @preconcurrency matches Apple's exact declaration
+// (`@MainActor @preconcurrency protocol NSViewRepresentable`): conformers'
+// inferred type-level isolation is downgraded to warnings for
+// pre-concurrency-shaped code (nonisolated nested Coordinators mutating the
+// parent representable's @Binding properties — SolderScope does exactly this).
+@preconcurrency
 @MainActor
 public protocol NSViewRepresentable: View {
     associatedtype NSViewType: NSView
