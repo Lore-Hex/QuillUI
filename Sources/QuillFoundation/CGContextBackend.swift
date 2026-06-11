@@ -1,3 +1,4 @@
+#if os(Linux)
 import Foundation
 
 // Pluggable drawing backend for the CGContext shadow. The shadow's methods
@@ -62,3 +63,4 @@ extension CGContext {
         }
     }
 }
+#endif

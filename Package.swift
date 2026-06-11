@@ -815,6 +815,13 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGtk4",
         path: "Sources/CGtk4",
+        // pkgConfig is what makes SwiftPM hand the gtk include paths to EVERY
+        // consumer's clang-module build. Without it, any target that loads a
+        // CGtk4-referencing swiftmodule (e.g. SwiftUI, which carries the
+        // NSViewRepresentable GTK mount) without its own -Xcc gtk flags dies
+        // with "gtk/gtk.h file not found" — exactly what flagless test
+        // targets did under swift test in CI.
+        pkgConfig: "gtk4",
         providers: [
             .apt(["libgtk-4-dev"])
         ]
