@@ -834,22 +834,11 @@ public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
     case .create, .replace:
         return false
     case .reuse:
-        if plan.newDescriptor.kind == .button {
-            // GTK Button action closures capture the view state storage from
-            // the render pass that created the widget. Until the retained
-            // descriptor path can refresh those closures in-place, hosts that
-            // contain buttons must take the full rebuild path so actions mutate
-            // the current @State storage.
-            return false
-        }
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
             return false
         }
         return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
     case .update:
-        if plan.newDescriptor.kind == .button {
-            return false
-        }
         guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
                 || plan.updateIntent == .canvasContent
                 || plan.updateIntent == .sliderValue

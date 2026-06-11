@@ -14,15 +14,6 @@ private func swiftOpenUIStateDebugLog(_ message: String) {
     }
 }
 
-private func swiftOpenUIStateDebugLog(_ message: String) {
-    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
-        return
-    }
-    if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
-        FileHandle.standardError.write(data)
-    }
-}
-
 /// Protocol for type-erased access to StateStorage from @State wrappers.
 public protocol AnyStateStorageProvider {
     var anyStorage: AnyStateStorage { get }

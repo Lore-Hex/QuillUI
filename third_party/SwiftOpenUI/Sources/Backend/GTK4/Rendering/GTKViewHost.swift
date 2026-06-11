@@ -342,7 +342,6 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: OpaquePointer!
             withObservationTracking {
-                gtkBeginStateIdentityPass()
                 result = buildBody()
             } onChange: { [weak self] in
                 guard let self else { return }
@@ -358,7 +357,6 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         }
         #endif
 
-        gtkBeginStateIdentityPass()
         let result = buildBody()
         if let reads = endEnvironmentReadTracking() {
             capturedInjectedObjects = reads
