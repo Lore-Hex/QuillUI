@@ -2751,7 +2751,10 @@ struct QuillDataSourceLoweringTests {
 
         let patchedToolbar = try String(contentsOf: toolbar, encoding: .utf8)
         #expect(patchedToolbar.contains("public let renderedViews: [any View]"))
-        #expect(patchedToolbar.contains("item.content.body as? MultiChildView"))
+        // Body access hops via assumeIsolated since View.body went @MainActor
+        // (#513); the MultiChildView fan-out happens on the hopped value.
+        #expect(patchedToolbar.contains("MainActor.assumeIsolated { item.content.body }"))
+        #expect(patchedToolbar.contains("body as? MultiChildView"))
 
         let patchedLayout = try String(contentsOf: layout, encoding: .utf8)
         #expect(patchedLayout.contains("expandsToFillWidth && width == nil ? maxWidth"))

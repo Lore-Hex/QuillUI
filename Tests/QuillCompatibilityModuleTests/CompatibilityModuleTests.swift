@@ -137,6 +137,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("QuillUI fallback modifiers record diagnostics")
+    @MainActor
     func quillUIFallbackModifiersRecordDiagnostics() {
         let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
 
@@ -1569,6 +1570,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("Security CoreGraphics Accessibility and Alamofire adapters compile")
+    @MainActor
     func lowerLevelServiceModulesCompile() throws {
         #expect(try AppleCompatibilitySmoke.runLowerLevelServiceSmoke())
     }
@@ -2532,6 +2534,7 @@ struct CompatibilityModuleTests {
     // MARK: - SPI: view-tree introspection helpers
 
     @Test("quillTextLabel extracts text content from primitive view types")
+    @MainActor
     func quillTextLabelExtractsFromPrimitives() {
         // Text: returns its content directly.
         #expect(QuillUI.quillTextLabel(from: Text("Hello")) == "Hello")
@@ -2552,6 +2555,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillSystemImageName preserves backend-covered SF Symbols and falls back gracefully")
+    @MainActor
     func quillSystemImageNameRemapsAndFallsBack() {
         // Backend-covered SF Symbols preserve the macOS token.
         #expect(QuillUI.quillSystemImageName(from: Image(systemName: "paperplane.fill")) == "paperplane.fill")
@@ -2567,6 +2571,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillTextLabel unwraps styled labels")
+    @MainActor
     func quillTextLabelUnwrapsStyledLabels() {
         let styledLabel = Text("Styled")
             .font(.body)
@@ -2581,6 +2586,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillMenuElements walks Button, Disabled, KeyboardShortcut, and recurses MultiChildView")
+    @MainActor
     func quillMenuElementsWalksViewTree() {
         // Plain Button returns a single .item with the button's title and action.
         let buttonTapCount = QuillTestBox<Int>(0)
@@ -2704,6 +2710,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillCommandMenuItems extracts from Button and respects disabled state")
+    @MainActor
     func quillCommandMenuItemsExtraction() {
         let count = QuillTestBox<Int>(0)
         let button = Button("Open") {
@@ -2768,6 +2775,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillPickerOptions extracts labels and tags from tagged view content")
+    @MainActor
     func quillPickerOptionsExtraction() {
         let options = QuillUI.quillPickerOptions(from: HStack {
             Text("").tag("a")

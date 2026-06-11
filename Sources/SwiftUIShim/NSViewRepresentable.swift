@@ -97,12 +97,21 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
 /// Internal renderable leaf: carries the GTKRenderable conformance so the
 /// PUBLIC host never references an implementation-only protocol. The
 /// renderer reaches it by walking the host's opaque body.
-struct _QuillGTKRepresentableMountLeaf<R: NSViewRepresentable>: View, PrimitiveView, GTKRenderable {
+struct _QuillGTKRepresentableMountLeaf<R: NSViewRepresentable>: View, PrimitiveView, GTKRenderable, GTKDescribable {
     typealias Body = Never
     let representable: R
 
     var body: Never {
         fatalError("_QuillGTKRepresentableMountLeaf is a primitive view")
+    }
+
+    /// Terminal descriptor: a representable mount is an opaque native leaf.
+    /// Without this, the describe pass falls through the Mirror
+    /// describe-through path into the stored representable, whose body is the
+    /// host view wrapping this leaf again — infinite recursion (stack
+    /// overflow at app launch; SolderScope's MicroscopeView found it).
+    nonisolated func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(kind: .composite, typeName: String(describing: Self.self))
     }
 
     func gtkCreateWidget() -> OpaquePointer {
