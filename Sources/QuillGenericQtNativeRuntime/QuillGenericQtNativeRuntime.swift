@@ -37,6 +37,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
     public var noticeTitle: String
     public var noticeBody: String
     public var noticeActionTitle: String
+    public var chatBehavior: ChatBehavior
     public var style: Style
 
     public enum Presentation: String, Codable, Sendable {
@@ -142,6 +143,41 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         public init(title: String, systemImage: String = "") {
             self.title = title
             self.systemImage = systemImage
+        }
+    }
+
+    public struct ChatBehavior: Codable, Sendable {
+        public var selectedModelName: String
+        public var modelMenuNames: [String]
+        public var fallbackAssistantReply: String
+        public var promptResponses: [PromptResponse]
+
+        public init(
+            selectedModelName: String = "llava:latest",
+            modelMenuNames: [String] = ["llava:latest"],
+            fallbackAssistantReply: String = "I can help with that. Here is a concise first draft.",
+            promptResponses: [PromptResponse] = []
+        ) {
+            self.selectedModelName = selectedModelName
+            self.modelMenuNames = modelMenuNames
+            self.fallbackAssistantReply = fallbackAssistantReply
+            self.promptResponses = promptResponses
+        }
+    }
+
+    public struct PromptResponse: Codable, Sendable {
+        public var exactTitle: String
+        public var contains: String
+        public var assistantBody: String
+
+        public init(
+            exactTitle: String = "",
+            contains: String = "",
+            assistantBody: String
+        ) {
+            self.exactTitle = exactTitle
+            self.contains = contains
+            self.assistantBody = assistantBody
         }
     }
 
@@ -874,6 +910,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         noticeTitle: String = "",
         noticeBody: String = "",
         noticeActionTitle: String = "",
+        chatBehavior: ChatBehavior = .init(),
         style: Style = .desktop
     ) {
         self.windowTitle = windowTitle
@@ -906,6 +943,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         self.noticeTitle = noticeTitle
         self.noticeBody = noticeBody
         self.noticeActionTitle = noticeActionTitle
+        self.chatBehavior = chatBehavior
         self.style = style
     }
 
@@ -940,6 +978,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
         case noticeTitle
         case noticeBody
         case noticeActionTitle
+        case chatBehavior
         case style
     }
 
@@ -981,6 +1020,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
             noticeTitle: try container.decodeIfPresent(String.self, forKey: .noticeTitle) ?? "",
             noticeBody: try container.decodeIfPresent(String.self, forKey: .noticeBody) ?? "",
             noticeActionTitle: try container.decodeIfPresent(String.self, forKey: .noticeActionTitle) ?? "",
+            chatBehavior: try container.decodeIfPresent(ChatBehavior.self, forKey: .chatBehavior) ?? .init(),
             style: try container.decodeIfPresent(Style.self, forKey: .style) ?? .desktop
         )
     }
@@ -1235,6 +1275,20 @@ public enum QuillGenericQtAppCatalog {
         noticeTitle: "Quill is unreachable.",
         noticeBody: "Plug Quill back in if it's unplugged, or go to Settings and update your Quill API endpoint.",
         noticeActionTitle: EnchantedCopy.settingsTitle,
+        chatBehavior: .init(
+            selectedModelName: "llava:latest",
+            modelMenuNames: [
+                "llava:latest",
+                "mistral-7b-reference-linux-picker:latest"
+            ],
+            fallbackAssistantReply: "I can help with that. Here is a concise first draft.",
+            promptResponses: [
+                .init(
+                    contains: "center div",
+                    assistantBody: "Use **flexbox**: set display to flex, then align-items and justify-content to center."
+                )
+            ]
+        ),
         style: .enchanted
     )
 

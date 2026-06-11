@@ -214,6 +214,84 @@ QJsonObject generatedModelPayload(const QString &modelName) {
     };
 }
 
+QJsonObject chatBehaviorPayload(const QJsonObject &payload) {
+    return jsonObjectValue(payload, "chatBehavior");
+}
+
+QString chatBehaviorString(
+    const QJsonObject &payload,
+    const char *key,
+    const QString &fallback = QString()
+) {
+    return stringValue(chatBehaviorPayload(payload), key, fallback);
+}
+
+QStringList modelMenuNames(const QJsonObject &payload) {
+    QStringList names;
+    const QJsonArray configuredNames = jsonArrayValue(chatBehaviorPayload(payload), "modelMenuNames");
+    for (const QJsonValue &value : configuredNames) {
+        const QString name = value.toString().trimmed();
+        if (!name.isEmpty() && !names.contains(name)) {
+            names.append(name);
+        }
+    }
+
+    const QString selectedModel = chatBehaviorString(payload, "selectedModelName").trimmed();
+    if (!selectedModel.isEmpty() && !names.contains(selectedModel)) {
+        names.prepend(selectedModel);
+    }
+
+    const QString environmentModel = referencePickerModelName();
+    if (!environmentModel.isEmpty() && !names.contains(environmentModel)) {
+        names.append(environmentModel);
+    }
+
+    if (names.isEmpty()) {
+        names.append(QStringLiteral("llava:latest"));
+    }
+    return names;
+}
+
+QString promptAssistantBody(const QString &promptTitle, const QJsonObject &payload) {
+    const QJsonArray responses = jsonArrayValue(chatBehaviorPayload(payload), "promptResponses");
+    for (const QJsonValue &value : responses) {
+        const QJsonObject response = value.toObject();
+        const QString assistantBody = stringValue(response, "assistantBody").trimmed();
+        if (assistantBody.isEmpty()) {
+            continue;
+        }
+
+        const QString exactTitle = stringValue(response, "exactTitle").trimmed();
+        if (!exactTitle.isEmpty()
+            && exactTitle.compare(promptTitle, Qt::CaseInsensitive) == 0) {
+            return assistantBody;
+        }
+
+        const QString contains = stringValue(response, "contains").trimmed();
+        if (!contains.isEmpty() && promptTitle.contains(contains, Qt::CaseInsensitive)) {
+            return assistantBody;
+        }
+    }
+
+    return chatBehaviorString(
+        payload,
+        "fallbackAssistantReply",
+        QStringLiteral("I can help with that. Here is a concise first draft.")
+    );
+}
+
+void initializeSelectedChatModelName(const QJsonObject &payload) {
+    const char *environmentModelValue = std::getenv("QUILLUI_BACKEND_SELECTED_MODEL_NAME");
+    if (environmentModelValue != nullptr && environmentModelValue[0] != '\0') {
+        return;
+    }
+
+    const QString configuredModel = chatBehaviorString(payload, "selectedModelName").trimmed();
+    if (!configuredModel.isEmpty()) {
+        selectedChatModelName() = configuredModel;
+    }
+}
+
 bool ensurePayloadTable(sqlite3 *database, const QString &table) {
     const QByteArray tableName = table.toUtf8();
     char *escapedTableName = sqlite3_mprintf("%w", tableName.constData());
@@ -252,10 +330,8 @@ bool insertPayload(sqlite3 *database, const QString &table, const QString &recor
     return ok;
 }
 
-QJsonArray promptConversationMessages(const QString &promptTitle) {
-    const QString assistantBody = promptTitle.contains(QStringLiteral("center div"), Qt::CaseInsensitive)
-        ? QStringLiteral("Use **flexbox**: set display to flex, then align-items and justify-content to center.")
-        : QStringLiteral("I can help with that. Here is a concise first draft.");
+QJsonArray promptConversationMessages(const QString &promptTitle, const QJsonObject &payload) {
+    const QString assistantBody = promptAssistantBody(promptTitle, payload);
     return QJsonArray {
         QJsonObject {
             { QStringLiteral("role"), QStringLiteral("user") },
@@ -272,7 +348,7 @@ QJsonArray promptConversationMessages(const QString &promptTitle) {
     };
 }
 
-void persistPromptConversation(const QString &promptTitle) {
+void persistPromptConversation(const QString &promptTitle, const QJsonObject &payload) {
     const QString path = quillDataDatabasePath();
     if (path.isEmpty()) {
         return;
@@ -312,7 +388,7 @@ void persistPromptConversation(const QString &promptTitle) {
     insertPayload(database, modelTable, QStringLiteral("name:") + modelName, model);
     insertPayload(database, conversationTable, QStringLiteral("id:") + conversationID, conversation);
 
-    const QJsonArray messages = promptConversationMessages(promptTitle);
+    const QJsonArray messages = promptConversationMessages(promptTitle, payload);
     for (int index = 0; index < messages.size(); index += 1) {
         const QJsonObject message = messages.at(index).toObject();
         const QString role = stringValue(message, "role", QStringLiteral("assistant"));
@@ -1658,19 +1734,22 @@ bool messagesContainRichMarkdown(const QJsonArray &messages) {
 void populatePromptConversationContent(
     QVBoxLayout *layout,
     const QString &promptTitle,
-    const QJsonObject &style
+    const QJsonObject &style,
+    const QJsonObject &payload
 ) {
     clearLayout(layout);
-    populateChatMessages(layout, promptConversationMessages(promptTitle), style);
+    populateChatMessages(layout, promptConversationMessages(promptTitle, payload), style);
     layout->addStretch(1);
 }
 
-void showModelSelectionMenu(QPushButton *button) {
+void showModelSelectionMenu(QPushButton *button, const QJsonObject &payload) {
     QMenu menu(button);
-    QAction *defaultModel = menu.addAction(QStringLiteral("llava:latest"));
-    QAction *referenceModel = menu.addAction(referencePickerModelName());
+    QList<QAction *> modelActions;
+    for (const QString &modelName : modelMenuNames(payload)) {
+        modelActions.append(menu.addAction(modelName));
+    }
     QAction *selected = menu.exec(button->mapToGlobal(QPoint(0, button->height())));
-    if (selected == defaultModel || selected == referenceModel) {
+    if (modelActions.contains(selected)) {
         selectedChatModelName() = selected->text();
     }
 }
@@ -2602,6 +2681,7 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     }
 
     QApplication app(argc, argv);
+    initializeSelectedChatModelName(payload);
 
     QWidget root;
     root.setObjectName(QStringLiteral("genericRoot"));
@@ -2654,8 +2734,8 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
                 itemList->setCurrentRow(-1);
                 itemList->blockSignals(blocked);
                 updateChatSelectionDots(itemList);
-                persistPromptConversation(promptTitle);
-                populatePromptConversationContent(detailPane.contentLayout, promptTitle, style);
+                persistPromptConversation(promptTitle, payload);
+                populatePromptConversationContent(detailPane.contentLayout, promptTitle, style, payload);
             });
         }
     };
@@ -2676,8 +2756,8 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
                 itemList->setCurrentRow(-1);
                 itemList->blockSignals(blocked);
                 updateChatSelectionDots(itemList);
-                persistPromptConversation(promptTitle);
-                populatePromptConversationContent(detailPane.contentLayout, promptTitle, style);
+                persistPromptConversation(promptTitle, payload);
+                populatePromptConversationContent(detailPane.contentLayout, promptTitle, style, payload);
             });
         }
     };
@@ -2734,8 +2814,8 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
                     installPromptHandlers();
                 });
             } else if (chatHeaderAction == QStringLiteral("modelMenu")) {
-                QObject::connect(button, &QPushButton::clicked, [button]() {
-                    showModelSelectionMenu(button);
+                QObject::connect(button, &QPushButton::clicked, [button, payload]() {
+                    showModelSelectionMenu(button, payload);
                 });
             } else if (chatHeaderAction == QStringLiteral("copyMenu")) {
                 QObject::connect(button, &QPushButton::clicked, [&, button]() {
