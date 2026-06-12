@@ -1325,9 +1325,11 @@ public struct ToolbarTitleMenu<Content: View>: ToolbarContent, ToolbarContentIte
         self.content = content()
     }
 
-    @MainActor
-    public var toolbarContentItems: [AnyToolbarItem] {
-        [AnyToolbarItem(ToolbarItem(placement: .principal) { content })]
+    nonisolated public var toolbarContentItems: [AnyToolbarItem] {
+        let box = QuillIsolationHopBox(value: content)
+        return MainActor.assumeIsolated {
+            [AnyToolbarItem(ToolbarItem(placement: .principal) { box.value })]
+        }
     }
 
     public var body: Never {
@@ -1486,8 +1488,9 @@ public extension TabBuilder {
         if !tabs.isEmpty {
             return tabs
         }
+        let box = QuillIsolationHopBox(value: view)
         return MainActor.assumeIsolated {
-            [AnyTab(Tab("", id: "tab-\(String(reflecting: V.self))") { view })]
+            [AnyTab(Tab("", id: "tab-\(String(reflecting: V.self))") { box.value })]
         }
     }
 }
@@ -2721,3 +2724,7 @@ public extension URL {
     func startAccessingSecurityScopedResource() -> Bool { true }
     func stopAccessingSecurityScopedResource() {}
 }
+
+/// Crosses non-Sendable view values into assumeIsolated hops (single
+/// thread: backend main loop). Same pattern as the V4L2 delivery box.
+struct QuillIsolationHopBox<T>: @unchecked Sendable { let value: T }

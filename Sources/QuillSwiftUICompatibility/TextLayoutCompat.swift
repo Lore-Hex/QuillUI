@@ -60,14 +60,21 @@ public struct ToolbarItemGroup<Content: View>: ToolbarContent, ToolbarContentIte
         self.content = content()
     }
 
-    // @MainActor: ToolbarItem construction is isolated under whole-protocol
-    // View isolation; toolbar erasure runs on the backend main loop.
-    @MainActor
-    public var toolbarContentItems: [AnyToolbarItem] {
-        [AnyToolbarItem(ToolbarItem(placement: placement) { content })]
+    // nonisolated witness for the nonisolated provider protocol; the
+    // isolated ToolbarItem construction hops (backend main loop == main
+    // thread wherever toolbar erasure runs).
+    nonisolated public var toolbarContentItems: [AnyToolbarItem] {
+        let box = QuillToolbarHopBox(value: (placement, content))
+        return MainActor.assumeIsolated {
+            [AnyToolbarItem(ToolbarItem(placement: box.value.0) { box.value.1 })]
+        }
     }
 
     public var body: Never {
         return fatalError("ToolbarItemGroup is primitive toolbar content")
     }
 }
+
+/// Crosses non-Sendable view values into assumeIsolated hops (single
+/// thread: backend main loop). Same pattern as the V4L2 delivery box.
+private struct QuillToolbarHopBox<T>: @unchecked Sendable { let value: T }
