@@ -171,6 +171,11 @@ extension WindowGroup: GTKWindowRenderable {
         }
         let winPtr = windowPointer(window)
         gtk_window_set_title(winPtr, title)
+        if quillHidesTitleBar {
+            // .windowStyle(.hiddenTitleBar): no server-side decorations, as on
+            // macOS where the content extends into the title bar region.
+            gtk_window_set_decorated(winPtr, 0)
+        }
 
         // Set window ID in environment for keyboard shortcut scoping
         var wgEnv = getCurrentEnvironment()

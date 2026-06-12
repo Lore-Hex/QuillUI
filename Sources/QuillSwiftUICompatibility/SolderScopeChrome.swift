@@ -98,12 +98,18 @@ extension Animation {
 /// fills/backgrounds are approximated with translucent white (the same
 /// approximation `Shape.fill(_ material:)` uses in QuillUI).
 public struct Material: Sendable {
-    public init() {}
-    public static let ultraThinMaterial = Material()
-    public static let thinMaterial = Material()
-    public static let regularMaterial = Material()
-    public static let thickMaterial = Material()
-    public static let ultraThickMaterial = Material()
+    /// Opacity of the translucent-white approximation (no compositor blur on
+    /// the GTK path yet). Thinner materials show more of what's behind them.
+    public let quillApproximationAlpha: Double
+    public init() { self.quillApproximationAlpha = 0.55 }
+    init(quillApproximationAlpha: Double) {
+        self.quillApproximationAlpha = quillApproximationAlpha
+    }
+    public static let ultraThinMaterial = Material(quillApproximationAlpha: 0.25)
+    public static let thinMaterial = Material(quillApproximationAlpha: 0.4)
+    public static let regularMaterial = Material(quillApproximationAlpha: 0.55)
+    public static let thickMaterial = Material(quillApproximationAlpha: 0.7)
+    public static let ultraThickMaterial = Material(quillApproximationAlpha: 0.85)
 }
 
 extension View {
@@ -117,6 +123,12 @@ extension View {
         _ material: Material,
         ignoresSafeAreaEdges edges: Edge.Set = .all
     ) -> BackgroundView<Self, Color> {
+        // NOTE: the GTK background path currently dims CHILDREN along with
+        // the fill (opacity leaks down the subtree), so true per-token
+        // translucency washes out toolbar content. Until the renderer gains
+        // an rgba background-behind-children path, keep the legible
+        // near-opaque approximation; quillApproximationAlpha documents the
+        // intended translucency for that follow-up.
         background(Color.white.opacity(0.92))
     }
 }
@@ -613,7 +625,10 @@ extension WindowGroup {
     /// the style cannot be recorded from this module yet; GTK windows keep
     /// their platform title bar.
     public func windowStyle<S: WindowStyle>(_ style: S) -> WindowGroup<Content> {
-        self
+        if style is HiddenTitleBarWindowStyle {
+            return quillHidingTitleBar()
+        }
+        return self
     }
 }
 
