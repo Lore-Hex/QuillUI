@@ -2838,6 +2838,20 @@ if quillUILinuxBuildBackend == .qt {
         targets = qtGraphTargets
     }
 
+    // SolderScope's Qt surface. Lives outside the canonical roster because
+    // its GTK-side target is gated on the fetched .upstream/solderscope tree
+    // (no self-contained core yet), so the product can only exist on the qt
+    // graph unconditionally (both the canonical reset and the
+    // QUILLUI_QT_GENERIC append path).
+    let quillSolderScopeQtSpec = QuillCanonicalLinuxAppSpec(
+        product: "quill-solderscope",
+        target: "QuillSolderScope",
+        qtPath: "Sources/QuillSolderScopeQt",
+        qtRuntime: .genericQtNative
+    )
+    targets.append(quillCanonicalLinuxAppQtTarget(quillSolderScopeQtSpec))
+    products.append(quillSolderScopeQtSpec.productDeclaration)
+
     // --- Generic SwiftUI→Qt backend (BackendQt), opt-in via QUILLUI_QT_GENERIC ---
     //
     // Everything below is gated so the default Qt build is unchanged. When the

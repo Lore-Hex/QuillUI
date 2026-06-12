@@ -242,7 +242,11 @@ extension WindowGroup: GTKWindowRenderable {
 
         gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
-        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+        if !quillHidesTitleBar {
+            // The macOS reference has no in-window menu strip (global menu
+            // bar); hidden-title-bar windows drop ours for the same look.
+            gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+        }
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)
@@ -663,6 +667,14 @@ public struct GTK4Backend: RenderBackend {
         // to do exactly once per process, and must happen before any widget
         // asks Pango to resolve the "Material Symbols Rounded" family.
         gtkRegisterBundledIconFont()
+
+        // Dark scheme (QUILLUI_COLOR_SCHEME=dark): ask GTK for the dark
+        // theme variant before init so widget chrome matches the semantic
+        // colors' dark resolution. An explicit GTK_THEME wins.
+        if Color.quillPrefersDarkScheme,
+           ProcessInfo.processInfo.environment["GTK_THEME"] == nil {
+            setenv("GTK_THEME", "Adwaita:dark", 1)
+        }
 
         let factory: (OpaquePointer?) -> Void = { appPtr in
             // Inject openWindow action into the environment so views
