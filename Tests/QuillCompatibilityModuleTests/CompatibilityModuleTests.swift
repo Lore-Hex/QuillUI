@@ -204,9 +204,11 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: shapedContent)).contains("ContentShapeView"))
         #expect(String(describing: type(of: shapedContent.shape)).contains("Rectangle"))
 
+        // allowsHitTesting is a recorded no-op returning Self on the merged
+        // compat surface (the wrapper-view flavor retired with the QuillUI
+        // consolidation).
         let hitTesting = Text("Hit Test").allowsHitTesting(false)
-        #expect(String(describing: type(of: hitTesting)).contains("AllowsHitTestingView"))
-        #expect(hitTesting.enabled == false)
+        #expect(String(describing: type(of: hitTesting)).contains("Text"))
         #expect(quillTextLabel(from: hitTesting) == "Hit Test")
 
         let gestured = Text("Drag").gesture(DragGesture().onChanged { _ in }.onEnded { _ in })
