@@ -440,6 +440,10 @@ final class QtIntClosureBox {
 }
 
 func qtTextLabel(from view: any View) -> String {
+    if let anyView = view as? AnyView {
+        return qtTextLabel(from: anyView.wrapped)
+    }
+
     if let text = view as? Text {
         return text.content
     }
@@ -896,6 +900,189 @@ extension FrameView: QtRenderable {
             Int32(layout.childPlacement.size.height)
         )
         return container
+    }
+}
+
+// MARK: - AnyView
+
+extension AnyView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderAnyView(wrapped)
+    }
+}
+
+// MARK: - Link
+
+extension Link: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let text = label.isEmpty ? qtTextLabel(from: labelView.wrapped) : label
+        let box = Unmanaged.passRetained(QtClosureBox({})).toOpaque()
+        let click: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).release()
+        }
+        return qtOpaque(quill_qt_bridge_button_create(text, click, box, destroy))
+    }
+}
+
+// MARK: - Navigation views
+
+private func qtRenderFirstChildOrView<V: View>(_ view: V) -> OpaquePointer {
+    if let multi = view as? MultiChildView, let first = multi.children.first {
+        return qtRenderAnyView(first)
+    }
+    return qtRenderView(view)
+}
+
+extension NavigationStack: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderFirstChildOrView(content)
+    }
+}
+
+extension NavigationLink: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let title = label.isEmpty ? qtTextLabel(from: labelView.wrapped) : label
+        let box = Unmanaged.passRetained(QtClosureBox({})).toOpaque()
+        let click: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).release()
+        }
+        return qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+    }
+}
+
+extension TabView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = tabs.map { tab in qtRenderAnyView(tab.wrapped) }
+        return qtRenderVerticalContainer(children, spacing: 0, alignment: .leading)
+    }
+}
+
+extension Section: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        var children: [OpaquePointer] = []
+        if let header, !header.isEmpty {
+            children.append(qtRenderView(Text(header)))
+        }
+        children.append(qtRenderView(content))
+        if let footer, !footer.isEmpty {
+            children.append(qtRenderView(Text(footer)))
+        }
+        return qtRenderVerticalContainer(children, spacing: 4, alignment: .leading)
+    }
+}
+
+// MARK: - Label
+
+extension Label: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        var children: [OpaquePointer] = []
+        if let iconName = systemImage {
+            children.append(qtRenderView(Image(systemName: iconName)))
+        } else if let path = imagePath {
+            children.append(qtRenderView(Image(filePath: path)))
+        }
+        children.append(qtOpaque(quill_qt_bridge_label_create(title)))
+        return qtRenderHorizontalContainer(children, spacing: 6, alignment: .center)
+    }
+}
+
+// MARK: - Lazy stacks
+
+extension LazyVStack: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }
+        return qtRenderVerticalContainer(children, spacing: 0, alignment: .leading)
+    }
+}
+
+extension LazyHStack: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }
+        return qtRenderHorizontalContainer(children, spacing: 0, alignment: .center)
+    }
+}
+
+// MARK: - Async / geometry
+
+extension ProgressView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtOpaque(quill_qt_bridge_label_create("Loading…"))
+    }
+}
+
+extension GeometryReader: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderView(content(GeometryProxy(size: CGSize(width: 300, height: 300))))
+    }
+}
+
+// MARK: - Modifier pass-throughs
+
+extension TitledView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ToolbarView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ToolbarConfigurationView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension AlertModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension SheetModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ItemSheetModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension BackgroundView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension PaddedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        var childW: Int32 = 0
+        var childH: Int32 = 0
+        quill_qt_bridge_widget_resolved_size(qtHandle(child), &childW, &childH)
+        let container = qtOpaque(quill_qt_bridge_container_create())
+        let w = max(0, Int(childW) + leading + trailing)
+        let h = max(0, Int(childH) + top + bottom)
+        quill_qt_bridge_widget_set_fixed_size(qtHandle(container), Int32(w), Int32(h))
+        quill_qt_bridge_widget_add_child(qtHandle(container), qtHandle(child))
+        quill_qt_bridge_widget_set_geometry(
+            qtHandle(child), Int32(leading), Int32(top), childW, childH)
+        return container
+    }
+}
+
+extension OverlayView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        #if QUILLUI_QT_GENERIC
+        return qtRenderOverlayContainer(
+            [qtRenderView(content), qtRenderView(overlay)],
+            alignment: alignment
+        )
+        #else
+        return qtRenderView(content)
+        #endif
     }
 }
 
