@@ -721,7 +721,11 @@ public final class UITextPasteItem {
     }
 }
 
-@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
+// UINavigationControllerDelegate moved to QuillUIKit
+// (UIViewControllerSurface.swift): the UINavigationController class body
+// needs the type for Apple's `open weak var delegate`, which upstream
+// (OWSNavigationController) overrides. Still visible here via the
+// `@_exported import QuillUIKit` above.
 
 @MainActor public protocol UIImagePickerControllerDelegate: AnyObject {
     func imagePickerController(
@@ -893,7 +897,7 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
     public static let zero = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
 }
 
-// MARK: - UISwitch + UIInterfaceOrientationMask
+// MARK: - UISwitch
 
 /// `UISwitch: UIControl`. SSK only references it as a callback parameter type
 /// (`switchDidChange(_ sender: UISwitch)` reading `.isOn`); never instantiated here.
@@ -931,17 +935,10 @@ public enum UIDeviceOrientation: Int, Sendable {
     public var isValidInterfaceOrientation: Bool { isPortrait || isLandscape }
 }
 
-public struct UIInterfaceOrientationMask: OptionSet, Sendable {
-    public let rawValue: UInt
-    public init(rawValue: UInt) { self.rawValue = rawValue }
-    public static let portrait = UIInterfaceOrientationMask(rawValue: 1 << 1)
-    public static let portraitUpsideDown = UIInterfaceOrientationMask(rawValue: 1 << 2)
-    public static let landscapeRight = UIInterfaceOrientationMask(rawValue: 1 << 3)
-    public static let landscapeLeft = UIInterfaceOrientationMask(rawValue: 1 << 4)
-    public static let landscape: UIInterfaceOrientationMask = [.landscapeLeft, .landscapeRight]
-    public static let all: UIInterfaceOrientationMask = [.portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight]
-    public static let allButUpsideDown: UIInterfaceOrientationMask = [.portrait, .landscapeLeft, .landscapeRight]
-}
+// UIInterfaceOrientationMask moved to QuillUIKit (UIGeometryExtras.swift,
+// next to UIInterfaceOrientation): the UIViewController class body needs the
+// type for Apple's `supportedInterfaceOrientations`. Still visible to
+// `import UIKit` consumers via the `@_exported import QuillUIKit` above.
 
 // MARK: - UIGraphicsImageRenderer (Linux: placeholder images)
 //
