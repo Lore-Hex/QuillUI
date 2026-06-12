@@ -13,6 +13,7 @@ public struct Window<Content: View>: Scene {
     public let minWindowWidth: Double?
     public let minWindowHeight: Double?
     public let launchBehavior: WindowLaunchBehavior
+    public let windowStyle: WindowStyle?
 
     public init(_ title: String, id: String, @ViewBuilder content: () -> Content) {
         self.title = title
@@ -23,6 +24,7 @@ public struct Window<Content: View>: Scene {
         self.minWindowWidth = nil
         self.minWindowHeight = nil
         self.launchBehavior = .automatic
+        self.windowStyle = nil
     }
 
     init(
@@ -33,7 +35,8 @@ public struct Window<Content: View>: Scene {
         defaultWindowHeight: Double?,
         minWindowWidth: Double?,
         minWindowHeight: Double?,
-        launchBehavior: WindowLaunchBehavior
+        launchBehavior: WindowLaunchBehavior,
+        windowStyle: WindowStyle?
     ) {
         self.title = title
         self.id = id
@@ -43,6 +46,7 @@ public struct Window<Content: View>: Scene {
         self.minWindowWidth = minWindowWidth
         self.minWindowHeight = minWindowHeight
         self.launchBehavior = launchBehavior
+        self.windowStyle = windowStyle
     }
 
     public var body: Never { fatalError("Window is a primitive scene") }
@@ -52,7 +56,8 @@ public struct Window<Content: View>: Scene {
             title: title, id: id, content: content,
             defaultWindowWidth: width, defaultWindowHeight: height,
             minWindowWidth: minWindowWidth, minWindowHeight: minWindowHeight,
-            launchBehavior: launchBehavior
+            launchBehavior: launchBehavior,
+            windowStyle: windowStyle
         )
     }
 
@@ -61,7 +66,18 @@ public struct Window<Content: View>: Scene {
             title: title, id: id, content: content,
             defaultWindowWidth: defaultWindowWidth, defaultWindowHeight: defaultWindowHeight,
             minWindowWidth: minWindowWidth, minWindowHeight: minWindowHeight,
-            launchBehavior: behavior
+            launchBehavior: behavior,
+            windowStyle: windowStyle
+        )
+    }
+
+    public func windowStyle(_ style: WindowStyle) -> Window<Content> {
+        Window(
+            title: title, id: id, content: content,
+            defaultWindowWidth: defaultWindowWidth, defaultWindowHeight: defaultWindowHeight,
+            minWindowWidth: minWindowWidth, minWindowHeight: minWindowHeight,
+            launchBehavior: launchBehavior,
+            windowStyle: style
         )
     }
 }

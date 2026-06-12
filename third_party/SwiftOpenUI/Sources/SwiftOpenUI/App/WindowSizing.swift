@@ -71,6 +71,7 @@ extension WindowGroup {
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
+            windowStyle: windowStyle,
             launchesAtStartup: launchesAtStartup
         )
     }
@@ -94,6 +95,7 @@ extension WindowGroup {
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
+            windowStyle: windowStyle,
             launchesAtStartup: launchesAtStartup
         )
     }
@@ -112,6 +114,7 @@ extension WindowGroup {
             windowSizing: sizing,
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
+            windowStyle: windowStyle,
             launchesAtStartup: launchesAtStartup
         )
     }
@@ -130,6 +133,7 @@ extension WindowGroup {
             windowSizing: windowSizing,
             windowResizeBehavior: behavior,
             windowResizability: windowResizability,
+            windowStyle: windowStyle,
             launchesAtStartup: launchesAtStartup
         )
     }
@@ -151,6 +155,26 @@ extension WindowGroup {
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: resizability,
+            windowStyle: windowStyle,
+            launchesAtStartup: launchesAtStartup
+        )
+    }
+
+    /// SwiftUI-compatible window chrome style control.
+    public func windowStyle(_ style: WindowStyle) -> WindowGroup<Content> {
+        WindowGroup(
+            title: title,
+            content: content,
+            defaultWindowWidth: defaultWindowWidth,
+            defaultWindowHeight: defaultWindowHeight,
+            minWindowWidth: minWindowWidth,
+            minWindowHeight: minWindowHeight,
+            maxWindowWidth: maxWindowWidth,
+            maxWindowHeight: maxWindowHeight,
+            windowSizing: windowSizing,
+            windowResizeBehavior: windowResizeBehavior,
+            windowResizability: windowResizability,
+            windowStyle: style,
             launchesAtStartup: launchesAtStartup
         )
     }
