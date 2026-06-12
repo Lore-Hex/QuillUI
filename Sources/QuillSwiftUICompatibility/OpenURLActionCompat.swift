@@ -9,8 +9,8 @@ import SwiftOpenUI
 public struct OpenURLAction: @unchecked Sendable {
     /// The outcome a URL handler reports back to `openURL`. Mirrors SwiftUI's
     /// `OpenURLAction.Result`.
-    public struct Result: Sendable {
-        enum Kind: Sendable { case handled, discarded, systemAction(URL?) }
+    public struct Result: Sendable, Equatable {
+        enum Kind: Sendable, Equatable { case handled, discarded, systemAction(URL?) }
         let kind: Kind
         private init(_ kind: Kind) { self.kind = kind }
 

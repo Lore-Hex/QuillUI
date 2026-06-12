@@ -114,6 +114,7 @@ public extension DropDelegate {
 }
 
 public extension View {
+    @_disfavoredOverload
     func keyboardType(_ type: UIKeyboardType) -> Self {
         _ = type
         return self

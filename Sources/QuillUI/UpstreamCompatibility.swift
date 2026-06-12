@@ -5,6 +5,8 @@ import SwiftUI
 import SwiftOpenUI
 import QuillKit
 import QuillFoundation
+import class UIKit.NSItemProvider
+import enum UIKit.UIKeyboardType
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -36,55 +38,6 @@ public extension UTType {
     }
 }
 #endif
-
-public final class NSItemProvider: @unchecked Sendable {
-    private enum Representation {
-        case data(Data, UTType)
-        case file(URL, UTType?)
-    }
-
-    private let representations: [Representation]
-
-    public init() {
-        self.representations = []
-    }
-
-    public init(fileURL: URL) {
-        self.representations = [.file(fileURL, UTType.type(for: fileURL))]
-    }
-
-    public convenience init(contentsOf url: URL) {
-        self.init(fileURL: url)
-    }
-
-    public init(data: Data, type: UTType) {
-        self.representations = [.data(data, type)]
-    }
-
-    public func loadDataRepresentation(
-        for contentType: UTType,
-        completionHandler: @escaping (Data?, Error?) -> Void
-    ) -> Progress? {
-        for representation in representations {
-            switch representation {
-            case .data(let data, let type) where type.conforms(to: contentType):
-                completionHandler(data, nil)
-                return nil
-            case .file(let url, let type) where type?.conforms(to: contentType) == true || contentType.accepts(url: url):
-                do {
-                    completionHandler(try Data(contentsOf: url), nil)
-                } catch {
-                    completionHandler(nil, error)
-                }
-                return nil
-            default:
-                continue
-            }
-        }
-        completionHandler(nil, QuillCompatibilityError.representationUnavailable(contentType.identifier))
-        return nil
-    }
-}
 
 public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
     case representationUnavailable(String)
@@ -209,26 +162,6 @@ public struct Material: Sendable {
     public static let regularMaterial = Material()
     public static let thickMaterial = Material()
     public static let ultraThickMaterial = Material()
-}
-
-@propertyWrapper
-public struct Namespace: Sendable {
-    public struct ID: Hashable, Sendable {
-        private let rawValue = UUID()
-
-        public init() {}
-    }
-
-    private var id: ID
-
-    public init() {
-        self.id = ID()
-    }
-
-    public var wrappedValue: ID {
-        get { id }
-        set { id = newValue }
-    }
 }
 
 // `FocusState` was previously declared here as a Binding-projecting
@@ -565,15 +498,6 @@ public struct PlainTextFieldStyle: Sendable {
     public init() {}
 }
 
-public struct FormStyleType: Sendable {
-    public init() {}
-    public static let grouped = FormStyleType()
-}
-
-public struct GroupedFormStyle: Sendable {
-    public init() {}
-}
-
 public struct TextContentType: Hashable, Sendable {
     public var rawValue: String
 
@@ -584,15 +508,7 @@ public struct TextContentType: Hashable, Sendable {
     public static let URL = TextContentType("URL")
 }
 
-public struct KeyboardType: Hashable, Sendable {
-    public var rawValue: String
-
-    public init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let URL = KeyboardType("URL")
-}
+public typealias KeyboardType = UIKeyboardType
 
 public struct TextInputAutocapitalization: Hashable, Sendable {
     public var rawValue: String
@@ -1157,6 +1073,14 @@ public extension View {
         return ContentShapeView(content: self, shape: shape)
     }
 
+    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
+        recordQuillUIFallback(
+            "allowsHitTesting",
+            message: "allowsHitTesting is preserved as interaction metadata on Linux."
+        )
+        return AllowsHitTestingView(content: self, enabled: enabled)
+    }
+
     func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
         recordQuillUIFallback(
             "onHover",
@@ -1387,6 +1311,7 @@ public extension View {
         return ViewMaskView(content: self, mask: mask)
     }
 
+    @_disfavoredOverload
     func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
         recordQuillUIFallback(
             "mask",
@@ -1465,15 +1390,6 @@ public extension View {
         textFieldStyle(TextFieldStyleType.plain)
     }
 
-    func formStyle(_ style: FormStyleType) -> BackgroundView<PaddedView<Self>, Color> {
-        recordQuillUIFallback(
-            "formStyle",
-            message: "formStyle is approximated with grouped padding and background on Linux."
-        )
-        return padding(8)
-            .background(Color.gray5Custom)
-    }
-
     func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
         recordQuillUIFallback(
             "formStyle",
@@ -1528,21 +1444,6 @@ public extension View {
         _ action: @escaping () -> Void
     ) -> OnChangeTwoArgView<Self, V> {
         onChange(of: value) { _, _ in action() }
-    }
-
-    func confirmationDialog<Actions: View, Message: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        @ViewBuilder actions: () -> Actions,
-        @ViewBuilder message: () -> Message
-    ) -> ConfirmationDialogView<Self> {
-        confirmationDialog(
-            title,
-            isPresented: isPresented,
-            titleVisibility: .automatic,
-            actions: quillConfirmationDialogButtons(from: actions()),
-            message: quillTextLabel(from: message())
-        )
     }
 
 }

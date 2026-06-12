@@ -1225,30 +1225,36 @@ public extension Text {
         self.init(key)
     }
 
+    @_disfavoredOverload
     func font(_ font: Font) -> Text {
         _ = font
         return self
     }
 
+    @_disfavoredOverload
     func fontWeight(_ weight: FontWeight) -> Text {
         _ = weight
         return self
     }
 
+    @_disfavoredOverload
     func foregroundStyle(_ color: Color) -> Text {
         _ = color
         return self
     }
 
+    @_disfavoredOverload
     func foregroundColor(_ color: Color) -> Text {
         _ = color
         return self
     }
 
+    @_disfavoredOverload
     func bold() -> Text {
         self
     }
 
+    @_disfavoredOverload
     func italic() -> Text {
         self
     }
@@ -1288,6 +1294,7 @@ public extension String.StringInterpolation {
 }
 
 public extension Image {
+    @_disfavoredOverload
     init(_ name: String) {
         self.init(resource: name)
     }
@@ -1553,11 +1560,13 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func formStyle(_ style: GroupedFormStyle) -> Self {
         _ = style
         return self
     }
 
+    @_disfavoredOverload
     func textContentType(_ contentType: TextContentType?) -> Self {
         _ = contentType
         return self
@@ -1609,11 +1618,13 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func mask<Mask: View>(_ mask: Mask) -> Self {
         _ = mask
         return self
     }
 
+    @_disfavoredOverload
     func mask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> Self {
         _ = mask()
         return self
@@ -1879,6 +1890,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func scrollIndicators(_ visibility: Visibility) -> Self {
         _ = visibility
         return self
@@ -1895,6 +1907,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
         return self
@@ -2351,11 +2364,13 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
         _ = visibility
         return self
     }
 
+    @_disfavoredOverload
     func matchedGeometryEffect<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -2423,6 +2438,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func focusEffectDisabled(_ disabled: Bool = true) -> Self {
         _ = disabled
         return self
@@ -2497,6 +2513,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
         _ = edges
         return self
