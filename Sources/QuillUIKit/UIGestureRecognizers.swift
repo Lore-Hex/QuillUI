@@ -324,6 +324,17 @@ open class UILongPressGestureRecognizer: UIGestureRecognizer {
 /// A continuous recognizer for dragging.
 open class UIPanGestureRecognizer: UIGestureRecognizer {
 
+    /// The minimum number of touches required for the pan to match.
+    /// Apple's default: 1. Stored configuration, like every property here.
+    open var minimumNumberOfTouches: Int = 1
+
+    /// The maximum number of touches that can be down for the pan to be
+    /// recognized. Apple's header default is UINT_MAX ("no limit"), kept
+    /// literally. Signal's image editor clamps its
+    /// ImageEditorPanGestureRecognizer subclass to single-finger pans by
+    /// setting this to 1.
+    open var maximumNumberOfTouches: Int = Int(UInt32.max)
+
     /// The accumulated translation. With no event backend this changes
     /// only via `setTranslation(_:in:)`; a future backend accumulates into
     /// the same storage. Tracked in a single coordinate space — the
