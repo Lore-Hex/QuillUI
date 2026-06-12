@@ -721,7 +721,11 @@ public final class UITextPasteItem {
     }
 }
 
-@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
+// UINavigationControllerDelegate moved to QuillUIKit
+// (UIViewControllerSurface.swift): the UINavigationController class body
+// needs the type for Apple's `open weak var delegate`, which upstream
+// (OWSNavigationController) overrides. Still visible here via the
+// `@_exported import QuillUIKit` above.
 
 @MainActor public protocol UIImagePickerControllerDelegate: AnyObject {
     func imagePickerController(

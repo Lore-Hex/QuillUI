@@ -219,6 +219,14 @@ extension UIViewController {
     open func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {}
 }
 
+/// The navigation controller's delegate surface. Moved here from the UIKit
+/// shim module (which depends on this one and re-exports it) so the
+/// UINavigationController class body in QuillUIKit.swift can declare Apple's
+/// `open weak var delegate`, which upstream (OWSNavigationController)
+/// overrides. Empty, as it was in the shim: upstream's optional-requirement
+/// calls on it are a separate (non-override) error family.
+@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
+
 /// Adaptivity/dismissal notifications. All members are optional on Apple
 /// (an @objc protocol); here they are defaulted instead. The
 /// UIModalPresentationStyle-typed adaptivity methods are omitted because that
