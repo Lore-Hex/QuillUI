@@ -275,7 +275,9 @@ public class UISceneConfiguration: NSObject {
 
 public extension UIWindow {
     var isKeyWindow: Bool { false }
-    var safeAreaInsets: UIEdgeInsets { .zero }
+    // safeAreaInsets: the UIView-wide extension in UIViewMargins.swift covers
+    // windows too (same .zero — Linux has no notches); a second extension
+    // property here can't shadow it (extension members don't override).
     @MainActor var windowScene: UIWindowScene? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
