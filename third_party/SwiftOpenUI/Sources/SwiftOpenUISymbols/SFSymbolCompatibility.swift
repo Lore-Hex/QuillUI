@@ -84,6 +84,9 @@ public enum SFSymbolCompatibility {
 
         // MARK: Status / feedback
         "checkmark":              "check",
+        // SF "circle" is an outline ring (IceCubes content-warning toggle);
+        // Material's outline ring is the unchecked radio glyph.
+        "circle":                 "radio_button_unchecked",
         "checkmark.circle":       "check_circle",
         "checkmark.circle.fill":  "check_circle",
         "checkmark.seal":         "verified",

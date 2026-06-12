@@ -137,3 +137,43 @@ Manifest structure (mapped this session; Package.swift is 3,173 lines):
 - Signal Track B (separate agent) + Enchanted (separate effort) — don't touch.
 - The repo-wide porting playbook: docs/porting-upstream-apps.md.
 - Build images: quillui-signal-build (gtk, has all deps), qui-appkit-qt (qt6).
+
+
+---
+
+## Session addendum (2026-06-10, later session)
+
+**Both resume priorities LANDED:**
+
+1. **Qt wiring DONE** (commit f4bf37fb): `iceCubesLinuxGraphEnabled = gtk ||
+   (qt && QUILLUI_QT_GENERIC)` widens the three gates; under qt-generic the qt
+   branch APPENDS its native graph to the common shim graph (name-filtered)
+   instead of resetting products/deps/targets; the SwiftUI shim's backend dep
+   is conditional (`BackendQt` target vs `BackendGTK4` product). Plain-qt reset
+   byte-identical. **`icecubes-linux-app` BUILDS + LINKS under Qt** (92.8MB).
+   Build gotcha: GRDB's `canImport(Combine)` races our Combine shim → fresh
+   scratch must `swift build --target GRDB` FIRST, then the product
+   (deterministic; "missing required module 'COpenCombineHelpers'" otherwise).
+   Qt launch reaches window + root-content build; first crash was
+   OnChangeTwoArgView's fatalError → fixed by (a) OnChange{,TwoArg}View
+   QtRenderable extensions, (b) qtRenderView now degrades UNHANDLED PrimitiveViews
+   to an empty placeholder + `[backendqt] unhandled primitive …` trace, so one
+   launch enumerates every missing Qt renderable (no more crash-per-primitive).
+
+2. **GTK sheet Cancel dismiss FIXED** — root cause was a STALE gtk-css patch
+   application: this branch's renderer predated main's 8 swarm sheet commits
+   (`Let GTK root sheet dismiss via binding`, `Defer GTK sheet dismissal
+   teardown`, …). Merged origin/main (commit 39ca4c8a; kept this branch's
+   UIKitShim extension-over-QuillUIKit structure, took main's service-backed
+   AVAudioSession / State wiring refactor / button-action scheduling),
+   re-applied `scripts/patch-swiftopenui-gtk-css.sh`, deduped both-sides-kept
+   decls (commit 172345b1: scroll system, gtkScheduleOnAppear, gtkDebugLog).
+   PROOF: `.tmp-ice-c1-before.png` (sheet open) → `.tmp-ice-c2-after-cancel.png`
+   (sheet dismissed; logged-out timeline shell + first status-row fragments).
+   ⚠️ patch-script lesson: it ABORTS on unrecognized shapes — delete this
+   branch's dead/stale copies first (it expected exact stale text for
+   gtkResolveOrQueueScrollTo and bailed mid-run, leaving later steps unapplied).
+
+**Next:** (1) qt smoke gap list → implement the high-traffic missing Qt
+renderables; (2) GTK timeline row rendering behind the dismissed sheet (two
+floating row fragments visible — layout rung); (3) parity-doc P1 ladder.

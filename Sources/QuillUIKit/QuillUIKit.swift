@@ -11,6 +11,13 @@
 // flow (presentation context, callback) belongs alongside UI plumbing.
 
 import QuillFoundation
+import QuillKit
+
+#if os(Linux)
+// CALayer for UIView.layer. On Apple platforms the real QuartzCore arrives
+// transitively via AppKit/UIKit; on Linux it's the in-tree shim module.
+import QuartzCore
+#endif
 
 #if os(iOS)
 // On iOS the real UIKit / AuthenticationServices / WebKit are auto-imported.
@@ -30,25 +37,15 @@ public typealias ASPresentationAnchor = NSObject
 
 @MainActor open class UIResponder: NSObject {
     open var keyCommands: [UIKeyCommand]? { nil }
-    @discardableResult open func becomeFirstResponder() -> Bool { true }
-    @discardableResult open func resignFirstResponder() -> Bool { true }
+
+    @discardableResult
+    open func becomeFirstResponder() -> Bool { true }
+
+    @discardableResult
+    open func resignFirstResponder() -> Bool { true }
+
     open func buildMenu(with builder: UIMenuBuilder) {
         _ = builder
-    }
-}
-
-public class UIMenu: NSObject {
-    public struct Identifier: Hashable, Sendable {
-        public let rawValue: String
-        public init(_ rawValue: String) { self.rawValue = rawValue }
-        public static let document = Identifier("document")
-        public static let toolbar = Identifier("toolbar")
-    }
-}
-
-public class UIMenuBuilder: NSObject {
-    public func remove(menu: UIMenu.Identifier) {
-        _ = menu
     }
 }
 
@@ -119,6 +116,7 @@ public extension NSLayoutAnchor {
 
 public class NSLayoutConstraint: NSObject {
     public enum QuillRelation: Sendable { case equal, lessThanOrEqual, greaterThanOrEqual }
+    public typealias Relation = QuillRelation
     public enum Axis: Sendable { case horizontal, vertical }
 
     /// Constraint priority (NSLayoutConstraint.Priority): a Float wrapper with
@@ -217,28 +215,103 @@ public class UIWindow: UIView {}
 
 @MainActor open class UIView: UIResponder {
     public enum ContentMode: Sendable {
+        case scaleToFill
         case scaleAspectFit
         case scaleAspectFill
+        case redraw
         case center
+        case top
+        case bottom
+        case left
+        case right
+        case topLeft
+        case topRight
+        case bottomLeft
+        case bottomRight
     }
 
     public struct AutoresizingMask: OptionSet, Sendable {
-        public let rawValue: Int
-        public init(rawValue: Int) { self.rawValue = rawValue }
-        public static let flexibleWidth = AutoresizingMask(rawValue: 1 << 0)
-        public static let flexibleHeight = AutoresizingMask(rawValue: 1 << 1)
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let flexibleLeftMargin = AutoresizingMask(rawValue: 1 << 0)
+        public static let flexibleWidth = AutoresizingMask(rawValue: 1 << 1)
+        public static let flexibleRightMargin = AutoresizingMask(rawValue: 1 << 2)
+        public static let flexibleTopMargin = AutoresizingMask(rawValue: 1 << 3)
+        public static let flexibleHeight = AutoresizingMask(rawValue: 1 << 4)
+        public static let flexibleBottomMargin = AutoresizingMask(rawValue: 1 << 5)
     }
 
     public override init() { super.init() }
-    public init(frame: CGRect) { super.init() }
-    public var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
-    public var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
+    public init(frame: CGRect) {
+        super.init()
+        self.frame = frame
+    }
+    public var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
+        didSet {
+            #if os(Linux)
+            _layer?.frame = frame
+            #endif
+        }
+    }
+    public var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
+        didSet {
+            #if os(Linux)
+            _layer?.bounds = bounds
+            #endif
+        }
+    }
+    public private(set) weak var superview: UIView?
     public var subviews: [UIView] = []
-    public func removeFromSuperview() {}
+    open func removeFromSuperview() {
+        superview?.subviews.removeAll { $0 === self }
+        superview = nil
+        #if os(Linux)
+        _layer?.removeFromSuperlayer()
+        #endif
+    }
     public var backgroundColor: UIColor?
-    public func addSubview(_ view: UIView) { subviews.append(view) }
+    open func addSubview(_ view: UIView) {
+        view.willMove(toWindow: window)
+        view.removeFromSuperview()
+        subviews.append(view)
+        view.superview = self
+        view.window = window
+        #if os(Linux)
+        layer.addSublayer(view.layer)
+        #endif
+    }
+
+    open func willMove(toWindow newWindow: UIWindow?) {
+        _ = newWindow
+    }
+
+    #if os(Linux)
+    // UIView.layer — Apple's view/layer pairing. Created lazily (first access)
+    // via `layerClass` so subclasses that override `layerClass` (CAShapeLayer-
+    // backed views etc.) get the right class; geometry writes mirror into it.
+    // There is no compositor on Linux yet, so the layer is a faithful MODEL
+    // (geometry, hierarchy, animation timing) — not pixels. Linux-only block:
+    // on macOS this module builds against real AppKit and predates the shim.
+    private var _layer: CALayer?
+    open class var layerClass: AnyClass { CALayer.self }
+    open var layer: CALayer {
+        if let existing = _layer { return existing }
+        let cls = type(of: self).layerClass as? CALayer.Type ?? CALayer.self
+        let created = cls.init()
+        // Seed from BOTH stored geometry properties: a bounds set before the
+        // first layer access must survive (frame alone would reset the
+        // layer's bounds to the possibly-zero stored frame). frame first —
+        // it derives position + bounds.size — then bounds wins where the
+        // caller set it explicitly.
+        created.frame = frame
+        if bounds != .zero {
+            created.bounds = bounds
+        }
+        _layer = created
+        return created
+    }
+    #endif
     public var window: UIWindow?
-    public var autoresizingMask: AutoresizingMask = []
     public typealias UserInterfaceStyle = UIUserInterfaceStyle
     public var overrideUserInterfaceStyle: UserInterfaceStyle = .unspecified
     public var isHidden: Bool = false
@@ -257,10 +330,7 @@ public class UIWindow: UIView {}
     public func setNeedsLayout() {}
     public func setNeedsDisplay() {}
     public func layoutIfNeeded() {}
-    public func setContentCompressionResistancePriority(
-        _ priority: NSLayoutConstraint.Priority,
-        for axis: NSLayoutConstraint.Axis
-    ) {
+    public func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
         _ = priority
         _ = axis
     }
@@ -326,17 +396,19 @@ public class UIWindow: UIView {}
 
     public var traitCollection = UITraitCollection()
     public func didMoveToSuperview() {}
-    open func willMove(toWindow newWindow: UIWindow?) {
-        _ = newWindow
-    }
     public var translatesAutoresizingMaskIntoConstraints: Bool = true
+    public var autoresizingMask: AutoresizingMask = []
+    public var clipsToBounds: Bool = true
 }
 
 @MainActor open class UIViewController: UIResponder {
     public var view: UIView!
     public var children: [UIViewController] = []
     public var presentedViewController: UIViewController?
-    public func present(_: Any, animated: Bool) {}
+    public func present(_ viewControllerToPresent: Any, animated: Bool) {
+        _ = animated
+        presentedViewController = viewControllerToPresent as? UIViewController
+    }
     public func dismiss(animated: Bool, completion: (() -> Void)? = nil) {}
     open func viewDidLoad() {}
     open func viewWillAppear(_: Bool) {}
@@ -423,7 +495,7 @@ public class UIWindow: UIView {}
     public func pushViewController(_: UIViewController, animated: Bool) {}
     public func popViewController(animated: Bool) -> UIViewController? { nil }
     public var topViewController: UIViewController?
-    public var visibleViewController: UIViewController?
+    public var visibleViewController: UIViewController? { topViewController }
     public var modalPresentationStyle: Int = 0
 
     /// Inert: UIDevice+FeatureSupport.ows_setOrientation calls this to nudge the
@@ -435,16 +507,17 @@ public class UIWindow: UIView {}
 
 @MainActor public class UITabBarController: UIViewController {
     public var selectedViewController: UIViewController?
+    public var viewControllers: [UIViewController]?
 }
 
 @MainActor public class UINavigationBar: UIView {
-    private static let sharedAppearance = UINavigationBar()
+    private static let appearanceProxy = UINavigationBar()
     public var topItem: UINavigationItem?
     public var isTranslucent: Bool = false
     public var barTintColor: UIColor?
 
     public static func appearance() -> UINavigationBar {
-        sharedAppearance
+        appearanceProxy
     }
 }
 
@@ -566,7 +639,7 @@ public class SLComposeSheetConfigurationItem: NSObject {
 
 @MainActor open class UIImageView: UIView {
     public init(image: UIImage?) { super.init() }
-    public var contentMode: ContentMode = .center
+    public var contentMode: UIView.ContentMode = .scaleToFill
     public var image: UIImage?
 }
 
@@ -576,27 +649,55 @@ public class SLComposeSheetConfigurationItem: NSObject {
 
 @MainActor public class UIVisualEffectView: UIView {}
 
-public class UIKeyCommand: NSObject {
-    public init(title: String, image: Any?, action: Selector, input: String, modifierFlags: Any?, propertyList: Any? = nil) {}
-    public static let inputEscape = "\u{1B}"
-    public init(input: String, modifierFlags: UIKeyModifierFlags, action: Selector) {
-        _ = input
-        _ = modifierFlags
-        _ = action
-    }
-}
-
 public struct UIKeyModifierFlags: OptionSet, Sendable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
-    public static let command = UIKeyModifierFlags(rawValue: 1 << 0)
-    public static let shift = UIKeyModifierFlags(rawValue: 1 << 1)
-    public static let alternate = UIKeyModifierFlags(rawValue: 1 << 2)
-    public static let control = UIKeyModifierFlags(rawValue: 1 << 3)
+    public static let alphaShift = UIKeyModifierFlags(rawValue: 1 << 16)
+    public static let shift = UIKeyModifierFlags(rawValue: 1 << 17)
+    public static let control = UIKeyModifierFlags(rawValue: 1 << 18)
+    public static let alternate = UIKeyModifierFlags(rawValue: 1 << 19)
+    public static let command = UIKeyModifierFlags(rawValue: 1 << 20)
+    public static let numericPad = UIKeyModifierFlags(rawValue: 1 << 21)
+}
+
+public class UIKeyCommand: NSObject {
+    public static let inputEscape = "\u{1B}"
+    public let input: String
+    public let modifierFlags: UIKeyModifierFlags
+    public let action: Selector
+
+    public init(input: String, modifierFlags: UIKeyModifierFlags, action: Selector) {
+        self.input = input
+        self.modifierFlags = modifierFlags
+        self.action = action
+        super.init()
+    }
+
+    public init(title: String, image: Any?, action: Selector, input: String, modifierFlags: UIKeyModifierFlags, propertyList: Any? = nil) {
+        _ = title
+        _ = image
+        _ = propertyList
+        self.input = input
+        self.modifierFlags = modifierFlags
+        self.action = action
+        super.init()
+    }
 }
 
 public protocol UIViewControllerTransitionCoordinator: AnyObject {
     @MainActor func animate(alongsideTransition: ((Any) -> Void)?, completion: ((Any) -> Void)?)
+}
+
+@MainActor public protocol UIActivityItemSource: AnyObject {
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any?
+}
+
+public extension UIActivityItemSource {
+    @MainActor func activityViewControllerLinkMetadata(_ activityViewController: UIActivityViewController) -> Any? {
+        _ = activityViewController
+        return nil
+    }
 }
 
 open class UIActivity: NSObject {
@@ -618,24 +719,95 @@ open class UIActivity: NSObject {
     public func activityDidFinish(_: Bool) {}
 }
 
-public class UIApplication: NSObject {
+// THE canonical UIApplication (the UIKit shim re-exports this module; a twin
+// declaration there made `UIApplication.shared` ambiguous once SwiftUI began
+// re-exporting AppKit, whose QuillUIKit re-export exposes this copy).
+public class UIApplication: NSObject, @unchecked Sendable {
     @MainActor public static let shared = UIApplication()
-    @MainActor public func open(_: URL, options: [AnyHashable: Any] = [:], completionHandler: ((Bool) -> Void)? = nil) {}
-    @MainActor public func canOpenURL(_: URL) -> Bool { true }
-    @MainActor public func registerForRemoteNotifications() {}
+    @MainActor @discardableResult public func open(
+        _ url: URL,
+        options: [AnyHashable: Any] = [:],
+        completionHandler: ((Bool) -> Void)? = nil
+    ) -> Bool {
+        #if canImport(AppKit) && !os(Linux)
+        let didOpen = NSWorkspace.shared.open(url)
+        completionHandler?(didOpen)
+        return didOpen
+        #elseif os(Linux)
+        let didOpen = QuillWorkspace.open(url)
+        completionHandler?(didOpen)
+        return didOpen
+        #else
+        completionHandler?(false)
+        return false
+        #endif
+    }
+    @MainActor public func canOpenURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), !scheme.isEmpty else { return false }
+        return ["http", "https", "mailto", "tel"].contains(scheme) || scheme.contains(".")
+    }
+    // Async form used by SwiftUI/UIKit real source (`await UIApplication.shared.open(url)`).
+    // Disambiguate to the completion-handler overload to avoid recursing into itself.
+    @MainActor @discardableResult public func open(_ url: URL) async -> Bool {
+        open(url, options: [:], completionHandler: nil)
+    }
+    @MainActor public func registerForRemoteNotifications() {
+        QuillNotificationService.shared.registerForRemoteNotifications()
+    }
+    @MainActor public func unregisterForRemoteNotifications() {
+        QuillNotificationService.shared.unregisterForRemoteNotifications()
+    }
+    @MainActor public var isRegisteredForRemoteNotifications: Bool {
+        QuillNotificationService.shared.remoteNotificationsRegistered
+    }
     public enum LaunchOptionsKey: Hashable { case remoteNotification }
     @MainActor public var connectedScenes: Set<UIScene> = []
+    @MainActor public var applicationState: UIApplicationState { .active }
+
+    /// UIKit (and SignalServiceKit's AppContext) name the application-state enum
+    /// `UIApplication.State`; `UIApplicationState` is its top-level alias on iOS.
+    public typealias State = UIApplicationState
+
+    // App-lifecycle notification names. Real UIKit members; SignalServiceKit's
+    // lifecycle observers subscribe to these. No source posts them on Linux yet.
+    public static let didBecomeActiveNotification = Notification.Name("UIApplicationDidBecomeActiveNotification")
+    public static let willResignActiveNotification = Notification.Name("UIApplicationWillResignActiveNotification")
+    public static let didEnterBackgroundNotification = Notification.Name("UIApplicationDidEnterBackgroundNotification")
+    public static let willEnterForegroundNotification = Notification.Name("UIApplicationWillEnterForegroundNotification")
+    public static let willTerminateNotification = Notification.Name("UIApplicationWillTerminateNotification")
+    public static let didReceiveMemoryWarningNotification = Notification.Name("UIApplicationDidReceiveMemoryWarningNotification")
+    public static let significantTimeChangeNotification = Notification.Name("UIApplicationSignificantTimeChangeNotification")
+    public static let openSettingsURLString = "app-settings:"
+
+    @MainActor public func setAlternateIconName(_ name: String?, completionHandler: ((Error?) -> Void)? = nil) {
+        completionHandler?(nil)
+    }
+    @MainActor public var alternateIconName: String? { nil }
 }
 
-public class UIScene: NSObject {
-    @MainActor public var delegate: Any?
-    public enum ActivationState: Sendable {
-        case unattached
-        case foregroundActive
-        case foregroundInactive
-        case background
+public enum UIApplicationState: Int { case active, inactive, background }
+
+public enum UIBackgroundFetchResult: Int, Sendable {
+    case newData
+    case noData
+    case failed
+}
+
+public class UIMenuBuilder: NSObject {
+    public struct Identifier: RawRepresentable, Hashable, Sendable {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public static let document = Identifier(rawValue: "document")
+        public static let toolbar = Identifier(rawValue: "toolbar")
     }
-    @MainActor public var activationState: ActivationState = .foregroundActive
+
+    public func remove(menu: Identifier) {
+        _ = menu
+    }
+}
+
+open class UIScene: NSObject {
+    @MainActor public var delegate: Any?
 }
 
 public class UITraitCollection: NSObject {
@@ -659,17 +831,15 @@ public class UITraitCollection: NSObject {
     public var bouncesZoom: Bool = false
     public var showsHorizontalScrollIndicator: Bool = true
     public var showsVerticalScrollIndicator: Bool = true
-    public var clipsToBounds: Bool = true
 
     public func setZoomScale(_ scale: CGFloat, animated: Bool) {
         _ = animated
-        zoomScale = scale
+        zoomScale = min(max(scale, minimumZoomScale), maximumZoomScale)
     }
 
     public func zoom(to rect: CGRect, animated: Bool) {
         _ = rect
-        _ = animated
-        zoomScale = maximumZoomScale
+        setZoomScale(maximumZoomScale, animated: animated)
     }
 }
 
@@ -679,20 +849,8 @@ public protocol UIScrollViewDelegate: AnyObject {
 
 public extension UIScrollViewDelegate {
     @MainActor func scrollViewDidScroll(_: UIScrollView) {}
-    @MainActor func viewForZooming(in scrollView: UIScrollView) -> UIView? {
-        _ = scrollView
-        return nil
-    }
-    @MainActor func scrollViewDidEndZooming(_: UIScrollView, with: UIView?, atScale: CGFloat) {}
-}
-
-@MainActor public final class UIHostingController<Content>: UIViewController {
-    public var rootView: Content
-
-    public init(rootView: Content) {
-        self.rootView = rootView
-        super.init()
-    }
+    @MainActor func viewForZooming(in scrollView: UIScrollView) -> UIView? { nil }
+    @MainActor func scrollViewDidEndZooming(_: UIScrollView, with view: UIView?, atScale scale: CGFloat) {}
 }
 
 public class UIGestureRecognizer: NSObject {
@@ -754,21 +912,9 @@ public class NonIntrinsicImageView: UIImageView {}
 
 #endif // !os(iOS)
 
-// MARK: - AuthenticationServices stubs (Linux)
-
-#if !os(iOS) && !os(macOS)
-public protocol ASWebAuthenticationPresentationContextProviding: AnyObject {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor
-}
-
-public class ASWebAuthenticationSession: NSObject {
-    public init(url: URL, callbackURLScheme: String?, completionHandler: @escaping (URL?, Error?) -> Void) {}
-    public var presentationContextProvider: ASWebAuthenticationPresentationContextProviding?
-    public func start() -> Bool { true }
-    public func cancel() {}
-}
-
-public enum ASWebAuthenticationSessionError: Error {
-    case canceledLogin
-}
-#endif
+// MARK: - AuthenticationServices
+// (The ASWebAuthentication* stubs that used to live here moved to the dedicated
+// `AuthenticationServices` shim — Sources/AppleFrameworkShims/AuthenticationServices.
+// Keeping a duplicate here caused an ambiguous-type-lookup error once a module
+// re-exported both QuillUIKit and AuthenticationServices, e.g. SignalServiceKit
+// re-exporting UIKit while its PayPal flow does `import AuthenticationServices`.)

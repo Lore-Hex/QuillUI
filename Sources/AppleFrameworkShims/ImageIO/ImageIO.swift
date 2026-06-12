@@ -17,7 +17,20 @@ import QuillFoundation
 // MARK: - Opaque source types
 
 public class CGImageSource {}
-public class CGDataProvider {}
+public class CGDataProvider {
+    public init() {}
+    public init?(data: Data) {
+        _ = data
+    }
+    public init?(
+        dataInfo info: UnsafeMutableRawPointer?,
+        data: UnsafeRawPointer,
+        size: Int,
+        releaseData: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer, Int) -> Void)?
+    ) {
+        _ = (info, data, size, releaseData)
+    }
+}
 
 public extension CGImage {
     var utType: String? { nil }

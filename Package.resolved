@@ -1,5 +1,5 @@
 {
-  "originHash" : "d411fa26e4cf147f69e97ae4ed058dd8c84ad592fa7f77db516490fc39cc30f4",
+  "originHash" : "4afde082231c70476e54e6747d701427367e2d7fb89f8fb7f613125c76a48c60",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -11,21 +11,12 @@
       }
     },
     {
-      "identity" : "swift-asn1",
+      "identity" : "opencombine",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-asn1.git",
+      "location" : "https://github.com/OpenCombine/OpenCombine.git",
       "state" : {
-        "revision" : "a9a5efd40eaf558a2bcd48d64b1d1646be686008",
-        "version" : "1.7.1"
-      }
-    },
-    {
-      "identity" : "swift-crypto",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-crypto.git",
-      "state" : {
-        "revision" : "95ba0316a9b733e92bb6b071255ff46263bbe7dc",
-        "version" : "3.15.1"
+        "revision" : "8576f0d579b27020beccbccc3ea6844f3ddfc2c2",
+        "version" : "0.14.0"
       }
     },
     {

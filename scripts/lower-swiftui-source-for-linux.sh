@@ -38,6 +38,8 @@ find "$SOURCE_DIR" -name '*.swift' -print0 |
     s/\n[ \t]*#Preview[\s\S]*\z/\n/s;
     s/(?<!!)\bos\(macOS\)(?![ \t]*\|\|[ \t]*os\(Linux\))/(os(macOS) || os(Linux))/g;
     s/([:(,][ \t]*)\@MainActor[ \t]+/$1/g;
+    s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;
+    s/Task \{[ \t]*\@MainActor[ \t]+(\[[^\]]+\][ \t]+in)/Task { $1/g;
     s/^[ \t]*\@MainActor[ \t]*\n//gm;
     s/^([ \t]*)\@MainActor[ \t]+/$1/gm;
     s/: View, Sendable/: View/g;

@@ -20,18 +20,6 @@ if [[ ! -d "$LOWERED_COPY" ]]; then
   exit 66
 fi
 
-"$TOOLING_DIR/ensure-swift-imports.sh" "$LOWERED_COPY" AppKit \
-  Application/EnchantedApp.swift \
-  Extensions/UIImage+Extension.swift \
-  UI/macOS/Chat/Components/InputFields_macOS.swift \
-  UI/macOS/Components/PromptPanelView.swift \
-  UI/macOS/MenuBar/MenuBarControlView_macOS.swift \
-  UI/Shared/Settings/SettingsView.swift
-
-"$TOOLING_DIR/ensure-swift-imports.sh" "$LOWERED_COPY" SwiftUI \
-  Services/Clipboard.swift \
-  UI/Shared/Chat/Components/Recorder/SpeechRecogniser.swift
-
 "$TOOLING_DIR/install-profile-templates.sh" "$PROFILE_DIR/templates" "$LOWERED_COPY"
 "$TOOLING_DIR/apply-profile-rewrites.sh" "$LOWERED_COPY" "$PROFILE_DIR/rewrite-rules"
 "$TOOLING_DIR/truncate-profile-files.sh" "$LOWERED_COPY" "$PROFILE_DIR/empty-files.txt"

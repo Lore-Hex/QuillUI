@@ -26,6 +26,16 @@ public enum NSKeyValueChange: UInt, Sendable {
     case replacement = 4
 }
 
+public struct NSKeyValueChangeKey: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public static let kindKey = NSKeyValueChangeKey(rawValue: "kind")
+    public static let newKey = NSKeyValueChangeKey(rawValue: "new")
+    public static let oldKey = NSKeyValueChangeKey(rawValue: "old")
+    public static let indexesKey = NSKeyValueChangeKey(rawValue: "indexes")
+    public static let notificationIsPriorKey = NSKeyValueChangeKey(rawValue: "notificationIsPrior")
+}
+
 /// Mirrors `NSKeyValueObservedChange<Value>` — the change payload handed to an
 /// observer. On Linux it's only ever constructed by a (future) runtime layer.
 public struct NSKeyValueObservedChange<Value> {
@@ -57,8 +67,33 @@ public extension NSObjectProtocol where Self: NSObject {
     }
 }
 
+public extension NSObject {
+    func addObserver(
+        _ observer: NSObject,
+        forKeyPath keyPath: String,
+        options: NSKeyValueObservingOptions = [],
+        context: UnsafeMutableRawPointer?
+    ) {
+        _ = (observer, keyPath, options, context)
+    }
+
+    func removeObserver(_ observer: NSObject, forKeyPath keyPath: String) {
+        _ = (observer, keyPath)
+    }
+
+    func removeObserver(_ observer: NSObject, forKeyPath keyPath: String, context: UnsafeMutableRawPointer?) {
+        _ = (observer, keyPath, context)
+    }
+}
+
 // ObjC associated objects — a leaky side-table emulation (compile-only; no
 // dealloc hook on Linux to clear entries). Keyed by object identity + raw key.
+// Public but @_disfavoredOverload: upstream WireGuard's TunnelsManager (and the
+// QuillFoundationTests pins) call these with only QuillFoundation imported, but
+// the dedicated `ObjCAssoc` shim is the canonical owner — where both modules
+// are visible (SignalServiceKit re-exports UIKit → QuillFoundation while also
+// depending on ObjCAssoc), the disfavored attribute lets ObjCAssoc's win
+// instead of erroring as ambiguous.
 public enum objc_AssociationPolicy: UInt {
     case OBJC_ASSOCIATION_ASSIGN = 0
     case OBJC_ASSOCIATION_RETAIN_NONATOMIC = 1
@@ -82,10 +117,12 @@ private final class QuillAssociatedObjectStore: @unchecked Sendable {
     }
 }
 
+@_disfavoredOverload
 public func objc_setAssociatedObject(_ object: Any, _ key: UnsafeRawPointer, _ value: Any?, _ policy: objc_AssociationPolicy) {
     QuillAssociatedObjectStore.shared.set(object as AnyObject, key, value)
 }
 
+@_disfavoredOverload
 public func objc_getAssociatedObject(_ object: Any, _ key: UnsafeRawPointer) -> Any? {
     QuillAssociatedObjectStore.shared.get(object as AnyObject, key)
 }

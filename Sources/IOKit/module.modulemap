@@ -6,4 +6,9 @@ module IOKit {
     header "usb.h"
     export *
   }
+
+  module pwr_mgt {
+    header "pwr_mgt.h"
+    export *
+  }
 }

@@ -84,8 +84,44 @@ public func qtRenderView<V: View>(_ view: V) -> OpaquePointer {
         return qtRenderStatefulView(view)
     }
 
+    // Unhandled primitive: degrade instead of crashing into body's
+    // fatalError. Checked via Body == Never (not the PrimitiveView marker —
+    // several primitives like ItemSheetModifierView omit it). Modifier
+    // wrappers (sheet, transition, …) expose their wrapped subtree as
+    // `content`: pass it through so the UI stays visible; true leaves render
+    // an empty placeholder. The trace lines let one launch smoke enumerate
+    // every missing Qt renderable.
+    if V.Body.self == Never.self {
+        for child in Mirror(reflecting: view).children where child.label == "content" {
+            if let inner = child.value as? any View {
+                qtBackendTrace("unhandled primitive \(type(of: view)); passing through content")
+                return qtRenderAnyView(inner)
+            }
+        }
+        qtBackendTrace("unhandled primitive \(type(of: view)); rendering empty placeholder")
+        let container = qtOpaque(quill_qt_bridge_container_create())
+        quill_qt_bridge_widget_set_fixed_size(qtHandle(container), 0, 0)
+        return container
+    }
+
     // Stateless composite view — recurse through body.
     return qtRenderView(view.body)
+}
+
+// MARK: - onChange Qt extensions (mirror of the GTK pair)
+
+extension OnChangeView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        _ = onChangeCheckAndFire(value: value, action: action)
+        return qtRenderView(content)
+    }
+}
+
+extension OnChangeTwoArgView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        _ = onChangeCheckAndFireTwoArg(value: value, action: action)
+        return qtRenderView(content)
+    }
 }
 
 /// Render an existential (any View).

@@ -382,6 +382,43 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         return result
     }
 
+    /// Re-runs the describe pass under a fresh withObservationTracking
+    /// registration. onChange is one-shot: once an @Observable mutation has
+    /// fired it, the narrow mutation path may keep the existing widgets only
+    /// if something re-subscribes. The describe pass evaluates the same body
+    /// (and therefore reads the same observable properties) as a full render,
+    /// so tracking it restores the subscription without any widget teardown.
+    private func describeReestablishingObservation(
+        _ describeBody: () -> GTK4DescriptorNode
+    ) -> (
+        descriptor: GTK4DescriptorNode,
+        canvasPayloads: [GTK4CanvasPayload],
+        onAppearPayloads: [GTK4OnAppearPayload],
+        taskPayloads: [GTK4TaskPayload]
+    ) {
+        #if canImport(Observation)
+        if #available(macOS 14.0, iOS 17.0, *) {
+            var result: (
+                descriptor: GTK4DescriptorNode,
+                canvasPayloads: [GTK4CanvasPayload],
+                onAppearPayloads: [GTK4OnAppearPayload],
+                taskPayloads: [GTK4TaskPayload]
+            )!
+            withObservationTracking {
+                result = gtkDescribeCapturingCanvasPayloads(describeBody)
+            } onChange: { [weak self] in
+                guard let self else { return }
+                self.lock.lock()
+                self.observationDidFire = true
+                self.lock.unlock()
+                self.scheduleRebuild()
+            }
+            return result
+        }
+        #endif
+        return gtkDescribeCapturingCanvasPayloads(describeBody)
+    }
+
     func rebuild() {
         gtkViewHostDebugLog("host rebuild start host=\(ObjectIdentifier(self))")
         lock.lock()
@@ -400,18 +437,30 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         lock.unlock()
 
         // --- Narrow mutation path: try text/color in-place update ---
-        // Skipped when withObservationTracking's onChange fired — the narrow
-        // path returns without re-running body under withObservationTracking,
-        // which would leave @Observable subscriptions dead after the first
-        // change. Fall through to the full rebuild so observation re-registers.
-        if !fromObservation,
-           let describeBody = describeBody,
+        // Observation-driven rebuilds stay eligible: withObservationTracking's
+        // onChange is one-shot, so re-subscribe by running the DESCRIBE pass
+        // (which evaluates the same body and reads the same @Observable
+        // properties) under a fresh tracking registration. Without this, every
+        // @Observable mutation — e.g. each keystroke in a TextField bound to a
+        // SwiftData model — forces a full teardown that destroys the focused
+        // entry mid-typing. SwiftUI never rebuilds widgets on model mutation.
+        if let describeBody = describeBody,
            let oldRetained = lastRetainedDescriptor,
            let oldExecutor = retainedExecutor {
 
             let previousEnv = getCurrentEnvironment()
             installRebuildEnvironment()
-            let described = gtkDescribeCapturingCanvasPayloads(describeBody)
+            let described: (
+                descriptor: GTK4DescriptorNode,
+                canvasPayloads: [GTK4CanvasPayload],
+                onAppearPayloads: [GTK4OnAppearPayload],
+                taskPayloads: [GTK4TaskPayload]
+            )
+            if fromObservation {
+                described = describeReestablishingObservation(describeBody)
+            } else {
+                described = gtkDescribeCapturingCanvasPayloads(describeBody)
+            }
             setCurrentEnvironment(previousEnv)
 
             let newIdentified = gtkIdentifyDescriptorTree(described.descriptor)
@@ -442,7 +491,15 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                         retainedExecutor = action.resultingNode
                         return
                     }
+                    debugLogRebuild("narrow hook mutation failed ns=\(stateIdentityNamespace)")
+                } else {
+                    debugLogRebuild("narrow slots invalid ns=\(stateIdentityNamespace)")
                 }
+            } else {
+                debugLogRebuild(
+                    "narrow plan ineligible ns=\(stateIdentityNamespace) "
+                        + "plan=\(gtkDescribeDescriptorPlanSummary(plan))"
+                )
             }
             // Fall through to full rebuild
         }
@@ -1047,13 +1104,96 @@ private func restoreFocusInfo(_ info: FocusInfo, in widget: UnsafeMutablePointer
     restoreFocusAndSelection(info, to: target, suppressFocus: suppressFocus)
 }
 
+private func debugLogRebuild(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    FileHandle.standardError.write(Data(("[QuillUI GTK] " + message + "\n").utf8))
+}
+
+/// Debug-only: names the first node that disqualifies a plan from the narrow
+/// mutation path, mirroring gtkCanApplyTextColorHostMutation's walk.
+private func gtkDescribeDescriptorPlanSummary(_ plan: GTK4DescriptorPlan) -> String {
+    gtkFirstNarrowRejection(plan) ?? "no-rejection-found"
+}
+
+private func gtkFirstNarrowRejection(_ plan: GTK4DescriptorPlan) -> String? {
+    switch plan.kind {
+    case .create:
+        return "create \(plan.newDescriptor.kind) \(plan.newDescriptor.typeName)"
+    case .replace:
+        return "replace \(plan.newDescriptor.kind) \(plan.newDescriptor.typeName)"
+    case .reuse:
+        if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
+            if case .none = plan.newDescriptor.props {
+                return "reuse empty composite \(plan.newDescriptor.typeName)"
+            }
+        }
+        for child in plan.children {
+            if let reason = gtkFirstNarrowRejection(child) { return reason }
+        }
+        return nil
+    case .update:
+        if plan.newDescriptor.kind == .button {
+            return "update button \(plan.newDescriptor.typeName)"
+        }
+        guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
+                || plan.updateIntent == .canvasContent
+                || plan.updateIntent == .sliderValue
+                || plan.updateIntent == .paddingLayout else {
+            return "update \(plan.newDescriptor.kind) intent=\(plan.updateIntent) \(plan.newDescriptor.typeName)"
+        }
+        for child in plan.children {
+            if let reason = gtkFirstNarrowRejection(child) { return reason }
+        }
+        return nil
+    }
+}
+
+private final class DeferredFocusGrabTarget {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    var retries = 0
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+    }
+}
+
+/// A focus grab on a widget GTK has not allocated yet fails silently, and
+/// restoreFocusInfo runs immediately after a rebuild creates its children —
+/// before the next frame maps them. Keyboard focus then falls to the window's
+/// first focusable button and typed keys (especially Space) activate it.
+/// Defer the grab until the widget has a real allocation.
+private func scheduleDeferredFocusGrab(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    g_object_ref(gpointer(widget))
+    let target = DeferredFocusGrabTarget(widget: widget)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let target = Unmanaged<DeferredFocusGrabTarget>.fromOpaque(userData).takeUnretainedValue()
+        func finish() -> gboolean {
+            g_object_unref(gpointer(target.widget))
+            Unmanaged<DeferredFocusGrabTarget>.fromOpaque(userData).release()
+            return 0
+        }
+        guard gtk_swift_is_widget(target.widget) != 0 else { return finish() }
+        if gtk_widget_get_width(target.widget) <= 1 {
+            target.retries += 1
+            return target.retries <= 120 ? 1 : finish()
+        }
+        gtk_widget_grab_focus(target.widget)
+        return finish()
+    }, Unmanaged.passRetained(target).toOpaque())
+}
+
 private func restoreFocusAndSelection(
     _ info: FocusInfo,
     to target: UnsafeMutablePointer<GtkWidget>,
     suppressFocus: Bool
 ) {
     if !suppressFocus {
-        gtk_widget_grab_focus(target)
+        if gtk_widget_get_width(target) > 1 {
+            gtk_widget_grab_focus(target)
+        } else {
+            scheduleDeferredFocusGrab(target)
+        }
     }
     if info.isScale {
         // Scale only needs focus, no cursor or selection to restore.

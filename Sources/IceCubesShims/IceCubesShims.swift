@@ -1,9 +1,8 @@
 #if os(Linux)
 import Foundation
-import QuillFoundation
-import SwiftOpenUI
+import QuillSwiftUICompatibility
 import SwiftData
-import SwiftUI
+import SwiftOpenUI
 
 // Scoped `@Observable` for the vendored IceCubes targets (auto-imported via
 // `-import-module IceCubesShims`). Deliberately NOT in the shared SwiftUI shim:
@@ -17,6 +16,15 @@ import SwiftUI
 // on the Models target's swiftSettings) so the upstream source compiles
 // UNMODIFIED — the WireGuard-style vendor pattern. Linux-only: on macOS the
 // real SwiftUI / Foundation supply these, so the shim must not shadow them.
+
+/// SwiftUI's localized-string key. Upstream uses it only as a return type
+/// built from string literals / interpolation — which String satisfies
+/// directly (Apple's LocalizedStringKey exposes no public accessors).
+///
+/// MUST stay the same underlying type as QuillSwiftUICompatibility's
+/// `LocalizedStringKey`: IceCubes' Models sees BOTH modules, and two
+/// same-named aliases are unambiguous only while they denote one canonical type.
+public typealias LocalizedStringKey = QuillSwiftUICompatibility.LocalizedStringKey
 
 /// Minimal Foundation `RelativeDateTimeFormatter` (missing on Linux Foundation).
 /// Covers the surface upstream `DateFormatterCache` uses.
@@ -54,6 +62,24 @@ public final class RelativeDateTimeFormatter {
     }
 }
 
+public final class ListFormatter {
+    public init() {}
+
+    public static func localizedString(byJoining strings: [String]) -> String {
+        switch strings.count {
+        case 0: return ""
+        case 1: return strings[0]
+        case 2: return strings.joined(separator: " and ")
+        default:
+            return strings.dropLast().joined(separator: ", ") + ", and " + (strings.last ?? "")
+        }
+    }
+
+    public func string(from strings: [String]) -> String? {
+        Self.localizedString(byJoining: strings)
+    }
+}
+
 // AttributedString exists on Linux Foundation but lacks Apple's Markdown
 // parsing initializer. Provide the missing surface so HTMLString compiles;
 // the Linux fallback is plain text (rich styling is rendered by QuillUI from
@@ -71,8 +97,7 @@ public extension AttributedString {
     }
 
     init(markdown: String, options: MarkdownParsingOptions) throws {
-        _ = options
-        self = AttributedString(stringLiteral: HTMLText.plainText(fromMarkdown: markdown))
+        self = AttributedString(stringLiteral: markdown)
     }
 }
 
@@ -104,43 +129,41 @@ extension Data: IceCubesAppStorageValue {
     public static func readAppStorageValue(forKey key: String) -> Data? { UserDefaults.standard.data(forKey: key) }
     public static func writeAppStorageValue(_ value: Data, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
 }
+extension Optional: IceCubesAppStorageValue where Wrapped: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Optional<Wrapped>? {
+        Wrapped.readAppStorageValue(forKey: key)
+    }
+    public static func writeAppStorageValue(_ value: Optional<Wrapped>, forKey key: String) {
+        guard let wrapped = value else {
+            UserDefaults.standard.removeObject(forKey: key)
+            return
+        }
+        Wrapped.writeAppStorageValue(wrapped, forKey: key)
+    }
+}
 @propertyWrapper
 public struct AppStorage<Value>: AnyStateStorageProvider {
     private let writeValue: (Value) -> Void
     public let storage: StateStorage<Value>
     public init(wrappedValue d: Value, _ key: String) where Value: IceCubesAppStorageValue {
-        self.init(wrappedValue: d, key, store: nil)
+        writeValue = { Value.writeAppStorageValue($0, forKey: key) }
+        storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? d)
     }
     public init(wrappedValue d: Value, _ key: String, store: UserDefaults?) where Value: IceCubesAppStorageValue {
-        let defaults = store ?? .standard
-        writeValue = { defaults.set($0, forKey: key) }
-        storage = StateStorage(Self.readValue(Value.self, forKey: key, store: defaults) ?? d)
+        self.init(wrappedValue: d, key, store: store ?? .standard)
+    }
+    public init(wrappedValue d: Value, _ key: String, store: UserDefaults) where Value: IceCubesAppStorageValue {
+        writeValue = { store.setIceCubesAppStorageValue($0, forKey: key) }
+        storage = StateStorage(store.iceCubesAppStorageValue(forKey: key, as: Value.self) ?? d)
+    }
+    public init(_ key: String) where Value: ExpressibleByNilLiteral, Value: IceCubesAppStorageValue {
+        let d: Value = nil
+        writeValue = { Value.writeAppStorageValue($0, forKey: key) }
+        storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? d)
     }
     public init(wrappedValue d: Value, _ key: String) where Value: RawRepresentable, Value.RawValue: IceCubesAppStorageValue {
-        self.init(wrappedValue: d, key, store: nil)
-    }
-    public init(wrappedValue d: Value, _ key: String, store: UserDefaults?) where Value: RawRepresentable, Value.RawValue: IceCubesAppStorageValue {
-        let defaults = store ?? .standard
-        writeValue = { defaults.set($0.rawValue, forKey: key) }
-        if let rv = Self.readValue(Value.RawValue.self, forKey: key, store: defaults), let v = Value(rawValue: rv) {
-            storage = StateStorage(v)
-        } else {
-            storage = StateStorage(d)
-        }
-    }
-    public init(_ key: String) where Value == Data? {
-        self.init(key, store: nil)
-    }
-    public init(_ key: String, store: UserDefaults?) where Value == Data? {
-        let defaults = store ?? .standard
-        writeValue = { value in
-            if let value {
-                defaults.set(value, forKey: key)
-            } else {
-                defaults.removeObject(forKey: key)
-            }
-        }
-        storage = StateStorage(defaults.data(forKey: key))
+        writeValue = { Value.RawValue.writeAppStorageValue($0.rawValue, forKey: key) }
+        if let rv = Value.RawValue.readAppStorageValue(forKey: key), let v = Value(rawValue: rv) { storage = StateStorage(v) } else { storage = StateStorage(d) }
     }
     public var wrappedValue: Value {
         get { storage.value }
@@ -150,137 +173,72 @@ public struct AppStorage<Value>: AnyStateStorageProvider {
         Binding(get: { storage.value }, set: { nv in writeValue(nv); storage.setValue(nv) })
     }
     public var anyStorage: AnyStateStorage { storage }
+}
 
-    private static func readValue<T: IceCubesAppStorageValue>(
-        _ type: T.Type,
-        forKey key: String,
-        store: UserDefaults
-    ) -> T? {
-        _ = type
-        switch T.self {
+private extension UserDefaults {
+    func iceCubesAppStorageValue<Value: IceCubesAppStorageValue>(forKey key: String, as type: Value.Type) -> Value? {
+        switch Value.self {
         case is String.Type:
-            return store.string(forKey: key) as? T
+            return string(forKey: key) as? Value
         case is Bool.Type:
-            return (store.object(forKey: key) != nil ? store.bool(forKey: key) : nil) as? T
+            guard object(forKey: key) != nil else { return nil }
+            return bool(forKey: key) as? Value
         case is Int.Type:
-            return (store.object(forKey: key) != nil ? store.integer(forKey: key) : nil) as? T
+            guard object(forKey: key) != nil else { return nil }
+            return integer(forKey: key) as? Value
         case is Double.Type:
-            return (store.object(forKey: key) != nil ? store.double(forKey: key) : nil) as? T
+            guard object(forKey: key) != nil else { return nil }
+            return double(forKey: key) as? Value
         case is Data.Type:
-            return store.data(forKey: key) as? T
+            return data(forKey: key) as? Value
         default:
-            return T.readAppStorageValue(forKey: key)
+            return Value.readAppStorageValue(forKey: key)
+        }
+    }
+
+    func setIceCubesAppStorageValue<Value: IceCubesAppStorageValue>(_ value: Value, forKey key: String) {
+        switch value {
+        case let value as String:
+            set(value, forKey: key)
+        case let value as Bool:
+            set(value, forKey: key)
+        case let value as Int:
+            set(value, forKey: key)
+        case let value as Double:
+            set(value, forKey: key)
+        case let value as Data:
+            set(value, forKey: key)
+        default:
+            Value.writeAppStorageValue(value, forKey: key)
         }
     }
 }
 
-// Stub for the Models SwiftData `TagGroup` (excluded on Linux — SwiftData is
-// Apple-only). Env references it only as a navigation payload type, so a plain
-// class with the same surface suffices.
-public final class TagGroup: PersistentModel, Identifiable, Equatable {
+// Linux replacements for IceCubes' SwiftData models that are excluded from the
+// vendored Models target. Keep these shapes aligned with upstream stored
+// properties so Query/FetchDescriptor/ModelContext can use QuillData.
+public final class TagGroup: PersistentModel, Equatable, Identifiable {
     public var id: UUID
     public var title: String
     public var symbolName: String
     public var tags: [String]
     public var creationDate: Date
+
     public init(title: String, symbolName: String, tags: [String]) {
         self.id = UUID()
-        self.title = title; self.symbolName = symbolName; self.tags = tags; self.creationDate = Date()
+        self.title = title
+        self.symbolName = symbolName
+        self.tags = tags
+        self.creationDate = Date()
     }
+
     public static func == (l: TagGroup, r: TagGroup) -> Bool {
         l.id == r.id
     }
 }
 
-public final class LocalTimeline: PersistentModel, Identifiable, Equatable {
+public final class MetricsNotificationGroup: PersistentModel, Identifiable {
     public var id: UUID
-    public var instance: String
-    public var creationDate: Date
-
-    public init(instance: String) {
-        self.id = UUID()
-        self.instance = instance
-        self.creationDate = Date()
-    }
-
-    public static func == (lhs: LocalTimeline, rhs: LocalTimeline) -> Bool {
-        lhs.id == rhs.id
-    }
-}
-
-@MainActor
-public enum Telemetry {
-    public static func setup() {}
-
-    public static func signal(_ event: String, parameters: [String: String] = [:]) {
-        _ = event
-        _ = parameters
-    }
-}
-
-public final class RecentTag: PersistentModel, Identifiable, Equatable {
-    public var id: UUID
-    public var title: String
-    public var lastUse: Date
-
-    public init(title: String) {
-        self.id = UUID()
-        self.title = title
-        self.lastUse = Date()
-    }
-
-    public var formattedDate: String {
-        RelativeDateTimeFormatter().localizedString(for: lastUse, relativeTo: Date())
-    }
-
-    public static func == (lhs: RecentTag, rhs: RecentTag) -> Bool {
-        lhs.id == rhs.id
-    }
-}
-
-public final class Draft: PersistentModel, Identifiable {
-    public var id: UUID
-    public var content: String
-    public var creationDate: Date
-
-    public init(content: String) {
-        self.id = UUID()
-        self.content = content
-        self.creationDate = Date()
-    }
-}
-
-@MainActor
-public extension View {
-    func withPreviewsEnv() -> Self { self }
-}
-
-public final class HapticManager: @unchecked Sendable {
-    public enum NotificationFeedbackType: Sendable {
-        case success
-        case warning
-        case error
-    }
-
-    public enum HapticType: Sendable {
-        case buttonPress
-        case dataRefresh(intensity: Double)
-        case timeline
-        case tabSelection
-        case notification(NotificationFeedbackType)
-    }
-
-    public static let shared = HapticManager()
-    private init() {}
-
-    public var supportsHaptics: Bool { false }
-
-    public func fireHaptic(_ type: HapticType) {
-        _ = type
-    }
-}
-
-public final class MetricsNotificationGroup: PersistentModel, @unchecked Sendable {
     public var groupKey: String
     public var type: String
     public var notificationsCount: Int
@@ -302,6 +260,7 @@ public final class MetricsNotificationGroup: PersistentModel, @unchecked Sendabl
         accountId: String,
         server: String
     ) {
+        self.id = UUID()
         self.groupKey = groupKey
         self.type = type
         self.notificationsCount = notificationsCount
@@ -312,77 +271,62 @@ public final class MetricsNotificationGroup: PersistentModel, @unchecked Sendabl
         self.accountId = accountId
         self.server = server
     }
-
-    private enum CodingKeys: String, CodingKey {
-        case groupKey
-        case type
-        case notificationsCount
-        case mostRecentNotificationId
-        case latestPageNotificationAt
-        case dayStart
-        case statusId
-        case accountId
-        case server
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        groupKey = try container.decode(String.self, forKey: .groupKey)
-        type = try container.decode(String.self, forKey: .type)
-        notificationsCount = try container.decode(Int.self, forKey: .notificationsCount)
-        mostRecentNotificationId = try container.decode(Int.self, forKey: .mostRecentNotificationId)
-        latestPageNotificationAt = try container.decode(Date.self, forKey: .latestPageNotificationAt)
-        dayStart = try container.decode(Date.self, forKey: .dayStart)
-        statusId = try container.decode(String.self, forKey: .statusId)
-        accountId = try container.decode(String.self, forKey: .accountId)
-        server = try container.decode(String.self, forKey: .server)
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(groupKey, forKey: .groupKey)
-        try container.encode(type, forKey: .type)
-        try container.encode(notificationsCount, forKey: .notificationsCount)
-        try container.encode(mostRecentNotificationId, forKey: .mostRecentNotificationId)
-        try container.encode(latestPageNotificationAt, forKey: .latestPageNotificationAt)
-        try container.encode(dayStart, forKey: .dayStart)
-        try container.encode(statusId, forKey: .statusId)
-        try container.encode(accountId, forKey: .accountId)
-        try container.encode(server, forKey: .server)
-    }
 }
 
-public final class ListFormatter {
-    public static func localizedString(byJoining strings: [String]) -> String {
-        strings.joined(separator: ", ")
+public final class LocalTimeline: PersistentModel, Identifiable {
+    public var id: UUID
+    public var instance: String
+    public var creationDate: Date
+
+    public init(instance: String) {
+        self.id = UUID()
+        self.instance = instance
+        self.creationDate = Date()
     }
 }
 
 @MainActor
-public final class SoundEffectManager {
-    public enum SoundEffect: String, CaseIterable, Sendable {
-        case pull
-        case refresh
-        case tootSent
-        case tabSelection
-        case bookmark
-        case boost
-        case favorite
-        case share
-    }
-
-    public static let shared = SoundEffectManager()
-    private init() {}
-
-    public func playSound(_ effect: SoundEffect) {
-        _ = effect
+public final class Telemetry {
+    public static func setup() {}
+    public static func signal(_ event: String, parameters: [String: String] = [:]) {
+        _ = event
+        _ = parameters
     }
 }
 
-@MainActor
-public enum AppStore {
-    public static func requestReview(in scene: UIWindowScene) {
-        _ = scene
+public final class Draft: PersistentModel, Equatable, Identifiable {
+    public var id: UUID
+    public var content: String
+    public var creationDate: Date
+
+    public init(content: String) {
+        self.id = UUID()
+        self.content = content
+        self.creationDate = Date()
+    }
+
+    public static func == (lhs: Draft, rhs: Draft) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+public final class RecentTag: PersistentModel, Equatable, Identifiable {
+    public var id: UUID
+    public var title: String
+    public var lastUse: Date
+
+    public init(title: String) {
+        self.id = UUID()
+        self.title = title
+        self.lastUse = Date()
+    }
+
+    public var formattedDate: String {
+        RelativeDateTimeFormatter().localizedString(for: lastUse, relativeTo: Date())
+    }
+
+    public static func == (lhs: RecentTag, rhs: RecentTag) -> Bool {
+        lhs.id == rhs.id
     }
 }
 #endif

@@ -384,8 +384,17 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains("publicHeadersPath: \".\""))
         // UserNotifications is @_exported by the UIKit shim so SignalServiceKit's
         // `import UIKit`-only files resolve UNUserNotificationCenter & co. (Track B).
-        #expect(manifest.contains(".target(name: \"UIKit\", dependencies: [\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\"], path: \"Sources/UIKitShim\")"))
-        #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: [\"QuillFoundation\"],\n        path: \"Sources/QuillUIKit\"\n    )"))
+        // Both targets take their dependencies from #if os(Linux)-swapped lists:
+        // on Linux they add the QuartzCore shim (UIView.layer; UIKit re-exports
+        // QuartzCore exactly like iOS), on Apple platforms the real QuartzCore
+        // exists and the shim target doesn't. QuillKit rides in both arms: the
+        // canonical UIApplication opens URLs / registers notifications through
+        // QuillWorkspace + QuillNotificationService.
+        #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
+        #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\"]"))
+        #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\"]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
@@ -486,11 +495,12 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference root-overlay settings panel is misplaced or too narrow"))
         #expect(verifier.contains("panel={panel_segment.width}px@{panel_y} ({panel_kind})"))
         #expect(verifier.contains("Mac-reference typed settings endpoint was not detected"))
-        #expect(verifier.contains("endpoint_text_pixels >= 550"))
+        #expect(verifier.contains("endpoint_text_pixels >= 300"))
         #expect(verifier.contains("Mac-reference typed settings bearer token was not detected"))
-        #expect(verifier.contains("token_y0 = panel_y + 350"))
+        #expect(verifier.contains("root_overlay_field_text_pixels(2)"))
         #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
-        #expect(verifier.contains("ping_y0 = panel_y + 384"))
+        #expect(verifier.contains("root_overlay_field_text_pixels(3)"))
+        #expect(verifier.contains("ping_text_pixels >= 90"))
         #expect(verifier.contains("if not require_selected_default_model:"))
         #expect(verifier.contains("Mac-reference selected default model was not detected"))
         #expect(verifier.contains("model_x0 = panel_segment.start + 20"))
@@ -504,10 +514,11 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference completions list dividers were not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_history_selection"))
         #expect(verifier.contains("Mac-reference selected history marker was not detected"))
-        #expect(verifier.contains("top + int(app_height * 0.30)"))
-        #expect(verifier.contains("left + 28"))
-        #expect(verifier.contains("lambda rgb: sum(rgb) < 360"))
-        #expect(verifier.contains("top + int(app_height * 0.47)"))
+        #expect(verifier.contains("top + int(app_height * 0.12)"))
+        #expect(verifier.contains("left + 120"))
+        #expect(verifier.contains("def selected_history_marker_pixel"))
+        #expect(verifier.contains("selected_history_marker_pixel"))
+        #expect(verifier.contains("top + int(app_height * 0.86)"))
         #expect(verifier.contains("marker_y, marker_peak_pixels = max("))
         #expect(verifier.contains("selected_row_text_y0 = max(marker_y - int(app_height * 0.025), top)"))
         #expect(verifier.contains("selected_row_pixels >= 180"))
@@ -571,6 +582,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("composer-typed"))
         #expect(interactionScript.contains("settings-panel"))
         #expect(interactionScript.contains("alert-settings-panel"))
+        #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 98))}\""))
+        #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 205))}\""))
         #expect(interactionScript.contains("settings-endpoint-typed"))
         #expect(interactionScript.contains("settings-bearer-token-typed"))
         #expect(interactionScript.contains("settings-ping-interval-typed"))
@@ -584,24 +597,33 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("confirm_quill_chat_settings_delete()"))
         #expect(interactionScript.contains("verify_quill_chat_delete_confirmed_if_needed()"))
         #expect(interactionScript.contains("Settings delete confirmed cleared conversation data"))
-        #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-52}\""))
-        #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-1366}\""))
-        #expect(interactionScript.contains("settings_x=\"${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}\""))
-        #expect(interactionScript.contains("settings_y=\"${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}\""))
+        #expect(interactionScript.contains("quill_chat_settings_click_x()"))
+        #expect(interactionScript.contains("quill_chat_settings_click_y()"))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 80))}\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 60))}\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}\""))
+        #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_settings_click_x)}\""))
+        #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_settings_click_y)}\""))
         #expect(interactionScript.contains("endpoint_x=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-650}\""))
         #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-800}\""))
         #expect(interactionScript.contains("ping_y=\"${QUILLUI_BACKEND_PING_CLICK_Y:-838}\""))
         #expect(interactionScript.contains("model_x=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}\""))
         #expect(interactionScript.contains("model_y=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-763}\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_OPEN_SLEEP"))
-        #expect(!interactionScript.contains("xdotool key --clearmodifiers Down Return"))
+        #expect(interactionScript.contains("xdotool key --clearmodifiers Down Return"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_SELECTED_MODEL_NAME=${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers Escape"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP"))
         #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}\""))
         #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}\""))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
-        #expect(interactionScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
+        // No capture==root gate on the child-window refresh (smoke sheets
+        // present as separate toplevels); IM popups are filtered by the
+        // minimum-size candidate gate.
+        #expect(!interactionScript.contains("[[ \"$capture_window\" == \"root\" ]] || return 0"))
         #expect(!interactionScript.contains("[[ \"$capture_window\" != \"root\" ]] || return 0"))
+        #expect(interactionScript.contains("quillui_window_is_plausible_capture_target \"$DISPLAY_ID\" \"$candidate_window\" \"$window_id\""))
         #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+a"))
         #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-$((window_y + 222))}\""))
         #expect(interactionScript.contains("window_x + 52"))
@@ -611,8 +633,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("if [[ \"$reset_before_open\" == \"1\" ]]; then"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y"))
-        #expect(interactionScript.contains("reset_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}}\""))
-        #expect(interactionScript.contains("reset_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}}\""))
+        #expect(interactionScript.contains("reset_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-$(quill_chat_settings_click_x)}\""))
+        #expect(interactionScript.contains("reset_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_settings_click_y)}\""))
         #expect(!interactionScript.contains("reset_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.6"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X"))
@@ -620,8 +642,13 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6"))
         #expect(interactionScript.contains("reset_cancel_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}\""))
         #expect(interactionScript.contains("reset_cancel_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}\""))
-        #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$((window_x + 90))}\""))
-        #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 1244))}\""))
+        #expect(interactionScript.contains("quill_chat_completions_click_x()"))
+        #expect(interactionScript.contains("quill_chat_completions_click_y()"))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_COMPLETIONS_CLICK_X:-$((window_x + 80))}\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_COMPLETIONS_CLICK_Y:-$((window_y + window_height - 188))}\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_COMPLETIONS_CLICK_Y:-$((window_y + 1244))}\""))
+        #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_completions_click_x)}\""))
+        #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_completions_click_y)}\""))
         #expect(interactionScript.contains("open_quill_chat_completions_panel 1\n  if quillui_is_quill_chat_mac_reference_product \"$PRODUCT\"; then\n    edit_x="))
         #expect(!interactionScript.contains("open_quill_chat_new_completion_sheet() {\n  local new_x\n  local new_y\n\n  open_quill_chat_completions_panel 1"))
         #expect(interactionScript.contains("window_x + 90"))
@@ -641,12 +668,12 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X"))
-        #expect(interactionScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 435))}\""))
+        #expect(interactionScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}\""))
         #expect(interactionScript.contains("instruction_x=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}\""))
-        #expect(interactionScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 515))}\""))
+        #expect(interactionScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 548))}\""))
         #expect(interactionScript.contains("Reply with a concise Linux validation response."))
-        #expect(interactionScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1358))}\""))
-        #expect(interactionScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 382))}\""))
+        #expect(interactionScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}\""))
+        #expect(interactionScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 407))}\""))
         #expect(!interactionScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}\""))
         #expect(!interactionScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
         #expect(interactionScript.contains("history-selection"))
@@ -670,6 +697,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("recent-transcript)"))
         #expect(interactionScript.contains("window_y + 540"))
         #expect(interactionScript.contains("markdown-transcript)"))
+        #expect(interactionScript.contains("window_y + 1058"))
         #expect(interactionScript.contains("window_y + 590"))
         #expect(interactionScript.contains("long-transcript)"))
         #expect(interactionScript.contains("window_y + 638"))
@@ -700,15 +728,20 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("open_quill_chat_new_chat()"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_NEW_CHAT_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_HISTORY_CLICK_X"))
+        #expect(interactionScript.contains("if [[ \"$SELECTED_BACKEND\" == \"qt\" ]]; then"))
+        #expect(interactionScript.contains("new_chat_x=\"${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-$((window_x + window_width - 70))}\""))
+        #expect(interactionScript.contains("new_chat_y=\"${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 57))}\""))
         #expect(interactionScript.contains("copy-chat"))
         #expect(interactionScript.contains("copy-chat-json"))
         #expect(interactionScript.contains("copy_quill_chat_transcript()"))
         #expect(interactionScript.contains("select_quill_chat_markdown_transcript()"))
+        #expect(interactionScript.contains("menu_x=\"${QUILLUI_BACKEND_MENU_CLICK_X:-$((window_x + window_width - 170))}\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_CLIPBOARD_RUNTIME_DIR"))
         #expect(interactionScript.contains("QUILLUI_GTK_TOOLBAR_ACTION_COMMAND_DIR=$quill_gtk_toolbar_action_command_dir"))
         #expect(interactionScript.contains("! -s \"$clipboard_file\""))
         #expect(interactionScript.contains("printf '%s\\n' \"$action_title\" > \"$quill_gtk_toolbar_action_command_dir/command-$(date +%s%N)-$$\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_Y"))
+        #expect(interactionScript.contains("copy_y=\"${QUILLUI_BACKEND_COPY_CHAT_JSON_CLICK_Y:-126}\""))
         #expect(interactionScript.contains("Copy Chat pasteboard text verified"))
         #expect(interactionScript.contains("Copy Chat as JSON pasteboard text verified"))
         #expect(interactionScript.contains("json.load(stream)"))
@@ -1194,6 +1227,15 @@ struct QuillDataSourceLoweringTests {
         struct DesktopRoot: View, Sendable {
             let action: (@MainActor () -> Void)?
 
+            func schedule(action: (() -> Void)?) {
+                Task { @MainActor in
+                    action?()
+                }
+                Task { @MainActor [action] in
+                    action?()
+                }
+            }
+
             var body: some View {
         #if os(macOS) && canImport(AppKit)
                 Text("desktop")
@@ -1225,6 +1267,16 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("#elseif !os(macOS) && canImport(UIKit)"))
         #expect(lowered.contains("#if os(macOS) || os(Linux)"))
         #expect(lowered.contains("let action: (() -> Void)?"))
+        #expect(lowered.contains("""
+        Task {
+            action?()
+        }
+"""))
+        #expect(lowered.contains("""
+        Task { [action] in
+            action?()
+        }
+"""))
         #expect(lowered.contains("final class AppModel: QuillObservableObject"))
         #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
         #expect(lowered.contains("private var cachedTitle = \"\""))
@@ -1356,6 +1408,21 @@ struct QuillDataSourceLoweringTests {
                 return opaqueFromWidget(box)
             }
             return gtkRenderView(view.body)
+        }
+
+        // MARK: - GeometryReader GTK extension
+
+        private class GeometryReaderContext {
+            let renderContent: (GeometryProxy) -> OpaquePointer
+            let box: UnsafeMutablePointer<GtkWidget>
+
+            init<Content: View>(content: @escaping (GeometryProxy) -> Content,
+                                box: UnsafeMutablePointer<GtkWidget>) {
+                self.box = box
+                self.renderContent = { proxy in
+                    gtkRenderView(content(proxy))
+                }
+            }
         }
 
         // MARK: - GTK rendering protocol
@@ -2313,6 +2380,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI TextField idle binding helper insertion marker was not recognized"))
         #expect(patchScript.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(patchScript.contains("includeValueWhenUnidentified: Bool = false"))
         #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
         #expect(patchScript.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
         #expect(patchScript.contains("gtk_editable_get_text(OpaquePointer(editable))"))
@@ -2386,11 +2454,22 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private var gtkStateCache: [String: [AnyStateStorage]] = [:]"))
         #expect(patchedRenderer.contains("private var gtkStateTypeCounters: [String: [String: Int]] = [:]"))
         #expect(patchedRenderer.contains("private func gtkStateIdentityNamespace() -> String"))
-        #expect(patchedRenderer.contains("GTKViewHost.getCurrentRebuilding()?.stateIdentityNamespace ?? \"root\""))
+        // Deferred renders (GeometryReader callbacks) have no rebuilding host;
+        // the forced-namespace fallback keeps their subtree off the shared
+        // never-reset "root" counter pool so @State survives geometry passes.
+        #expect(patchedRenderer.contains("?? gtkForcedStateIdentityNamespace"))
+        #expect(patchedRenderer.contains("private var gtkForcedStateIdentityNamespace: String?"))
+        #expect(patchedRenderer.contains("func gtkClaimStateIdentityNamespace(_ kind: String) -> String"))
+        #expect(patchedRenderer.contains("func gtkWithForcedStateIdentityNamespace<T>(_ namespace: String, _ body: () -> T) -> T"))
+        #expect(patchedRenderer.contains("gtkClaimStateIdentityNamespace(\"GeometryReader\")"))
+        #expect(patchedRenderer.contains("gtkWithForcedStateIdentityNamespace(stateNamespace) {"))
         #expect(patchedRenderer.contains("func gtkBeginStateIdentityPass()"))
         #expect(patchedRenderer.contains("gtkStateTypeCounters[gtkStateIdentityNamespace()] = [:]"))
         #expect(patchedRenderer.contains("return \"\\(namespace)::\\(typeName)#\\(index)\""))
         #expect(patchedRenderer.contains("host.stateIdentityNamespace = key"))
+        // Stateless wrappers must also consume a key slot and namespace their
+        // children; the namespace assignment precedes the provider guard.
+        #expect(patchedRenderer.contains("host.stateIdentityNamespace = key\n    let mirror = Mirror(reflecting: view)"))
         #expect(patchedRenderer.contains("old.forwardMutations(to: provider.anyStorage)"))
         #expect(patchedRenderer.contains("gtkRestoreAndInstallState(view, host: host)"))
         #expect(patchedRenderer.contains("let transientRoot: gpointer?"))
@@ -2472,9 +2551,31 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("return mode == \"overlay\" || mode == \"in-window\" || mode == \"inline\""))
         #expect(patchedRenderer.contains("private func gtkRemoveSheetRootOverlay("))
         #expect(patchedRenderer.contains("gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey"))
+        // Presented panels live in a global registry keyed by the type-derived
+        // activeKey: anchors are recreated per parent render, so per-anchor
+        // g_object data would orphan the panel after the first rebuild.
+        #expect(patchedRenderer.contains("private var gtkRootSheetPanels: [String: UnsafeMutablePointer<GtkWidget>] = [:]"))
+        #expect(patchedRenderer.contains("private var gtkRootSheetItemIDs: [String: Int] = [:]"))
+        #expect(patchedRenderer.contains("guard let panel = gtkRootSheetPanels.removeValue(forKey: activeKey) else"))
+        #expect(patchedRenderer.contains("guard gtkRootSheetPanels[activeKey] == nil else"))
+        #expect(patchedRenderer.components(separatedBy: "gtkRootSheetPanels[activeKey] = panel").count == 3)
+        #expect(!patchedRenderer.contains("g_object_set_data(gobject, overlayKey, gpointer(panel))"))
+        // Debounced entry->binding writes: typing must not schedule a rebuild
+        // per keystroke, and button actions flush eagerly so Save reads the
+        // typed text from the model.
+        #expect(patchedRenderer.contains("func gtkFlushPendingTextBindingUpdate()"))
+        #expect(patchedRenderer.contains("gtkPendingTextBindingSourceID = g_timeout_add(250"))
+        #expect(patchedRenderer.contains("gtkFlushPendingTextBindingUpdate()\n    let now = Date().timeIntervalSinceReferenceDate"))
+        // Sheet auto-focus retries until the panel is allocated; a one-shot
+        // grab on an unallocated panel fails silently and keyboard focus falls
+        // to the sheet's first button.
+        #expect(patchedRenderer.contains("if gtk_widget_get_width(target.panel) <= 1"))
         #expect(patchedRenderer.contains("private func gtkScheduleSheetDismissal(_ action"))
         #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        binding.wrappedValue = false"))
         #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        itemBinding.wrappedValue = nil"))
+        #expect(patchedRenderer.contains("let dismissAction: () -> Void"))
+        #expect(patchedRenderer.contains("env.dismiss = DismissAction(handler: dismissAction)"))
+        #expect(patchedRenderer.contains("swiftOpenUIWithPresentationDismissAction(dismissAction)"))
         #expect(!patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)"))
         #expect(!patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        gtkRemoveSheetRootOverlay(\n                            anchor: anchor"))
         #expect(patchedRenderer.contains("private func gtkCreateSheetOverlayPanel("))
@@ -2482,6 +2583,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkScheduleFirstSheetEditableFocus(in: panel)"))
         #expect(patchedRenderer.contains("gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)"))
         #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, widget, rootX, rootY)"))
+        #expect(patchedRenderer.contains("gtkScheduleSheetEditableFocus(editable)"))
         #expect(patchedRenderer.contains("gtkFocusSheetEditableWidget(editable)"))
         #expect(patchedRenderer.contains("private final class GTKSheetEditableFocusTarget"))
         #expect(patchedRenderer.contains("private final class GTKSheetPanelFocusTarget"))
@@ -2531,14 +2633,15 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private final class GTKButtonActionBox"))
         #expect(patchedRenderer.contains("private func gtkScheduleButtonAction"))
         #expect(patchedRenderer.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
-        #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"gesture\")"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"gesture\", widget: context.widget))"))
         #expect(patchedRenderer.contains("gtk_swift_add_capture_gesture(button, gesture)"))
         #expect(patchedRenderer.contains("let legacyController = gtk_swift_legacy_capture_controller()!"))
         #expect(patchedRenderer.contains("gtk_swift_event_is_primary_button_press(event)"))
         #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
         #expect(patchedRenderer.contains("private final class GTKButtonRootEventContext"))
         #expect(patchedRenderer.contains("gtkInstallButtonRootEventFallback(context)"))
-        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: \"root-legacy\")"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"root-legacy@"))
+        #expect(patchedRenderer.contains("private func gtkButtonDebugSource(_ source: String, widget: UnsafeMutablePointer<GtkWidget>) -> String"))
         #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y)"))
         #expect(!patchedRenderer.contains("guard gtk_swift_widget_contains_root_point(root, context.widget"))
         #expect(patchedRenderer.contains("context.removeController()"))
@@ -2549,8 +2652,11 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
 
         let patchedDescriptorTree = try String(contentsOf: descriptorTree, encoding: .utf8)
-        #expect(patchedDescriptorTree.contains("GTK Button action closures capture the view state storage"))
+        #expect(patchedDescriptorTree.contains("Reused buttons stay on the narrow path"))
         #expect(patchedDescriptorTree.contains("if plan.newDescriptor.kind == .button"))
+        // Props-bearing childless composites (TextField & co.) compare
+        // meaningfully and stay narrow-eligible on reuse.
+        #expect(patchedDescriptorTree.contains("if case .none = plan.newDescriptor.props {"))
 
         let patchedViewHost = try String(contentsOf: viewHost, encoding: .utf8)
         #expect(patchedViewHost.contains("gtkBeginStateIdentityPass()"))
@@ -2569,6 +2675,9 @@ struct QuillDataSourceLoweringTests {
 
         let patchedShim = try String(contentsOf: shim, encoding: .utf8)
         #expect(patchedShim.contains("gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_BUBBLE)"))
+        #expect(patchedShim.contains("gtk_swift_flow_box_new(void)"))
+        #expect(patchedShim.contains("gtk_swift_flow_box_configure(GtkWidget *flow, guint spacing)"))
+        #expect(patchedShim.contains("gtk_swift_flow_box_insert(GtkWidget *flow, GtkWidget *child)"))
         #expect(patchedShim.contains("gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture)"))
         #expect(patchedShim.contains("gtk_swift_root_grab_focus(GtkWidget *widget)"))
         #expect(patchedShim.contains("gtk_swift_drop_down_new(gpointer model)"))
@@ -2777,9 +2886,11 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("extension TaskView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("extension OnAppearView: GTKRenderable, GTKDescribable"))
         #expect(rendererSource.contains("gtkAttachStandaloneTaskLifecycle("))
+        #expect(rendererSource.contains("gtkCollectTaskPayload("))
+        #expect(rendererSource.contains("GTK4TaskPayload("))
         #expect(rendererSource.contains("gtkCollectOnAppearPayload("))
         #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
-        #expect(!rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
+        #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("let boundAction = bindActionToCurrentEnvironment(action)"))
         #expect(rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))
     }

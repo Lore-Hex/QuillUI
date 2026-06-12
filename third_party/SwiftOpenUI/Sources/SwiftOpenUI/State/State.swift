@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Combine) && !os(Linux)
+import Combine
+#else
+import OpenCombine
+#endif
 
 private func swiftOpenUIStateDebugLog(_ message: String) {
     guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
@@ -63,10 +68,17 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
     private let lock = NSLock()
     var _value: Value  // internal for restoreValue cross-storage access
     private var forwardedStorage: StateStorage<Value>?
+    private var observableCancellable: AnyCancellable?
     public weak var host: AnyViewHost? {
         didSet { wireObservableStateValue() }
     }
     public private(set) var generation: UInt64 = 0
+
+    private func bumpGeneration() {
+        lock.lock()
+        generation &+= 1
+        lock.unlock()
+    }
 
     public init(_ value: Value) {
         _value = value
@@ -126,6 +138,13 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
 
     private func wireObservableStateValue() {
         guard let object = _value as? any ObservableObject else { return }
-        wirePublishedObject(object, token: ObjectIdentifier(self), host: host)
+        // objectWillChange-based wiring (Apple's granularity). Bump our own
+        // generation so Phase 7 input-equality gating sees the object's
+        // internal mutation even though `_value` (the reference) is unchanged.
+        observableCancellable = subscribeOpaqueObservableObject(object) { [weak self] in
+            guard let self else { return }
+            self.bumpGeneration()
+            self.host?.scheduleRebuild()
+        }
     }
 }

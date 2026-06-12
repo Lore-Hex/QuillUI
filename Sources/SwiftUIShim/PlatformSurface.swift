@@ -3,6 +3,17 @@ import SwiftOpenUI
 import UIKit
 
 #if os(Linux)
+public extension UIColor {
+    convenience init(_ color: Color) {
+        self.init(
+            red: CGFloat(color.red),
+            green: CGFloat(color.green),
+            blue: CGFloat(color.blue),
+            alpha: CGFloat(color.alpha)
+        )
+    }
+}
+
 public struct WebAuthenticationSessionAction: Sendable {
     public init() {}
 

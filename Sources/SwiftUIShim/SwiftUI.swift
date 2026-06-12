@@ -1,11 +1,20 @@
 @_exported import Foundation
 @_exported import Dispatch
-@_exported import Observation
-@_exported import SwiftOpenUI
 @_exported import QuillSwiftUICompatibility
 @_exported import UIKit
 @_exported import CoreImage
 @_exported import CoreTransferable
+// On macOS, Apple's SwiftUI re-exports AppKit — real Mac apps lean on that:
+// a file with only `import SwiftUI` freely uses NSView/NSEvent/NSCursor and,
+// via AppKit's own re-exports, CALayer + QuillFoundation's CoreGraphics types.
+// QuillOS is the macOS-flavored desktop, so mirror that topology. First
+// conformance driver: rjwalters/SolderScope (compiled unmodified on Linux).
+@_exported import AppKit
+// Apple's SwiftUI also re-exports Combine (Publisher pipelines, AnyCancellable,
+// .onReceive arguments are usable from a SwiftUI-only import). Safe here now
+// that ObservableObject/Published are ONE canonical pair (SwiftOpenUI aliases
+// OpenCombine on Linux — the same module this Combine shim re-exports).
+@_exported import Combine
 
 // NOTE: do NOT add `@_exported import QuillUI` here. QuillUI
 // declares its own `NSImage`, `FocusState`, and other

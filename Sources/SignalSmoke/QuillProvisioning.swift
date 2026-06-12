@@ -27,14 +27,14 @@ final class QuillProvisioningListener: ProvisioningConnectionListener {
     }
 
     func provisioningConnection(_ connection: ProvisioningConnection, didReceiveAddress address: String, sendAck: @escaping () throws -> Void) {
-        var comps = URLComponents()
-        comps.scheme = "sgnl"
-        comps.host = "linkdevice"
-        comps.queryItems = [
-            URLQueryItem(name: "uuid", value: address),
-            URLQueryItem(name: "pub_key", value: pubKeyB64),
-        ]
-        if let url = comps.url?.absoluteString { onURL(url) }
+        // Build the URL manually exactly like upstream DeviceProvisioningURL.buildUrl()
+        // -- URLComponents/URLQueryItem leave '+' and '/' raw in the base64 pub_key,
+        // which Android's primary mis-parses (wasting the single-use scan). pub_key
+        // is percent-encoded via the real String.encodeURIComponent; address is raw;
+        // an empty capabilities param is appended, per upstream.
+        let encodedPub = pubKeyB64.encodeURIComponent ?? pubKeyB64
+        let url = "sgnl://linkdevice?uuid=\(address)&pub_key=\(encodedPub)&capabilities="
+        onURL(url)
         try? sendAck()
     }
 

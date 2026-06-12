@@ -38,9 +38,15 @@ extension NSCoder {
     // resolves to the swift-corelibs base encodeBytes, not back to this overload --
     // otherwise the typed<->raw pointer conversion makes the re-dispatch ambiguous.
     // External callers pass an UnsafeRawPointer?, which only this overload accepts.
+    // Store the blob as an NSData under the key so `decodeBytes(forKey:returnedLength:)`
+    // below can read it back. swift-corelibs has no `decodeBytes`, and its native
+    // `encodeBytes(UInt8?,length:,forKey:)` uses an internal keyed-archive byte format
+    // we cannot read; an NSData object round-trips faithfully. This is exercised at
+    // runtime by ECKeyPair (the account/identity keypair) NSKeyedArchiver storage.
     @_disfavoredOverload
     func encodeBytes(_ bytes: UnsafeRawPointer?, length: Int, forKey key: String) {
-        encodeBytes(bytes?.assumingMemoryBound(to: UInt8.self), length: length, forKey: key)
+        let data: NSData = bytes.map { NSData(bytes: $0, length: length) } ?? NSData()
+        encode(data, forKey: key)
     }
 
     // swift-corelibs NSCoder has no `decodeBytes(forKey:returnedLength:)` at all.

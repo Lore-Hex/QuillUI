@@ -51,6 +51,14 @@ var targets: [Target] = [
     // Core framework (platform-independent)
     .target(
         name: "SwiftOpenUI",
+        // OpenCombine backs ObservableObject/Published on non-Apple platforms
+        // (on Apple they alias to real Combine and OpenCombine goes unused);
+        // see State/ObservableObject.swift and
+        // docs/issues/observable-namespace-conflict.md.
+        dependencies: [
+            .product(name: "OpenCombine", package: "OpenCombine",
+                     condition: .when(platforms: [.linux, .wasi, .windows, .android])),
+        ],
         path: "Sources/SwiftOpenUI"
     ),
 
@@ -398,9 +406,12 @@ targets += [
 #if os(macOS)
 let deps: [Package.Dependency] = [
     .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.20.0"),
+    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0"),
 ]
 #else
-let deps: [Package.Dependency] = []
+let deps: [Package.Dependency] = [
+    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0"),
+]
 #endif
 
 // App bundle packaging plugin

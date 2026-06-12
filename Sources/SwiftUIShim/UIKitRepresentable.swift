@@ -1,6 +1,17 @@
 import UIKit
 import SwiftOpenUI
 
+@MainActor
+open class UIHostingController<Content: View>: UIViewController {
+    public var rootView: Content
+
+    public init(rootView: Content) {
+        self.rootView = rootView
+        super.init()
+        self.view = UIView()
+    }
+}
+
 public struct UIViewControllerRepresentableContext<Representable> {
     private let coordinatorStorage: Any
 

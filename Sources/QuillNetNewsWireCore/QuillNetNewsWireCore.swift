@@ -5,6 +5,7 @@ import FoundationNetworking
 #endif
 import QuillUI
 import QuillRSParser
+import QuillRSCoreShim
 import QuillArticles
 
 /// Quill NetNewsWire content view — a self-contained RSS reader.
@@ -154,8 +155,13 @@ public struct QuillNetNewsWireContentView: View {
                     set: { model.addFeedURLText = $0 }
                 ))
                 Button("Add") {
-                    if model.addFeed(urlString: model.addFeedURLText) {
-                        model.addFeedURLText = ""
+                    // Real NetNewsWire behavior: the entered URL may be a
+                    // site, not a feed — discovery (vendored FeedFinder)
+                    // resolves it to the actual feed before subscribing.
+                    Task { @MainActor in
+                        if await model.addFeedDiscovering(urlString: model.addFeedURLText) {
+                            model.addFeedURLText = ""
+                        }
                     }
                 }
             }
@@ -988,6 +994,67 @@ final class RSSReaderModel: ObservableObject {
         let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayTitle = (trimmedTitle?.isEmpty == false) ? trimmedTitle! : host
         return mergeImportedFeeds([Feed(title: displayTitle, url: trimmedURL)]) > 0
+    }
+
+    /// The real NetNewsWire "Add Feed" flow: normalize the entered string
+    /// (RSCore `normalizedURL` — scheme-less and `feed:`-prefixed input
+    /// works), fetch it, and let the real FeedFinder decide what it is. A
+    /// feed subscribes directly, titled from the parsed feed; an HTML page
+    /// has its discovered candidates fetched best-first until one parses as
+    /// a feed. Mirrors upstream `FeedFinder.find(url:)` minus the concurrent
+    /// DownloadSession — candidates are tried sequentially in score order,
+    /// so the first confirmed candidate is the best-scored one.
+    ///
+    /// `fetch` is an injection seam for tests (nil → `URLSession.shared`
+    /// with the standard User-Agent, same as `fetch(urlString:)`).
+    @discardableResult
+    func addFeedDiscovering(
+        urlString: String,
+        fetch: ((URL) async throws -> Data)? = nil
+    ) async -> Bool {
+        let normalized = urlString.normalizedURL
+        guard let url = URL(string: normalized),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty else {
+            setError("Invalid URL")
+            return false
+        }
+        let fetcher: (URL) async throws -> Data = fetch ?? { url in
+            var request = URLRequest(url: url)
+            request.setValue("Quill-NetNewsWire/0.1", forHTTPHeaderField: "User-Agent")
+            let (data, _) = try await URLSession.shared.data(for: request)
+            return data
+        }
+        setError(nil)
+        let data: Data
+        do {
+            data = try await fetcher(url)
+        } catch {
+            setError("\(error)")
+            return false
+        }
+        switch AddFeedDiscovery.outcome(forResponseData: data, urlString: normalized) {
+        case .feed:
+            let parsed = RSSFeedParser.parseUpstream(data: data, url: normalized)
+            return addFeed(urlString: normalized, title: parsed.title)
+        case .candidates(let candidates):
+            for candidate in candidates {
+                guard let candidateURL = URL(string: candidate),
+                      let candidateData = try? await fetcher(candidateURL) else {
+                    continue
+                }
+                if case .feed = AddFeedDiscovery.outcome(forResponseData: candidateData, urlString: candidate) {
+                    let parsed = RSSFeedParser.parseUpstream(data: candidateData, url: candidate)
+                    return addFeed(urlString: candidate, title: parsed.title)
+                }
+            }
+            setError("No feed found at \(normalized)")
+            return false
+        case .none:
+            setError("No feed found at \(normalized)")
+            return false
+        }
     }
 
     /// Unsubscribe from a feed by id — the NetNewsWire "Delete Feed" action.

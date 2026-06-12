@@ -23,7 +23,15 @@ typedef uint32_t OptionBits;
 typedef struct UCKeyboardLayout UCKeyboardLayout;
 typedef const void *TISInputSourceRef;
 
-static const OSStatus noErr = 0;
+#ifndef QUILL_OBJC_NOERR_DEFINED
+#define QUILL_OBJC_NOERR_DEFINED
+#ifndef QUILL_OBJC_NOERR_DEFINED
+#define QUILL_OBJC_NOERR_DEFINED
+#ifndef noErr
+#define noErr ((OSStatus)0)
+#endif
+#endif
+#endif
 
 static const UInt32 cmdKey = 1U << 8;
 static const UInt32 shiftKey = 1U << 9;
@@ -34,6 +42,7 @@ static const UInt32 controlKey = 1U << 12;
 static const UInt32 kUCKeyActionDown = 0;
 static const CFStringRef kAXTrustedCheckOptionPrompt = (CFStringRef)"AXTrustedCheckOptionPrompt";
 static const CFStringRef kTISPropertyUnicodeKeyLayoutData = (CFStringRef)"UnicodeKeyLayoutData";
+static const CFStringRef kTISPropertyInputSourceLanguages = (CFStringRef)"InputSourceLanguages";
 
 enum {
     kVK_A = 0,
@@ -132,6 +141,16 @@ enum {
 };
 
 static inline TISInputSourceRef TISCopyCurrentASCIICapableKeyboardLayoutInputSource(void) {
+    return NULL;
+}
+
+static inline TISInputSourceRef TISCopyCurrentKeyboardInputSource(void) {
+    return NULL;
+}
+
+static inline CFArrayRef TISCreateInputSourceList(CFDictionaryRef properties, bool includeAllInstalled) {
+    (void)properties;
+    (void)includeAllInstalled;
     return NULL;
 }
 

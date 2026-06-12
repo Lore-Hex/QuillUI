@@ -873,6 +873,44 @@ open(path, "w").write(src.replace('class ErrorPresenter: ErrorPresenterProtocol 
 print("patched ErrorPresenter @MainActor")
 PY
     fi
+
+    # The QuillAppKit shadow's NSResponder declares `open func copy(_:)` (the
+    # Telegram pasteboard surface), so LogViewController's responder-chain
+    # `copy(_:)` is an override on Linux but not on real AppKit. Split the
+    # declaration per platform; the original body moves into a helper.
+    local lvc="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/ViewController/LogViewController.swift"
+    if [[ -f "$lvc" ]] && ! grep -q 'quillCopySelectedLogLines' "$lvc"; then
+        echo "==> patching LogViewController.swift copy(_:) override split"
+        python3 - "$lvc" <<'PY'
+import sys
+path = sys.argv[1]; src = open(path).read()
+# The Linux lowering strips @objc before this patch runs on Linux fetches,
+# so match either form of the signature.
+needles = [
+    '    @objc func copy(_ sender: Any?) {\n',
+    '    func copy(_ sender: Any?) {\n',
+]
+needle = next((n for n in needles if n in src), None)
+assert needle is not None, "LogViewController copy(_:) signature not found"
+replacement = (
+    '    #if os(Linux)\n'
+    '    // NSResponder.copy(_:) is nonisolated in the QuillAppKit shadow; the\n'
+    '    // responder chain invokes it on the main thread, so bridge into the\n'
+    '    // MainActor-isolated view-controller helper.\n'
+    '    override func copy(_ sender: Any?) {\n'
+    '        MainActor.assumeIsolated { quillCopySelectedLogLines(sender) }\n'
+    '    }\n'
+    '    #else\n'
+    + needle +
+    '        quillCopySelectedLogLines(sender)\n'
+    '    }\n'
+    '    #endif\n'
+    '    private func quillCopySelectedLogLines(_ sender: Any?) {\n'
+)
+open(path, "w").write(src.replace(needle, replacement, 1))
+print("patched LogViewController copy(_:) override split")
+PY
+    fi
 }
 
 patch_icecubes() {
@@ -1566,7 +1604,158 @@ print("patched TSMutex.swift os.lock import for Linux")
 PY
 }
 
+patch_netnewswire() {
+    local articles_table="$UPSTREAM_DIR/netnewswire/Modules/ArticlesDatabase/Sources/ArticlesDatabase/ArticlesTable.swift"
+    if [[ ! -f "$articles_table" ]]; then
+        echo "==> netnewswire ArticlesTable.swift not found; skipping Linux lowering"
+    elif grep -q "QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch" "$articles_table"; then
+        echo "==> netnewswire ArticlesTable.swift already patched for Linux"
+    else
+        echo "==> patching netnewswire ArticlesTable.swift for Linux selector/word-enumeration lowering"
+        python3 - "$articles_table" <<'PY'
+import sys
+
+path = sys.argv[1]
+src = open(path).read()
+
+old_observer = '		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)'
+new_observer = '''#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .lowMemory, object: nil, queue: nil) { [weak self] _ in
+			self?.emptyCaches()
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+#endif'''
+if old_observer not in src:
+    raise SystemExit("ArticlesTable observer pattern not found")
+src = src.replace(old_observer, new_observer, 1)
+
+old_method = '''	@objc func handleLowMemory(_ notification: Notification) {
+		emptyCaches()
+	}
+'''
+new_method = '''#if !os(Linux)
+	@objc func handleLowMemory(_ notification: Notification) {
+		emptyCaches()
+	}
+#endif
+'''
+if old_method not in src:
+    raise SystemExit("ArticlesTable low-memory selector method not found")
+src = src.replace(old_method, new_method, 1)
+
+old_search = '''	func sqliteSearchString(with searchString: String) -> String {
+		var s = ""
+		searchString.enumerateSubstrings(in: searchString.startIndex..<searchString.endIndex, options: .byWords) { (word, _, _, _) in
+			guard let word else {
+				return
+			}
+			s += word
+			if word != "AND" && word != "OR" {
+				s += "*"
+			}
+			s += " "
+		}
+		return s
+	}
+'''
+new_search = '''	func sqliteSearchString(with searchString: String) -> String {
+		var s = ""
+#if os(Linux)
+		let words = searchString.split { character in
+			!(character.isLetter || character.isNumber || character == "_")
+		}
+		for wordSubstring in words {
+			let word = String(wordSubstring)
+			s += word
+			if word != "AND" && word != "OR" {
+				s += "*"
+			}
+			s += " "
+		}
+#else
+		searchString.enumerateSubstrings(in: searchString.startIndex..<searchString.endIndex, options: .byWords) { (word, _, _, _) in
+			guard let word else {
+				return
+			}
+			s += word
+			if word != "AND" && word != "OR" {
+				s += "*"
+			}
+			s += " "
+		}
+#endif
+		return s
+	}
+'''
+if old_search not in src:
+    raise SystemExit("ArticlesTable search tokenizer pattern not found")
+src = src.replace(old_search, new_search, 1)
+
+open(path, "w").write(src)
+print("patched NetNewsWire ArticlesTable.swift selector + word-tokenizer lowering")
+PY
+    fi
+
+    local error_log_database="$UPSTREAM_DIR/netnewswire/Modules/ErrorLog/Sources/ErrorLog/ErrorLogDatabase.swift"
+    if [[ ! -f "$error_log_database" ]]; then
+        echo "==> netnewswire ErrorLogDatabase.swift not found; skipping Linux lowering"
+    elif grep -q "QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch" "$error_log_database"; then
+        echo "==> netnewswire ErrorLogDatabase.swift already patched for Linux"
+    else
+        echo "==> patching netnewswire ErrorLogDatabase.swift for Linux selector lowering"
+        python3 - "$error_log_database" <<'PY'
+import sys
+
+path = sys.argv[1]
+src = open(path).read()
+
+old_observer = '			NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidEncounterError(_:)), name: .appDidEncounterError, object: nil)'
+new_observer = '''#if os(Linux)
+			// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+			_ = NotificationCenter.default.addObserver(forName: .appDidEncounterError, object: nil, queue: nil) { [weak self] notification in
+				self?.handleAppDidEncounterError(notification)
+			}
+#else
+			NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidEncounterError(_:)), name: .appDidEncounterError, object: nil)
+#endif'''
+if old_observer not in src:
+    raise SystemExit("ErrorLogDatabase observer pattern not found")
+src = src.replace(old_observer, new_observer, 1)
+
+old_method = '	@objc nonisolated func handleAppDidEncounterError(_ notification: Notification) {'
+new_method = '''#if !os(Linux)
+	@objc
+#endif
+	nonisolated func handleAppDidEncounterError(_ notification: Notification) {'''
+if old_method not in src:
+    raise SystemExit("ErrorLogDatabase selector method not found")
+src = src.replace(old_method, new_method, 1)
+
+open(path, "w").write(src)
+print("patched NetNewsWire ErrorLogDatabase.swift selector lowering")
+PY
+    fi
+}
+
 want=("$@")
+patch_solderscope() {
+    # SolderScope compiles UNMODIFIED on Linux except for one clang-submodule
+    # import (`import os.log` in Utilities/Logger.swift) that pure-Swift module
+    # shims cannot express. quill-lower-appkit's standard lowering (the same
+    # pass WireGuard/Signal use) rewrites it to `import os`. Self-guarded +
+    # idempotent: the trigger grep goes false after lowering. Linux-only: on
+    # macOS the real SDK provides os.log.
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        local dir="$UPSTREAM_DIR/solderscope/SolderScope"
+        if [[ -d "$dir" ]] && grep -rqE 'import os\.log' "$dir" 2>/dev/null; then
+            echo "==> lowering solderscope for Linux (import os.log)"
+            ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$dir" )
+        fi
+    fi
+}
+
 patch_libsignal() {
     # libsignal's LibSignalClient ships "testing endpoints" (FakeChat / OTP /
     # comparable-backup test helpers) gated `#if !os(iOS) || targetEnvironment(simulator)`
@@ -1614,6 +1803,7 @@ for name in "${want[@]}"; do
             ;;
         netnewswire)
             fetch_repo netnewswire https://github.com/Ranchero-Software/NetNewsWire.git
+            patch_netnewswire
             ;;
         wireguard)
             fetch_repo wireguard-apple https://github.com/WireGuard/wireguard-apple.git
@@ -1632,6 +1822,12 @@ for name in "${want[@]}"; do
             ;;
         telegram)
             fetch_repo telegram-swift https://github.com/overtake/TelegramSwift.git master
+            ;;
+        solderscope)
+            # First community-requested conformance app (MIT): real macOS
+            # SwiftUI USB-microscope viewer, compiled unmodified on Linux.
+            fetch_repo solderscope https://github.com/rjwalters/SolderScope.git
+            patch_solderscope
             ;;
         *)
             echo "unknown upstream: $name" >&2

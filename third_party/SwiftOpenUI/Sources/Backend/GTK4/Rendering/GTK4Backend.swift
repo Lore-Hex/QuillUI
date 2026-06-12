@@ -58,6 +58,7 @@ protocol GTKWindowRenderable {
 /// Root GTK window content should fill the proposed size; leaf alignment is
 /// handled by child containers, not by centering the hosted root widget.
 private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
+private var gtkRootPresentationOverlayFallback: OpaquePointer?
 
 func gtkCreateRootPresentationContainer(
     winPtr: UnsafeMutablePointer<GtkWindow>,
@@ -75,18 +76,34 @@ func gtkCreateRootPresentationContainer(
     gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
     gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
 
-    let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
-    g_object_set_data(gobject, gtkRootPresentationOverlayKey, gpointer(overlay))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: overlay)
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)
+    gtkRootPresentationOverlayFallback = OpaquePointer(overlay)
     return overlay
 }
 
-func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
-    let gobject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
-    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else {
-        return nil
-    }
+func gtkStoreRootPresentationOverlay(
+    _ rootOverlay: OpaquePointer,
+    on widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, gtkRootPresentationOverlayKey, UnsafeMutableRawPointer(rootOverlay))
+}
+
+func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer? {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else { return nil }
     let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
     return OpaquePointer(overlay)
+}
+
+func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
+    gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback
+}
+
+func gtkFallbackRootPresentationOverlay() -> OpaquePointer? {
+    gtkRootPresentationOverlayFallback
 }
 
 func gtkConfigureRootContentToFillWindow(_ contentWidget: UnsafeMutablePointer<GtkWidget>) {

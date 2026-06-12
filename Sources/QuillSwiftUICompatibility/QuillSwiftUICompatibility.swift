@@ -1,4 +1,5 @@
 @_exported import SwiftOpenUI
+import Foundation
 import QuillFoundation
 
 #if os(Linux)
@@ -19,6 +20,16 @@ public macro Preview<Content>(_ name: String? = nil, @ViewBuilder body: () -> Co
 #endif
 
 #if os(Linux)
+public extension NSMutableAttributedString {
+    convenience init() {
+        self.init(string: "")
+    }
+
+    convenience init(_ attributedString: AttributedString) {
+        self.init(string: String(attributedString.characters))
+    }
+}
+
 public struct EditActions: OptionSet, Sendable {
     public let rawValue: Int
 
@@ -54,6 +65,75 @@ public extension ForEach where Data: Identifiable, ID == Data.ID {
                 }
             ))
         }
+    }
+}
+
+public extension TextField {
+    /// SwiftUI's prompt overload. SwiftOpenUI has one placeholder slot, so the
+    /// prompt takes visual precedence when present.
+    init(_ titleKey: LocalizedStringKey, text: Binding<String>, prompt: Text?) {
+        self.init(prompt?.content ?? titleKey.resolved, text: text)
+    }
+
+    /// SwiftUI's label-builder overload. When the label is a `Text`, preserve
+    /// it as the fallback placeholder; otherwise use the prompt or an empty
+    /// placeholder until SwiftOpenUI carries a separate accessibility label.
+    init<Label: View>(
+        text: Binding<String>,
+        prompt: Text? = nil,
+        @ViewBuilder label: () -> Label
+    ) {
+        let resolvedLabel = (label() as? Text)?.content ?? ""
+        self.init(prompt?.content ?? resolvedLabel, text: text)
+    }
+}
+
+public extension SecureField {
+    /// SwiftUI's prompt overload. SwiftOpenUI has one placeholder slot, so the
+    /// prompt takes visual precedence when present.
+    init(_ titleKey: LocalizedStringKey, text: Binding<String>, prompt: Text?) {
+        self.init(prompt?.content ?? titleKey.resolved, text: text)
+    }
+
+    /// SwiftUI's label-builder overload. Mirrors `TextField`'s compatibility
+    /// behavior for secure input.
+    init<Label: View>(
+        text: Binding<String>,
+        prompt: Text? = nil,
+        @ViewBuilder label: () -> Label
+    ) {
+        let resolvedLabel = (label() as? Text)?.content ?? ""
+        self.init(prompt?.content ?? resolvedLabel, text: text)
+    }
+}
+
+public enum SubmitLabel: Hashable, Sendable {
+    case `return`
+    case done
+    case go
+    case join
+    case next
+    case route
+    case search
+    case send
+    case `continue`
+}
+
+public struct SubmitLabelView<Content: View>: View {
+    public let content: Content
+    public let submitLabel: SubmitLabel
+
+    public init(content: Content, submitLabel: SubmitLabel) {
+        self.content = content
+        self.submitLabel = submitLabel
+    }
+
+    public var body: some View { content }
+}
+
+public extension View {
+    func submitLabel(_ submitLabel: SubmitLabel) -> SubmitLabelView<Self> {
+        SubmitLabelView(content: self, submitLabel: submitLabel)
     }
 }
 

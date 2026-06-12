@@ -17,8 +17,11 @@ public struct ForEach<Data, ID: Hashable, Content: View>: View, TransparentMulti
 
 // MARK: - Identifiable data
 
-extension ForEach where Data: Identifiable, ID == Data.ID {
-    public init(_ data: [Data], @ViewBuilder content: @escaping (Data) -> Content) {
+public extension ForEach {
+    public init<Element: Identifiable>(
+        _ data: [Element],
+        @ViewBuilder content: @escaping (Element) -> Content
+    ) where Data == Element, ID == Element.ID {
         self.data = data
         self.id = \.id
         self.content = content
@@ -26,8 +29,8 @@ extension ForEach where Data: Identifiable, ID == Data.ID {
 
     public init<C: RandomAccessCollection>(
         _ data: C,
-        @ViewBuilder content: @escaping (Data) -> Content
-    ) where C.Element == Data {
+        @ViewBuilder content: @escaping (C.Element) -> Content
+    ) where C.Element: Identifiable, Data == C.Element, ID == C.Element.ID {
         self.data = Array(data)
         self.id = \.id
         self.content = content
@@ -36,7 +39,7 @@ extension ForEach where Data: Identifiable, ID == Data.ID {
 
 // MARK: - Binding collections
 
-extension ForEach {
+public extension ForEach {
     public init<Element: Identifiable>(
         _ data: Binding<[Element]>,
         @ViewBuilder content: @escaping (Binding<Element>) -> Content
@@ -65,7 +68,7 @@ extension ForEach {
 
 // MARK: - Custom key path
 
-extension ForEach {
+public extension ForEach {
     public init(_ data: [Data], id: KeyPath<Data, ID>, @ViewBuilder content: @escaping (Data) -> Content) {
         self.data = data
         self.id = id
@@ -76,7 +79,7 @@ extension ForEach {
 
 // MARK: - Range-based
 
-extension ForEach where Data == Int, ID == Int {
+public extension ForEach where Data == Int, ID == Int {
     public init(_ range: Range<Int>, @ViewBuilder content: @escaping (Int) -> Content) {
         self.data = Array(range)
         self.id = \.self

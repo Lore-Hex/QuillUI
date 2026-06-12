@@ -185,6 +185,10 @@ let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsy
 // QuillUI's Apple-framework shim products, so the targets are `#if os(Linux)`.
 let signalUpstreamPresent: Bool = upstreamPresent(".upstream/signal-ios/SignalServiceKit")
 let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/Sources/LibSignalClient")
+// rjwalters/SolderScope — first community-requested conformance app: a real
+// macOS SwiftUI USB-microscope viewer (MIT) compiled UNMODIFIED on Linux
+// against the SwiftUI/AppKit/AVFoundation/CoreImage shim surface.
+let solderScopeUpstreamPresent: Bool = upstreamPresent(".upstream/solderscope/SolderScope")
 // Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
 // The upstream iOS platform pin is a manifest constraint, not a source one —
 // the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
@@ -262,6 +266,10 @@ var products: [Product] = [
     .library(name: "QuillUIKit", targets: ["QuillUIKit"]),
     .library(name: "QuillWebKit", targets: ["QuillWebKit"]),
     .library(name: "QuillShims", targets: ["QuillShims"]),
+    .library(name: "WebKit", targets: ["WebKit"]),
+    .library(name: "JavaScriptCore", targets: ["JavaScriptCore"]),
+    .library(name: "Compression", targets: ["Compression"]),
+    .library(name: "MediaPlayer", targets: ["MediaPlayer"]),
     .library(name: "KeychainSwift", targets: ["KeychainSwift"]),
     // QuillSourceLowering is the SwiftSyntax-based replacement for the
     // regex transformations in scripts/lower-swiftdata-for-quilldata.sh
@@ -383,8 +391,71 @@ products += [
     .library(name: "LRUCache", targets: ["LRUCache"]),
     .library(name: "OllamaKit", targets: ["OllamaKit"]),
     .library(name: "Sparkle", targets: ["Sparkle"]),
-    .library(name: "IOKit", targets: ["IOKit"])
+    .library(name: "IOKit", targets: ["IOKit"]),
+    .library(name: "COSUnfairLock", targets: ["COSUnfairLock"]),
+    .library(name: "NaturalLanguage", targets: ["NaturalLanguage"]),
+    .library(name: "ImageIO", targets: ["ImageIO"]),
+    .library(name: "Accelerate", targets: ["Accelerate"]),
+    .library(name: "AudioToolbox", targets: ["AudioToolbox"]),
+    .library(name: "CoreHaptics", targets: ["CoreHaptics"]),
+    .library(name: "CoreImage", targets: ["CoreImage"]),
+    .library(name: "CoreLocation", targets: ["CoreLocation"]),
+    .library(name: "CoreSpotlight", targets: ["CoreSpotlight"]),
+    .library(name: "QuartzCore", targets: ["QuartzCore"]),
+    .library(name: "CoreText", targets: ["CoreText"]),
+    .library(name: "CoreVideo", targets: ["CoreVideo"]),
+    .library(name: "CoreMedia", targets: ["CoreMedia"]),
+    .library(name: "Vision", targets: ["Vision"]),
+    .library(name: "VideoToolbox", targets: ["VideoToolbox"]),
+    .library(name: "IOSurface", targets: ["IOSurface"]),
+    .library(name: "LinkPresentation", targets: ["LinkPresentation"]),
+    .library(name: "Metal", targets: ["Metal"]),
+    .library(name: "MetalKit", targets: ["MetalKit"]),
+    .library(name: "MetalPerformanceShaders", targets: ["MetalPerformanceShaders"]),
+    .library(name: "StoreKit", targets: ["StoreKit"]),
+    // Telegram-Mac app-target products.
+    .library(name: "AVKit", targets: ["AVKit"]),
+    .library(name: "Quartz", targets: ["Quartz"]),
+    .library(name: "QuickLook", targets: ["QuickLook"]),
+    .library(name: "Contacts", targets: ["Contacts"]),
+    .library(name: "OSLog", targets: ["OSLog"]),
+    .library(name: "AppIntents", targets: ["AppIntents"]),
+    .library(name: "CoreMediaIO", targets: ["CoreMediaIO"]),
+    .library(name: "MapKit", targets: ["MapKit"]),
+    .library(name: "SceneKit", targets: ["SceneKit"]),
+    .library(name: "Firebase", targets: ["Firebase"]),
+    .library(name: "FirebaseCrashlytics", targets: ["FirebaseCrashlytics"]),
+    .library(name: "Lottie", targets: ["Lottie"]),
+    .library(name: "TdBinding", targets: ["TdBinding"]),
+    .library(name: "UserNotifications", targets: ["UserNotifications"]),
+    .library(name: "CoreServices", targets: ["CoreServices"]),
+    .library(name: "LocalAuthentication", targets: ["LocalAuthentication"]),
+    .library(name: "Zip", targets: ["Zip"])
 ]
+#endif
+
+#if os(Linux)
+let appKitShadowDependencies: [Target.Dependency] = [
+    "QuillFoundation", "QuillUIKit", "QuillKit",
+    "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage",
+]
+let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
+// UIView.layer: on Linux, QuillUIKit (and the UIKit umbrella that re-exports
+// it) needs the in-tree QuartzCore shim. On Apple platforms CALayer comes from
+// the real QuartzCore via AppKit/UIKit — and the shim target doesn't exist, so
+// the dependency must vanish entirely (a `.when(platforms:)` condition would
+// still dangle: SwiftPM validates named targets even when the condition is off).
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore"]
+let uiKitShimDependencies: [Target.Dependency] =
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore", "CoreTransferable"]
+#else
+let appKitShadowDependencies: [Target.Dependency] = [
+    "QuillFoundation", "QuillUIKit", "QuillKit",
+]
+let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation"]
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit"]
+let uiKitShimDependencies: [Target.Dependency] =
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "CoreTransferable"]
 #endif
 
 #if os(Linux)
@@ -411,6 +482,17 @@ let quillUIDependencies: [Target.Dependency] = [
 #endif
 
 #if os(Linux)
+let wrappingHStackDependencies: [Target.Dependency] = [
+    "SwiftUI",
+    .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+    .product(name: "CGTK", package: "SwiftOpenUI"),
+    .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+]
+#else
+let wrappingHStackDependencies: [Target.Dependency] = ["SwiftUI"]
+#endif
+
+#if os(Linux)
 let quillChatKitDependencies: [Target.Dependency] = ["QuillFoundation", "SwiftUI"]
 #else
 let quillChatKitDependencies: [Target.Dependency] = ["QuillFoundation"]
@@ -431,6 +513,28 @@ let appSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal"])
 ] + quillUIGTKSwiftImporterSettings
 
+#if os(Linux)
+let quillSwiftTestingAppleOverlaySwiftSettings: [SwiftSetting] = appSwiftSettings + [
+    // Swift Testing declares platform cross-import overlays such as
+    // _Testing_UIKit/_Testing_CoreImage on Apple SDKs. Linux test targets
+    // intentionally import QuillUI's shadow Apple modules, so disable those
+    // SDK overlay lookups when Testing and SwiftUI/AppKit/UIKit meet.
+    .unsafeFlags(["-Xfrontend", "-disable-cross-import-overlays"])
+]
+#else
+let quillSwiftTestingAppleOverlaySwiftSettings: [SwiftSetting] = appSwiftSettings
+#endif
+
+#if os(Linux)
+let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
+// QuillRSCoreShim's vendored Cache uses OSAllocatedUnfairLock via `import os`
+// (the os shadow target on Linux), same as Articles' AuthorCache.
+let quillRSCoreShimDependencies: [Target.Dependency] = ["os"]
+#else
+let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
+let quillRSCoreShimDependencies: [Target.Dependency] = []
+#endif
+
 // QuillIceCubesCore consumes the real vendored Models when present (gtk-Linux);
 // gated so macOS / qt (where the Models target isn't built) keep the reimpl.
 var quillIceCubesCoreDependencies: [Target.Dependency] = ["QuillUI", "QuillFoundation"]
@@ -446,7 +550,7 @@ if iceCubesLinuxGraphEnabled {
 let quillShimsDependencies: [Target.Dependency] = [
     "QuillKit", "QuillData", "CoreGraphics", "os",
     "QuillFoundation", "QuillWebKit", "QuillUIKit", "QuillRS",
-    "UIKit", "MessageUI", "SafariServices", "MobileCoreServices",
+    "AppKit", "UIKit", "Combine", "MessageUI", "SafariServices", "MobileCoreServices",
     "Zip", "Tidemark", "UniformTypeIdentifiers", "Network", "NetworkExtension",
     "KeychainSwift"
 ]
@@ -510,17 +614,15 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "ButtonKit", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
-    "OllamaKit", "Sparkle", "IOKit", "KeychainSwift"
+    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "KeychainSwift"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
+    // "SwiftUI" comes from quillLinuxShimTestDependencies; keep it in that
+    // shared list so SwiftPM passes the C module search paths for the
+    // GTK-backed NSViewRepresentable mount everywhere the shadow is imported.
     "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
 ] + quillLinuxShimTestDependencies
-let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = appSwiftSettings + [
-    // Swift Testing declares platform cross-import overlays such as
-    // _Testing_UIKit on Apple SDKs. This Linux-only target intentionally imports
-    // QuillUI's shadow Apple modules, so disable those SDK overlay lookups here.
-    .unsafeFlags(["-Xfrontend", "-disable-cross-import-overlays"])
-]
+let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = quillSwiftTestingAppleOverlaySwiftSettings
 #endif
 #if os(Linux)
 func quillLinuxBackendDependencies(
@@ -642,6 +744,44 @@ let cZlibTarget: Target = .systemLibrary(
 // build plugin; without a `.macro(…)` declaration here,
 // `#externalMacro(module: "QuillDataMacros", …)` references
 // fail with "plugin for module 'QuillDataMacros' not found".
+// swift-syntax's SwiftSyntaxBuilder/SwiftParser have a `#if canImport(os)`
+// logging path. In this workspace `canImport(os)` can find the os SHADOW
+// module once it's built (SwiftPM exposes sibling modules in the shared
+// build dir), and then executables/plugins linking these targets need the
+// os symbols — a failed macro-plugin link surfaces as bare `error: fatalError`
+// "Corrupted JSON" diagnostics. Declaring the dependency makes the link
+// deterministic. Empty on Apple platforms (real os framework; no shim target).
+// gtk-graph only: the qt manifest graph does not declare the os shadow
+// target (and without the module present, the canImport(os) race this dep
+// neutralizes cannot occur there).
+#if os(Linux)
+let swiftSyntaxOSLinkDependencies: [Target.Dependency] =
+    quillUILinuxBuildBackend == .gtk ? ["os"] : []
+#else
+let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
+#endif
+
+// The SwiftUI SHADOW target exists only on Linux; on Apple platforms
+// `import SwiftUI` is the real SDK and there is no target to depend on.
+#if os(Linux)
+let swiftUIShadowTestDependencies: [Target.Dependency] = ["SwiftUI"]
+#else
+let swiftUIShadowTestDependencies: [Target.Dependency] = []
+#endif
+
+// The representable GTK mount rides only in the gtk graph; the qt graph keeps
+// the SwiftUI shadow GTK-free (CGtk4 headers reach the module through the
+// QuillAppKitGTK import, hence the importer flags travel with the deps).
+#if os(Linux)
+let swiftUIShadowMountDependencies: [Target.Dependency] =
+    quillUILinuxBuildBackend == .gtk
+    ? ["QuillAppKitGTK", swiftUIShimBackendDependency]
+    : (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [swiftUIShimBackendDependency] : [])
+let swiftUIShadowMountSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
+    ? [.define("QUILLUI_SWIFTUI_GTK_MOUNT"), .unsafeFlags(gtk4SwiftImporterFlags)]
+    : []
+#endif
+
 let quillDataMacroTarget: Target = .macro(
     name: "QuillDataMacros",
     dependencies: [
@@ -649,7 +789,7 @@ let quillDataMacroTarget: Target = .macro(
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
-    ],
+    ] + swiftSyntaxOSLinkDependencies,
     path: "Sources/QuillDataMacros"
 )
 
@@ -750,6 +890,13 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGtk4",
         path: "Sources/CGtk4",
+        // NO pkgConfig here (SourceHygiene contract): SwiftPM's native
+        // pkg-config emits prohibited-flag warnings, so gtk flags route
+        // through the filtered helpers. Consumers that import CGtk4 carry
+        // gtk4SwiftImporterFlags; modules that embed it as an implementation
+        // detail (the SwiftUI shadow's GTK mount) use @_implementationOnly
+        // imports so their swiftmodules never expose CGtk4 to flagless
+        // dependents.
         providers: [
             .apt(["libgtk-4-dev"])
         ]
@@ -763,11 +910,17 @@ var targets: [Target] = [
     // contract for generated-source profiles.
     .target(
         name: "QuillSourceLowering",
+        // "os": swift-syntax's SwiftSyntaxBuilder/SwiftParser have a
+        // `#if canImport(os)` logging path. In this workspace `canImport(os)`
+        // can find the os SHADOW module once it's built (SwiftPM exposes
+        // sibling modules in the shared build dir), and then every executable
+        // linking QuillSourceLowering needs the os symbols. Declaring the dep
+        // here makes the link deterministic instead of build-order-dependent.
         dependencies: [
             .product(name: "SwiftSyntax", package: "swift-syntax"),
             .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
             .product(name: "SwiftParser", package: "swift-syntax")
-        ],
+        ] + swiftSyntaxOSLinkDependencies,
         path: "Sources/QuillSourceLowering"
     ),
     .executableTarget(
@@ -829,12 +982,32 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillWebKit",
-        dependencies: ["QuillFoundation"],
+        dependencies: quillWebKitDependencies,
         path: "Sources/QuillWebKit"
     ),
     .target(
-        name: "QuillUIKit",
+        name: "WebKit",
+        dependencies: ["QuillWebKit"],
+        path: "Sources/WebKitShim"
+    ),
+    .target(
+        name: "JavaScriptCore",
+        dependencies: [],
+        path: "Sources/JavaScriptCoreShim"
+    ),
+    .target(
+        name: "Compression",
+        dependencies: [],
+        path: "Sources/CompressionShim"
+    ),
+    .target(
+        name: "MediaPlayer",
         dependencies: ["QuillFoundation"],
+        path: "Sources/MediaPlayerShim"
+    ),
+    .target(
+        name: "QuillUIKit",
+        dependencies: quillUIKitDependencies,
         path: "Sources/QuillUIKit"
     ),
     .target(
@@ -865,6 +1038,21 @@ var targets: [Target] = [
     .target(name: "Secrets", dependencies: ["QuillFoundation"], path: "Sources/SecretsShim"),
     .target(name: "Tidemark", dependencies: ["QuillRS"], path: "Sources/TidemarkShim"),
     .target(name: "Zip", dependencies: ["QuillRS"], path: "Sources/ZipShim"),
+    // Pure-Swift replacements for NetNewsWire's RSDatabase ObjC/FMBD island.
+    // The module names intentionally match upstream so imported NNW source can
+    // keep `import RSDatabase` / `import RSDatabaseObjC` unchanged on Linux.
+    .target(
+        name: "RSDatabaseObjC",
+        dependencies: ["CSQLite"],
+        path: "Sources/RSDatabaseObjC",
+        swiftSettings: appSwiftSettings
+    ),
+    .target(
+        name: "RSDatabase",
+        dependencies: ["RSDatabaseObjC"],
+        path: "Sources/RSDatabaseShim",
+        swiftSettings: appSwiftSettings
+    ),
     .target(
         name: "SwiftData",
         dependencies: ["QuillData", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
@@ -891,7 +1079,7 @@ var targets: [Target] = [
     // Linux unmodified.
     .target(
         name: "QuillNetNewsWireCore",
-        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillArticlesDatabase", "QuillData"],
+        dependencies: ["QuillUI", "QuillFoundation", "QuillRSParser", "QuillArticles", "QuillArticlesDatabase", "QuillData", "QuillFeedFinder", "QuillRSCoreShim"],
         swiftSettings: appSwiftSettings
     ),
     // Minimal RSCore-shaped shim. Reproduces the slice of
@@ -905,7 +1093,7 @@ var targets: [Target] = [
     // and Linux unchanged.
     .target(
         name: "QuillRSCoreShim",
-        dependencies: [],
+        dependencies: quillRSCoreShimDependencies,
         swiftSettings: appSwiftSettings
     ),
     // Vendored Ranchero-Software/NetNewsWire RSParser sources
@@ -954,7 +1142,7 @@ var targets: [Target] = [
     // 's/^import RSCore$/import QuillRSCoreShim/'`.
     .target(
         name: "QuillArticles",
-        dependencies: ["QuillRSCoreShim"],
+        dependencies: quillArticlesDependencies,
         path: "Sources/QuillArticles",
         swiftSettings: appSwiftSettings
     ),
@@ -972,6 +1160,7 @@ var targets: [Target] = [
     // resolves to it verbatim. Grows toward real RSWeb as Account needs more.
     .target(
         name: "RSWeb",
+        dependencies: ["QuillRSCoreShim"],
         path: "Sources/QuillRSWebShim",
         swiftSettings: appSwiftSettings
     ),
@@ -1255,17 +1444,6 @@ if nnwUpstreamPresent {
             swiftSettings: nnwSwiftSettings
         ),
         .target(
-            name: "RSDatabase",
-            dependencies: ["RSDatabaseObjC"],
-            path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabase",
-            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal"])]
-        ),
-        .target(
-            name: "RSDatabaseObjC",
-            path: ".upstream/netnewswire/Modules/RSDatabase/Sources/RSDatabaseObjC",
-            publicHeadersPath: "include"
-        ),
-        .target(
             name: "NetNewsWireLogic",
             dependencies: nnwLogicDependencies,
             path: ".upstream/netnewswire",
@@ -1287,6 +1465,62 @@ if nnwUpstreamPresent {
     ]
 }
 #endif
+
+#if os(Linux)
+if nnwUpstreamPresent {
+    targets += [
+        .target(
+            name: "RSCore",
+            dependencies: ["QuillRSCoreShim"],
+            path: "Sources/RSCoreShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "Articles",
+            dependencies: ["QuillArticles"],
+            path: "Sources/ArticlesShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "RSParser",
+            dependencies: ["QuillRSParser"],
+            path: "Sources/RSParserShimModule",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
+            name: "ArticlesDatabase",
+            dependencies: ["RSCore", "RSParser", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/ArticlesDatabase/Sources/ArticlesDatabase",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "SyncDatabase",
+            dependencies: ["RSCore", "Articles", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/SyncDatabase/Sources/SyncDatabase",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "ErrorLog",
+            dependencies: ["RSCore", "RSDatabase", "RSDatabaseObjC", "QuillShims"],
+            path: ".upstream/netnewswire/Modules/ErrorLog/Sources/ErrorLog",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "FeedFinder",
+            dependencies: ["RSWeb", "RSParser", "RSCore", "ActivityLog", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/FeedFinder/Sources/FeedFinder",
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "NewsBlur",
+            dependencies: ["Secrets", "RSWeb", "RSParser", "RSCore", "QuillShims", "os"],
+            path: ".upstream/netnewswire/Modules/NewsBlur/Sources/NewsBlur",
+            swiftSettings: nnwSwiftSettings
+        ),
+    ]
+}
+#endif
+
 // NOTE: `QuillNetNewsWire` no longer comes from the upstream
 // NetNewsWireLogic block above. The Shared+Mac coupling
 // produces ~1655 unresolved-symbol errors on macOS and the
@@ -1786,11 +2020,21 @@ let signalAppleFrameworkShims = [
     // WireGuard's PrivateDataConfirmation. SSK depends on it via its explicit list
     // instead of this loop (the loop would create a duplicate target named the same).
     "ContactsUI", "Intents", "PassKit", "Accelerate",
-    "QuartzCore", "ImageIO", "CoreServices", "CoreImage", "AuthenticationServices",
+    "LinkPresentation", "Metal", "MetalKit", "MetalPerformanceShaders",
+    "QuartzCore", "CoreText", "ImageIO", "CoreServices", "CoreImage", "CoreLocation", "CoreSpotlight", "Vision", "AuthenticationServices",
     "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
-    "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio",
+    "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio", "CoreVideo", "CoreMedia", "VideoToolbox", "IOSurface",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
     "ObjCAssoc", "System", "notify",
+    // Telegram-Mac app-target surface (scripts/generated-telegram-app-source-check.sh).
+    // NOTE: "Contacts" is NOT here — Sources/ContactsShim already declares it.
+    // NOTE: "AVKit" is NOT here either — it's an explicit shared target
+    // (Sources/AVKit, SwiftUI VideoPlayer surface) used by both SignalUI and
+    // the Telegram-Mac app graph.
+    "Quartz", "QuickLook", "OSLog", "AppIntents", "CoreMediaIO",
+    // NOTE: "Lottie" is NOT here — Sources/Lottie (Signal's LibMobileCoin dep)
+    // already declares it explicitly.
+    "MapKit", "SceneKit", "Firebase", "FirebaseCrashlytics", "TdBinding",
     // NOTE: "zlib" is intentionally NOT here — it's a real systemLibrary
     // (cZlibTarget, links libz) rather than an inert Swift shim, so it's added to
     // SignalServiceKit's dependencies explicitly below.
@@ -1809,6 +2053,22 @@ for shimName in signalAppleFrameworkShims {
     switch shimName {
     case "AudioToolbox", "UserNotifications":
         dependencies = ["QuillFoundation", "QuillKit"]
+    case "CoreMedia":
+        dependencies = ["QuillFoundation", "CoreVideo", "AudioToolbox"]
+    case "CoreVideo", "MetalKit", "MetalPerformanceShaders":
+        dependencies = ["QuillFoundation", "Metal"]
+    case "VideoToolbox":
+        dependencies = ["QuillFoundation", "CoreMedia", "CoreVideo"]
+    case "QuartzCore":
+        dependencies = ["QuillFoundation", "Metal"]
+    case "Quartz":
+        dependencies = ["QuillFoundation", "QuartzCore"]
+    case "OSLog":
+        dependencies = ["os"]
+    case "IOSurface":
+        dependencies = ["QuillFoundation", "CoreVideo"]
+    case "AppIntents":
+        dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
     default:
         dependencies = ["QuillFoundation"]
     }
@@ -1947,7 +2207,85 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: "Sources/SignalSmoke",
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
+        ),
+        // signal-chat: the full chat window (conversation list / thread /
+        // composer) driving quill-signal-bridge (presage + libsignal, real
+        // Signal protocol) over its unix-socket line-JSON protocol. Pure
+        // QuillUI -- no SSK link, so it builds in seconds.
+        .executableTarget(
+            name: "signal-chat",
+            dependencies: ["QuillUI", "QuillUIGtk"],
+            path: "Sources/SignalChat",
+            swiftSettings: appSwiftSettings
+        ),
+        // SignalUI: Signal-iOS's OWN UI framework (270 Swift files, UIKit-based),
+        // compiled UNMODIFIED against QuillUI's UIKit layer + the framework shims.
+        // This is the real Track B UI goal -- Signal's actual UI code running on
+        // QuillOS, not a reimplementation. Tests + the 3 ObjC files are excluded
+        // (ObjC ports follow the SSK QuillPort pattern if needed). Gated like SSK.
+        .target(
+            name: "SignalUI",
+            dependencies: [
+                "SignalServiceKit", "LibSignalClient",
+                "UIKit", "AVFoundation", "Contacts", "SafariServices", "MessageUI",
+                "UniformTypeIdentifiers", "Combine", "PhotosUI", "MobileCoreServices",
+                "SwiftUI", "Photos", "ContactsUI", "MediaPlayer", "MetalKit", "Vision",
+                "NaturalLanguage", "CoreServices", "Logging", "MobileCoin",
+                "LibMobileCoin", "SDWebImage", "PureLayout", "Lottie", "BonMot",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
+            path: ".upstream/signal-ios/SignalUI",
+            exclude: [
+                "SignalUI.h",
+                "UIKitExtensions/UIButton+DeprecationWorkaround.h",
+                "UIKitExtensions/UIButton+DeprecationWorkaround.m",
+                "Calls/CallLinkTest.swift",
+                "Payments/MobileCoinHelperSDKTest.swift",
+                "Utils/FormattedNumberFieldTest.swift",
+                "RecipientPickers/RecipientPickerViewControllerTest.swift",
+                "LinkPreview/LinkPreviewFetchStateTest.swift",
+                "LinkPreview/HTMLMetadataTests.swift",
+                "LinkPreview/LinkPreviewFetcherTest.swift",
+                "UIKitExtensions/UIStackView+SignalUITest.swift",
+                "FormatStyles/OWSByteCountFormatStyleTest.swift",
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
+    ]
+}
+#endif
+
+// SolderScope (rjwalters/SolderScope) — real macOS SwiftUI USB-microscope
+// viewer compiled UNMODIFIED on Linux (no @objc/#selector anywhere; the only
+// build-prep transform is quill-lower-appkit's `import os.log` → `import os`
+// clang-submodule lowering). Exercises the SwiftUI app lifecycle +
+// AVFoundation capture + CoreImage/CoreVideo surface. Inert on CI until
+// fetch-upstream.sh populates .upstream/solderscope (gitignored).
+#if os(Linux)
+if solderScopeUpstreamPresent {
+    targets += [
+        .executableTarget(
+            name: "QuillSolderScope",
+            dependencies: [
+                "QuillUI", "SwiftUI", "AppKit", "Combine", "os",
+                "AVFoundation", "CoreImage", "CoreGraphics", "CoreVideo",
+                "CoreMedia", "Accelerate", "UniformTypeIdentifiers",
+                "QuillFoundation",
+            ],
+            path: ".upstream/solderscope/SolderScope",
+            exclude: [
+                "Metadata/SolderScope.entitlements",
+                "Metadata/Info.plist",
+            ],
+            // -import-module Combine: on Apple platforms Foundation re-exports
+            // Combine, so files with only `import Foundation` freely use
+            // ObservableObject/@Published (SolderScope's CalibrationManager
+            // does exactly this). corelibs Foundation can't, so emulate the
+            // re-export at the app-target boundary.
+            swiftSettings: appSwiftSettings + [
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "Combine"])
+            ]
+        ),
     ]
 }
 #endif
@@ -2016,16 +2354,21 @@ targets.append(contentsOf: [
     ),
     .target(
         name: "SwiftUI",
+        // AppKit + Combine: Apple's macOS SwiftUI re-exports both; mirror it
+        // (see Sources/SwiftUIShim/SwiftUI.swift). The NSViewRepresentable
+        // GTK mount (GtkDrawingArea + Cairo-backed CGContext) is gtk-graph
+        // only — the qt graph keeps the shadow GTK-free (compile-only
+        // representables there until the Qt mount exists).
         dependencies: [
-            "QuillSwiftUICompatibility",
-            "Observation",
-            "UIKit",
-            "CoreImage",
-            "CoreTransferable",
-            swiftUIShimBackendDependency,
-        ],
+            "QuillUI", "QuillSwiftUICompatibility", "AppKit", "UIKit", "CoreImage", "CoreTransferable", "Combine",
+        ] + swiftUIShadowMountDependencies,
         path: "Sources/SwiftUIShim",
-        swiftSettings: quillUIGTKSwiftImporterSettings
+        // v5 + minimal concurrency matches the house settings (the GTK mount
+        // crosses MainActor.assumeIsolated with non-Sendable view values).
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"]),
+        ] + swiftUIShadowMountSwiftSettings
     ),
     .target(name: "Observation", dependencies: ["QuillDataMacros"], path: "Sources/Observation"),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
@@ -2035,6 +2378,7 @@ targets.append(contentsOf: [
     // LocalAuthentication shim — LAContext/LAPolicy/LAError so WireGuard's
     // PrivateDataConfirmation (key-reveal gate) recompiles; no auth backend on Linux.
     .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
+    .target(name: "AVKit", dependencies: ["SwiftUI", "AVFoundation"], path: "Sources/AVKit"),
     .testTarget(name: "LocalAuthenticationTests", dependencies: ["LocalAuthentication"], path: "Tests/LocalAuthenticationTests"),
     // WireGuardKitGo Linux stub — the wireguard-go cgo bridge (Go engine not built here);
     // lets WireGuardKit's WireGuardAdapter recompile. Compile-faithful, never runs on Linux.
@@ -2059,7 +2403,7 @@ targets.append(contentsOf: [
     // state.
     .target(
         name: "AppKit",
-        dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"],
+        dependencies: appKitShadowDependencies,
         path: "Sources/QuillAppKit",
         swiftSettings: [
             .swiftLanguageMode(.v5),
@@ -2130,28 +2474,26 @@ targets.append(contentsOf: [
     // CYCLE-BREAK: these UI-adjacent shims re-export
     // QuillFoundation/QuillUIKit/QuillKit directly instead of depending on
     // QuillShims, because QuillShims depends on them.
-    .target(name: "UIKit", dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "CoreTransferable"], path: "Sources/UIKitShim"),
-    // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow + Foundation,
+    .target(name: "UIKit", dependencies: uiKitShimDependencies, path: "Sources/UIKitShim"),
+    // Cocoa umbrella shadow: `import Cocoa` re-exports the AppKit shadow +
+    // common AppKit-adjacent Apple modules, so source that relies on Cocoa as
+    // an umbrella import recompiles unchanged.
     // so unmodified macOS app source that `import Cocoa` recompiles unchanged.
-    .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),
+    .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"], path: "Sources/CocoaShim"),
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
     .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
-    .target(name: "WebKit", dependencies: ["QuillWebKit"], path: "Sources/WebKitShim"),
-    .target(name: "LinkPresentation", dependencies: ["UIKit"], path: "Sources/LinkPresentation"),
-    .target(name: "AppIntents", dependencies: ["UniformTypeIdentifiers"], path: "Sources/AppIntents"),
     .target(name: "RevenueCat", dependencies: [], path: "Sources/RevenueCat"),
     .target(name: "WishKit", dependencies: ["SwiftUI"], path: "Sources/WishKit"),
     .target(name: "SFSafeSymbols", dependencies: [], path: "Sources/SFSafeSymbols"),
     .target(name: "AsyncAlgorithms", dependencies: [], path: "Sources/AsyncAlgorithms"),
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
-    .target(name: "CoreGraphics", dependencies: ["QuillKit"], path: "Sources/CoreGraphics"),
+    .target(name: "CoreGraphics", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
-    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/AVFoundation"),
-    .target(name: "AVKit", dependencies: ["SwiftUI", "AVFoundation"], path: "Sources/AVKit"),
+    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo"], path: "Sources/AVFoundation"),
+    .target(name: "CoreHaptics", dependencies: [], path: "Sources/AppleFrameworkShims/CoreHaptics"),
     .target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
     .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
-    .target(name: "QuickLook", dependencies: ["QuillFoundation"], path: "Sources/QuickLook"),
     .target(name: "FoundationModels", dependencies: ["QuillDataMacros"], path: "Sources/FoundationModels"),
     .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
     .target(name: "ApplicationServices", dependencies: ["QuillKit"], path: "Sources/ApplicationServices"),
@@ -2161,10 +2503,21 @@ targets.append(contentsOf: [
     .target(name: "Splash", dependencies: ["SwiftUI"], path: "Sources/Splash"),
     .target(name: "ActivityIndicatorView", dependencies: ["SwiftUI"], path: "Sources/ActivityIndicatorView"),
     .target(name: "ButtonKit", dependencies: ["SwiftUI"], path: "Sources/ButtonKit"),
-    .target(name: "WrappingHStack", dependencies: ["SwiftUI"], path: "Sources/WrappingHStack"),
+    .target(name: "WrappingHStack", dependencies: wrappingHStackDependencies, path: "Sources/WrappingHStack"),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),
     .target(name: "PhotosUI", dependencies: ["SwiftUI", "Photos"], path: "Sources/PhotosUI"),
+    // Third-party Pod shims that Signal-iOS's SignalUI imports but that don't
+    // exist on Linux. Empty modules to start; grow the exact API surface SignalUI
+    // references as the compile reports it. (Apple frameworks it needs -- Photos,
+    // MediaPlayer, MetalKit, Vision, ContactsUI, CoreServices, NaturalLanguage,
+    // SDWebImage -- come from the signalAppleFrameworkShims loop above.)
+    .target(name: "Logging", dependencies: [], path: "Sources/Logging"),
+    .target(name: "MobileCoin", dependencies: [], path: "Sources/MobileCoin"),
+    .target(name: "LibMobileCoin", dependencies: [], path: "Sources/LibMobileCoin"),
+    .target(name: "PureLayout", dependencies: [], path: "Sources/PureLayout"),
+    .target(name: "Lottie", dependencies: [], path: "Sources/Lottie"),
+    .target(name: "BonMot", dependencies: [], path: "Sources/BonMot"),
     .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),
     .target(name: "Nuke", dependencies: [], path: "Sources/Nuke"),
     .target(name: "NukeUI", dependencies: ["SwiftUI", "Nuke"], path: "Sources/NukeUI"),
@@ -2320,7 +2673,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "CQuillQt6WidgetsShim",
-            dependencies: ["CQt6Widgets"],
+            dependencies: ["CQt6Widgets", "CSQLite"],
             path: "Sources/CQuillQt6WidgetsShim",
             publicHeadersPath: "include",
             cxxSettings: [
@@ -2336,23 +2689,35 @@ if quillUILinuxBuildBackend == .qt {
         // rendered through Qt6. All GTK-free.
         .target(
             name: "QuillUIKit",
-            dependencies: ["QuillFoundation"],
+            dependencies: ["QuillFoundation", "QuillKit"],
             path: "Sources/QuillUIKit"
         ),
+        // Inert GTK-free Apple-framework shims the AppKit shadow
+        // (appKitShadowDependencies) and the Cocoa umbrella below now
+        // re-export. The default/GTK graph gets these from the
+        // signalAppleFrameworkShims loop, which this replacement list bypasses.
+        .target(name: "CoreGraphics", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/CoreGraphics"),
+        .target(name: "Metal", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/Metal"),
+        .target(name: "QuartzCore", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/QuartzCore"),
+        .target(name: "CoreVideo", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/CoreVideo"),
+        .target(name: "ImageIO", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/ImageIO"),
+        .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
+        .target(name: "CoreImage", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreImage"),
         .target(
             name: "AppKit",
-            dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit"],
+            dependencies: appKitShadowDependencies,
             path: "Sources/QuillAppKit",
             swiftSettings: [
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"])
             ]
         ),
-        // `import Cocoa` umbrella (re-exports the AppKit shadow + Foundation) so
-        // unmodified macOS app source that `import Cocoa` recompiles in the qt
-        // graph — needed for the literal WireGuard VC render conformance below.
+        // `import Cocoa` umbrella (re-exports AppKit + common AppKit-adjacent
+        // Apple modules) so unmodified macOS app source that `import Cocoa`
+        // recompiles in the qt graph — needed for the literal WireGuard VC
+        // render conformance below.
         // Mirrors the default/GTK-graph Cocoa target.
-        .target(name: "Cocoa", dependencies: ["AppKit"], path: "Sources/CocoaShim"),
+        .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"], path: "Sources/CocoaShim"),
         .target(
             name: "CKiwi",
             path: "Sources/CKiwi",
@@ -2660,6 +3025,14 @@ let packageTestTargets: [Target] = {
             dependencies: ["QuillNetNewsWireCore", "QuillArticles"],
             swiftSettings: appSwiftSettings
         ),
+        // Pins the pure-Swift FMDB/RSDatabase compatibility layer that lets
+        // NetNewsWire database modules move off ObjC on Linux without changing
+        // their import names.
+        .testTarget(
+            name: "RSDatabaseCompatibilityTests",
+            dependencies: ["RSDatabase", "RSDatabaseObjC"],
+            swiftSettings: appSwiftSettings
+        ),
         // Pins QuillRSCoreShim against RFC 1321 MD5 test vectors
         // plus the upstream Insecure.MD5.hash equivalence (empty
         // string, "a", "abc", and the message digest test set
@@ -2675,7 +3048,7 @@ let packageTestTargets: [Target] = {
         // RSWeb. Foundation-only surface.
         .testTarget(
             name: "QuillRSWebShimTests",
-            dependencies: ["RSWeb"],
+            dependencies: ["RSWeb", "QuillRSCoreShim"],
             swiftSettings: appSwiftSettings
         ),
         // Smoke tests for the vendored upstream RSParser. Pins
@@ -2784,7 +3157,7 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillParityTests",
             dependencies: quillParityTestDependencies,
-            swiftSettings: appSwiftSettings
+            swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
         ),
         // Pins the QuillUI core library's public surface:
         // QuillPlatform.name reports the host, QuillUIVersion is
@@ -2792,8 +3165,12 @@ let packageTestTargets: [Target] = {
         // itself on the test-target scorecard.
         .testTarget(
             name: "QuillUITests",
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"],
-            swiftSettings: appSwiftSettings
+            // + SwiftUI shadow on Linux only: always imported by these tests,
+            // previously reached via the shared-build-dir leak; must be declared
+            // now that the shadow carries CGtk4/QuillAppKitGTK (representable
+            // GTK mount). On Apple `import SwiftUI` is the real SDK — no target.
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies,
+            swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
         )
     ]
 
@@ -2830,7 +3207,7 @@ if iceCubesLinuxGraphEnabled {
     targets += [
         .target(
             name: "IceCubesShims",
-            dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI"), "QuillFoundation", "SwiftData", "SwiftUI"],
+            dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI"), "QuillFoundation", "QuillSwiftUICompatibility", "SwiftData", "SwiftUI"],
             path: "Sources/IceCubesShims"
         ),
         .target(
@@ -2889,13 +3266,13 @@ if iceCubesLinuxGraphEnabled {
                 "QuickLook",
                 "Security",
                 "UserNotifications",
+                "CoreHaptics",
+                "AudioToolbox",
+                "AVKit",
             ],
             path: ".upstream/icecubes/Packages/Env/Sources/Env",
             exclude: [
-                "HapticManager.swift",
-                "SoundEffectManager.swift",
                 "Telemetry.swift",
-                "PreviewEnv.swift",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5),
@@ -3262,6 +3639,19 @@ if iceCubesLinuxGraphEnabled {
         ),
     ]
 }
+#endif
+
+// QuartzCore shim tests — the functional CALayer model, transform math, and
+// async animation/transaction/display-link timing engine. Linux-only because
+// the target under test is (on Apple platforms the real QuartzCore exists).
+#if os(Linux)
+targets += [
+    .testTarget(
+        name: "QuartzCoreTests",
+        dependencies: ["QuartzCore"],
+        path: "Tests/QuartzCoreTests"
+    ),
+]
 #endif
 
 let package = Package(

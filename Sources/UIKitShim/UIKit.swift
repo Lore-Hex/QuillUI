@@ -6,13 +6,20 @@
 // transitively.
 
 @_exported import Foundation
-@_exported import CoreTransferable
 @_exported import QuillFoundation
 @_exported import QuillUIKit
 // Re-export the UserNotifications shim so the many `import UIKit`-only SSK files
 // (e.g. ExperienceUpgradeManifest) still resolve UNUserNotificationCenter & co.
 // now that QuillUIKit's stub was removed in favor of the dedicated shim.
 @_exported import UserNotifications
+@_exported import CoreTransferable
+// On iOS, Apple's UIKit re-exports QuartzCore — `import UIKit` alone exposes
+// CALayer/CAShapeLayer/CATransaction. Signal-iOS's SignalUI relies on this
+// (~4.8k of its conformance-build errors were CA* names with no QuartzCore
+// import in sight). Mirror that topology here: on Linux this resolves to the
+// in-tree QuartzCore shim (a declared target dependency); on Apple platforms
+// it resolves to the real framework, exactly like Apple's UIKit.
+@_exported import QuartzCore
 import QuillKit
 
 #if !os(iOS)
@@ -47,10 +54,17 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
         self.fontDescriptor = UIFontDescriptor(name: fontName)
         super.init()
     }
-    public required convenience init?(coder: NSCoder) {
-        self.init(pointSize: 17, fontName: ".AppleSystemUIFont")
+    public required init?(coder: NSCoder) {
+        let decodedSize = coder.decodeDouble(forKey: "pointSize")
+        self.pointSize = decodedSize == 0 ? 17 : CGFloat(decodedSize)
+        self.fontName = coder.decodeObject(forKey: "fontName") as? String ?? ".AppleSystemUIFont"
+        self.fontDescriptor = UIFontDescriptor(name: fontName)
+        super.init()
     }
-    public func encode(with coder: NSCoder) {}
+    public func encode(with coder: NSCoder) {
+        coder.encode(Double(pointSize), forKey: "pointSize")
+        coder.encode(fontName, forKey: "fontName")
+    }
     public static func systemFont(ofSize size: CGFloat) -> UIFont {
         UIFont(pointSize: size, fontName: ".AppleSystemUIFont")
     }
@@ -143,114 +157,28 @@ public final class UIFontMetrics: @unchecked Sendable {
 }
 #endif
 
-public enum UIApplicationState: Int { case active, inactive, background }
+// UIApplication/UIApplicationState/UIScene: canonical declarations live in
+// QuillUIKit (re-exported above) — declaring twins here made `UIApplication.shared`
+// ambiguous once SwiftUI re-exported AppKit (whose QuillUIKit re-export exposes
+// the other copy). Shared text-layout types (NSTextAlignment/NSParagraphStyle/
+// NSUnderlineStyle/NSStringDrawing*/NSAttributedString.Key additions) live in
+// QuillFoundation (NSTextLayoutShared.swift) for the same reason.
+// NSTextAttachment/NSTextStorage stay here: their members are UIKit-flavored
+// (UIImage) and cannot share a declaration with AppKit's NSImage flavor yet.
 
-public extension UIApplication {
-    // The UIApplication CLASS lives in QuillUIKit (re-exported above); this
-    // extension adds the async/source-compat members the vendored apps use.
-    @MainActor @discardableResult
-    func open(_ url: URL) async -> Bool {
-        open(url, options: [:], completionHandler: nil)
-        return true
-    }
 
-    @MainActor func unregisterForRemoteNotifications() {
-        QuillNotificationService.shared.unregisterForRemoteNotifications()
-    }
-    @MainActor var isRegisteredForRemoteNotifications: Bool {
-        QuillNotificationService.shared.remoteNotificationsRegistered
-    }
-
-    @MainActor var applicationState: UIApplicationState { .active }
-
-    /// UIKit (and SignalServiceKit's AppContext) name the application-state enum
-    /// `UIApplication.State`; `UIApplicationState` is its top-level alias on iOS.
-    typealias State = UIApplicationState
-
-    // App-lifecycle notification names. Real UIKit members; no source posts
-    // them on Linux yet.
-    static var didBecomeActiveNotification: Notification.Name {
-        Notification.Name("UIApplicationDidBecomeActiveNotification")
-    }
-    static var willResignActiveNotification: Notification.Name {
-        Notification.Name("UIApplicationWillResignActiveNotification")
-    }
-    static var didEnterBackgroundNotification: Notification.Name {
-        Notification.Name("UIApplicationDidEnterBackgroundNotification")
-    }
-    static var willEnterForegroundNotification: Notification.Name {
-        Notification.Name("UIApplicationWillEnterForegroundNotification")
-    }
-    static var willTerminateNotification: Notification.Name {
-        Notification.Name("UIApplicationWillTerminateNotification")
-    }
-    static var didReceiveMemoryWarningNotification: Notification.Name {
-        Notification.Name("UIApplicationDidReceiveMemoryWarningNotification")
-    }
-    static var significantTimeChangeNotification: Notification.Name {
-        Notification.Name("UIApplicationSignificantTimeChangeNotification")
-    }
-
-    @MainActor func setAlternateIconName(_ name: String?, completionHandler: ((Error?) -> Void)? = nil) {
-        _ = name
-        completionHandler?(nil)
-    }
-
-    @MainActor var alternateIconName: String? { nil }
-    static var openSettingsURLString: String { "app-settings:" }
-}
-
-public enum UIBackgroundFetchResult: Sendable {
-    case newData
-    case noData
-    case failed
-}
 
 // Text alignment. On iOS this lives in UIKit (and in AppKit on macOS, where
 // QuillAppKit already mirrors it). SignalServiceKit reaches it via `import
 // UIKit`, so it is mirrored here too. Case order matches QuillAppKit's.
-public enum NSTextAlignment: Int, Sendable {
-    case left, right, center, justified, natural
-}
 
 // Text layout enums + paragraph style (UIKit on iOS, AppKit on macOS). Mirrored
 // here so SignalServiceKit's attributed-string code resolves them via import
 // UIKit. Case order matches QuillAppKit's.
-public enum NSLineBreakMode: Int, Sendable {
-    case byWordWrapping, byCharWrapping, byClipping, byTruncatingHead, byTruncatingTail, byTruncatingMiddle
-}
 
-public enum NSWritingDirection: Int, Sendable {
-    case natural = -1, leftToRight = 0, rightToLeft = 1
-}
 
-open class NSParagraphStyle: NSObject {
-    nonisolated(unsafe) public static let `default` = NSParagraphStyle()
-    public var alignment: NSTextAlignment = .natural
-    public var lineBreakMode: NSLineBreakMode = .byWordWrapping
-    public var lineSpacing: CGFloat = 0
-    public var paragraphSpacing: CGFloat = 0
-    public var firstLineHeadIndent: CGFloat = 0
-    public var headIndent: CGFloat = 0
-    public var tailIndent: CGFloat = 0
-    public var lineHeightMultiple: CGFloat = 0
-    public var minimumLineHeight: CGFloat = 0
-    public var maximumLineHeight: CGFloat = 0
-    public var baseWritingDirection: NSWritingDirection = .natural
-    public var defaultTabInterval: CGFloat = 0
-    public var tabStops: [Any]? = []
-    public override init() { super.init() }
-}
 
-open class NSMutableParagraphStyle: NSParagraphStyle {}
 
-public extension NSParagraphStyle {
-    /// Inert on Linux: returns .natural (no per-language BiDi resolution yet).
-    /// SSK's String.naturalTextAlignment switches over the result.
-    class func defaultWritingDirection(forLanguage language: String?) -> NSWritingDirection {
-        return .natural
-    }
-}
 
 // NSTextAttachment: an inline image/data attachment in an attributed string.
 // swift-corelibs Foundation has no NSTextAttachment; SSK (String+SSK) builds one
@@ -282,37 +210,10 @@ public extension UIImage {
 
 // Standard attributed-string attribute keys (UIKit/AppKit additions; not in
 // swift-corelibs Foundation). Raw values match Apple's.
-public extension NSAttributedString.Key {
-    static let font = NSAttributedString.Key(rawValue: "NSFont")
-    static let foregroundColor = NSAttributedString.Key(rawValue: "NSColor")
-    static let backgroundColor = NSAttributedString.Key(rawValue: "NSBackgroundColor")
-    static let paragraphStyle = NSAttributedString.Key(rawValue: "NSParagraphStyle")
-    static let underlineStyle = NSAttributedString.Key(rawValue: "NSUnderline")
-    static let underlineColor = NSAttributedString.Key(rawValue: "NSUnderlineColor")
-    static let strikethroughStyle = NSAttributedString.Key(rawValue: "NSStrikethrough")
-    static let strikethroughColor = NSAttributedString.Key(rawValue: "NSStrikethroughColor")
-    static let link = NSAttributedString.Key(rawValue: "NSLink")
-    static let attachment = NSAttributedString.Key(rawValue: "NSAttachment")
-    static let kern = NSAttributedString.Key(rawValue: "NSKern")
-    static let baselineOffset = NSAttributedString.Key(rawValue: "NSBaselineOffset")
-}
 
 // Mirror of UIKit's NSUnderlineStyle. Modeled as an OptionSet (matching the
 // platform, where line styles and patterns combine) with the standard raw
 // values; SSK uses `.single.rawValue` for strikethrough/underline attributes.
-public struct NSUnderlineStyle: OptionSet, Sendable {
-    public let rawValue: Int
-    public init(rawValue: Int) { self.rawValue = rawValue }
-    public static let single = NSUnderlineStyle(rawValue: 0x01)
-    public static let thick = NSUnderlineStyle(rawValue: 0x02)
-    public static let double = NSUnderlineStyle(rawValue: 0x09)
-    public static let patternSolid: NSUnderlineStyle = []
-    public static let patternDot = NSUnderlineStyle(rawValue: 0x0100)
-    public static let patternDash = NSUnderlineStyle(rawValue: 0x0200)
-    public static let patternDashDot = NSUnderlineStyle(rawValue: 0x0300)
-    public static let patternDashDotDot = NSUnderlineStyle(rawValue: 0x0400)
-    public static let byWord = NSUnderlineStyle(rawValue: 0x8000)
-}
 
 public extension NSAttributedString {
     /// NSAttributedString(attachment:) -- wraps a text attachment in an attributed
@@ -323,28 +224,19 @@ public extension NSAttributedString {
     }
 }
 
-public extension NSMutableAttributedString {
-    convenience init() {
-        self.init(string: "")
-    }
-
-    convenience init(_ attributedString: AttributedString) {
-        self.init(string: String(attributedString.characters))
-    }
-}
-
-public class UIScene: NSObject {
-    @MainActor public var delegate: Any?
-    public enum ActivationState: Sendable {
+public extension UIScene {
+    enum ActivationState: Sendable {
         case unattached
         case foregroundActive
         case foregroundInactive
         case background
     }
-    @MainActor public var activationState: ActivationState = .foregroundActive
-    public struct ConnectionOptions: Sendable {
+
+    struct ConnectionOptions: Sendable {
         public init() {}
     }
+
+    @MainActor var activationState: ActivationState { .foregroundActive }
 }
 
 public class UISceneSession: NSObject {
@@ -381,6 +273,29 @@ public class UISceneConfiguration: NSObject {
     public var keyWindow: UIWindow? { windows.first }
 }
 
+public extension UIWindow {
+    var isKeyWindow: Bool { false }
+    var safeAreaInsets: UIEdgeInsets { .zero }
+    @MainActor var windowScene: UIWindowScene? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { scene in scene.windows.contains { $0 === self } }
+    }
+
+    convenience init(windowScene: UIWindowScene) {
+        self.init()
+        windowScene.windows.append(self)
+    }
+
+    var rootViewController: UIViewController? {
+        get { nil }
+        set { _ = newValue }
+    }
+
+    func makeKeyAndVisible() {}
+    func resignKey() {}
+}
+
 @MainActor public protocol UIFontPickerViewControllerDelegate: AnyObject {
     func fontPickerViewControllerDidCancel(_ viewController: UIFontPickerViewController)
     func fontPickerViewControllerDidPickFont(_ viewController: UIFontPickerViewController)
@@ -396,10 +311,6 @@ public class UISceneConfiguration: NSObject {
 }
 
 public extension UIColor {
-    convenience init<T>(_ color: T) {
-        self.init()
-    }
-
     static let placeholderText = RSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
 }
 
@@ -705,18 +616,10 @@ public class UINotificationFeedbackGenerator: NSObject {
         set { _ = newValue }
     }
 
-    /// KVC setter used only by UIDevice+FeatureSupport.ows_setOrientation's
-    /// programmatic-rotation hack (`setValue(_:forKey:"orientation")`). On Apple
-    /// this resolves to NSObject's Objective-C KVC; swift-corelibs-foundation's
-    /// NSObject has no KVC ("value of type 'UIDevice' has no member 'setValue'"),
-    /// so this inert stand-in lets SSK compile. Programmatic device rotation is
-    /// meaningless on QuillOS (the GTK/Qt window manager owns orientation), so it
-    /// is a no-op. Linux-only: on macOS the real NSObject KVC is used (an
-    /// unconditional method here would conflict with the @objc superclass one).
-    public func setValue(_ value: Any?, forKey key: String) {
-        _ = value
-        _ = key
-    }
+    // UIDevice+FeatureSupport.ows_setOrientation's KVC hack
+    // (`setValue(_:forKey:"orientation")`) resolves to QuillFoundation's
+    // NSObject KVC no-op extension (re-exported by this module); a copy here
+    // would be an invalid override of an extension member.
     #endif
 }
 
@@ -752,32 +655,6 @@ public struct UIEdgeInsets: Equatable, Sendable {
         self.right = right
     }
     public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-}
-
-public extension UIView {
-    var safeAreaInsets: UIEdgeInsets { .zero }
-}
-
-public extension UIWindow {
-    var isKeyWindow: Bool { false }
-    @MainActor var windowScene: UIWindowScene? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { scene in scene.windows.contains { $0 === self } }
-    }
-
-    convenience init(windowScene: UIWindowScene) {
-        self.init()
-        windowScene.windows.append(self)
-    }
-
-    var rootViewController: UIViewController? {
-        get { nil }
-        set { _ = newValue }
-    }
-
-    func makeKeyAndVisible() {}
-    func resignKey() {}
 }
 
 // MARK: - NSDirectionalEdgeInsets
@@ -869,21 +746,7 @@ public struct UIInterfaceOrientationMask: OptionSet, Sendable {
 // attribute when present) and draw(...) is inert -- enough to compile and lay
 // out roughly. Real rasterization is deferred to a Cairo/Pango paint layer.
 
-public struct NSStringDrawingOptions: OptionSet, Sendable {
-    public let rawValue: Int
-    public init(rawValue: Int) { self.rawValue = rawValue }
-    public static let usesLineFragmentOrigin = NSStringDrawingOptions(rawValue: 1 << 0)
-    public static let usesFontLeading = NSStringDrawingOptions(rawValue: 1 << 1)
-    public static let usesDeviceMetrics = NSStringDrawingOptions(rawValue: 1 << 3)
-    public static let truncatesLastVisibleLine = NSStringDrawingOptions(rawValue: 1 << 5)
-}
 
-public final class NSStringDrawingContext {
-    public init() {}
-    public var minimumScaleFactor: CGFloat = 0
-    public var actualScaleFactor: CGFloat = 1
-    public var totalBounds: CGRect = .zero
-}
 
 private func quillEstimatedTextRect(_ s: String, proposed: CGSize, attributes: [NSAttributedString.Key: Any]?) -> CGRect {
     let fontSize = (attributes?[.font] as? UIFont)?.pointSize ?? 13

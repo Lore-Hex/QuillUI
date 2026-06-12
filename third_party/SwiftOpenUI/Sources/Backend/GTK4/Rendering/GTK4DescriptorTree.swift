@@ -559,6 +559,23 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
     if V.Body.self != Never.self {
         return gtkDescribeAnyView(view.body)
     }
+    // Generic describe-through for single-content wrappers (font/style/line
+    // modifiers and similar): a Body=Never primitive whose only stored View
+    // is its content renders that content's widget directly, so describing
+    // through preserves the descriptor/widget pairing. A childless composite
+    // here would otherwise knock every ancestor host off the narrow mutation
+    // path. Wrappers with zero or multiple stored Views stay opaque, and a
+    // mis-shaped pairing degrades safely: slot capture fails -> updates are
+    // invalid -> the host takes the full rebuild it takes today.
+    let mirror = Mirror(reflecting: view)
+    let storedViews = mirror.children.compactMap { $0.value as? any View }
+    if storedViews.count == 1 {
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: String(describing: type(of: view)),
+            children: [gtkDescribeAnyView(storedViews[0])]
+        )
+    }
     return GTK4DescriptorNode(
         kind: .composite,
         typeName: String(describing: type(of: view))
