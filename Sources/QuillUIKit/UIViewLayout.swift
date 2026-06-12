@@ -58,6 +58,17 @@ public extension UIView {
             $0.quillFirstAnchor?.quillItem === self || $0.quillSecondAnchor?.quillItem === self
         }
     }
+
+    /// Intrinsic-content-size invalidation. There is no intrinsic-size pass on
+    /// Linux yet, so mirror QuillAppKit's NSView: mark this view and its
+    /// superview as needing layout so the next pass re-reads whatever sizing
+    /// input the caller just changed. NOTE: extension member, so subclasses
+    /// cannot override it (UIKit declares it `open` in the class body); no
+    /// SignalUI error has needed an override so far.
+    func invalidateIntrinsicContentSize() {
+        setNeedsLayout()
+        superview?.setNeedsLayout()
+    }
 }
 
 #endif // !os(iOS)
