@@ -894,14 +894,6 @@ public extension IndexPath {
     var section: Int { return 0 }
 }
 
-public extension UIColor {
-    static let label = RSColor()
-    static let secondaryLabel = RSColor()
-    static let tertiaryLabel = RSColor()
-    static let systemBackground = RSColor()
-    static let secondarySystemBackground = RSColor()
-}
-
 public class NonIntrinsicImageView: UIImageView {}
 
 #endif // !os(iOS)

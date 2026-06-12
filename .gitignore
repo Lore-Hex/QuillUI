@@ -12,6 +12,11 @@ DerivedData/
 Package.swift.bak
 Package.swift.full
 Package.swift.orig
+*.bak
+*.log
+*.orig
+*.tmp
+*~
 scripts/__pycache__/
 *.xcuserdata
 *.sqlite
@@ -62,3 +67,8 @@ swiftly-*.tar.gz
 # QuillSignal UI screenshots (scripts/quill-signal-screenshot.sh) — local-only.
 .qs-shot.png
 .qs-qr-zoom.png
+
+# Local smoke-test and debugging artifacts. Real checked-in screenshots should
+# live under a named fixture or docs directory, not as root temp files.
+.tmp-*
+tmp-*

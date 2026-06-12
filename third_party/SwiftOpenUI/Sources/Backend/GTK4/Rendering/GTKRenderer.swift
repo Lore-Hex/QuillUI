@@ -2339,8 +2339,14 @@ private func gtkRenderFilledShapeBackground(
     cornerRadius: Double
 ) -> OpaquePointer {
     let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-    if gtk_widget_get_hexpand(contentWidget) != 0 { gtk_widget_set_hexpand(wrapper, 1) }
-    if gtk_widget_get_vexpand(contentWidget) != 0 { gtk_widget_set_vexpand(wrapper, 1) }
+    if gtk_widget_get_hexpand(contentWidget) != 0 {
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+    }
+    if gtk_widget_get_vexpand(contentWidget) != 0 {
+        gtk_widget_set_vexpand(wrapper, 1)
+        gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+    }
 
     let css: String
     if cornerRadius > 0 {
@@ -5503,8 +5509,14 @@ extension ClippedView: GTKRenderable {
         let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_box_append(boxPointer(wrapper), inner)
         gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
-        gtk_widget_set_hexpand(wrapper, gtk_widget_get_hexpand(inner))
-        gtk_widget_set_vexpand(wrapper, gtk_widget_get_vexpand(inner))
+        if gtk_widget_get_hexpand(inner) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(inner, GTK_ALIGN_FILL)
+        }
+        if gtk_widget_get_vexpand(inner) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(inner, GTK_ALIGN_FILL)
+        }
         return opaqueFromWidget(wrapper)
     }
 }
@@ -5515,8 +5527,14 @@ extension ClipShapeView: GTKRenderable {
         let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_box_append(boxPointer(wrapper), inner)
         gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
-        gtk_widget_set_hexpand(wrapper, gtk_widget_get_hexpand(inner))
-        gtk_widget_set_vexpand(wrapper, gtk_widget_get_vexpand(inner))
+        if gtk_widget_get_hexpand(inner) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(inner, GTK_ALIGN_FILL)
+        }
+        if gtk_widget_get_vexpand(inner) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(inner, GTK_ALIGN_FILL)
+        }
 
         // Map shape type to CSS border-radius for clipping.
         let css: String
@@ -5600,9 +5618,11 @@ extension OverlayView: GTKRenderable {
 
         if gtk_widget_get_hexpand(baseWidget) != 0 {
             gtk_widget_set_hexpand(container, 1)
+            gtk_widget_set_halign(baseWidget, GTK_ALIGN_FILL)
         }
         if gtk_widget_get_vexpand(baseWidget) != 0 {
             gtk_widget_set_vexpand(container, 1)
+            gtk_widget_set_valign(baseWidget, GTK_ALIGN_FILL)
         }
 
         let overlayWidget = widgetFromOpaque(gtkRenderView(overlay))

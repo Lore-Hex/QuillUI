@@ -1012,6 +1012,16 @@ public class RSColor: NSObject, @unchecked Sendable {
     public static let white = RSColor(red: 1, green: 1, blue: 1, alpha: 1)
     public static let black = RSColor(red: 0, green: 0, blue: 0, alpha: 1)
     public static let orange = RSColor(red: 1.0, green: 0.5, blue: 0.0, alpha: 1)
+    public static let label = RSColor(red: 0.12, green: 0.12, blue: 0.13, alpha: 1)
+    public static let secondaryLabel = RSColor(red: 0.38, green: 0.38, blue: 0.40, alpha: 1)
+    public static let tertiaryLabel = RSColor(red: 0.56, green: 0.56, blue: 0.58, alpha: 1)
+    public static let systemBackground = RSColor(red: 0.98, green: 0.98, blue: 0.99, alpha: 1)
+    public static let secondarySystemBackground = RSColor(red: 0.94, green: 0.94, blue: 0.96, alpha: 1)
+    public static let systemGray = RSColor(red: 0.56, green: 0.56, blue: 0.58, alpha: 1)
+    public static let systemGray2 = RSColor(red: 0.68, green: 0.68, blue: 0.70, alpha: 1)
+    public static let systemBlue = RSColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1)
+    public static let systemRed = RSColor(red: 1.00, green: 0.23, blue: 0.19, alpha: 1)
+    public static let pink = RSColor(red: 1.00, green: 0.18, blue: 0.33, alpha: 1)
 
     /// Returns a 4-tuple [R, G, B, A]. Matches the CGColor.components shape.
     public var cgColor: RSCGColor { RSCGColor(components: [_red, _green, _blue, _alpha]) }

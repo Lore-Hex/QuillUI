@@ -64,6 +64,7 @@ jobs:
             libgtk-4-dev \
             libsqlite3-dev \
             pkg-config \
+            python3 \
             qt6-base-dev \
             ripgrep \
             x11-apps \

@@ -167,14 +167,13 @@ def lower_source(text: str) -> str:
         output.append("@Observable\n")
 
     lowered = "".join(output)
-    # Every generated Linux source needs QuillUI's compatibility
-    # surface in scope: `@AppStorage`, `PlainButtonStyle`,
-    # `NSImage`, `RoundedBorderTextFieldStyle`, `ButtonStyle`, the
-    # SwiftUI re-export, and the lowered `QuillObservableObject` /
-    # `@QuillPublished` types all live there. Inject the import
-    # unconditionally so we don't have to track per-file usage.
-    lowered = _ensure_import(lowered, "QuillUI")
     if lowered != text:
+        # The wrapper script injects QuillShims after this pass. QuillShims
+        # re-exports the SwiftUI/AppKit/UIKit compatibility surface, including
+        # the lowered `QuillObservableObject` / `@QuillPublished` aliases.
+        # Avoid importing QuillUI here: generated app files already import the
+        # SwiftUI shim, and importing both QuillUI and QuillSwiftUICompatibility
+        # exposes duplicate compatibility overloads.
         lowered = _ensure_import(lowered, "SwiftUI")
     return lowered
 

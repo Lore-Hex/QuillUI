@@ -50,11 +50,13 @@ private final class SolidBlackView: NSView {
     }
 }
 
+@MainActor
 private struct CrosshairProbe: NSViewRepresentable {
     func makeNSView(context: Context) -> CrosshairView { CrosshairView() }
     func updateNSView(_ nsView: CrosshairView, context: Context) {}
 }
 
+@MainActor
 private struct SolidProbe: NSViewRepresentable {
     func makeNSView(context: Context) -> SolidBlackView { SolidBlackView() }
     func updateNSView(_ nsView: SolidBlackView, context: Context) {}
@@ -65,6 +67,7 @@ private final class ReuseCountingView: NSView {
     override var isFlipped: Bool { true }
 }
 
+@MainActor
 private struct ReuseProbe: NSViewRepresentable {
     nonisolated(unsafe) static var makeCount = 0
     nonisolated(unsafe) static var updateCount = 0

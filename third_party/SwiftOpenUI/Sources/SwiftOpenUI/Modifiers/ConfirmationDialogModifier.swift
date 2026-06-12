@@ -137,16 +137,85 @@ extension View {
         @ViewBuilder actions: () -> Actions,
         @ViewBuilder message: () -> Message
     ) -> ConfirmationDialogView<Self> {
-        _ = actions()
-        _ = message()
         return ConfirmationDialogView(
             content: self,
             title: title,
             isPresented: isPresented,
             titleVisibility: .automatic,
-            message: "",
-            buttons: [],
+            message: swiftOpenUITextLabel(from: message()),
+            buttons: swiftOpenUIConfirmationDialogButtons(from: actions()),
             participatesInDismissalInterception: false
         )
     }
+}
+
+private protocol SwiftOpenUIButtonRepresentable {
+    var swiftOpenUIButtonLabel: String { get }
+    var swiftOpenUIButtonAction: () -> Void { get }
+}
+
+extension Button: SwiftOpenUIButtonRepresentable {
+    fileprivate var swiftOpenUIButtonLabel: String { swiftOpenUITextLabel(from: label) }
+    fileprivate var swiftOpenUIButtonAction: () -> Void { action }
+}
+
+private protocol SwiftOpenUIDisabledRepresentable {
+    var swiftOpenUIDisabledContent: any View { get }
+}
+
+extension DisabledView: SwiftOpenUIDisabledRepresentable {
+    fileprivate var swiftOpenUIDisabledContent: any View { content }
+}
+
+private protocol SwiftOpenUIKeyboardShortcutRepresentable {
+    var swiftOpenUIShortcutContent: any View { get }
+}
+
+extension KeyboardShortcutView: SwiftOpenUIKeyboardShortcutRepresentable {
+    fileprivate var swiftOpenUIShortcutContent: any View { content }
+}
+
+private func swiftOpenUITextLabel(from view: any View) -> String {
+    if let text = view as? Text {
+        return text.content
+    }
+
+    if let shortcut = view as? any SwiftOpenUIKeyboardShortcutRepresentable {
+        return swiftOpenUITextLabel(from: shortcut.swiftOpenUIShortcutContent)
+    }
+
+    if let disabled = view as? any SwiftOpenUIDisabledRepresentable {
+        return swiftOpenUITextLabel(from: disabled.swiftOpenUIDisabledContent)
+    }
+
+    if let multi = view as? MultiChildView {
+        for child in multi.children {
+            let label = swiftOpenUITextLabel(from: child)
+            if !label.isEmpty {
+                return label
+            }
+        }
+    }
+
+    return ""
+}
+
+private func swiftOpenUIConfirmationDialogButtons(from view: any View) -> [AlertButton] {
+    if let button = view as? any SwiftOpenUIButtonRepresentable {
+        return [AlertButton(button.swiftOpenUIButtonLabel, action: button.swiftOpenUIButtonAction)]
+    }
+
+    if let shortcut = view as? any SwiftOpenUIKeyboardShortcutRepresentable {
+        return swiftOpenUIConfirmationDialogButtons(from: shortcut.swiftOpenUIShortcutContent)
+    }
+
+    if let disabled = view as? any SwiftOpenUIDisabledRepresentable {
+        return swiftOpenUIConfirmationDialogButtons(from: disabled.swiftOpenUIDisabledContent)
+    }
+
+    if let multi = view as? MultiChildView {
+        return multi.children.flatMap(swiftOpenUIConfirmationDialogButtons)
+    }
+
+    return []
 }

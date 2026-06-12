@@ -5,9 +5,10 @@ if (( $# != 1 )); then
   cat >&2 <<'MSG'
 Usage: scripts/lower-swiftui-source-for-linux.sh GENERATED_SOURCE_DIR
 
-Applies conservative, app-agnostic SwiftUI source cleanup to a generated source
-copy before building it with QuillUI on Linux. This script edits the generated
-copy in place and must not be pointed at an app's upstream source tree.
+Applies conservative, app-agnostic SwiftUI/AppKit source cleanup to a generated
+source copy before building it with QuillUI on Linux. This script edits the
+generated copy in place and must not be pointed at an app's upstream source
+tree.
 MSG
   exit 64
 fi
@@ -43,11 +44,16 @@ find "$SOURCE_DIR" -name '*.swift' -print0 |
     s/^[ \t]*\@MainActor[ \t]*\n//gm;
     s/^([ \t]*)\@MainActor[ \t]+/$1/gm;
     s/: View, Sendable/: View/g;
+    s/\.keyboardType\([ \t]*\.URL[ \t]*\)/.keyboardType(KeyboardType.URL)/g;
+    s/\.textContentType\([ \t]*\.URL[ \t]*\)/.textContentType(TextContentType.URL)/g;
   '
+
+"$(dirname "$0")/run-quill-appkit-lower.sh" "$SOURCE_DIR"
+"$(dirname "$0")/lower-objc-interop-for-linux.sh" "$SOURCE_DIR"
 
 swift_files="$(find "$SOURCE_DIR" -name '*.swift' | wc -l | tr -d ' ')"
 cat <<MSG
-Lowered generic SwiftUI Linux source in:
+Lowered generic SwiftUI/AppKit Linux source in:
   $SOURCE_DIR
 Swift files processed: $swift_files
 MSG

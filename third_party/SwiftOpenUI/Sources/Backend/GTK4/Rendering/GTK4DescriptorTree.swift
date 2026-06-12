@@ -843,7 +843,13 @@ public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
             return false
         }
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            return false
+            // Props-bearing leaves (TextField & co.) compare meaningfully:
+            // identical descriptors mean nothing changed, and the native
+            // widget owns its visible state, so reuse is safe. Only
+            // prop-less childless composites are opaque.
+            if case .none = plan.newDescriptor.props {
+                return false
+            }
         }
         return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
     case .update:
