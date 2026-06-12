@@ -1420,7 +1420,11 @@ def validate_quill_chat_mac_reference_settings_panel(
                 token_y1,
             )
         require(
-            token_text_pixels >= 250,
+            # Retuned with the endpoint/ping thresholds (550->300, 140->90 in
+            # 784fcc28): typed-glyph coverage dropped ~45% across all three
+            # settings fields; observed healthy runs measure ~153 here. 120
+            # still rejects an empty field by a wide margin.
+            token_text_pixels >= 120,
             f"Mac-reference typed settings bearer token was not detected: pixels={token_text_pixels}",
         )
         typed_summary += f", token_text_pixels={token_text_pixels}"
