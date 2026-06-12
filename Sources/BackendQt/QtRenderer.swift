@@ -439,6 +439,32 @@ final class QtIntClosureBox {
     init(_ closure: @escaping (Int) -> Void) { self.closure = closure }
 }
 
+private final class QtEnvironmentCapture: @unchecked Sendable {
+    let environment: EnvironmentValues
+    init(_ environment: EnvironmentValues) { self.environment = environment }
+}
+
+func qtBindTaskActionToCurrentEnvironment(
+    _ action: @escaping @Sendable () async -> Void
+) -> @Sendable () async -> Void {
+    let captured = QtEnvironmentCapture(getCurrentEnvironment())
+    return {
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(captured.environment)
+        defer { setCurrentEnvironment(previous) }
+        await action()
+    }
+}
+
+func qtPostIdleAction(_ action: @escaping () -> Void) {
+    let box = Unmanaged.passRetained(QtClosureBox(action)).toOpaque()
+    let callback: quill_qt_bridge_idle_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtClosureBox>.fromOpaque(userData).takeRetainedValue().closure()
+    }
+    quill_qt_bridge_post_idle(callback, box)
+}
+
 func qtTextLabel(from view: any View) -> String {
     if let anyView = view as? AnyView {
         return qtTextLabel(from: anyView.wrapped)
@@ -808,6 +834,12 @@ extension LazyVGrid: QtRenderable {
 }
 #endif
 
+extension Form: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderVerticalContainer(qtRenderChildren(content), spacing: 8, alignment: .leading)
+    }
+}
+
 extension ForEach: QtRenderable, QtMultiChildRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         qtRenderVerticalContainer(qtRenderChildren(), spacing: 0, alignment: .leading)
@@ -901,6 +933,178 @@ extension FrameView: QtRenderable {
         )
         return container
     }
+}
+
+// MARK: - Shape views
+
+private func qtColorCSS(_ color: Color) -> String {
+    String(format: "rgba(%d, %d, %d, %.3f)",
+           Int(color.red * 255), Int(color.green * 255), Int(color.blue * 255), color.alpha)
+}
+
+private func qtCreateStyledContainer(_ css: String) -> OpaquePointer {
+    let container = qtOpaque(quill_qt_bridge_container_create())
+    quill_qt_bridge_widget_set_stylesheet(qtHandle(container), css)
+    return container
+}
+
+private func qtShapeCSS(_ shape: Any) -> String {
+    switch shape {
+    case let r as RoundedRectangle: return "border-radius: \(r.cornerRadius)px;"
+    case is Circle, is Ellipse, is Capsule: return "border-radius: 50%;"
+    default: return ""
+    }
+}
+
+private func qtFilledShapeColor(from filledShape: Any) -> Color? {
+    for child in Mirror(reflecting: filledShape).children
+        where child.label == "fill" || child.label == "color" {
+        if let c = child.value as? Color { return c }
+    }
+    return nil
+}
+
+private func qtFilledShapeInnerShape(from filledShape: Any) -> Any? {
+    Mirror(reflecting: filledShape).children.first { $0.label == "shape" }?.value
+}
+
+private func qtGradientStopsCSS(_ stops: [Gradient.Stop]) -> String {
+    stops.map { "\(qtColorCSS($0.color)) \(Int($0.location * 100))%" }.joined(separator: ", ")
+}
+
+extension Rectangle: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor;")
+    }
+}
+
+extension RoundedRectangle: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor; border-radius: \(cornerRadius)px;")
+    }
+}
+
+extension Circle: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor; border-radius: 50%;")
+    }
+}
+
+extension Ellipse: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor; border-radius: 50%;")
+    }
+}
+
+extension Capsule: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor; border-radius: 50%;")
+    }
+}
+
+extension LinearGradient: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        guard !gradient.stops.isEmpty else {
+            return qtCreateStyledContainer("background-color: transparent;")
+        }
+        let dx = endPoint.x - startPoint.x
+        let dy = endPoint.y - startPoint.y
+        let angleDeg = Int((atan2(dx, -dy) * 180 / .pi).rounded())
+        let stops = qtGradientStopsCSS(gradient.stops)
+        return qtCreateStyledContainer("background: linear-gradient(\(angleDeg)deg, \(stops));")
+    }
+}
+
+extension FilledShape: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let fillCSS = qtFilledShapeColor(from: self)
+            .map { "background-color: \(qtColorCSS($0));" }
+            ?? "background-color: currentColor;"
+        let shapeCSS = qtFilledShapeInnerShape(from: self).map(qtShapeCSS) ?? ""
+        return qtCreateStyledContainer("\(fillCSS) \(shapeCSS)")
+    }
+}
+
+// MARK: - Style modifiers
+
+extension ForegroundColorView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "color: \(color.hex);")
+        return child
+    }
+}
+
+extension FontModifiedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let css: String
+        switch font {
+        case .largeTitle:    css = "font-size: 28px;"
+        case .title:         css = "font-size: 24px;"
+        case .title2:        css = "font-size: 20px; font-weight: bold;"
+        case .title3:        css = "font-size: 18px;"
+        case .headline:      css = "font-weight: bold;"
+        case .subheadline:   css = "font-size: 12px; font-weight: bold;"
+        case .body:          css = "font-size: 14px;"
+        case .callout:       css = "font-size: 12px;"
+        case .footnote:      css = "font-size: 10px;"
+        case .caption:       css = "font-size: 12px;"
+        case .caption2:      css = "font-size: 10px; font-weight: bold;"
+        case .custom(let size, _, _): css = "font-size: \(Int(size))px;"
+        }
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), css)
+        return child
+    }
+}
+
+extension OpacityView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "opacity: \(opacity);")
+        return child
+    }
+}
+
+extension CornerRadiusView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "border-radius: \(Int(radius))px;")
+        return child
+    }
+}
+
+extension HiddenView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_visible(qtHandle(child), 0)
+        return child
+    }
+}
+
+extension DisabledView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        env.isEnabled = env.isEnabled && !isDisabled
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        let child = qtRenderView(content)
+        setCurrentEnvironment(previous)
+        return child
+    }
+}
+
+extension BorderView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(
+            qtHandle(child), "border: \(width)px solid \(color.hex);")
+        return child
+    }
+}
+
+extension FixedSizeView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
 }
 
 // MARK: - AnyView
@@ -1023,6 +1227,52 @@ extension ProgressView: QtRenderable {
 extension GeometryReader: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         qtRenderView(content(GeometryProxy(size: CGSize(width: 300, height: 300))))
+    }
+}
+
+// MARK: - Lifecycle and event views
+
+extension OnAppearView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        qtPostIdleAction(qtBindActionToCurrentEnvironment(action))
+        return widget
+    }
+}
+
+extension OnDisappearView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension TaskView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        let boundAction = qtBindTaskActionToCurrentEnvironment(action)
+        _ = Task(priority: priority) { await boundAction() }
+        return widget
+    }
+}
+
+extension TapGestureView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        // No Qt tap signal yet — pass content through in a wrapper container.
+        qtRenderView(content)
+    }
+}
+
+extension DisclosureGroup: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let labelWidget: OpaquePointer
+        if !title.isEmpty {
+            labelWidget = qtOpaque(quill_qt_bridge_label_create(title))
+            quill_qt_bridge_widget_set_stylesheet(qtHandle(labelWidget), "font-weight: bold;")
+        } else if let lv = labelView {
+            labelWidget = qtRenderAnyView(lv)
+        } else {
+            labelWidget = qtOpaque(quill_qt_bridge_label_create(""))
+        }
+        return qtRenderVerticalContainer(
+            [labelWidget, qtRenderView(content)], spacing: 4, alignment: .leading)
     }
 }
 
