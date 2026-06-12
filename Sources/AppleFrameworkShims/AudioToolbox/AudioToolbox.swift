@@ -10,6 +10,13 @@
 //
 import Foundation
 import CoreFoundation
+// CFURL: the ONE canonical alias (QuillKit, beside CFString — see #528/#529).
+// Re-exported here because IceCubes' SoundEffectManager spells
+// `url as CFURL` at its AudioServicesCreateSystemSoundID call and imports
+// only AudioToolbox; corelibs CoreFoundation's CFURL is a real CF type that
+// rejects that bridging cast, so it must stay out of consumer scope (the
+// plain import above is not re-exported).
+@_exported import typealias QuillKit.CFURL
 import QuillKit
 
 /// Re-exported so AudioToolbox consumers (Telegram's AudioRecorder and

@@ -241,6 +241,40 @@ extension WindowGroup: GTKWindowRenderable {
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)
+        if ProcessInfo.processInfo.environment["QUILLUI_GTK_DUMP_TREE"] == "1" {
+            // After the deferred initial rebuild (g_idle), not at present time.
+            let winBox = Unmanaged.passRetained(GtkWidgetBox(widget: winWidget)).toOpaque()
+            _ = g_timeout_add(4000, { userData -> gboolean in
+                let box = Unmanaged<GtkWidgetBox>.fromOpaque(userData!).takeRetainedValue()
+                gtkDumpWidgetTree(box.widget, depth: 0)
+                return 0
+            }, winBox)
+        }
+    }
+}
+
+final class GtkWidgetBox {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    init(widget: UnsafeMutablePointer<GtkWidget>) { self.widget = widget }
+}
+
+/// Diagnostic only (QUILLUI_GTK_DUMP_TREE=1): print the realized widget tree
+/// with the expand/align flags that drive GTK's size allocation, to find
+/// where hexpand stops propagating in a misbehaving layout.
+func gtkDumpWidgetTree(_ widget: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    let h = gtk_widget_get_hexpand(widget) != 0 ? "H" : "-"
+    let v = gtk_widget_get_vexpand(widget) != 0 ? "V" : "-"
+    let halign = gtk_widget_get_halign(widget).rawValue
+    let valign = gtk_widget_get_valign(widget).rawValue
+    var minW: gint = 0, natW: gint = 0, minB: gint = 0, natB: gint = 0
+    gtk_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, -1, &minW, &natW, &minB, &natB)
+    let indent = String(repeating: "  ", count: depth)
+    FileHandle.standardError.write("TREE|\(indent)\(typeName) exp=\(h)\(v) ha=\(halign) va=\(valign) natW=\(natW)\n".data(using: .utf8)!)
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        gtkDumpWidgetTree(c, depth: depth + 1)
+        child = gtk_widget_get_next_sibling(c)
     }
 }
 

@@ -114,6 +114,11 @@ public extension DropDelegate {
 }
 
 public extension View {
+    // Disfavored: QuillUI's keyboardType(_: KeyboardType) is the metadata-
+    // preserving owner, and both argument types expose `.URL`-style statics —
+    // without the disfavor, `.keyboardType(.URL)` is ambiguous (generated
+    // Enchanted SettingsView). Explicit UIKeyboardType arguments still land
+    // here as the only match.
     @_disfavoredOverload
     func keyboardType(_ type: UIKeyboardType) -> Self {
         _ = type
@@ -131,10 +136,15 @@ public extension View {
         return self
     }
 
+    // No default on `allowsMultipleSelection` (matching real SwiftUI, which
+    // splits the single-URL and [URL] variants): QuillUI's
+    // fileImporter(isPresented:allowedContentTypes:onCompletion:) owns the
+    // three-argument call shape, and a default here made that shape match
+    // both modules at once (generated Enchanted InputFields_macOS).
     func fileImporter(
         isPresented: Binding<Bool>,
         allowedContentTypes: [UTType],
-        allowsMultipleSelection: Bool = false,
+        allowsMultipleSelection: Bool,
         onCompletion: @escaping (Result<[URL], Error>) -> Void
     ) -> Self {
         _ = isPresented

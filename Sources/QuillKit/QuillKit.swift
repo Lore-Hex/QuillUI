@@ -2211,6 +2211,7 @@ public typealias CFAllocator = AnyObject
 public typealias CFData = Data
 public typealias CFArray = [Any]
 public typealias CFString = String
+public typealias CFURL = URL
 public typealias CFDictionary = [String: Any]
 public typealias CFTypeRef = AnyObject
 public typealias CFError = Error

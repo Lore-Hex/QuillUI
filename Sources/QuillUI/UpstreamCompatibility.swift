@@ -3,11 +3,9 @@ import Foundation
 import SwiftUI
 #else
 import SwiftOpenUI
-import QuillSwiftUICompatibility
 import QuillKit
 import QuillFoundation
 import class UIKit.NSItemProvider
-import enum UIKit.UIKeyboardType
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -39,6 +37,12 @@ public extension UTType {
     }
 }
 #endif
+
+// NSItemProvider lives in the UIKit shim module (UIKit.swift) — a richer
+// superset (object/contentsOf initializers, conformance-checked
+// representations). A second class here was ambiguous for any file that
+// imports both QuillUI and UIKit (the compat-module tests). Imported by
+// name below so this module's onDrop/fileImporter plumbing keeps working.
 
 public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
     case representationUnavailable(String)
@@ -156,6 +160,16 @@ public enum QuillFileImporter {
     }
 }
 
+// `Material` and `Namespace` were previously declared here, but
+// QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift) now ships
+// richer versions (Material conforms to View and carries the rung-5
+// translucency tokens; Namespace matches Apple's shape) and this module
+// @_exported imports it. Having both visible made each name ambiguous for
+// type lookup in the generated Enchanted Linux build — the FocusState
+// lesson below, again. The compat module's versions are canonical going
+// forward; internal uses (fill(_: Material), matchedGeometryEffect's
+// Namespace.ID) resolve transparently through the re-export.
+
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -205,6 +219,18 @@ public enum TextSelectability: Sendable {
     case enabled
     case disabled
 }
+
+// AngularGradient lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+
+#if !os(macOS) && !os(iOS) && !os(visionOS)
+// ButtonStyleConfiguration / ButtonStyle / PlainButtonStyle lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+#endif
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
 public typealias ToolbarItemGroup<Content: View> = ToolbarItem<Content>
@@ -285,16 +311,19 @@ public extension Animation {
     }
 }
 
-@MainActor
-public func withAnimation(_ animation: Animation = .default, _ body: @MainActor () -> Void) {
-    SwiftOpenUI.withAnimation(animation) {
-        MainActor.assumeIsolated {
-            body()
-        }
-    }
-}
+// withAnimation lives in SwiftOpenUI (AnimationModifier.swift). The
+// @MainActor wrapper that sat here was a second candidate with the same
+// defaulted shape, so EVERY `withAnimation { … }` call carried two
+// cross-module candidates — enough extra load that bodies combining a few
+// of them stopped resolving (generated Enchanted InputFields_macOS,
+// displaced onto the first overloaded chain member as "ambiguous use of
+// 'showIf'"). Non-strict language modes accept @MainActor closures for
+// its non-isolated body parameter, so the wrapper bought nothing.
 
 public extension CommandGroupPlacement {
+    // appSettings: SwiftOpenUI's enum now has a real .appSettings case —
+    // the old remapped static here (-> .newItem) was both ambiguous with it
+    // and wrong-valued.
     static var appInfo: CommandGroupPlacement { .help }
 }
 
@@ -426,6 +455,36 @@ public extension Section {
     }
 }
 
+// RoundedBorderTextFieldStyle lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+
+// PlainTextFieldStyle lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+
+// FormStyleType is gone: real SwiftUI has no such type. The shim-visible
+// formStyle adapter takes GroupedFormStyle (QuillSwiftUICompatibility).
+
+// GroupedFormStyle lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+
+// TextContentType lives in QuillSwiftUICompatibility (superset: URL +
+// password statics); a twin here made `.textContentType(.URL)` ambiguous.
+// Resolves via the @_exported import, like Material/Namespace above.
+
+// KeyboardType lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+
+// TextInputAutocapitalization lives in QuillSwiftUICompatibility (it already
+// declared the identical struct; this copy was a cross-module twin).
+
 public extension Image {
     /// Linux source-compatibility inits matching SwiftUI's
     /// `Image(nsImage:)` / `Image(uiImage:)`. SwiftOpenUI's
@@ -491,6 +550,12 @@ extension Image: @retroactive Equatable {
     }
 }
 
+public extension State {
+    init(initialValue: Value) {
+        self.init(wrappedValue: initialValue)
+    }
+}
+
 public extension WindowGroup {
     init(@ViewBuilder content: () -> Content) {
         self.init("Quill", content: content)
@@ -520,6 +585,28 @@ public struct LabeledContent<Content: View>: View {
         }
     }
 }
+
+// TableColumn lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+
+// AnyTableColumn lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+
+// TableColumnBuilder — moved with the Table family (see note above).
+
+// Table lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
+
+// ScrollIndicatorVisibility deleted: QuillSwiftUICompatibility's
+// scrollIndicators(_: Visibility) is the shim-visible owner, and a second
+// argument type with the same `.hidden`/`.automatic` statics would make
+// every `.scrollIndicators(.hidden)` call ambiguous.
 
 public struct AccessibilityChildBehavior: Hashable, Sendable {
     private let rawValue: String
@@ -621,29 +708,12 @@ public struct ListRowSeparatorView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ScrollIndicatorsView<Content: View>: View {
-    public let content: Content
-    public let visibility: ScrollIndicatorVisibility
+// ScrollIndicatorsView deleted with ScrollIndicatorVisibility above.
 
-    public init(content: Content, visibility: ScrollIndicatorVisibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
-
-public struct ScrollContentBackgroundView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-
-    public init(content: Content, visibility: Visibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
+// ScrollContentBackgroundView lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
 
 public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public let content: Content
@@ -815,17 +885,10 @@ public struct AutocorrectionDisabledView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct KeyboardTypeView<Content: View>: View {
-    public let content: Content
-    public let keyboardType: KeyboardType
-
-    public init(content: Content, keyboardType: KeyboardType) {
-        self.content = content
-        self.keyboardType = keyboardType
-    }
-
-    public var body: some View { content }
-}
+// KeyboardTypeView lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
 
 public struct AutocapitalizationView<Content: View>: View {
     public let content: Content
@@ -838,6 +901,11 @@ public struct AutocapitalizationView<Content: View>: View {
 
     public var body: some View { content }
 }
+
+// DragGesture lives in QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift):
+// the freshly-lowered apps import only the SwiftUI shim (which re-exports
+// that module, not QuillUI), so the shim-visible surface owns the name.
+// Reachable from QuillUI code via the @_exported import in QuillUI.swift.
 
 public extension View {
     func antialiased(_ antialiased: Bool) -> Self {
@@ -853,7 +921,18 @@ public extension View {
     }
 }
 
+public extension URL {
+    func startAccessingSecurityScopedResource() -> Bool { true }
+    func stopAccessingSecurityScopedResource() {}
+}
+
 public extension Shape {
+    // fill(_: Material) moved to QuillSwiftUICompatibility alongside the
+    // Material type itself — two identical-signature overloads across
+    // co-visible modules made `.fill(.regularMaterial)` ambiguous, which the
+    // expression solver reported as "ambiguous use of 'padding'" at the head
+    // of the chained expression (generated Enchanted ChatMessageView).
+
     func strokeBorder(style: StrokeStyle) -> StrokedShape<Self> {
         strokeBorder(.primary, style: style)
     }
@@ -868,14 +947,6 @@ public extension View {
         return ContentShapeView(content: self, shape: shape)
     }
 
-    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
-        recordQuillUIFallback(
-            "allowsHitTesting",
-            message: "allowsHitTesting is preserved as interaction metadata on Linux."
-        )
-        return AllowsHitTestingView(content: self, enabled: enabled)
-    }
-
     func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
         recordQuillUIFallback(
             "onHover",
@@ -888,17 +959,24 @@ public extension View {
         offset(x: size.width, y: size.height)
     }
 
-    func padding(_ amount: CGFloat) -> PaddedView<Self> {
-        padding(Int(amount))
+    func padding(_ insets: EdgeInsets) -> PaddedView<Self> {
+        padding(
+            top: Int(insets.top),
+            bottom: Int(insets.bottom),
+            leading: Int(insets.leading),
+            trailing: Int(insets.trailing)
+        )
     }
 
-    func padding(_ edges: Edge.Set, _ amount: Double) -> PaddedView<Self> {
-        padding(edges, Int(amount))
-    }
-
-    func padding(_ edges: Edge.Set, _ amount: CGFloat) -> PaddedView<Self> {
-        padding(edges, Int(amount))
-    }
+    // padding(_: CGFloat) / padding(_: Edge.Set, _: Double) / padding(_:
+    // Edge.Set, _: CGFloat) — twins here made generated-Enchanted chains
+    // ambiguous, surfacing as "ambiguous use of 'padding'"
+    // (CompletionsEditorView). The (Edge.Set, Double) overload was a
+    // verbatim twin of SwiftOpenUI's PaddingModifier.swift one — deleted
+    // (QuillUI yields to SwiftOpenUI for core names). The CGFloat adapters
+    // live in QuillSwiftUICompatibility (@_disfavoredOverload, beside the
+    // CGFloat? edge-set adapter; single-arg one moved there) — reachable
+    // from here via the @_exported import in QuillUI.swift.
 
     func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
         recordQuillUIFallback(
@@ -996,7 +1074,6 @@ public extension View {
         }
     }
 
-    @_disfavoredOverload
     @ViewBuilder
     func foregroundStyle<Style>(_ style: Style) -> some View {
         if let color = style as? Color {
@@ -1022,7 +1099,6 @@ public extension View {
         foregroundColor(style.gradient.quillAverageColor)
     }
 
-    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color) -> some View {
         foregroundColor(primary)
     }
@@ -1035,25 +1111,11 @@ public extension View {
         return SymbolRenderingModeView(content: self, mode: mode)
     }
 
-    @_disfavoredOverload
-    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
-        recordQuillUIFallback(
-            "scrollIndicators",
-            message: "scrollIndicators is preserved as scroll view chrome metadata on Linux."
-        )
-        return ScrollIndicatorsView(content: self, visibility: visibility)
-    }
+    // scrollIndicators: QuillSwiftUICompatibility's (Visibility-typed) is the
+    // sole owner — see ScrollIndicatorVisibility note above.
 
-    @_disfavoredOverload
-    func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
-        recordQuillUIFallback(
-            "scrollContentBackground",
-            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
-        )
-        return ScrollContentBackgroundView(content: self, visibility: visibility)
-    }
+    // scrollContentBackground moved to QuillSwiftUICompatibility with its view.
 
-    @_disfavoredOverload
     func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
         recordQuillUIFallback(
             "focusEffectDisabled",
@@ -1062,7 +1124,6 @@ public extension View {
         return FocusEffectDisabledView(content: self, disabled: disabled)
     }
 
-    @_disfavoredOverload
     func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
         recordQuillUIFallback(
             "edgesIgnoringSafeArea",
@@ -1079,15 +1140,14 @@ public extension View {
         return IgnoresSafeAreaView(content: self, edges: edges)
     }
 
-    func onMove(perform action: ((IndexSet, Int) -> Void)?) -> Self {
-        recordQuillUIFallback(
-            "onMove",
-            message: "onMove is currently a source-compatibility fallback on Linux."
-        )
-        return self
-    }
+    // onMove lives in SwiftOpenUI (ForEach.swift), where it actually wires
+    // row moves. This View-wide discard fallback was a second candidate on
+    // every `ForEach.onMove { … }` call (real SwiftUI scopes onMove to
+    // DynamicViewContent, so ForEach is the only receiver generated apps
+    // use) — the twin fed the CompletionsEditorView List-block ambiguity,
+    // and when this copy won it silently dropped reordering. One name, one
+    // owner — and the owner is the one that works.
 
-    @_disfavoredOverload
     func gesture<Gesture>(_ gesture: Gesture) -> GestureView<Self, Gesture> {
         recordQuillUIFallback(
             "gesture",
@@ -1096,7 +1156,6 @@ public extension View {
         return GestureView(content: self, gesture: gesture)
     }
 
-    @_disfavoredOverload
     func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
         recordQuillUIFallback(
             "mask",
@@ -1105,7 +1164,6 @@ public extension View {
         return ViewMaskView(content: self, mask: mask)
     }
 
-    @_disfavoredOverload
     func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
         recordQuillUIFallback(
             "mask",
@@ -1138,7 +1196,6 @@ public extension View {
         }
     }
 
-    @_disfavoredOverload
     func matchedGeometryEffect<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -1149,6 +1206,9 @@ public extension View {
         )
         return animation(.easeInOut(duration: 0.2), value: AnyHashable(id))
     }
+
+        // buttonStyle<S: ButtonStyle> lives in QuillSwiftUICompatibility
+    // (@_disfavoredOverload stub) beside the protocol.
 
     func focusedSceneValue<K: FocusedValueKey>(
         _ keyPath: WritableKeyPath<FocusedValues, K.Value?>,
@@ -1168,26 +1228,16 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
-    func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
-        recordQuillUIFallback(
-            "formStyle",
-            message: "GroupedFormStyle is approximated with grouped padding and background on Linux."
-        )
-        return padding(8)
-            .background(Color.gray5Custom)
-    }
+    // textFieldStyle adapters moved to QuillSwiftUICompatibility beside their
+    // style structs.
 
-    @_disfavoredOverload
-    func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
-        recordQuillUIFallback(
-            "textContentType",
-            message: "textContentType is preserved as text-input metadata on Linux."
-        )
-        return TextContentTypeView(content: self, contentType: contentType)
-    }
 
-    @_disfavoredOverload
+    // formStyle moved to QuillSwiftUICompatibility (GroupedFormStyle shape only;
+    // FormStyleType is gone).
+
+
+    // textContentType lives in QuillSwiftUICompatibility with its type.
+
     func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
         recordQuillUIFallback(
             "disableAutocorrection",
@@ -1196,16 +1246,8 @@ public extension View {
         return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
-    @_disfavoredOverload
-    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
-        recordQuillUIFallback(
-            "keyboardType",
-            message: "keyboardType is preserved as text-input metadata on Linux."
-        )
-        return KeyboardTypeView(content: self, keyboardType: keyboardType)
-    }
+    // keyboardType(_: KeyboardType) moved to QuillSwiftUICompatibility.
 
-    @_disfavoredOverload
     func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
         recordQuillUIFallback(
             "autocapitalization",
@@ -1214,7 +1256,61 @@ public extension View {
         return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
     }
 
+    func onChange<V: Equatable>(
+        of value: V,
+        initial: Bool,
+        _ action: @escaping (V, V) -> Void
+    ) -> OnChangeTwoArgView<Self, V> {
+        onChange(of: value, action)
+    }
+
+    func onChange<V: Equatable>(
+        of value: V,
+        _ action: @escaping () -> Void
+    ) -> OnChangeTwoArgView<Self, V> {
+        onChange(of: value) { _, _ in action() }
+    }
+
+    func confirmationDialog<Actions: View, Message: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        @ViewBuilder actions: () -> Actions,
+        @ViewBuilder message: () -> Message
+    ) -> ConfirmationDialogView<Self> {
+        confirmationDialog(
+            title,
+            isPresented: isPresented,
+            titleVisibility: .automatic,
+            actions: quillConfirmationDialogButtons(from: actions()),
+            message: quillTextLabel(from: message())
+        )
+    }
+
 }
+
+public extension Array {
+    // Sole owner of move(fromOffsets:toOffset:) — QuillSwiftUICompatibility
+    // carried a twin that made every `items.move(...)` call inside an
+    // onMove closure ambiguous (generated Enchanted CompletionsEditorView,
+    // displaced onto `.padding()` at the head of the chain). Its algorithm
+    // was the correct one and survives here: SwiftUI interprets
+    // `destination` in pre-removal coordinates, so removals before the
+    // destination must shift it left; the old body here skipped that
+    // adjustment and dropped moves one slot too far right.
+    mutating func move(fromOffsets source: IndexSet, toOffset destination: Int) {
+        let sortedSource = source.sorted().filter { indices.contains($0) }
+        let moving = sortedSource.map { self[$0] }
+        for index in sortedSource.reversed() {
+            remove(at: index)
+        }
+        let removedBeforeDestination = sortedSource.filter { $0 < destination }.count
+        let insertionIndex = Swift.max(0, Swift.min(count, destination - removedBeforeDestination))
+        insert(contentsOf: moving, at: insertionIndex)
+    }
+}
+
+// Gradient.quillAverageColor lives in QuillSwiftUICompatibility (moved with
+// AngularGradient, which uses it). Reachable via the @_exported import.
 
 private protocol QuillButtonRepresentable {
     var quillButtonLabel: String { get }
@@ -1352,10 +1448,6 @@ extension ListRowInsetsView: QuillWrappedViewRepresentable {
 }
 
 extension ListRowSeparatorView: QuillWrappedViewRepresentable {
-    fileprivate var quillWrappedContent: any View { content }
-}
-
-extension ScrollIndicatorsView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

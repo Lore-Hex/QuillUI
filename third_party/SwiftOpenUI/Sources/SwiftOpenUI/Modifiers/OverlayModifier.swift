@@ -21,6 +21,16 @@ extension View {
         OverlayView(content: self, overlay: overlay, alignment: alignment)
     }
 
+    /// Concrete Color overload beside the generic (mirrors `background`'s
+    /// concrete-Color + generic pair in StyleModifiers.swift): enables
+    /// implicit-member calls (`.overlay(.red)`) — and it must live in THIS
+    /// module: the same adapter in QuillSwiftUICompatibility formed a
+    /// cross-module concrete-vs-generic pair on every Color argument (Color
+    /// is a View), the ambiguity disease. Same-module ranking is reliable.
+    public func overlay(_ color: Color, alignment: Alignment = .center) -> OverlayView<Self, Color> {
+        OverlayView(content: self, overlay: color, alignment: alignment)
+    }
+
     /// Layer an overlay view on top of this view.
     public func overlay<V: View>(alignment: Alignment = .center, @ViewBuilder _ overlay: () -> V) -> OverlayView<Self, V> {
         OverlayView(content: self, overlay: overlay(), alignment: alignment)

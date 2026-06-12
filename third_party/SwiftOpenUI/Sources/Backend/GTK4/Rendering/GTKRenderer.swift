@@ -1686,13 +1686,6 @@ private func gtkRenderFallbackZStack(
     for widget in children {
         if first {
             gtk_overlay_set_child(OpaquePointer(overlay), widget)
-            // Propagate first child's expand to the overlay
-            if gtk_widget_get_hexpand(widget) != 0 {
-                gtk_widget_set_hexpand(overlay, 1)
-            }
-            if gtk_widget_get_vexpand(widget) != 0 {
-                gtk_widget_set_vexpand(overlay, 1)
-            }
             first = false
         } else {
             // Align non-expanding overlays according to the ZStack alignment.
@@ -1703,6 +1696,26 @@ private func gtkRenderFallbackZStack(
                 gtk_widget_set_valign(widget, vAlign)
             }
             gtk_overlay_add_overlay(OpaquePointer(overlay), widget)
+            // SwiftUI ZStacks size to the union of ALL layers, but GTK4's
+            // GtkOverlay only measures its main child by default. Without
+            // this, a ZStack whose first layer is small (e.g. a decorative
+            // shape under a TextField) collapses to that layer's natural
+            // size. This is a ZStack-only rule: OverlayView (.overlay)
+            // intentionally keeps the default because SwiftUI overlays do
+            // NOT affect their base view's size.
+            gtk_overlay_set_measure_overlay(OpaquePointer(overlay), widget, 1)
+        }
+        // A ZStack expands when ANY layer expands — not just the bottom
+        // one. The chat composer's TextField (.frame(maxWidth: .infinity))
+        // is a non-first layer; dropping its hexpand here froze the whole
+        // composer chain at natural width (a centered ~117px pill) because
+        // every wrapper above (frame / HStack / padding / overlay) forwards
+        // expansion by reading this widget's raw flag.
+        if gtk_widget_get_hexpand(widget) != 0 {
+            gtk_widget_set_hexpand(overlay, 1)
+        }
+        if gtk_widget_get_vexpand(widget) != 0 {
+            gtk_widget_set_vexpand(overlay, 1)
         }
     }
     return opaqueFromWidget(overlay)

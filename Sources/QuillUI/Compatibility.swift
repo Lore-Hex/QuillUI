@@ -136,6 +136,42 @@ public extension View {
 }
 
 #else
+public struct QuillPlatformColor: @unchecked Sendable {
+    public let color: Color
+
+    public init(_ color: Color) {
+        self.color = color
+    }
+
+    public static var label: QuillPlatformColor { QuillPlatformColor(.black) }
+    public static var black: QuillPlatformColor { QuillPlatformColor(.black) }
+    public static var white: QuillPlatformColor { QuillPlatformColor(.white) }
+    public static var systemGray: QuillPlatformColor { QuillPlatformColor(.gray) }
+    public static var systemGray2: QuillPlatformColor { QuillPlatformColor(Color(red: 0.68, green: 0.68, blue: 0.70)) }
+    public static var systemBlue: QuillPlatformColor { QuillPlatformColor(Color(red: 0.00, green: 0.48, blue: 1.00)) }
+    public static var systemRed: QuillPlatformColor { QuillPlatformColor(Color(red: 1.00, green: 0.23, blue: 0.19)) }
+    public static var pink: QuillPlatformColor { QuillPlatformColor(.pink) }
+}
+
+public extension Color {
+    init(_ platformColor: QuillPlatformColor) {
+        self = platformColor.color
+    }
+
+    // SwiftOpenUI ships its own `Color.init(hex:)` — don't redeclare on
+    // Linux. (The macOS variant at the top of this file is gated to
+    // Apple platforms where SwiftUI lacks it.)
+
+    // init(rgba:), init(light:dark:), init(_ assetName:) and the
+    // label/system/asset-color statics live in QuillSwiftUICompatibility
+    // (ColorCompat.swift, a superset that also serves the full-source
+    // Enchanted path through the SwiftUI shim re-export). Twins here made
+    // every Color(rgba:)/Color.gray2Custom use ambiguous after the two
+    // modules became co-visible. Reachable via the @_exported import in
+    // QuillUI.swift. Only the QuillPlatformColor bridge stays: the type is
+    // declared in this module and ColorCompat has no equivalent.
+}
+
 // MARK: - Compatibility diagnostics
 
 @inline(__always)
@@ -379,6 +415,17 @@ public extension Image {
 
 public protocol KeyboardReadable {}
 
+public extension TextField {
+    init(_ title: String, text: Binding<String>, axis: Axis) {
+        self.init(title, text: text)
+    }
+
+    // init(_:text:onCommit:) lives in SwiftOpenUI (TextField.swift, beside
+    // the canonical two-argument init). A verbatim twin here made every
+    // `TextField(_, text:, onCommit:)` call ambiguous (generated Enchanted
+    // SettingsView) — the FocusState lesson again. One name, one owner.
+}
+
 public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
     public var rawValue: Double
     public init(_ value: Double) { self.rawValue = value }
@@ -457,6 +504,13 @@ public extension Image {
     }
 }
 
+public extension Binding {
+    func animation(_ animation: Animation? = nil) -> Binding<Value> {
+        recordCompatibilityFallback("Binding.animation")
+        return self
+    }
+}
+
 // `OpenURLAction` moved to QuillSwiftUICompatibility/OpenURLActionCompat.swift
 // (so the SwiftUI shim can surface it — with its nested `Result` — to vendored
 // real source). QuillUI still sees it via its `@_exported import
@@ -510,7 +564,20 @@ public extension EnvironmentValues {
 }
 
 public extension View {
-    @_disfavoredOverload
+    @ViewBuilder
+    func preferredColorScheme(_ colorScheme: ColorScheme?) -> some View {
+        if let colorScheme {
+            environment(\.colorScheme, colorScheme)
+        } else {
+            self
+        }
+    }
+
+    func listStyle(_ style: PlainListStyle) -> Self {
+        recordCompatibilityFallback("listStyle(PlainListStyle)")
+        return self
+    }
+
     @ViewBuilder
     func quillGTKSizeRequest(width: Int = -1, height: Int = -1) -> some View {
         #if os(Linux)

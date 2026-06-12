@@ -356,45 +356,6 @@ public struct Namespace {
     public var wrappedValue: ID { id }
 }
 
-public extension Gradient {
-    var quillAverageColor: Color {
-        guard !stops.isEmpty else { return .primary }
-        let count = Double(stops.count)
-        let red = stops.reduce(0.0) { $0 + $1.color.red } / count
-        let green = stops.reduce(0.0) { $0 + $1.color.green } / count
-        let blue = stops.reduce(0.0) { $0 + $1.color.blue } / count
-        let alpha = stops.reduce(0.0) { $0 + $1.color.alpha } / count
-        return Color(red: red, green: green, blue: blue, opacity: alpha)
-    }
-}
-
-public struct AngularGradient {
-    public var gradient: Gradient
-    public var center: UnitPoint
-    public var startAngle: Angle
-    public var endAngle: Angle
-
-    public init(
-        gradient: Gradient,
-        center: UnitPoint,
-        startAngle: Angle = .zero,
-        endAngle: Angle = .zero
-    ) {
-        self.gradient = gradient
-        self.center = center
-        self.startAngle = startAngle
-        self.endAngle = endAngle
-    }
-
-    public init(colors: [Color], center: UnitPoint, startAngle: Angle = .zero, endAngle: Angle = .zero) {
-        self.init(gradient: Gradient(colors: colors), center: center, startAngle: startAngle, endAngle: endAngle)
-    }
-
-    public func opacity(_ opacity: Double) -> Color {
-        gradient.quillAverageColor.opacity(opacity)
-    }
-}
-
 public struct AccessibilityChildBehavior: Hashable, Sendable {
     private let rawValue: String
 
@@ -542,13 +503,6 @@ public enum ScrollDismissesKeyboardMode: Sendable {
     case never
 }
 
-public enum ScrollIndicatorVisibility: Sendable {
-    case automatic
-    case visible
-    case hidden
-    case never
-}
-
 public enum ScenePhase: Sendable {
     case active
     case inactive
@@ -657,6 +611,8 @@ public struct ProgressViewStyle: Sendable {
     public static let linear = ProgressViewStyle()
 }
 
+public typealias KeyEquivalent = SwiftOpenUI.KeyEquivalent
+
 public enum KeyPressResult: Sendable {
     case handled
     case ignored
@@ -731,7 +687,8 @@ public enum NavigationBarTitleDisplayMode: Sendable {
     case large
 }
 
-public typealias ScrollContentBackgroundVisibility = Visibility
+// ScrollContentBackgroundVisibility lives in QuillUI — a second enum here
+// made `.hidden` member lookups ambiguous in scrollContentBackground calls.
 
 public enum ScrollBounceBehavior: Sendable {
     case automatic
@@ -980,39 +937,13 @@ public struct DynamicTypeSize: Hashable, Comparable, Sendable {
     }
 }
 
-public struct ButtonStyleConfiguration {
-    public let label: AnyView
-    public let isPressed: Bool
-
-    public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
-        self.label = label
-        self.isPressed = isPressed
-    }
-}
-
-public protocol ButtonStyle {
-    associatedtype Body: View
-    typealias Configuration = ButtonStyleConfiguration
-
-    @ViewBuilder
-    func makeBody(configuration: Configuration) -> Body
-}
-
-public struct PlainButtonStyle: ButtonStyle {
-    public init() {}
-
-    public func makeBody(configuration: Configuration) -> AnyView {
-        configuration.label
-    }
-}
-
-public struct RoundedBorderTextFieldStyle: Sendable {
-    public init() {}
-}
-
-public struct PlainTextFieldStyle: Sendable {
-    public init() {}
-}
+// `ButtonStyle` / `ButtonStyleConfiguration` intentionally live in QuillUI
+// (Sources/QuillUI/UpstreamCompatibility.swift), not here. QuillUI
+// `@_exported import`s this module, so a second declaration here makes
+// `ButtonStyle` (and its `Configuration` typealias) ambiguous for every
+// consumer that sees both modules — including the generated apps. This
+// module cannot typealias to QuillUI's copy (QuillUI depends on this
+// target), so the symbol is simply not declared here.
 
 public struct LayoutSubviews: RandomAccessCollection {
     public typealias Element = LayoutSubview
@@ -1202,12 +1133,11 @@ public extension Font {
     }
 }
 
-public extension Binding {
-    func animation(_ animation: Animation? = nil) -> Binding<Value> {
-        _ = animation
-        return self
-    }
-}
+// Binding.animation lives in QuillUI (Compatibility.swift), which records the
+// fallback — a verbatim twin here made every `$value.animation(...)` call
+// ambiguous (generated Enchanted InputFields_macOS: three call sites in one
+// body, surfaced as a solver give-up at `var body`). Every app graph imports
+// QuillUI, so the richer version is always available.
 
 public extension ViewThatFits {
     init(in axes: Axis, @ViewThatFitsBuilder content: () -> [AnyView]) {
@@ -1242,6 +1172,15 @@ public extension Int {
 }
 
 public extension State {
+    /// Apple's `SwiftUI.State` has `init(initialValue:)`; SwiftOpenUI's `State`
+    /// only has `init(wrappedValue:)`, so the `SwiftUI` shim surface (which
+    /// re-exports this module but NOT QuillUI) needs this copy for files that
+    /// only `import SwiftUI`. QuillUI declares an identical extension
+    /// (Sources/QuillUI/UpstreamCompatibility.swift) and `@_exported`-imports
+    /// this module, making both visible to every QuillUI importer — disfavor
+    /// this copy so QuillUI's wins instead of being ambiguous (behavior is
+    /// identical either way).
+    @_disfavoredOverload
     init(initialValue: Value) {
         self.init(wrappedValue: initialValue)
     }
@@ -1276,19 +1215,14 @@ public extension Text {
         self.init(key)
     }
 
-    @_disfavoredOverload
-    func font(_ font: Font) -> Text {
-        _ = font
-        return self
-    }
+    // Text.font lives in SwiftOpenUI (StyleModifiers.swift) — a twin here
+    // made `.font(.headline)` ambiguous in the generated Enchanted build.
 
-    @_disfavoredOverload
     func fontWeight(_ weight: FontWeight) -> Text {
         _ = weight
         return self
     }
 
-    @_disfavoredOverload
     func foregroundStyle(_ color: Color) -> Text {
         _ = color
         return self
@@ -1300,16 +1234,15 @@ public extension Text {
         return self
     }
 
-    @_disfavoredOverload
     func bold() -> Text {
         self
     }
 
-    @_disfavoredOverload
     func italic() -> Text {
         self
     }
 
+    @_disfavoredOverload
     static func + (lhs: Text, rhs: Text) -> Text {
         Text(styledRuns: lhs.runs + rhs.runs)
     }
@@ -1372,15 +1305,10 @@ public extension GridItem {
     }
 }
 
-public extension ForEach {
-    init<C: RandomAccessCollection>(
-        _ data: C,
-        id: KeyPath<C.Element, ID>,
-        @ViewBuilder content: @escaping (C.Element) -> Content
-    ) where Data == C.Element {
-        self.init(Array(data), id: id, content: content)
-    }
-}
+// ForEach's generic-collection init moved INTO SwiftOpenUI's ForEach.swift:
+// a cross-module overload overlapping the canonical Array-typed init made
+// `ForEach(_, id:)` explode the expression solver inside MenuBuilder
+// contexts ("failed to produce diagnostic", generated ModelSelectorView).
 
 public extension LazyVStack where Data == Int {
     init(
@@ -1456,6 +1384,7 @@ public extension Section {
 }
 
 public extension Menu {
+    @_disfavoredOverload
     init<Label: View>(
         @MenuBuilder content: () -> [MenuElement],
         @ViewBuilder label: () -> Label
@@ -1465,12 +1394,8 @@ public extension Menu {
     }
 }
 
-public extension TextField {
-    init(_ title: String, text: Binding<String>, axis: Axis) {
-        _ = axis
-        self.init(title, text: text)
-    }
-}
+// TextField's axis: init lives in QuillUI/Compatibility.swift — a twin here
+// made `init(_:text:axis:)` ambiguous in the generated Enchanted build.
 
 public extension SearchFieldPlacement {
     static var navigationBarDrawer: SearchFieldPlacement {
@@ -1563,10 +1488,9 @@ public extension PageTabViewStyle {
     }
 }
 
-public struct GroupedFormStyle: Sendable {
-    public init() {}
-    public static let grouped = GroupedFormStyle()
-}
+// GroupedFormStyle lives in QuillUI (UpstreamCompatibility.swift), whose
+// formStyle(_:) approximates grouping with padding+background; a twin type
+// here made `.formStyle(.grouped)` ambiguous in the generated build.
 
 public struct TextContentType: Hashable, Sendable {
     public var rawValue: String
@@ -1575,107 +1499,11 @@ public struct TextContentType: Hashable, Sendable {
     public static let password = TextContentType("password")
 }
 
-public struct KeyboardType: Hashable, Sendable {
-    public var rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public static let URL = KeyboardType("URL")
-}
-
 public struct TextInputAutocapitalization: Hashable, Sendable {
     public var rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
     public static let never = TextInputAutocapitalization("never")
     public static let none = TextInputAutocapitalization("none")
-}
-
-public struct TableColumn<RowValue, Content: View>: View {
-    public var title: String
-    private var content: (RowValue) -> Content
-
-    public init(_ title: String, @ViewBuilder content: @escaping (RowValue) -> Content) {
-        self.title = title
-        self.content = content
-    }
-
-    public var body: some View {
-        Text(title)
-    }
-
-    public func width(min: Double? = nil, max: Double? = nil) -> Self {
-        _ = min
-        _ = max
-        return self
-    }
-}
-
-public struct AnyTableColumn<RowValue>: View {
-    public var title: String
-
-    public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
-        self.title = column.title
-    }
-
-    public var body: some View {
-        Text(title)
-    }
-}
-
-@resultBuilder
-public enum TableColumnBuilder<RowValue> {
-    public static func buildBlock(_ columns: [AnyTableColumn<RowValue>]...) -> [AnyTableColumn<RowValue>] {
-        columns.flatMap { $0 }
-    }
-
-    public static func buildExpression<Content: View>(
-        _ column: TableColumn<RowValue, Content>
-    ) -> [AnyTableColumn<RowValue>] {
-        [AnyTableColumn(column)]
-    }
-}
-
-public struct Table<RowValue>: View {
-    public var rows: [RowValue]
-    public var columns: [AnyTableColumn<RowValue>]
-
-    public init(_ rows: [RowValue], @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]) {
-        self.rows = rows
-        self.columns = columns()
-    }
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
-                column
-            }
-        }
-    }
-}
-
-public struct DragGesture: Sendable {
-    public struct Value: Sendable {
-        public var translation: CGSize
-
-        public init(translation: CGSize = .zero) {
-            self.translation = translation
-        }
-    }
-
-    private var onChangedAction: (@Sendable (Value) -> Void)?
-    private var onEndedAction: (@Sendable (Value) -> Void)?
-
-    public init() {}
-
-    public func onChanged(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
-        var copy = self
-        copy.onChangedAction = action
-        return copy
-    }
-
-    public func onEnded(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
-        var copy = self
-        copy.onEndedAction = action
-        return copy
-    }
 }
 
 public struct TabPlacement: Hashable, Sendable {
@@ -1707,7 +1535,13 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
+    // formStyle(_: GroupedFormStyle) lives in QuillUI with its type.
+
+    func textContentType(_ contentType: TextContentType?) -> Self {
+        _ = contentType
+        return self
+    }
+
     func textInputAutocapitalization(_ autocapitalization: TextInputAutocapitalization?) -> Self {
         _ = autocapitalization
         return self
@@ -1755,6 +1589,11 @@ public extension View {
     }
 
     @_disfavoredOverload
+    func mask<Mask: View>(_ mask: Mask) -> Self {
+        _ = mask
+        return self
+    }
+
     func mask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> Self {
         _ = mask()
         return self
@@ -1951,10 +1790,10 @@ public extension View {
         return TaskView(content: self, priority: priority, action: { await box.run() })
     }
 
-    func listStyle(_ style: PlainListStyle) -> Self {
-        _ = style
-        return self
-    }
+    // listStyle(PlainListStyle) lives in QuillUI (Compatibility.swift), which
+    // records the fallback — a verbatim twin here made the generated
+    // MenuBarControlView Events chain ambiguous (reported as "ambiguous use
+    // of 'showIf'" further up the chained expression).
 
     func pickerStyle(_ style: PickerStyle) -> Self {
         _ = style
@@ -2000,21 +1839,11 @@ public extension View {
         self
     }
 
-    @_disfavoredOverload
-    func buttonStyle<S: ButtonStyle>(_ style: S) -> Self {
-        _ = style
-        return self
-    }
-
-    func textFieldStyle(_ style: RoundedBorderTextFieldStyle) -> TextFieldStyleModifier<Self> {
-        _ = style
-        return textFieldStyle(.roundedBorder)
-    }
-
-    func textFieldStyle(_ style: PlainTextFieldStyle) -> TextFieldStyleModifier<Self> {
-        _ = style
-        return textFieldStyle(.plain)
-    }
+    // No generic `buttonStyle<S: ButtonStyle>` shim here: the ButtonStyle
+    // protocol lives in QuillUI (UpstreamCompatibility.swift), whose View
+    // extension already provides the custom-style fallback. Built-in styles
+    // like `.buttonStyle(.plain)` resolve to SwiftOpenUI's
+    // `buttonStyle(_: ButtonStyleType)`.
 
     func controlSize(_ size: ControlSize) -> Self {
         _ = size
@@ -2031,6 +1860,11 @@ public extension View {
         return self
     }
 
+    func scrollIndicators(_ visibility: Visibility) -> Self {
+        _ = visibility
+        return self
+    }
+
     func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = .all) -> Self {
         _ = behavior
         _ = axes
@@ -2042,7 +1876,6 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
         return self
@@ -2059,9 +1892,12 @@ public extension View {
         return self
     }
 
-    func overlay(_ color: Color, alignment: Alignment = .center) -> OverlayView<Self, Color> {
-        OverlayView(content: self, overlay: color, alignment: alignment)
-    }
+    // overlay(_ color:alignment:) moved INTO SwiftOpenUI's
+    // OverlayModifier.swift beside the generic overlay<V: View> — Color is
+    // a View, so a twin here paired with that generic cross-module on every
+    // Color argument (the established ambiguity disease in the generated
+    // Enchanted build; concrete-vs-generic ranking is only reliable
+    // same-module).
 
     func interactiveDismissDisabled(_ isDisabled: Bool = true) -> Self {
         _ = isDisabled
@@ -2089,16 +1925,17 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func preferredColorScheme(_ colorScheme: ColorScheme?) -> Self {
         _ = colorScheme
         return self
     }
 
-    @_disfavoredOverload
-    func contentShape<S: Shape>(_ shape: S) -> Self {
-        _ = shape
-        return self
-    }
+    // contentShape lives in QuillUI (UpstreamCompatibility.swift), which
+    // preserves the hit-testing shape as metadata. A twin here — even
+    // @_disfavoredOverload — still tied cross-module inside ViewBuilder
+    // closures (generated Enchanted InputFields_macOS,
+    // `.contentShape(Rectangle())` at the tail of the composer body).
 
     @_disfavoredOverload
     func onHover(perform action: @escaping (Bool) -> Void) -> Self {
@@ -2237,50 +2074,52 @@ public extension View {
         return self
     }
 
+    // listRowSeparator lives in QuillUI (UpstreamCompatibility.swift), which
+    // preserves it as list-row metadata. Cross-module @_disfavoredOverload is
+    // not honored inside ViewBuilder closures, so a twin here still made the
+    // generated MenuBarControlView Events chain (`.listRowSeparator(.hidden)`
+    // inside ForEach) ambiguous.
+
+    // Double/Int? padding adapters now live IN SwiftOpenUI's
+    // PaddingModifier.swift (same module as the canonical Int overloads):
+    // cross-module overload sets — even @_disfavoredOverload ones — made
+    // bare `.padding()` ambiguous inside generic/ViewBuilder contexts in
+    // the generated Enchanted build. Same-module ranking is reliable.
+    // The CGFloat? edge-set adapter stays HERE (CGFloat is QuillFoundation's
+    // type; SwiftOpenUI core must stay platform-independent) — safe because
+    // a two-argument overload never competes with bare `.padding()`.
     @_disfavoredOverload
-    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
-        _ = visibility
-        _ = edges
-        return self
+    func padding(_ edges: Edge.Set, _ amount: CGFloat?) -> PaddedView<Self> {
+        padding(edges, amount.map { Int($0) } ?? 8)
     }
 
-    func padding(_ amount: Double) -> PaddedView<Self> {
+    // The single-argument CGFloat adapter likewise lives HERE (moved from
+    // QuillUI, where it was an undisfavored cross-module rival of
+    // SwiftOpenUI's canonical Int/Double single-arg overloads for every
+    // `.padding(8)` literal — a twin in the set that surfaced as
+    // "ambiguous use of 'padding'" in the generated Enchanted
+    // CompletionsEditorView). Safe for the same reason as the edge-set
+    // adapter above: a one-required-argument overload never competes with
+    // bare `.padding()`.
+    @_disfavoredOverload
+    func padding(_ amount: CGFloat) -> PaddedView<Self> {
         padding(Int(amount))
     }
 
-    func padding(_ edges: Edge.Set, _ amount: Double) -> PaddedView<Self> {
-        padding(edges, Int(amount))
-    }
+    // padding(_ insets: EdgeInsets) lives in QuillUI (verbatim twin here
+    // made every .padding(insets) call ambiguous).
 
-    func padding(_ edges: Edge.Set, _ amount: Int?) -> PaddedView<Self> {
-        padding(edges, amount ?? 0)
-    }
+    // frame(width:height: Int?) now lives IN SwiftOpenUI's FrameModifier.swift
+    // (same module as the canonical Double? overload): the cross-module twin
+    // here made `.frame(width: 800, height: 600)` integer-literal calls
+    // ambiguous — surfaced as "ambiguous use of 'padding'" at the head of
+    // the chain (generated Enchanted CompletionsEditorView).
 
-    func padding(_ edges: Edge.Set, _ amount: CGFloat?) -> PaddedView<Self> {
-        padding(edges, Int(amount ?? 0))
-    }
-
-    func padding(_ insets: EdgeInsets) -> PaddedView<Self> {
-        padding(
-            top: Int(insets.top),
-            bottom: Int(insets.bottom),
-            leading: Int(insets.leading),
-            trailing: Int(insets.trailing)
-        )
-    }
-
-    func frame(
-        width: Int? = nil,
-        height: Int? = nil,
-        alignment: Alignment = .center
-    ) -> FrameView<Self> {
-        frame(
-            width: width.map(Double.init),
-            height: height.map(Double.init),
-            alignment: alignment
-        )
-    }
-
+    // The CGFloat frame adapters stay HERE (CGFloat is QuillFoundation's
+    // type; SwiftOpenUI core stays platform-independent) but must be
+    // @_disfavoredOverload: undisfavored they tied with SwiftOpenUI's
+    // Double? frame overloads on literal / `.infinity` arguments.
+    @_disfavoredOverload
     func frame(maxWidth: CGFloat?, alignment: Alignment = .center) -> FrameView<Self> {
         frame(maxWidth: maxWidth.map(Double.init), alignment: alignment)
     }
@@ -2305,15 +2144,6 @@ public extension View {
     ) -> OnChangeView<Self, V> {
         _ = initial
         return onChange(of: value, perform: action)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping (V, V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        _ = initial
-        return onChange(of: value, action)
     }
 
     func onTapGesture(count: Int = 1, perform action: @escaping (CGPoint) -> Void) -> TapGestureView<Self> {
@@ -2499,6 +2329,14 @@ public extension View {
         return self
     }
 
+    // scrollContentBackground lives in QuillUI.
+
+    // matchedGeometryEffect lives in QuillUI (UpstreamCompatibility.swift),
+    // which approximates it with value-driven animation and records the
+    // fallback. A same-signature no-op here became ambiguous with it once
+    // Namespace unified to this module's type. Every app graph imports
+    // QuillUI, so the richer version is always available.
+
     func matchedTransitionSource<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -2548,6 +2386,11 @@ public extension View {
         return self
     }
 
+    // @_disfavoredOverload like the other CGFloat frame adapters: an
+    // undisfavored twin here ties with SwiftOpenUI's frame(width:height:
+    // Double?) on literal height arguments (cross-module sets are the
+    // ambiguity disease; see the frame(width:height:) note above).
+    @_disfavoredOverload
     func frame(height: CGFloat?, alignment: Alignment = .center) -> FrameView<Self> {
         frame(height: height.map(Double.init), alignment: alignment)
     }
@@ -2556,6 +2399,8 @@ public extension View {
         _ = isFocusable
         return self
     }
+
+    // focusEffectDisabled lives in QuillUI (metadata-preserving version).
 
     func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> Self {
         _ = key
@@ -2625,6 +2470,8 @@ public extension View {
         _ = transition
         return self
     }
+
+    // edgesIgnoringSafeArea lives in QuillUI (metadata-preserving version).
 
     func safeAreaBar<Content: View>(
         edge: Edge,
@@ -2696,21 +2543,257 @@ public extension GeometryProxy {
     subscript(_ rect: CGRect) -> CGRect { rect }
 }
 
-public extension Array {
-    mutating func move(fromOffsets source: IndexSet, toOffset destination: Int) {
-        let sortedSource = source.sorted()
-        let moving = sortedSource.map { self[$0] }
-        for index in sortedSource.reversed() {
-            remove(at: index)
-        }
-        let removedBeforeDestination = sortedSource.filter { $0 < destination }.count
-        let insertionIndex = Swift.max(0, Swift.min(count, destination - removedBeforeDestination))
-        insert(contentsOf: moving, at: insertionIndex)
+// Array.move(fromOffsets:toOffset:) lives in QuillUI
+// (UpstreamCompatibility.swift) — a twin here made every `items.move(...)`
+// inside an onMove closure ambiguous (generated Enchanted
+// CompletionsEditorView). The correct destination-adjusting algorithm from
+// this file moved there with the name.
+
+
+// URL.startAccessingSecurityScopedResource()/stop… live in QuillUI
+// (UpstreamCompatibility.swift). Verbatim twins here made the calls inside
+// every fileImporter onCompletion closure ambiguous (generated Enchanted
+// InputFields_macOS, displaced onto `.showIf` at the head of the chain).
+
+
+// MARK: - Shim-visible surface relocated from QuillUI (2026-06-12)
+
+public extension Gradient {
+    var quillAverageColor: Color {
+        guard !stops.isEmpty else { return .primary }
+        let count = Double(stops.count)
+        let red = stops.reduce(0.0) { $0 + $1.color.red } / count
+        let green = stops.reduce(0.0) { $0 + $1.color.green } / count
+        let blue = stops.reduce(0.0) { $0 + $1.color.blue } / count
+        let alpha = stops.reduce(0.0) { $0 + $1.color.alpha } / count
+        return Color(red: red, green: green, blue: blue, opacity: alpha)
     }
 }
 
+// The fresh lowering emits apps that import only the SwiftUI shim, which
 
-public extension URL {
-    func startAccessingSecurityScopedResource() -> Bool { true }
-    func stopAccessingSecurityScopedResource() {}
+// re-exports THIS module and not QuillUI — so every SwiftUI-surface name a
+
+// lowered app touches must be owned here (or in SwiftOpenUI). QuillUI
+
+// re-exports this module, so its legacy import path keeps working.
+
+public struct AngularGradient {
+    public var gradient: Gradient
+    public var center: UnitPoint
+    public var startAngle: Angle
+    public var endAngle: Angle
+
+    public init(
+        gradient: Gradient,
+        center: UnitPoint,
+        startAngle: Angle = .zero,
+        endAngle: Angle = .zero
+    ) {
+        self.gradient = gradient
+        self.center = center
+        self.startAngle = startAngle
+        self.endAngle = endAngle
+    }
+
+    public init(colors: [Color], center: UnitPoint, startAngle: Angle = .zero, endAngle: Angle = .zero) {
+        self.init(gradient: Gradient(colors: colors), center: center, startAngle: startAngle, endAngle: endAngle)
+    }
+
+    public func opacity(_ opacity: Double) -> Color {
+        gradient.quillAverageColor.opacity(opacity)
+    }
 }
+
+public struct ButtonStyleConfiguration {
+    public let label: AnyView
+    public let isPressed: Bool
+
+    public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
+        self.label = label
+        self.isPressed = isPressed
+    }
+}
+
+public protocol ButtonStyle {
+    associatedtype Body: View
+    typealias Configuration = ButtonStyleConfiguration
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> Body
+}
+
+public struct PlainButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> AnyView {
+        configuration.label
+    }
+}
+
+public struct RoundedBorderTextFieldStyle: Sendable {
+    public init() {}
+}
+
+public struct PlainTextFieldStyle: Sendable {
+    public init() {}
+}
+
+public struct GroupedFormStyle: Sendable {
+    public init() {}
+    public static let grouped = GroupedFormStyle()
+}
+
+public struct KeyboardType: Hashable, Sendable {
+    public var rawValue: String
+
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let URL = KeyboardType("URL")
+}
+
+public struct TableColumn<RowValue, Content: View>: View {
+    public var title: String
+    private var content: (RowValue) -> Content
+
+    public init(_ title: String, @ViewBuilder content: @escaping (RowValue) -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    public var body: some View {
+        Text(title)
+    }
+
+    public func width(min: Double? = nil, max: Double? = nil) -> Self {
+        self
+    }
+}
+
+public struct AnyTableColumn<RowValue>: View {
+    public var title: String
+
+    public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
+        self.title = column.title
+    }
+
+    public var body: some View {
+        Text(title)
+    }
+}
+
+@resultBuilder
+public enum TableColumnBuilder<RowValue> {
+    public static func buildBlock(_ columns: [AnyTableColumn<RowValue>]...) -> [AnyTableColumn<RowValue>] {
+        columns.flatMap { $0 }
+    }
+
+    public static func buildExpression<Content: View>(
+        _ column: TableColumn<RowValue, Content>
+    ) -> [AnyTableColumn<RowValue>] {
+        [AnyTableColumn(column)]
+    }
+}
+
+public struct Table<RowValue>: View {
+    public var rows: [RowValue]
+    public var columns: [AnyTableColumn<RowValue>]
+
+    public init(_ rows: [RowValue], @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]) {
+        self.rows = rows
+        self.columns = columns()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
+                column
+            }
+        }
+    }
+}
+
+public struct ScrollContentBackgroundView<Content: View>: View {
+    public let content: Content
+    public let visibility: Visibility
+
+    public init(content: Content, visibility: Visibility) {
+        self.content = content
+        self.visibility = visibility
+    }
+
+    public var body: some View { content }
+}
+
+public struct KeyboardTypeView<Content: View>: View {
+    public let content: Content
+    public let keyboardType: KeyboardType
+
+    public init(content: Content, keyboardType: KeyboardType) {
+        self.content = content
+        self.keyboardType = keyboardType
+    }
+
+    public var body: some View { content }
+}
+
+public struct DragGesture: Sendable {
+    public struct Value: Sendable {
+        public var translation: CGSize
+
+        public init(translation: CGSize = .zero) {
+            self.translation = translation
+        }
+    }
+
+    private var onChangedAction: (@Sendable (Value) -> Void)?
+    private var onEndedAction: (@Sendable (Value) -> Void)?
+
+    public init() {}
+
+    public func onChanged(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
+        var copy = self
+        copy.onChangedAction = action
+        return copy
+    }
+
+    public func onEnded(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
+        var copy = self
+        copy.onEndedAction = action
+        return copy
+    }
+}
+
+public extension View {
+    func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
+        return padding(8)
+            .background(Color.gray5Custom)
+    }
+
+    func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
+        return ScrollContentBackgroundView(content: self, visibility: visibility)
+    }
+
+    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
+        return KeyboardTypeView(content: self, keyboardType: keyboardType)
+    }
+
+    @_disfavoredOverload
+    func buttonStyle<S: ButtonStyle>(_ style: S) -> Self {
+        _ = style
+        return self
+    }
+
+    func textFieldStyle(_ style: RoundedBorderTextFieldStyle) -> TextFieldStyleModifier<Self> {
+        _ = style
+        return textFieldStyle(.roundedBorder)
+    }
+
+    func textFieldStyle(_ style: PlainTextFieldStyle) -> TextFieldStyleModifier<Self> {
+        _ = style
+        return textFieldStyle(.plain)
+    }
+}
+
