@@ -320,6 +320,7 @@ struct SourceHygieneTests {
             "scripts/linux-backend-profile.sh",
             "scripts/linux-backend-visual-check.sh",
             "scripts/linux-backend-interaction-check.sh",
+            "scripts/linux-solderscope-smoke-check.sh",
         ]
 
         for relativePath in guardedScripts {
@@ -2358,6 +2359,9 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("warm_wordmark_pixel"))
         #expect(screenshotVerifier.contains("Mac-reference wordmark lost its blue-to-red color range"))
         #expect(screenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
+        #expect(screenshotVerifier.contains("validate_quill_solderscope_launch"))
+        #expect(screenshotVerifier.contains("product == \"quill-solderscope-launch\""))
+        #expect(screenshotVerifier.contains("SolderScope dark toolbar pixels were not detected near the top"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
@@ -2481,6 +2485,7 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
+        #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))
