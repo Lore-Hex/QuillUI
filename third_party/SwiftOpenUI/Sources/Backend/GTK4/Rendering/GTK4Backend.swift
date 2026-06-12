@@ -242,9 +242,20 @@ extension WindowGroup: GTKWindowRenderable {
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)
         if ProcessInfo.processInfo.environment["QUILLUI_GTK_DUMP_TREE"] == "1" {
-            gtkDumpWidgetTree(winWidget, depth: 0)
+            // After the deferred initial rebuild (g_idle), not at present time.
+            let winBox = Unmanaged.passRetained(GtkWidgetBox(widget: winWidget)).toOpaque()
+            _ = g_timeout_add(4000, { userData -> gboolean in
+                let box = Unmanaged<GtkWidgetBox>.fromOpaque(userData!).takeRetainedValue()
+                gtkDumpWidgetTree(box.widget, depth: 0)
+                return 0
+            }, winBox)
         }
     }
+}
+
+final class GtkWidgetBox {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    init(widget: UnsafeMutablePointer<GtkWidget>) { self.widget = widget }
 }
 
 /// Diagnostic only (QUILLUI_GTK_DUMP_TREE=1): print the realized widget tree
