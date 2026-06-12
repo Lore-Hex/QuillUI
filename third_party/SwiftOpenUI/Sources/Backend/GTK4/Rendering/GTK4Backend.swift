@@ -57,6 +57,55 @@ protocol GTKWindowRenderable {
 
 /// Root GTK window content should fill the proposed size; leaf alignment is
 /// handled by child containers, not by centering the hosted root widget.
+private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
+private var gtkRootPresentationOverlayFallback: OpaquePointer?
+
+func gtkCreateRootPresentationContainer(
+    winPtr: UnsafeMutablePointer<GtkWindow>,
+    contentWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let overlay = gtk_overlay_new()!
+    gtk_widget_set_hexpand(overlay, 1)
+    gtk_widget_set_vexpand(overlay, 1)
+    gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+
+    gtk_widget_set_hexpand(contentWidget, 1)
+    gtk_widget_set_vexpand(contentWidget, 1)
+    gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+    gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
+
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: overlay)
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)
+    gtkRootPresentationOverlayFallback = OpaquePointer(overlay)
+    return overlay
+}
+
+func gtkStoreRootPresentationOverlay(
+    _ rootOverlay: OpaquePointer,
+    on widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, gtkRootPresentationOverlayKey, UnsafeMutableRawPointer(rootOverlay))
+}
+
+func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer? {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else { return nil }
+    let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
+    return OpaquePointer(overlay)
+}
+
+func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
+    gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback
+}
+
+func gtkFallbackRootPresentationOverlay() -> OpaquePointer? {
+    gtkRootPresentationOverlayFallback
+}
+
 func gtkConfigureRootContentToFillWindow(_ contentWidget: UnsafeMutablePointer<GtkWidget>) {
     gtk_widget_set_hexpand(contentWidget, 1)
     gtk_widget_set_vexpand(contentWidget, 1)
@@ -68,9 +117,21 @@ extension WindowGroup: GTKWindowRenderable {
     func gtkResolvedDefaultWindowSize() -> (width: Double, height: Double)? {
         switch windowSizing ?? .automatic {
         case .automatic:
+            let environment = ProcessInfo.processInfo.environment
+            func environmentDouble(_ canonical: String, legacy: String) -> Double? {
+                (environment[canonical] ?? environment[legacy]).flatMap(Double.init)
+            }
+            let requestedWidth = environmentDouble(
+                "QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH",
+                legacy: "QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"
+            )
+            let requestedHeight = environmentDouble(
+                "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT",
+                legacy: "QUILLUI_GTK_DEFAULT_WINDOW_HEIGHT"
+            )
             return (
-                defaultWindowWidth ?? defaultAutomaticWindowWidth,
-                defaultWindowHeight ?? defaultAutomaticWindowHeight
+                requestedWidth ?? defaultWindowWidth ?? defaultAutomaticWindowWidth,
+                requestedHeight ?? defaultWindowHeight ?? defaultAutomaticWindowHeight
             )
         case .content:
             guard let width = defaultWindowWidth, let height = defaultWindowHeight else {
@@ -96,6 +157,11 @@ extension WindowGroup: GTKWindowRenderable {
         }
         let winPtr = windowPointer(window)
         gtk_window_set_title(winPtr, title)
+        if quillHidesTitleBar {
+            // .windowStyle(.hiddenTitleBar): no server-side decorations, as on
+            // macOS where the content extends into the title bar region.
+            gtk_window_set_decorated(winPtr, 0)
+        }
 
         // Set window ID in environment for keyboard shortcut scoping
         var wgEnv = getCurrentEnvironment()
@@ -118,6 +184,11 @@ extension WindowGroup: GTKWindowRenderable {
         if let defaultSize = gtkResolvedDefaultWindowSize() {
             gtk_window_set_default_size(
                 winPtr,
+                gint(defaultSize.width),
+                gint(defaultSize.height)
+            )
+            gtk_widget_set_size_request(
+                contentWidget,
                 gint(defaultSize.width),
                 gint(defaultSize.height)
             )
@@ -152,11 +223,12 @@ extension WindowGroup: GTKWindowRenderable {
             break
         }
 
-        gtkConfigureRootContentToFillWindow(contentWidget)
+        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
+        gtkConfigureRootContentToFillWindow(rootContentWidget)
 
-        gtk_window_set_child(winPtr, contentWidget)
+        gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
-        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: contentWidget, windowID: Int(bitPattern: winPtr))
+        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)
@@ -429,7 +501,12 @@ final class GTK4MenuBarHost {
             }
         }
 
-        gtk_swift_menu_append_submenu(menuModel, "File", fileMenu)
+        let environment = ProcessInfo.processInfo.environment
+        let topLevelMenuTitle = (
+            environment["QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL"]
+                ?? environment["QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"]
+        ) == "1" ? " " : "File"
+        gtk_swift_menu_append_submenu(menuModel, topLevelMenuTitle, fileMenu)
 
         // Create the popover menu bar
         let bar = gtk_swift_popover_menu_bar_new_from_model(menuModel)!
@@ -655,11 +732,12 @@ extension Window: GTKWindowRenderable {
             gtk_widget_set_size_request(contentWidget, minReqW, minReqH)
         }
 
-        gtkConfigureRootContentToFillWindow(contentWidget)
+        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
+        gtkConfigureRootContentToFillWindow(rootContentWidget)
 
-        gtk_window_set_child(winPtr, contentWidget)
+        gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
-        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: contentWidget, windowID: Int(bitPattern: winPtr))
+        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)
