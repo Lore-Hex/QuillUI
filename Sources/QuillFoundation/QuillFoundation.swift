@@ -1002,6 +1002,16 @@ public class RSColor: NSObject, @unchecked Sendable {
         self.init(red: r, green: g, blue: b, alpha: alpha)
     }
 
+    /// Apple's UIColor(white:alpha:) / NSColor(white:alpha:) grayscale
+    /// convenience initializer. Declared on the class — the ONE owner — so every
+    /// module that can see UIColor/RSColor resolves the same initializer. (It
+    /// used to be declared twice, as extensions in QuillAppKit and in
+    /// SignalServiceKitObjCPort; any module importing both, e.g. SignalUI, hit
+    /// "ambiguous use of 'init(white:alpha:)'" on every call.)
+    public convenience init(white: CGFloat, alpha: CGFloat) {
+        self.init(red: white, green: white, blue: white, alpha: alpha)
+    }
+
     /// UIColor.setFill() sets this color as the fill color in the current UIKit
     /// graphics context. There is no graphics context on Linux (UIGraphicsImageRenderer
     /// is inert), so this is a no-op — UIImage+OWS's solid-color image render degrades
@@ -1017,6 +1027,10 @@ public class RSColor: NSObject, @unchecked Sendable {
     public static let tertiaryLabel = RSColor(red: 0.56, green: 0.56, blue: 0.58, alpha: 1)
     public static let systemBackground = RSColor(red: 0.98, green: 0.98, blue: 0.99, alpha: 1)
     public static let secondarySystemBackground = RSColor(red: 0.94, green: 0.94, blue: 0.96, alpha: 1)
+    // Apple's light-mode grouped backgrounds are both #F2F2F7 (the dark
+    // variants differ, but RSColor stores a single light value).
+    public static let systemGroupedBackground = RSColor(red: 0.949, green: 0.949, blue: 0.969, alpha: 1)
+    public static let tertiarySystemGroupedBackground = RSColor(red: 0.949, green: 0.949, blue: 0.969, alpha: 1)
     public static let systemGray = RSColor(red: 0.56, green: 0.56, blue: 0.58, alpha: 1)
     public static let systemGray2 = RSColor(red: 0.68, green: 0.68, blue: 0.70, alpha: 1)
     public static let systemBlue = RSColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1)

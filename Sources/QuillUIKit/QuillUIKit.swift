@@ -245,6 +245,22 @@ public enum UIUserInterfaceStyle: Int {
     case dark
 }
 
+/// Apple's UIUserInterfaceLevel (base vs. elevated window layers). Raw values
+/// match UIKit's (.unspecified == -1).
+public enum UIUserInterfaceLevel: Int {
+    case unspecified = -1
+    case base = 0
+    case elevated = 1
+}
+
+/// Apple's UIAccessibilityContrast (the Increase Contrast accessibility
+/// setting). Raw values match UIKit's (.unspecified == -1).
+public enum UIAccessibilityContrast: Int {
+    case unspecified = -1
+    case normal = 0
+    case high = 1
+}
+
 /// A rectangular region that participates in Auto Layout without a backing
 /// view (safe area, layout margins, free-standing guides added through
 /// UIView.addLayoutGuide). @MainActor to match UIKit's isolation (and because
@@ -1427,6 +1443,8 @@ open class UIScene: NSObject {
 public class UITraitCollection: NSObject {
     public var userInterfaceStyle: UIUserInterfaceStyle = .unspecified
     public var userInterfaceIdiom: Int = 0
+    public var userInterfaceLevel: UIUserInterfaceLevel = .unspecified
+    public var accessibilityContrast: UIAccessibilityContrast = .unspecified
     /// UIKit's default Dynamic Type category is .large.
     public var preferredContentSizeCategory: UIContentSizeCategory = .large
 
@@ -1435,11 +1453,80 @@ public class UITraitCollection: NSObject {
         self.preferredContentSizeCategory = preferredContentSizeCategory
     }
 
+    public convenience init(userInterfaceStyle: UIUserInterfaceStyle) {
+        self.init()
+        self.userInterfaceStyle = userInterfaceStyle
+    }
+
+    public convenience init(userInterfaceLevel: UIUserInterfaceLevel) {
+        self.init()
+        self.userInterfaceLevel = userInterfaceLevel
+    }
+
+    public convenience init(accessibilityContrast: UIAccessibilityContrast) {
+        self.init()
+        self.accessibilityContrast = accessibilityContrast
+    }
+
+    /// Apple's UITraitCollection(traitsFrom:) merge: later collections override
+    /// earlier ones for every trait they actually specify. (Theme.swift builds
+    /// its elevated light/dark trait collections this way.)
+    public convenience init(traitsFrom traitCollections: [UITraitCollection]) {
+        self.init()
+        for traits in traitCollections {
+            if traits.userInterfaceStyle != .unspecified {
+                userInterfaceStyle = traits.userInterfaceStyle
+            }
+            if traits.userInterfaceIdiom != 0 {
+                userInterfaceIdiom = traits.userInterfaceIdiom
+            }
+            if traits.userInterfaceLevel != .unspecified {
+                userInterfaceLevel = traits.userInterfaceLevel
+            }
+            if traits.accessibilityContrast != .unspecified {
+                accessibilityContrast = traits.accessibilityContrast
+            }
+            preferredContentSizeCategory = traits.preferredContentSizeCategory
+        }
+    }
+
     /// UIKit's thread-local "current" traits. Computed (a fresh default-trait
     /// instance per access, like the layout anchors) so there is no shared
     /// mutable static; Linux has a single default trait environment anyway.
     public static var current: UITraitCollection { UITraitCollection() }
 }
+
+// MARK: - UIColor dynamic colors (trait-resolved)
+
+#if os(Linux)
+// Linux-only: UIColor is RSColor (QuillFoundation) with public RGBA storage;
+// on macOS UIColor aliases real NSColor, which has no UITraitCollection-based
+// dynamic-color surface. Lives here (not QuillFoundation) because the
+// signatures need UITraitCollection — same placement precedent as
+// UIColor.accessibilityName in UIAccessibilityExtras.swift.
+public extension UIColor {
+    /// Apple's UIColor(dynamicProvider:). RSColor stores one immutable RGBA
+    /// value and no provider, so the closure is evaluated ONCE, against
+    /// UITraitCollection.current (the single default/light trait environment
+    /// on Linux), and that resolved color's components are copied.
+    /// MODEL HONESTY: the color never re-resolves when traits change — dark
+    /// variants supplied by the provider are not produced on Linux.
+    convenience init(dynamicProvider: @escaping (UITraitCollection) -> UIColor) {
+        let resolved = dynamicProvider(UITraitCollection.current)
+        self.init(red: resolved._red, green: resolved._green, blue: resolved._blue, alpha: resolved._alpha)
+    }
+
+    /// Apple's UIColor.resolvedColor(with:) — resolves a dynamic color against
+    /// specific traits. MODEL HONESTY: RSColor keeps no per-trait variants
+    /// (any dynamicProvider was already folded at init), so this returns self
+    /// regardless of the requested traits; Theme's dark-trait resolutions get
+    /// the light value on Linux.
+    func resolvedColor(with traitCollection: UITraitCollection) -> UIColor {
+        _ = traitCollection
+        return self
+    }
+}
+#endif
 
 /// Dynamic Type content size categories. Raw values match UIKit's so any
 /// compared/persisted values stay stable. Faithful STATE only: UIFontMetrics
