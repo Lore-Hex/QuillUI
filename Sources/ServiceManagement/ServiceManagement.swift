@@ -3,9 +3,13 @@ import QuillKit
 
 // CoreFoundation's CFString isn't surfaced as a Swift type by corelibs Foundation on
 // Linux, but WireGuard's AppDelegate does `helperBundleId as CFString` when calling
-// SMLoginItemSetEnabled. NSString is toll-free-bridged to CFString and supports
-// `String as NSString` on Linux, so alias it. (Exported via `import ServiceManagement`.)
-public typealias CFString = NSString
+// SMLoginItemSetEnabled. MUST stay the same underlying type as QuillKit's
+// `CFString` (= String): WireGuard's AppDelegate sees both modules, and two
+// same-named aliases are unambiguous only while they denote one canonical type
+// (aliasing NSString here made every `CFString` reference ambiguous the moment
+// QuillKit became visible in that build — the LocalizedStringKey lesson, #524).
+// `String as CFString` still compiles, and this file only uses `.description`.
+public typealias CFString = String
 
 public enum SMAppService {
     public static let mainApp = Service()
