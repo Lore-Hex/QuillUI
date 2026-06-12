@@ -610,6 +610,17 @@ public class UIWindow: UIView {}
         _ = axis
     }
 
+    /// Sibling of setContentCompressionResistancePriority above, same
+    /// posture: recorded-intent no-op — the native layout pass does not
+    /// consume hugging/compression priorities yet. (SignalUI calls this
+    /// bare from UIView subclass bodies — SelectionIndicatorView, the
+    /// autoSetDimension helpers in UIView+AutoLayout — so it must be a
+    /// class member, not a global.)
+    public func setContentHuggingPriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
+        _ = priority
+        _ = axis
+    }
+
     public struct AnimationOptions: OptionSet, Sendable {
         public let rawValue: UInt
 
@@ -674,6 +685,39 @@ public class UIWindow: UIView {}
     public var translatesAutoresizingMaskIntoConstraints: Bool = true
     public var autoresizingMask: AutoresizingMask = []
     public var clipsToBounds: Bool = true
+
+    /// Compositing hint ("my content fills my bounds — skip blending behind
+    /// me"). Apple's UIView default is true. Faithful STATE only: there is
+    /// no compositor on Linux, so nothing consumes it yet.
+    public var isOpaque: Bool = true
+
+    // MARK: Accessibility
+    //
+    // CLASS-BODY `open` STORED properties: Signal overrides these with
+    // computed get/set pairs that call super (CVCapsuleLabel's label +
+    // traits, AttachmentApproval's MediaQualitySelectionControl,
+    // OWSFlatButton's identifier), and cross-module overrides need
+    // overridable class-body members. On Apple most of these live on
+    // NSObject's informal accessibility protocol; the shim hangs them on
+    // UIView (+ UIBarButtonItem below), the only receivers upstream uses.
+    // Faithful STATE only: no assistive technology reads them on Linux.
+    open var isAccessibilityElement: Bool = false
+    open var accessibilityIdentifier: String?
+    open var accessibilityLabel: String?
+    open var accessibilityValue: String?
+    open var accessibilityHint: String?
+    open var accessibilityTraits: UIAccessibilityTraits = .none
+    /// Apple derives this from on-screen geometry (screen coordinates);
+    /// the shim stores it (default .zero) and lets overrides compute their
+    /// own (AttachmentApproval does, via UIAccessibility.convertToScreenCoordinates).
+    open var accessibilityFrame: CGRect = .zero
+    open var accessibilityElementsHidden: Bool = false
+
+    // VoiceOver action hooks, Apple's defaults (unhandled / no-op).
+    // Overridden by MediaQualitySelectionControl's adjustable control.
+    open func accessibilityActivate() -> Bool { false }
+    open func accessibilityIncrement() {}
+    open func accessibilityDecrement() {}
 }
 
 @MainActor open class UIViewController: UIResponder {
@@ -761,6 +805,13 @@ public class UIWindow: UIView {}
     open var prefersStatusBarHidden: Bool { false }
     open var childForStatusBarStyle: UIViewController? { nil }
     open var childForStatusBarHidden: UIViewController? { nil }
+
+    /// VoiceOver's "escape" (two-finger Z) hook — on Apple it's part of
+    /// NSObject's accessibility protocol; class-body here so SignalUI's
+    /// InteractiveSheetViewController can override it AND call up through
+    /// super. Apple's default: unhandled (false). No assistive technology
+    /// invokes it on Linux yet.
+    open func accessibilityPerformEscape() -> Bool { false }
 
     public var traitCollection = UITraitCollection()
     public var navigationController: UINavigationController?
@@ -874,14 +925,91 @@ public class UIWindow: UIView {}
     public var title: String?
 }
 
-public class UIBarButtonItem: NSObject {
-    @MainActor public init(image: UIImage?, style: Int, target: Any?, action: Selector?) {}
-    @MainActor public init(title: String?, style: Int, target: Any?, action: Selector?) {}
-    @MainActor public init(barButtonSystemItem: Int, target: Any?, action: Selector?) {}
-    @MainActor public init(customView: UIView) {}
-    public var title: String?
-    public var isEnabled = true
-    public var image: UIImage?
+/// `open` + @MainActor, like UIKit's: SignalUI subclasses it cross-module
+/// (ClosureBarButtonItem in UIButton+SignalUI.swift keeps a closure handler
+/// alive as the target) and layers convenience inits over these (every one
+/// delegates to a real initializer here, then sets accessibilityIdentifier).
+/// The old stubs took `style: Int`/`barButtonSystemItem: Int`, which could
+/// never match upstream's `UIBarButtonItem.Style`/`.SystemItem` arguments.
+@MainActor open class UIBarButtonItem: NSObject {
+    public enum Style: Int, Sendable {
+        case plain = 0
+        case bordered = 1
+        case done = 2
+    }
+
+    /// Apple's raw values, kept exactly so compared/persisted values stay
+    /// stable.
+    public enum SystemItem: Int, Sendable {
+        case done = 0, cancel, edit, save, add, flexibleSpace, fixedSpace,
+             compose, reply, action, organize, bookmarks, search, refresh,
+             stop, camera, trash, play, pause, rewind, fastForward, undo,
+             redo, pageCurl, close
+    }
+
+    // UIBarItem surface (the shim flattens UIBarItem into this class — no
+    // other UIBarItem subtype is ported).
+    open var title: String?
+    open var image: UIImage?
+    open var landscapeImagePhone: UIImage?
+    open var isEnabled = true
+
+    open var style: Style = .plain
+    open var customView: UIView?
+    /// Weak, like UIKit's target-action convention; ClosureBarButtonItem
+    /// retains its handler itself. No event backend fires the action on
+    /// Linux yet — a native toolbar/navigation renderer will.
+    open weak var target: AnyObject?
+    open var action: Selector?
+    /// Which system item this button was created from. Apple keeps this
+    /// private; recorded (quill-prefixed) for the future native renderer.
+    public private(set) var quillSystemItem: SystemItem?
+
+    public override init() { super.init() }
+
+    public convenience init(image: UIImage?, style: Style, target: Any?, action: Selector?) {
+        self.init()
+        self.image = image
+        self.style = style
+        self.target = target as AnyObject?
+        self.action = action
+    }
+
+    public convenience init(image: UIImage?, landscapeImagePhone: UIImage?, style: Style, target: Any?, action: Selector?) {
+        self.init(image: image, style: style, target: target, action: action)
+        self.landscapeImagePhone = landscapeImagePhone
+    }
+
+    public convenience init(title: String?, style: Style, target: Any?, action: Selector?) {
+        self.init()
+        self.title = title
+        self.style = style
+        self.target = target as AnyObject?
+        self.action = action
+    }
+
+    public convenience init(barButtonSystemItem systemItem: SystemItem, target: Any?, action: Selector?) {
+        self.init()
+        self.quillSystemItem = systemItem
+        self.target = target as AnyObject?
+        self.action = action
+    }
+
+    public convenience init(customView: UIView) {
+        self.init()
+        self.customView = customView
+    }
+
+    // MARK: Accessibility
+    // Same posture as UIView's block above: stored, overridable, read by
+    // no assistive technology on Linux. SignalUI's convenience inits set
+    // accessibilityIdentifier from every call site.
+    open var isAccessibilityElement: Bool = false
+    open var accessibilityIdentifier: String?
+    open var accessibilityLabel: String?
+    open var accessibilityValue: String?
+    open var accessibilityHint: String?
+    open var accessibilityTraits: UIAccessibilityTraits = .none
 }
 
 // UITableView/UICollectionView families: open + UIScrollView-rooted (Apple's
@@ -1017,7 +1145,8 @@ public class SLComposeSheetConfigurationItem: NSObject {
 
 @MainActor public class UIButton: UIControl {
     public var imageView: UIImageView?
-    public var accessibilityLabel: String?
+    // (accessibilityLabel moved up to the UIView class body — one
+    // declaration, overridable — matching Apple, where UIButton inherits it.)
     public func setTitle(_: String?, for: Any) {}
 }
 
