@@ -491,12 +491,6 @@ extension Image: @retroactive Equatable {
     }
 }
 
-public extension State {
-    init(initialValue: Value) {
-        self.init(wrappedValue: initialValue)
-    }
-}
-
 public extension WindowGroup {
     init(@ViewBuilder content: () -> Content) {
         self.init("Quill", content: content)
@@ -859,16 +853,7 @@ public extension View {
     }
 }
 
-public extension URL {
-    func startAccessingSecurityScopedResource() -> Bool { true }
-    func stopAccessingSecurityScopedResource() {}
-}
-
 public extension Shape {
-    func fill(_ material: Material) -> FilledShape<Self> {
-        fill(Color.white.opacity(0.92))
-    }
-
     func strokeBorder(style: StrokeStyle) -> StrokedShape<Self> {
         strokeBorder(.primary, style: style)
     }
@@ -901,15 +886,6 @@ public extension View {
 
     func offset(_ size: CGSize) -> OffsetView<Self> {
         offset(x: size.width, y: size.height)
-    }
-
-    func padding(_ insets: EdgeInsets) -> PaddedView<Self> {
-        padding(
-            top: Int(insets.top),
-            bottom: Int(insets.bottom),
-            leading: Int(insets.leading),
-            trailing: Int(insets.trailing)
-        )
     }
 
     func padding(_ amount: CGFloat) -> PaddedView<Self> {
@@ -1238,32 +1214,6 @@ public extension View {
         return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
     }
 
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping (V, V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value, action)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        _ action: @escaping () -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value) { _, _ in action() }
-    }
-
-}
-
-public extension Array {
-    mutating func move(fromOffsets source: IndexSet, toOffset destination: Int) {
-        let moving = source.sorted().compactMap { indices.contains($0) ? self[$0] : nil }
-        for index in source.sorted(by: >) where indices.contains(index) {
-            remove(at: index)
-        }
-        let insertion = Swift.max(0, Swift.min(destination, count))
-        insert(contentsOf: moving, at: insertion)
-    }
 }
 
 private protocol QuillButtonRepresentable {

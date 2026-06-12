@@ -2000,6 +2000,7 @@ public extension View {
         self
     }
 
+    @_disfavoredOverload
     func buttonStyle<S: ButtonStyle>(_ style: S) -> Self {
         _ = style
         return self

@@ -136,7 +136,6 @@ public extension View {
 }
 
 #else
-
 // MARK: - Compatibility diagnostics
 
 @inline(__always)
@@ -380,16 +379,6 @@ public extension Image {
 
 public protocol KeyboardReadable {}
 
-public extension TextField {
-    init(_ title: String, text: Binding<String>, axis: Axis) {
-        self.init(title, text: text)
-    }
-
-    init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
-        self.init(title, text: text)
-    }
-}
-
 public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
     public var rawValue: Double
     public init(_ value: Double) { self.rawValue = value }
@@ -522,15 +511,6 @@ public extension EnvironmentValues {
 
 public extension View {
     @_disfavoredOverload
-    @ViewBuilder
-    func preferredColorScheme(_ colorScheme: ColorScheme?) -> some View {
-        if let colorScheme {
-            environment(\.colorScheme, colorScheme)
-        } else {
-            self
-        }
-    }
-
     @ViewBuilder
     func quillGTKSizeRequest(width: Int = -1, height: Int = -1) -> some View {
         #if os(Linux)
