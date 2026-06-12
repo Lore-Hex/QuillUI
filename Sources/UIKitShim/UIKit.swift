@@ -312,11 +312,6 @@ public extension UIWindow {
 
 public extension UIColor {
     static let placeholderText = RSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
-    static let systemGray = RSColor(red: 0.533, green: 0.533, blue: 0.533, alpha: 1)
-    static let systemGray2 = RSColor(red: 0.68, green: 0.68, blue: 0.70, alpha: 1)
-    static let systemBlue = RSColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1)
-    static let systemRed = RSColor(red: 1.00, green: 0.23, blue: 0.19, alpha: 1)
-    static let pink = RSColor(red: 1.00, green: 0.18, blue: 0.33, alpha: 1)
 }
 
 public class NSItemProvider: NSObject {

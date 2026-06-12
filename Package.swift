@@ -469,6 +469,7 @@ let quillUIDependencies: [Target.Dependency] = [
     "QuillSwiftUICompatibility",
     "UIKit",
     "UniformTypeIdentifiers",
+    "Observation",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
     "CGdkPixbuf",
     .product(name: "CGTK", package: "SwiftOpenUI"),
@@ -485,6 +486,7 @@ let quillUIDependencies: [Target.Dependency] = [
 #if os(Linux)
 let wrappingHStackDependencies: [Target.Dependency] = [
     "SwiftUI",
+    "Observation",
     .product(name: "BackendGTK4", package: "SwiftOpenUI"),
     .product(name: "CGTK", package: "SwiftOpenUI"),
     .product(name: "CGTKBridge", package: "SwiftOpenUI"),
@@ -778,8 +780,8 @@ let swiftUIShadowTestDependencies: [Target.Dependency] = []
 #if os(Linux)
 let swiftUIShadowMountDependencies: [Target.Dependency] =
     quillUILinuxBuildBackend == .gtk
-    ? ["QuillAppKitGTK", swiftUIShimBackendDependency]
-    : (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [swiftUIShimBackendDependency] : [])
+    ? ["QuillAppKitGTK", "Observation", swiftUIShimBackendDependency]
+    : (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? ["Observation", swiftUIShimBackendDependency] : [])
 let swiftUIShadowMountSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
     ? [.define("QUILLUI_SWIFTUI_GTK_MOUNT"), .unsafeFlags(gtk4SwiftImporterFlags)]
     : []
@@ -2839,6 +2841,7 @@ if quillUILinuxBuildBackend == .qt {
                 dependencies: [
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
                     .product(name: "SwiftOpenUISymbols", package: "SwiftOpenUI"),
+                    "Observation",
                     "CQtBridge"
                 ],
                 path: "Sources/BackendQt",

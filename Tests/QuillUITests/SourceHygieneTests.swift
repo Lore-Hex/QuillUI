@@ -489,6 +489,19 @@ struct SourceHygieneTests {
         #expect(source.contains("case inspector"))
     }
 
+    @Test("Semantic colors have a single platform-color owner")
+    func semanticColorsHaveSinglePlatformColorOwner() throws {
+        let foundation = try packageSource("Sources/QuillFoundation/QuillFoundation.swift")
+        let uiKit = try packageSource("Sources/UIKitShim/UIKit.swift")
+
+        for colorName in ["systemGray", "systemGray2", "systemBlue", "systemRed", "pink"] {
+            #expect(foundation.contains("public static let \(colorName) = RSColor("))
+            #expect(!uiKit.contains("static let \(colorName) = RSColor("))
+        }
+
+        #expect(uiKit.contains("static let placeholderText = RSColor("))
+    }
+
     @Test("Linux AppKit shims avoid Swift 6 warning traps")
     func linuxAppKitShimsAvoidSwift6WarningTraps() throws {
         let root = try packageRoot()
@@ -587,6 +600,11 @@ struct SourceHygieneTests {
         // mount via swiftUIShadowMountDependencies.
         #expect(manifest.contains("\"QuillSwiftUICompatibility\", \"AppKit\", \"UIKit\", \"CoreImage\", \"CoreTransferable\", \"Combine\","))
         #expect(manifest.contains("] + swiftUIShadowMountDependencies"))
+        #expect(manifest.contains("\"Observation\",\n    .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\"),\n    \"CGdkPixbuf\","))
+        #expect(manifest.contains("let wrappingHStackDependencies: [Target.Dependency] = [\n    \"SwiftUI\",\n    \"Observation\","))
+        #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
+        #expect(manifest.contains("? [\"Observation\", swiftUIShimBackendDependency] : []"))
+        #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"Observation\",\n                    \"CQtBridge\""))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))
