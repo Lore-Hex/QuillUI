@@ -3813,6 +3813,32 @@ struct SourceHygieneTests {
         #expect(!backend.contains("g_application_run("))
     }
 
+    @Test("GTK hidden-titlebar windows keep command shortcuts without menu bar")
+    func gtkHiddenTitlebarWindowsKeepCommandShortcutsWithoutMenuBar() throws {
+        let app = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/App/App.swift")
+        let windowSizing = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/App/WindowSizing.swift")
+        let windowStyle = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/App/WindowStyle.swift")
+        let backend = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift")
+        let gtkMenuTests = try packageSource(
+            "third_party/SwiftOpenUI/Tests/BackendTests/GTK4Tests/GTK4MenuBarHostLayoutTests.swift"
+        )
+
+        #expect(windowStyle.contains("case hiddenTitleBar"))
+        #expect(app.contains("public let windowStyle: WindowStyle?"))
+        #expect(windowSizing.contains("public func windowStyle(_ style: WindowStyle) -> WindowGroup<Content>"))
+
+        #expect(backend.contains("gtkSuppressesInWindowMenuBar(windowStyle: WindowStyle?)"))
+        #expect(backend.contains("windowStyle == .hiddenTitleBar"))
+        #expect(backend.contains("final class GTK4CommandShortcutRegistrar"))
+        #expect(backend.contains("if suppressMenuBar {\n            shortcutRegistrar.update(items: allItems)"))
+        #expect(backend.contains("func gtkWindowHasKeyboardShortcutController"))
+        #expect(backend.contains("gtkAttachKeyboardShortcutController(to: winWidget)"))
+
+        #expect(gtkMenuTests.contains("testSuppressedMenuBarKeepsPlainCommandShortcutRegistered"))
+        #expect(gtkMenuTests.contains("KeyboardShortcut(\"b\", modifiers: [])"))
+        #expect(gtkMenuTests.contains("testWindowShortcutControllerAttachesWithoutMenuBar"))
+    }
+
     @Test("GTK patcher preserves fixed-frame and list viewport sizing contracts")
     func gtkPatcherPreservesFixedFrameAndListViewportSizingContracts() throws {
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")

@@ -103,6 +103,103 @@ final class GTK4MenuBarHostLayoutTests: XCTestCase {
         XCTAssertEqual(gtk_widget_get_valign(contentWidget), GTK_ALIGN_FILL)
     }
 
+    func testHiddenTitleBarStyleSuppressesInWindowMenuBar() {
+        XCTAssertFalse(gtkSuppressesInWindowMenuBar(windowStyle: nil))
+        XCTAssertFalse(gtkSuppressesInWindowMenuBar(windowStyle: .automatic))
+        XCTAssertTrue(gtkSuppressesInWindowMenuBar(windowStyle: .hiddenTitleBar))
+
+        let scene = WindowGroup("Hidden") {
+            Text("Hello")
+        }
+        .windowStyle(.hiddenTitleBar)
+
+        XCTAssertEqual(scene.windowStyle, .hiddenTitleBar)
+    }
+
+    func testSuppressedMenuBarKeepsPlainCommandShortcutRegistered() throws {
+        try requireGTK()
+
+        let winPtr = gtk_window_new()!
+        defer { gtk_window_destroy(windowPointer(winPtr)) }
+
+        let contentWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_hexpand(contentWidget, 0)
+        gtk_widget_set_vexpand(contentWidget, 0)
+        gtk_widget_set_halign(contentWidget, GTK_ALIGN_START)
+        gtk_widget_set_valign(contentWidget, GTK_ALIGN_START)
+        gtk_window_set_child(windowPointer(winPtr), contentWidget)
+
+        let windowID = Int(bitPattern: winPtr)
+        var scaleBarToggleCount = 0
+        let factory: AnyCommandsFactory = {
+            [
+                .newItem: [
+                    CommandMenuItem(
+                        "Toggle Scale Bar",
+                        shortcut: KeyboardShortcut("b", modifiers: [])
+                    ) {
+                        scaleBarToggleCount += 1
+                    },
+                    CommandMenuItem(
+                        "Cycle Integration",
+                        shortcut: KeyboardShortcut("i", modifiers: [])
+                    ) {
+                        XCTFail("Disabled command shortcut should not fire")
+                    }
+                    .disabled(true)
+                ]
+            ]
+        }
+
+        let host = GTK4MenuBarHost(
+            winPtr: winPtr,
+            factory: factory,
+            windowID: windowID,
+            suppressMenuBar: true
+        )
+        host.setup(contentWidget: contentWidget)
+
+        XCTAssertEqual(
+            gtk_window_get_child(windowPointer(winPtr)),
+            contentWidget,
+            "Suppressed menu host must not wrap content in a GtkPopoverMenuBar container"
+        )
+        XCTAssertEqual(gtk_widget_get_hexpand(contentWidget), 1)
+        XCTAssertEqual(gtk_widget_get_vexpand(contentWidget), 1)
+        XCTAssertEqual(gtk_widget_get_halign(contentWidget), GTK_ALIGN_FILL)
+        XCTAssertEqual(gtk_widget_get_valign(contentWidget), GTK_ALIGN_FILL)
+
+        XCTAssertTrue(KeyboardShortcutRegistry.shared.dispatch(
+            KeyboardShortcut("b", modifiers: []),
+            windowID: windowID
+        ))
+        XCTAssertEqual(scaleBarToggleCount, 1)
+        XCTAssertFalse(KeyboardShortcutRegistry.shared.dispatch(
+            KeyboardShortcut("i", modifiers: []),
+            windowID: windowID
+        ))
+
+        host.destroy()
+        XCTAssertFalse(KeyboardShortcutRegistry.shared.dispatch(
+            KeyboardShortcut("b", modifiers: []),
+            windowID: windowID
+        ))
+    }
+
+    func testWindowShortcutControllerAttachesWithoutMenuBar() throws {
+        try requireGTK()
+
+        let winPtr = gtk_window_new()!
+        defer { gtk_window_destroy(windowPointer(winPtr)) }
+
+        XCTAssertFalse(gtkWindowHasKeyboardShortcutController(winPtr))
+        gtkAttachKeyboardShortcutController(to: winPtr)
+        XCTAssertTrue(gtkWindowHasKeyboardShortcutController(winPtr))
+
+        gtkAttachKeyboardShortcutController(to: winPtr)
+        XCTAssertTrue(gtkWindowHasKeyboardShortcutController(winPtr))
+    }
+
     func testAutomaticWindowGroupUsesDesktopDefaultSize() {
         let scene = WindowGroup("Automatic") {
             Text("Hello")

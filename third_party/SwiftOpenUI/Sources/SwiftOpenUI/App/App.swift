@@ -39,6 +39,7 @@ public struct WindowGroup<Content: View>: Scene {
     public let windowSizing: WindowSizing?
     public let windowResizeBehavior: WindowResizeBehavior?
     public let windowResizability: WindowResizability?
+    public let windowStyle: WindowStyle?
     public let launchesAtStartup: Bool
 
     public init(_ title: String, @ViewBuilder content: () -> Content) {
@@ -73,6 +74,7 @@ public struct WindowGroup<Content: View>: Scene {
         windowSizing: WindowSizing? = nil,
         windowResizeBehavior: WindowResizeBehavior? = nil,
         windowResizability: WindowResizability? = nil,
+        windowStyle: WindowStyle? = nil,
         launchesAtStartup: Bool = true
     ) {
         self.title = title
@@ -86,6 +88,7 @@ public struct WindowGroup<Content: View>: Scene {
         self.windowSizing = windowSizing
         self.windowResizeBehavior = windowResizeBehavior
         self.windowResizability = windowResizability
+        self.windowStyle = windowStyle
         self.launchesAtStartup = launchesAtStartup
     }
 
@@ -125,6 +128,11 @@ public extension Scene {
     func defaultSize(width: Double, height: Double) -> Self {
         _ = width
         _ = height
+        return self
+    }
+
+    func windowStyle(_ style: WindowStyle) -> Self {
+        _ = style
         return self
     }
 }
