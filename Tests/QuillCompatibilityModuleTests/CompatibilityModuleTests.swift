@@ -287,9 +287,10 @@ struct CompatibilityModuleTests {
         #expect(String(describing: type(of: autocorrectionDisabled)).contains("AutocorrectionDisabledView"))
         #expect(autocorrectionDisabled.disabled == true)
 
-        let typedContent = Text("URL").textContentType(.URL)
-        #expect(String(describing: type(of: typedContent)).contains("TextContentTypeView"))
-        #expect(typedContent.contentType == .URL)
+        // textContentType is the compat module's Self-returning recorder
+        // (the wrapper-view flavor retired with the QuillUI consolidation).
+        let typedContent = Text("URL").textContentType(TextContentType.URL)
+        #expect(String(describing: type(of: typedContent)).contains("Text"))
 #endif
         }
 
