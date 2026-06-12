@@ -717,16 +717,32 @@ let swiftUIShadowTestDependencies: [Target.Dependency] = ["SwiftUI"]
 let swiftUIShadowTestDependencies: [Target.Dependency] = []
 #endif
 
-// The representable GTK mount rides only in the gtk graph; the qt graph keeps
-// the SwiftUI shadow GTK-free (CGtk4 headers reach the module through the
-// QuillAppKitGTK import, hence the importer flags travel with the deps).
+// The representable GTK mount rides only in the gtk graph; the Qt mount rides
+// only in the opt-in generic Qt graph. The default qt graph keeps the SwiftUI
+// shadow out entirely, so native Qt app builds stay SwiftOpenUI/GTK-free.
 #if os(Linux)
-let swiftUIShadowMountDependencies: [Target.Dependency] = quillUILinuxBuildBackend == .gtk
-    ? ["QuillAppKitGTK", .product(name: "BackendGTK4", package: "SwiftOpenUI")]
-    : []
-let swiftUIShadowMountSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
-    ? [.define("QUILLUI_SWIFTUI_GTK_MOUNT"), .unsafeFlags(gtk4SwiftImporterFlags)]
-    : []
+let swiftUIShadowCoreDependencies: [Target.Dependency] =
+    quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled
+        ? ["QuillSwiftUICompatibility", "AppKit", "Combine"]
+        : ["QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine"]
+let swiftUIShadowMountDependencies: [Target.Dependency] = {
+    if quillUILinuxBuildBackend == .gtk {
+        return ["QuillAppKitGTK", .product(name: "BackendGTK4", package: "SwiftOpenUI")]
+    }
+    if quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled {
+        return ["QuillAppKitQt", "BackendQt"]
+    }
+    return []
+}()
+let swiftUIShadowMountSwiftSettings: [SwiftSetting] = {
+    if quillUILinuxBuildBackend == .gtk {
+        return [.define("QUILLUI_SWIFTUI_GTK_MOUNT"), .unsafeFlags(gtk4SwiftImporterFlags)]
+    }
+    if quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled {
+        return [.define("QUILLUI_SWIFTUI_QT_MOUNT")]
+    }
+    return []
+}()
 #endif
 
 let quillDataMacroTarget: Target = .macro(
@@ -2307,11 +2323,8 @@ targets.append(contentsOf: [
         // AppKit + Combine: Apple's macOS SwiftUI re-exports both; mirror it
         // (see Sources/SwiftUIShim/SwiftUI.swift). The NSViewRepresentable
         // GTK mount (GtkDrawingArea + Cairo-backed CGContext) is gtk-graph
-        // only — the qt graph keeps the shadow GTK-free (compile-only
-        // representables there until the Qt mount exists).
-        dependencies: [
-            "QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine",
-        ] + swiftUIShadowMountDependencies,
+        // only; the Qt mount is enabled only for the opt-in generic Qt graph.
+        dependencies: swiftUIShadowCoreDependencies + swiftUIShadowMountDependencies,
         path: "Sources/SwiftUIShim",
         // v5 + minimal concurrency matches the house settings (the GTK mount
         // crosses MainActor.assumeIsolated with non-Sendable view values).
@@ -2593,6 +2606,7 @@ if quillUILinuxBuildBackend == .qt {
     allPackageDependencies = quillDataPackageDependencies
     targets = [
         cSQLiteTarget,
+        cCairoTarget,
         quillDataMacroTarget,
         quillDataTarget,
         .target(
@@ -2688,7 +2702,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "CQuillAppKitQt",
-            dependencies: ["CQt6Widgets"],
+            dependencies: ["CQt6Widgets", "CCairo"],
             path: "Sources/CQuillAppKitQt",
             publicHeadersPath: "include",
             cxxSettings: [
@@ -2700,7 +2714,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillAppKitQt",
-            dependencies: ["AppKit", "CQuillAppKitQt", "QuillAutoLayout"],
+            dependencies: ["AppKit", "CQuillAppKitQt", "QuillAutoLayout", "CCairo"],
             path: "Sources/QuillAppKitQt",
             swiftSettings: appSwiftSettings
         ),
@@ -2759,10 +2773,29 @@ if quillUILinuxBuildBackend == .qt {
     // QtBackend().run(QtSmokeApp.self). The 9 production apps keep their existing
     // per-app C++ shims and are not touched.
     if quillUIQtGenericEnabled {
-        allPackageDependencies.append(
-            .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI")
-        )
+        allPackageDependencies += [
+            .package(name: "SwiftOpenUI", path: "third_party/SwiftOpenUI"),
+            .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0")
+        ]
         targets += [
+            .target(
+                name: "Combine",
+                dependencies: [
+                    .product(name: "OpenCombine", package: "OpenCombine"),
+                    .product(name: "OpenCombineDispatch", package: "OpenCombine"),
+                    .product(name: "OpenCombineFoundation", package: "OpenCombine")
+                ],
+                path: "Sources/Combine"
+            ),
+            .target(
+                name: "QuillSwiftUICompatibility",
+                dependencies: [
+                    "QuillFoundation",
+                    "QuillDataMacros",
+                    .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+                ],
+                path: "Sources/QuillSwiftUICompatibility"
+            ),
             .target(
                 name: "CQtBridge",
                 path: "Sources/CQtBridge",
@@ -2785,6 +2818,15 @@ if quillUILinuxBuildBackend == .qt {
                 swiftSettings: appSwiftSettings + [
                     .define("QUILLUI_QT_GENERIC")
                 ]
+            ),
+            .target(
+                name: "SwiftUI",
+                dependencies: swiftUIShadowCoreDependencies + swiftUIShadowMountDependencies,
+                path: "Sources/SwiftUIShim",
+                swiftSettings: [
+                    .swiftLanguageMode(.v5),
+                    .unsafeFlags(["-strict-concurrency=minimal"]),
+                ] + swiftUIShadowMountSwiftSettings
             ),
             .executableTarget(
                 name: "QuillQtGenericSmoke",

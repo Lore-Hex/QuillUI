@@ -9,6 +9,12 @@
 // INTERNAL leaf behind an opaque `body` carries the conformance.
 @_implementationOnly import BackendGTK4
 @_implementationOnly import QuillAppKitGTK
+#elseif QUILLUI_SWIFTUI_QT_MOUNT
+// Implementation-only for the same reason as the GTK branch: the public
+// SwiftUI shadow must not expose BackendQt/CQuillAppKitQt details through its
+// swiftmodule. The internal primitive leaf below carries QtRenderable.
+@_implementationOnly import BackendQt
+@_implementationOnly import QuillAppKitQt
 #endif
 
 // NSViewRepresentable / NSViewControllerRepresentable — Apple ships these in
@@ -55,9 +61,9 @@ extension NSViewRepresentable where Coordinator == Void {
 extension NSViewRepresentable {
     public static func dismantleNSView(_ nsView: NSViewType, coordinator: Coordinator) {}
 
-    /// Rendering: the default body is a GTK host leaf. (Apple declares
+    /// Rendering: the default body is a toolkit host leaf. (Apple declares
     /// Body == Never and intercepts in the framework; SwiftOpenUI's renderer
-    /// instead walks `body` until it reaches a GTKRenderable, so the host IS
+    /// instead walks `body` until it reaches a backend renderable, so the host IS
     /// the interception point. Conformers never declare `body`, exactly as on
     /// Apple, so source compatibility is unchanged.)
     public var body: QuillNSViewRepresentableHostView<Self> {
@@ -65,9 +71,7 @@ extension NSViewRepresentable {
     }
 }
 
-/// GTK leaf that mounts an NSViewRepresentable: creates the Coordinator and
-/// NSViewType, then backs the view with a GtkDrawingArea whose draw func runs
-/// `draw(_:)` through the Cairo-backed CGContext (QuillAppKitGTK).
+/// Host view that lowers an NSViewRepresentable into the active native mount.
 public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
 #if QUILLUI_SWIFTUI_GTK_MOUNT
     let representable: R
@@ -77,17 +81,24 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
     public var body: some View {
         _QuillGTKRepresentableMountLeaf(representable: representable)
     }
+#elseif QUILLUI_SWIFTUI_QT_MOUNT
+    let representable: R
+
+    init(_ representable: R) { self.representable = representable }
+
+    public var body: some View {
+        _QuillQtRepresentableMountLeaf(representable: representable)
+    }
 #else
     let representable: R
 
     init(_ representable: R) { self.representable = representable }
 
-    // Non-GTK graphs (qt) keep compile-only representables: rendering one
-    // traps with a clear message until a Qt mount exists.
+    // Graphs without a native mount keep compile-only representables.
     public var body: Never {
         fatalError("""
-        NSViewRepresentable (\(R.self)) rendering requires the GTK backend \
-        graph; the qt mount does not exist yet.
+        NSViewRepresentable (\(R.self)) rendering requires a SwiftUI native \
+        mount graph; this package graph has no GTK or Qt mount enabled.
         """)
     }
 #endif
@@ -188,6 +199,35 @@ enum QuillRepresentableMountRegistry {
     static func store(key: String, entry: Entry) {
         if let previous = store[key] { previous.dismantle() }
         store[key] = entry
+    }
+}
+#endif
+
+#if QUILLUI_SWIFTUI_QT_MOUNT
+/// Internal renderable leaf for the generic SwiftUI->Qt graph. Phase 1 only
+/// creates a Qt drawing host; mount identity/Coordinator reuse is phase 2.
+struct _QuillQtRepresentableMountLeaf<R: NSViewRepresentable>: View, PrimitiveView, QtRenderable {
+    typealias Body = Never
+    let representable: R
+
+    var body: Never {
+        fatalError("_QuillQtRepresentableMountLeaf is a primitive view")
+    }
+
+    func qtCreateWidget() -> OpaquePointer {
+        nonisolated(unsafe) var slot: UnsafeMutableRawPointer?
+        MainActor.assumeIsolated {
+            let coordinator = representable.makeCoordinator()
+            let context = NSViewRepresentableContext<R>(coordinator: coordinator)
+            let nsView = representable.makeNSView(context: context)
+            representable.updateNSView(nsView, context: context)
+            slot = nsView.ensureQtCustomDrawWidget()
+        }
+        guard let widget = slot else {
+            preconditionFailure(
+                "NSViewRepresentable (\(R.self)) mounted without a usable Qt display")
+        }
+        return OpaquePointer(widget)
     }
 }
 #endif
