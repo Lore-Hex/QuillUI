@@ -162,57 +162,14 @@ public extension Color {
     // Linux. (The macOS variant at the top of this file is gated to
     // Apple platforms where SwiftUI lacks it.)
 
-    init(rgba: UInt32) {
-        self.init(
-            red: Double((rgba >> 24) & 0xff) / 255.0,
-            green: Double((rgba >> 16) & 0xff) / 255.0,
-            blue: Double((rgba >> 8) & 0xff) / 255.0,
-            opacity: Double(rgba & 0xff) / 255.0
-        )
-    }
-
-    init(light: Color, dark: Color) {
-        self = light
-    }
-
-    init(_ assetName: String) {
-        self = Self.assetColor(named: assetName)
-    }
-
-    static var foreground: Color { primary }
-    static var label: Color { Color(QuillPlatformColor.label) }
-    static var labelCustom: Color { Color("label") }
-    static var systemGray: Color { Color(.systemGray) }
-    static var systemGray2: Color { Color(.systemGray2) }
-    static var systemBlue: Color { Color(.systemBlue) }
-    static var systemRed: Color { Color(.systemRed) }
-    static var grayCustom: Color { Color("grayCustom") }
-    static var gray2Custom: Color { Color("gray2Custom") }
-    static var gray3Custom: Color { Color("gray3Custom") }
-    static var gray4Custom: Color { Color("gray4Custom") }
-    static var gray5Custom: Color { Color("gray5Custom") }
-    static var bgCustom: Color { Color("bgCustom") }
-
-    private static func assetColor(named name: String) -> Color {
-        switch name {
-        case "label":
-            return Color(red: 0.12, green: 0.12, blue: 0.13)
-        case "grayCustom":
-            return Color(red: 0.56, green: 0.56, blue: 0.58)
-        case "gray2Custom":
-            return Color(red: 0.68, green: 0.68, blue: 0.70)
-        case "gray3Custom":
-            return Color(red: 0.78, green: 0.78, blue: 0.80)
-        case "gray4Custom":
-            return Color(red: 0.86, green: 0.86, blue: 0.88)
-        case "gray5Custom":
-            return Color(red: 0.91, green: 0.91, blue: 0.94)
-        case "bgCustom":
-            return Color(red: 0.96, green: 0.96, blue: 0.97)
-        default:
-            return .primary
-        }
-    }
+    // init(rgba:), init(light:dark:), init(_ assetName:) and the
+    // label/system/asset-color statics live in QuillSwiftUICompatibility
+    // (ColorCompat.swift, a superset that also serves the full-source
+    // Enchanted path through the SwiftUI shim re-export). Twins here made
+    // every Color(rgba:)/Color.gray2Custom use ambiguous after the two
+    // modules became co-visible. Reachable via the @_exported import in
+    // QuillUI.swift. Only the QuillPlatformColor bridge stays: the type is
+    // declared in this module and ColorCompat has no equivalent.
 }
 
 // MARK: - Compatibility diagnostics
