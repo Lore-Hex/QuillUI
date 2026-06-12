@@ -91,6 +91,23 @@ struct SourceHygieneTests {
         #expect(!qtCarrierHeader.contains("Pkg-config and linker carrier"))
     }
 
+    @Test("SwiftUI Linux source lowering runs reusable Objective-C and shorthand cleanup")
+    func swiftUILinuxSourceLoweringRunsReusableObjectiveCAndShorthandCleanup() throws {
+        let lowering = try packageSource("scripts/lower-swiftui-source-for-linux.sh")
+        let objcLowering = try packageSource("scripts/lower-objc-interop-for-linux.sh")
+        let appKitLoweringCall = "\"$(dirname \"$0\")/run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""
+        let objcLoweringCall = "\"$(dirname \"$0\")/lower-objc-interop-for-linux.sh\" \"$SOURCE_DIR\""
+
+        #expect(lowering.contains("s/\\.keyboardType\\([ \\t]*\\.URL[ \\t]*\\)/.keyboardType(KeyboardType.URL)/g;"))
+        #expect(lowering.contains("s/\\.textContentType\\([ \\t]*\\.URL[ \\t]*\\)/.textContentType(TextContentType.URL)/g;"))
+        #expect(lowering.contains(appKitLoweringCall))
+        #expect(lowering.contains(objcLoweringCall))
+        #expect((lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: objcLoweringCall)?.lowerBound ?? lowering.startIndex))
+        #expect(objcLowering.contains("lower_foundation_bridge_casts"))
+        #expect(objcLowering.contains("lowered = lowered.replace(\" as CFDictionary\", \"\")"))
+        #expect(objcLowering.contains("lowered = lowered.replace(\" as CFString\", \"\")"))
+    }
+
     @Test("GTK manifest filters pkg-config prohibited flag warnings")
     func gtkManifestFiltersPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()
@@ -485,7 +502,8 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
-        #expect(appKit.contains("@MainActor public protocol NSApplicationDelegate"))
+        #expect(appKit.contains("public protocol NSApplicationDelegate"))
+        #expect(!appKit.contains("@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,
@@ -502,6 +520,11 @@ struct SourceHygieneTests {
         #expect(appKit.contains("MainActor.assumeIsolated { delegate.menuWillOpen(self) }"))
         #expect(appKit.contains("public static let borderless: StyleMask = []"))
         #expect(appKit.contains("open class NSTextStorage: NSMutableAttributedString {"))
+        #expect(appKit.contains("open func performKeyEquivalent(with event: NSEvent) -> Bool"))
+        #expect(appKit.contains("open func standardWindowButton(_ button: WindowButton) -> NSButton?"))
+        #expect(appKit.contains("open class NSRunningApplication: NSObject"))
+        #expect(appKit.contains("public var runningApplications: [NSRunningApplication]"))
+        #expect(appKit.contains("public var fittingSize: NSSize"))
         #expect(!appKit.contains("public static let borderless = StyleMask(rawValue: 0)"))
         #expect(!appKit.contains("open class NSTextStorage: NSMutableAttributedString, @unchecked Sendable"))
         #expect(!gtk.contains("let ctx = g_main_context_default()"))
@@ -543,18 +566,35 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/QuillSwiftUICompatibility.swift"),
             encoding: .utf8
         )
+        let designCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift"),
+            encoding: .utf8
+        )
+        let appStorageCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/AppStorage.swift"),
+            encoding: .utf8
+        )
+        let quillUpstreamCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/UpstreamCompatibility.swift"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains("name: \"QuillSwiftUICompatibility\""))
         #expect(manifest.contains("\"QuillFoundation\",\n    \"QuillSwiftUICompatibility\","))
         // The SwiftUI shadow now mirrors Apple's macOS re-export topology
         // (AppKit + Combine) and carries the gtk-graph-only representable
         // mount via swiftUIShadowMountDependencies.
-        #expect(manifest.contains("\"QuillUI\", \"QuillSwiftUICompatibility\", \"AppKit\", \"Combine\","))
+        #expect(manifest.contains("\"QuillSwiftUICompatibility\", \"AppKit\", \"UIKit\", \"CoreImage\", \"CoreTransferable\", \"Combine\","))
         #expect(manifest.contains("] + swiftUIShadowMountDependencies"))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))
         #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
+        #expect(designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
+        #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
+        #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))
+        #expect(!quillUpstreamCompatibility.contains("public struct PlainButtonStyle"))
+        #expect(!quillUpstreamCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
     }
 
@@ -628,6 +668,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
             encoding: .utf8
         )
+        let enchantedEmptyFiles = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
+            encoding: .utf8
+        )
         let profileAliasesPath = root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift")
         let profileAliases = (try? String(contentsOf: profileAliasesPath, encoding: .utf8)) ?? ""
 
@@ -650,6 +694,7 @@ struct SourceHygieneTests {
         #expect(quillShims.contains("@_exported import AppKit"))
         #expect(quillShims.contains("@_exported import Combine"))
         #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
+        #expect(swiftUILowering.contains("run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""))
         #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;"#))
         #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+(\[[^\]]+\][ \t]+in)/Task { $1/g;"#))
         #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" AppKit"))
@@ -670,6 +715,15 @@ struct SourceHygieneTests {
         #expect(!FileManager.default.fileExists(atPath: profileAliasesPath.path))
         #expect(!profileAliases.contains("typealias CheckForUpdatesMenuItem"))
         #expect(!profileAliases.contains("enum QuillUSBLauncher"))
+        #expect(enchantedEmptyFiles.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #expect(!enchantedEmptyFiles.contains("Helpers/Accessibility.swift"))
+        #expect(!enchantedEmptyFiles.contains("Helpers/HotKeys.swift"))
+        #expect(!enchantedEmptyFiles.contains("Services/HotkeyService.swift"))
+        #expect(!enchantedEmptyFiles.contains("UI/macOS/PromptPanel/FloatingPanel.swift"))
+        #expect(!enchantedEmptyFiles.contains("UI/macOS/PromptPanel/PanelManager.swift"))
+        #expect(!enchantedEmptyFiles.contains("Application/QuillUpdater.swift"))
+        #expect(!enchantedEmptyFiles.contains("Application/QuillUSBWatcher.swift"))
+        #expect(!enchantedEmptyFiles.contains("Application/QuillUSBLauncher.swift"))
     }
 
     @Test("Linux controls read backend-scoped reference environment")

@@ -77,6 +77,7 @@ if [[ "$MODE" != "app" ]]; then
   cat > "$LOWERED_COPY/GeneratedMain.swift" <<'SWIFT'
 import Foundation
 import QuillUI
+import QuillShims
 import SwiftData
 import SwiftUI
 

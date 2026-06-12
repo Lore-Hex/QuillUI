@@ -4485,22 +4485,62 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
-old = '''    case .reuse:
+legacy_old = '''    case .reuse:
+        if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
+            return false
+        }
+        return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
+    case .update:
+        guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill else {
+            return false
+        }
+'''
+old_with_extra_intents = '''    case .reuse:
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
             return false
         }
         return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
     case .update:
         guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
+                || plan.updateIntent == .canvasContent
+                || plan.updateIntent == .sliderValue
+                || plan.updateIntent == .paddingLayout else {
+            return false
+        }
+'''
+current_without_leaf_props = '''    case .reuse:
+        if plan.newDescriptor.kind == .button {
+            // GTK Button action closures capture the view state storage from
+            // the render pass that created the widget. Until the retained
+            // descriptor path can refresh those closures in-place, hosts that
+            // contain buttons must take the full rebuild path so actions mutate
+            // the current @State storage.
+            return false
+        }
+        if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
+            return false
+        }
+        return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
+    case .update:
+        if plan.newDescriptor.kind == .button {
+            return false
+        }
+        guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
+                || plan.updateIntent == .canvasContent
+                || plan.updateIntent == .sliderValue
+                || plan.updateIntent == .paddingLayout else {
+            return false
+        }
 '''
 new = '''    case .reuse:
-        // Reused buttons stay on the narrow path: host state identity is
-        // stable across rebuilds (structural-path namespaces), so the action
-        // closure captured at widget creation writes to the same @State
-        // storage the current pass reads. Without this, any host containing a
-        // button tears down on every keystroke and the focused entry is
-        // destroyed mid-typing. A button whose own props changed plans as
-        // .update (intent .none) and still takes the full rebuild.
+        if plan.newDescriptor.kind == .button {
+            // GTK Button action closures capture the view state storage from
+            // the render pass that created the widget. Until the retained
+            // descriptor path can refresh those closures in-place, hosts that
+            // contain buttons must take the full rebuild path so actions mutate
+            // the current @State storage.
+            return false
+        }
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
             // Props-bearing leaves (TextField & co.) compare meaningfully:
             // identical descriptors mean nothing changed, and the native
@@ -4516,18 +4556,21 @@ new = '''    case .reuse:
             return false
         }
         guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
+                || plan.updateIntent == .canvasContent
+                || plan.updateIntent == .sliderValue
+                || plan.updateIntent == .paddingLayout else {
+            return false
+        }
 '''
-if "Reused buttons stay on the narrow path" not in text:
-    if old not in text:
-        already_has_explicit_button_guard = (
-            "GTK Button action closures capture the view state storage" in text
-            and "if plan.newDescriptor.kind == .button" in text
-            and "contain buttons must take the full rebuild path" in text
-        )
-        if not already_has_explicit_button_guard:
-            raise SystemExit("SwiftOpenUI descriptor mutation guard shape was not recognized")
+if "GTK Button action closures capture the view state storage" not in text or "Props-bearing leaves (TextField & co.)" not in text:
+    if current_without_leaf_props in text:
+        text = text.replace(current_without_leaf_props, new, 1)
+    elif old_with_extra_intents in text:
+        text = text.replace(old_with_extra_intents, new, 1)
+    elif legacy_old in text:
+        text = text.replace(legacy_old, new, 1)
     else:
-        text = text.replace(old, new, 1)
+        raise SystemExit("SwiftOpenUI descriptor mutation guard shape was not recognized")
 path.write_text(text)
 PY
 

@@ -550,7 +550,7 @@ if iceCubesLinuxGraphEnabled {
 
 #if os(Linux)
 let quillShimsDependencies: [Target.Dependency] = [
-    "QuillKit", "QuillData", "CoreGraphics", "os",
+    "QuillKit", "QuillData", "QuillSwiftUICompatibility", "CoreGraphics", "os",
     "QuillFoundation", "QuillWebKit", "QuillUIKit", "QuillRS",
     "AppKit", "UIKit", "Combine", "MessageUI", "SafariServices", "MobileCoreServices",
     "Zip", "Tidemark", "UniformTypeIdentifiers", "Network", "NetworkExtension",
@@ -2362,7 +2362,7 @@ targets.append(contentsOf: [
         // only — the qt graph keeps the shadow GTK-free (compile-only
         // representables there until the Qt mount exists).
         dependencies: [
-            "QuillUI", "QuillSwiftUICompatibility", "AppKit", "UIKit", "CoreImage", "CoreTransferable", "Combine",
+            "QuillSwiftUICompatibility", "AppKit", "UIKit", "CoreImage", "CoreTransferable", "Combine",
         ] + swiftUIShadowMountDependencies,
         path: "Sources/SwiftUIShim",
         // v5 + minimal concurrency matches the house settings (the GTK mount

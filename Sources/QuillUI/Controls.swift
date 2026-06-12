@@ -10,6 +10,7 @@ import QuillPaint
 import SwiftUI
 #else
 import SwiftOpenUI
+import QuillSwiftUICompatibility
 #endif
 
 public enum QuillSystemSymbol {
