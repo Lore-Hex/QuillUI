@@ -582,8 +582,12 @@ public struct GTK4Backend: RenderBackend {
             }
             setCurrentEnvironment(env)
 
-            let instance = A()
-            gtkRenderScene(instance.body, app: appPtr)
+            // App.init/App.body are @MainActor (Apple semantics); the GTK app
+            // activate callback runs on the GTK main loop == main thread.
+            MainActor.assumeIsolated {
+                let instance = A()
+                gtkRenderScene(instance.body, app: appPtr)
+            }
         }
 
         // Pump Foundation RunLoop sources (Timer, etc.) periodically.
@@ -735,8 +739,9 @@ private func gtkRenderScene<S: Scene>(_ scene: S, app: OpaquePointer?) {
         renderable.gtkRender(app: app)
         return
     }
-    // Composite scene — recurse through body
+    // Composite scene — recurse through body. Scene.body is @MainActor
+    // (Apple semantics); scene rendering only runs on the GTK main loop.
     if S.Body.self != Never.self {
-        gtkRenderScene(scene.body, app: app)
+        MainActor.assumeIsolated { gtkRenderScene(scene.body, app: app) }
     }
 }

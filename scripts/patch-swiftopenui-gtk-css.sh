@@ -4723,8 +4723,10 @@ plain_lifecycle = '''        let factory: (OpaquePointer?) -> Void = { appPtr in
             }
             setCurrentEnvironment(env)
 
-            let instance = A()
-            gtkRenderScene(instance.body, app: appPtr)
+            MainActor.assumeIsolated {
+                let instance = A()
+                gtkRenderScene(instance.body, app: appPtr)
+            }
         }
 
         // Pump Foundation RunLoop sources (Timer, etc.) periodically.
@@ -4968,11 +4970,16 @@ new = '''public struct AnyToolbarItem {
         self.wrapped = item.content
         if let multi = item.content as? MultiChildView {
             self.renderedViews = multi.children
-        } else if Content.Body.self != Never.self,
-                  let multi = item.content.body as? MultiChildView {
-            self.renderedViews = multi.children
         } else if Content.Body.self != Never.self {
-            self.renderedViews = [item.content.body]
+            // View.body is @MainActor (Apple semantics); toolbar erasure only
+            // happens during render on the GTK main loop == the main thread,
+            // so the assumption always holds (blessed boundary pattern).
+            let body = MainActor.assumeIsolated { item.content.body }
+            if let multi = body as? MultiChildView {
+                self.renderedViews = multi.children
+            } else {
+                self.renderedViews = [body]
+            }
         } else {
             self.renderedViews = [item.content]
         }
@@ -5045,7 +5052,9 @@ helper = '''private func gtkRenderToolbarWidgets<V: View>(from view: V) -> [Unsa
         }
     }
     if V.Body.self != Never.self {
-        return gtkRenderToolbarWidgets(from: view.body)
+        // View.body is @MainActor (Apple semantics); toolbar rendering only
+        // runs on the GTK main loop == the main thread.
+        return MainActor.assumeIsolated { gtkRenderToolbarWidgets(from: view.body) }
     }
     return [widgetFromOpaque(gtkRenderView(view))]
 }

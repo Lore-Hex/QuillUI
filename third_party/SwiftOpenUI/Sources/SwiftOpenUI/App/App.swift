@@ -2,17 +2,23 @@
 ///
 /// Platform backends provide the concrete app lifecycle (GTK application,
 /// Win32 message loop, etc.).
+/// @MainActor matches Apple's SwiftUI App protocol: `init()` and `body` are
+/// main-actor isolated; conforming app types infer the isolation, so e.g.
+/// constructing a @MainActor StateObject inside the app's init type-checks.
+@MainActor @preconcurrency
 public protocol App {
     associatedtype Body: Scene
-    @SceneBuilder var body: Body { get }
+    @MainActor @SceneBuilder var body: Body { get }
 
     init()
 }
 
 /// A part of an app's user interface with a lifecycle managed by the system.
+/// @MainActor like Apple's SwiftUI.Scene.
+@MainActor @preconcurrency
 public protocol Scene {
     associatedtype Body: Scene
-    @SceneBuilder var body: Body { get }
+    @MainActor @SceneBuilder var body: Body { get }
 }
 
 extension Never: Scene {}
@@ -73,7 +79,10 @@ public struct TupleScene<S0: Scene, S1: Scene>: Scene {
     public let scene0: S0
     public let scene1: S1
 
-    public init(_ s0: S0, _ s1: S1) {
+    // nonisolated: pure value storage; SceneBuilder's nonisolated statics
+    // construct it (the @MainActor Scene conformance would otherwise isolate
+    // the memberwise init).
+    nonisolated public init(_ s0: S0, _ s1: S1) {
         self.scene0 = s0
         self.scene1 = s1
     }

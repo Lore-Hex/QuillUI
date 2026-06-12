@@ -1,5 +1,5 @@
 /// A view that displays one or more lines of read-only text.
-public struct Text: View, PrimitiveView {
+public struct Text {
     public typealias Body = Never
 
     /// A styled span within a `Text` — text plus an optional color. Building a
@@ -45,3 +45,10 @@ public struct Text: View, PrimitiveView {
         runs.count > 1 || runs.contains { $0.color != nil }
     }
 }
+
+// View conformance lives in an extension (Apple declares it the same
+// way for primitive value views): protocol-isolation inference applies
+// only to conformances declared on the type itself, so statics like
+// Color.accentColor stay nonisolated and remain usable as default
+// argument values in nonisolated app code (IceCubes ToastCenter).
+extension Text: View, PrimitiveView {}

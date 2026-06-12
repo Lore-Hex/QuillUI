@@ -210,11 +210,18 @@ private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: Str
 
 /// Protocol that views implement (via extensions) to provide GTK widget creation.
 /// Backend code extends each SwiftOpenUI view type to conform.
+/// @MainActor: View is whole-protocol main-actor isolated (Apple shape), so
+/// conforming view types are isolated and their witnesses must match the
+/// requirement's isolation; widget creation always runs on the GTK main
+/// loop == main thread.
+@MainActor
 public protocol GTKRenderable {
     func gtkCreateWidget() -> OpaquePointer
 }
 
 /// Protocol for views that provide multiple GTK child widgets.
+/// @MainActor: same reasoning as GTKRenderable.
+@MainActor
 public protocol GTKMultiChildRenderable {
     func gtkRenderChildren() -> [OpaquePointer]
 }
@@ -326,9 +333,10 @@ private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {
 
 /// Render any SwiftOpenUI View into a GTK widget pointer.
 public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
-    // Primitive views with known GTK rendering
+    // Primitive views with known GTK rendering. gtkCreateWidget is @MainActor
+    // (GTKRenderable); the renderer runs on the GTK main loop == main thread.
     if let renderable = view as? GTKRenderable {
-        return renderable.gtkCreateWidget()
+        return MainActor.assumeIsolated { renderable.gtkCreateWidget() }
     }
 
     // MultiChildView (TupleView4-12, Group, ForEach, etc.) — render children
@@ -363,14 +371,16 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
         return gtkRenderStatefulView(view)
     }
 
-    // Stateless composite view — recurse through body
-    return gtkRenderView(view.body)
+    // Stateless composite view — recurse through body. View.body is
+    // @MainActor (Apple semantics); the GTK renderer runs on the GTK main
+    // loop == main thread, so the hop is sound.
+    return MainActor.assumeIsolated { gtkRenderView(view.body) }
 }
 
 /// Render children from a view.
 public func gtkRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
     if let multi = view as? GTKMultiChildRenderable {
-        return multi.gtkRenderChildren()
+        return MainActor.assumeIsolated { multi.gtkRenderChildren() }
     }
     if let multi = view as? MultiChildView {
         return multi.children.map { child in
@@ -8168,11 +8178,13 @@ extension StrokedShape: GTKRenderable {
 // MARK: - Stateful view rendering
 
 private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
+    // body reads hop onto the main actor (View.body is @MainActor; host
+    // rebuilds always run on the GTK main loop == main thread).
     let host = GTKViewHost(buildBody: {
-        gtkRenderView(view.body)
+        MainActor.assumeIsolated { gtkRenderView(view.body) }
     })
     host.describeBody = {
-        gtkDescribeView(view.body)
+        MainActor.assumeIsolated { gtkDescribeView(view.body) }
     }
 
     gtkRestoreAndInstallState(view, host: host)

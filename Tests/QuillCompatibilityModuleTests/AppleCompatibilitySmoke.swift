@@ -17,6 +17,9 @@ import os
 // images round-trip below depends on for PNG -> TIFF transcoding.
 import QuillUI
 
+// @MainActor: these helpers exercise the AppKit surface, which is
+// NSResponder-rooted main-actor isolated as of #512 (Apple semantics).
+@MainActor
 enum AppleCompatibilitySmoke {
     struct AppleServiceResult {
         var pasteboardString: String?
