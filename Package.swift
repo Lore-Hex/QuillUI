@@ -530,9 +530,11 @@ let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
 // QuillRSCoreShim's vendored Cache uses OSAllocatedUnfairLock via `import os`
 // (the os shadow target on Linux), same as Articles' AuthorCache.
 let quillRSCoreShimDependencies: [Target.Dependency] = ["os"]
+let swiftUIIntrospectTargetDependencies: [Target.Dependency] = ["SwiftUI"]
 #else
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
 let quillRSCoreShimDependencies: [Target.Dependency] = []
+let swiftUIIntrospectTargetDependencies: [Target.Dependency] = []
 #endif
 
 // QuillIceCubesCore consumes the real vendored Models when present (gtk-Linux);
@@ -1060,7 +1062,7 @@ var targets: [Target] = [
     ),
     .target(name: "LRUCache", dependencies: [], path: "Sources/LRUCache"),
     .target(name: "Bodega", dependencies: [], path: "Sources/Bodega"),
-    .target(name: "SwiftUIIntrospect", dependencies: ["SwiftUI"], path: "Sources/SwiftUIIntrospect"),
+    .target(name: "SwiftUIIntrospect", dependencies: swiftUIIntrospectTargetDependencies, path: "Sources/SwiftUIIntrospect"),
     .target(
         name: "QuillEnchantedShared",
         dependencies: ["QuillEnchantedData", "QuillFoundation"],

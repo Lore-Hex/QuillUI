@@ -4519,8 +4519,15 @@ new = '''    case .reuse:
 '''
 if "Reused buttons stay on the narrow path" not in text:
     if old not in text:
-        raise SystemExit("SwiftOpenUI descriptor mutation guard shape was not recognized")
-    text = text.replace(old, new, 1)
+        already_has_explicit_button_guard = (
+            "GTK Button action closures capture the view state storage" in text
+            and "if plan.newDescriptor.kind == .button" in text
+            and "contain buttons must take the full rebuild path" in text
+        )
+        if not already_has_explicit_button_guard:
+            raise SystemExit("SwiftOpenUI descriptor mutation guard shape was not recognized")
+    else:
+        text = text.replace(old, new, 1)
 path.write_text(text)
 PY
 
@@ -4928,12 +4935,16 @@ new_context = '''    let context: LazyGridContext
 '''
 if "context = LazyGridContext(views: expandedChildren" not in grid_text:
     grid_text = grid_text.replace(old_context, new_context, 1)
-grid_text = grid_text.replace(
-    "let cellMinWidth = configuration.adaptiveMinimum",
-    """let cellMinWidth = configuration.adaptiveMinimum > 0
+if "let cellMinWidth = configuration.adaptiveMinimum > 0" not in grid_text:
+    if "let cellMinWidth = configuration.adaptiveMinimum" not in grid_text:
+        raise SystemExit("SwiftOpenUI LazyGrid cellMinWidth shape was not recognized")
+    grid_text = grid_text.replace(
+        "let cellMinWidth = configuration.adaptiveMinimum",
+        """let cellMinWidth = configuration.adaptiveMinimum > 0
         ? configuration.adaptiveMinimum
         : (configuration.maxColumns > 1 ? 160 : 0)""",
-)
+        1,
+    )
 
 static_grid_helper = '''private func gtkCreateStaticLazyGridWidget(
     views: [any View],

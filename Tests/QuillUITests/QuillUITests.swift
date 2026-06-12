@@ -55,6 +55,7 @@ struct QuillUITests {
         _ = QuillAppWindow.self
     }
 
+    #if os(Linux)
     @Test("LocalizedStringKey interpolation keeps catalog keys and formatted arguments")
     func localizedStringKeyInterpolationKeepsCatalogShape() throws {
         let count = 872_850
@@ -65,6 +66,7 @@ struct QuillUITests {
         #expect(key.arguments == ["872850", "872.9K"])
         #expect(Text(count, format: .number.notation(.compactName)).content == "872.9K")
     }
+    #endif
 
     // MARK: - QuillPromptGridLayout
 
