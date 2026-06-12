@@ -24,13 +24,13 @@
 //      conformances). When an event backend lands, dispatch goes
 //      through `quillPerform`, exactly as CADisplayLink already does.
 //    - The `touchesBegan(_:with:)` family from UIGestureRecognizerSubclass
-//      is NOT declared yet: it needs UITouch / UIEvent, which the shims
-//      don't define. (SignalUI's PermissiveGestureRecognizer,
+//      IS declared (in the class body below, since `open` members can't be
+//      introduced in extensions): UITouch / UIEvent now live in
+//      UIEventsMenus.swift, so SignalUI's PermissiveGestureRecognizer,
 //      DirectionalPanGestureRecognizer, and
-//      ImageEditorPinchGestureRecognizer override those methods, so
-//      their files stay red until UITouch/UIEvent + the touches hooks
-//      arrive — they must be added to the class body here, since `open`
-//      members can't be introduced in extensions.)
+//      ImageEditorPinchGestureRecognizer overrides compile. The base
+//      implementations are no-ops; the future event backend feeds touches
+//      through them exactly as UIKit's window dispatch does.
 //
 //===----------------------------------------------------------------------===//
 
@@ -205,7 +205,7 @@ import QuillFoundation
     // UIGestureRecognizerSubclass category, with Apple's default returns.
     // Upstream subclasses override them (PermissiveGestureRecognizer
     // overrides all four). The touches* family that belongs alongside them
-    // is deliberately absent — see the file header.
+    // follows below the policy hooks.
 
     /// Whether this recognizer is allowed to prevent another from
     /// recognizing. Apple's default: true.
@@ -237,6 +237,37 @@ import QuillFoundation
     /// state returns to `.possible`. Subclasses override to clear
     /// per-gesture state; the base implementation does nothing.
     open func reset() {}
+
+    // MARK: Touch delivery hooks (UIGestureRecognizerSubclass surface)
+
+    // Subclasses (Signal's PermissiveGestureRecognizer and friends)
+    // override these to drive `state` directly from touch traffic. The
+    // base implementations do nothing — with no event backend, nothing
+    // calls them yet. Note the non-optional `UIEvent`: unlike UIResponder's
+    // touches methods, the Subclass-category hooks take a concrete event,
+    // matching Apple.
+
+    open func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        _ = (touches, event)
+    }
+
+    open func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        _ = (touches, event)
+    }
+
+    open func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        _ = (touches, event)
+    }
+
+    open func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        _ = (touches, event)
+    }
+
+    /// Tells the recognizer to disregard a specific touch for the rest of
+    /// the gesture. With no live touches there is nothing to disregard.
+    open func ignore(_ touch: UITouch, for event: UIEvent) {
+        _ = (touch, event)
+    }
 }
 
 // MARK: - UIGestureRecognizerDelegate
@@ -247,16 +278,19 @@ import QuillFoundation
 /// they care about (the UIScrollViewDelegate pattern used elsewhere in
 /// this module).
 ///
-/// The `gestureRecognizer(_:shouldReceive:)` members (UITouch / UIPress /
-/// UIEvent flavors) are omitted until those types exist in the shims.
-/// Upstream conformers that implement them still compile — an extra
-/// method on a conforming type is harmless — it just isn't part of the
-/// protocol contract yet.
+/// The UITouch / UIEvent `gestureRecognizer(_:shouldReceive:)` flavors are
+/// included now that those types exist (UIEventsMenus.swift); the UIPress
+/// flavor stays omitted until a UIPress type exists. Upstream conformers
+/// that implement the missing one still compile — an extra method on a
+/// conforming type is harmless — it just isn't part of the protocol
+/// contract yet.
 public protocol UIGestureRecognizerDelegate: AnyObject {
     @MainActor func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool
     @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool
     @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool
     @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer) -> Bool
+    @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool
+    @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive event: UIEvent) -> Bool
 }
 
 public extension UIGestureRecognizerDelegate {
@@ -264,6 +298,8 @@ public extension UIGestureRecognizerDelegate {
     @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { false }
     @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool { false }
     @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer) -> Bool { false }
+    @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool { true }
+    @MainActor func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive event: UIEvent) -> Bool { true }
 }
 
 // MARK: - Concrete recognizers
