@@ -463,9 +463,10 @@ public extension TextField {
         self.init(title, text: text)
     }
 
-    init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
-        self.init(title, text: text)
-    }
+    // init(_:text:onCommit:) lives in SwiftOpenUI (TextField.swift, beside
+    // the canonical two-argument init). A verbatim twin here made every
+    // `TextField(_, text:, onCommit:)` call ambiguous (generated Enchanted
+    // SettingsView) — the FocusState lesson again. One name, one owner.
 }
 
 public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
