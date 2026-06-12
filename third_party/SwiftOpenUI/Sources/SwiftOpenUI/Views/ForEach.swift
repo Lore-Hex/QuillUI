@@ -69,6 +69,19 @@ public extension ForEach {
 // MARK: - Custom key path
 
 public extension ForEach {
+    /// Generic-collection variant of the id: init (Set, Slice, etc.).
+    /// Lives in THIS module beside the Array overload — a cross-module copy
+    /// overlapped it for Array arguments and blew up expression inference
+    /// inside MenuBuilder contexts.
+    @_disfavoredOverload
+    public init<C: RandomAccessCollection>(
+        _ data: C,
+        id: KeyPath<C.Element, ID>,
+        @ViewBuilder content: @escaping (C.Element) -> Content
+    ) where Data == C.Element {
+        self.init(Array(data), id: id, content: content)
+    }
+
     public init(_ data: [Data], id: KeyPath<Data, ID>, @ViewBuilder content: @escaping (Data) -> Content) {
         self.data = data
         self.id = id

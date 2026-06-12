@@ -66,10 +66,12 @@ public struct MenuBuilder {
         [.submenu(label: submenu.label, children: submenu.children)]
     }
 
-    public static func buildExpression<V: View>(_ view: V) -> [MenuElement] {
-        _ = view
-        return []
-    }
+    // No generic view catch-all here: QuillUI extends MenuBuilder with a
+    // buildExpression<Content: View> that EXTRACTS real menu items from
+    // Button/ForEach trees (quillMenuElements). The discard-everything
+    // variant that used to live here both collided with it (ambiguous
+    // buildExpression for every view in a Menu) and silently produced
+    // empty menus wherever it won.
 
     public static func buildOptional(_ elements: [MenuElement]?) -> [MenuElement] {
         elements ?? []

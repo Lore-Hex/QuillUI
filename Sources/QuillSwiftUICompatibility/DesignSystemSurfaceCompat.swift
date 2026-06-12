@@ -1306,15 +1306,10 @@ public extension GridItem {
     }
 }
 
-public extension ForEach {
-    init<C: RandomAccessCollection>(
-        _ data: C,
-        id: KeyPath<C.Element, ID>,
-        @ViewBuilder content: @escaping (C.Element) -> Content
-    ) where Data == C.Element {
-        self.init(Array(data), id: id, content: content)
-    }
-}
+// ForEach's generic-collection init moved INTO SwiftOpenUI's ForEach.swift:
+// a cross-module overload overlapping the canonical Array-typed init made
+// `ForEach(_, id:)` explode the expression solver inside MenuBuilder
+// contexts ("failed to produce diagnostic", generated ModelSelectorView).
 
 public extension LazyVStack where Data == Int {
     init(
