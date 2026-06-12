@@ -35,6 +35,10 @@ public struct Binding<Value> {
         self.quillUIIdentity = quillUIIdentity
     }
 
+    public init(projectedValue: Binding<Value>) {
+        self = projectedValue
+    }
+
     public var wrappedValue: Value {
         get { get() }
         nonmutating set { set(newValue) }

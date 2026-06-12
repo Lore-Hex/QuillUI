@@ -1,3 +1,15 @@
+public struct EditActions: OptionSet {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let move = EditActions(rawValue: 1 << 0)
+    public static let delete = EditActions(rawValue: 1 << 1)
+    public static let all: EditActions = [.move, .delete]
+}
+
 /// A view that creates views from a collection of identified data.
 public struct ForEach<Data, ID: Hashable, Content: View>: View, TransparentMultiChildView {
     public typealias Body = Never
@@ -20,6 +32,31 @@ extension ForEach where Data: Identifiable, ID == Data.ID {
         self.data = data
         self.id = \.id
         self.content = content
+    }
+
+    public init<C>(
+        _ data: Binding<C>,
+        editActions: EditActions = [],
+        @ViewBuilder content: @escaping (Binding<C.Element>) -> Content
+    ) where C: MutableCollection & RangeReplaceableCollection,
+            C.Element == Data,
+            C.Index: Hashable {
+        _ = editActions
+
+        let snapshot = data.wrappedValue
+        var indicesByID: [ID: C.Index] = [:]
+        for index in snapshot.indices {
+            indicesByID[snapshot[index].id] = index
+        }
+
+        self.init(Array(snapshot), id: \.id) { element in
+            let index = indicesByID[element.id]!
+            let elementBinding = Binding<C.Element>(
+                get: { data.wrappedValue[index] },
+                set: { data.wrappedValue[index] = $0 }
+            )
+            return content(elementBinding)
+        }
     }
 }
 
