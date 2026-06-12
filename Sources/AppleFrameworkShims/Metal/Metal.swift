@@ -272,8 +272,16 @@ public final class QuillMTLRenderPipelineState: MTLRenderPipelineState {
     public init() {}
 }
 
-public protocol MTLComputePipelineState: AnyObject {}
+public protocol MTLComputePipelineState: AnyObject {
+    var threadExecutionWidth: Int { get }
+    var maxTotalThreadsPerThreadgroup: Int { get }
+}
 public final class QuillMTLComputePipelineState: MTLComputePipelineState {
+    // MODEL HONESTY: there are no GPU threads on Linux. 1 keeps upstream
+    // threadgroup arithmetic (SpoilerParticleView divides and ceil()s by
+    // these) finite and division-by-zero free.
+    public let threadExecutionWidth = 1
+    public let maxTotalThreadsPerThreadgroup = 1
     public init() {}
 }
 
@@ -488,7 +496,30 @@ public final class QuillMTLCommandQueue: MTLCommandQueue {
     }
 }
 
+// Apple shape: raw values from Metal/MTLDevice.h MTLGPUFamily.
+// SpoilerMetalConfiguration probes .common3/.apple3–8/.mac2/.metal3.
+public enum MTLGPUFamily: Int, Sendable {
+    case apple1 = 1001
+    case apple2 = 1002
+    case apple3 = 1003
+    case apple4 = 1004
+    case apple5 = 1005
+    case apple6 = 1006
+    case apple7 = 1007
+    case apple8 = 1008
+    case apple9 = 1009
+    case mac1 = 2001
+    case mac2 = 2002
+    case common1 = 3001
+    case common2 = 3002
+    case common3 = 3003
+    case macCatalyst1 = 4001
+    case macCatalyst2 = 4002
+    case metal3 = 5001
+}
+
 public protocol MTLDevice: AnyObject {
+    func supportsFamily(_ gpuFamily: MTLGPUFamily) -> Bool
     func makeTexture(descriptor: MTLTextureDescriptor) -> MTLTexture?
     func makeTexture(descriptor: MTLTextureDescriptor, iosurface: Any, plane: Int) -> MTLTexture?
     func makeBuffer(length: Int, options: MTLResourceOptions) -> MTLBuffer?
@@ -504,6 +535,14 @@ public protocol MTLDevice: AnyObject {
 
 public final class QuillMTLDevice: MTLDevice {
     public init() {}
+
+    public func supportsFamily(_ gpuFamily: MTLGPUFamily) -> Bool {
+        // MODEL HONESTY: no GPU exists on Linux; claiming membership in no
+        // family steers upstream (SpoilerMetalConfiguration) onto its
+        // conservative uniform-threadgroup / smallest-texture code paths.
+        _ = gpuFamily
+        return false
+    }
 
     public func makeTexture(descriptor: MTLTextureDescriptor) -> MTLTexture? {
         QuillMTLTexture(descriptor: descriptor)
