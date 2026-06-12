@@ -611,12 +611,7 @@ public struct ProgressViewStyle: Sendable {
     public static let linear = ProgressViewStyle()
 }
 
-public struct KeyEquivalent: Hashable, Sendable {
-    public let rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public static let leftArrow = KeyEquivalent("leftArrow")
-    public static let rightArrow = KeyEquivalent("rightArrow")
-}
+public typealias KeyEquivalent = SwiftOpenUI.KeyEquivalent
 
 public enum KeyPressResult: Sendable {
     case handled
@@ -692,11 +687,8 @@ public enum NavigationBarTitleDisplayMode: Sendable {
     case large
 }
 
-public enum ScrollContentBackgroundVisibility: Sendable {
-    case automatic
-    case visible
-    case hidden
-}
+// ScrollContentBackgroundVisibility lives in QuillUI — a second enum here
+// made `.hidden` member lookups ambiguous in scrollContentBackground calls.
 
 public enum ScrollBounceBehavior: Sendable {
     case automatic
@@ -945,23 +937,13 @@ public struct DynamicTypeSize: Hashable, Comparable, Sendable {
     }
 }
 
-public struct ButtonStyleConfiguration {
-    public let label: AnyView
-    public let isPressed: Bool
-
-    public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
-        self.label = label
-        self.isPressed = isPressed
-    }
-}
-
-public protocol ButtonStyle {
-    associatedtype Body: View
-    typealias Configuration = ButtonStyleConfiguration
-
-    @ViewBuilder
-    func makeBody(configuration: Configuration) -> Body
-}
+// `ButtonStyle` / `ButtonStyleConfiguration` intentionally live in QuillUI
+// (Sources/QuillUI/UpstreamCompatibility.swift), not here. QuillUI
+// `@_exported import`s this module, so a second declaration here makes
+// `ButtonStyle` (and its `Configuration` typealias) ambiguous for every
+// consumer that sees both modules — including the generated apps. This
+// module cannot typealias to QuillUI's copy (QuillUI depends on this
+// target), so the symbol is simply not declared here.
 
 public struct LayoutSubviews: RandomAccessCollection {
     public typealias Element = LayoutSubview
@@ -1191,6 +1173,15 @@ public extension Int {
 }
 
 public extension State {
+    /// Apple's `SwiftUI.State` has `init(initialValue:)`; SwiftOpenUI's `State`
+    /// only has `init(wrappedValue:)`, so the `SwiftUI` shim surface (which
+    /// re-exports this module but NOT QuillUI) needs this copy for files that
+    /// only `import SwiftUI`. QuillUI declares an identical extension
+    /// (Sources/QuillUI/UpstreamCompatibility.swift) and `@_exported`-imports
+    /// this module, making both visible to every QuillUI importer — disfavor
+    /// this copy so QuillUI's wins instead of being ambiguous (behavior is
+    /// identical either way).
+    @_disfavoredOverload
     init(initialValue: Value) {
         self.init(wrappedValue: initialValue)
     }
@@ -1225,10 +1216,8 @@ public extension Text {
         self.init(key)
     }
 
-    func font(_ font: Font) -> Text {
-        _ = font
-        return self
-    }
+    // Text.font lives in SwiftOpenUI (StyleModifiers.swift) — a twin here
+    // made `.font(.headline)` ambiguous in the generated Enchanted build.
 
     func fontWeight(_ weight: FontWeight) -> Text {
         _ = weight
@@ -1240,6 +1229,7 @@ public extension Text {
         return self
     }
 
+    @_disfavoredOverload
     func foregroundColor(_ color: Color) -> Text {
         _ = color
         return self
@@ -1253,6 +1243,7 @@ public extension Text {
         self
     }
 
+    @_disfavoredOverload
     static func + (lhs: Text, rhs: Text) -> Text {
         Text(styledRuns: lhs.runs + rhs.runs)
     }
@@ -1288,6 +1279,7 @@ public extension String.StringInterpolation {
 }
 
 public extension Image {
+    @_disfavoredOverload
     init(_ name: String) {
         self.init(resource: name)
     }
@@ -1398,6 +1390,7 @@ public extension Section {
 }
 
 public extension Menu {
+    @_disfavoredOverload
     init<Label: View>(
         @MenuBuilder content: () -> [MenuElement],
         @ViewBuilder label: () -> Label
@@ -1407,12 +1400,8 @@ public extension Menu {
     }
 }
 
-public extension TextField {
-    init(_ title: String, text: Binding<String>, axis: Axis) {
-        _ = axis
-        self.init(title, text: text)
-    }
-}
+// TextField's axis: init lives in QuillUI/Compatibility.swift — a twin here
+// made `init(_:text:axis:)` ambiguous in the generated Enchanted build.
 
 public extension SearchFieldPlacement {
     static var navigationBarDrawer: SearchFieldPlacement {
@@ -1505,10 +1494,9 @@ public extension PageTabViewStyle {
     }
 }
 
-public struct GroupedFormStyle: Sendable {
-    public init() {}
-    public static let grouped = GroupedFormStyle()
-}
+// GroupedFormStyle lives in QuillUI (UpstreamCompatibility.swift), whose
+// formStyle(_:) approximates grouping with padding+background; a twin type
+// here made `.formStyle(.grouped)` ambiguous in the generated build.
 
 public struct TextContentType: Hashable, Sendable {
     public var rawValue: String
@@ -1553,10 +1541,7 @@ public extension View {
         return self
     }
 
-    func formStyle(_ style: GroupedFormStyle) -> Self {
-        _ = style
-        return self
-    }
+    // formStyle(_: GroupedFormStyle) lives in QuillUI with its type.
 
     func textContentType(_ contentType: TextContentType?) -> Self {
         _ = contentType
@@ -1609,6 +1594,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func mask<Mask: View>(_ mask: Mask) -> Self {
         _ = mask
         return self
@@ -1859,10 +1845,11 @@ public extension View {
         self
     }
 
-    func buttonStyle<S: ButtonStyle>(_ style: S) -> Self {
-        _ = style
-        return self
-    }
+    // No generic `buttonStyle<S: ButtonStyle>` shim here: the ButtonStyle
+    // protocol lives in QuillUI (UpstreamCompatibility.swift), whose View
+    // extension already provides the custom-style fallback. Built-in styles
+    // like `.buttonStyle(.plain)` resolve to SwiftOpenUI's
+    // `buttonStyle(_: ButtonStyleType)`.
 
     func controlSize(_ size: ControlSize) -> Self {
         _ = size
@@ -1941,6 +1928,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func preferredColorScheme(_ colorScheme: ColorScheme?) -> Self {
         _ = colorScheme
         return self
@@ -2096,30 +2084,21 @@ public extension View {
         return self
     }
 
-    func padding(_ amount: Double) -> PaddedView<Self> {
-        padding(Int(amount))
-    }
-
-    func padding(_ edges: Edge.Set, _ amount: Double) -> PaddedView<Self> {
-        padding(edges, Int(amount))
-    }
-
-    func padding(_ edges: Edge.Set, _ amount: Int?) -> PaddedView<Self> {
-        padding(edges, amount ?? 0)
-    }
-
+    // Double/Int? padding adapters now live IN SwiftOpenUI's
+    // PaddingModifier.swift (same module as the canonical Int overloads):
+    // cross-module overload sets — even @_disfavoredOverload ones — made
+    // bare `.padding()` ambiguous inside generic/ViewBuilder contexts in
+    // the generated Enchanted build. Same-module ranking is reliable.
+    // The CGFloat? edge-set adapter stays HERE (CGFloat is QuillFoundation's
+    // type; SwiftOpenUI core must stay platform-independent) — safe because
+    // a two-argument overload never competes with bare `.padding()`.
+    @_disfavoredOverload
     func padding(_ edges: Edge.Set, _ amount: CGFloat?) -> PaddedView<Self> {
-        padding(edges, Int(amount ?? 0))
+        padding(edges, amount.map { Int($0) } ?? 8)
     }
 
-    func padding(_ insets: EdgeInsets) -> PaddedView<Self> {
-        padding(
-            top: Int(insets.top),
-            bottom: Int(insets.bottom),
-            leading: Int(insets.leading),
-            trailing: Int(insets.trailing)
-        )
-    }
+    // padding(_ insets: EdgeInsets) lives in QuillUI (verbatim twin here
+    // made every .padding(insets) call ambiguous).
 
     func frame(
         width: Int? = nil,
@@ -2157,15 +2136,6 @@ public extension View {
     ) -> OnChangeView<Self, V> {
         _ = initial
         return onChange(of: value, perform: action)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping (V, V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        _ = initial
-        return onChange(of: value, action)
     }
 
     func onTapGesture(count: Int = 1, perform action: @escaping (CGPoint) -> Void) -> TapGestureView<Self> {
@@ -2351,19 +2321,13 @@ public extension View {
         return self
     }
 
-    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
-        _ = visibility
-        return self
-    }
+    // scrollContentBackground lives in QuillUI.
 
-    func matchedGeometryEffect<ID: Hashable>(
-        id: ID,
-        in namespace: Namespace.ID
-    ) -> Self {
-        _ = id
-        _ = namespace
-        return self
-    }
+    // matchedGeometryEffect lives in QuillUI (UpstreamCompatibility.swift),
+    // which approximates it with value-driven animation and records the
+    // fallback. A same-signature no-op here became ambiguous with it once
+    // Namespace unified to this module's type. Every app graph imports
+    // QuillUI, so the richer version is always available.
 
     func matchedTransitionSource<ID: Hashable>(
         id: ID,
@@ -2423,10 +2387,7 @@ public extension View {
         return self
     }
 
-    func focusEffectDisabled(_ disabled: Bool = true) -> Self {
-        _ = disabled
-        return self
-    }
+    // focusEffectDisabled lives in QuillUI (metadata-preserving version).
 
     func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> Self {
         _ = key
@@ -2497,10 +2458,7 @@ public extension View {
         return self
     }
 
-    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
-        _ = edges
-        return self
-    }
+    // edgesIgnoringSafeArea lives in QuillUI (metadata-preserving version).
 
     func safeAreaBar<Content: View>(
         edge: Edge,

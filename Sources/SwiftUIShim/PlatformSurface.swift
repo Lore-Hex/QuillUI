@@ -114,6 +114,12 @@ public extension DropDelegate {
 }
 
 public extension View {
+    // Disfavored: QuillUI's keyboardType(_: KeyboardType) is the metadata-
+    // preserving owner, and both argument types expose `.URL`-style statics —
+    // without the disfavor, `.keyboardType(.URL)` is ambiguous (generated
+    // Enchanted SettingsView). Explicit UIKeyboardType arguments still land
+    // here as the only match.
+    @_disfavoredOverload
     func keyboardType(_ type: UIKeyboardType) -> Self {
         _ = type
         return self

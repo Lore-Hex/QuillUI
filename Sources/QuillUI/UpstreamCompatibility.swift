@@ -202,34 +202,15 @@ public enum QuillFileImporter {
     }
 }
 
-public struct Material: Sendable {
-    public init() {}
-    public static let ultraThinMaterial = Material()
-    public static let thinMaterial = Material()
-    public static let regularMaterial = Material()
-    public static let thickMaterial = Material()
-    public static let ultraThickMaterial = Material()
-}
-
-@propertyWrapper
-public struct Namespace: Sendable {
-    public struct ID: Hashable, Sendable {
-        private let rawValue = UUID()
-
-        public init() {}
-    }
-
-    private var id: ID
-
-    public init() {
-        self.id = ID()
-    }
-
-    public var wrappedValue: ID {
-        get { id }
-        set { id = newValue }
-    }
-}
+// `Material` and `Namespace` were previously declared here, but
+// QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift) now ships
+// richer versions (Material conforms to View and carries the rung-5
+// translucency tokens; Namespace matches Apple's shape) and this module
+// @_exported imports it. Having both visible made each name ambiguous for
+// type lookup in the generated Enchanted Linux build — the FocusState
+// lesson below, again. The compat module's versions are canonical going
+// forward; internal uses (fill(_: Material), matchedGeometryEffect's
+// Namespace.ID) resolve transparently through the re-export.
 
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
@@ -425,7 +406,9 @@ public func withAnimation(_ animation: Animation = .default, _ body: @MainActor 
 }
 
 public extension CommandGroupPlacement {
-    static var appSettings: CommandGroupPlacement { .newItem }
+    // appSettings: SwiftOpenUI's enum now has a real .appSettings case —
+    // the old remapped static here (-> .newItem) was both ambiguous with it
+    // and wrong-valued.
     static var appInfo: CommandGroupPlacement { .help }
 }
 
@@ -574,15 +557,9 @@ public struct GroupedFormStyle: Sendable {
     public init() {}
 }
 
-public struct TextContentType: Hashable, Sendable {
-    public var rawValue: String
-
-    public init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let URL = TextContentType("URL")
-}
+// TextContentType lives in QuillSwiftUICompatibility (superset: URL +
+// password statics); a twin here made `.textContentType(.URL)` ambiguous.
+// Resolves via the @_exported import, like Material/Namespace above.
 
 public struct KeyboardType: Hashable, Sendable {
     public var rawValue: String
@@ -1139,9 +1116,11 @@ public extension URL {
 }
 
 public extension Shape {
-    func fill(_ material: Material) -> FilledShape<Self> {
-        fill(Color.white.opacity(0.92))
-    }
+    // fill(_: Material) moved to QuillSwiftUICompatibility alongside the
+    // Material type itself — two identical-signature overloads across
+    // co-visible modules made `.fill(.regularMaterial)` ambiguous, which the
+    // expression solver reported as "ambiguous use of 'padding'" at the head
+    // of the chained expression (generated Enchanted ChatMessageView).
 
     func strokeBorder(style: StrokeStyle) -> StrokedShape<Self> {
         strokeBorder(.primary, style: style)
@@ -1483,13 +1462,7 @@ public extension View {
             .background(Color.gray5Custom)
     }
 
-    func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
-        recordQuillUIFallback(
-            "textContentType",
-            message: "textContentType is preserved as text-input metadata on Linux."
-        )
-        return TextContentTypeView(content: self, contentType: contentType)
-    }
+    // textContentType lives in QuillSwiftUICompatibility with its type.
 
     func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
         recordQuillUIFallback(
