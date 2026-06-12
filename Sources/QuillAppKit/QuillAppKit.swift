@@ -220,7 +220,9 @@ public extension NSColor {
     convenience init(name: NSColor.Name?, dynamicProvider: @escaping (NSAppearance) -> NSColor) {
         self.init()
     }
-    convenience init(white: CGFloat, alpha: CGFloat) { self.init(red: white, green: white, blue: white, alpha: alpha) }
+    // init(white:alpha:) lives on the RSColor class itself (QuillFoundation) —
+    // one owner; a second extension copy here made the pair ambiguous from
+    // modules that import both QuillAppKit and SignalServiceKitObjCPort.
     convenience init(deviceWhite: CGFloat, alpha: CGFloat) { self.init(white: deviceWhite, alpha: alpha) }
     convenience init(calibratedWhite: CGFloat, alpha: CGFloat) { self.init(white: calibratedWhite, alpha: alpha) }
     convenience init(srgbRed: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
