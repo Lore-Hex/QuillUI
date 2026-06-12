@@ -1093,7 +1093,8 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
             encoding: .utf8
         )
-        #expect(emptyFiles.contains("UI/Shared/Chat/Components/EmptyConversaitonView.swift"))
+        #expect(emptyFiles.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #expect(!emptyFiles.contains("UI/Shared/Chat/Components/EmptyConversaitonView.swift"))
         #expect(!FileManager.default.fileExists(
             atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/EmptyConversaitonView.swift").path
         ))
@@ -1105,8 +1106,9 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
             encoding: .utf8
         )
-        #expect(optionalEmptyFiles.contains("UI/Shared/Sidebar/SidebarView.swift"))
-        #expect(optionalEmptyFiles.contains("UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"))
+        #expect(optionalEmptyFiles.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #expect(!optionalEmptyFiles.contains("UI/Shared/Sidebar/SidebarView.swift"))
+        #expect(!optionalEmptyFiles.contains("UI/Shared/Sidebar/Components/ConversationHistoryListView.swift"))
         #expect(!FileManager.default.fileExists(
             atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Sidebar/SidebarView.swift").path
         ))
@@ -1157,15 +1159,18 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/generated-enchanted-full-source-check.sh"),
             encoding: .utf8
         )
-        #expect(fullSourceCheck.contains("import QuillUI"))
-        #expect(fullSourceCheck.contains("_ = QuillChatUnreachableBanner {"))
+        #expect(!fullSourceCheck.contains("import QuillUI"))
+        #expect(fullSourceCheck.contains("import QuillShims"))
+        #expect(!fullSourceCheck.contains("_ = QuillChatUnreachableBanner {"))
+        #expect(!fullSourceCheck.contains("QuillDesktopChatConversationSidebar("))
         #expect(fullSourceCheck.contains("Settings()\n        }"))
 
         let unreachableEmptyFiles = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
             encoding: .utf8
         )
-        #expect(unreachableEmptyFiles.contains("UI/Shared/Chat/Components/UnreachableAPIView.swift"))
+        #expect(unreachableEmptyFiles.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #expect(!unreachableEmptyFiles.contains("UI/Shared/Chat/Components/UnreachableAPIView.swift"))
         #expect(!FileManager.default.fileExists(
             atPath: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/Shared/Chat/Components/UnreachableAPIView.swift").path
         ))
@@ -1246,7 +1251,9 @@ struct QuillDataSourceLoweringTests {
         #if os(macOS) && canImport(AppKit)
                 Text("desktop")
         #elseif !os(macOS) && canImport(UIKit)
-                Text("touch")
+                TextField("URL", text: .constant(""))
+                    .keyboardType(.URL)
+                    .textContentType(.URL)
         #endif
             }
         }
@@ -1288,6 +1295,8 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("private var cachedTitle = \"\""))
         #expect(lowered.contains("static var sharedTitle = \"Shared\""))
         #expect(lowered.contains("struct DesktopRoot: View {"))
+        #expect(lowered.contains(".keyboardType(KeyboardType.URL)"))
+        #expect(lowered.contains(".textContentType(TextContentType.URL)"))
         #expect(!lowered.contains("@main"))
         #expect(!lowered.contains("@Observable"))
         #expect(!lowered.contains("@MainActor"))
@@ -2658,7 +2667,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
 
         let patchedDescriptorTree = try String(contentsOf: descriptorTree, encoding: .utf8)
-        #expect(patchedDescriptorTree.contains("Reused buttons stay on the narrow path"))
+        #expect(patchedDescriptorTree.contains("GTK Button action closures capture the view state storage"))
         #expect(patchedDescriptorTree.contains("if plan.newDescriptor.kind == .button"))
         // Props-bearing childless composites (TextField & co.) compare
         // meaningfully and stay narrow-eligible on reuse.

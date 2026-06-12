@@ -208,11 +208,6 @@ source_target_dependencies='                .product(name: "SwiftUI", package: "
                 .product(name: "CoreGraphics", package: "QuillUI"),
                 .product(name: "Alamofire", package: "QuillUI"),
                 .product(name: "os", package: "QuillUI"),
-                // QuillUI core surface — Quill-specific helper
-                // types referenced by the generated Enchanted source
-                // (QuillObservableObject typealias, QuillHotkeyService,
-                // QuillCheckForUpdatesMenuItem, etc.) live in the
-                // main `QuillUI` module.
                 .product(name: "QuillUI", package: "QuillUI"),
                 .product(name: "QuillKit", package: "QuillUI"),
                 .product(name: "QuillData", package: "QuillUI"),

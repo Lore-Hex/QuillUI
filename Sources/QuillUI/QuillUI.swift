@@ -8,8 +8,9 @@ import SwiftOpenUI
 
 public typealias QuillObservableObject = SwiftOpenUI.ObservableObject
 public typealias QuillPublished = SwiftOpenUI.Published
-// ButtonStyleConfiguration is defined locally in UpstreamCompatibility.swift
-// for Linux — SwiftOpenUI doesn't ship one.
+// SwiftUI-style marker protocols and property wrappers live in
+// QuillSwiftUICompatibility so files importing both SwiftUI and QuillUI see
+// one canonical definition.
 #endif
 
 import Foundation
