@@ -38,6 +38,9 @@ public struct WindowGroup<Content: View>: Scene {
     public let windowSizing: WindowSizing?
     public let windowResizeBehavior: WindowResizeBehavior?
     public let windowResizability: WindowResizability?
+    /// Hidden-title-bar request (SwiftUI's `.windowStyle(.hiddenTitleBar)`);
+    /// the GTK backend renders the window undecorated when set.
+    public let quillHidesTitleBar: Bool
 
     public init(_ title: String, @ViewBuilder content: () -> Content) {
         self.init(title: title, content: content())
@@ -54,7 +57,8 @@ public struct WindowGroup<Content: View>: Scene {
         maxWindowHeight: Double? = nil,
         windowSizing: WindowSizing? = nil,
         windowResizeBehavior: WindowResizeBehavior? = nil,
-        windowResizability: WindowResizability? = nil
+        windowResizability: WindowResizability? = nil,
+        quillHidesTitleBar: Bool = false
     ) {
         self.title = title
         self.content = content
@@ -67,6 +71,7 @@ public struct WindowGroup<Content: View>: Scene {
         self.windowSizing = windowSizing
         self.windowResizeBehavior = windowResizeBehavior
         self.windowResizability = windowResizability
+        self.quillHidesTitleBar = quillHidesTitleBar
     }
 
     public var body: Never { fatalError("WindowGroup is a primitive scene") }

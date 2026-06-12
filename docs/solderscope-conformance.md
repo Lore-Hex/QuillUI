@@ -80,3 +80,34 @@ PR #511 adversarial review panel + SolderScope API-coverage audit.
   Swift-fork clang, apt's clang-18 lacks -index-store-path). Park `.upstream/<app>`
   dirs first — `swift test` builds gated app targets too.
 - GTK screenshot smokes: existing headless-Xvfb harness (see GTK smoke targets).
+
+## Backend abstraction audit (2026-06-12)
+
+The Qt path is the discipline check: everything SolderScope added to shared
+surfaces must stay toolkit-agnostic. Audit result:
+
+- **Clean (zero GTK references)**: the SwiftUI chrome (SolderScopeChrome),
+  `App.main()` (dispatches through QuillApp's backend registry), the V4L2
+  capture stack, both rung-4 encoders (gdk-pixbuf is a standalone library,
+  not GTK; ffmpeg is a process boundary), `Color`'s scheme spine, and
+  `WindowGroup.quillHidesTitleBar` (a plain stored flag — each backend
+  decides how to honor it; GTK maps it to an undecorated window).
+- **Backend-local by design**: GTK_THEME selection lives in GTK4Backend;
+  the representable mount is `QUILLUI_SWIFTUI_GTK_MOUNT`-gated; a Qt mount
+  is the symmetric follow-up (NSViewRepresentable's non-GTK body traps with
+  a clear message until it exists).
+- **Known asymmetry, deliberate**: the `@MainActor` renderable-protocol
+  shape (GTKRenderable/GTKMultiChildRenderable/GTKDescribable) was applied
+  to the GTK backend only. SwiftOpenUI's Win32Renderable/WebRenderable need
+  the same treatment when whole-protocol View isolation reaches their
+  platforms — flagged here rather than edited blind (no Windows/Wasm
+  compile available in this environment). The `MainActor.assumeIsolated`
+  boundary pattern transfers as-is (Qt's and Win32's UI loops are also the
+  main thread).
+- **Qt parity surface**: `quill-solderscope` joins the qt graph via the
+  generic native runtime catalog (snapshot facade, same as the other
+  canonical apps). The REAL abstraction probe — compiling the unmodified
+  app against the generic SwiftUI->Qt backend (`QUILLUI_QT_GENERIC=1`) —
+  shares the GTK lane's zero-error surface by construction (all app-facing
+  API lives in toolkit-neutral modules); its remaining gap is the Qt
+  representable mount + BackendQt renderer coverage.

@@ -1,3 +1,5 @@
+import Foundation
+
 /// A color value for use with `.foregroundColor()`, `.background()`, `.border()`.
 ///
 /// Supports hex strings, RGB/RGBA components, fractional components,
@@ -100,8 +102,19 @@ public struct Color: Equatable, Sendable {
     public static let teal = Color(red: 0.188, green: 0.690, blue: 0.780)
     public static let indigo = Color(red: 0.345, green: 0.337, blue: 0.839)
 
-    public static let primary = Color.black
-    public static let secondary = Color.gray
+    /// Process-wide scheme for semantic colors. QuillOS sets
+    /// QUILLUI_COLOR_SCHEME=dark for apps whose macOS appearance is dark
+    /// (video/imaging tools like SolderScope); defaults to light, matching
+    /// the historical hardcoded values.
+    public static let quillPrefersDarkScheme: Bool =
+        ProcessInfo.processInfo.environment["QUILLUI_COLOR_SCHEME"]?.lowercased() == "dark"
+
+    public static var primary: Color {
+        quillPrefersDarkScheme ? Color(red: 1.0, green: 1.0, blue: 1.0) : .black
+    }
+    public static var secondary: Color {
+        quillPrefersDarkScheme ? Color(red: 0.682, green: 0.682, blue: 0.698) : .gray
+    }
 
     // MARK: - Helpers
 
