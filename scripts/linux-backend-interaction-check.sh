@@ -786,7 +786,7 @@ hover_quill_chat_message_actions() {
   select_quill_chat_markdown_transcript
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     hover_x="${QUILLUI_BACKEND_MESSAGE_HOVER_X:-1900}"
-    hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-124}"
+    hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-230}"
   else
     hover_x="${QUILLUI_BACKEND_MESSAGE_HOVER_X:-$((window_x + (window_width * 88 / 100)))}"
     hover_y="${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-$((window_y + (window_height * 14 / 100)))}"
@@ -998,12 +998,14 @@ fi
 if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
     case "$INTERACTION_MODE" in
       composer-typed)
-        # Target the left text-entry portion of the mac-reference composer.
-        # The trailing center controls are clickable too, but they are not the
-        # editable TextField; keep this aligned with the typed-composer verifier,
-        # which looks for typed pixels near the composer's left inset.
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 76))}"
+        # Target the composer field CENTER. Measured from the mac-reference render
+        # (PR #237): the composer spans x 647..1984 (center ~0.64*W) with its field
+        # row around the lower composer band. The old x=0.34*W (~695) landed at
+        # the field's far-left padding; 0.56*W matches the reimpl's proven
+        # composer click, and -96 stays inside the field after the GTK
+        # decorative-overlay renderer stopped making the composer vertically greedy.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 96))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
@@ -1015,8 +1017,8 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # unreachable for deterministic screenshots, so this verifies the typed
         # message leaves the empty state and renders as a trailing user message;
         # the live Ollama/persistence proof remains a separate functional smoke.
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 76))}"
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 96))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"

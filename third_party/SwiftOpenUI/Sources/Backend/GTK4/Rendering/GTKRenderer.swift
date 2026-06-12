@@ -5774,17 +5774,18 @@ extension OverlayView: GTKRenderable {
         // isn't asking to expand. This matches SwiftUI's "overlay fills when
         // its content fills" semantics; explicit alignment still governs
         // non-filling overlays like Text or Image.
+        let overlayIsDecorative = overlay is GTKDecorativeOverlay
         let overlayWantsHExpand = gtk_widget_get_hexpand(overlayWidget) != 0
         let overlayWantsVExpand = gtk_widget_get_vexpand(overlayWidget) != 0
         if overlayWantsHExpand {
             gtk_widget_set_hexpand(container, 1)
         }
-        if overlayWantsVExpand {
+        if overlayWantsVExpand && !overlayIsDecorative {
             gtk_widget_set_vexpand(container, 1)
         }
         gtk_widget_set_halign(overlayWidget, overlayWantsHExpand ? GTK_ALIGN_FILL : hAlign)
         gtk_widget_set_valign(overlayWidget, overlayWantsVExpand ? GTK_ALIGN_FILL : vAlign)
-        if overlay is GTKDecorativeOverlay {
+        if overlayIsDecorative {
             gtk_widget_set_can_target(overlayWidget, 0)
         }
         gtk_overlay_add_overlay(OpaquePointer(container), overlayWidget)

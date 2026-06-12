@@ -2428,24 +2428,29 @@ def validate_quill_chat_mac_reference_message_hover_actions(image: Screenshot) -
     detail_left = divider_x + 1
     detail_width = right - detail_left + 1
 
+    action_x0 = detail_left + int(detail_width * 0.88)
+    action_x1 = right - int(detail_width * 0.01)
+    action_y0 = top + int(app_height * 0.18)
+    action_y1 = top + int(app_height * 0.30)
     action_pixels = dark_pixel_count(
         image,
-        detail_left + int(detail_width * 0.78),
-        top + int(app_height * 0.11),
-        right - int(detail_width * 0.02),
-        top + int(app_height * 0.16),
+        action_x0,
+        action_y0,
+        action_x1,
+        action_y1,
     )
     require(
         action_pixels >= 35,
         "Mac-reference message hover action icons were not detected. "
         "The original Enchanted row should reveal copy/speak/edit controls on hover: "
-        f"pixels={action_pixels}",
+        f"pixels={action_pixels}, box=({action_x0},{action_y0})-({action_x1},{action_y1})",
     )
 
     return (
         history_summary
         + "\nQuill Chat Mac-reference message hover actions: "
-        f"action_pixels={action_pixels}"
+        f"action_pixels={action_pixels}, "
+        f"action_box=({action_x0},{action_y0})-({action_x1},{action_y1})"
     )
 
 
