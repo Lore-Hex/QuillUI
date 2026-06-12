@@ -1276,30 +1276,36 @@ public extension Text {
         self.init(key)
     }
 
+    @_disfavoredOverload
     func font(_ font: Font) -> Text {
         _ = font
         return self
     }
 
+    @_disfavoredOverload
     func fontWeight(_ weight: FontWeight) -> Text {
         _ = weight
         return self
     }
 
+    @_disfavoredOverload
     func foregroundStyle(_ color: Color) -> Text {
         _ = color
         return self
     }
 
+    @_disfavoredOverload
     func foregroundColor(_ color: Color) -> Text {
         _ = color
         return self
     }
 
+    @_disfavoredOverload
     func bold() -> Text {
         self
     }
 
+    @_disfavoredOverload
     func italic() -> Text {
         self
     }
@@ -1339,6 +1345,7 @@ public extension String.StringInterpolation {
 }
 
 public extension Image {
+    @_disfavoredOverload
     init(_ name: String) {
         self.init(resource: name)
     }
@@ -1700,31 +1707,7 @@ public extension View {
         return self
     }
 
-    func formStyle(_ style: GroupedFormStyle) -> Self {
-        _ = style
-        return self
-    }
-
-    func textContentType(_ contentType: TextContentType?) -> Self {
-        _ = contentType
-        return self
-    }
-
-    func disableAutocorrection(_ disabled: Bool?) -> Self {
-        _ = disabled
-        return self
-    }
-
-    func keyboardType(_ keyboardType: KeyboardType) -> Self {
-        _ = keyboardType
-        return self
-    }
-
-    func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> Self {
-        _ = autocapitalization
-        return self
-    }
-
+    @_disfavoredOverload
     func textInputAutocapitalization(_ autocapitalization: TextInputAutocapitalization?) -> Self {
         _ = autocapitalization
         return self
@@ -1771,11 +1754,7 @@ public extension View {
         return self
     }
 
-    func mask<Mask: View>(_ mask: Mask) -> Self {
-        _ = mask
-        return self
-    }
-
+    @_disfavoredOverload
     func mask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> Self {
         _ = mask()
         return self
@@ -2051,17 +2030,6 @@ public extension View {
         return self
     }
 
-    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> Self {
-        _ = visibility
-        return self
-    }
-
-    func scrollIndicators(_ visibility: ScrollIndicatorVisibility, axes: Axis.Set) -> Self {
-        _ = visibility
-        _ = axes
-        return self
-    }
-
     func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = .all) -> Self {
         _ = behavior
         _ = axes
@@ -2073,6 +2041,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
         return self
@@ -2529,20 +2498,6 @@ public extension View {
         return self
     }
 
-    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
-        _ = visibility
-        return self
-    }
-
-    func matchedGeometryEffect<ID: Hashable>(
-        id: ID,
-        in namespace: Namespace.ID
-    ) -> Self {
-        _ = id
-        _ = namespace
-        return self
-    }
-
     func matchedTransitionSource<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -2598,11 +2553,6 @@ public extension View {
 
     func focusable(_ isFocusable: Bool = true) -> Self {
         _ = isFocusable
-        return self
-    }
-
-    func focusEffectDisabled(_ disabled: Bool = true) -> Self {
-        _ = disabled
         return self
     }
 
@@ -2672,16 +2622,6 @@ public extension View {
 
     func contentTransition(_ transition: ContentTransition) -> Self {
         _ = transition
-        return self
-    }
-
-    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
-        _ = edges
-        return self
-    }
-
-    func gesture<Gesture>(_ gesture: Gesture) -> Self {
-        _ = gesture
         return self
     }
 

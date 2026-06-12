@@ -4485,62 +4485,19 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
-legacy_old = '''    case .reuse:
-        if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            return false
-        }
-        return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
-    case .update:
-        guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill else {
-            return false
-        }
-'''
-old_with_extra_intents = '''    case .reuse:
-        if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            return false
-        }
-        return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
-    case .update:
-        guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
-                || plan.updateIntent == .canvasContent
-                || plan.updateIntent == .sliderValue
-                || plan.updateIntent == .paddingLayout else {
-            return false
-        }
-'''
-current_without_leaf_props = '''    case .reuse:
-        if plan.newDescriptor.kind == .button {
-            // GTK Button action closures capture the view state storage from
-            // the render pass that created the widget. Until the retained
-            // descriptor path can refresh those closures in-place, hosts that
-            // contain buttons must take the full rebuild path so actions mutate
-            // the current @State storage.
-            return false
-        }
-        if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            return false
-        }
-        return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
-    case .update:
-        if plan.newDescriptor.kind == .button {
-            return false
-        }
-        guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
-                || plan.updateIntent == .canvasContent
-                || plan.updateIntent == .sliderValue
-                || plan.updateIntent == .paddingLayout else {
-            return false
-        }
-'''
-new = '''    case .reuse:
-        if plan.newDescriptor.kind == .button {
-            // GTK Button action closures capture the view state storage from
-            // the render pass that created the widget. Until the retained
-            // descriptor path can refresh those closures in-place, hosts that
-            // contain buttons must take the full rebuild path so actions mutate
-            // the current @State storage.
-            return false
-        }
+
+new_function = '''public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
+    switch plan.kind {
+    case .create, .replace:
+        return false
+    case .reuse:
+        // Reused buttons stay on the narrow path: host state identity is
+        // stable across rebuilds (structural-path namespaces), so the action
+        // closure captured at widget creation writes to the same @State
+        // storage the current pass reads. Without this, any host containing a
+        // button tears down on every keystroke and the focused entry is
+        // destroyed mid-typing. A button whose own props changed plans as
+        // .update (intent .none) and still takes the full rebuild.
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
             // Props-bearing leaves (TextField & co.) compare meaningfully:
             // identical descriptors mean nothing changed, and the native
@@ -4561,16 +4518,32 @@ new = '''    case .reuse:
                 || plan.updateIntent == .paddingLayout else {
             return false
         }
+        return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
+    }
+}
 '''
-if "GTK Button action closures capture the view state storage" not in text or "Props-bearing leaves (TextField & co.)" not in text:
-    if current_without_leaf_props in text:
-        text = text.replace(current_without_leaf_props, new, 1)
-    elif old_with_extra_intents in text:
-        text = text.replace(old_with_extra_intents, new, 1)
-    elif legacy_old in text:
-        text = text.replace(legacy_old, new, 1)
-    else:
+if "Reused buttons stay on the narrow path" not in text:
+    signature = "public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool"
+    start = text.find(signature)
+    if start == -1:
         raise SystemExit("SwiftOpenUI descriptor mutation guard shape was not recognized")
+    body_start = text.find("{", start)
+    if body_start == -1:
+        raise SystemExit("SwiftOpenUI descriptor mutation guard body was not recognized")
+    depth = 0
+    end = None
+    for index in range(body_start, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                end = index + 1
+                break
+    if end is None:
+        raise SystemExit("SwiftOpenUI descriptor mutation guard end was not recognized")
+    text = text[:start] + new_function + text[end:]
 path.write_text(text)
 PY
 
@@ -4978,16 +4951,15 @@ new_context = '''    let context: LazyGridContext
 '''
 if "context = LazyGridContext(views: expandedChildren" not in grid_text:
     grid_text = grid_text.replace(old_context, new_context, 1)
-if "let cellMinWidth = configuration.adaptiveMinimum > 0" not in grid_text:
-    if "let cellMinWidth = configuration.adaptiveMinimum" not in grid_text:
-        raise SystemExit("SwiftOpenUI LazyGrid cellMinWidth shape was not recognized")
-    grid_text = grid_text.replace(
-        "let cellMinWidth = configuration.adaptiveMinimum",
-        """let cellMinWidth = configuration.adaptiveMinimum > 0
+old_cell_min_width = "    let cellMinWidth = configuration.adaptiveMinimum\n"
+new_cell_min_width = """    let cellMinWidth = configuration.adaptiveMinimum > 0
         ? configuration.adaptiveMinimum
-        : (configuration.maxColumns > 1 ? 160 : 0)""",
-        1,
-    )
+        : (configuration.maxColumns > 1 ? 160 : 0)
+"""
+if "let cellMinWidth = configuration.adaptiveMinimum > 0" not in grid_text:
+    if old_cell_min_width not in grid_text:
+        raise SystemExit("SwiftOpenUI LazyGrid cell width shape was not recognized")
+    grid_text = grid_text.replace(old_cell_min_width, new_cell_min_width, 1)
 
 static_grid_helper = '''private func gtkCreateStaticLazyGridWidget(
     views: [any View],

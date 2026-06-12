@@ -468,13 +468,6 @@ public extension Image {
     }
 }
 
-public extension Binding {
-    func animation(_ animation: Animation? = nil) -> Binding<Value> {
-        recordCompatibilityFallback("Binding.animation")
-        return self
-    }
-}
-
 // `OpenURLAction` moved to QuillSwiftUICompatibility/OpenURLActionCompat.swift
 // (so the SwiftUI shim can surface it — with its nested `Result` — to vendored
 // real source). QuillUI still sees it via its `@_exported import
@@ -536,11 +529,6 @@ public extension View {
         } else {
             self
         }
-    }
-
-    func listStyle(_ style: PlainListStyle) -> Self {
-        recordCompatibilityFallback("listStyle(PlainListStyle)")
-        return self
     }
 
     @ViewBuilder

@@ -467,6 +467,7 @@ let quillUIDependencies: [Target.Dependency] = [
     // bridge types. macOS uses Apple's real frameworks instead.
     "QuillFoundation",
     "QuillSwiftUICompatibility",
+    "UIKit",
     "UniformTypeIdentifiers",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
     "CGdkPixbuf",
@@ -2505,7 +2506,13 @@ targets.append(contentsOf: [
     .target(name: "Splash", dependencies: ["SwiftUI"], path: "Sources/Splash"),
     .target(name: "ActivityIndicatorView", dependencies: ["SwiftUI"], path: "Sources/ActivityIndicatorView"),
     .target(name: "ButtonKit", dependencies: ["SwiftUI"], path: "Sources/ButtonKit"),
-    .target(name: "WrappingHStack", dependencies: wrappingHStackDependencies, path: "Sources/WrappingHStack"),
+    .target(
+        name: "WrappingHStack",
+        dependencies: wrappingHStackDependencies,
+        path: "Sources/WrappingHStack",
+        swiftSettings: quillUIGTKSwiftImporterSettings,
+        linkerSettings: quillUIGTKLinkerSettings
+    ),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),
     .target(name: "PhotosUI", dependencies: ["SwiftUI", "Photos"], path: "Sources/PhotosUI"),

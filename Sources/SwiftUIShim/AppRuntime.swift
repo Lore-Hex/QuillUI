@@ -6,7 +6,7 @@ import SwiftOpenUI
 #if canImport(BackendQt)
 import BackendQt
 #elseif canImport(BackendGTK4)
-import BackendGTK4
+@_implementationOnly import BackendGTK4
 #endif
 
 #if os(Linux)

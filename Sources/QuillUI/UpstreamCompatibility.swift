@@ -6,6 +6,8 @@ import SwiftOpenUI
 import QuillSwiftUICompatibility
 import QuillKit
 import QuillFoundation
+import class UIKit.NSItemProvider
+import enum UIKit.UIKeyboardType
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -37,55 +39,6 @@ public extension UTType {
     }
 }
 #endif
-
-public final class NSItemProvider: @unchecked Sendable {
-    private enum Representation {
-        case data(Data, UTType)
-        case file(URL, UTType?)
-    }
-
-    private let representations: [Representation]
-
-    public init() {
-        self.representations = []
-    }
-
-    public init(fileURL: URL) {
-        self.representations = [.file(fileURL, UTType.type(for: fileURL))]
-    }
-
-    public convenience init(contentsOf url: URL) {
-        self.init(fileURL: url)
-    }
-
-    public init(data: Data, type: UTType) {
-        self.representations = [.data(data, type)]
-    }
-
-    public func loadDataRepresentation(
-        for contentType: UTType,
-        completionHandler: @escaping (Data?, Error?) -> Void
-    ) -> Progress? {
-        for representation in representations {
-            switch representation {
-            case .data(let data, let type) where type.conforms(to: contentType):
-                completionHandler(data, nil)
-                return nil
-            case .file(let url, let type) where type?.conforms(to: contentType) == true || contentType.accepts(url: url):
-                do {
-                    completionHandler(try Data(contentsOf: url), nil)
-                } catch {
-                    completionHandler(nil, error)
-                }
-                return nil
-            default:
-                continue
-            }
-        }
-        completionHandler(nil, QuillCompatibilityError.representationUnavailable(contentType.identifier))
-        return nil
-    }
-}
 
 public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
     case representationUnavailable(String)
@@ -930,6 +883,14 @@ public extension View {
         return ContentShapeView(content: self, shape: shape)
     }
 
+    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
+        recordQuillUIFallback(
+            "allowsHitTesting",
+            message: "allowsHitTesting is preserved as interaction metadata on Linux."
+        )
+        return AllowsHitTestingView(content: self, enabled: enabled)
+    }
+
     func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
         recordQuillUIFallback(
             "onHover",
@@ -1168,6 +1129,7 @@ public extension View {
         return ViewMaskView(content: self, mask: mask)
     }
 
+    @_disfavoredOverload
     func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
         recordQuillUIFallback(
             "mask",
@@ -1289,21 +1251,6 @@ public extension View {
         _ action: @escaping () -> Void
     ) -> OnChangeTwoArgView<Self, V> {
         onChange(of: value) { _, _ in action() }
-    }
-
-    func confirmationDialog<Actions: View, Message: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        @ViewBuilder actions: () -> Actions,
-        @ViewBuilder message: () -> Message
-    ) -> ConfirmationDialogView<Self> {
-        confirmationDialog(
-            title,
-            isPresented: isPresented,
-            titleVisibility: .automatic,
-            actions: quillConfirmationDialogButtons(from: actions()),
-            message: quillTextLabel(from: message())
-        )
     }
 
 }

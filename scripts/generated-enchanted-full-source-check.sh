@@ -76,7 +76,6 @@ cp -R "$UPSTREAM_DIR"/. "$SOURCE_COPY"/
 if [[ "$MODE" != "app" ]]; then
   cat > "$LOWERED_COPY/GeneratedMain.swift" <<'SWIFT'
 import Foundation
-import QuillUI
 import QuillShims
 import SwiftData
 import SwiftUI
@@ -125,23 +124,6 @@ struct GeneratedEnchantedFullSourceCheck {
             ollamaLangugeModels: [model],
             voices: []
         )
-        _ = QuillDesktopChatConversationSidebar(
-            conversations: [conversation],
-            selectedID: conversation.id.uuidString,
-            id: { $0.id.uuidString },
-            title: { $0.name },
-            updatedAt: { $0.updatedAt },
-            dateTitle: { $0.daysAgoString() },
-            onSelect: { _ in },
-            onDelete: { _ in },
-            onDeleteDay: { _ in }
-        ) {
-            Settings()
-        } completions: {
-            CompletionsEditor()
-        } shortcuts: {
-            KeyboardShortcutsDemo()
-        }
         _ = KeyboardShortcutsDemo()
         _ = ChatView(
             selectedConversation: conversation,
@@ -180,9 +162,6 @@ struct GeneratedEnchantedFullSourceCheck {
         )
         _ = RecordingView(isRecording: .constant(false))
         _ = DragAndDrop(cornerRadius: 10)
-        _ = QuillChatUnreachableBanner {
-            Settings()
-        }
         _ = RemovableImage(image: image, onClick: {})
         _ = PromptPanelView(onSubmit: { _, _ in }, onLayoutUpdate: {}, imageSupport: true)
         _ = CompletionsEditor()

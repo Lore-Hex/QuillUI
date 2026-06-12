@@ -208,10 +208,6 @@ source_target_dependencies='                .product(name: "SwiftUI", package: "
                 .product(name: "CoreGraphics", package: "QuillUI"),
                 .product(name: "Alamofire", package: "QuillUI"),
                 .product(name: "os", package: "QuillUI"),
-                // QuillUI core surface — Quill-specific helper
-                // types referenced by generated profile templates live in
-                // the main `QuillUI` module. Plain upstream files should get
-                // generic SwiftUI/AppKit/UIKit compatibility from QuillShims.
                 .product(name: "QuillUI", package: "QuillUI"),
                 .product(name: "QuillKit", package: "QuillUI"),
                 .product(name: "QuillData", package: "QuillUI"),

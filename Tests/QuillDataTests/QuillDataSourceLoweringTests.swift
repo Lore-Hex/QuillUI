@@ -1159,9 +1159,10 @@ struct QuillDataSourceLoweringTests {
             contentsOf: root.appendingPathComponent("scripts/generated-enchanted-full-source-check.sh"),
             encoding: .utf8
         )
-        #expect(fullSourceCheck.contains("import QuillUI"))
+        #expect(!fullSourceCheck.contains("import QuillUI"))
         #expect(fullSourceCheck.contains("import QuillShims"))
-        #expect(fullSourceCheck.contains("_ = QuillChatUnreachableBanner {"))
+        #expect(!fullSourceCheck.contains("_ = QuillChatUnreachableBanner {"))
+        #expect(!fullSourceCheck.contains("QuillDesktopChatConversationSidebar("))
         #expect(fullSourceCheck.contains("Settings()\n        }"))
 
         let unreachableEmptyFiles = try String(
