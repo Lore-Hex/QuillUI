@@ -721,7 +721,34 @@ public final class UITextPasteItem {
     }
 }
 
-@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
+/// Navigation transition notifications + customization hooks. All members
+/// are optional on Apple (an @objc protocol); required-with-defaults here
+/// (the shim convention — conformer implementations win through the witness
+/// table). Nothing fires them: QuillUIKit's UINavigationController push/pop
+/// are model-level no-ops, so upstream forwarding (OWSNavigationController →
+/// its external delegate) compiles and the calls land in these defaults.
+/// The orientation defaults mirror Apple's unimplemented-method fallbacks
+/// (`.allButUpsideDown` / `.portrait`); the animation hooks default to nil
+/// ("use the standard transition"). UINavigationController.Operation lives in
+/// QuillUIKit/UINavigationExtras.swift; the transitioning protocols in
+/// QuillUIKit/UIViewControllerSurface.swift.
+@MainActor public protocol UINavigationControllerDelegate: AnyObject {
+    func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool)
+    func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool)
+    func navigationControllerSupportedInterfaceOrientations(_ navigationController: UINavigationController) -> UIInterfaceOrientationMask
+    func navigationControllerPreferredInterfaceOrientationForPresentation(_ navigationController: UINavigationController) -> UIInterfaceOrientation
+    func navigationController(_ navigationController: UINavigationController, animationControllerFor operation: UINavigationController.Operation, from fromVC: UIViewController, to toVC: UIViewController) -> (any UIViewControllerAnimatedTransitioning)?
+    func navigationController(_ navigationController: UINavigationController, interactionControllerFor animationController: any UIViewControllerAnimatedTransitioning) -> (any UIViewControllerInteractiveTransitioning)?
+}
+
+extension UINavigationControllerDelegate {
+    public func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool) {}
+    public func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {}
+    public func navigationControllerSupportedInterfaceOrientations(_ navigationController: UINavigationController) -> UIInterfaceOrientationMask { .allButUpsideDown }
+    public func navigationControllerPreferredInterfaceOrientationForPresentation(_ navigationController: UINavigationController) -> UIInterfaceOrientation { .portrait }
+    public func navigationController(_ navigationController: UINavigationController, animationControllerFor operation: UINavigationController.Operation, from fromVC: UIViewController, to toVC: UIViewController) -> (any UIViewControllerAnimatedTransitioning)? { nil }
+    public func navigationController(_ navigationController: UINavigationController, interactionControllerFor animationController: any UIViewControllerAnimatedTransitioning) -> (any UIViewControllerInteractiveTransitioning)? { nil }
+}
 
 @MainActor public protocol UIImagePickerControllerDelegate: AnyObject {
     func imagePickerController(
