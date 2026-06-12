@@ -23,6 +23,8 @@ import SwiftSyntaxBuilder
 ///   * `os(macOS)` widening to `(os(macOS) || os(Linux))` inside `#if`
 ///     condition expression trees, with carve-outs for negated forms (`!os(macOS)`)
 ///     and already-widened forms (`os(macOS) || os(Linux)`)
+///   * `Color.label` semantic-color references lowered to `Color("label")`
+///     so generated source avoids app-specific `Color.label` collisions
 ///
 /// Out of scope for this implementation (still handled by the shell script):
 ///   * `#Preview` blocks wrapped in `#if … #endif` whose `#endif` is the
@@ -201,6 +203,26 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         replacement.leadingTrivia = node.leadingTrivia
         replacement.trailingTrivia = node.trailingTrivia
         return replacement
+    }
+
+    /// Lower explicit SwiftUI semantic color references without adding a
+    /// global `Color.label` shim. Several real apps define their own
+    /// `Color.label` inside design-system namespaces, and a global extension
+    /// collides with those members in Linux compatibility builds.
+    override func visit(_ node: MemberAccessExprSyntax) -> ExprSyntax {
+        let recursed = super.visit(node)
+        guard let access = recursed.as(MemberAccessExprSyntax.self),
+              access.base?.trimmedDescription == "Color",
+              access.declName.baseName.text == "label" else {
+            return recursed
+        }
+
+        let replacement: ExprSyntax = "Color(\"label\")"
+        return ExprSyntax(
+            replacement
+                .with(\.leadingTrivia, access.leadingTrivia)
+                .with(\.trailingTrivia, access.trailingTrivia)
+        )
     }
 
     /// Widen `os(macOS)` to `(os(macOS) || os(Linux))` inside `#if` condition

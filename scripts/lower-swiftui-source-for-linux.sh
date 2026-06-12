@@ -44,6 +44,7 @@ find "$SOURCE_DIR" -name '*.swift' -print0 |
     s/^[ \t]*\@MainActor[ \t]*\n//gm;
     s/^([ \t]*)\@MainActor[ \t]+/$1/gm;
     s/: View, Sendable/: View/g;
+    s/(?<!\.)\bColor\.label\b/Color("label")/g;
     s/\.keyboardType\([ \t]*\.URL[ \t]*\)/.keyboardType(KeyboardType.URL)/g;
     s/\.textContentType\([ \t]*\.URL[ \t]*\)/.textContentType(TextContentType.URL)/g;
   '

@@ -332,6 +332,40 @@ struct SwiftUILoweringTests {
         #expect(!lowered.contains("|| os(Linux)"))
     }
 
+    @Test("Explicit SwiftUI Color.label lowers to asset lookup")
+    func explicitColorLabelLowered() {
+        let source = """
+        struct Row: View {
+            var body: some View {
+                Text("Status")
+                    .foregroundStyle(Color.label)
+                    .background(Color.label.opacity(0.12))
+            }
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains(".foregroundStyle(Color(\"label\"))"))
+        #expect(lowered.contains(".background(Color(\"label\").opacity(0.12))"))
+        #expect(!lowered.contains("Color.label"))
+    }
+
+    @Test("Semantic Color.label lowering does not rewrite qualified design system colors")
+    func qualifiedDesignSystemColorLabelPreserved() {
+        let source = """
+        struct Row: View {
+            var body: some View {
+                Text("Status")
+                    .foregroundStyle(DesignSystem.Color.label)
+                    .foregroundColor(.label)
+            }
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("DesignSystem.Color.label"))
+        #expect(lowered.contains(".foregroundColor(.label)"))
+        #expect(!lowered.contains("DesignSystem.Color(\"label\")"))
+    }
+
     @Test("lowerInPlace rewrites .swift files and leaves other files alone")
     func lowerInPlaceTouchesOnlySwift() throws {
         let fm = FileManager.default

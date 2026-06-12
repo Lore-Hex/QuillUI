@@ -138,6 +138,7 @@ struct SourceHygieneTests {
 
         #expect(lowering.contains("s/\\.keyboardType\\([ \\t]*\\.URL[ \\t]*\\)/.keyboardType(KeyboardType.URL)/g;"))
         #expect(lowering.contains("s/\\.textContentType\\([ \\t]*\\.URL[ \\t]*\\)/.textContentType(TextContentType.URL)/g;"))
+        #expect(lowering.contains("s/(?<!\\.)\\bColor\\.label\\b/Color(\"label\")/g;"))
         #expect(lowering.contains(appKitLoweringCall))
         #expect(lowering.contains(objcLoweringCall))
         #expect((lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: objcLoweringCall)?.lowerBound ?? lowering.startIndex))
