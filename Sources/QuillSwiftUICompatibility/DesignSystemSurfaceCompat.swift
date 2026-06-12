@@ -328,15 +328,20 @@ public struct GlassEffectShape: Sendable {
 }
 
 public struct Material: View, Sendable {
-    public init() {}
+    public let quillApproximationAlpha: Double
+
+    public init(quillApproximationAlpha: Double = 0.92) {
+        self.quillApproximationAlpha = min(max(quillApproximationAlpha, 0), 1)
+    }
+
     public var body: some View { EmptyView() }
-    public static let ultraThinMaterial = Material()
-    public static let ultraThin = Material()
-    public static let thinMaterial = Material()
-    public static let regularMaterial = Material()
-    public static let thickMaterial = Material()
-    public static let ultraThickMaterial = Material()
-    public static let ultraThick = Material()
+    public static let ultraThinMaterial = Material(quillApproximationAlpha: 0.25)
+    public static let ultraThin = Material(quillApproximationAlpha: 0.25)
+    public static let thinMaterial = Material(quillApproximationAlpha: 0.45)
+    public static let regularMaterial = Material(quillApproximationAlpha: 0.65)
+    public static let thickMaterial = Material(quillApproximationAlpha: 0.78)
+    public static let ultraThickMaterial = Material(quillApproximationAlpha: 0.85)
+    public static let ultraThick = Material(quillApproximationAlpha: 0.85)
 }
 
 public struct HoverEffect: Sendable {
@@ -1225,8 +1230,7 @@ public extension ForEach {
 
 public extension Shape {
     func fill(_ material: Material) -> FilledShape<Self> {
-        _ = material
-        return fill(Color.white.opacity(0.92))
+        fill(Color.white.opacity(material.quillApproximationAlpha))
     }
 }
 
@@ -2472,9 +2476,8 @@ public extension View {
         return self
     }
 
-    func background(_ material: Material) -> Self {
-        _ = material
-        return self
+    func background(_ material: Material) -> BackgroundView<Self, Color> {
+        background(Color.white.opacity(material.quillApproximationAlpha))
     }
 
     func presentationCornerRadius(_ radius: Double) -> Self {
@@ -2595,10 +2598,8 @@ public extension View {
         return self
     }
 
-    func background<S: Shape>(_ material: Material, in shape: S) -> Self {
-        _ = material
-        _ = shape
-        return self
+    func background<S: Shape>(_ material: Material, in shape: S) -> BackgroundView<Self, FilledShape<S>> {
+        background(shape.fill(material))
     }
 
     func backgroundStyle(_ material: Material) -> Self {
