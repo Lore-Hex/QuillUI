@@ -248,6 +248,13 @@ public final class AVCaptureDevice: @unchecked Sendable {
     public enum Position: Int, Sendable { case unspecified, back, front }
     public var activeFormat: Format = Format()
 
+    // Capture configuration recorded between lock/unlockForConfiguration
+    // (AVCaptureExtras.swift). Config-storing only -- there is no capture
+    // pipeline on Linux to consume it.
+    public var focusMode: FocusMode = .continuousAutoFocus
+    public var exposureMode: ExposureMode = .continuousAutoExposure
+    public var videoZoomFactor: CGFloat = 1.0
+
     public static func `default`(for mediaType: AVMediaType) -> AVCaptureDevice? {
         _ = mediaType
         return nil
@@ -621,6 +628,8 @@ public final class AVAssetExportSession: @unchecked Sendable {
     public var outputURL: URL?
     public var outputFileType: AVFileType?
     public var shouldOptimizeForNetworkUse: Bool = false
+    /// Recorded for shape fidelity; the Linux exporter never runs.
+    public var metadataItemFilter: AVMetadataItemFilter?
     public var error: Error?
     public var status: Status { .failed }
     public init?(asset: AVAsset, presetName: String) {}

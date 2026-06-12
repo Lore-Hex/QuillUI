@@ -2502,7 +2502,11 @@ targets.append(contentsOf: [
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
     .target(name: "CoreGraphics", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
-    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo"], path: "Sources/AVFoundation"),
+    // CoreImage edge: Apple's AVFoundation re-exports CoreImage (SignalUI's
+    // ScanQRCodeViewController reaches CIQRCodeDescriptor through
+    // `import AVFoundation` alone); AVCaptureExtras.swift mirrors that with an
+    // @_exported import. CoreImage depends only on QuillFoundation — no cycle.
+    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo", "CoreImage"], path: "Sources/AVFoundation"),
     .target(name: "CoreHaptics", dependencies: [], path: "Sources/AppleFrameworkShims/CoreHaptics"),
     .target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
     .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
