@@ -486,9 +486,51 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
     public static let all: UIDataDetectorTypes = [.phoneNumber, .link, .address, .calendarEvent]
 }
 
+// NSTextContainer — the TextKit 1 container geometry object. Faithful CONFIG
+// STATE: size / line limits / padding are stored and drive NSLayoutManager's
+// uniform-advance line model (NSLayoutManagerShim.swift); there is no real
+// glyph geometry on Linux. SignalUI configures these from UITextView/UILabel
+// (AttachmentTextToolbar, CVTextLabel, UIKit+Text) and reads `size` back in
+// enclosing-rect enumeration.
 public final class NSTextContainer {
     public var lineFragmentPadding: CGFloat = 0
+    public var size: CGSize = .zero
+    public var maximumNumberOfLines: Int = 0
+    public var lineBreakMode: NSLineBreakMode = .byWordWrapping
+    public var widthTracksTextView = false
+    public var heightTracksTextView = false
+    /// Weak (Apple: unowned(unsafe)) back-reference; set by
+    /// NSLayoutManager.addTextContainer(_:).
+    public weak var layoutManager: NSLayoutManager?
+
     public init() {}
+    public init(size: CGSize) {
+        self.size = size
+    }
+
+    /// Migrates the receiver's whole text-system group (containers + storage)
+    /// from its current layout manager to `newLayoutManager`, matching Apple's
+    /// documented semantics. With no layout caches on Linux this is pure
+    /// object-graph rewiring.
+    public func replaceLayoutManager(_ newLayoutManager: NSLayoutManager) {
+        guard layoutManager !== newLayoutManager else { return }
+        if let old = layoutManager {
+            let migrating = old.textContainers
+            old.textContainers = []
+            if let storage = old.textStorage {
+                storage.removeLayoutManager(old)
+                if !storage.layoutManagers.contains(where: { $0 === newLayoutManager }) {
+                    storage.addLayoutManager(newLayoutManager)
+                }
+            }
+            for container in migrating where !newLayoutManager.textContainers.contains(where: { $0 === container }) {
+                newLayoutManager.addTextContainer(container)
+            }
+        }
+        if !newLayoutManager.textContainers.contains(where: { $0 === self }) {
+            newLayoutManager.addTextContainer(self)
+        }
+    }
 }
 
 // UITextRange — a contiguous span of a text field/view's content. The rest of
@@ -553,6 +595,61 @@ public final class UITextPasteItem {
     public var markedTextRange: UITextRange?
     public var textContainer = NSTextContainer()
     public var textContainerInset: UIEdgeInsets = .zero
+
+    // MARK: TextKit 1 stack (NSLayoutManagerShim.swift)
+    //
+    // Apple's designated initializer takes the text container; SignalUI's
+    // UITextView subclasses (OWSTextView, MediaTextView, LinkingTextView,
+    // BodyRangesTextView) all override/call it, and BodyRangesTextView
+    // overrides `layoutManager` — so both must be declared in the class body.
+    // MODEL HONESTY: the shim's text MODEL remains `attributedText` (above);
+    // the layout manager/storage exposed here are real wired objects so the
+    // TextKit object graph and its geometry queries work, but a storage
+    // created lazily by `textStorage` is a SNAPSHOT of `attributedText` at
+    // first access, not a live mirror of later `text`/`attributedText` writes.
+    // (BodyRangesTextView supplies its own storage and overrides the text
+    // accessors to read through it, so the real Signal composer is unaffected.)
+
+    public init(frame: CGRect, textContainer: NSTextContainer?) {
+        if let textContainer {
+            self.textContainer = textContainer
+        }
+        super.init(frame: frame)
+    }
+
+    public convenience override init(frame: CGRect) {
+        self.init(frame: frame, textContainer: nil)
+    }
+
+    public convenience override init() {
+        self.init(frame: .zero, textContainer: nil)
+    }
+
+    /// Strong anchors for the lazily-created default stack (the container's
+    /// and manager's back-references are weak, matching Apple's ownership).
+    private var quillDefaultLayoutManager: NSLayoutManager?
+    private var quillDefaultTextStorage: NSTextStorage?
+
+    open var layoutManager: NSLayoutManager {
+        if let existing = textContainer.layoutManager {
+            return existing
+        }
+        let created = NSLayoutManager()
+        created.addTextContainer(textContainer)
+        quillDefaultLayoutManager = created
+        return created
+    }
+
+    open var textStorage: NSTextStorage {
+        let manager = layoutManager
+        if let existing = manager.textStorage {
+            return existing
+        }
+        let created = NSTextStorage(attributedString: attributedText)
+        created.addLayoutManager(manager)
+        quillDefaultTextStorage = created
+        return created
+    }
     public var font: UIFont?
     public var adjustsFontForContentSizeCategory = false
     public var autocapitalizationType: UITextAutocapitalizationType = .sentences
@@ -895,6 +992,20 @@ public extension String {
     }
 }
 
+// NSAttributedString.boundingRect — UIKit string measurement (ImageEditor
+// text layers size themselves with it). Same rough estimate as
+// String.boundingRect above, reading the font from the string's leading
+// attributes. Linux-gated like the String version (macOS has the real one).
+public extension NSAttributedString {
+    func boundingRect(with size: CGSize,
+                      options: NSStringDrawingOptions = [],
+                      context: NSStringDrawingContext? = nil) -> CGRect {
+        _ = (options, context)
+        let attributes = length > 0 ? self.attributes(at: 0, effectiveRange: nil) : [:]
+        return quillEstimatedTextRect(string, proposed: size, attributes: attributes)
+    }
+}
+
 public final class UIGraphicsImageRendererFormat {
     public var scale: CGFloat = 1
     public var opaque: Bool = false
@@ -997,6 +1108,24 @@ open class NSTextStorage: NSMutableAttributedString {
     public typealias EditActions = NSTextStorageEditActions
 
     public weak var delegate: AnyObject?
+
+    /// TextKit 1 wiring (NSLayoutManagerShim.swift). The storage owns its
+    /// layout managers (strong, matching Apple); managers point back weakly.
+    /// Edit notifications are NOT forwarded — managers recompute geometry from
+    /// the storage on every query, so there is no layout state to invalidate.
+    public private(set) var layoutManagers: [NSLayoutManager] = []
+
+    public func addLayoutManager(_ aLayoutManager: NSLayoutManager) {
+        layoutManagers.append(aLayoutManager)
+        aLayoutManager.textStorage = self
+    }
+
+    public func removeLayoutManager(_ aLayoutManager: NSLayoutManager) {
+        layoutManagers.removeAll { $0 === aLayoutManager }
+        if aLayoutManager.textStorage === self {
+            aLayoutManager.textStorage = nil
+        }
+    }
 
     open func processEditing() {}
 
