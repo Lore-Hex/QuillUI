@@ -2539,7 +2539,9 @@ targets.append(contentsOf: [
     // @_exported-re-exports QuillUIKit).
     .target(name: "PureLayout", dependencies: ["UIKit"], path: "Sources/PureLayout"),
     .target(name: "Lottie", dependencies: [], path: "Sources/Lottie"),
-    .target(name: "BonMot", dependencies: [], path: "Sources/BonMot"),
+    // BonMot's StringStyle stores UIFont/UIColor/NSTextAlignment -- hence the
+    // dependency on the UIKit umbrella (same pattern as PureLayout above).
+    .target(name: "BonMot", dependencies: ["UIKit"], path: "Sources/BonMot"),
     .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),
     .target(name: "Nuke", dependencies: [], path: "Sources/Nuke"),
     .target(name: "NukeUI", dependencies: ["SwiftUI", "Nuke"], path: "Sources/NukeUI"),
