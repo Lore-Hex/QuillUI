@@ -838,7 +838,7 @@ public class SLComposeSheetConfigurationItem: NSObject {
     }
 }
 
-@MainActor public class UIVisualEffectView: UIView {}
+// UIVisualEffectView lives in UIEffects.swift with the UIVisualEffect family.
 
 public struct UIKeyModifierFlags: OptionSet, Sendable {
     public let rawValue: Int
