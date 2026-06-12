@@ -2983,15 +2983,22 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
         bottom - 60,
         alert_pixel,
     )
-    composer_pixels = pixel_count(
-        image,
-        detail_left + 100,
-        bottom - 80,
-        right - 100,
-        bottom - 15,
-        mac_reference_composer_pixel,
-    )
     detail_width = right - detail_left
+    # The Qt composer paints a near-white fill identical to the canvas since
+    # the mac-parity restyle (4304993b) — only its 1px rounded outline remains
+    # distinguishable, so the old fill-area count can never reach 5000 again.
+    # Detect the field by its outline: a wide horizontal border run in the
+    # composer band (the outline color sits inside the composer predicate's
+    # gray range).
+    composer = best_horizontal_segment(
+        image,
+        bottom - 80,
+        bottom - 15,
+        detail_left + 100,
+        right - 100 + 1,
+        mac_reference_composer_pixel,
+        min_width=int(detail_width * 0.5),
+    )
     composer_accessory_pixels = dark_pixel_count(
         image,
         detail_left + int(detail_width * 0.62),
@@ -3021,7 +3028,7 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
         f"Generated Enchanted Qt prompt card text was not detected: pixels={prompt_text_pixels}",
     )
     require(notice_pixels >= 15000, f"Generated Enchanted Qt notice banner was not detected: pixels={notice_pixels}")
-    require(composer_pixels >= 5000, f"Generated Enchanted Qt composer was not detected: pixels={composer_pixels}")
+    require(composer is not None, "Generated Enchanted Qt composer outline was not detected")
     require(
         composer_accessory_pixels >= 20,
         "Generated Enchanted Qt composer accessory icon was not detected: "
@@ -3041,7 +3048,7 @@ def validate_quill_enchanted_linux_qt_snapshot(image: Screenshot) -> str:
         f"prompt_card_height={prompt_card_height}, "
         f"prompt_text_pixels={prompt_text_pixels}, "
         f"notice_pixels={notice_pixels}, "
-        f"composer_pixels={composer_pixels}, "
+        f"composer={composer[1].width}px@{composer[0]}, "
         f"composer_accessory_pixels={composer_accessory_pixels}, "
         f"bottom_nav_pixels={bottom_nav_pixels}, "
         f"detail_text_pixels={detail_text_pixels}"
@@ -3088,15 +3095,22 @@ def validate_quill_enchanted_linux_qt_selected_chat(image: Screenshot) -> str:
         bottom - 60,
         alert_pixel,
     )
-    composer_pixels = pixel_count(
-        image,
-        detail_left + 100,
-        bottom - 80,
-        right - 100,
-        bottom - 15,
-        mac_reference_composer_pixel,
-    )
     detail_width = right - detail_left
+    # The Qt composer paints a near-white fill identical to the canvas since
+    # the mac-parity restyle (4304993b) — only its 1px rounded outline remains
+    # distinguishable, so the old fill-area count can never reach 5000 again.
+    # Detect the field by its outline: a wide horizontal border run in the
+    # composer band (the outline color sits inside the composer predicate's
+    # gray range).
+    composer = best_horizontal_segment(
+        image,
+        bottom - 80,
+        bottom - 15,
+        detail_left + 100,
+        right - 100 + 1,
+        mac_reference_composer_pixel,
+        min_width=int(detail_width * 0.5),
+    )
     composer_accessory_pixels = dark_pixel_count(
         image,
         detail_left + int(detail_width * 0.62),
@@ -3131,7 +3145,7 @@ def validate_quill_enchanted_linux_qt_selected_chat(image: Screenshot) -> str:
         f"pixels={assistant_message_pixels}",
     )
     require(notice_pixels >= 15000, f"Generated Enchanted Qt selected notice was not detected: pixels={notice_pixels}")
-    require(composer_pixels >= 5000, f"Generated Enchanted Qt selected composer was not detected: pixels={composer_pixels}")
+    require(composer is not None, "Generated Enchanted Qt selected composer outline was not detected")
     require(
         composer_accessory_pixels >= 20,
         "Generated Enchanted Qt selected composer accessory icon was not detected: "
@@ -3152,7 +3166,7 @@ def validate_quill_enchanted_linux_qt_selected_chat(image: Screenshot) -> str:
         f"user_bubble_pixels={user_bubble_pixels}, "
         f"assistant_message_pixels={assistant_message_pixels}, "
         f"notice_pixels={notice_pixels}, "
-        f"composer_pixels={composer_pixels}, "
+        f"composer={composer[1].width}px@{composer[0]}, "
         f"composer_accessory_pixels={composer_accessory_pixels}, "
         f"bottom_nav_pixels={bottom_nav_pixels}, "
         f"header_icon_pixels={header_icon_pixels}, "
