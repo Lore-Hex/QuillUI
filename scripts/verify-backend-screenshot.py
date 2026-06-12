@@ -3893,6 +3893,45 @@ def validate_quill_backend_interaction_sheet(image: Screenshot) -> str:
     return f"Quill backend sheet smoke: sheet={app_width}x{app_height}, dark_pixels={dark_pixels}"
 
 
+def solderscope_toolbar_pixel(rgb: tuple[int, int, int]) -> bool:
+    total = sum(rgb)
+    return 24 <= total <= 560 and max(rgb) - min(rgb) <= 96
+
+
+def validate_quill_solderscope_launch(image: Screenshot) -> str:
+    toolbar_height = min(140, image.height)
+    toolbar_pixels = pixel_count(
+        image,
+        0,
+        0,
+        image.width,
+        toolbar_height,
+        solderscope_toolbar_pixel,
+    )
+    top_nonblack_pixels = pixel_count(
+        image,
+        0,
+        0,
+        image.width,
+        toolbar_height,
+        lambda rgb: sum(rgb) >= 24,
+    )
+    require(
+        toolbar_pixels >= 1_500,
+        f"SolderScope dark toolbar pixels were not detected near the top: pixels={toolbar_pixels}",
+    )
+    require(
+        top_nonblack_pixels >= 5_000,
+        f"SolderScope top chrome appears black/empty: nonblack_pixels={top_nonblack_pixels}",
+    )
+
+    return (
+        "Quill SolderScope launch: "
+        f"toolbar_pixels={toolbar_pixels}, "
+        f"top_nonblack_pixels={top_nonblack_pixels}"
+    )
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print("Usage: verify-backend-screenshot.py SCREENSHOT_PATH PRODUCT", file=sys.stderr)
@@ -3920,6 +3959,7 @@ def main() -> int:
     compact_quill_chat_dialog_product = product in {
         "quill-chat-linux-mac-reference-settings-delete-confirmation",
     }
+    solderscope_launch_product = product == "quill-solderscope-launch"
     if compact_quill_chat_dialog_product:
         minimum_width = 260
         minimum_height = 140
@@ -3932,13 +3972,18 @@ def main() -> int:
     else:
         minimum_width = 900
         minimum_height = 600
+    minimum_mean = 500 if solderscope_launch_product else 1000
+    minimum_stddev = 1000 if solderscope_launch_product else 250
     require(
         image.width >= minimum_width and image.height >= minimum_height,
         f"Screenshot is unexpectedly small: {image.width}x{image.height}",
     )
-    require(image.mean > 1000, f"Screenshot appears blank or near-black: mean={image.mean}")
     require(
-        image.stddev > 250,
+        image.mean > minimum_mean,
+        f"Screenshot appears blank or near-black: mean={image.mean}",
+    )
+    require(
+        image.stddev > minimum_stddev,
         f"Screenshot appears visually flat: standard-deviation={image.stddev:.1f}",
     )
 
@@ -4076,6 +4121,8 @@ def main() -> int:
         print(validate_quill_wireguard_gtk_import(image))
     elif product in {"quill-wireguard-import-invalid-paste", "quill-wireguard-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="gtk"))
+    elif product == "quill-solderscope-launch":
+        print(validate_quill_solderscope_launch(image))
     elif product in {
         "quill-gtk-interaction-smoke-open",
         "quill-qt-interaction-smoke-open",

@@ -2212,6 +2212,7 @@ targets += [
 // fetch-upstream.sh populates .upstream/solderscope (gitignored).
 #if os(Linux)
 if solderScopeUpstreamPresent {
+    products.append(.executable(name: "QuillSolderScope", targets: ["QuillSolderScope"]))
     targets += [
         .executableTarget(
             name: "QuillSolderScope",
