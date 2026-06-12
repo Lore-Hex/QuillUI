@@ -136,10 +136,15 @@ public extension View {
         return self
     }
 
+    // No default on `allowsMultipleSelection` (matching real SwiftUI, which
+    // splits the single-URL and [URL] variants): QuillUI's
+    // fileImporter(isPresented:allowedContentTypes:onCompletion:) owns the
+    // three-argument call shape, and a default here made that shape match
+    // both modules at once (generated Enchanted InputFields_macOS).
     func fileImporter(
         isPresented: Binding<Bool>,
         allowedContentTypes: [UTType],
-        allowsMultipleSelection: Bool = false,
+        allowsMultipleSelection: Bool,
         onCompletion: @escaping (Result<[URL], Error>) -> Void
     ) -> Self {
         _ = isPresented
