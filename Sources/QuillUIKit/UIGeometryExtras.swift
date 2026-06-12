@@ -3,9 +3,10 @@
 // QuillUIKit — geometry/orientation/misc UIKit types for the SignalUI build:
 //
 //   - UIRectCorner (corner-mask OptionSet, raw values match Apple's)
-//   - UIInterfaceOrientation (the Int enum; UIInterfaceOrientationMask
-//     already lives in the UIKit shim module, UIKitShim/UIKit.swift —
-//     mask bits there line up with `1 << orientation.rawValue` here)
+//   - UIInterfaceOrientation + UIInterfaceOrientationMask (the Int enum and
+//     its OptionSet companion; mask bits are `1 << orientation.rawValue`.
+//     The mask moved here from UIKitShim/UIKit.swift so the UIViewController
+//     class body can declare `supportedInterfaceOrientations`)
 //   - UIUserInterfaceSizeClass + the UITraitCollection size-class surface
 //     (UITraitCollection's class body is declared in QuillUIKit.swift —
 //     another owner — so the size-class members are layered here as an
@@ -47,8 +48,7 @@ public struct UIRectCorner: OptionSet, Sendable {
 /// Interface (not device) orientation. Raw values match Apple's — note the
 /// deliberate UIKit swap: interface landscapeLeft (4) is *device*
 /// landscapeRight, and vice versa. The companion UIInterfaceOrientationMask
-/// is declared in the UIKit shim module (UIKitShim/UIKit.swift); its bits
-/// are `1 << rawValue` of these cases.
+/// below has bits that are `1 << rawValue` of these cases.
 public enum UIInterfaceOrientation: Int, Sendable {
     case unknown = 0
     case portrait = 1
@@ -58,6 +58,24 @@ public enum UIInterfaceOrientation: Int, Sendable {
 
     public var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }
     public var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
+}
+
+/// Orientation set. Bit values match Apple's (`1 << orientation.rawValue`).
+/// Moved here from the UIKit shim module (which depends on this one and
+/// re-exports it, so `import UIKit` consumers still resolve it): the
+/// UIViewController class body in QuillUIKit.swift needs the type for
+/// Apple's `open var supportedInterfaceOrientations`, which upstream
+/// (OWSNavigationController & co.) overrides.
+public struct UIInterfaceOrientationMask: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let portrait = UIInterfaceOrientationMask(rawValue: 1 << 1)
+    public static let portraitUpsideDown = UIInterfaceOrientationMask(rawValue: 1 << 2)
+    public static let landscapeRight = UIInterfaceOrientationMask(rawValue: 1 << 3)
+    public static let landscapeLeft = UIInterfaceOrientationMask(rawValue: 1 << 4)
+    public static let landscape: UIInterfaceOrientationMask = [.landscapeLeft, .landscapeRight]
+    public static let all: UIInterfaceOrientationMask = [.portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight]
+    public static let allButUpsideDown: UIInterfaceOrientationMask = [.portrait, .landscapeLeft, .landscapeRight]
 }
 
 // MARK: - UIUserInterfaceSizeClass

@@ -810,6 +810,62 @@ extension UITableViewCell {
     }
 }
 
+// MARK: - UITableViewController
+
+/// A view controller that manages a table view. Declared fresh here (it
+/// existed nowhere in the shim), so like UITableViewHeaderFooterView it CAN
+/// be open and own its overridable members directly. Apple's wiring is kept:
+/// the table is created at init with the requested style, `self` becomes its
+/// data source and delegate, and `loadView()` installs the table as the
+/// controller's view.
+///
+/// The data-source methods subclasses override (TablePreviewViewController
+/// overrides the row count and cell vendor) are declared in the CLASS BODY,
+/// not satisfied via the protocol-extension defaults — extension members
+/// cannot be overridden, so they must be `open` funcs here.
+@MainActor open class UITableViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
+
+    /// The managed table. Force-unwrapped optional, as on Apple.
+    open var tableView: UITableView!
+
+    /// Apple's default is true (selection clears on appearance via the
+    /// transition coordinator). Stored faithfully; with no transitions on
+    /// Linux nothing consumes it yet.
+    open var clearsSelectionOnViewWillAppear: Bool = true
+
+    /// Designated, as on Apple. (`super.init()` is NSObject's initializer,
+    /// inherited by UIViewController, which declares none of its own; if the
+    /// class body there ever gains Apple's `init(nibName:bundle:)`, this call
+    /// becomes `super.init(nibName: nil, bundle: nil)`.)
+    public init(style: UITableView.Style) {
+        super.init()
+        let tableView = UITableView(frame: .zero, style: style)
+        tableView.dataSource = self
+        tableView.delegate = self
+        self.tableView = tableView
+    }
+
+    /// The controller's view IS the table view, as on Apple.
+    open override func loadView() {
+        view = tableView
+    }
+
+    // MARK: UITableViewDataSource (class-body so subclasses can override)
+
+    /// Apple's base implementation reports a single section.
+    open func numberOfSections(in tableView: UITableView) -> Int { 1 }
+
+    /// Apple's base implementation reports no rows.
+    open func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { 0 }
+
+    /// Abstract on Apple (the base raises if a row is ever requested without
+    /// an override). With no display pass on Linux nothing should call it;
+    /// a fresh base cell keeps the model honest without trapping.
+    open func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        UITableViewCell(style: .default, reuseIdentifier: nil)
+    }
+}
+
 // MARK: - NSDiffableDataSourceSnapshot
 
 /// The diffable data source's value-type model. Unlike the display-side
