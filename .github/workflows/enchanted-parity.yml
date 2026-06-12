@@ -57,6 +57,10 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             ca-certificates \
             dbus-x11 \
+            fontconfig \
+            fonts-noto-cjk \
+            fonts-noto-color-emoji \
+            fonts-noto-core \
             git \
             imagemagick \
             libgdk-pixbuf-2.0-dev \

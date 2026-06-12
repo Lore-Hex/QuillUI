@@ -817,6 +817,10 @@ quillui_install_linux_backend_smoke_packages() {
 
   local packages=(
     clang
+    fontconfig
+    fonts-noto-cjk
+    fonts-noto-color-emoji
+    fonts-noto-core
     git
     imagemagick
     libgdk-pixbuf-2.0-dev
