@@ -1276,6 +1276,178 @@ extension DisclosureGroup: QtRenderable {
     }
 }
 
+// MARK: - Core container Qt extensions
+
+extension Group: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension TupleView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widgets = children.map { qtRenderAnyView($0) }
+        return qtRenderVerticalContainer(widgets, spacing: 0, alignment: .leading)
+    }
+}
+
+extension ForEach: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widgets = data.map { qtRenderView(content($0)) }
+        return qtRenderVerticalContainer(widgets, spacing: 0, alignment: .leading)
+    }
+}
+
+extension Grid: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension GridRow: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension GridCellSpanView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension LazyHGrid: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension EnvironmentObjectModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.setObject(object)
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension EnvironmentObservableModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.setObject(object)
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+// MARK: - Misc modifier Qt extensions
+
+extension BlurView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        if radius > 0 {
+            quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "filter: blur(\(radius)px);")
+        }
+        return child
+    }
+}
+
+extension ClippedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "overflow: hidden;")
+        return child
+    }
+}
+
+extension ClipShapeView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "overflow: hidden;")
+        return child
+    }
+}
+
+extension HelpView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension PositionView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let css = "position: absolute; left: \(Int(x))px; top: \(Int(y))px;"
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), css)
+        return child
+    }
+}
+
+extension LayoutPriorityView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ToggleStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.toggleStyle = style
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension KeyboardShortcutView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.keyboardShortcut = shortcut
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension FocusedValueView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension DropDestinationView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension LongPressGestureView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension StrokedShape: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let r = Int(color.red * 255)
+        let g = Int(color.green * 255)
+        let b = Int(color.blue * 255)
+        let a = String(format: "%.2f", color.alpha)
+        let css = "border: 1px solid rgba(\(r),\(g),\(b),\(a));"
+        return qtCreateStyledContainer(css)
+    }
+}
+
+extension FullScreenCoverView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension PopoverView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension Stepper: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtOpaque(quill_qt_bridge_label_create(label))
+    }
+}
+
+extension DatePicker: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtOpaque(quill_qt_bridge_label_create(title))
+    }
+}
+
 // MARK: - Text modifier Qt extensions
 
 extension FontWeightView: QtRenderable {
