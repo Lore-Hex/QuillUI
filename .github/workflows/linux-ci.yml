@@ -122,6 +122,9 @@ jobs:
       - name: Backend launch target interaction smokes
         run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'
 
+      - name: SolderScope GTK launch smoke
+        run: scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png
+
       # Generic SwiftUI→Qt backend smoke (BackendQt, behind QUILLUI_QT_GENERIC).
       # This is the ONLY step that compiles the CQtBridge C++ wrapper, links
       # SwiftOpenUI into the Qt graph, and runs the real QtBackend().run(QtSmokeApp)
