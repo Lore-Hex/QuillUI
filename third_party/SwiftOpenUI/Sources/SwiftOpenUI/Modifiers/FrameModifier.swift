@@ -30,6 +30,28 @@ extension View {
         )
     }
 
+    // SwiftUI-typed adapter (Int width/height). Declared in this module —
+    // NOT a compat module — for the same reason as PaddingModifier's
+    // Double/Int? adapters: the cross-module twin of the Double? overload
+    // above (it lived in QuillSwiftUICompatibility) made integer-literal
+    // calls like `.frame(width: 800, height: 600)` ambiguous, which the
+    // expression solver reported as "ambiguous use of 'padding'" at the
+    // head of the chain (generated Enchanted CompletionsEditorView).
+    // Same-module ranking is reliable; disfavored so the canonical Double?
+    // overload keeps winning literal calls.
+    @_disfavoredOverload
+    public func frame(
+        width: Int? = nil,
+        height: Int? = nil,
+        alignment: Alignment = .center
+    ) -> FrameView<Self> {
+        frame(
+            width: width.map(Double.init),
+            height: height.map(Double.init),
+            alignment: alignment
+        )
+    }
+
     /// Set flexible size constraints.
     public func frame(
         minWidth: Double? = nil,

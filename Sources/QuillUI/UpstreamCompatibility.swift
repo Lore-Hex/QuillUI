@@ -1157,17 +1157,15 @@ public extension View {
         )
     }
 
-    func padding(_ amount: CGFloat) -> PaddedView<Self> {
-        padding(Int(amount))
-    }
-
-    func padding(_ edges: Edge.Set, _ amount: Double) -> PaddedView<Self> {
-        padding(edges, Int(amount))
-    }
-
-    func padding(_ edges: Edge.Set, _ amount: CGFloat) -> PaddedView<Self> {
-        padding(edges, Int(amount))
-    }
+    // padding(_: CGFloat) / padding(_: Edge.Set, _: Double) / padding(_:
+    // Edge.Set, _: CGFloat) — twins here made generated-Enchanted chains
+    // ambiguous, surfacing as "ambiguous use of 'padding'"
+    // (CompletionsEditorView). The (Edge.Set, Double) overload was a
+    // verbatim twin of SwiftOpenUI's PaddingModifier.swift one — deleted
+    // (QuillUI yields to SwiftOpenUI for core names). The CGFloat adapters
+    // live in QuillSwiftUICompatibility (@_disfavoredOverload, beside the
+    // CGFloat? edge-set adapter; single-arg one moved there) — reachable
+    // from here via the @_exported import in QuillUI.swift.
 
     func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
         recordQuillUIFallback(

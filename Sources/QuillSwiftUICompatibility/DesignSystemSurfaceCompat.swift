@@ -1893,9 +1893,12 @@ public extension View {
         return self
     }
 
-    func overlay(_ color: Color, alignment: Alignment = .center) -> OverlayView<Self, Color> {
-        OverlayView(content: self, overlay: color, alignment: alignment)
-    }
+    // overlay(_ color:alignment:) moved INTO SwiftOpenUI's
+    // OverlayModifier.swift beside the generic overlay<V: View> — Color is
+    // a View, so a twin here paired with that generic cross-module on every
+    // Color argument (the established ambiguity disease in the generated
+    // Enchanted build; concrete-vs-generic ranking is only reliable
+    // same-module).
 
     func interactiveDismissDisabled(_ isDisabled: Bool = true) -> Self {
         _ = isDisabled
@@ -2092,21 +2095,33 @@ public extension View {
         padding(edges, amount.map { Int($0) } ?? 8)
     }
 
+    // The single-argument CGFloat adapter likewise lives HERE (moved from
+    // QuillUI, where it was an undisfavored cross-module rival of
+    // SwiftOpenUI's canonical Int/Double single-arg overloads for every
+    // `.padding(8)` literal — a twin in the set that surfaced as
+    // "ambiguous use of 'padding'" in the generated Enchanted
+    // CompletionsEditorView). Safe for the same reason as the edge-set
+    // adapter above: a one-required-argument overload never competes with
+    // bare `.padding()`.
+    @_disfavoredOverload
+    func padding(_ amount: CGFloat) -> PaddedView<Self> {
+        padding(Int(amount))
+    }
+
     // padding(_ insets: EdgeInsets) lives in QuillUI (verbatim twin here
     // made every .padding(insets) call ambiguous).
 
-    func frame(
-        width: Int? = nil,
-        height: Int? = nil,
-        alignment: Alignment = .center
-    ) -> FrameView<Self> {
-        frame(
-            width: width.map(Double.init),
-            height: height.map(Double.init),
-            alignment: alignment
-        )
-    }
+    // frame(width:height: Int?) now lives IN SwiftOpenUI's FrameModifier.swift
+    // (same module as the canonical Double? overload): the cross-module twin
+    // here made `.frame(width: 800, height: 600)` integer-literal calls
+    // ambiguous — surfaced as "ambiguous use of 'padding'" at the head of
+    // the chain (generated Enchanted CompletionsEditorView).
 
+    // The CGFloat frame adapters stay HERE (CGFloat is QuillFoundation's
+    // type; SwiftOpenUI core stays platform-independent) but must be
+    // @_disfavoredOverload: undisfavored they tied with SwiftOpenUI's
+    // Double? frame overloads on literal / `.infinity` arguments.
+    @_disfavoredOverload
     func frame(maxWidth: CGFloat?, alignment: Alignment = .center) -> FrameView<Self> {
         frame(maxWidth: maxWidth.map(Double.init), alignment: alignment)
     }
@@ -2373,6 +2388,11 @@ public extension View {
         return self
     }
 
+    // @_disfavoredOverload like the other CGFloat frame adapters: an
+    // undisfavored twin here ties with SwiftOpenUI's frame(width:height:
+    // Double?) on literal height arguments (cross-module sets are the
+    // ambiguity disease; see the frame(width:height:) note above).
+    @_disfavoredOverload
     func frame(height: CGFloat?, alignment: Alignment = .center) -> FrameView<Self> {
         frame(height: height.map(Double.init), alignment: alignment)
     }
