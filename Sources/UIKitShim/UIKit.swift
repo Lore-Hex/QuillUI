@@ -611,7 +611,8 @@ public final class UITextPasteItem {
     public var writingToolsBehavior: UIWritingToolsBehavior = .default
     public weak var inputDelegate: (any UITextInputDelegate)?
 
-    open func sizeThatFits(_ size: CGSize) -> CGSize {
+    // `override`: UIView declares the open base (QuillUIKit.swift).
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)
         let lineHeight = font?.pointSize ?? 17
         let lines = max(1, ceil(Double(attributedText.string.count) * 8.5 / width))

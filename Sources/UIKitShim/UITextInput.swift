@@ -306,7 +306,8 @@ public extension UITextFieldDelegate {
     // mirrors the UITextView estimate in UIKit.swift and the UIFont metric
     // approximations documented there).
 
-    open func sizeThatFits(_ size: CGSize) -> CGSize {
+    // `override`: UIView declares the open base (QuillUIKit.swift).
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let pointSize = font?.pointSize ?? 17
         let content = (text?.isEmpty == false ? text : placeholder) ?? ""
         let width = min(max(CGFloat(content.count) * pointSize * 0.6, pointSize), size.width)

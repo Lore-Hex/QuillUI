@@ -51,6 +51,33 @@ public typealias ASPresentationAnchor = NSObject
     open func buildMenu(with builder: UIMenuBuilder) {
         _ = builder
     }
+
+    // MARK: Touch dispatch
+    //
+    // CLASS-BODY, not extension: Signal subclasses override these (extensions
+    // cannot be overridden without ObjC dynamism). The UIResponder variants
+    // take an OPTIONAL event, unlike the UIGestureRecognizer hooks in
+    // UIGestureRecognizers.swift (Apple's subclass contract there is
+    // non-optional). Apple's defaults forward up the responder chain; there
+    // is no chain wiring on Linux, so the defaults are no-ops — the future
+    // event backend (compositor input → window dispatch) calls these, and
+    // overrides run today when upstream code invokes them directly.
+    open func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        _ = touches
+        _ = event
+    }
+    open func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        _ = touches
+        _ = event
+    }
+    open func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        _ = touches
+        _ = event
+    }
+    open func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        _ = touches
+        _ = event
+    }
 }
 
 /// The layout attribute an anchor represents. QuillUIKit-local (the public
@@ -143,6 +170,10 @@ public class NSLayoutConstraint: NSObject {
         public static let dragThatCannotResizeWindow = Priority(490)
         public static let defaultLow = Priority(250)
         public static let fittingSizeCompression = Priority(50)
+        /// UIKit's name for the fitting-size priority (AppKit spells it
+        /// `fittingSizeCompression`); both are 50. SignalUI passes it to
+        /// `systemLayoutSizeFitting(_:withHorizontalFittingPriority:…)`.
+        public static let fittingSizeLevel = Priority(50)
         public static func + (lhs: Priority, rhs: Float) -> Priority { Priority(lhs.rawValue + rhs) }
         public static func - (lhs: Priority, rhs: Float) -> Priority { Priority(lhs.rawValue - rhs) }
     }
@@ -276,24 +307,69 @@ public class UIWindow: UIView {}
     }
 
     public override init() { super.init() }
-    public init(frame: CGRect) {
+    // `open` (not just `public`): a designated init cannot be overridden
+    // cross-module unless it is open, and Signal subclasses declare
+    // `override init(frame:)` everywhere (ImageEditorSliderView's
+    // BackgroundView, OWSLayerView, …).
+    open init(frame: CGRect) {
         super.init()
         self.frame = frame
     }
-    public var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
+    // `open` (not just `public`): Signal subclasses override frame/bounds with
+    // didSet observers everywhere (CVImageView, ManualLayoutView, OWSLayerView,
+    // …) and that requires the stored property itself to be overridable
+    // cross-module.
+    open var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
         didSet {
             #if os(Linux)
             _layer?.frame = frame
             #endif
         }
     }
-    public var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
+    open var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
         didSet {
             #if os(Linux)
             _layer?.bounds = bounds
             #endif
         }
     }
+
+    /// The center of the view's frame, in the superview's coordinate system.
+    /// Derived from `frame` both ways, exactly UIKit's geometry when no
+    /// transform is set. APPROXIMATION: with a transform, real UIKit keeps
+    /// `center` fixed (it is the layer position) while `frame` becomes the
+    /// transformed bounding box; this shim's `frame` never re-derives from
+    /// `transform`, so center and frame always agree here.
+    open var center: CGPoint {
+        get { CGPoint(x: frame.midX, y: frame.midY) }
+        set {
+            frame.origin = CGPoint(
+                x: newValue.x - frame.size.width / 2,
+                y: newValue.y - frame.size.height / 2
+            )
+        }
+    }
+
+    /// The view's affine transform. Stored faithfully and mirrored into the
+    /// layer MODEL on Linux (CALayer.setAffineTransform), so animation/
+    /// geometry code can read back what it set. MODEL HONESTY: nothing
+    /// composites on Linux, so the transform does not move pixels, and —
+    /// unlike real UIKit — `frame` is NOT recomputed as the transformed
+    /// bounding box (see `center`).
+    open var transform: CGAffineTransform = .identity {
+        didSet {
+            #if os(Linux)
+            _layer?.setAffineTransform(transform)
+            #endif
+        }
+    }
+
+    /// How content is fitted into the bounds. CLASS-BODY `open` (UIImageView
+    /// no longer redeclares it) so subclass overrides resolve cross-module.
+    /// Faithful STATE with Apple's default; no renderer consumes it on Linux
+    /// yet.
+    open var contentMode: ContentMode = .scaleToFill
+
     public private(set) weak var superview: UIView?
     public var subviews: [UIView] = []
     open func removeFromSuperview() {
@@ -315,8 +391,83 @@ public class UIWindow: UIView {}
         #endif
     }
 
+    /// Inserts a subview at an explicit z-position (index 0 is backmost).
+    /// Same installation sequence as addSubview. APPROXIMATION: Apple raises
+    /// on an out-of-range index; the shim clamps — upstream callers compute
+    /// indices from `subviews` they just read, so a clamp never actually
+    /// engages, and clamping beats crashing on a model with no compositor.
+    open func insertSubview(_ view: UIView, at index: Int) {
+        view.willMove(toWindow: window)
+        view.removeFromSuperview()
+        let position = max(0, min(index, subviews.count))
+        subviews.insert(view, at: position)
+        view.superview = self
+        view.window = window
+        #if os(Linux)
+        // Mirror z-order relative to the next view-backed sublayer (not the
+        // raw index): stray non-view sublayers (shape/gradient layers added
+        // directly to `layer`) keep their stacking instead of being displaced.
+        if position + 1 < subviews.count {
+            layer.insertSublayer(view.layer, below: subviews[position + 1].layer)
+        } else {
+            layer.addSublayer(view.layer)
+        }
+        #endif
+    }
+
+    /// Apple requires `siblingSubview` to already be a child (behavior is
+    /// undefined otherwise); the shim's honest fallback for a non-child
+    /// sibling is a plain append (frontmost), documented rather than trapped.
+    open func insertSubview(_ view: UIView, aboveSubview siblingSubview: UIView) {
+        if let index = subviews.firstIndex(where: { $0 === siblingSubview }) {
+            insertSubview(view, at: index + 1)
+        } else {
+            addSubview(view)
+        }
+    }
+
+    open func insertSubview(_ view: UIView, belowSubview siblingSubview: UIView) {
+        if let index = subviews.firstIndex(where: { $0 === siblingSubview }) {
+            insertSubview(view, at: index)
+        } else {
+            addSubview(view)
+        }
+    }
+
     open func willMove(toWindow newWindow: UIWindow?) {
         _ = newWindow
+    }
+
+    // MARK: Hit testing
+    //
+    // CLASS-BODY, not extension: Signal subclasses override both hooks.
+    // Geometry shares `convert`'s frame-chain approximations (see
+    // UIViewGeometry.swift); transforms never bend the hit path because
+    // `frame` is never re-derived from `transform` in this shim.
+
+    /// Containment in the view's own bounds space. Raw origin/size math, the
+    /// CALayer.hitTest convention (half-open on the max edges).
+    open func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        _ = event
+        return point.x >= bounds.origin.x
+            && point.y >= bounds.origin.y
+            && point.x < bounds.origin.x + bounds.size.width
+            && point.y < bounds.origin.y + bounds.size.height
+    }
+
+    /// Apple's documented algorithm: ineligible views (hidden, interaction
+    /// disabled, alpha < 0.01) swallow nothing; children are consulted
+    /// front-to-back (later siblings are frontmost) with the point converted
+    /// into each child's space; self answers when no child claims the point.
+    open func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard isUserInteractionEnabled, !isHidden, alpha >= 0.01,
+              self.point(inside: point, with: event) else { return nil }
+        for subview in subviews.reversed() {
+            if let hit = subview.hitTest(convert(point, to: subview), with: event) {
+                return hit
+            }
+        }
+        return self
     }
 
     #if os(Linux)
@@ -340,6 +491,9 @@ public class UIWindow: UIView {}
         created.frame = frame
         if bounds != .zero {
             created.bounds = bounds
+        }
+        if transform != .identity {
+            created.setAffineTransform(transform)
         }
         _layer = created
         return created
@@ -418,6 +572,39 @@ public class UIWindow: UIView {}
         layoutSubviews()
     }
     open func layoutSubviews() {}
+
+    // MARK: Constraint pass + measurement
+    //
+    // CLASS-BODY `open`: Signal overrides all three (CVLabel/CVButton/
+    // CVImageView override updateConstraints; ManualLayoutView and friends
+    // override sizeThatFits; ImageEditorSlider overrides intrinsicContentSize)
+    // and overrides need class-body members. Constraints live in one global
+    // list here (NSLayoutConstraint.quillActive), so there is no per-view
+    // update pass to run — the hooks exist for overrides, and the bases are
+    // honest no-ops.
+
+    /// Apple's constraint-refresh override point (subclasses call super).
+    open func updateConstraints() {}
+    /// Recorded-intent no-op, same posture as setNeedsDisplay: nothing
+    /// schedules a constraint pass on Linux.
+    open func setNeedsUpdateConstraints() {}
+
+    /// "Best fitting" size. Apple's UIView default returns the view's
+    /// EXISTING size (the proposal is only consulted by overrides), and so
+    /// does the shim.
+    open func sizeThatFits(_ size: CGSize) -> CGSize {
+        _ = size
+        return bounds.size
+    }
+
+    /// No intrinsic size, exactly Apple's UIView default; content-bearing
+    /// views override with real metrics.
+    open var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
+    /// Apple's sentinel for "no intrinsic metric on this axis" (-1).
+    public static let noIntrinsicMetric: CGFloat = -1
+
     public func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
         _ = priority
         _ = axis
@@ -562,6 +749,19 @@ public class UIWindow: UIView {}
     open func viewDidLayoutSubviews() {}
     open func viewSafeAreaInsetsDidChange() {}
     open func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {}
+
+    // MARK: Status-bar appearance
+    //
+    // CLASS-BODY, not extension: SignalUI overrides all of these
+    // (ImageEditorCropViewController & co.). Apple's defaults throughout.
+    // There is no status bar on Linux, so nothing reads the values back yet;
+    // UIViewControllerSurface.swift owns the matching no-op
+    // setNeedsStatusBarAppearanceUpdate() and the UIStatusBarStyle enum.
+    open var preferredStatusBarStyle: UIStatusBarStyle { .default }
+    open var prefersStatusBarHidden: Bool { false }
+    open var childForStatusBarStyle: UIViewController? { nil }
+    open var childForStatusBarHidden: UIViewController? { nil }
+
     public var traitCollection = UITraitCollection()
     public var navigationController: UINavigationController?
     public var splitViewController: UISplitViewController?
@@ -785,8 +985,12 @@ public class SLComposeSheetConfigurationItem: NSObject {
 }
 
 @MainActor open class UIImageView: UIView {
-    public init(image: UIImage?) { super.init() }
-    public var contentMode: UIView.ContentMode = .scaleToFill
+    // (contentMode moved up to the UIView class body — one declaration,
+    // overridable — matching Apple, where UIImageView inherits it.)
+    public init(image: UIImage?) {
+        super.init()
+        self.image = image
+    }
     public var image: UIImage?
 }
 
