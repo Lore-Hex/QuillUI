@@ -92,7 +92,7 @@ struct SourceHygieneTests {
         // Signal upstream is present (Track B), so non-Signal builds don't get an
         // unused-dependency warning. See Package.swift `if signalUpstreamPresent`.
         #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
-        #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
+        #expect(manifest.contains("cSQLiteTarget,\n        cCairoTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))

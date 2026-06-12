@@ -780,17 +780,24 @@ let swiftUIShadowTestDependencies: [Target.Dependency] = ["SwiftUI"]
 let swiftUIShadowTestDependencies: [Target.Dependency] = []
 #endif
 
-// The representable GTK mount rides only in the gtk graph; the qt graph keeps
-// the SwiftUI shadow GTK-free (CGtk4 headers reach the module through the
-// QuillAppKitGTK import, hence the importer flags travel with the deps).
+// The representable GTK mount rides only in the gtk graph; the Qt mount rides
+// only in the opt-in generic Qt graph. The default qt graph keeps the SwiftUI
+// shadow out entirely, so native Qt app builds stay SwiftOpenUI/GTK-free.
 #if os(Linux)
 let swiftUIShadowMountDependencies: [Target.Dependency] =
     quillUILinuxBuildBackend == .gtk
     ? ["QuillAppKitGTK", "Observation", swiftUIShimBackendDependency]
-    : (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? ["Observation", swiftUIShimBackendDependency] : [])
-let swiftUIShadowMountSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
-    ? [.define("QUILLUI_SWIFTUI_GTK_MOUNT"), .unsafeFlags(gtk4SwiftImporterFlags)]
-    : []
+    : (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? ["QuillAppKitQt", "Observation", swiftUIShimBackendDependency] : [])
+let swiftUIShadowMountSwiftSettings: [SwiftSetting] = {
+    if quillUILinuxBuildBackend == .gtk {
+        return [.define("QUILLUI_SWIFTUI_GTK_MOUNT"), .unsafeFlags(gtk4SwiftImporterFlags)]
+    }
+    if quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled {
+        // Phase-1 Qt representable mount (drawing host); see #535.
+        return [.define("QUILLUI_SWIFTUI_QT_MOUNT")]
+    }
+    return []
+}()
 #endif
 
 let quillDataMacroTarget: Target = .macro(
@@ -2681,6 +2688,7 @@ allPackageDependencies += [
 if quillUILinuxBuildBackend == .qt {
     let qtGraphTargets: [Target] = [
         cSQLiteTarget,
+        cCairoTarget,
         quillDataMacroTarget,
         quillDataTarget,
         .target(
@@ -2776,7 +2784,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "CQuillAppKitQt",
-            dependencies: ["CQt6Widgets"],
+            dependencies: ["CQt6Widgets", "CCairo"],
             path: "Sources/CQuillAppKitQt",
             publicHeadersPath: "include",
             cxxSettings: [
@@ -2788,7 +2796,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillAppKitQt",
-            dependencies: ["AppKit", "CQuillAppKitQt", "QuillAutoLayout"],
+            dependencies: ["AppKit", "CQuillAppKitQt", "QuillAutoLayout", "CCairo"],
             path: "Sources/QuillAppKitQt",
             swiftSettings: appSwiftSettings
         ),
@@ -2877,6 +2885,24 @@ if quillUILinuxBuildBackend == .qt {
     if quillUIQtGenericEnabled {
         targets += [
             .target(
+                name: "Combine",
+                dependencies: [
+                    .product(name: "OpenCombine", package: "OpenCombine"),
+                    .product(name: "OpenCombineDispatch", package: "OpenCombine"),
+                    .product(name: "OpenCombineFoundation", package: "OpenCombine")
+                ],
+                path: "Sources/Combine"
+            ),
+            .target(
+                name: "QuillSwiftUICompatibility",
+                dependencies: [
+                    "QuillFoundation",
+                    "QuillDataMacros",
+                    .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+                ],
+                path: "Sources/QuillSwiftUICompatibility"
+            ),
+            .target(
                 name: "CQtBridge",
                 path: "Sources/CQtBridge",
                 publicHeadersPath: "include",
@@ -2899,6 +2925,15 @@ if quillUILinuxBuildBackend == .qt {
                 swiftSettings: appSwiftSettings + [
                     .define("QUILLUI_QT_GENERIC")
                 ]
+            ),
+            .target(
+                name: "SwiftUI",
+                dependencies: swiftUIShadowCoreDependencies + swiftUIShadowMountDependencies,
+                path: "Sources/SwiftUIShim",
+                swiftSettings: [
+                    .swiftLanguageMode(.v5),
+                    .unsafeFlags(["-strict-concurrency=minimal"]),
+                ] + swiftUIShadowMountSwiftSettings
             ),
             .executableTarget(
                 name: "QuillQtGenericSmoke",

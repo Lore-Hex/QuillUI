@@ -91,7 +91,8 @@ struct QuillQtBackendManifestTests {
         let root = try packageRoot()
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
 
-        #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {\n        return ["))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
+        #expect(manifest.contains("return [\n            // Runs inside the stripped Qt graph itself."))
         #expect(manifest.contains("name: \"QuillQtBackendManifestTests\""))
         #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
@@ -99,7 +100,7 @@ struct QuillQtBackendManifestTests {
         // `var` (not `let`): SwiftProtobuf/swift-crypto are appended only when the
         // Signal upstream is present (Track B), so non-Signal builds stay warning-clean.
         #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
-        #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
+        #expect(manifest.contains("cSQLiteTarget,\n        cCairoTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("dependencies: [\"QuillEnchantedData\", \"QuillFoundation\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
