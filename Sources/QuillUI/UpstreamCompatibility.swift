@@ -3,8 +3,11 @@ import Foundation
 import SwiftUI
 #else
 import SwiftOpenUI
+import QuillSwiftUICompatibility
 import QuillKit
 import QuillFoundation
+import class UIKit.NSItemProvider
+import enum UIKit.UIKeyboardType
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -36,55 +39,6 @@ public extension UTType {
     }
 }
 #endif
-
-public final class NSItemProvider: @unchecked Sendable {
-    private enum Representation {
-        case data(Data, UTType)
-        case file(URL, UTType?)
-    }
-
-    private let representations: [Representation]
-
-    public init() {
-        self.representations = []
-    }
-
-    public init(fileURL: URL) {
-        self.representations = [.file(fileURL, UTType.type(for: fileURL))]
-    }
-
-    public convenience init(contentsOf url: URL) {
-        self.init(fileURL: url)
-    }
-
-    public init(data: Data, type: UTType) {
-        self.representations = [.data(data, type)]
-    }
-
-    public func loadDataRepresentation(
-        for contentType: UTType,
-        completionHandler: @escaping (Data?, Error?) -> Void
-    ) -> Progress? {
-        for representation in representations {
-            switch representation {
-            case .data(let data, let type) where type.conforms(to: contentType):
-                completionHandler(data, nil)
-                return nil
-            case .file(let url, let type) where type?.conforms(to: contentType) == true || contentType.accepts(url: url):
-                do {
-                    completionHandler(try Data(contentsOf: url), nil)
-                } catch {
-                    completionHandler(nil, error)
-                }
-                return nil
-            default:
-                continue
-            }
-        }
-        completionHandler(nil, QuillCompatibilityError.representationUnavailable(contentType.identifier))
-        return nil
-    }
-}
 
 public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
     case representationUnavailable(String)
@@ -202,35 +156,6 @@ public enum QuillFileImporter {
     }
 }
 
-public struct Material: Sendable {
-    public init() {}
-    public static let ultraThinMaterial = Material()
-    public static let thinMaterial = Material()
-    public static let regularMaterial = Material()
-    public static let thickMaterial = Material()
-    public static let ultraThickMaterial = Material()
-}
-
-@propertyWrapper
-public struct Namespace: Sendable {
-    public struct ID: Hashable, Sendable {
-        private let rawValue = UUID()
-
-        public init() {}
-    }
-
-    private var id: ID
-
-    public init() {
-        self.id = ID()
-    }
-
-    public var wrappedValue: ID {
-        get { id }
-        set { id = newValue }
-    }
-}
-
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -280,61 +205,6 @@ public enum TextSelectability: Sendable {
     case enabled
     case disabled
 }
-
-public struct AngularGradient {
-    public var gradient: Gradient
-    public var center: UnitPoint
-    public var startAngle: Angle
-    public var endAngle: Angle
-
-    public init(
-        gradient: Gradient,
-        center: UnitPoint,
-        startAngle: Angle = .zero,
-        endAngle: Angle = .zero
-    ) {
-        self.gradient = gradient
-        self.center = center
-        self.startAngle = startAngle
-        self.endAngle = endAngle
-    }
-
-    public init(colors: [Color], center: UnitPoint, startAngle: Angle = .zero, endAngle: Angle = .zero) {
-        self.init(gradient: Gradient(colors: colors), center: center, startAngle: startAngle, endAngle: endAngle)
-    }
-
-    public func opacity(_ opacity: Double) -> Color {
-        gradient.quillAverageColor.opacity(opacity)
-    }
-}
-
-#if !os(macOS) && !os(iOS) && !os(visionOS)
-public struct ButtonStyleConfiguration {
-    public var label: Text
-    public var isPressed: Bool
-
-    public init(label: Text, isPressed: Bool) {
-        self.label = label
-        self.isPressed = isPressed
-    }
-}
-
-public protocol ButtonStyle {
-    associatedtype Body: View
-    typealias Configuration = ButtonStyleConfiguration
-
-    @ViewBuilder
-    func makeBody(configuration: Configuration) -> Body
-}
-
-public struct PlainButtonStyle: ButtonStyle {
-    public init() {}
-
-    public func makeBody(configuration: Configuration) -> Text {
-        configuration.label
-    }
-}
-#endif
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
 public typealias ToolbarItemGroup<Content: View> = ToolbarItem<Content>
@@ -425,7 +295,6 @@ public func withAnimation(_ animation: Animation = .default, _ body: @MainActor 
 }
 
 public extension CommandGroupPlacement {
-    static var appSettings: CommandGroupPlacement { .newItem }
     static var appInfo: CommandGroupPlacement { .help }
 }
 
@@ -557,54 +426,6 @@ public extension Section {
     }
 }
 
-public struct RoundedBorderTextFieldStyle: Sendable {
-    public init() {}
-}
-
-public struct PlainTextFieldStyle: Sendable {
-    public init() {}
-}
-
-public struct FormStyleType: Sendable {
-    public init() {}
-    public static let grouped = FormStyleType()
-}
-
-public struct GroupedFormStyle: Sendable {
-    public init() {}
-}
-
-public struct TextContentType: Hashable, Sendable {
-    public var rawValue: String
-
-    public init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let URL = TextContentType("URL")
-}
-
-public struct KeyboardType: Hashable, Sendable {
-    public var rawValue: String
-
-    public init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let URL = KeyboardType("URL")
-}
-
-public struct TextInputAutocapitalization: Hashable, Sendable {
-    public var rawValue: String
-
-    public init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let never = TextInputAutocapitalization("never")
-    public static let none = TextInputAutocapitalization("none")
-}
-
 public extension Image {
     /// Linux source-compatibility inits matching SwiftUI's
     /// `Image(nsImage:)` / `Image(uiImage:)`. SwiftOpenUI's
@@ -670,12 +491,6 @@ extension Image: @retroactive Equatable {
     }
 }
 
-public extension State {
-    init(initialValue: Value) {
-        self.init(wrappedValue: initialValue)
-    }
-}
-
 public extension WindowGroup {
     init(@ViewBuilder content: () -> Content) {
         self.init("Quill", content: content)
@@ -704,74 +519,6 @@ public struct LabeledContent<Content: View>: View {
                 .multilineTextAlignment(.trailing)
         }
     }
-}
-
-public struct TableColumn<RowValue, Content: View>: View {
-    public var title: String
-    private var content: (RowValue) -> Content
-
-    public init(_ title: String, @ViewBuilder content: @escaping (RowValue) -> Content) {
-        self.title = title
-        self.content = content
-    }
-
-    public var body: some View {
-        Text(title)
-    }
-
-    public func width(min: Double? = nil, max: Double? = nil) -> Self {
-        self
-    }
-}
-
-public struct AnyTableColumn<RowValue>: View {
-    public var title: String
-
-    public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
-        self.title = column.title
-    }
-
-    public var body: some View {
-        Text(title)
-    }
-}
-
-@resultBuilder
-public enum TableColumnBuilder<RowValue> {
-    public static func buildBlock(_ columns: [AnyTableColumn<RowValue>]...) -> [AnyTableColumn<RowValue>] {
-        columns.flatMap { $0 }
-    }
-
-    public static func buildExpression<Content: View>(
-        _ column: TableColumn<RowValue, Content>
-    ) -> [AnyTableColumn<RowValue>] {
-        [AnyTableColumn(column)]
-    }
-}
-
-public struct Table<RowValue>: View {
-    public var rows: [RowValue]
-    public var columns: [AnyTableColumn<RowValue>]
-
-    public init(_ rows: [RowValue], @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]) {
-        self.rows = rows
-        self.columns = columns()
-    }
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
-                column
-            }
-        }
-    }
-}
-
-public enum ScrollIndicatorVisibility: Sendable {
-    case automatic
-    case visible
-    case hidden
-    case never
 }
 
 public struct AccessibilityChildBehavior: Hashable, Sendable {
@@ -1092,33 +839,6 @@ public struct AutocapitalizationView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct DragGesture: Sendable {
-    public struct Value: Sendable {
-        public var translation: CGSize
-
-        public init(translation: CGSize = .zero) {
-            self.translation = translation
-        }
-    }
-
-    private var onChangedAction: (@Sendable (Value) -> Void)?
-    private var onEndedAction: (@Sendable (Value) -> Void)?
-
-    public init() {}
-
-    public func onChanged(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
-        var copy = self
-        copy.onChangedAction = action
-        return copy
-    }
-
-    public func onEnded(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
-        var copy = self
-        copy.onEndedAction = action
-        return copy
-    }
-}
-
 public extension View {
     func antialiased(_ antialiased: Bool) -> Self {
         self
@@ -1133,16 +853,7 @@ public extension View {
     }
 }
 
-public extension URL {
-    func startAccessingSecurityScopedResource() -> Bool { true }
-    func stopAccessingSecurityScopedResource() {}
-}
-
 public extension Shape {
-    func fill(_ material: Material) -> FilledShape<Self> {
-        fill(Color.white.opacity(0.92))
-    }
-
     func strokeBorder(style: StrokeStyle) -> StrokedShape<Self> {
         strokeBorder(.primary, style: style)
     }
@@ -1157,6 +868,14 @@ public extension View {
         return ContentShapeView(content: self, shape: shape)
     }
 
+    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
+        recordQuillUIFallback(
+            "allowsHitTesting",
+            message: "allowsHitTesting is preserved as interaction metadata on Linux."
+        )
+        return AllowsHitTestingView(content: self, enabled: enabled)
+    }
+
     func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
         recordQuillUIFallback(
             "onHover",
@@ -1167,15 +886,6 @@ public extension View {
 
     func offset(_ size: CGSize) -> OffsetView<Self> {
         offset(x: size.width, y: size.height)
-    }
-
-    func padding(_ insets: EdgeInsets) -> PaddedView<Self> {
-        padding(
-            top: Int(insets.top),
-            bottom: Int(insets.bottom),
-            leading: Int(insets.leading),
-            trailing: Int(insets.trailing)
-        )
     }
 
     func padding(_ amount: CGFloat) -> PaddedView<Self> {
@@ -1286,6 +996,7 @@ public extension View {
         }
     }
 
+    @_disfavoredOverload
     @ViewBuilder
     func foregroundStyle<Style>(_ style: Style) -> some View {
         if let color = style as? Color {
@@ -1311,6 +1022,7 @@ public extension View {
         foregroundColor(style.gradient.quillAverageColor)
     }
 
+    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color) -> some View {
         foregroundColor(primary)
     }
@@ -1323,6 +1035,7 @@ public extension View {
         return SymbolRenderingModeView(content: self, mode: mode)
     }
 
+    @_disfavoredOverload
     func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
         recordQuillUIFallback(
             "scrollIndicators",
@@ -1331,6 +1044,7 @@ public extension View {
         return ScrollIndicatorsView(content: self, visibility: visibility)
     }
 
+    @_disfavoredOverload
     func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
         recordQuillUIFallback(
             "scrollContentBackground",
@@ -1339,6 +1053,7 @@ public extension View {
         return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
+    @_disfavoredOverload
     func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
         recordQuillUIFallback(
             "focusEffectDisabled",
@@ -1347,6 +1062,7 @@ public extension View {
         return FocusEffectDisabledView(content: self, disabled: disabled)
     }
 
+    @_disfavoredOverload
     func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
         recordQuillUIFallback(
             "edgesIgnoringSafeArea",
@@ -1371,6 +1087,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func gesture<Gesture>(_ gesture: Gesture) -> GestureView<Self, Gesture> {
         recordQuillUIFallback(
             "gesture",
@@ -1379,6 +1096,7 @@ public extension View {
         return GestureView(content: self, gesture: gesture)
     }
 
+    @_disfavoredOverload
     func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
         recordQuillUIFallback(
             "mask",
@@ -1387,6 +1105,7 @@ public extension View {
         return ViewMaskView(content: self, mask: mask)
     }
 
+    @_disfavoredOverload
     func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
         recordQuillUIFallback(
             "mask",
@@ -1419,6 +1138,7 @@ public extension View {
         }
     }
 
+    @_disfavoredOverload
     func matchedGeometryEffect<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -1428,15 +1148,6 @@ public extension View {
             message: "matchedGeometryEffect is approximated with value-driven animation on Linux."
         )
         return animation(.easeInOut(duration: 0.2), value: AnyHashable(id))
-    }
-
-    @ViewBuilder
-    func buttonStyle<S: ButtonStyle>(_ style: S) -> some View {
-        recordQuillUIFallbackView(
-            buttonStyle(ButtonStyleType.plain),
-            operation: "buttonStyle",
-            message: "Custom ButtonStyle values currently fall back to a plain GTK button style on Linux."
-        )
     }
 
     func focusedSceneValue<K: FocusedValueKey>(
@@ -1457,23 +1168,7 @@ public extension View {
         return self
     }
 
-    func textFieldStyle(_ style: RoundedBorderTextFieldStyle) -> some View {
-        textFieldStyle(TextFieldStyleType.roundedBorder)
-    }
-
-    func textFieldStyle(_ style: PlainTextFieldStyle) -> some View {
-        textFieldStyle(TextFieldStyleType.plain)
-    }
-
-    func formStyle(_ style: FormStyleType) -> BackgroundView<PaddedView<Self>, Color> {
-        recordQuillUIFallback(
-            "formStyle",
-            message: "formStyle is approximated with grouped padding and background on Linux."
-        )
-        return padding(8)
-            .background(Color.gray5Custom)
-    }
-
+    @_disfavoredOverload
     func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
         recordQuillUIFallback(
             "formStyle",
@@ -1483,6 +1178,7 @@ public extension View {
             .background(Color.gray5Custom)
     }
 
+    @_disfavoredOverload
     func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
         recordQuillUIFallback(
             "textContentType",
@@ -1491,6 +1187,7 @@ public extension View {
         return TextContentTypeView(content: self, contentType: contentType)
     }
 
+    @_disfavoredOverload
     func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
         recordQuillUIFallback(
             "disableAutocorrection",
@@ -1499,6 +1196,7 @@ public extension View {
         return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
+    @_disfavoredOverload
     func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
         recordQuillUIFallback(
             "keyboardType",
@@ -1507,6 +1205,7 @@ public extension View {
         return KeyboardTypeView(content: self, keyboardType: keyboardType)
     }
 
+    @_disfavoredOverload
     func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
         recordQuillUIFallback(
             "autocapitalization",
@@ -1515,59 +1214,6 @@ public extension View {
         return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
     }
 
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping (V, V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value, action)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        _ action: @escaping () -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        onChange(of: value) { _, _ in action() }
-    }
-
-    func confirmationDialog<Actions: View, Message: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        @ViewBuilder actions: () -> Actions,
-        @ViewBuilder message: () -> Message
-    ) -> ConfirmationDialogView<Self> {
-        confirmationDialog(
-            title,
-            isPresented: isPresented,
-            titleVisibility: .automatic,
-            actions: quillConfirmationDialogButtons(from: actions()),
-            message: quillTextLabel(from: message())
-        )
-    }
-
-}
-
-public extension Array {
-    mutating func move(fromOffsets source: IndexSet, toOffset destination: Int) {
-        let moving = source.sorted().compactMap { indices.contains($0) ? self[$0] : nil }
-        for index in source.sorted(by: >) where indices.contains(index) {
-            remove(at: index)
-        }
-        let insertion = Swift.max(0, Swift.min(destination, count))
-        insert(contentsOf: moving, at: insertion)
-    }
-}
-
-public extension Gradient {
-    var quillAverageColor: Color {
-        guard !stops.isEmpty else { return .primary }
-        let count = Double(stops.count)
-        let red = stops.reduce(0.0) { $0 + $1.color.red } / count
-        let green = stops.reduce(0.0) { $0 + $1.color.green } / count
-        let blue = stops.reduce(0.0) { $0 + $1.color.blue } / count
-        let alpha = stops.reduce(0.0) { $0 + $1.color.alpha } / count
-        return Color(red: red, green: green, blue: blue, opacity: alpha)
-    }
 }
 
 private protocol QuillButtonRepresentable {

@@ -10,6 +10,7 @@ import QuillPaint
 import SwiftUI
 #else
 import SwiftOpenUI
+import QuillSwiftUICompatibility
 #endif
 
 public enum QuillSystemSymbol {
@@ -2421,6 +2422,7 @@ public struct QuillDesktopChatScaffold<
                 }
 
                 composerContent
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, composerHorizontalPadding)
                     .padding(.vertical, composerVerticalPadding)
                     .frame(maxWidth: composerMaxWidth)

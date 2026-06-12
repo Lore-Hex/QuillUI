@@ -49,7 +49,9 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = ["))
         #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
-        #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + [\n        .library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"]),\n        .executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
+        #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
+        #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
+        #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target"))
         #expect(manifest.contains("dependencies: [app.qtRuntime.targetDependency]"))
         #expect(manifest.contains("path: app.qtPath"))
@@ -76,6 +78,9 @@ struct SourceHygieneTests {
         #expect(manifest.contains("path: \"Sources/QuillGenericQtNativeRuntime\""))
         #expect(manifest.contains("qtPath: \"Sources/QuillSignalQt\""))
         #expect(manifest.contains("qtPath: \"Sources/QuillWireGuardQt\""))
+        #expect(manifest.contains("AppDelegate/Application remain intentionally deferred"))
+        #expect(!manifest.contains("\"Sources/WireGuardApp/UI/macOS/AppDelegate.swift\""))
+        #expect(!manifest.contains("\"Sources/WireGuardApp/UI/macOS/Application.swift\""))
         #expect(manifest.contains("let quillLinuxShimTestDependencies: [Target.Dependency] = ["))
         #expect(manifest.contains("let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = ["))
         #expect(manifest.contains("let testDeps: [Target.Dependency] = quillLinuxShimTestDependencies"))
@@ -89,6 +94,23 @@ struct SourceHygieneTests {
         #expect(!manifest.contains("dependencies: quillQtInteractionSmokeDependencies"))
         #expect(qtCarrierHeader.contains("Linker carrier for Qt6 Widgets"))
         #expect(!qtCarrierHeader.contains("Pkg-config and linker carrier"))
+    }
+
+    @Test("SwiftUI Linux source lowering runs reusable Objective-C and shorthand cleanup")
+    func swiftUILinuxSourceLoweringRunsReusableObjectiveCAndShorthandCleanup() throws {
+        let lowering = try packageSource("scripts/lower-swiftui-source-for-linux.sh")
+        let objcLowering = try packageSource("scripts/lower-objc-interop-for-linux.sh")
+        let appKitLoweringCall = "\"$(dirname \"$0\")/run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""
+        let objcLoweringCall = "\"$(dirname \"$0\")/lower-objc-interop-for-linux.sh\" \"$SOURCE_DIR\""
+
+        #expect(lowering.contains("s/\\.keyboardType\\([ \\t]*\\.URL[ \\t]*\\)/.keyboardType(KeyboardType.URL)/g;"))
+        #expect(lowering.contains("s/\\.textContentType\\([ \\t]*\\.URL[ \\t]*\\)/.textContentType(TextContentType.URL)/g;"))
+        #expect(lowering.contains(appKitLoweringCall))
+        #expect(lowering.contains(objcLoweringCall))
+        #expect((lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: objcLoweringCall)?.lowerBound ?? lowering.startIndex))
+        #expect(objcLowering.contains("lower_foundation_bridge_casts"))
+        #expect(objcLowering.contains("lowered = lowered.replace(\" as CFDictionary\", \"\")"))
+        #expect(objcLowering.contains("lowered = lowered.replace(\" as CFString\", \"\")"))
     }
 
     @Test("GTK manifest filters pkg-config prohibited flag warnings")
@@ -130,7 +152,6 @@ struct SourceHygieneTests {
         #expect(manifest.contains("""
                 "KeychainSwift",
                 "UIKit",
-            ],
 """))
     }
 
@@ -471,6 +492,19 @@ struct SourceHygieneTests {
         #expect(source.contains("case inspector"))
     }
 
+    @Test("Semantic colors have a single platform-color owner")
+    func semanticColorsHaveSinglePlatformColorOwner() throws {
+        let foundation = try packageSource("Sources/QuillFoundation/QuillFoundation.swift")
+        let uiKit = try packageSource("Sources/UIKitShim/UIKit.swift")
+
+        for colorName in ["systemGray", "systemGray2", "systemBlue", "systemRed", "pink"] {
+            #expect(foundation.contains("public static let \(colorName) = RSColor("))
+            #expect(!uiKit.contains("static let \(colorName) = RSColor("))
+        }
+
+        #expect(uiKit.contains("static let placeholderText = RSColor("))
+    }
+
     @Test("Linux AppKit shims avoid Swift 6 warning traps")
     func linuxAppKitShimsAvoidSwift6WarningTraps() throws {
         let root = try packageRoot()
@@ -485,7 +519,8 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
-        #expect(appKit.contains("@MainActor public protocol NSApplicationDelegate"))
+        #expect(appKit.contains("public protocol NSApplicationDelegate"))
+        #expect(!appKit.contains("@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,
@@ -502,6 +537,11 @@ struct SourceHygieneTests {
         #expect(appKit.contains("MainActor.assumeIsolated { delegate.menuWillOpen(self) }"))
         #expect(appKit.contains("public static let borderless: StyleMask = []"))
         #expect(appKit.contains("open class NSTextStorage: NSMutableAttributedString {"))
+        #expect(appKit.contains("open func performKeyEquivalent(with event: NSEvent) -> Bool"))
+        #expect(appKit.contains("open func standardWindowButton(_ button: WindowButton) -> NSButton?"))
+        #expect(appKit.contains("open class NSRunningApplication: NSObject"))
+        #expect(appKit.contains("public var runningApplications: [NSRunningApplication]"))
+        #expect(appKit.contains("public var fittingSize: NSSize"))
         #expect(!appKit.contains("public static let borderless = StyleMask(rawValue: 0)"))
         #expect(!appKit.contains("open class NSTextStorage: NSMutableAttributedString, @unchecked Sendable"))
         #expect(!gtk.contains("let ctx = g_main_context_default()"))
@@ -543,18 +583,40 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/QuillSwiftUICompatibility.swift"),
             encoding: .utf8
         )
+        let designCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift"),
+            encoding: .utf8
+        )
+        let appStorageCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/AppStorage.swift"),
+            encoding: .utf8
+        )
+        let quillUpstreamCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/UpstreamCompatibility.swift"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains("name: \"QuillSwiftUICompatibility\""))
         #expect(manifest.contains("\"QuillFoundation\",\n    \"QuillSwiftUICompatibility\","))
         // The SwiftUI shadow now mirrors Apple's macOS re-export topology
         // (AppKit + Combine) and carries the gtk-graph-only representable
         // mount via swiftUIShadowMountDependencies.
-        #expect(manifest.contains("\"QuillUI\", \"QuillSwiftUICompatibility\", \"AppKit\", \"Combine\","))
+        #expect(manifest.contains("\"QuillSwiftUICompatibility\", \"AppKit\", \"UIKit\", \"CoreImage\", \"CoreTransferable\", \"Combine\","))
         #expect(manifest.contains("] + swiftUIShadowMountDependencies"))
+        #expect(manifest.contains("\"Observation\",\n    .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\"),\n    \"CGdkPixbuf\","))
+        #expect(manifest.contains("let wrappingHStackDependencies: [Target.Dependency] = [\n    \"SwiftUI\",\n    \"Observation\","))
+        #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
+        #expect(manifest.contains("? [\"Observation\", swiftUIShimBackendDependency] : []"))
+        #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"Observation\",\n                    \"CQtBridge\""))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))
         #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
+        #expect(designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
+        #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
+        #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))
+        #expect(!quillUpstreamCompatibility.contains("public struct PlainButtonStyle"))
+        #expect(!quillUpstreamCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
     }
 
@@ -575,7 +637,7 @@ struct SourceHygieneTests {
         )
 
         #expect(rendererSource.contains("ImageRendererBackend.installViewRenderer"))
-        #expect(compatibilitySource.contains("let renderer = SwiftOpenUI.ImageRenderer(content: self)"))
+        #expect(compatibilitySource.contains("let renderer = SwiftOpenUI.OpenUIImageRenderer(content: self)"))
         #expect(compatibilitySource.contains("if let data = renderer.platformImage?.data"))
         #expect(compatibilitySource.contains("let image = PlatformImage(data: data)"))
         #expect(!compatibilitySource.contains("if let image = renderer.platformImage {\n            return image"))
@@ -628,6 +690,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/CoreGraphics/CoreGraphics.swift"),
             encoding: .utf8
         )
+        let enchantedEmptyFiles = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
+            encoding: .utf8
+        )
         let profileAliasesPath = root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/QuillGeneratedProfileAliases.swift")
         let profileAliases = (try? String(contentsOf: profileAliasesPath, encoding: .utf8)) ?? ""
 
@@ -650,6 +716,7 @@ struct SourceHygieneTests {
         #expect(quillShims.contains("@_exported import AppKit"))
         #expect(quillShims.contains("@_exported import Combine"))
         #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
+        #expect(swiftUILowering.contains("run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""))
         #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;"#))
         #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+(\[[^\]]+\][ \t]+in)/Task { $1/g;"#))
         #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" AppKit"))
@@ -670,6 +737,15 @@ struct SourceHygieneTests {
         #expect(!FileManager.default.fileExists(atPath: profileAliasesPath.path))
         #expect(!profileAliases.contains("typealias CheckForUpdatesMenuItem"))
         #expect(!profileAliases.contains("enum QuillUSBLauncher"))
+        #expect(enchantedEmptyFiles.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #expect(!enchantedEmptyFiles.contains("Helpers/Accessibility.swift"))
+        #expect(!enchantedEmptyFiles.contains("Helpers/HotKeys.swift"))
+        #expect(!enchantedEmptyFiles.contains("Services/HotkeyService.swift"))
+        #expect(!enchantedEmptyFiles.contains("UI/macOS/PromptPanel/FloatingPanel.swift"))
+        #expect(!enchantedEmptyFiles.contains("UI/macOS/PromptPanel/PanelManager.swift"))
+        #expect(!enchantedEmptyFiles.contains("Application/QuillUpdater.swift"))
+        #expect(!enchantedEmptyFiles.contains("Application/QuillUSBWatcher.swift"))
+        #expect(!enchantedEmptyFiles.contains("Application/QuillUSBLauncher.swift"))
     }
 
     @Test("Linux controls read backend-scoped reference environment")
@@ -3221,6 +3297,7 @@ struct SourceHygieneTests {
         #expect(controls.contains("if showsStatus {\n                    statusContent"))
         #expect(controls.contains(".padding(.horizontal, composerHorizontalPadding)"))
         #expect(controls.contains(".padding(.vertical, composerVerticalPadding)"))
+        #expect(controls.contains("composerContent\n                    .frame(maxWidth: .infinity)"))
         #expect(controls.contains(".frame(maxWidth: composerMaxWidth)"))
         #expect(controls.contains("public extension QuillDesktopChatScaffold where ToolbarContent == QuillDesktopChatToolbar"))
         #expect(controls.contains("modelActions: [QuillMenuAction]"))
@@ -3760,6 +3837,11 @@ struct SourceHygieneTests {
         #expect(patcher.contains("padded_view_child_fill = \"PaddedView must let expanding content fill its margin wrapper\""))
         #expect(patcher.contains("gtk_widget_set_halign(child, GTK_ALIGN_FILL)"))
         #expect(patcher.contains("gtk_widget_set_valign(child, GTK_ALIGN_FILL)"))
+        #expect(renderer.contains("extension ClippedView: GTKRenderable"))
+        #expect(renderer.contains("gtk_widget_set_halign(inner, GTK_ALIGN_FILL)"))
+        #expect(renderer.contains("gtk_widget_set_valign(inner, GTK_ALIGN_FILL)"))
+        #expect(renderer.contains("gtk_widget_set_halign(baseWidget, GTK_ALIGN_FILL)"))
+        #expect(renderer.contains("gtk_widget_set_valign(baseWidget, GTK_ALIGN_FILL)"))
         #expect(patcher.contains("gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)"))
         #expect(patcher.contains("gtk_widget_set_halign(row, GTK_ALIGN_FILL)"))
         #expect(patcher.contains("gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)"))

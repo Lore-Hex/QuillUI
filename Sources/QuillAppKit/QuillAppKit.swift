@@ -208,8 +208,6 @@ public extension NSColor {
     static let gray = NSColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1)
     static let lightGray = NSColor(red: 0.66, green: 0.66, blue: 0.66, alpha: 1)
     static let brown = NSColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 1)
-    static let systemRed = NSColor(red: 1.0, green: 0.231, blue: 0.188, alpha: 1)
-    static let systemBlue = NSColor(red: 0.0, green: 0.478, blue: 1.0, alpha: 1)
     static let systemGreen = NSColor(red: 0.204, green: 0.780, blue: 0.349, alpha: 1)
     static let systemOrange = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)
 
@@ -905,6 +903,10 @@ open class NSView: NSResponder {
         return false
     }
     open func viewDidChangeBackingProperties() {}
+    open func performKeyEquivalent(with event: NSEvent) -> Bool {
+        _ = event
+        return false
+    }
     open func isAccessibilityElement() -> Bool { false }
     open func accessibilityLabel() -> String? { nil }
     open func accessibilityParent() -> Any? { superview }
@@ -1467,9 +1469,9 @@ open class NSWindow: NSResponder {
     public var representedURL: URL?
     public var appearance: NSAppearance?
     public var effectiveAppearance: NSAppearance = NSAppearance()
-    public var standardWindowButton: ((WindowButton) -> NSButton?)?
     public var tabbingMode: TabbingMode = .automatic
     public var tabbingIdentifier: String = ""
+    private var standardWindowButtons: [WindowButton: NSButton] = [:]
     private var childWindowStorage: [NSWindow] = []
     private var tabbedWindowStorage: [NSWindow] = []
     private weak var tabbedWindowParentStorage: NSWindow?
@@ -1520,6 +1522,15 @@ open class NSWindow: NSResponder {
     public convenience init(contentRect: NSRect, styleMask: StyleMask, backing: BackingStoreType, defer: Bool, screen: NSScreen?) {
         self.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: `defer`)
         _ = screen
+    }
+
+    open func standardWindowButton(_ button: WindowButton) -> NSButton? {
+        if let existing = standardWindowButtons[button] {
+            return existing
+        }
+        let created = NSButton()
+        standardWindowButtons[button] = created
+        return created
     }
 
     /// Window hosting a view controller (WireGuard's AppDelegate manage-tunnels window).
@@ -1904,7 +1915,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
     public func display() {}
 }
 
-@MainActor public protocol NSApplicationDelegate: AnyObject {
+public protocol NSApplicationDelegate: AnyObject {
     func applicationDidFinishLaunching(_ notification: Notification)
     func applicationWillTerminate(_ notification: Notification)
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool
@@ -2719,6 +2730,9 @@ public protocol NSPasteboardReading {}
 open class NSWorkspace: NSObject, @unchecked Sendable {
     public static let shared = NSWorkspace()
     public var notificationCenter = NotificationCenter()
+    public var runningApplications: [NSRunningApplication] {
+        NSRunningApplication.runningApplications()
+    }
 
     @discardableResult
     public func open(_ url: URL) -> Bool {
@@ -2822,6 +2836,55 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
         public var arguments: [String] = []
         public var environment: [String: String] = [:]
         public var activates: Bool = true
+    }
+}
+
+open class NSRunningApplication: NSObject, @unchecked Sendable {
+    public struct ActivationOptions: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let activateAllWindows = ActivationOptions(rawValue: 1 << 0)
+        public static let activateIgnoringOtherApps = ActivationOptions(rawValue: 1 << 1)
+    }
+
+    public static var current: NSRunningApplication {
+        NSRunningApplication(bundleIdentifier: Bundle.main.bundleIdentifier, localizedName: ProcessInfo.processInfo.processName, isActive: NSApp.isActive)
+    }
+
+    public private(set) var bundleIdentifier: String?
+    public private(set) var localizedName: String?
+    public private(set) var processIdentifier: pid_t
+    public var isActive: Bool
+
+    public init(
+        bundleIdentifier: String? = Bundle.main.bundleIdentifier,
+        localizedName: String? = ProcessInfo.processInfo.processName,
+        processIdentifier: pid_t = ProcessInfo.processInfo.processIdentifier,
+        isActive: Bool = false
+    ) {
+        self.bundleIdentifier = bundleIdentifier
+        self.localizedName = localizedName
+        self.processIdentifier = processIdentifier
+        self.isActive = isActive
+        super.init()
+    }
+
+    public class func runningApplications(withBundleIdentifier bundleIdentifier: String) -> [NSRunningApplication] {
+        let current = NSRunningApplication.current
+        guard current.bundleIdentifier == bundleIdentifier else { return [] }
+        return [current]
+    }
+
+    public class func runningApplications() -> [NSRunningApplication] {
+        [current]
+    }
+
+    @discardableResult
+    public func activate(options: ActivationOptions = []) -> Bool {
+        _ = options
+        isActive = true
+        NSApp.activate(ignoringOtherApps: options.contains(.activateIgnoringOtherApps))
+        return true
     }
 }
 
@@ -5741,6 +5804,12 @@ open class NSDocumentController: NSObject {
 public class NSHostingView<Content>: NSView {
     public var rootView: Content
     public init(rootView: Content) { self.rootView = rootView; super.init(frame: .zero) }
+    public var fittingSize: NSSize {
+        let intrinsic = intrinsicContentSize
+        if intrinsic != .zero { return intrinsic }
+        if frame.size != .zero { return frame.size }
+        return NSSize(width: 640, height: 420)
+    }
     public override init(frame: NSRect) {
         fatalError("NSHostingView(frame:) requires a rootView")
     }

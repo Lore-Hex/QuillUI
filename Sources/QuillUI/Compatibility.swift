@@ -136,85 +136,6 @@ public extension View {
 }
 
 #else
-public struct QuillPlatformColor: @unchecked Sendable {
-    public let color: Color
-
-    public init(_ color: Color) {
-        self.color = color
-    }
-
-    public static var label: QuillPlatformColor { QuillPlatformColor(.black) }
-    public static var black: QuillPlatformColor { QuillPlatformColor(.black) }
-    public static var white: QuillPlatformColor { QuillPlatformColor(.white) }
-    public static var systemGray: QuillPlatformColor { QuillPlatformColor(.gray) }
-    public static var systemGray2: QuillPlatformColor { QuillPlatformColor(Color(red: 0.68, green: 0.68, blue: 0.70)) }
-    public static var systemBlue: QuillPlatformColor { QuillPlatformColor(Color(red: 0.00, green: 0.48, blue: 1.00)) }
-    public static var systemRed: QuillPlatformColor { QuillPlatformColor(Color(red: 1.00, green: 0.23, blue: 0.19)) }
-    public static var pink: QuillPlatformColor { QuillPlatformColor(.pink) }
-}
-
-public extension Color {
-    init(_ platformColor: QuillPlatformColor) {
-        self = platformColor.color
-    }
-
-    // SwiftOpenUI ships its own `Color.init(hex:)` — don't redeclare on
-    // Linux. (The macOS variant at the top of this file is gated to
-    // Apple platforms where SwiftUI lacks it.)
-
-    init(rgba: UInt32) {
-        self.init(
-            red: Double((rgba >> 24) & 0xff) / 255.0,
-            green: Double((rgba >> 16) & 0xff) / 255.0,
-            blue: Double((rgba >> 8) & 0xff) / 255.0,
-            opacity: Double(rgba & 0xff) / 255.0
-        )
-    }
-
-    init(light: Color, dark: Color) {
-        self = light
-    }
-
-    init(_ assetName: String) {
-        self = Self.assetColor(named: assetName)
-    }
-
-    static var foreground: Color { primary }
-    static var label: Color { Color(QuillPlatformColor.label) }
-    static var labelCustom: Color { Color("label") }
-    static var systemGray: Color { Color(.systemGray) }
-    static var systemGray2: Color { Color(.systemGray2) }
-    static var systemBlue: Color { Color(.systemBlue) }
-    static var systemRed: Color { Color(.systemRed) }
-    static var grayCustom: Color { Color("grayCustom") }
-    static var gray2Custom: Color { Color("gray2Custom") }
-    static var gray3Custom: Color { Color("gray3Custom") }
-    static var gray4Custom: Color { Color("gray4Custom") }
-    static var gray5Custom: Color { Color("gray5Custom") }
-    static var bgCustom: Color { Color("bgCustom") }
-
-    private static func assetColor(named name: String) -> Color {
-        switch name {
-        case "label":
-            return Color(red: 0.12, green: 0.12, blue: 0.13)
-        case "grayCustom":
-            return Color(red: 0.56, green: 0.56, blue: 0.58)
-        case "gray2Custom":
-            return Color(red: 0.68, green: 0.68, blue: 0.70)
-        case "gray3Custom":
-            return Color(red: 0.78, green: 0.78, blue: 0.80)
-        case "gray4Custom":
-            return Color(red: 0.86, green: 0.86, blue: 0.88)
-        case "gray5Custom":
-            return Color(red: 0.91, green: 0.91, blue: 0.94)
-        case "bgCustom":
-            return Color(red: 0.96, green: 0.96, blue: 0.97)
-        default:
-            return .primary
-        }
-    }
-}
-
 // MARK: - Compatibility diagnostics
 
 @inline(__always)
@@ -458,16 +379,6 @@ public extension Image {
 
 public protocol KeyboardReadable {}
 
-public extension TextField {
-    init(_ title: String, text: Binding<String>, axis: Axis) {
-        self.init(title, text: text)
-    }
-
-    init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
-        self.init(title, text: text)
-    }
-}
-
 public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
     public var rawValue: Double
     public init(_ value: Double) { self.rawValue = value }
@@ -546,13 +457,6 @@ public extension Image {
     }
 }
 
-public extension Binding {
-    func animation(_ animation: Animation? = nil) -> Binding<Value> {
-        recordCompatibilityFallback("Binding.animation")
-        return self
-    }
-}
-
 // `OpenURLAction` moved to QuillSwiftUICompatibility/OpenURLActionCompat.swift
 // (so the SwiftUI shim can surface it — with its nested `Result` — to vendored
 // real source). QuillUI still sees it via its `@_exported import
@@ -606,20 +510,7 @@ public extension EnvironmentValues {
 }
 
 public extension View {
-    @ViewBuilder
-    func preferredColorScheme(_ colorScheme: ColorScheme?) -> some View {
-        if let colorScheme {
-            environment(\.colorScheme, colorScheme)
-        } else {
-            self
-        }
-    }
-
-    func listStyle(_ style: PlainListStyle) -> Self {
-        recordCompatibilityFallback("listStyle(PlainListStyle)")
-        return self
-    }
-
+    @_disfavoredOverload
     @ViewBuilder
     func quillGTKSizeRequest(width: Int = -1, height: Int = -1) -> some View {
         #if os(Linux)

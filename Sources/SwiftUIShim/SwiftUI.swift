@@ -21,7 +21,7 @@
 // compatibility types that collide with the matching
 // definitions in `AppKit` (QuillAppKit shim) when both are
 // imported. The lowering script
-// `scripts/lower-observable-for-swiftopenui.py` injects
-// `import QuillUI` at the file level when a file needs the
-// Quill helpers — that keeps the visibility scoped instead
-// of ambient.
+// `scripts/lower-observable-for-swiftopenui.py` now relies on QuillShims
+// re-exporting the narrow QuillSwiftUICompatibility surface for lowered
+// observation helpers. QuillUI stays opt-in for generated profile templates
+// that explicitly use Quill-specific replacement views.

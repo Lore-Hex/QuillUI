@@ -2112,6 +2112,44 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testDecoratedComposerTextFieldFillsAvailableWidth() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 20) {
+                ZStack(alignment: .trailing) {
+                    TextField("Message", text: .constant(""))
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .clipped()
+                        .padding(.trailing, 80)
+
+                    HStack {
+                        Text("mic")
+                        Text("send")
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 28)
+                    .strokeBorder(Color.gray, style: StrokeStyle(lineWidth: 1))
+            )
+        ))
+
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        allocate(widget: wrapper, size: ViewSize(width: 1_200, height: 88))
+
+        let entry = try unwrapFirstDescendant(ofType: "GtkEntry", in: wrapper)
+        let entrySize = allocatedSize(of: entry)
+        XCTAssertGreaterThan(
+            entrySize.width,
+            900,
+            "A SwiftUI-style decorated chat composer must keep the text field wide after padding, clipping, and overlay wrappers."
+        )
+    }
+
     func testMiddleTruncationFrameRendersScrolledWindowWithSingleLabel() throws {
         try requireGTK()
 

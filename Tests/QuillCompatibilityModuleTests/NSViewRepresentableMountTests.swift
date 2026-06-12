@@ -94,6 +94,7 @@ struct NSViewRepresentableMountTests {
     }
 
     @Test func representableDefaultBodyIsTheGTKHost() {
+        @MainActor
         struct Probe: NSViewRepresentable {
             func makeNSView(context: Context) -> NSView { NSView() }
             func updateNSView(_ nsView: NSView, context: Context) {}
@@ -106,6 +107,7 @@ struct NSViewRepresentableMountTests {
 
     @Test func coordinatorPatternCompilesAndFlows() {
         final class Delegate { var pinged = false }
+        @MainActor
         struct Probe: NSViewRepresentable {
             func makeCoordinator() -> Delegate { Delegate() }
             func makeNSView(context: Context) -> NSView {

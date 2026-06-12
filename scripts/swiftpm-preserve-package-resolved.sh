@@ -89,9 +89,14 @@ fi
 # test targets) at full parallelism spikes past available memory; the OOM killer
 # truncates a compiler frontend mid-write, after which SwiftPM aborts with
 #   Internal Error: dataCorrupted(... "Corrupted JSON" ... unexpected end of file)
-# Bounding the concurrent-frontend count keeps peak memory in check. This wrapper
-# is the shared chokepoint every GTK/Qt swift build/test is routed through, so the
-# cap is applied here once rather than at each call site.
+# Bounding the concurrent-frontend count keeps peak memory in check. The full
+# Linux suite has enough large Swift modules that the previous ~6 GiB/frontend
+# rule still allowed two frontends on GitHub's 16 GiB runner and intermittently
+# corrupted compiler JSON output. Use a 12 GiB/frontend budget so that standard
+# hosted runners serialize the heaviest build while larger local machines can
+# still opt into parallelism. This wrapper is the shared chokepoint every GTK/Qt
+# swift build/test is routed through, so the cap is applied here once rather than
+# at each call site.
 #
 # Linux-only by default (skipped where /proc/meminfo is absent, e.g. macOS). An
 # explicit --jobs/-j on the command line always wins. Overridable via
@@ -121,8 +126,8 @@ maybe_cap_swift_jobs() {
     local mem_kib ncpu mem_cap
     mem_kib="$(awk '/^MemTotal:/ { print $2; exit }' /proc/meminfo 2>/dev/null || echo 0)"
     ncpu="$(nproc 2>/dev/null || echo 2)"
-    # ~6 GiB of headroom per concurrent swift frontend, never above the CPU count.
-    mem_cap=$(( mem_kib / (6 * 1024 * 1024) ))
+    # ~12 GiB of headroom per concurrent swift frontend, never above the CPU count.
+    mem_cap=$(( mem_kib / (12 * 1024 * 1024) ))
     (( mem_cap < 1 )) && mem_cap=1
     jobs=$mem_cap
     (( jobs > ncpu )) && jobs=$ncpu

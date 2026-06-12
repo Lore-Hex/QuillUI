@@ -9,8 +9,8 @@ import SwiftOpenUI
 public struct OpenURLAction: @unchecked Sendable {
     /// The outcome a URL handler reports back to `openURL`. Mirrors SwiftUI's
     /// `OpenURLAction.Result`.
-    public struct Result: Sendable {
-        enum Kind: Sendable { case handled, discarded, systemAction(URL?) }
+    public struct Result: Sendable, Equatable {
+        enum Kind: Sendable, Equatable { case handled, discarded, systemAction(URL?) }
         let kind: Kind
         private init(_ kind: Kind) { self.kind = kind }
 
@@ -24,18 +24,25 @@ public struct OpenURLAction: @unchecked Sendable {
         public static func systemAction(_ url: URL?) -> Result { Result(.systemAction(url)) }
     }
 
-    private let handler: @MainActor (URL) -> Result
+    private let handler: @Sendable (URL) -> Result
 
     public init(handler: @escaping @MainActor (URL) -> Result = OpenURLAction.defaultHandler) {
-        self.handler = handler
+        self.handler = { url in
+            MainActor.assumeIsolated {
+                handler(url)
+            }
+        }
     }
 
     public init(handler: @escaping @MainActor (URL) -> Bool) {
-        self.handler = { url in handler(url) ? .handled : .discarded }
+        self.handler = { url in
+            MainActor.assumeIsolated {
+                handler(url) ? .handled : .discarded
+            }
+        }
     }
 
     @discardableResult
-    @MainActor
     public func callAsFunction(_ url: URL) -> Result {
         handler(url)
     }
