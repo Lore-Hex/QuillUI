@@ -1609,11 +1609,19 @@ public extension View {
         return self
     }
 
+    /// @_disfavoredOverload: QuillUI declares the FUNCTIONAL mask pair
+    /// (ViewMaskView/ClipShapeView render paths). Files importing both
+    /// modules (QuillUI @_exported-imports this one) must resolve to those —
+    /// without the attribute the duplicate is ambiguous (broke main's Linux
+    /// CI, CompatibilityModuleTests:146). SwiftUI-only importers (the
+    /// tree this stub was added for) still compile through here.
+    @_disfavoredOverload
     func mask<Mask: View>(_ mask: Mask) -> Self {
         _ = mask
         return self
     }
 
+    @_disfavoredOverload
     func mask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> Self {
         _ = mask()
         return self
