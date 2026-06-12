@@ -586,50 +586,10 @@ extension UICollectionViewCell {
     }
 }
 
-// MARK: - UIBackgroundConfiguration cell surface
-
-private struct QuillBackgroundConfigurationState {
-    weak var owner: UIBackgroundConfiguration?
-    var cornerRadius: CGFloat = 0
-    var backgroundColor: UIColor?
-}
-
-@MainActor private var quillBackgroundConfigurationStates: [ObjectIdentifier: QuillBackgroundConfigurationState] = [:]
-
-extension UIBackgroundConfiguration {
-
-    @MainActor private var quillBackgroundState: QuillBackgroundConfigurationState {
-        get {
-            if let state = quillBackgroundConfigurationStates[ObjectIdentifier(self)], state.owner === self {
-                return state
-            }
-            return QuillBackgroundConfigurationState(owner: self)
-        }
-        set {
-            if quillBackgroundConfigurationStates[ObjectIdentifier(self)]?.owner !== self {
-                quillBackgroundConfigurationStates = quillBackgroundConfigurationStates.filter { $0.value.owner != nil }
-            }
-            var state = newValue
-            state.owner = self
-            quillBackgroundConfigurationStates[ObjectIdentifier(self)] = state
-        }
-    }
-
-    /// Apple's "empty" configuration: no fill, no stroke.
-    @MainActor public static func clear() -> UIBackgroundConfiguration {
-        UIBackgroundConfiguration()
-    }
-
-    @MainActor public var cornerRadius: CGFloat {
-        get { quillBackgroundState.cornerRadius }
-        set { quillBackgroundState.cornerRadius = newValue }
-    }
-
-    @MainActor public var backgroundColor: UIColor? {
-        get { quillBackgroundState.backgroundColor }
-        set { quillBackgroundState.backgroundColor = newValue }
-    }
-}
+// UIBackgroundConfiguration's member surface (clear()/backgroundColor/
+// cornerRadius/stroke*) lives in UIButtonExtras.swift — a superset added
+// by the button cluster; the copy that sat here was a same-module
+// redeclaration.
 
 // MARK: - IndexPath item accessors
 

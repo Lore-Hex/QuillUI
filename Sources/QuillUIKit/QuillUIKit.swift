@@ -311,7 +311,7 @@ public class UIWindow: UIView {}
     // cross-module unless it is open, and Signal subclasses declare
     // `override init(frame:)` everywhere (ImageEditorSliderView's
     // BackgroundView, OWSLayerView, …).
-    open init(frame: CGRect) {
+    public init(frame: CGRect) {
         super.init()
         self.frame = frame
     }
@@ -1290,7 +1290,7 @@ public struct UIContentSizeCategory: RawRepresentable, Equatable, Hashable, Send
     public static let didChangeNotification = Notification.Name("UIContentSizeCategoryDidChangeNotification")
 }
 
-@MainActor public class UIScrollView: UIView {
+@MainActor open class UIScrollView: UIView {
     public enum ContentInsetAdjustmentBehavior: Int {
         case automatic
         case scrollableAxes

@@ -346,11 +346,11 @@ extension UITableView {
         set { quillTableState.dataSource = newValue }
     }
 
-    /// The display/selection delegate. Weak, as on Apple.
-    public var delegate: (any UITableViewDelegate)? {
-        get { quillTableState.delegate }
-        set { quillTableState.delegate = newValue }
-    }
+    // The display/selection delegate is the INHERITED UIScrollView.delegate:
+    // UITableViewDelegate refines UIScrollViewDelegate, so upstream's
+    // `tableView.delegate = self` lands there by upcast (same approach as
+    // UICollectionViewExtras). Apple's covariant ObjC redeclaration can't be
+    // spelled in Swift without an override-type clash.
 
     // MARK: Counts (live questions to the data source, as on Apple)
 

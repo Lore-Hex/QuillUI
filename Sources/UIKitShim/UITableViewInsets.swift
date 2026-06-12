@@ -34,21 +34,10 @@ private extension UIEdgeInsets {
 
 extension UITableView {
 
-    /// Extra padding around the table's content. Stored in
-    /// `quillTableContentInset`. (Apple declares these members `open var`;
-    /// extension members can't be `open`, so they are `public`.)
-    public var contentInset: UIEdgeInsets {
-        get { UIEdgeInsets(quillTableContentInset) }
-        set { quillTableContentInset = newValue.quillValue }
-    }
-
-    /// The content inset after safe-area/keyboard adjustment — read-only,
-    /// as on Apple. MODEL HONESTY: Linux has no safe areas or keyboard
-    /// avoidance (`UIView.safeAreaInsets` is `.zero` in this shim), so the
-    /// adjustment is always zero and this equals `contentInset`.
-    public var adjustedContentInset: UIEdgeInsets {
-        contentInset
-    }
+    // contentInset/adjustedContentInset are INHERITED from UIScrollView
+    // (UIScrollViewInsets.swift) since the UIScrollView re-parent — extension
+    // members can't shadow superclass extension members, and the scroll
+    // accessors already store per-instance state.
 
     /// The default inset applied to every row separator. Apple's documented
     /// default ({0, 15, 0, 0}) lives in the backing store.
