@@ -91,14 +91,13 @@ public struct Picker: View {
         }
     }
 
-    public init<SelectionValue: Hashable, Content: View>(
-        selection: Binding<SelectionValue>,
-        @ViewBuilder content: () -> Content,
-        @ViewBuilder label: () -> some View
-    ) {
-        _ = label()
-        self.init("", selection: selection, content: content)
-    }
+    // The label-as-@ViewBuilder overload `init(selection:content:label:)`
+    // lives in QuillUI (UpstreamCompatibility.swift), which extracts the
+    // label text instead of discarding it — a twin here had an identical
+    // generic shape, and the two-module pair made every
+    // `Picker(selection:) { … } label: { … }` call ambiguous (three of them
+    // in generated Enchanted SettingsView fed the body-wide "failed to
+    // produce diagnostic"). One owner: QuillUI's richer adapter.
 
     public init<SelectionValue: Hashable, Label: View, Content: View>(
         selection: Binding<SelectionValue>,

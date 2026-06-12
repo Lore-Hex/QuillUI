@@ -50,6 +50,16 @@ extension View {
         ForegroundColorView(content: self, color: color)
     }
 
+    /// Optional-color adapter beside the canonical overload (moved from
+    /// QuillSwiftUICompatibility): same-module ranking is reliable, while
+    /// the cross-module `Color?` twin competed with the non-optional
+    /// overload on every `.foregroundColor(color)` call inside ViewBuilder
+    /// closures (generated Enchanted SettingsView body give-up).
+    @_disfavoredOverload
+    public func foregroundColor(_ color: Color?) -> ForegroundColorView<Self> {
+        foregroundColor(color ?? .clear)
+    }
+
     /// SwiftUI-compatible alias for foregroundColor.
     public func foregroundStyle(_ color: Color) -> ForegroundColorView<Self> {
         foregroundColor(color)
@@ -74,6 +84,17 @@ extension View {
     /// Apply a font to this view.
     public func font(_ font: Font) -> FontModifiedView<Self> {
         FontModifiedView(content: self, font: font)
+    }
+
+    /// Optional-font adapter beside the canonical overload (moved from
+    /// QuillSwiftUICompatibility): a cross-module `Font?` twin doubled the
+    /// candidate set of every `.font(…)` call — six of them in generated
+    /// Enchanted SettingsView's body. `nil` means "inherit"; map it to
+    /// `.body`, the renderer default. (The old compat copy silently
+    /// dropped the font whenever it won, so this is also a behavior fix.)
+    @_disfavoredOverload
+    public func font(_ font: Font?) -> FontModifiedView<Self> {
+        FontModifiedView(content: self, font: font ?? .body)
     }
 
     /// Apply a border to this view.

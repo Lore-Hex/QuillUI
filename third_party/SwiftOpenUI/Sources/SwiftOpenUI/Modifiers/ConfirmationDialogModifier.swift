@@ -130,23 +130,13 @@ extension View {
         )
     }
 
-    /// SwiftUI-shaped builder overload with a message view.
-    public func confirmationDialog<Actions: View, Message: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        @ViewBuilder actions: () -> Actions,
-        @ViewBuilder message: () -> Message
-    ) -> ConfirmationDialogView<Self> {
-        _ = actions()
-        _ = message()
-        return ConfirmationDialogView(
-            content: self,
-            title: title,
-            isPresented: isPresented,
-            titleVisibility: .automatic,
-            message: "",
-            buttons: [],
-            participatesInDismissalInterception: false
-        )
-    }
+    // The SwiftUI-shaped builder overload
+    // (`confirmationDialog(_:isPresented:actions:message:)` with
+    // @ViewBuilder closures) lives in QuillUI (UpstreamCompatibility.swift),
+    // which walks the actions for real AlertButtons and resolves the
+    // message text. An identical-signature twin here dropped the buttons
+    // AND made the call in generated Enchanted SettingsView ambiguous —
+    // part of the body-wide "failed to produce diagnostic". One owner:
+    // QuillUI's richer adapter, which delegates to the
+    // `actions: [AlertButton], message: String` core above.
 }
