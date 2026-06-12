@@ -6,6 +6,7 @@ import FoundationNetworking
 import QuillUI
 import QuillRSParser
 import QuillRSCoreShim
+import QuillFeedFinder
 import QuillArticles
 
 /// Quill NetNewsWire content view — a self-contained RSS reader.
@@ -1020,11 +1021,32 @@ final class RSSReaderModel: ObservableObject {
             setError("Invalid URL")
             return false
         }
-        let fetcher: (URL) async throws -> Data = fetch ?? { url in
-            var request = URLRequest(url: url)
-            request.setValue("Quill-NetNewsWire/0.1", forHTTPHeaderField: "User-Agent")
-            let (data, _) = try await URLSession.shared.data(for: request)
-            return data
+        // Production path: the REAL upstream FeedFinder.find(url:) — special-case
+        // URLs, micro.blog 404 fallback, HTTP status handling, <head> links, and
+        // concurrent body-candidate verification, all via the RSWeb Downloader
+        // (with ActivityLog visibility). The injected-fetcher path below stays
+        // verbatim as the socket-free seam the tests pin.
+        guard let fetcher = fetch else {
+            do {
+                let specifiers = try await FeedFinder.find(url: url)
+                guard let best = FeedSpecifier.bestFeed(in: specifiers) else {
+                    setError("No feed found at \(normalized)")
+                    return false
+                }
+                // Titled from the discovered feed itself, same as the seam path:
+                // prefer the specifier's HTML-link title, else parse the feed.
+                var title = best.title
+                if title == nil, let feedURL = URL(string: best.urlString),
+                   let (feedData, _) = try? await FeedFinder.downloadAndLog(feedURL),
+                   let feedData {
+                    title = RSSFeedParser.parseUpstream(data: feedData, url: best.urlString).title
+                }
+                setError(nil)
+                return addFeed(urlString: best.urlString, title: title)
+            } catch {
+                setError("\(error)")
+                return false
+            }
         }
         setError(nil)
         let data: Data
