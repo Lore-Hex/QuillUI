@@ -529,7 +529,9 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"], path: \"Sources/AVFoundation\")"))
+        // V4L2 (#515): the capture backend's CV4L2 system library joins the
+        // dependency list Linux-only via quillV4L2Dependencies.
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
     }
 
