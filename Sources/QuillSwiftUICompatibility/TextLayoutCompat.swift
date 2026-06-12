@@ -60,6 +60,9 @@ public struct ToolbarItemGroup<Content: View>: ToolbarContent, ToolbarContentIte
         self.content = content()
     }
 
+    // @MainActor: ToolbarItem construction is isolated under whole-protocol
+    // View isolation; toolbar erasure runs on the backend main loop.
+    @MainActor
     public var toolbarContentItems: [AnyToolbarItem] {
         [AnyToolbarItem(ToolbarItem(placement: placement) { content })]
     }

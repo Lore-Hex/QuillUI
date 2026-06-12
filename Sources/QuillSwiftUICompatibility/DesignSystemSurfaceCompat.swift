@@ -984,6 +984,7 @@ public struct ButtonStyleConfiguration {
     public let label: AnyView
     public let isPressed: Bool
 
+    @MainActor // AnyView default-value expr is isolated (whole-protocol View)
     public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
         self.label = label
         self.isPressed = isPressed
@@ -1068,7 +1069,7 @@ public extension ProposedViewSize {
     }
 }
 
-public struct UnevenRoundedRectangle: Shape {
+public struct UnevenRoundedRectangle: @preconcurrency Shape {
     public typealias Body = Never
     public var topLeadingRadius: CGFloat
     public var bottomLeadingRadius: CGFloat
@@ -1324,6 +1325,7 @@ public struct ToolbarTitleMenu<Content: View>: ToolbarContent, ToolbarContentIte
         self.content = content()
     }
 
+    @MainActor
     public var toolbarContentItems: [AnyToolbarItem] {
         [AnyToolbarItem(ToolbarItem(placement: .principal) { content })]
     }
@@ -1484,10 +1486,13 @@ public extension TabBuilder {
         if !tabs.isEmpty {
             return tabs
         }
-        return [AnyTab(Tab("", id: "tab-\(String(reflecting: V.self))") { view })]
+        return MainActor.assumeIsolated {
+            [AnyTab(Tab("", id: "tab-\(String(reflecting: V.self))") { view })]
+        }
     }
 }
 
+@MainActor // witnesses are members of isolated View types
 fileprivate protocol QuillTabCollectible {
     var quillCollectedTabs: [AnyTab] { get }
 }
@@ -1498,7 +1503,9 @@ fileprivate func quillCollectTabs<V: View>(from view: V) -> [AnyTab] {
 
 fileprivate func quillCollectTabs(fromAny view: any View) -> [AnyTab] {
     if let tabSource = view as? any QuillTabCollectible {
-        return tabSource.quillCollectedTabs
+        // Witnesses are isolated (View whole-protocol); collection runs on
+        // the backend main loop == main thread.
+        return MainActor.assumeIsolated { tabSource.quillCollectedTabs }
     }
     if let multi = view as? any MultiChildView {
         return multi.children.flatMap(quillCollectTabs(fromAny:))

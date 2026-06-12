@@ -310,7 +310,9 @@ private func chromeTextLabel(from view: any View) -> String {
     if let text = view as? Text {
         return text.content
     }
-    if let label = view as? Label {
+    // Label is generic on main; the ubiquitous Label("x", systemImage:) shape
+    // is Label<Text, Image>. Other arities fall through to the wrapped walk.
+    if let label = view as? Label<Text, Image> {
         return label.title
     }
     if let wrapped = view as? any ChromeWrappedViewRepresentable {
@@ -433,17 +435,7 @@ private func chromeAlertButtons(from view: any View) -> [AlertButton] {
 
 // MARK: - Menu label-builder init (moved from QuillUI)
 
-extension Menu {
-    /// SwiftUI's `Menu(content:label:)`. The label view is reduced to its
-    /// first text run for the GTK menu-button title (icon-only labels reduce
-    /// to an empty title).
-    public init<LabelContent: View>(
-        @MenuBuilder content: () -> [MenuElement],
-        @ViewBuilder label: () -> LabelContent
-    ) {
-        self.init(chromeTextLabel(from: label()), content: content)
-    }
-}
+// Menu(content:label:) lives in DesignSystemSurfaceCompat.swift.
 
 // MARK: - MenuBuilder view expressions (moved from QuillUI)
 
