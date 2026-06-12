@@ -36,6 +36,10 @@ public typealias ASPresentationAnchor = NSObject
 // MARK: - UIResponder / UIView / UIViewController stubs
 
 @MainActor open class UIResponder: NSObject {
+    /// Apple's default: no accessory view (ContactShareViewController
+    /// overrides this with a super call).
+    open var inputAccessoryView: UIView? { nil }
+
     open var keyCommands: [UIKeyCommand]? { nil }
 
     /// UIKit default: a responder refuses first-responder status unless a
@@ -306,7 +310,20 @@ public class UIWindow: UIView {}
         public static let flexibleBottomMargin = AutoresizingMask(rawValue: 1 << 5)
     }
 
-    public override init() { super.init() }
+    // Apple's UIView has NO designated init() — only init(frame:). The old
+    // `override init()` here was an invented designated init, which made
+    // upstream subclasses' `public init()` declarations demand `override`.
+    public convenience override init() { self.init(frame: .zero) }
+
+    /// Custom-drawing override point (CVTextLabel). Nothing rasterizes
+    /// UIView.draw on Linux yet; subclass implementations run when a
+    /// future compositor calls them.
+    open func draw(_ rect: CGRect) { _ = rect }
+    /// Trait-change override point (ContactCell etc.); never fired (traits
+    /// are static on Linux).
+    open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        _ = previousTraitCollection
+    }
     // `open` (not just `public`): a designated init cannot be overridden
     // cross-module unless it is open, and Signal subclasses declare
     // `override init(frame:)` everywhere (ImageEditorSliderView's
@@ -721,6 +738,20 @@ public class UIWindow: UIView {}
 }
 
 @MainActor open class UIViewController: UIResponder {
+    // Apple's designated initializer; without it NSObject's init() was
+    // inherited as designated and upstream's `super.init(nibName:bundle:)`
+    // and `public init()` overrides could not line up.
+    public init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
+        super.init()
+    }
+    public convenience override init() { self.init(nibName: nil, bundle: nil) }
+
+    open func viewIsAppearing(_ animated: Bool) { _ = animated }
+    open var supportedInterfaceOrientations: UIInterfaceOrientationMask { .all }
+    open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        _ = previousTraitCollection
+    }
+
     // View loading mirrors UIKit: the first access to `view` runs loadView()
     // and then viewDidLoad(), exactly once. There is no nib/storyboard system
     // here, so the default loadView() makes an empty UIView.
@@ -887,13 +918,28 @@ public class UIWindow: UIView {}
     public var style: Style = .unspecified
 }
 
-@MainActor public class UINavigationController: UIViewController {
+@MainActor open class UINavigationController: UIViewController {
     public var navigationBar = UINavigationBar()
+    open weak var delegate: (any UINavigationControllerDelegate)?
+    public private(set) var isNavigationBarHidden = false
+    open func setNavigationBarHidden(_ hidden: Bool, animated: Bool) {
+        isNavigationBarHidden = hidden
+    }
+    public init(rootViewController: UIViewController) {
+        super.init(nibName: nil, bundle: nil)
+        topViewController = rootViewController
+    }
+    public init(navigationBarClass: AnyClass?, toolbarClass: AnyClass?) {
+        super.init(nibName: nil, bundle: nil)
+    }
+    public convenience init() { self.init(navigationBarClass: nil, toolbarClass: nil) }
     public func pushViewController(_: UIViewController, animated: Bool) {}
     public func popViewController(animated: Bool) -> UIViewController? { nil }
     public var topViewController: UIViewController?
     public var visibleViewController: UIViewController? { topViewController }
-    public var modalPresentationStyle: Int = 0
+    // modalPresentationStyle: the enum-typed UIViewController extension
+    // member (UIViewControllerSurface.swift) is the one owner; an Int-typed
+    // shadow here broke enum assignments through nav-typed receivers.
 
     /// Inert: UIDevice+FeatureSupport.ows_setOrientation calls this to nudge the
     /// rotation delegate chain after a programmatic orientation change. On QuillOS
@@ -1029,10 +1075,10 @@ public class UIWindow: UIView {}
     public enum CellStyle: Int { case `default`, value1, value2, subtitle }
     public private(set) var reuseIdentifier: String?
     public required init(style: CellStyle, reuseIdentifier: String?) {
-        super.init()
+        super.init(frame: .zero)
         self.reuseIdentifier = reuseIdentifier
     }
-    public convenience override init() { self.init(style: .default, reuseIdentifier: nil) }
+    public convenience init() { self.init(style: .default, reuseIdentifier: nil) }
     public var textLabel: UILabel?
     public var detailTextLabel: UILabel?
     public var imageView: UIImageView?
@@ -1057,14 +1103,14 @@ public class UIWindow: UIView {}
 @MainActor open class UICollectionViewCell: UIView {
     public var contentView = UIView()
     public var backgroundConfiguration: Any?
-    public var isHighlighted: Bool = false
-    public var isSelected: Bool = false
+    open var isHighlighted: Bool = false
+    open var isSelected: Bool = false
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
         addSubview(contentView)
     }
-    public convenience override init() { self.init(frame: .zero) }
+    public convenience init() { self.init(frame: .zero) }
     public required init?(coder: NSCoder) {
         super.init(frame: .zero)
         addSubview(contentView)
@@ -1073,7 +1119,9 @@ public class UIWindow: UIView {}
 }
 
 @MainActor public class UIAlertController: UIViewController {
-    public init(title: String?, message: String?, preferredStyle: Int) {}
+    public init(title: String?, message: String?, preferredStyle: Int) {
+        super.init(nibName: nil, bundle: nil)
+    }
     public func addAction(_: Any) {}
     public var popoverPresentationController: UIPopoverPresentationController?
 }
@@ -1094,8 +1142,12 @@ public class UIAlertAction: NSObject {
 }
 
 @MainActor public class UIActivityViewController: UIViewController {
-    public init(url: URL, title: String?, applicationActivities: [Any]?) {}
-    public init(activityItems: [Any], applicationActivities: [Any]?) {}
+    public init(url: URL, title: String?, applicationActivities: [Any]?) {
+        super.init(nibName: nil, bundle: nil)
+    }
+    public init(activityItems: [Any], applicationActivities: [Any]?) {
+        super.init(nibName: nil, bundle: nil)
+    }
 }
 
 public class UIPasteboard: NSObject {
@@ -1154,7 +1206,7 @@ public class SLComposeSheetConfigurationItem: NSObject {
     // (contentMode moved up to the UIView class body — one declaration,
     // overridable — matching Apple, where UIImageView inherits it.)
     public init(image: UIImage?) {
-        super.init()
+        super.init(frame: .zero)
         self.image = image
     }
     public var image: UIImage?

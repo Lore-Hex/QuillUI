@@ -156,11 +156,11 @@ public enum UIVibrancyEffectStyle: Int, Sendable {
 
     public init(effect: UIVisualEffect?) {
         self.effect = effect
-        super.init()
+        super.init(frame: .zero)
         addSubview(_contentView)
     }
 
-    public convenience override init() {
+    public convenience init() {
         self.init(effect: nil)
     }
 }

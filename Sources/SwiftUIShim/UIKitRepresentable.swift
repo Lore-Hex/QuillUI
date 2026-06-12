@@ -7,7 +7,7 @@ open class UIHostingController<Content: View>: UIViewController {
 
     public init(rootView: Content) {
         self.rootView = rootView
-        super.init()
+        super.init(nibName: nil, bundle: nil)
         self.view = UIView()
     }
 }

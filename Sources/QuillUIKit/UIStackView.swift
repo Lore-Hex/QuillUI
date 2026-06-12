@@ -78,7 +78,7 @@ import QuillKit
     // MARK: - Init
 
     public init(arrangedSubviews views: [UIView]) {
-        super.init()
+        super.init(frame: .zero)
         for view in views {
             addArrangedSubview(view)
         }
@@ -86,10 +86,6 @@ import QuillKit
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
-    }
-
-    public override init() {
-        super.init()
     }
 
     // MARK: - Arranged subviews

@@ -306,9 +306,9 @@ public extension UIWindow {
 @MainActor open class UIFontPickerViewController: UIViewController {
     public weak var delegate: UIFontPickerViewControllerDelegate?
     public var selectedFontDescriptor: UIFontDescriptor?
-    public override init() {
+    public init() {
         self.selectedFontDescriptor = UIFontDescriptor()
-        super.init()
+        super.init(nibName: nil, bundle: nil)
     }
 }
 
@@ -621,7 +621,7 @@ public final class UITextPasteItem {
         self.init(frame: frame, textContainer: nil)
     }
 
-    public convenience override init() {
+    public convenience init() {
         self.init(frame: .zero, textContainer: nil)
     }
 

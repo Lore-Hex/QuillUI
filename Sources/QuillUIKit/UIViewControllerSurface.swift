@@ -628,10 +628,10 @@ extension UISearchBarDelegate {
 
     public init(searchResultsController: UIViewController?) {
         self.searchResultsController = searchResultsController
-        super.init()
+        super.init(nibName: nil, bundle: nil)
     }
 
-    public convenience override init() {
+    public convenience init() {
         self.init(searchResultsController: nil)
     }
 }

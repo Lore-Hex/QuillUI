@@ -770,13 +770,12 @@ extension UITableViewCell {
 
     public init(reuseIdentifier: String?) {
         self.reuseIdentifier = reuseIdentifier
-        super.init()
+        super.init(frame: .zero)
         addSubview(contentView)
     }
 
-    public override init() {
-        super.init()
-        addSubview(contentView)
+    public convenience init() {
+        self.init(reuseIdentifier: nil)
     }
 
     /// Called when a view is about to be recycled. With no recycle pool on
@@ -838,7 +837,7 @@ extension UITableViewCell {
     /// class body there ever gains Apple's `init(nibName:bundle:)`, this call
     /// becomes `super.init(nibName: nil, bundle: nil)`.)
     public init(style: UITableView.Style) {
-        super.init()
+        super.init(nibName: nil, bundle: nil)
         let tableView = UITableView(frame: .zero, style: style)
         tableView.dataSource = self
         tableView.delegate = self

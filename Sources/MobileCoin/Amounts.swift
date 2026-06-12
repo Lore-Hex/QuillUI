@@ -10,7 +10,7 @@
 
 import Foundation
 
-public struct TokenId: Equatable, Hashable, CustomStringConvertible {
+public struct TokenId: Equatable, Hashable, CustomStringConvertible, Sendable {
     public let value: UInt64
 
     public init(_ value: UInt64) {

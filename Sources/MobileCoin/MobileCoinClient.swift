@@ -18,7 +18,7 @@ import LibMobileCoin
 
 /// Real SDK: switches the client between GRPC and HTTP stacks. The shim
 /// never opens a connection either way.
-public struct TransportProtocol: Equatable {
+public struct TransportProtocol: Equatable, Sendable {
     public let description: String
 
     public static let grpc = TransportProtocol(description: "grpc")
@@ -41,7 +41,7 @@ public protocol HttpRequester {
 /// Real SDK: global logging switches. SignalUI flips `logSensitiveData` for
 /// internal builds; nothing in the shim logs, so the flag is write-only.
 public enum MobileCoinLogging {
-    public static var logSensitiveData = false
+    nonisolated(unsafe) public static var logSensitiveData = false
 }
 
 public final class MobileCoinClient {

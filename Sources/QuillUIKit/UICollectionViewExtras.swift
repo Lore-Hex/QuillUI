@@ -185,7 +185,7 @@ import QuillFoundation
     /// UIView.init() is designated, so a parameterless convenience must be
     /// an override; subclasses that override init(frame:) (StickerPicker's
     /// header view) inherit it, keeping `HeaderView()` call sites working.
-    public override convenience init() { self.init(frame: .zero) }
+    public convenience init() { self.init(frame: .zero) }
 
     open func prepareForReuse() {}
 }

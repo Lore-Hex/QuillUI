@@ -136,7 +136,7 @@ extension StringStyle {
             styleForTag[tag] = byAdding(stringStyle: style).attributes
         }
 
-        let result = NSMutableAttributedString()
+        let result = NSMutableAttributedString(string: "")
         var rest = string[...]
         func appendText<S: StringProtocol>(_ text: S, _ attributes: StyleAttributes) {
             guard !text.isEmpty else { return }
@@ -202,7 +202,7 @@ public extension Composable {
 
     /// Style the receiver with `style`, updated with any `overrideParts`.
     func styled(with style: StringStyle, _ overrideParts: StringStyle.Part...) -> NSAttributedString {
-        let attributedString = NSMutableAttributedString()
+        let attributedString = NSMutableAttributedString(string: "")
         let newStyle = style.byAdding(stringStyle: StringStyle(overrideParts))
         append(to: attributedString, baseStyle: newStyle)
         return attributedString
@@ -233,7 +233,7 @@ extension NSAttributedString: Composable {
 public extension NSAttributedString {
     /// Upstream BonMot's `composed(of:baseStyle:separator:)`.
     static func composed(of composables: [Composable], baseStyle: StringStyle = StringStyle(), separator: Composable? = nil) -> NSAttributedString {
-        let result = NSMutableAttributedString()
+        let result = NSMutableAttributedString(string: "")
         for (index, composable) in composables.enumerated() {
             composable.append(to: result, baseStyle: baseStyle, isLastElement: index == composables.count - 1)
             if let separator, index != composables.count - 1 {

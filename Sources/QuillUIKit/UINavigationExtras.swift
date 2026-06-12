@@ -269,70 +269,14 @@ extension UINavigationController {
     }
 }
 
-// MARK: - UIBarButtonItem typed surface
-
+// MARK: - UIBarButtonItem spacer factories
+//
+// The Style/SystemItem enums and Apple-typed convenience inits that sat
+// here moved INTO the UIBarButtonItem class body (QuillUIKit.swift) when
+// the accessibility wave rebuilt it — same-wave twin resolved in favor of
+// the class-body version (stored title/image/style, designated init()).
+// Only the iOS-14 spacer factories remain here.
 extension UIBarButtonItem {
-
-    /// Raw values mirror Apple's (`.bordered` is deprecated over there).
-    public enum Style: Int, Sendable {
-        case plain = 0
-        /// Deprecated on Apple ("use .plain").
-        case bordered = 1
-        case done = 2
-    }
-
-    /// Raw values mirror Apple's (`.pageCurl` is deprecated over there; the
-    /// gap before `.close` is real on Apple too).
-    public enum SystemItem: Int, Sendable {
-        case done = 0
-        case cancel = 1
-        case edit = 2
-        case save = 3
-        case add = 4
-        case flexibleSpace = 5
-        case fixedSpace = 6
-        case compose = 7
-        case reply = 8
-        case action = 9
-        case organize = 10
-        case bookmarks = 11
-        case search = 12
-        case refresh = 13
-        case stop = 14
-        case camera = 15
-        case trash = 16
-        case play = 17
-        case pause = 18
-        case rewind = 19
-        case fastForward = 20
-        case undo = 21
-        case redo = 22
-        /// Deprecated on Apple.
-        case pageCurl = 23
-        case close = 24
-    }
-
-    // Apple-typed convenience layer over the Int-typed designated inits in
-    // QuillUIKit.swift (which predate these enums; overload resolution keeps
-    // both callable — `.done` only resolves against the enum overloads). The
-    // designated inits discard their arguments, so the title/image are
-    // re-stored here; target/action have no storage on the class yet and are
-    // accepted-and-dropped exactly as the designated inits drop them (no bar
-    // is hit-testable, so no action could ever fire).
-
-    @MainActor public convenience init(title: String?, style: UIBarButtonItem.Style, target: Any?, action: Selector?) {
-        self.init(title: title, style: style.rawValue, target: target, action: action)
-        self.title = title
-    }
-
-    @MainActor public convenience init(image: UIImage?, style: UIBarButtonItem.Style, target: Any?, action: Selector?) {
-        self.init(image: image, style: style.rawValue, target: target, action: action)
-        self.image = image
-    }
-
-    @MainActor public convenience init(barButtonSystemItem systemItem: SystemItem, target: Any?, action: Selector?) {
-        self.init(barButtonSystemItem: systemItem.rawValue, target: target, action: action)
-    }
 
     /// Apple's iOS 14 spacer factories. (Apple returns `Self`; that needs a
     /// required initializer, which the class body — another owner — doesn't
