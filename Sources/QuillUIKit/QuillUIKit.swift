@@ -717,9 +717,10 @@ public class UIAlertAction: NSObject {
     public init(title: String?, style: Int, handler: ((UIAlertAction) -> Void)? = nil) {}
 }
 
-public class UIAction: NSObject {
-    public init(title: String, image: Any?, identifier: Any? = nil, discoverabilityTitle: String? = nil, attributes: Any? = nil, state: Any? = nil, handler: @escaping (Any) -> Void) {}
-}
+// UIAction lives in UIEventsMenus.swift with the rest of the menu-element
+// hierarchy (it subclasses UIMenuElement, so upstream
+// `UIMenu(children: [UIAction...])` arrays upcast). The loosely-typed stub
+// that sat here was removed in its favor.
 
 @MainActor public class UIPopoverPresentationController: NSObject {
     public var barButtonItem: UIBarButtonItem?
