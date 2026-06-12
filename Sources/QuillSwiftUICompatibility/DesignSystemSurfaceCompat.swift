@@ -356,6 +356,45 @@ public struct Namespace {
     public var wrappedValue: ID { id }
 }
 
+public extension Gradient {
+    var quillAverageColor: Color {
+        guard !stops.isEmpty else { return .primary }
+        let count = Double(stops.count)
+        let red = stops.reduce(0.0) { $0 + $1.color.red } / count
+        let green = stops.reduce(0.0) { $0 + $1.color.green } / count
+        let blue = stops.reduce(0.0) { $0 + $1.color.blue } / count
+        let alpha = stops.reduce(0.0) { $0 + $1.color.alpha } / count
+        return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
+public struct AngularGradient {
+    public var gradient: Gradient
+    public var center: UnitPoint
+    public var startAngle: Angle
+    public var endAngle: Angle
+
+    public init(
+        gradient: Gradient,
+        center: UnitPoint,
+        startAngle: Angle = .zero,
+        endAngle: Angle = .zero
+    ) {
+        self.gradient = gradient
+        self.center = center
+        self.startAngle = startAngle
+        self.endAngle = endAngle
+    }
+
+    public init(colors: [Color], center: UnitPoint, startAngle: Angle = .zero, endAngle: Angle = .zero) {
+        self.init(gradient: Gradient(colors: colors), center: center, startAngle: startAngle, endAngle: endAngle)
+    }
+
+    public func opacity(_ opacity: Double) -> Color {
+        gradient.quillAverageColor.opacity(opacity)
+    }
+}
+
 public struct AccessibilityChildBehavior: Hashable, Sendable {
     private let rawValue: String
 
@@ -503,6 +542,13 @@ public enum ScrollDismissesKeyboardMode: Sendable {
     case never
 }
 
+public enum ScrollIndicatorVisibility: Sendable {
+    case automatic
+    case visible
+    case hidden
+    case never
+}
+
 public enum ScenePhase: Sendable {
     case active
     case inactive
@@ -611,13 +657,6 @@ public struct ProgressViewStyle: Sendable {
     public static let linear = ProgressViewStyle()
 }
 
-public struct KeyEquivalent: Hashable, Sendable {
-    public let rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public static let leftArrow = KeyEquivalent("leftArrow")
-    public static let rightArrow = KeyEquivalent("rightArrow")
-}
-
 public enum KeyPressResult: Sendable {
     case handled
     case ignored
@@ -692,11 +731,7 @@ public enum NavigationBarTitleDisplayMode: Sendable {
     case large
 }
 
-public enum ScrollContentBackgroundVisibility: Sendable {
-    case automatic
-    case visible
-    case hidden
-}
+public typealias ScrollContentBackgroundVisibility = Visibility
 
 public enum ScrollBounceBehavior: Sendable {
     case automatic
@@ -963,6 +998,22 @@ public protocol ButtonStyle {
     func makeBody(configuration: Configuration) -> Body
 }
 
+public struct PlainButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> AnyView {
+        configuration.label
+    }
+}
+
+public struct RoundedBorderTextFieldStyle: Sendable {
+    public init() {}
+}
+
+public struct PlainTextFieldStyle: Sendable {
+    public init() {}
+}
+
 public struct LayoutSubviews: RandomAccessCollection {
     public typealias Element = LayoutSubview
     private let storage: [LayoutSubview]
@@ -1225,30 +1276,36 @@ public extension Text {
         self.init(key)
     }
 
+    @_disfavoredOverload
     func font(_ font: Font) -> Text {
         _ = font
         return self
     }
 
+    @_disfavoredOverload
     func fontWeight(_ weight: FontWeight) -> Text {
         _ = weight
         return self
     }
 
+    @_disfavoredOverload
     func foregroundStyle(_ color: Color) -> Text {
         _ = color
         return self
     }
 
+    @_disfavoredOverload
     func foregroundColor(_ color: Color) -> Text {
         _ = color
         return self
     }
 
+    @_disfavoredOverload
     func bold() -> Text {
         self
     }
 
+    @_disfavoredOverload
     func italic() -> Text {
         self
     }
@@ -1288,6 +1345,7 @@ public extension String.StringInterpolation {
 }
 
 public extension Image {
+    @_disfavoredOverload
     init(_ name: String) {
         self.init(resource: name)
     }
@@ -1517,11 +1575,107 @@ public struct TextContentType: Hashable, Sendable {
     public static let password = TextContentType("password")
 }
 
+public struct KeyboardType: Hashable, Sendable {
+    public var rawValue: String
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+    public static let URL = KeyboardType("URL")
+}
+
 public struct TextInputAutocapitalization: Hashable, Sendable {
     public var rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
     public static let never = TextInputAutocapitalization("never")
     public static let none = TextInputAutocapitalization("none")
+}
+
+public struct TableColumn<RowValue, Content: View>: View {
+    public var title: String
+    private var content: (RowValue) -> Content
+
+    public init(_ title: String, @ViewBuilder content: @escaping (RowValue) -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    public var body: some View {
+        Text(title)
+    }
+
+    public func width(min: Double? = nil, max: Double? = nil) -> Self {
+        _ = min
+        _ = max
+        return self
+    }
+}
+
+public struct AnyTableColumn<RowValue>: View {
+    public var title: String
+
+    public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
+        self.title = column.title
+    }
+
+    public var body: some View {
+        Text(title)
+    }
+}
+
+@resultBuilder
+public enum TableColumnBuilder<RowValue> {
+    public static func buildBlock(_ columns: [AnyTableColumn<RowValue>]...) -> [AnyTableColumn<RowValue>] {
+        columns.flatMap { $0 }
+    }
+
+    public static func buildExpression<Content: View>(
+        _ column: TableColumn<RowValue, Content>
+    ) -> [AnyTableColumn<RowValue>] {
+        [AnyTableColumn(column)]
+    }
+}
+
+public struct Table<RowValue>: View {
+    public var rows: [RowValue]
+    public var columns: [AnyTableColumn<RowValue>]
+
+    public init(_ rows: [RowValue], @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]) {
+        self.rows = rows
+        self.columns = columns()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
+                column
+            }
+        }
+    }
+}
+
+public struct DragGesture: Sendable {
+    public struct Value: Sendable {
+        public var translation: CGSize
+
+        public init(translation: CGSize = .zero) {
+            self.translation = translation
+        }
+    }
+
+    private var onChangedAction: (@Sendable (Value) -> Void)?
+    private var onEndedAction: (@Sendable (Value) -> Void)?
+
+    public init() {}
+
+    public func onChanged(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
+        var copy = self
+        copy.onChangedAction = action
+        return copy
+    }
+
+    public func onEnded(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
+        var copy = self
+        copy.onEndedAction = action
+        return copy
+    }
 }
 
 public struct TabPlacement: Hashable, Sendable {
@@ -1553,16 +1707,7 @@ public extension View {
         return self
     }
 
-    func formStyle(_ style: GroupedFormStyle) -> Self {
-        _ = style
-        return self
-    }
-
-    func textContentType(_ contentType: TextContentType?) -> Self {
-        _ = contentType
-        return self
-    }
-
+    @_disfavoredOverload
     func textInputAutocapitalization(_ autocapitalization: TextInputAutocapitalization?) -> Self {
         _ = autocapitalization
         return self
@@ -1609,11 +1754,7 @@ public extension View {
         return self
     }
 
-    func mask<Mask: View>(_ mask: Mask) -> Self {
-        _ = mask
-        return self
-    }
-
+    @_disfavoredOverload
     func mask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> Self {
         _ = mask()
         return self
@@ -1859,9 +2000,20 @@ public extension View {
         self
     }
 
+    @_disfavoredOverload
     func buttonStyle<S: ButtonStyle>(_ style: S) -> Self {
         _ = style
         return self
+    }
+
+    func textFieldStyle(_ style: RoundedBorderTextFieldStyle) -> TextFieldStyleModifier<Self> {
+        _ = style
+        return textFieldStyle(.roundedBorder)
+    }
+
+    func textFieldStyle(_ style: PlainTextFieldStyle) -> TextFieldStyleModifier<Self> {
+        _ = style
+        return textFieldStyle(.plain)
     }
 
     func controlSize(_ size: ControlSize) -> Self {
@@ -1879,11 +2031,6 @@ public extension View {
         return self
     }
 
-    func scrollIndicators(_ visibility: Visibility) -> Self {
-        _ = visibility
-        return self
-    }
-
     func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = .all) -> Self {
         _ = behavior
         _ = axes
@@ -1895,6 +2042,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
         return self
@@ -2351,20 +2499,6 @@ public extension View {
         return self
     }
 
-    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
-        _ = visibility
-        return self
-    }
-
-    func matchedGeometryEffect<ID: Hashable>(
-        id: ID,
-        in namespace: Namespace.ID
-    ) -> Self {
-        _ = id
-        _ = namespace
-        return self
-    }
-
     func matchedTransitionSource<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -2420,11 +2554,6 @@ public extension View {
 
     func focusable(_ isFocusable: Bool = true) -> Self {
         _ = isFocusable
-        return self
-    }
-
-    func focusEffectDisabled(_ disabled: Bool = true) -> Self {
-        _ = disabled
         return self
     }
 
@@ -2494,11 +2623,6 @@ public extension View {
 
     func contentTransition(_ transition: ContentTransition) -> Self {
         _ = transition
-        return self
-    }
-
-    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
-        _ = edges
         return self
     }
 

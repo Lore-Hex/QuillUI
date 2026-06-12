@@ -16,6 +16,28 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("func buttonClicked()"))
     }
 
+    @Test("Panel manager-style AppKit source strips Objective-C attributes")
+    func panelManagerObjCAttributesStrip() {
+        let source = """
+        #if os(macOS)
+        import SwiftUI
+
+        class PanelManager: NSObject, NSApplicationDelegate {
+            @MainActor
+            @objc func togglePanel() {}
+
+            @MainActor
+            @objc func onSubmitCompletion(scheduledTyping: Bool) {}
+        }
+        #endif
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("@objc"))
+        #expect(lowered.contains("#if os(macOS) || os(Linux)"))
+        #expect(lowered.contains("func togglePanel()"))
+        #expect(lowered.contains("func onSubmitCompletion(scheduledTyping: Bool)"))
+    }
+
     @Test("@objc after a non-brace statement keeps its newline (no consecutive-statements merge)")
     func objcTriviaPreserved() {
         let source = """

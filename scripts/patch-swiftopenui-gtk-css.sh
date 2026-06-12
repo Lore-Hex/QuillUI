@@ -4485,15 +4485,12 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
-old = '''    case .reuse:
-        if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            return false
-        }
-        return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
-    case .update:
-        guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
-'''
-new = '''    case .reuse:
+
+new_function = '''public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
+    switch plan.kind {
+    case .create, .replace:
+        return false
+    case .reuse:
         // Reused buttons stay on the narrow path: host state identity is
         // stable across rebuilds (structural-path namespaces), so the action
         // closure captured at widget creation writes to the same @State
@@ -4516,11 +4513,37 @@ new = '''    case .reuse:
             return false
         }
         guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
+                || plan.updateIntent == .canvasContent
+                || plan.updateIntent == .sliderValue
+                || plan.updateIntent == .paddingLayout else {
+            return false
+        }
+        return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
+    }
+}
 '''
 if "Reused buttons stay on the narrow path" not in text:
-    if old not in text:
+    signature = "public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool"
+    start = text.find(signature)
+    if start == -1:
         raise SystemExit("SwiftOpenUI descriptor mutation guard shape was not recognized")
-    text = text.replace(old, new, 1)
+    body_start = text.find("{", start)
+    if body_start == -1:
+        raise SystemExit("SwiftOpenUI descriptor mutation guard body was not recognized")
+    depth = 0
+    end = None
+    for index in range(body_start, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                end = index + 1
+                break
+    if end is None:
+        raise SystemExit("SwiftOpenUI descriptor mutation guard end was not recognized")
+    text = text[:start] + new_function + text[end:]
 path.write_text(text)
 PY
 
@@ -4928,12 +4951,15 @@ new_context = '''    let context: LazyGridContext
 '''
 if "context = LazyGridContext(views: expandedChildren" not in grid_text:
     grid_text = grid_text.replace(old_context, new_context, 1)
-grid_text = grid_text.replace(
-    "let cellMinWidth = configuration.adaptiveMinimum",
-    """let cellMinWidth = configuration.adaptiveMinimum > 0
+old_cell_min_width = "    let cellMinWidth = configuration.adaptiveMinimum\n"
+new_cell_min_width = """    let cellMinWidth = configuration.adaptiveMinimum > 0
         ? configuration.adaptiveMinimum
-        : (configuration.maxColumns > 1 ? 160 : 0)""",
-)
+        : (configuration.maxColumns > 1 ? 160 : 0)
+"""
+if "let cellMinWidth = configuration.adaptiveMinimum > 0" not in grid_text:
+    if old_cell_min_width not in grid_text:
+        raise SystemExit("SwiftOpenUI LazyGrid cell width shape was not recognized")
+    grid_text = grid_text.replace(old_cell_min_width, new_cell_min_width, 1)
 
 static_grid_helper = '''private func gtkCreateStaticLazyGridWidget(
     views: [any View],

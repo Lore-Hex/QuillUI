@@ -18,6 +18,7 @@ extension View {
     }
 
     /// Apply padding with specific values per edge.
+    @_disfavoredOverload
     public func padding(top: Int = 0, bottom: Int = 0, leading: Int = 0, trailing: Int = 0) -> PaddedView<Self> {
         PaddedView(content: self, top: top, bottom: bottom, leading: leading, trailing: trailing)
     }
