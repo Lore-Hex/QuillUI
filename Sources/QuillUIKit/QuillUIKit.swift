@@ -804,10 +804,32 @@ public class SLComposeSheetConfigurationItem: NSObject {
     /// Recorded but inert: nothing measures or shrinks text on Linux yet.
     public var adjustsFontSizeToFitWidth = false
     public var minimumScaleFactor: CGFloat = 0
+    /// Dynamic Type opt-in (UIContentSizeCategoryAdjusting). Faithful STATE:
+    /// recorded, but UIFontMetrics is identity on Linux so nothing rescales.
+    public var adjustsFontForContentSizeCategory = false
+    /// Recorded but inert, like adjustsFontSizeToFitWidth.
+    public var allowsDefaultTighteningForTruncation = false
+    /// Recorded for layout code that reads it back; no intrinsic-size pass
+    /// consumes it on Linux yet.
+    public var preferredMaxLayoutWidth: CGFloat = 0
     /// Backing store for `font`. The UIFont-typed accessor cannot live here:
     /// UIFont is declared in the UIKit shim module, which depends on this one,
-    /// so the shim layers `font: UIFont!` over this slot.
+    /// so the shim layers `font: UIFont!` over this slot (UIFontExtras.swift).
     public var quillFontStorage: AnyObject?
+
+    /// UILabel's text-drawing override point. Signal subclasses (CVCapsuleLabel)
+    /// override this and call super; there is no text renderer on Linux, so the
+    /// base implementation is a no-op.
+    open func drawText(in rect: CGRect) {
+        _ = rect
+    }
+
+    /// The rect the label's text would occupy. MODEL HONESTY: with no text
+    /// engine to measure glyphs, this returns the proposed bounds unchanged.
+    open func textRect(forBounds bounds: CGRect, limitedToNumberOfLines numberOfLines: Int) -> CGRect {
+        _ = numberOfLines
+        return bounds
+    }
 }
 
 @MainActor public class UIVisualEffectView: UIView {}
@@ -976,6 +998,48 @@ open class UIScene: NSObject {
 public class UITraitCollection: NSObject {
     public var userInterfaceStyle: UIUserInterfaceStyle = .unspecified
     public var userInterfaceIdiom: Int = 0
+    /// UIKit's default Dynamic Type category is .large.
+    public var preferredContentSizeCategory: UIContentSizeCategory = .large
+
+    public convenience init(preferredContentSizeCategory: UIContentSizeCategory) {
+        self.init()
+        self.preferredContentSizeCategory = preferredContentSizeCategory
+    }
+
+    /// UIKit's thread-local "current" traits. Computed (a fresh default-trait
+    /// instance per access, like the layout anchors) so there is no shared
+    /// mutable static; Linux has a single default trait environment anyway.
+    public static var current: UITraitCollection { UITraitCollection() }
+}
+
+/// Dynamic Type content size categories. Raw values match UIKit's so any
+/// compared/persisted values stay stable. Faithful STATE only: UIFontMetrics
+/// is identity on Linux, so no font actually rescales per category yet.
+public struct UIContentSizeCategory: RawRepresentable, Equatable, Hashable, Sendable {
+    public var rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let unspecified = UIContentSizeCategory(rawValue: "_UICTContentSizeCategoryUnspecified")
+    public static let extraSmall = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryXS")
+    public static let small = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryS")
+    public static let medium = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryM")
+    public static let large = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryL")
+    public static let extraLarge = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryXL")
+    public static let extraExtraLarge = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryXXL")
+    public static let extraExtraExtraLarge = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryXXXL")
+    public static let accessibilityMedium = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryAccessibilityM")
+    public static let accessibilityLarge = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryAccessibilityL")
+    public static let accessibilityExtraLarge = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryAccessibilityXL")
+    public static let accessibilityExtraExtraLarge = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryAccessibilityXXL")
+    public static let accessibilityExtraExtraExtraLarge = UIContentSizeCategory(rawValue: "UICTContentSizeCategoryAccessibilityXXXL")
+
+    public var isAccessibilityCategory: Bool {
+        rawValue.hasPrefix("UICTContentSizeCategoryAccessibility")
+    }
+
+    /// Posted by UIKit when the user changes the preferred category; nothing
+    /// posts it on Linux yet, but observers (OWSViewController) can subscribe.
+    public static let didChangeNotification = Notification.Name("UIContentSizeCategoryDidChangeNotification")
 }
 
 @MainActor public class UIScrollView: UIView {
