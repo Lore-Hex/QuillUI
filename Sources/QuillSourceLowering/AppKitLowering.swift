@@ -273,7 +273,8 @@ private final class AppKitRewriter: SyntaxRewriter {
     // the decl's leading trivia onto the surviving first token, so removing a
     // line-leading `@objc` keeps the decl on its own line.
     override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
-        DeclSyntax(stripAttributes(super.visit(node).cast(FunctionDeclSyntax.self)))
+        let stripped = stripAttributes(super.visit(node).cast(FunctionDeclSyntax.self))
+        return DeclSyntax(repairDispatchWitnessAccess(stripped))
     }
     override func visit(_ node: VariableDeclSyntax) -> DeclSyntax {
         DeclSyntax(stripAttributes(super.visit(node).cast(VariableDeclSyntax.self)))
@@ -310,6 +311,55 @@ private final class AppKitRewriter: SyntaxRewriter {
         let savedLeading = node.leadingTrivia
         var copy = node
         copy.attributes = kept
+        copy.leadingTrivia = savedLeading
+        return copy
+    }
+
+    /// Repair pass: upgrade a previously generated dispatch witness to `public`.
+    ///
+    /// `generateDispatchConformances` emits `public func quillPerform(_:with:)`,
+    /// but earlier versions of this tool emitted it without an access modifier.
+    /// Those stale blocks persist in already-lowered vendored trees (e.g.
+    /// Signal-iOS's SignalUI, lowered in place by quill-signal-lower-ui.sh):
+    /// the conformance generator keys off `@objc`, which a lowered tree no
+    /// longer contains, so a re-run appends nothing and cannot self-heal. On a
+    /// public conformer the implicitly-internal witness is rejected ("method
+    /// must be declared public because it matches a requirement in public
+    /// protocol 'QuillSelectorDispatching'") — Swift access-checks the matched
+    /// member even though the protocol has a default implementation, so the
+    /// default never rescues an under-accessible witness. Fixing it here (the
+    /// long-lived tool) instead of hand-editing vendored files means any
+    /// re-run of the standard lowering scripts repairs the whole tree.
+    ///
+    /// `quillPerform` is a Quill-invented name that only this generator ever
+    /// writes, so keying on the exact generated signature is safe. Skips decls
+    /// that already carry any access modifier (idempotent) and bodyless decls
+    /// (protocol requirements may not carry access modifiers).
+    private func repairDispatchWitnessAccess(_ node: FunctionDeclSyntax) -> FunctionDeclSyntax {
+        guard node.name.text == "quillPerform", node.body != nil else { return node }
+        let params = Array(node.signature.parameterClause.parameters)
+        guard params.count == 2,
+              params[0].firstName.text == "_",
+              params[0].secondName?.text == "selector",
+              params[0].type.trimmedDescription == "Selector",
+              params[1].firstName.text == "with",
+              params[1].secondName?.text == "sender",
+              params[1].type.trimmedDescription == "Any?" else { return node }
+        let accessKeywords: Set<String> = [
+            "public", "open", "package", "internal", "fileprivate", "private",
+        ]
+        guard !node.modifiers.contains(where: { accessKeywords.contains($0.name.text) }) else {
+            return node
+        }
+        // Re-anchor the decl's leading trivia (newline + indent) onto `public`,
+        // which becomes the decl's new first token (generated decls carry no
+        // attributes and no other modifiers).
+        var copy = node
+        let savedLeading = copy.leadingTrivia
+        copy.leadingTrivia = Trivia()
+        copy.modifiers = DeclModifierListSyntax(
+            Array(copy.modifiers) + [DeclModifierSyntax(name: .keyword(.public), trailingTrivia: .space)]
+        )
         copy.leadingTrivia = savedLeading
         return copy
     }
