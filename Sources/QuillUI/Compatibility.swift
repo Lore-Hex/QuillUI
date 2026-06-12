@@ -630,6 +630,12 @@ public extension EnvironmentValues {
         get {
             let dismiss = self.dismiss
             return self[PresentationModeKey.self] ?? PresentationMode {
+                #if os(Linux)
+                if let contextualDismiss = swiftOpenUICurrentPresentationDismissAction() {
+                    contextualDismiss()
+                    return
+                }
+                #endif
                 dismiss()
             }
         }

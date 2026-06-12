@@ -57,6 +57,55 @@ protocol GTKWindowRenderable {
 
 /// Root GTK window content should fill the proposed size; leaf alignment is
 /// handled by child containers, not by centering the hosted root widget.
+private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
+private var gtkRootPresentationOverlayFallback: OpaquePointer?
+
+func gtkCreateRootPresentationContainer(
+    winPtr: UnsafeMutablePointer<GtkWindow>,
+    contentWidget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let overlay = gtk_overlay_new()!
+    gtk_widget_set_hexpand(overlay, 1)
+    gtk_widget_set_vexpand(overlay, 1)
+    gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+
+    gtk_widget_set_hexpand(contentWidget, 1)
+    gtk_widget_set_vexpand(contentWidget, 1)
+    gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+    gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
+
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: widgetPointer(winPtr))
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: overlay)
+    gtkStoreRootPresentationOverlay(OpaquePointer(overlay), on: contentWidget)
+    gtkRootPresentationOverlayFallback = OpaquePointer(overlay)
+    return overlay
+}
+
+func gtkStoreRootPresentationOverlay(
+    _ rootOverlay: OpaquePointer,
+    on widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, gtkRootPresentationOverlayKey, UnsafeMutableRawPointer(rootOverlay))
+}
+
+func gtkStoredRootPresentationOverlay(on widget: gpointer) -> OpaquePointer? {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let overlayPtr = g_object_get_data(gobject, gtkRootPresentationOverlayKey) else { return nil }
+    let overlay = overlayPtr.assumingMemoryBound(to: GtkWidget.self)
+    return OpaquePointer(overlay)
+}
+
+func gtkRootPresentationOverlay(for root: gpointer) -> OpaquePointer? {
+    gtkStoredRootPresentationOverlay(on: root) ?? gtkRootPresentationOverlayFallback
+}
+
+func gtkFallbackRootPresentationOverlay() -> OpaquePointer? {
+    gtkRootPresentationOverlayFallback
+}
+
 func gtkConfigureRootContentToFillWindow(_ contentWidget: UnsafeMutablePointer<GtkWidget>) {
     gtk_widget_set_hexpand(contentWidget, 1)
     gtk_widget_set_vexpand(contentWidget, 1)
@@ -154,9 +203,10 @@ extension WindowGroup: GTKWindowRenderable {
 
         gtkConfigureRootContentToFillWindow(contentWidget)
 
-        gtk_window_set_child(winPtr, contentWidget)
+        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
+        gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
-        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: contentWidget, windowID: Int(bitPattern: winPtr))
+        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)
@@ -653,9 +703,10 @@ extension Window: GTKWindowRenderable {
 
         gtkConfigureRootContentToFillWindow(contentWidget)
 
-        gtk_window_set_child(winPtr, contentWidget)
+        let rootContentWidget = gtkCreateRootPresentationContainer(winPtr: winPtr, contentWidget: contentWidget)
+        gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
-        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: contentWidget, windowID: Int(bitPattern: winPtr))
+        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)

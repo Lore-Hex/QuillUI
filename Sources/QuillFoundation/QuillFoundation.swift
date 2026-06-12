@@ -42,7 +42,6 @@ public extension QuillSelectorDispatching {
 #if os(macOS)
 @_exported import AppKit
 @_exported import CoreGraphics
-@_exported import WebKit
 
 public typealias RSImage = NSImage
 public typealias RSColor = NSColor
@@ -84,7 +83,6 @@ public extension NSScreen {
 #elseif os(iOS)
 @_exported import UIKit
 @_exported import CoreGraphics
-@_exported import WebKit
 
 public typealias RSImage = UIImage
 public typealias RSColor = UIColor
@@ -131,6 +129,13 @@ public enum CGColorRenderingIntent: Int32, Sendable {
 }
 
 public class CGImage: Equatable, @unchecked Sendable {
+    /// Raw premultiplied-BGRA pixel backing (Cairo ARGB32 byte order on
+    /// little-endian). Optional: a nil value keeps the historical "blank
+    /// image" semantics. The V4L2 capture path and CIContext.createCGImage
+    /// populate it; the Cairo CGContext backend draws it.
+    public var quillBGRAPixels: [UInt8]?
+    public var quillBytesPerRow: Int = 0
+
     public init() {}
 
     // PNG/JPEG decode inits (SSK's UIImage+Attachment). The dataProviderSource is
@@ -474,6 +479,15 @@ public enum CGPathFillRule: Int32, Sendable {
 }
 
 public final class CGContext {
+    /// Pluggable real-drawing backend (see CGContextBackend.swift). nil keeps
+    /// the historical compile-only no-op behavior.
+    public var quillBackend: QuillCGContextBackend?
+
+    public convenience init(quillBackend: QuillCGContextBackend) {
+        self.init()
+        self.quillBackend = quillBackend
+    }
+
     public var width: Int = 0
     public var height: Int = 0
     public var bitsPerComponent: Int = 8
@@ -538,15 +552,15 @@ public final class CGContext {
     public var interpolationQuality: CGInterpolationQuality = .default
 
     public func setFillColor(_ color: Any?) {}
-    public func setFillColor(_ color: RSCGColor) {}
-    public func setFillColor(_ color: RSCGColor?) {}
-    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {}
+    public func setFillColor(_ color: RSCGColor) { quillBackend?.setFillColor(quillNormalizedRGBA(color)) }
+    public func setFillColor(_ color: RSCGColor?) { if let color { quillBackend?.setFillColor(quillNormalizedRGBA(color)) } }
+    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setFillColor([red, green, blue, alpha]) }
     public func setStrokeColor(_ color: Any?) {}
-    public func setStrokeColor(_ color: RSCGColor) {}
-    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {}
-    public func setLineWidth(_ width: CGFloat) {}
-    public func setLineCap(_ cap: CGLineCap) {}
-    public func setLineJoin(_ join: CGLineJoin) {}
+    public func setStrokeColor(_ color: RSCGColor) { quillBackend?.setStrokeColor(quillNormalizedRGBA(color)) }
+    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setStrokeColor([red, green, blue, alpha]) }
+    public func setLineWidth(_ width: CGFloat) { quillBackend?.setLineWidth(width) }
+    public func setLineCap(_ cap: CGLineCap) { quillBackend?.setLineCap(cap) }
+    public func setLineJoin(_ join: CGLineJoin) { quillBackend?.setLineJoin(join) }
     public func setMiterLimit(_ limit: CGFloat) {}
     public func setShadow(offset: CGSize, blur: CGFloat) {}
     public func setShadow(offset: CGSize, blur: CGFloat, color: CGColor?) {}
@@ -558,25 +572,25 @@ public final class CGContext {
     public func setShouldSubpixelPositionFonts(_ shouldSubpixelPositionFonts: Bool) {}
     public func setAllowsFontSubpixelQuantization(_ allowsFontSubpixelQuantization: Bool) {}
     public func setShouldSubpixelQuantizeFonts(_ shouldSubpixelQuantizeFonts: Bool) {}
-    public func setAlpha(_ alpha: CGFloat) {}
+    public func setAlpha(_ alpha: CGFloat) { quillBackend?.setAlpha(alpha) }
     public func setBlendMode(_ mode: CGBlendMode) {}
 
-    public func fill(_ rect: CGRect) {}
-    public func fill(_ rects: [CGRect]) {}
-    public func fillEllipse(in rect: CGRect) {}
-    public func fillPath() {}
+    public func fill(_ rect: CGRect) { quillBackend?.fill(rect) }
+    public func fill(_ rects: [CGRect]) { for r in rects { quillBackend?.fill(r) } }
+    public func fillEllipse(in rect: CGRect) { quillBackend?.fillEllipse(in: rect) }
+    public func fillPath() { quillBackend?.fillPath() }
     public func fillPath(using rule: CGPathFillRule) { _ = rule }
-    public func clear(_ rect: CGRect) {}
-    public func stroke(_ rect: CGRect) {}
-    public func strokeEllipse(in rect: CGRect) {}
-    public func strokeLineSegments(between points: [CGPoint]) {}
-    public func strokePath() {}
+    public func clear(_ rect: CGRect) { quillBackend?.clear(rect) }
+    public func stroke(_ rect: CGRect) { quillBackend?.stroke(rect) }
+    public func strokeEllipse(in rect: CGRect) { quillBackend?.strokeEllipse(in: rect) }
+    public func strokeLineSegments(between points: [CGPoint]) { quillBackend?.strokeLineSegments(between: points) }
+    public func strokePath() { quillBackend?.strokePath() }
 
-    public func beginPath() {}
-    public func closePath() {}
-    public func move(to point: CGPoint) {}
-    public func addLine(to point: CGPoint) {}
-    public func addRect(_ rect: CGRect) {}
+    public func beginPath() { quillBackend?.beginPath() }
+    public func closePath() { quillBackend?.closePath() }
+    public func move(to point: CGPoint) { quillBackend?.move(to: point) }
+    public func addLine(to point: CGPoint) { quillBackend?.addLine(to: point) }
+    public func addRect(_ rect: CGRect) { quillBackend?.addRect(rect) }
     public func addRects(_ rects: [CGRect]) {}
     public func addLines(between points: [CGPoint]) {
         guard let first = points.first else { return }
@@ -585,33 +599,33 @@ public final class CGContext {
             addLine(to: point)
         }
     }
-    public func addEllipse(in rect: CGRect) {}
+    public func addEllipse(in rect: CGRect) { quillBackend?.addEllipse(in: rect) }
     public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {}
     public func addQuadCurve(to end: CGPoint, control: CGPoint) {}
-    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {}
+    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) { quillBackend?.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise) }
     public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {}
     public func addPath(_ path: Any?) {}
-    public func clip() {}
+    public func clip() { quillBackend?.clip() }
     public func clip(using rule: CGPathFillRule) { _ = rule }
-    public func clip(to rect: CGRect) {}
+    public func clip(to rect: CGRect) { quillBackend?.clip(to: rect) }
     public func resetClip() {}
     // CGContext.clip(to:mask:) — clips to a rect using an image mask. Inert on
     // Linux (no real raster). SSK: AvatarBuilder masks a tinted icon.
     public func clip(to rect: CGRect, mask image: Any) {}
 
-    public func saveGState() {}
-    public func restoreGState() {}
+    public func saveGState() { quillBackend?.saveGState() }
+    public func restoreGState() { quillBackend?.restoreGState() }
     public func beginTransparencyLayer(auxiliaryInfo: Any?) {}
     public func endTransparencyLayer() {}
     public func endPage() {}
-    public func translateBy(x: CGFloat, y: CGFloat) {}
-    public func scaleBy(x: CGFloat, y: CGFloat) {}
-    public func rotate(by angle: CGFloat) {}
+    public func translateBy(x: CGFloat, y: CGFloat) { quillBackend?.translateBy(x: x, y: y) }
+    public func scaleBy(x: CGFloat, y: CGFloat) { quillBackend?.scaleBy(x: x, y: y) }
+    public func rotate(by angle: CGFloat) { quillBackend?.rotate(by: angle) }
     // `CGAffineTransform` is absent from swift-corelibs Foundation on this
     // toolchain, so the param is typed `Any` (the op is an inert no-op anyway).
     public func concatenate(_ transform: Any) {}
 
-    public func draw(_ image: Any, in rect: CGRect) {}
+    public func draw(_ image: Any, in rect: CGRect) { quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality) }
     public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}
     public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
 }
@@ -937,6 +951,16 @@ public struct RSCGColor: Equatable, Sendable {
     public static let clear = RSCGColor(components: [0, 0, 0, 0])
     public static let white = RSCGColor(components: [1, 1, 1, 1])
     public static let black = RSCGColor(components: [0, 0, 0, 1])
+
+    /// Apple's sRGB convenience initializer (`CGColor(red:green:blue:alpha:)`).
+    public init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        self.init(components: [red, green, blue, alpha])
+    }
+
+    /// Apple's grayscale convenience initializer.
+    public init(gray: CGFloat, alpha: CGFloat) {
+        self.init(components: [gray, gray, gray, alpha])
+    }
 }
 public typealias CGColor = RSCGColor
 
@@ -1105,7 +1129,11 @@ public class RSFont: NSObject, @unchecked Sendable {
     public var ascender: CGFloat { pointSize * 0.95 }
     public var descender: CGFloat { -pointSize * 0.25 }
 }
-public typealias UIFont = RSFont
+// NOTE: no `UIFont` alias here. The UIKit shim owns the Linux UIFont class
+// (since #427), and SignalServiceKit sees BOTH modules (QuillFoundation is
+// re-exported through UIKit→QuartzCore), so a second public UIFont made every
+// unqualified `UIFont` in SSK ambiguous. RSFont remains QuillFoundation's
+// own font type for RS*-namespace consumers (NetNewsWire-family code).
 
 // MARK: - UIFontDescriptor (Linux)
 //

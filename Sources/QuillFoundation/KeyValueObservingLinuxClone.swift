@@ -88,6 +88,12 @@ public extension NSObject {
 
 // ObjC associated objects — a leaky side-table emulation (compile-only; no
 // dealloc hook on Linux to clear entries). Keyed by object identity + raw key.
+// Public but @_disfavoredOverload: upstream WireGuard's TunnelsManager (and the
+// QuillFoundationTests pins) call these with only QuillFoundation imported, but
+// the dedicated `ObjCAssoc` shim is the canonical owner — where both modules
+// are visible (SignalServiceKit re-exports UIKit → QuillFoundation while also
+// depending on ObjCAssoc), the disfavored attribute lets ObjCAssoc's win
+// instead of erroring as ambiguous.
 public enum objc_AssociationPolicy: UInt {
     case OBJC_ASSOCIATION_ASSIGN = 0
     case OBJC_ASSOCIATION_RETAIN_NONATOMIC = 1
@@ -111,10 +117,12 @@ private final class QuillAssociatedObjectStore: @unchecked Sendable {
     }
 }
 
+@_disfavoredOverload
 public func objc_setAssociatedObject(_ object: Any, _ key: UnsafeRawPointer, _ value: Any?, _ policy: objc_AssociationPolicy) {
     QuillAssociatedObjectStore.shared.set(object as AnyObject, key, value)
 }
 
+@_disfavoredOverload
 public func objc_getAssociatedObject(_ object: Any, _ key: UnsafeRawPointer) -> Any? {
     QuillAssociatedObjectStore.shared.get(object as AnyObject, key)
 }

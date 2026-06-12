@@ -1,6 +1,10 @@
 #ifndef QUILL_OBJC_MACH_TIME_H
 #define QUILL_OBJC_MACH_TIME_H
 
+#if defined(__APPLE__)
+#include_next <mach/mach_time.h>
+#else
+
 #include <stdint.h>
 #include <time.h>
 #include <mach/mach.h>
@@ -26,5 +30,7 @@ static inline uint64_t mach_absolute_time(void) {
     }
     return ((uint64_t)ts.tv_sec * 1000000000ull) + (uint64_t)ts.tv_nsec;
 }
+
+#endif
 
 #endif

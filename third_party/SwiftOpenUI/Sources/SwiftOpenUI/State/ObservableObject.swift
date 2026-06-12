@@ -1,113 +1,127 @@
 import Foundation
+#if canImport(Combine) && !os(Linux)
+import Combine
+#else
+import OpenCombine
+#endif
 
-// MARK: - ObservableObject
+// MARK: - ObservableObject / @Published
 
-/// A class whose published properties trigger view re-renders.
-public protocol ObservableObject: AnyObject {}
+// These ARE Combine's pair (real Combine on Apple platforms, OpenCombine on
+// Linux/Web) — exactly as in Apple's stack, where ObservableObject/Published
+// live in Combine and SwiftUI re-exports them. SwiftOpenUI used to declare
+// its own Mirror-wired clones, which:
+//   * made `Published`/`ObservableObject` ambiguous in any file importing
+//     both SwiftUI and Combine (i.e. most real view-model files) — the
+//     long-documented clash in docs/issues/observable-namespace-conflict.md,
+//   * broke `$property` (no projectedValue, so Combine pipelines like
+//     `manager.$cameras.receive(on:).assign(to: &$cameras)` could not
+//     compile), and
+//   * split the ecosystem into two incompatible observable worlds.
+//
+// One canonical pair fixes all three. Re-render wiring now subscribes to
+// `objectWillChange` (Apple's own change-notification granularity) instead
+// of Mirror-walking for the old `AnyPublishedProvider`; the storages below
+// stay `GenerationTracked` so Phase 6/7 dependency gating still proves
+// "nothing I read has changed" before skipping a rebuild.
+#if canImport(Combine) && !os(Linux)
+public typealias ObservableObject = Combine.ObservableObject
+public typealias Published = Combine.Published
+public typealias ObservableObjectPublisher = Combine.ObservableObjectPublisher
+#else
+public typealias ObservableObject = OpenCombine.ObservableObject
+public typealias Published = OpenCombine.Published
+public typealias ObservableObjectPublisher = OpenCombine.ObservableObjectPublisher
+#endif
 
-// MARK: - @Published
-
-/// Protocol for type-erased access to PublishedStorage.
-public protocol AnyPublishedProvider {
-    var anyPublished: AnyPublishedStorage { get }
+/// Subscribe to an object's `objectWillChange`. Generic so it works with any
+/// `ObjectWillChangePublisher`; callers pass existentials via implicit opening.
+func subscribeToObjectWillChange<T: ObservableObject>(
+    _ object: T, _ onChange: @escaping () -> Void
+) -> AnyCancellable {
+    object.objectWillChange.sink { _ in onChange() }
 }
 
-/// Protocol for type-erased PublishedStorage.
-public protocol AnyPublishedStorage: AnyObject {
-    /// Add an observer identified by a token. Replaces any existing observer
-    /// with the same token, preventing accumulation on re-wiring.
-    func setObserver(token: ObjectIdentifier, _ observer: @escaping () -> Void)
-}
-
-/// A property wrapper for properties of ObservableObject that trigger re-renders.
-@propertyWrapper
-public struct Published<Value>: AnyPublishedProvider {
-    public let storage: PublishedStorage<Value>
-
-    public init(wrappedValue: Value) {
-        storage = PublishedStorage(wrappedValue)
-    }
-
-    public var wrappedValue: Value {
-        get { storage.value }
-        nonmutating set { storage.setValue(newValue) }
-    }
-
-    public var anyPublished: AnyPublishedStorage { storage }
-}
-
-/// Backing storage for @Published. Thread-safe with token-keyed observer map.
-/// Each observer is identified by an ObjectIdentifier (the ObservedObjectStorage
-/// instance), so re-wiring replaces the old observer instead of accumulating.
-public class PublishedStorage<Value>: AnyPublishedStorage, GenerationTracked {
-    private let lock = NSLock()
-    private var _value: Value
-    private var observers: [ObjectIdentifier: () -> Void] = [:]
-    public private(set) var generation: UInt64 = 0
-
-    public init(_ value: Value) {
-        _value = value
-    }
-
-    public var value: Value {
-        lock.lock()
-        defer { lock.unlock() }
-        recordDependencyRead(self)
-        return _value
-    }
-
-    public func setValue(_ newValue: Value) {
-        lock.lock()
-        _value = newValue
-        generation += 1
-        let currentObservers = observers.values
-        lock.unlock()
-        for observer in currentObservers {
-            observer()
-        }
-    }
-
-    public func setObserver(token: ObjectIdentifier, _ observer: @escaping () -> Void) {
-        lock.lock()
-        observers[token] = observer
-        lock.unlock()
-    }
+/// Existential entry point (e.g. a `@State` value that happens to be an
+/// ObservableObject). The `some` parameter opens the existential implicitly.
+func subscribeOpaqueObservableObject(
+    _ object: some ObservableObject,
+    _ onChange: @escaping () -> Void
+) -> AnyCancellable {
+    subscribeToObjectWillChange(object, onChange)
 }
 
 // MARK: - @ObservedObject
 
 /// A property wrapper that observes an external ObservableObject.
-/// When any @Published property on the object changes, the owning
+/// When the object publishes a change (any @Published mutation), the owning
 /// ViewHost schedules a re-render.
 @propertyWrapper
 public struct ObservedObject<ObjectType: ObservableObject>: AnyStateStorageProvider {
+    /// Apple's `ObservedObject.Wrapper` — `$object.property` yields Bindings
+    /// into the object via dynamic member lookup.
+    @dynamicMemberLookup
+    public struct Wrapper {
+        private let object: ObjectType
+        init(_ object: ObjectType) { self.object = object }
+
+        public subscript<Subject>(
+            dynamicMember keyPath: ReferenceWritableKeyPath<ObjectType, Subject>
+        ) -> Binding<Subject> {
+            Binding(
+                get: { self.object[keyPath: keyPath] },
+                set: { self.object[keyPath: keyPath] = $0 }
+            )
+        }
+    }
+
     public let storage: ObservedObjectStorage<ObjectType>
 
     public init(wrappedValue: ObjectType) {
         storage = ObservedObjectStorage(wrappedValue)
     }
 
-    public var wrappedValue: ObjectType {
-        storage.object
-    }
+    public var wrappedValue: ObjectType { storage.access() }
+
+    public var projectedValue: Wrapper { Wrapper(storage.access()) }
 
     public var anyStorage: AnyStateStorage { storage }
 }
 
 /// Backing storage for @ObservedObject. Conforms to AnyStateStorage so
-/// installState in ViewHost can wire it automatically via Mirror.
-public class ObservedObjectStorage<ObjectType: ObservableObject>: AnyStateStorage {
+/// installState in ViewHost can wire it automatically via Mirror, and to
+/// GenerationTracked so Phase 7 input-equality gating sees object changes
+/// (the generation bumps on every objectWillChange).
+public class ObservedObjectStorage<ObjectType: ObservableObject>: AnyStateStorage, GenerationTracked {
     public let object: ObjectType
+    private var cancellable: AnyCancellable?
+    public private(set) var generation: UInt64 = 0
     public weak var host: AnyViewHost? {
-        didSet { wirePublishedProperties() }
+        didSet { wireObjectWillChange() }
     }
 
     public init(_ object: ObjectType) {
         self.object = object
     }
 
-    private func wirePublishedProperties() {
-        wirePublished(object: object, token: ObjectIdentifier(self), host: host)
+    /// Read the object, recording the read so dependency gating knows this
+    /// host consumed it (object-level granularity — same as Apple's
+    /// objectWillChange model).
+    func access() -> ObjectType {
+        recordDependencyRead(self)
+        return object
+    }
+
+    private func wireObjectWillChange() {
+        guard host != nil else {
+            cancellable = nil
+            return
+        }
+        cancellable = subscribeToObjectWillChange(object) { [weak self] in
+            guard let self else { return }
+            self.generation &+= 1
+            self.host?.scheduleRebuild()
+        }
     }
 
     public func restoreValue(from other: AnyStateStorage) {
@@ -129,18 +143,25 @@ public struct StateObject<ObjectType: ObservableObject>: AnyStateStorageProvider
         storage = StateObjectStorage(factory: wrappedValue)
     }
 
-    public var wrappedValue: ObjectType { storage.object }
+    public var wrappedValue: ObjectType { storage.access() }
+
+    public var projectedValue: ObservedObject<ObjectType>.Wrapper {
+        ObservedObject<ObjectType>.Wrapper(storage.access())
+    }
+
     public var anyStorage: AnyStateStorage { storage }
 }
 
 /// Backing storage for @StateObject. Creates the object lazily on first
 /// access and caches it. Since this is a class (reference type), copying
 /// the view struct shares the same storage — the object persists.
-public class StateObjectStorage<ObjectType: ObservableObject>: AnyStateStorage {
+public class StateObjectStorage<ObjectType: ObservableObject>: AnyStateStorage, GenerationTracked {
     private let factory: () -> ObjectType
-    private var _object: ObjectType?
+    var _object: ObjectType?  // internal for restoreValue cross-storage adoption
+    private var cancellable: AnyCancellable?
+    public private(set) var generation: UInt64 = 0
     public weak var host: AnyViewHost? {
-        didSet { wirePublishedProperties() }
+        didSet { wireObjectWillChange() }
     }
 
     public init(factory: @escaping () -> ObjectType) {
@@ -151,15 +172,41 @@ public class StateObjectStorage<ObjectType: ObservableObject>: AnyStateStorage {
         if let obj = _object { return obj }
         let obj = factory()
         _object = obj
+        wireObjectWillChange()
         return obj
     }
 
-    private func wirePublishedProperties() {
-        wirePublished(object: object, token: ObjectIdentifier(self), host: host)
+    func access() -> ObjectType {
+        recordDependencyRead(self)
+        return object
+    }
+
+    private func wireObjectWillChange() {
+        // Subscribe only to an ALREADY-created object: host attachment must
+        // not force the lazy factory (Apple defers creation to first access,
+        // and eager creation here would race restoreValue's adoption of the
+        // previous instance — creating a second object only to discard it).
+        // The `object` getter wires after first creation; restoreValue
+        // re-wires after adoption.
+        guard host != nil, let existing = _object else {
+            cancellable = nil
+            return
+        }
+        cancellable = subscribeToObjectWillChange(existing) { [weak self] in
+            guard let self else { return }
+            self.generation &+= 1
+            self.host?.scheduleRebuild()
+        }
     }
 
     public func restoreValue(from other: AnyStateStorage) {
-        // StateObject owns its object — no value to restore
+        // Adopt the previously-created object so the StateObject lifecycle
+        // (create once, persist across rebuilds) holds even when the host
+        // hands us a fresh storage instance for a re-rendered view struct.
+        if let typed = other as? StateObjectStorage<ObjectType>, let existing = typed._object {
+            _object = existing
+            wireObjectWillChange()
+        }
     }
 }
 
@@ -175,16 +222,23 @@ public struct EnvironmentObject<ObjectType: ObservableObject>: AnyStateStoragePr
         storage = EnvironmentObjectStorage()
     }
 
-    public var wrappedValue: ObjectType { storage.object }
+    public var wrappedValue: ObjectType { storage.access() }
+
+    public var projectedValue: ObservedObject<ObjectType>.Wrapper {
+        ObservedObject<ObjectType>.Wrapper(storage.access())
+    }
+
     public var anyStorage: AnyStateStorage { storage }
 }
 
 /// Backing storage for @EnvironmentObject. Resolves the object lazily
 /// from the environment on first access.
-public class EnvironmentObjectStorage<ObjectType: ObservableObject>: AnyStateStorage {
+public class EnvironmentObjectStorage<ObjectType: ObservableObject>: AnyStateStorage, GenerationTracked {
     private var _object: ObjectType?
+    private var cancellable: AnyCancellable?
+    public private(set) var generation: UInt64 = 0
     public weak var host: AnyViewHost? {
-        didSet { wirePublishedProperties() }
+        didSet { wireObjectWillChange() }
     }
 
     public init() {}
@@ -198,48 +252,24 @@ public class EnvironmentObjectStorage<ObjectType: ObservableObject>: AnyStateSto
         return obj
     }
 
-    private func wirePublishedProperties() {
-        wirePublished(object: object, token: ObjectIdentifier(self), host: host)
+    func access() -> ObjectType {
+        recordDependencyRead(self)
+        return object
+    }
+
+    private func wireObjectWillChange() {
+        guard host != nil else {
+            cancellable = nil
+            return
+        }
+        cancellable = subscribeToObjectWillChange(object) { [weak self] in
+            guard let self else { return }
+            self.generation &+= 1
+            self.host?.scheduleRebuild()
+        }
     }
 
     public func restoreValue(from other: AnyStateStorage) {
         // EnvironmentObject is resolved from environment — no value to restore
-    }
-}
-
-// MARK: - Shared wiring helper
-
-/// Walk an ObservableObject's @Published properties via Mirror and wire
-/// observers to the host's scheduleRebuild. Walks the full superclass
-/// chain so inherited @Published properties are also observed.
-private func wirePublished<T: ObservableObject>(
-    object: T, token: ObjectIdentifier, host: AnyViewHost?
-) {
-    wirePublishedObject(object, token: token, host: host)
-}
-
-func wirePublishedObject(
-    _ object: AnyObject,
-    token: ObjectIdentifier,
-    host: AnyViewHost?
-) {
-    var mirror: Mirror? = Mirror(reflecting: object)
-    while let m = mirror {
-        for child in m.children {
-            if let provider = child.value as? AnyPublishedProvider {
-                let storage = provider.anyPublished
-                provider.anyPublished.setObserver(token: token) { [weak host] in
-                    guard let host = host else { return }
-                    // Skip rebuild if host has a read-set and this storage wasn't read
-                    if let trackingHost = host as? DependencyTrackingHost,
-                       let readSet = trackingHost.lastReadSet,
-                       !isDependency(storage as AnyObject, in: readSet) {
-                        return
-                    }
-                    host.scheduleRebuild()
-                }
-            }
-        }
-        mirror = m.superclassMirror
     }
 }

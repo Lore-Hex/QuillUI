@@ -114,20 +114,13 @@ jobs:
             --report .qa/quill-chat-linux-runtime-deps.tsv
           echo "QUILLUI_BACKEND_APP_EXECUTABLE=$PWD/.build/releases/quill-chat-linux-gtk/run" >> "$GITHUB_ENV"
 
-      - name: Run packaged release artifact verifier
+      - name: Run packaged release artifact visual verifier
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
         run: |
           QUILLUI_BACKEND_VISUAL_APP_LOG=.qa/quill-chat-linux-release-artifact-visual.log \
             scripts/linux-backend-visual-check.sh \
               .qa/quill-chat-linux-release-artifact-gtk.png \
-              quill-chat-linux \
-              gtk
-
-          QUILLUI_BACKEND_INTERACTION_MODE=new-chat \
-          QUILLUI_BACKEND_INTERACTION_APP_LOG=.qa/quill-chat-linux-release-artifact-new-chat.log \
-            scripts/linux-backend-interaction-check.sh \
-              .qa/quill-chat-linux-release-artifact-new-chat-gtk.png \
               quill-chat-linux \
               gtk
 
@@ -160,20 +153,20 @@ jobs:
               quill-chat-linux \
               gtk
 
-      - name: Run real-source sidebar and transcript interaction verifiers
+      - name: Run packaged release artifact interaction verifiers
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
-          QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE: ".qa/quill-chat-linux-interaction-{mode}.log"
+          QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE: ".qa/quill-chat-linux-release-artifact-{mode}.log"
           QUILLUI_BACKEND_INTERACTION_MODE_TIMEOUT: "120s"
         run: |
-          # Gate the Mac-reference settings/completions/sidebar/transcript
-          # paths that exercise the Enchanted profile's real SwiftData-backed
-          # history, relationship fetches, markdown rendering, and long-scroll
-          # behavior.
+          # Gate the packaged release launcher through the Mac-reference
+          # settings/completions/sidebar/transcript paths that exercise the
+          # Enchanted profile's real SwiftData-backed history, relationship
+          # fetches, markdown rendering, and long-scroll behavior.
           quill_chat_modes="$(scripts/quillui-backend-products.sh quill-chat-mac-reference-interaction-modes)"
           # shellcheck disable=SC2086
           scripts/run-linux-backend-interaction-modes.sh \
-            ".qa/quill-chat-linux-mac-reference-{mode}-gtk.png" \
+            ".qa/quill-chat-linux-release-artifact-{mode}-gtk.png" \
             quill-chat-linux \
             gtk \
             $quill_chat_modes

@@ -85,8 +85,30 @@ public struct CIVector: Sendable {
     }
 }
 
+/// CIContext creation options (Apple: `CIContextOption`, a string-backed
+/// struct). SolderScope (first community conformance app) constructs
+/// `CIContext(options: [.priorityRequestLow: …, .useSoftwareRenderer: …])`.
+public struct CIContextOption: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let priorityRequestLow = CIContextOption(rawValue: "kCIContextPriorityRequestLow")
+    public static let useSoftwareRenderer = CIContextOption(rawValue: "kCIContextUseSoftwareRenderer")
+    public static let workingColorSpace = CIContextOption(rawValue: "kCIContextWorkingColorSpace")
+    public static let outputColorSpace = CIContextOption(rawValue: "kCIContextOutputColorSpace")
+    public static let cacheIntermediates = CIContextOption(rawValue: "kCIContextCacheIntermediates")
+    public static let name = CIContextOption(rawValue: "kCIContextName")
+}
+
 open class CIContext {
     public init() {}
+
+    /// Options are accepted for signature fidelity; the Linux software path
+    /// has no renderer toggles yet.
+    public convenience init(options: [CIContextOption: Any]?) {
+        self.init()
+        _ = options
+    }
 
     /// No rasterizer on Linux -> nil. The caller treats nil as "QR unavailable".
     open func createCGImage(_ image: CIImage, from fromRect: CGRect) -> CGImage? { nil }
