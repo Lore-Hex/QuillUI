@@ -36,6 +36,7 @@
 #include <QSizePolicy>
 #include <QTimer>
 #include <QToolButton>
+#include <QVariant>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
@@ -163,6 +164,26 @@ inline void bridgeTrace(const char *message) {
 }
 
 bool materialSymbolsFontRegistered = false;
+constexpr const char *kQuillExternalMountProperty = "quillRepresentableRetained";
+
+bool isExternalMount(QWidget *widget) {
+    return widget != nullptr && widget->property(kQuillExternalMountProperty).toBool();
+}
+
+void detachExternalMounts(QWidget *root) {
+    if (root == nullptr) {
+        return;
+    }
+
+    const QList<QWidget *> descendants =
+        root->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
+    for (QWidget *descendant : descendants) {
+        if (isExternalMount(descendant)) {
+            descendant->hide();
+            descendant->setParent(nullptr);
+        }
+    }
+}
 
 } // namespace
 
@@ -170,6 +191,11 @@ bool materialSymbolsFontRegistered = false;
 
 QuillQtAppHandle quill_qt_bridge_application_create(int argc, char **argv) {
     bridgeTrace("application_create: enter");
+
+    if (QApplication::instance() != nullptr) {
+        bridgeTrace("application_create: returning existing QApplication");
+        return reinterpret_cast<QuillQtAppHandle>(QApplication::instance());
+    }
 
     // CRASH FIX (Signal 11 at startup): QApplication's constructor is
     // `QApplication(int &argc, char **argv)` — it stores a POINTER to the int
@@ -412,10 +438,27 @@ void quill_qt_bridge_widget_delete_children(QuillQtWidgetHandle parent) {
     const QList<QWidget *> directChildren =
         parentWidget->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
     for (QWidget *child : directChildren) {
+        if (isExternalMount(child)) {
+            child->hide();
+            child->setParent(nullptr);
+            continue;
+        }
+        detachExternalMounts(child);
         child->hide();
         child->setParent(nullptr);
         child->deleteLater();
     }
+}
+
+void quill_qt_bridge_widget_delete(QuillQtWidgetHandle widget) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        return;
+    }
+    detachExternalMounts(target);
+    target->hide();
+    target->setParent(nullptr);
+    target->deleteLater();
 }
 
 void quill_qt_bridge_widget_set_geometry(
@@ -956,6 +999,19 @@ void quill_qt_bridge_widget_set_visible(QuillQtWidgetHandle widget, int visible)
     if (QWidget *target = asWidget(widget)) {
         target->setVisible(visible != 0);
     }
+}
+
+int quill_qt_bridge_widget_grab_png(
+    QuillQtWidgetHandle widget,
+    const char *path
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr || path == nullptr) {
+        return 0;
+    }
+    target->ensurePolished();
+    QPixmap pixmap = target->grab();
+    return pixmap.save(QString::fromUtf8(path), "PNG") ? 1 : 0;
 }
 
 // --- Measurement -----------------------------------------------------------

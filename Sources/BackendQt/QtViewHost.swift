@@ -37,6 +37,7 @@ public final class QtViewHost: AnyViewHost, DependencyTrackingHost {
     private let lock = NSLock()
     private var scheduled = false
     private var observationDidFire = false
+    var stateIdentityNamespace = "root"
 
     public init(buildBody: @escaping () -> OpaquePointer) {
         self.buildBody = buildBody
@@ -133,7 +134,10 @@ public final class QtViewHost: AnyViewHost, DependencyTrackingHost {
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: OpaquePointer!
             withObservationTracking {
-                result = buildBody()
+                result = qtWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+                    qtBeginStateIdentityPass()
+                    return buildBody()
+                }
             } onChange: { [weak self] in
                 guard let self else { return }
                 self.lock.lock()
@@ -148,7 +152,10 @@ public final class QtViewHost: AnyViewHost, DependencyTrackingHost {
         }
         #endif
 
-        let result = buildBody()
+        let result = qtWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            qtBeginStateIdentityPass()
+            return buildBody()
+        }
         if let reads = endEnvironmentReadTracking() {
             capturedInjectedObjects = reads
         }

@@ -20,7 +20,7 @@ import Foundation
 private let qtDefaultAutomaticWindowWidth: Double = 800
 private let qtDefaultAutomaticWindowHeight: Double = 600
 
-private func qtRegisterBundledIconFont() {
+func qtRegisterBundledIconFont() {
     quill_qt_bridge_material_symbols_register_font(
         MaterialSymbolsResources.roundedRegularFontURL.path
     )
@@ -108,6 +108,7 @@ extension WindowGroup: QtWindowRenderable {
         }
 
         qtBackendTrace("WindowGroup.qtRender: building root content view")
+        qtBeginStateIdentityPass()
         let content = qtRenderView(self.content)
         qtBackendTrace("WindowGroup.qtRender: root content view built")
         quill_qt_bridge_window_set_content(qtHandle(window), qtHandle(content))

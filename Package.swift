@@ -770,8 +770,13 @@ let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
 // `import SwiftUI` is the real SDK and there is no target to depend on.
 #if os(Linux)
 let swiftUIShadowTestDependencies: [Target.Dependency] = ["SwiftUI"]
+let quillUIQtGenericTestDependencies: [Target.Dependency] =
+    (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled)
+    ? ["BackendQt", "QuillAppKitQt"]
+    : []
 #else
 let swiftUIShadowTestDependencies: [Target.Dependency] = []
+let quillUIQtGenericTestDependencies: [Target.Dependency] = []
 #endif
 
 // The representable GTK mount rides only in the gtk graph; the qt graph keeps
@@ -781,10 +786,11 @@ let swiftUIShadowTestDependencies: [Target.Dependency] = []
 let swiftUIShadowMountDependencies: [Target.Dependency] =
     quillUILinuxBuildBackend == .gtk
     ? ["QuillAppKitGTK", "Observation", swiftUIShimBackendDependency]
-    : (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? ["Observation", swiftUIShimBackendDependency] : [])
-let swiftUIShadowMountSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
+    : (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? ["QuillAppKitQt", "Observation", swiftUIShimBackendDependency] : [])
+let swiftUIShadowMountSwiftSettings: [SwiftSetting] =
+    quillUILinuxBuildBackend == .gtk
     ? [.define("QUILLUI_SWIFTUI_GTK_MOUNT"), .unsafeFlags(gtk4SwiftImporterFlags)]
-    : []
+    : (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [.define("QUILLUI_SWIFTUI_QT_MOUNT")] : [])
 #endif
 
 let quillDataMacroTarget: Target = .macro(
@@ -2758,7 +2764,7 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillAppKitQt",
-            dependencies: ["AppKit", "CQuillAppKitQt", "QuillAutoLayout"],
+            dependencies: ["AppKit", "CQuillAppKitQt", "QuillAutoLayout", "QuillFoundation"],
             path: "Sources/QuillAppKitQt",
             swiftSettings: appSwiftSettings
         ),
@@ -3179,7 +3185,7 @@ let packageTestTargets: [Target] = {
             // previously reached via the shared-build-dir leak; must be declared
             // now that the shadow carries CGtk4/QuillAppKitGTK (representable
             // GTK mount). On Apple `import SwiftUI` is the real SDK — no target.
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies,
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies + quillUIQtGenericTestDependencies,
             swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
         )
     ]

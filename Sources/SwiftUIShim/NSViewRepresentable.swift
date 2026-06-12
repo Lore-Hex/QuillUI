@@ -10,6 +10,10 @@
 @_implementationOnly import BackendGTK4
 @_implementationOnly import QuillAppKitGTK
 #endif
+#if QUILLUI_SWIFTUI_QT_MOUNT
+@_implementationOnly import BackendQt
+@_implementationOnly import QuillAppKitQt
+#endif
 
 // NSViewRepresentable / NSViewControllerRepresentable — Apple ships these in
 // SwiftUI (NOT AppKit; `import AppKit` alone does not resolve them on macOS),
@@ -71,17 +75,25 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
     public var body: some View {
         _QuillGTKRepresentableMountLeaf(representable: representable)
     }
+#elseif QUILLUI_SWIFTUI_QT_MOUNT
+    let representable: R
+
+    init(_ representable: R) { self.representable = representable }
+
+    public var body: some View {
+        _QuillQtRepresentableMountLeaf(representable: representable)
+    }
 #else
     let representable: R
 
     init(_ representable: R) { self.representable = representable }
 
-    // Non-GTK graphs (qt) keep compile-only representables: rendering one
-    // traps with a clear message until a Qt mount exists.
+    // Graphs without a native mount keep compile-only representables:
+    // rendering one traps with a clear message.
     public var body: Never {
         fatalError("""
-        NSViewRepresentable (\(R.self)) rendering requires the GTK backend \
-        graph; the qt mount does not exist yet.
+        NSViewRepresentable (\(R.self)) rendering requires a native \
+        representable mount; this backend graph does not provide one.
         """)
     }
 #endif
@@ -150,7 +162,62 @@ struct _QuillGTKRepresentableMountLeaf<R: NSViewRepresentable>: View, PrimitiveV
         return widget
     }
 }
+#endif
 
+#if QUILLUI_SWIFTUI_QT_MOUNT
+/// Internal renderable leaf: carries the QtRenderable conformance so the
+/// PUBLIC host never references an implementation-only protocol. The generic
+/// Qt renderer reaches it by walking the host's opaque body.
+struct _QuillQtRepresentableMountLeaf<R: NSViewRepresentable>: View, PrimitiveView, QtRenderable {
+    typealias Body = Never
+    let representable: R
+
+    var body: Never {
+        fatalError("_QuillQtRepresentableMountLeaf is a primitive view")
+    }
+
+    func qtCreateWidget() -> OpaquePointer {
+        nonisolated(unsafe) var slot: OpaquePointer?
+        MainActor.assumeIsolated {
+            let key = qtMountIdentity(for: Self.self)
+            if let mounted = QuillRepresentableMountRegistry.entry(for: key),
+               let nsView = mounted.nsView as? R.NSViewType,
+               let coordinator = mounted.coordinator as? R.Coordinator {
+                let context = NSViewRepresentableContext<R>(coordinator: coordinator)
+                representable.updateNSView(nsView, context: context)
+                quillQtDetachFromParent(mounted.widget)
+                quillQtQueueDraw(mounted.widget)
+                slot = mounted.widget
+                return
+            }
+
+            let coordinator = representable.makeCoordinator()
+            let context = NSViewRepresentableContext<R>(coordinator: coordinator)
+            let nsView = representable.makeNSView(context: context)
+            representable.updateNSView(nsView, context: context)
+            guard let widget = nsView.ensureQtCustomDrawWidget() else {
+                preconditionFailure(
+                    "NSViewRepresentable (\(R.self)) mounted without a usable Qt display")
+            }
+            quillQtRetainWidget(widget)
+            QuillRepresentableMountRegistry.store(
+                key: key,
+                entry: .init(coordinator: coordinator, nsView: nsView, widget: widget) {
+                    R.dismantleNSView(nsView, coordinator: coordinator)
+                    quillQtReleaseWidget(widget)
+                })
+            slot = widget
+        }
+        guard let widget = slot else {
+            preconditionFailure(
+                "NSViewRepresentable (\(R.self)) mounted without a usable Qt display")
+        }
+        return widget
+    }
+}
+#endif
+
+#if QUILLUI_SWIFTUI_GTK_MOUNT || QUILLUI_SWIFTUI_QT_MOUNT
 /// Mounted-representable registry, keyed by render-tree mount identity.
 /// One entry per mount SITE (same lifetime semantics as the renderer's
 /// @State storage cache): replacing a key dismantles the previous mount

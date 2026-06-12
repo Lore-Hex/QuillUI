@@ -17,6 +17,16 @@
 extern "C" {
 #endif
 
+// Paint callback for custom NSView.draw(_:) hosts. The paint_context is an
+// opaque, paintEvent-scoped QPainter wrapper; it is valid only for the call.
+typedef void (*quill_appkit_qt_draw_callback)(
+    void *paint_context,
+    int width,
+    int height,
+    void *user_data
+);
+typedef void (*quill_appkit_qt_destroy_callback)(void *user_data);
+
 // Ensure a process-wide QApplication exists (honours QT_QPA_PLATFORM, e.g.
 // "offscreen" for headless). Idempotent. Returns 1 if Qt is usable, else 0.
 int quill_appkit_qt_app_init(void);
@@ -51,6 +61,69 @@ void quill_appkit_qt_view_set_geometry(void *view, int x, int y, int width, int 
 void quill_appkit_qt_view_geometry(void *view, int *x, int *y, int *width, int *height);
 // Make `view` the window's content view (reparent into the window, show).
 void quill_appkit_qt_window_set_content_view(void *window, void *view);
+
+// A custom-draw QWidget that calls back during paintEvent. This backs
+// NSViewRepresentable on the generic SwiftUI→Qt graph.
+void *quill_appkit_qt_custom_draw_view_new(
+    quill_appkit_qt_draw_callback draw,
+    void *user_data,
+    quill_appkit_qt_destroy_callback destroy
+);
+
+void quill_appkit_qt_widget_detach_from_parent(void *widget);
+void quill_appkit_qt_widget_update(void *widget);
+void quill_appkit_qt_widget_delete(void *widget);
+void quill_appkit_qt_widget_mark_external_mount(void *widget, int retained);
+
+// --- QPainter-backed CGContext operations for custom NSView.draw(_:) hosts ---
+void quill_appkit_qt_paint_save(void *paint_context);
+void quill_appkit_qt_paint_restore(void *paint_context);
+void quill_appkit_qt_paint_translate(void *paint_context, double x, double y);
+void quill_appkit_qt_paint_scale(void *paint_context, double x, double y);
+void quill_appkit_qt_paint_rotate(void *paint_context, double radians);
+void quill_appkit_qt_paint_set_fill_color(void *paint_context, double r, double g, double b, double a);
+void quill_appkit_qt_paint_set_stroke_color(void *paint_context, double r, double g, double b, double a);
+void quill_appkit_qt_paint_set_line_width(void *paint_context, double width);
+void quill_appkit_qt_paint_set_line_cap(void *paint_context, int cap);
+void quill_appkit_qt_paint_set_line_join(void *paint_context, int join);
+void quill_appkit_qt_paint_set_alpha(void *paint_context, double alpha);
+void quill_appkit_qt_paint_fill_rect(void *paint_context, double x, double y, double width, double height);
+void quill_appkit_qt_paint_stroke_rect(void *paint_context, double x, double y, double width, double height);
+void quill_appkit_qt_paint_fill_ellipse(void *paint_context, double x, double y, double width, double height);
+void quill_appkit_qt_paint_stroke_ellipse(void *paint_context, double x, double y, double width, double height);
+void quill_appkit_qt_paint_clear_rect(void *paint_context, double x, double y, double width, double height);
+void quill_appkit_qt_paint_stroke_line_segments(void *paint_context, const double *xy_pairs, int point_count);
+void quill_appkit_qt_paint_begin_path(void *paint_context);
+void quill_appkit_qt_paint_close_path(void *paint_context);
+void quill_appkit_qt_paint_move_to(void *paint_context, double x, double y);
+void quill_appkit_qt_paint_add_line_to(void *paint_context, double x, double y);
+void quill_appkit_qt_paint_add_rect(void *paint_context, double x, double y, double width, double height);
+void quill_appkit_qt_paint_add_ellipse(void *paint_context, double x, double y, double width, double height);
+void quill_appkit_qt_paint_add_arc(
+    void *paint_context,
+    double center_x,
+    double center_y,
+    double radius,
+    double start_angle,
+    double end_angle,
+    int clockwise
+);
+void quill_appkit_qt_paint_fill_path(void *paint_context);
+void quill_appkit_qt_paint_stroke_path(void *paint_context);
+void quill_appkit_qt_paint_clip(void *paint_context);
+void quill_appkit_qt_paint_clip_rect(void *paint_context, double x, double y, double width, double height);
+void quill_appkit_qt_paint_draw_bgra_image(
+    void *paint_context,
+    const unsigned char *pixels,
+    int width,
+    int height,
+    int stride,
+    double x,
+    double y,
+    double target_width,
+    double target_height,
+    int nearest
+);
 
 // --- NSControl family (M3): controls are QWidgets, so they compose with the
 // NSView hierarchy + layout above (QPushButton/QLabel derive QWidget). ---
