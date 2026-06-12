@@ -2166,6 +2166,16 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.unsafeFlags(["-use-ld=lld"])]
         ),
+        // signal-chat: the full chat window (conversation list / thread /
+        // composer) driving quill-signal-bridge (presage + libsignal, real
+        // Signal protocol) over its unix-socket line-JSON protocol. Pure
+        // QuillUI -- no SSK link, so it builds in seconds.
+        .executableTarget(
+            name: "signal-chat",
+            dependencies: ["QuillUI", "QuillUIGtk"],
+            path: "Sources/SignalChat",
+            swiftSettings: appSwiftSettings
+        ),
         // SignalUI: Signal-iOS's OWN UI framework (270 Swift files, UIKit-based),
         // compiled UNMODIFIED against QuillUI's UIKit layer + the framework shims.
         // This is the real Track B UI goal -- Signal's actual UI code running on

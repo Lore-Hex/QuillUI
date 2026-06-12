@@ -1397,6 +1397,258 @@ it links SignalServiceKit + the 194MB `libsignal_ffi.a` Rust core and executes a
 libsignal primitive (`IdentityKeyPair.generate()` -> 69-byte keypair, exit 0). HONEST:
 in-memory crypto only -- no DB, no network, no account.
 
+### STEP D-I: the full secondary-device LINK chain runs on QuillOS
+Every piece a phone-scanned QR linking needs is verified RUNNING on Linux from the
+signal-smoke exe (each a merged PR; all crypto/parse/persist paths are real, exercised):
+- **NET** -- `Net(env:.production, userAgent:..., buildVariant:.beta)` +
+  `connectUnauthenticatedChat()` / `connectProvisioning()`. The ENTIRE TCP/TLS/WS/DNS
+  stack is Rust inside `libsignal_ffi.a` (BoringSSL+rustls+tokio); chat.signal.org's root
+  cert is pinned/compiled in, so it connects with NO system cert store and NO corelibs
+  URLSession. Hold the conn + listener alive past the spawning `Task` or the socket is
+  torn down when the local var deallocates.
+- **SCHEMA** -- `GRDBSchemaMigrator.quillRunSchemaMigrations(on:)` migrates **85 tables**
+  on a plain `DatabaseQueue` with NO DI bootstrap. Prereqs (each found by running + reading
+  the crash): `SetCurrentAppContext(QuillSmokeAppContext(), isRunningTests:false)`; a REAL
+  `clock_gettime_nsec_np` (MonotonicDate calls it on every DB tx and owsFails on 0); the
+  `OWSBundleIDPrefix` Info.plist owsFailDebug gated `#if !os(Linux)`. `runDataMigrations:false`
+  avoids DependenciesBridge/SSKEnvironment (only data migrations need them).
+- **QR / DECRYPT** -- the `sgnl://linkdevice?uuid=<addr>&pub_key=<b64(ephemeral.pub)>` URL
+  is built headless via URLComponents (DeviceProvisioningURL is app-layer). The envelope
+  delivered by `didReceiveEnvelope` is a *serialized ProvisionEnvelope proto* (not an
+  unwrapped body): `ProvisioningProtoProvisionEnvelope(serializedData:)` ->
+  `ProvisioningCipher(ourKeyPair:).decrypt(data: env.body, theirPublicKey: PublicKey(env.publicKey))`
+  -> `LinkingProvisioningMessage(plaintext:)`. Round-trip self-test (encrypt->wrap->decrypt)
+  passes.
+- **PERSIST** -- account state = rows in the `keyvalue(collection,key,value)` table created
+  by createInitialSchema, written via `KeyValueStore(collection:)` + a `q.write { db in let
+  tx = DBWriteTransaction(database: db); defer { tx.finalizeTransaction() }; ... }`. Identity
+  keys via `setObject`/`getObject(ofClass: ECKeyPair.self)`. Reopening the on-disk file
+  reloads everything incl. the archived ECKeyPair -> **login survives restart**. NSCoder fix
+  (below) was required for the ECKeyPair round-trip. Plain SQLite silently ignores Signal's
+  `PRAGMA key`, so the store works unencrypted with zero patching (encryption is a separate
+  decision; SQLCipher isn't in the build image). Account collection
+  `TSStorageUserAccountCollection`; ACI identity `TSStorageManagerIdentityKeyStoreCollection`,
+  PNI identity `TSStorageManagerPNIIdentityKeyStoreCollection`, both under key
+  `TSStorageManagerIdentityKeyStoreIdentityKey`.
+- **REGISTER** -- the verify-secondary body is byte-shape-identical to upstream
+  `ProvisioningRequestFactory.verifySecondaryDeviceRequest`: `{verificationCode,
+  accountAttributes(as dict), aciSignedPreKey, pniSignedPreKey, aciPqLastResortPreKey,
+  pniPqLastResortPreKey}`, PUT to `v1/devices/link`, auth = HTTP Basic (username=phoneNumber,
+  password=fresh 16-byte server auth token hex). Prekeys built from LibSignalClient PRIMITIVES
+  (must qualify `LibSignalClient.SignedPreKeyRecord`/`.KyberPreKeyRecord` -- ambiguous with
+  SSK's own); base64 via `base64EncodedStringWithoutPadding()` (NOT url-safe). Account
+  attributes reuse the real `AccountAttributes` Codable. Device name = base64 of
+  `OWSDeviceNames.encryptDeviceName(plaintext:identityKeyPair:)` encrypted to the **ACI**
+  identity. Self-test JSON-encodes a ~5.3KB body.
+- **LIVE FLOW (STEP 9, USER-GATED)** -- `quillRunLiveLinkFlow()` chains it all behind
+  `QUILL_SIGNAL_LINK=1` (default OFF): connectProvisioning -> print QR + "SCAN THIS WITH
+  YOUR PHONE" -> on envelope: decrypt -> build verify body from the REAL decrypted
+  aci/pni/identityKeyPairs/profileKey/provisioningCode -> PUT /v1/devices/link (URLSession
+  via FoundationNetworking; completion-handler API wrapped in withCheckedThrowingContinuation
+  -- robust on corelibs) -> persist creds to `/work/quill-signal-account.sqlite` (qs-work
+  volume, survives the container) -> `connectAuthenticatedChat(username:"<aci.serviceIdString>.<deviceId>",
+  password:serverAuthToken,...)`. Steps PUT/persist/authenticate run ONLY after a human
+  scans; with the flag off the exe instead runs `quillTryDurableReconnect()` (loads stored
+  creds + reconnects authenticated chat WITHOUT re-scan -- the "survives restart" proof),
+  inert when none exist. Verified build + run with flag OFF: all self-tests pass, live flow
+  compiled-dormant, reconnect inert, EXIT=0.
+
+**Persistence FIDELITY (matching the real account store, not just self-consistent).** A
+self-consistent roundtrip (write key X, read key X) proves *my* reconnect survives restart,
+but for the DB to be a genuine real-SSK account store -- so a real SignalServiceKit boot
+loads the linked account -- the keys, value TYPES, and STORE must match upstream exactly:
+- **Two different stores back the `keyvalue` table.** Account state uses `NewKeyValueStore`
+  (raw column values via a `KeyValueStoreValue` protocol -- String/Int64/Bool/Data stored
+  natively, NOT archived). Identity keys use the legacy `KeyValueStore` (NSKeyedArchiver
+  blobs). Writing an account scalar with legacy `KeyValueStore.setString` is INVISIBLE to a
+  real read via `NewKeyValueStore.fetchValue(String.self)` even with the same key+table --
+  the byte format differs. Write each field with the SAME store the real reader uses.
+- **Exact account keys/types (TSAccountManagerImpl.Keys, collection
+  "TSStorageUserAccountCollection"):** `TSStorageRegisteredNumberKey`(e164 String),
+  `TSStorageRegisteredUUIDKey`(ACI as `aci.serviceIdUppercaseString` -- uppercase UUID, no
+  prefix), `TSAccountManager_RegisteredPNIKey`(pni `rawUUID.uuidString`),
+  `TSAccountManager_DeviceId`(**Int64**), `TSStorageLocalRegistrationId`(**Int64**),
+  `TSStorageLocalPniRegistrationId`(**Int64** -- note the `Local`),
+  `TSStorageServerAuthToken`(String), `TSAccountManager_ManualMessageFetchKey`(Bool true).
+- **Identity keys (OWSIdentityManagerImpl, ONE collection
+  "TSStorageManagerIdentityKeyStoreCollection", TWO keys):** ACI under
+  `TSStorageManagerIdentityKeyStoreIdentityKey`, PNI under
+  `TSStorageManagerIdentityKeyStorePNIIdentityKey` (NOT two separate collections). Stored as
+  `ECKeyPair` via the legacy archiver (the NSCoder NSData fix below makes this round-trip).
+- **Reconnect username** = `"<aci.serviceIdString>.<deviceId>"`. Stored ACI is the *uppercase*
+  UUID; reconstruct via `Aci.parseFrom(aciString:)?.serviceIdString` (lowercase) for the
+  websocket username. Runtime-verified: write via `quillPersistLinkedAccount` -> reopen ->
+  `quillLoadStoredAuth` recovers `"<lowercase-uuid>.<deviceId>"` + token (EXIT=0).
+- Caught by reading the actual upstream constants -- my first guess used invented keys
+  (`localAciUuid`, `localE164`, `TSStoragePniRegistrationId`) + UInt32 + two identity
+  collections, all wrong. ALWAYS ground persistence keys/types/store in the real source.
+
+**Adversarial parallel audit caught TWO scan-wasting bugs the single perspective missed.**
+After STEP 9 built green, an 8-dimension Workflow (one skeptical reviewer per wire dimension,
+each given the upstream ground truth + my code embedded -- robust whether or not subagents can
+read the repo) found two defects that would each have wasted the user's SINGLE-USE QR scan,
+both confirmed against the real source before fixing:
+- **Prekey keyId range** -- I used `UInt32.random(in: 1...0x7FFFFFFF)` (31-bit); upstream
+  `PreKeyId.random()` is `UInt32.random(in: 1..<0x1000000)` (24-bit) and the server REJECTS
+  IDs >= 0x1000000. ~99% of my IDs were out of range -> the PUT /v1/devices/link 4xxes on
+  almost every attempt. Fix: `1..<0x100_0000` in both prekey generators.
+- **QR pub_key not percent-encoded** -- I built the `sgnl://linkdevice` URL with
+  `URLComponents`/`URLQueryItem`, which leaves base64 `+` and `/` RAW. Upstream
+  `DeviceProvisioningURL.buildUrl()` explicitly AVOIDS URLComponents ("encodes '+' and '/' in
+  the base64 pub_key in a way Android doesn't tolerate") and builds the string by hand,
+  percent-encoding pub_key via `String.encodeURIComponent` (alphanumerics + `-_.!~*'()`),
+  address raw, `&capabilities=` appended. An Android primary mis-parses raw `+`/`/` -> ECDHs
+  to the wrong key -> the envelope MAC-fails -> no ProvisionMessage -> scan wasted. iOS-only
+  testing hides this. Fix: build the string manually and call the real `pubB64.encodeURIComponent`.
+Plus medium/low: added the Signal-iOS `User-Agent` + `Accept-Language` headers the real REST
+layer injects (WAF/fingerprint risk on the link PUT); tightened the success guard to `==200`
+and validated `deviceId` to 1...127 (upstream `DeviceId`); added `registrationDate` for
+fidelity. LESSON: a green build + self-consistent self-tests do NOT prove wire-correctness
+against a single-use action; fan out an adversarial panel over the real protocol source FIRST.
+
+**One-time prekey upload to `/v2/keys` -- "fully provisioned" (NO LONGER DEFERRED).** After the
+verify-secondary PUT, upstream uploads EC + Kyber ONE-TIME prekeys so other clients can fetch a
+full bundle and open brand-new inbound sessions. Built on the REAL upstream stores
+(`QuillPreKeyPersist.swift`, in the SSK module): `PreKeyStoreImpl.allocatePreKeyIds`(count:100) +
+`generatePreKeyRecords`, `KyberPreKeyStoreImpl.allocatePreKeyIds`(count:100) +
+`generatePreKeyRecords(signedBy:)`, persisting the private halves into the real `PreKey` GRDB
+table (namespaces: oneTime=0, kyber=1, signed=2; identity aci=0/pni=1) and the allocation
+counters into the real metadata collections, so a real SSK receive path
+(`PreKeyStoreForIdentity` conforms to LibSignalClient `PreKeyStore`/`SignedPreKeyStore`/
+`KyberPreKeyStore`) finds them. Wire shapes (verified vs `OWSRequestFactory`): one-time **EC**
+params = `{keyId, publicKey}` with **NO signature** (`preKeyRequestParameters`); PQ params =
+`{keyId, publicKey, signature}`; the post-link upload body is `{preKeys, pqPreKeys}` ONLY (no
+`signedPreKey`/`pqLastResortPreKey` -- those went in the link body), matching
+`createOneTimePreKeys`'s `[.oneTimePreKey, .oneTimePqPreKey]` targets. PUT `v2/keys` (ACI) and
+`v2/keys?identity=pni` (PNI), Basic auth `<aci.serviceIdString>.<deviceId>:serverAuthToken`,
+`timeoutInterval` 45. Persist-before-upload mirrors `persistKeysPriorToUpload` (a crash between
+persist and upload never strands server-advertised keys we can't decrypt with). NON-FATAL to the
+link.
+
+**Productive authoring during a Bash-classifier outage.** The `claude-fable-5` permission
+classifier was down ~2h (Bash blocked entirely; read-only tools unaffected). Rather than idle on
+retries, authored the ENTIRE next increment (the prekey upload above) from upstream reads +
+desk-verification, pre-researched the milestone after (the receive path), and queued the exact
+commit/build/merge/live-login command sequence into the loop prompt so it all fired in one batch
+the moment Bash recovered. A `/model` switch off the stuck model also clears it instantly.
+
+### STEP J: THE LIVE LINK ACTUALLY LINKS A REAL ACCOUNT (2026-06-10) ✅✅✅
+A real phone scanned the `sgnl://linkdevice` QR and QuillOS (real Signal-iOS SSK on aarch64
+Linux) linked as **deviceId=2** on the live account, uploaded one-time prekeys, opened an
+authenticated chat (`DEVICE IS LIVE`), and a flag-off re-run reconnected the authed chat from
+the persisted DB **WITHOUT re-scanning** (durable login survives restart). The end-to-end chain
+that finally worked: scan → decrypt envelope → `PUT v1/devices/link` (200, server assigns
+deviceId+pni) → persist (real SSK keys) → `PUT v2/keys` ×2 → `connectAuthenticatedChat`. Four
+live-only obstacles, NONE visible to any self-test, each surfaced ONLY against the real server:
+
+1. **TLS: chat.signal.org uses Signal's OWN private root CA, not a public one.** libsignal's
+   Rust transport pins it internally (so the provisioning + chat websockets connect fine), but
+   the `v1/devices/link` / `v2/keys` PUTs go through swift-corelibs `URLSession` → libcurl →
+   the SYSTEM CA store, which lacks Signal's root → `SSL certificate problem: self-signed
+   certificate in certificate chain`. The cert is upstream at
+   `SignalServiceKit/Resources/Certificates/signal-messenger.cer` (subject==issuer==`CN=Signal
+   Messenger`), pinned by `HttpSecurityPolicy.signalCaPinned`. FIX (corelibs has no SecTrust):
+   **append Signal's root to the system CA bundle libcurl actually reads**
+   (`/etc/ssl/certs/ca-certificates.crt`) — the OpenSSL env vars `SSL_CERT_FILE` /
+   `CURL_CA_BUNDLE` are IGNORED by corelibs URLSession (verified empirically). `QuillSignalTrust.swift`.
+2. **App expiry: HTTP 499 = build expired (`AppExpiry.appExpiredStatusCode = 499`).** The server
+   reads the client version from the `User-Agent` and 499s ANY past-expiry build — for ALL
+   endpoints, incl. an unauth `GET /v1/config`. A made-up `Signal-iOS/7.42.0` was years stale
+   (Signal is on **8.x** — latest prod tag `8.14.0.1637` via api.github.com tags). FIX: send a
+   CURRENT version in the exact `AppVersionImpl` format `Signal-iOS/<marketing>.<build> iOS/<os>`
+   (`currentAppVersion` is the 4-part `marketing.build`). Bump ≈ every 90 days when 499 returns.
+3. **The QR socket has a finite lifetime.** Our `done.wait(timeout:)` was 300s; turn latency +
+   a model switch ate it, the process exited, the provisioning socket closed, and the phone's
+   provision message hit a dead socket → phone shows "linking device failed" with NO envelope on
+   our side. FIX: 900s window (libsignal keepalives the socket; this just keeps OUR process alive).
+4. **A no-scan TLS/expiry PROBE is the key debugging tool.** `GET https://chat.signal.org/v1/config`
+   via the SAME URLSession path returns the cert error (trust broken) or 499 (expired) or a normal
+   4xx (both fixed) — so trust + version could be iterated to green WITHOUT burning the user's
+   single-use QR scans. **Build a no-scan probe for any single-use live action.**
+
+META-LESSON: self-tests proved every LOCAL invariant (crypto, body bytes, persistence round-trip,
+prekey counts) and were ALL green while the live link still failed four different ways. Wire
+correctness against a real server (TLS anchor, version/expiry gate, socket lifetime) is a
+SEPARATE axis that only the live target exercises. Verify to the edge locally, but the last mile
+is empirical.
+
+**NSCoder NSData fix (the persistence-blocker):** swift-corelibs NSCoder's
+`encodeBytes(UInt8?,length:,forKey:)` uses an internal keyed-archive byte format that has
+NO `decodeBytes` reader; ECKeyPair's NSSecureCoding round-trip failed "Class ECKeyPair
+failed to decode". Fix: the `@_disfavoredOverload encodeBytes(UnsafeRawPointer?,...)` shim
+stores an **NSData** under the key (`encode(NSData(...), forKey:)`), and `decodeBytes` reads
+it back via `decodeObject(of: NSData.self, forKey:)`. NSData round-trips faithfully; this
+unblocked all ECKeyPair on-disk persistence.
+
+**Cross-check the wire body BEFORE the single-use scan.** A wrong verify-secondary body
+wastes the QR (single-use). Read upstream `ProvisioningRequestFactory` +
+`ProvisioningCoordinatorImpl` directly in the MAIN agent (repo-read in sandboxed subagents
+is unreliable -- the documented "don't waste a Workflow on repo-read" lesson) to confirm:
+exact body keys, PUT/Basic-auth, serverAuthToken = `Randomness.generateRandomBytes(16).hexadecimalString`,
+device name encrypted to the ACI identity, response `{pni, deviceId}`, authed-chat username
+`"<aci.serviceIdString>.<deviceId>"`.
+
+**Don't merge Track B onto another team's red main.** keep-main-green outranks
+landing-promptly: when main's latest completed CI run is failure for an UNRELATED reason
+(e.g. the swarm/loom GTK interaction-smoke or a QuillData regression -- signal PRs are
+signal-gated and NOT built in CI, so they're inert and can't have caused it), HOLD the
+admin-merge and keep building locally. Re-check main health each wake; merge only when its
+own run is green.
+
+### STEP K: signal-ui -- THE WINDOW (2026-06-10) ✅
+The visual half of Track B exists: `signal-ui` (`Sources/SignalUI/main.swift`), an
+.executableTarget linking **SignalServiceKit + LibSignalClient + QuillUI + QuillUIGtk into one
+process** (gated + lld-linked like signal-smoke). It reads the durably-persisted linked account
+via `quillLoadAccountDisplay` (QuillSmokeDB.swift -- same NewKeyValueStore keys
+TSAccountManagerImpl writes) and renders a Signal-branded GTK window: e164, Device #2, ACI,
+registration ID, "durable login active". Verified under Xvfb on aarch64 with the REAL account DB
+(qs-work volume): `.qa/signal-ui-linux.png`. Run:
+`docker run -v <worktree>:/qui -v qui-build:/qui/.build -v qs-work:/work quillui-signal-build`
+then `QUILL_SIGNAL_DB=/work/quill-signal-account.sqlite .build/debug/signal-ui` under `Xvfb :99`.
+
+**STALE-MODULE canImport CASCADE (the bug that ate the first build).** The persistent qui-build
+volume retained `.swiftmodule`s for targets DELETED from the tree long ago. SwiftPM never
+garbage-collects removed targets' artifacts, and `Modules/` is on every compile's search path, so:
+- A stale `ObjectiveC.swiftmodule` (from the abandoned fake-ObjectiveC-shim experiment) flipped
+  `canImport(ObjectiveC)` TRUE during a QuillFoundation recompile -> QuillFoundation skipped
+  defining `Selector` (its Linux branch) -> QuillUIKit failed "cannot find type 'Selector'".
+- A stale `zlib.swiftmodule` (inert framework shim, later replaced by the real zlib systemLibrary)
+  SHADOWED the clang `zlib` module -> SSK's GzipStreamTransform/CRC32 lost z_stream/crc32.
+Neither bit signal-smoke for days because cached green modules masked them; the new signal-ui
+target + manifest change forced recompiles that re-evaluated `canImport`. DIAGNOSIS: `import X`
+succeeds but exposes nothing -> look for a stale swiftmodule named X. SWEEP (run when a
+long-lived build volume acts haunted): for each `*.build/<t>.d`, if its primary source no longer
+exists in the tree, `rm -rf <t>.build Modules/<t>.*`. Lesson: a deleted experiment isn't gone
+until its artifacts are purged from every persistent build volume.
+
+**GTK layout: fill color via `.background(Color)`, NEVER `ZStack { Color; content }`.** The
+Color-as-first-child pattern routes through the overlay/fixed ZStack measure path, which sizes
+against the SCREEN (Xvfb 640px), not the window's requested width (440) -> rows overflowed and
+values clipped at the window edge. `.background(Color(hex:))` maps to plain GTK CSS
+`background-color` on the content widget and lays out correctly; stretch rows with
+`HStack { ...; Spacer() }`. (First screenshot showed the bug; the rewrite rendered pixel-clean.)
+
+### STEP L: signal-chat -- full chat window vs the Track A bridge (2026-06-10) ✅
+`Sources/SignalChat/` (exe `signal-chat`, QuillUI+QuillUIGtk only -- no SSK link, 6s builds):
+conversation list w/ avatars+snippets+selection, thread view w/ in/out bubbles + group sender
+labels + `Image(filePath:)` thumbnails, composer w/ onSubmit+Send. Data layer = unix-socket
+line-JSON client (adapted from QuillSignalKit Phase-5a) + ChatStore: background threads for
+requests + a long-lived `receive` stream; UI polls `snapshot()` via Timer(0.4s) and re-renders
+when a generation counter moves. Validated against `.qa/stub-bridge.py` (full protocol stub w/
+scripted incoming): send, live receive, thread switch, auto-scroll, color emoji
+(fonts-noto-color-emoji) all WORK on aarch64 GTK -- xdotool-driven, screenshot-verified.
+
+**GTK renderer re-fires .onAppear on EVERY re-render** (stateful root rebuilds the tree; each
+rebuild runs onAppear again). Anything spawned there (threads, Timers, socket streams) MUST be
+idempotent-guarded in a singleton, or you get a thread/timer per generation bump -- symptom was
+each incoming message duplicating ~8x (8 receive streams) and typed composer text being eaten by
+the rebuild storm. Guard pattern: store-side `started`/`beginUIPolling()` flags under the lock.
+
+**Fixed-size avatar pills need an OUTER clamp frame.** `Text.frame(38x38).background(rounded)`
+alone stretches to a wide pill when a parent HStack proposes extra width (the thread header);
+append a second `.frame(width:38,height:38)` after the background to clamp. Sidebar rows didn't
+expose this -- only the header did. Empirical, like the ZStack/Color lesson.
+
 ### Smallest-milestone exe recipe (3 essential parts)
 1. **libsignal testing-gate** -- LibSignalClient's "testing endpoints" (FakeChat / OTP /
    comparable-backup helpers) are gated `#if !os(iOS) || targetEnvironment(simulator)`
