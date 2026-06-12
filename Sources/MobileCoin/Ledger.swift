@@ -4,7 +4,9 @@
 //    switches over `TransactionStatus` / `ReceiptStatus` (.accepted/.received
 //    bind a `BlockMetadata` whose `index` and optional `timestamp` are read).
 //  * Payments/PaymentsImpl.swift + PaymentsProcessor.swift round-trip both
-//    types through `init?(serializedData:)` / `serializedData`.
+//    types through `init?(serializedData:)` / `serializedData`, record a
+//    transaction's `inputKeyImages` / `outputPublicKeys` on the payment
+//    model, and unmask incoming receipts via `validateAndUnmaskAmount`.
 //  * Payments/PaymentsReconciliation.swift walks `AccountActivity.txOuts`
 //    (`OwnedTxOut`: value/publicKey/keyImage/receivedBlock/spentBlock) and
 //    conforms both types to its MCTransactionHistory protocols.
@@ -29,6 +31,21 @@ public struct Transaction {
         }
         self.serializedData = serializedData
         self.fee = 0
+    }
+
+    /// Real SDK: the key images of the inputs this transaction spends,
+    /// parsed from the transaction protobuf (used by SignalUI as
+    /// `spentKeyImages` on the payment model). The shim cannot parse,
+    /// so none are reported.
+    public var inputKeyImages: Set<Data> {
+        []
+    }
+
+    /// Real SDK: the public keys of the TxOuts this transaction creates
+    /// (used by SignalUI as `outputPublicKeys` on the payment model).
+    /// The shim cannot parse, so none are reported.
+    public var outputPublicKeys: Set<Data> {
+        []
     }
 }
 
@@ -55,6 +72,14 @@ public struct Receipt {
     /// No crypto on Linux, so the value is always unknown (nil) -- SignalUI
     /// maps this to PaymentsError.invalidAmount.
     public func validateAndUnmaskValue(accountKey: AccountKey) -> UInt64? {
+        nil
+    }
+
+    /// Real SDK: the typed (value + token id) flavor of
+    /// `validateAndUnmaskValue`. Same story on Linux: no crypto, so the
+    /// amount is always unknown (nil) -- PaymentsImpl.unmaskReceiptAmount
+    /// propagates the nil.
+    public func validateAndUnmaskAmount(accountKey: AccountKey) -> Amount? {
         nil
     }
 }

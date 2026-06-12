@@ -274,6 +274,11 @@ private struct QuillButtonConfigurationState {
     var contentEdgeInsets: UIEdgeInsets = .zero
     var titleEdgeInsets: UIEdgeInsets = .zero
     var imageEdgeInsets: UIEdgeInsets = .zero
+
+    // Deprecated automatic image dimming (Apple default: true): faithfully
+    // stored, nothing dims on Linux.
+    var adjustsImageWhenHighlighted = true
+    var adjustsImageWhenDisabled = true
 }
 
 @MainActor private var quillButtonConfigurationStates:
@@ -415,6 +420,19 @@ extension UIButton {
     public var imageEdgeInsets: UIEdgeInsets {
         get { quillConfigurationState.imageEdgeInsets }
         set { quillConfigurationState.imageEdgeInsets = newValue }
+    }
+
+    /// Pre-iOS-15 automatic image dimming pair (deprecated on Apple in
+    /// favor of `UIButton.Configuration`). Faithfully stored with Apple's
+    /// default (true); no rendering consumes them on Linux yet.
+    public var adjustsImageWhenHighlighted: Bool {
+        get { quillConfigurationState.adjustsImageWhenHighlighted }
+        set { quillConfigurationState.adjustsImageWhenHighlighted = newValue }
+    }
+
+    public var adjustsImageWhenDisabled: Bool {
+        get { quillConfigurationState.adjustsImageWhenDisabled }
+        set { quillConfigurationState.adjustsImageWhenDisabled = newValue }
     }
 }
 
