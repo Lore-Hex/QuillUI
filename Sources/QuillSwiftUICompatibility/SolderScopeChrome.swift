@@ -123,13 +123,18 @@ extension View {
         _ material: Material,
         ignoresSafeAreaEdges edges: Edge.Set = .all
     ) -> BackgroundView<Self, Color> {
-        // NOTE: the GTK background path currently dims CHILDREN along with
-        // the fill (opacity leaks down the subtree), so true per-token
-        // translucency washes out toolbar content. Until the renderer gains
-        // an rgba background-behind-children path, keep the legible
-        // near-opaque approximation; quillApproximationAlpha documents the
-        // intended translucency for that follow-up.
-        background(Color.white.opacity(0.92))
+        // Scheme-adaptive approximation: on macOS a material over dark video
+        // reads as a dark pill with light content (SolderScope's reference
+        // screenshot), over light content as today's light pill. NOTE: the
+        // GTK background path dims CHILDREN at low alphas (verified by
+        // screenshot), so stay near-opaque until the renderer gains an
+        // rgba background-behind-children path; quillApproximationAlpha
+        // documents the intended per-token translucency for that follow-up.
+        background(
+            Color.quillPrefersDarkScheme
+                ? Color(red: 0.11, green: 0.11, blue: 0.125).opacity(0.92)
+                : Color.white.opacity(0.92)
+        )
     }
 }
 
