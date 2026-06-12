@@ -15,11 +15,11 @@
 import Foundation
 
 /// Opaque selector token (Apple's `Selector` lives in the ObjectiveC overlay,
-/// which is absent on Linux). Mirrors QuillFoundation's shim.
-public struct Selector: Hashable, Sendable {
-    public let name: String
-    public init(_ name: String = "") { self.name = name }
-}
+/// which is absent on Linux). ONE canonical type: QuillFoundation's —
+/// re-exported here so every SSK file resolves it with no extra import.
+/// A second struct declaration made `Selector` ambiguous for every
+/// SignalUI file (they see both SignalServiceKit and QuillFoundation).
+@_exported import struct QuillFoundation.Selector
 
 public extension NotificationCenter {
     func addObserver(_ observer: Any,
