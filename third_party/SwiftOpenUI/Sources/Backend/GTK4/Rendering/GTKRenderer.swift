@@ -5776,6 +5776,12 @@ extension OverlayView: GTKRenderable {
         // non-filling overlays like Text or Image.
         let overlayWantsHExpand = gtk_widget_get_hexpand(overlayWidget) != 0
         let overlayWantsVExpand = gtk_widget_get_vexpand(overlayWidget) != 0
+        if overlayWantsHExpand {
+            gtk_widget_set_hexpand(container, 1)
+        }
+        if overlayWantsVExpand {
+            gtk_widget_set_vexpand(container, 1)
+        }
         gtk_widget_set_halign(overlayWidget, overlayWantsHExpand ? GTK_ALIGN_FILL : hAlign)
         gtk_widget_set_valign(overlayWidget, overlayWantsVExpand ? GTK_ALIGN_FILL : vAlign)
         if overlay is GTKDecorativeOverlay {
@@ -7505,17 +7511,17 @@ private let geometryTickCallback: GtkTickCallback = { widget, _, userData in
 extension GeometryReader: GTKRenderable, GTKDescribable {
     /// GeometryReader's content is rendered and re-rendered by its own
     /// size-tracking context (map + tick callbacks), independent of the host
-    /// child flow, so its subtree must stay opaque to the narrow mutation
-    /// executor. Constant props make reuse-equality meaningful: the node
-    /// itself never changes, content changes are handled by the nested hosts
-    /// the context renders, and without this every host containing a
-    /// GeometryReader falls off the narrow path (the chat window was tearing
-    /// down its composer on every reachability tick).
+    /// child flow. Still describe the content with a deterministic zero-size
+    /// proxy so data-driven structural changes under the reader are visible to
+    /// the host planner; otherwise parent props can stay narrow-reused with
+    /// stale values after async model loads.
     public func gtkDescribeNode() -> GTK4DescriptorNode {
-        GTK4DescriptorNode(
+        let proxy = GeometryProxy(size: GeometrySize(width: 0, height: 0))
+        return GTK4DescriptorNode(
             kind: .composite,
             typeName: "GeometryReader",
-            props: .text(GTK4TextDescriptor(content: "geometry-reader"))
+            props: .text(GTK4TextDescriptor(content: "geometry-reader")),
+            children: [gtkDescribeView(content(proxy))]
         )
     }
 

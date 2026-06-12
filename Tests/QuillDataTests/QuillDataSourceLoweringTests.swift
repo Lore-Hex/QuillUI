@@ -494,6 +494,8 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("top + int(app_height * 0.18)"))
         #expect(verifier.contains("abs(panel_segment.center - detail_center)"))
         #expect(verifier.contains("Mac-reference root-overlay settings panel is misplaced or too narrow"))
+        #expect(verifier.contains("Root-overlay GTK renders the same settings body with lighter antialiasing"))
+        #expect(verifier.contains("body_dark_pixels >= 900"))
         #expect(verifier.contains("panel={panel_segment.width}px@{panel_y} ({panel_kind})"))
         #expect(verifier.contains("Mac-reference typed settings endpoint was not detected"))
         #expect(verifier.contains("endpoint_text_pixels >= 300"))

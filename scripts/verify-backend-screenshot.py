@@ -1312,8 +1312,11 @@ def validate_quill_chat_mac_reference_settings_panel(
         panel_segment.end - 18,
         panel_y + 450,
     )
+    # Root-overlay GTK renders the same settings body with lighter antialiasing
+    # than the legacy panel. Keep this as a broad "body is not blank" floor; the
+    # row-specific checks below still pin typed/default-model content.
     require(
-        body_dark_pixels >= 1_000,
+        body_dark_pixels >= 900,
         f"Mac-reference settings labels and controls were not detected: pixels={body_dark_pixels}",
     )
 

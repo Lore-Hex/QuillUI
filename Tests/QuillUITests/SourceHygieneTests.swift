@@ -4048,7 +4048,23 @@ struct SourceHygieneTests {
         #expect(renderer.contains("gtkScheduleScrollTo(id: id, widget, anchor: anchor)"))
         #expect(renderer.contains("gtkPendingScrollRequests[anyID] = GTKPendingScrollRequest(anchor: anchor)"))
         #expect(renderer.contains("gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)"))
+        #expect(renderer.contains("gtk_widget_set_hexpand(container, 1)"))
+        #expect(renderer.contains("gtk_widget_set_vexpand(container, 1)"))
         #expect(!renderer.contains("gtk_widget_grab_focus(widget)"))
+    }
+
+    @Test("Vendored GTK rebuild preserves typed GeometryReader hosts")
+    func vendoredGTKRebuildPreservesTypedGeometryReaderHosts() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let viewHost = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift")
+
+        #expect(renderer.contains("extension GeometryReader: GTKRenderable, GTKDescribable"))
+        #expect(renderer.contains("typeName: \"GeometryReader\""))
+        #expect(renderer.contains("props: .text(GTK4TextDescriptor(content: \"geometry-reader\"))"))
+        #expect(renderer.contains("deterministic zero-size"))
+        #expect(renderer.contains("children: [gtkDescribeView(content(proxy))]"))
+        #expect(viewHost.contains("gtkFlushPendingTextBindingUpdate()"))
+        #expect(viewHost.contains("A full rebuild recreates text inputs from the bound model"))
     }
 
     private func packageRoot() throws -> URL {
