@@ -1,5 +1,9 @@
 #if os(Linux)
+#if QUILLUI_SWIFTUI_QT_MOUNT
+@_implementationOnly import BackendQt
+#else
 import QuillUI
+#endif
 
 // App.main() — Apple ships this in SwiftUI (an `App` extension the `@main`
 // attribute resolves), so it lives in the SwiftUI shim. On Apple platforms
@@ -12,7 +16,11 @@ extension App {
     /// (GTK on QuillOS Linux) on the main thread.
     @MainActor
     public static func main() {
+        #if QUILLUI_SWIFTUI_QT_MOUNT
+        QtBackend().run(Self.self)
+        #else
         QuillApp.run(Self.self)
+        #endif
     }
 }
 #endif

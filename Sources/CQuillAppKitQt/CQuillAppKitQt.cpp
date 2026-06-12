@@ -3,6 +3,10 @@
 #include "CQuillAppKitQt.h"
 
 #include <QApplication>
+#include <QByteArray>
+#include <QImage>
+#include <QPaintEvent>
+#include <QPainter>
 #include <QWidget>
 #include <QString>
 #include <QRect>
@@ -10,7 +14,10 @@
 #include <QLabel>
 #include <QPixmap>
 #include <QFont>
+#include <QSizePolicy>
 
+#include <cairo.h>
+#include <cstring>
 #include <string>
 
 namespace {
@@ -23,6 +30,84 @@ char *g_argv[] = {g_arg0, nullptr};
 QApplication *g_app = nullptr;
 
 inline QWidget *asWidget(void *handle) { return static_cast<QWidget *>(handle); }
+
+class QuillAppKitQtDrawingWidget final : public QWidget {
+public:
+    QuillAppKitQtDrawingWidget(
+        quill_appkit_qt_draw_callback draw,
+        void *userData,
+        quill_appkit_qt_destroy_callback destroy
+    )
+        : draw_(draw), userData_(userData), destroy_(destroy)
+    {
+        setAttribute(Qt::WA_OpaquePaintEvent, false);
+        setAttribute(Qt::WA_NoSystemBackground, true);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
+
+    ~QuillAppKitQtDrawingWidget() override {
+        if (destroy_ != nullptr && userData_ != nullptr) {
+            destroy_(userData_);
+        }
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        if (draw_ == nullptr || width() <= 0 || height() <= 0) {
+            return;
+        }
+
+        const int surfaceWidth = width();
+        const int surfaceHeight = height();
+        const int stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, surfaceWidth);
+        if (stride <= 0) {
+            return;
+        }
+
+        QByteArray pixels;
+        pixels.resize(stride * surfaceHeight);
+        std::memset(pixels.data(), 0, static_cast<size_t>(pixels.size()));
+
+        cairo_surface_t *surface = cairo_image_surface_create_for_data(
+            reinterpret_cast<unsigned char *>(pixels.data()),
+            CAIRO_FORMAT_ARGB32,
+            surfaceWidth,
+            surfaceHeight,
+            stride
+        );
+        if (surface == nullptr || cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
+            if (surface != nullptr) {
+                cairo_surface_destroy(surface);
+            }
+            return;
+        }
+
+        cairo_t *cr = cairo_create(surface);
+        if (cr != nullptr && cairo_status(cr) == CAIRO_STATUS_SUCCESS) {
+            draw_(static_cast<void *>(cr), surfaceWidth, surfaceHeight, userData_);
+            cairo_destroy(cr);
+        } else if (cr != nullptr) {
+            cairo_destroy(cr);
+        }
+        cairo_surface_flush(surface);
+        cairo_surface_destroy(surface);
+
+        QImage image(
+            reinterpret_cast<const uchar *>(pixels.constData()),
+            surfaceWidth,
+            surfaceHeight,
+            stride,
+            QImage::Format_ARGB32_Premultiplied
+        );
+        QPainter painter(this);
+        painter.drawImage(0, 0, image);
+    }
+
+private:
+    quill_appkit_qt_draw_callback draw_ = nullptr;
+    void *userData_ = nullptr;
+    quill_appkit_qt_destroy_callback destroy_ = nullptr;
+};
 } // namespace
 
 extern "C" {
@@ -150,6 +235,17 @@ void *quill_appkit_qt_view_new(void) {
     return static_cast<void *>(new QWidget());
 }
 
+void *quill_appkit_qt_drawing_view_new(
+    quill_appkit_qt_draw_callback draw,
+    void *user_data,
+    quill_appkit_qt_destroy_callback destroy
+) {
+    if (QApplication::instance() == nullptr) {
+        return nullptr;
+    }
+    return static_cast<void *>(new QuillAppKitQtDrawingWidget(draw, user_data, destroy));
+}
+
 void quill_appkit_qt_view_add_subview(void *parent, void *child) {
     if (!parent || !child) {
         return;
@@ -157,6 +253,12 @@ void quill_appkit_qt_view_add_subview(void *parent, void *child) {
     QWidget *childWidget = asWidget(child);
     childWidget->setParent(asWidget(parent));
     childWidget->show();
+}
+
+void quill_appkit_qt_view_update(void *view) {
+    if (view) {
+        asWidget(view)->update();
+    }
 }
 
 int quill_appkit_qt_view_child_count(void *view) {
