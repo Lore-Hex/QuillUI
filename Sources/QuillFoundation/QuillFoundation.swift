@@ -30,6 +30,19 @@ public struct Selector: Hashable, Sendable {
 #endif
 
 public protocol QuillSelectorDispatching: AnyObject {
+    /// Invoke the action identified by `selector`, passing the firing control
+    /// as `sender`. The source lowering (QuillSourceLowering.AppKitLowering)
+    /// generates a `public` witness that switches on `selector.name`; the
+    /// default below is a no-op so a conforming type with no matching case
+    /// fails safe rather than trapping.
+    ///
+    /// This is the single canonical requirement slot — `QuillActionDispatching`
+    /// refines this protocol WITHOUT restating it (see its file for why).
+    /// NOTE: the default implementation does not relax witness access rules:
+    /// on a public conformer an implicitly-internal `quillPerform` is still
+    /// rejected ("must be declared public because it matches a requirement in
+    /// public protocol") — generated witnesses must be `public`, which the
+    /// lowering both emits and retroactively repairs on re-runs.
     func quillPerform(_ selector: Selector, with sender: Any?)
 }
 

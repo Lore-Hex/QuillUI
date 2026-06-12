@@ -52,15 +52,20 @@
 
 import Foundation
 
-public protocol QuillActionDispatching: QuillSelectorDispatching {
-    /// Invoke the action identified by `selector`, passing the firing control as
-    /// `sender`. The lowering generates an implementation that switches on
-    /// `selector.name` and forwards `sender` to 1-arg (`@objc func foo(sender:)`)
-    /// actions; the default is a no-op so a conforming type with no matching case
-    /// fails safe rather than trapping.
-    func quillPerform(_ selector: Selector, with sender: Any?)
-}
-
-public extension QuillActionDispatching {
-    func quillPerform(_ selector: Selector, with sender: Any?) {}
-}
+/// A pure refinement: the single `quillPerform(_:with:)` requirement slot —
+/// and its fail-safe no-op default — live on `QuillSelectorDispatching`
+/// (QuillFoundation.swift). Dispatch through either existential reaches the
+/// conformer's witness via that inherited requirement.
+///
+/// Deliberately does NOT restate the requirement (and must not grow a shadow
+/// `quillPerform` in an extension of THIS protocol):
+///   * Restating creates a second requirement slot, so every witness
+///     diagnostic at a conformance site is emitted twice — once per protocol
+///     ("matches a requirement in public protocol 'QuillActionDispatching'"
+///     and again for 'QuillSelectorDispatching').
+///   * A non-requirement `quillPerform` in a `QuillActionDispatching`
+///     extension would statically shadow the inherited requirement at
+///     existential call sites (e.g. `NSControl.sendAction`'s
+///     `(target as? QuillActionDispatching)?.quillPerform(…)`), silently
+///     turning all target-action dispatch into the no-op.
+public protocol QuillActionDispatching: QuillSelectorDispatching {}
