@@ -2543,21 +2543,14 @@ public extension GeometryProxy {
     subscript(_ rect: CGRect) -> CGRect { rect }
 }
 
-public extension Array {
-    mutating func move(fromOffsets source: IndexSet, toOffset destination: Int) {
-        let sortedSource = source.sorted()
-        let moving = sortedSource.map { self[$0] }
-        for index in sortedSource.reversed() {
-            remove(at: index)
-        }
-        let removedBeforeDestination = sortedSource.filter { $0 < destination }.count
-        let insertionIndex = Swift.max(0, Swift.min(count, destination - removedBeforeDestination))
-        insert(contentsOf: moving, at: insertionIndex)
-    }
-}
+// Array.move(fromOffsets:toOffset:) lives in QuillUI
+// (UpstreamCompatibility.swift) — a twin here made every `items.move(...)`
+// inside an onMove closure ambiguous (generated Enchanted
+// CompletionsEditorView). The correct destination-adjusting algorithm from
+// this file moved there with the name.
 
 
-public extension URL {
-    func startAccessingSecurityScopedResource() -> Bool { true }
-    func stopAccessingSecurityScopedResource() {}
-}
+// URL.startAccessingSecurityScopedResource()/stop… live in QuillUI
+// (UpstreamCompatibility.swift). Verbatim twins here made the calls inside
+// every fileImporter onCompletion closure ambiguous (generated Enchanted
+// InputFields_macOS, displaced onto `.showIf` at the head of the chain).

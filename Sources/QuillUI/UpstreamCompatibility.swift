@@ -396,14 +396,14 @@ public extension Animation {
     }
 }
 
-@MainActor
-public func withAnimation(_ animation: Animation = .default, _ body: @MainActor () -> Void) {
-    SwiftOpenUI.withAnimation(animation) {
-        MainActor.assumeIsolated {
-            body()
-        }
-    }
-}
+// withAnimation lives in SwiftOpenUI (AnimationModifier.swift). The
+// @MainActor wrapper that sat here was a second candidate with the same
+// defaulted shape, so EVERY `withAnimation { … }` call carried two
+// cross-module candidates — enough extra load that bodies combining a few
+// of them stopped resolving (generated Enchanted InputFields_macOS,
+// displaced onto the first overloaded chain member as "ambiguous use of
+// 'showIf'"). Non-strict language modes accept @MainActor closures for
+// its non-isolated body parameter, so the wrapper bought nothing.
 
 public extension CommandGroupPlacement {
     // appSettings: SwiftOpenUI's enum now has a real .appSettings case —
@@ -1340,13 +1340,13 @@ public extension View {
         return IgnoresSafeAreaView(content: self, edges: edges)
     }
 
-    func onMove(perform action: ((IndexSet, Int) -> Void)?) -> Self {
-        recordQuillUIFallback(
-            "onMove",
-            message: "onMove is currently a source-compatibility fallback on Linux."
-        )
-        return self
-    }
+    // onMove lives in SwiftOpenUI (ForEach.swift), where it actually wires
+    // row moves. This View-wide discard fallback was a second candidate on
+    // every `ForEach.onMove { … }` call (real SwiftUI scopes onMove to
+    // DynamicViewContent, so ForEach is the only receiver generated apps
+    // use) — the twin fed the CompletionsEditorView List-block ambiguity,
+    // and when this copy won it silently dropped reordering. One name, one
+    // owner — and the owner is the one that works.
 
     func gesture<Gesture>(_ gesture: Gesture) -> GestureView<Self, Gesture> {
         recordQuillUIFallback(
@@ -1519,13 +1519,23 @@ public extension View {
 }
 
 public extension Array {
+    // Sole owner of move(fromOffsets:toOffset:) — QuillSwiftUICompatibility
+    // carried a twin that made every `items.move(...)` call inside an
+    // onMove closure ambiguous (generated Enchanted CompletionsEditorView,
+    // displaced onto `.padding()` at the head of the chain). Its algorithm
+    // was the correct one and survives here: SwiftUI interprets
+    // `destination` in pre-removal coordinates, so removals before the
+    // destination must shift it left; the old body here skipped that
+    // adjustment and dropped moves one slot too far right.
     mutating func move(fromOffsets source: IndexSet, toOffset destination: Int) {
-        let moving = source.sorted().compactMap { indices.contains($0) ? self[$0] : nil }
-        for index in source.sorted(by: >) where indices.contains(index) {
+        let sortedSource = source.sorted().filter { indices.contains($0) }
+        let moving = sortedSource.map { self[$0] }
+        for index in sortedSource.reversed() {
             remove(at: index)
         }
-        let insertion = Swift.max(0, Swift.min(destination, count))
-        insert(contentsOf: moving, at: insertion)
+        let removedBeforeDestination = sortedSource.filter { $0 < destination }.count
+        let insertionIndex = Swift.max(0, Swift.min(count, destination - removedBeforeDestination))
+        insert(contentsOf: moving, at: insertionIndex)
     }
 }
 
