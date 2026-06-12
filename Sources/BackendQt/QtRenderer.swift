@@ -439,6 +439,16 @@ final class QtIntClosureBox {
     init(_ closure: @escaping (Int) -> Void) { self.closure = closure }
 }
 
+final class QtDoubleClosureBox {
+    let closure: (Double) -> Void
+    init(_ closure: @escaping (Double) -> Void) { self.closure = closure }
+}
+
+final class QtDateClosureBox {
+    let closure: (SwiftOpenUI.DateComponents) -> Void
+    init(_ closure: @escaping (SwiftOpenUI.DateComponents) -> Void) { self.closure = closure }
+}
+
 private final class QtEnvironmentCapture: @unchecked Sendable {
     let environment: EnvironmentValues
     init(_ environment: EnvironmentValues) { self.environment = environment }
@@ -1434,13 +1444,101 @@ extension PopoverView: QtRenderable {
 
 extension Stepper: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
-        qtOpaque(quill_qt_bridge_label_create(label))
+        let spinBox = qtOpaque(
+            quill_qt_make_double_spin_box(
+                range.lowerBound,
+                range.upperBound,
+                step
+            )
+        )
+        quill_qt_double_spin_box_set_value(qtHandle(spinBox), value.wrappedValue)
+
+        let binding = value
+        let stepValue = step
+        let box = Unmanaged.passRetained(QtDoubleClosureBox { newValue in
+            if abs(newValue - binding.wrappedValue) > stepValue * 0.01 {
+                binding.wrappedValue = newValue
+            }
+        }).toOpaque()
+
+        let valueChanged: quill_qt_bridge_double_callback = { newValue, userData in
+            guard let userData else { return }
+            Unmanaged<QtDoubleClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(newValue)
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtDoubleClosureBox>.fromOpaque(userData).release()
+        }
+        quill_qt_double_spin_box_connect_value_changed(
+            qtHandle(spinBox),
+            valueChanged,
+            box,
+            destroy
+        )
+
+        guard !label.isEmpty else { return spinBox }
+        return qtRenderHorizontalContainer(
+            [qtOpaque(quill_qt_bridge_label_create(label)), spinBox],
+            spacing: 8,
+            alignment: .center
+        )
     }
 }
 
 extension DatePicker: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
-        qtOpaque(quill_qt_bridge_label_create(title))
+        let calendar = qtOpaque(quill_qt_make_calendar_widget())
+        if let selection {
+            let components = selection.wrappedValue
+            quill_qt_calendar_select_ymd(
+                qtHandle(calendar),
+                Int32(components.year),
+                Int32(components.month),
+                Int32(components.day)
+            )
+        }
+
+        let binding = selection
+        let callback = onChange
+        let box = Unmanaged.passRetained(QtDateClosureBox { components in
+            if let binding, components != binding.wrappedValue {
+                binding.wrappedValue = components
+            }
+            callback?(components)
+        }).toOpaque()
+
+        let selectionChanged: quill_qt_bridge_date_callback = { year, month, day, userData in
+            guard let userData else { return }
+            let components = SwiftOpenUI.DateComponents(
+                year: Int(year),
+                month: Int(month),
+                day: Int(day)
+            )
+            Unmanaged<QtDateClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(components)
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtDateClosureBox>.fromOpaque(userData).release()
+        }
+        quill_qt_calendar_connect_selection_changed(
+            qtHandle(calendar),
+            selectionChanged,
+            box,
+            destroy
+        )
+
+        guard !title.isEmpty else { return calendar }
+        return qtRenderVerticalContainer(
+            [qtOpaque(quill_qt_bridge_label_create(title)), calendar],
+            spacing: 4,
+            alignment: .leading
+        )
     }
 }
 

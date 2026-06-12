@@ -41,6 +41,17 @@ typedef void (*quill_qt_bridge_text_callback)(const char *text, void *user_data)
 // Index callback for combo boxes. `index` is the selected item index.
 typedef void (*quill_qt_bridge_index_callback)(int index, void *user_data);
 
+// Numeric callback for spin boxes.
+typedef void (*quill_qt_bridge_double_callback)(double value, void *user_data);
+
+// Date callback for calendar widgets. Month is 1-based.
+typedef void (*quill_qt_bridge_date_callback)(
+    int year,
+    int month,
+    int day,
+    void *user_data
+);
+
 // Deferred (queued) callback used by QtViewHost to coalesce reactive rebuilds,
 // mirroring GTK's `g_idle_add`. Posted via QTimer::singleShot(0, ...).
 typedef void (*quill_qt_bridge_idle_callback)(void *user_data);
@@ -311,6 +322,42 @@ void quill_qt_combo_box_set_current_index(
 void quill_qt_combo_box_connect_current_index_changed(
     QuillQtWidgetHandle combo_box,
     quill_qt_bridge_index_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Create/configure a QDoubleSpinBox for SwiftUI Stepper.
+QuillQtWidgetHandle quill_qt_make_double_spin_box(
+    double lower_bound,
+    double upper_bound,
+    double step
+);
+
+void quill_qt_double_spin_box_set_value(
+    QuillQtWidgetHandle spin_box,
+    double value
+);
+
+void quill_qt_double_spin_box_connect_value_changed(
+    QuillQtWidgetHandle spin_box,
+    quill_qt_bridge_double_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Create/configure a QCalendarWidget for SwiftUI DatePicker.
+QuillQtWidgetHandle quill_qt_make_calendar_widget(void);
+
+void quill_qt_calendar_select_ymd(
+    QuillQtWidgetHandle calendar,
+    int year,
+    int month,
+    int day
+);
+
+void quill_qt_calendar_connect_selection_changed(
+    QuillQtWidgetHandle calendar,
+    quill_qt_bridge_date_callback callback,
     void *user_data,
     quill_qt_bridge_click_callback destroy
 );

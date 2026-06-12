@@ -683,6 +683,28 @@ struct SourceHygieneTests {
         #expect(!renderer.contains("let text = label.isEmpty"))
     }
 
+    @Test("BackendQt Stepper and DatePicker use native Qt controls")
+    func backendQtStepperAndDatePickerUseNativeControls() throws {
+        let renderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let bridgeHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let bridgeImplementation = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
+
+        #expect(bridgeHeader.contains("quill_qt_make_double_spin_box"))
+        #expect(bridgeHeader.contains("quill_qt_double_spin_box_connect_value_changed"))
+        #expect(bridgeHeader.contains("quill_qt_make_calendar_widget"))
+        #expect(bridgeHeader.contains("quill_qt_calendar_connect_selection_changed"))
+        #expect(bridgeImplementation.contains("#include <QDoubleSpinBox>"))
+        #expect(bridgeImplementation.contains("#include <QCalendarWidget>"))
+        #expect(bridgeImplementation.contains("&QDoubleSpinBox::valueChanged"))
+        #expect(bridgeImplementation.contains("&QCalendarWidget::selectionChanged"))
+        #expect(renderer.contains("quill_qt_make_double_spin_box"))
+        #expect(renderer.contains("quill_qt_make_calendar_widget"))
+        #expect(renderer.contains("QtDoubleClosureBox"))
+        #expect(renderer.contains("QtDateClosureBox"))
+        #expect(!renderer.contains("extension Stepper: QtRenderable {\n    public func qtCreateWidget() -> OpaquePointer {\n        qtOpaque(quill_qt_bridge_label_create(label))"))
+        #expect(!renderer.contains("extension DatePicker: QtRenderable {\n    public func qtCreateWidget() -> OpaquePointer {\n        qtOpaque(quill_qt_bridge_label_create(title))"))
+    }
+
     @Test("ImageRenderer comments describe the current GTK offscreen path")
     func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
         let root = try packageRoot()

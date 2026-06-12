@@ -12,9 +12,12 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QByteArray>
+#include <QCalendarWidget>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QDate>
+#include <QDoubleSpinBox>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFrame>
@@ -40,6 +43,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace {
@@ -233,6 +237,22 @@ void setElideMode(QLabel *label, Qt::TextElideMode mode) {
     if (QuillQtLabel *quillLabel = dynamic_cast<QuillQtLabel *>(label)) {
         quillLabel->setQuillElideMode(mode);
     }
+}
+
+int decimalsForStep(double step) {
+    if (!std::isfinite(step) || step <= 0.0) {
+        return 2;
+    }
+    if (std::fabs(step - std::round(step)) < 0.0000001) {
+        return 0;
+    }
+    if (std::fabs((step * 10.0) - std::round(step * 10.0)) < 0.0000001) {
+        return 1;
+    }
+    if (std::fabs((step * 100.0) - std::round(step * 100.0)) < 0.0000001) {
+        return 2;
+    }
+    return 3;
 }
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
@@ -854,6 +874,119 @@ void quill_qt_combo_box_connect_current_index_changed(
 
     if (destroy != nullptr) {
         QObject::connect(comboBox, &QObject::destroyed, comboBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+QuillQtWidgetHandle quill_qt_make_double_spin_box(
+    double lower_bound,
+    double upper_bound,
+    double step
+) {
+    QDoubleSpinBox *spinBox = new QDoubleSpinBox();
+    spinBox->setRange(lower_bound, upper_bound);
+    spinBox->setSingleStep(step > 0.0 ? step : 1.0);
+    spinBox->setDecimals(decimalsForStep(step));
+    spinBox->setKeyboardTracking(false);
+    return reinterpret_cast<QuillQtWidgetHandle>(spinBox);
+}
+
+void quill_qt_double_spin_box_set_value(
+    QuillQtWidgetHandle spin_box,
+    double value
+) {
+    QDoubleSpinBox *spinBox = qobject_cast<QDoubleSpinBox *>(asWidget(spin_box));
+    if (spinBox == nullptr) {
+        return;
+    }
+    if (std::fabs(spinBox->value() - value) > 0.0000001) {
+        spinBox->setValue(value);
+    }
+}
+
+void quill_qt_double_spin_box_connect_value_changed(
+    QuillQtWidgetHandle spin_box,
+    quill_qt_bridge_double_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QDoubleSpinBox *spinBox = qobject_cast<QDoubleSpinBox *>(asWidget(spin_box));
+    if (spinBox == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            spinBox,
+            &QDoubleSpinBox::valueChanged,
+            spinBox,
+            [callback, user_data](double value) {
+                callback(value, user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(spinBox, &QObject::destroyed, spinBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+QuillQtWidgetHandle quill_qt_make_calendar_widget(void) {
+    QCalendarWidget *calendar = new QCalendarWidget();
+    calendar->setGridVisible(false);
+    return reinterpret_cast<QuillQtWidgetHandle>(calendar);
+}
+
+void quill_qt_calendar_select_ymd(
+    QuillQtWidgetHandle calendar,
+    int year,
+    int month,
+    int day
+) {
+    QCalendarWidget *calendarWidget = qobject_cast<QCalendarWidget *>(asWidget(calendar));
+    if (calendarWidget == nullptr) {
+        return;
+    }
+    const QDate date(year, month, day);
+    if (date.isValid() && calendarWidget->selectedDate() != date) {
+        calendarWidget->setSelectedDate(date);
+    }
+}
+
+void quill_qt_calendar_connect_selection_changed(
+    QuillQtWidgetHandle calendar,
+    quill_qt_bridge_date_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QCalendarWidget *calendarWidget = qobject_cast<QCalendarWidget *>(asWidget(calendar));
+    if (calendarWidget == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            calendarWidget,
+            &QCalendarWidget::selectionChanged,
+            calendarWidget,
+            [calendarWidget, callback, user_data]() {
+                const QDate date = calendarWidget->selectedDate();
+                callback(date.year(), date.month(), date.day(), user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(calendarWidget, &QObject::destroyed, calendarWidget, [destroy, user_data]() {
             destroy(user_data);
         });
     }
