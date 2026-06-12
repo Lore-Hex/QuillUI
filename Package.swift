@@ -798,6 +798,12 @@ let swiftUIShadowMountSwiftSettings: [SwiftSetting] = {
     }
     return []
 }()
+// Core deps for the SwiftUI shadow per graph (codex-535 helper, re-added):
+// the qt-generic path keeps QuillUI out of the shadow's closure.
+let swiftUIShadowCoreDependencies: [Target.Dependency] =
+    quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled
+        ? ["QuillSwiftUICompatibility", "AppKit", "Combine"]
+        : ["QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine"]
 #endif
 
 let quillDataMacroTarget: Target = .macro(
@@ -2524,7 +2530,6 @@ targets.append(contentsOf: [
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
     .target(name: "CoreGraphics", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
-    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo"], path: "Sources/AVFoundation"),
     .target(name: "CoreHaptics", dependencies: [], path: "Sources/AppleFrameworkShims/CoreHaptics"),
     .target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
     .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
