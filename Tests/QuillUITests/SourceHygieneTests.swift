@@ -3,6 +3,33 @@ import Testing
 
 @Suite("Source hygiene")
 struct SourceHygieneTests {
+    @Test("Repository does not track local smoke-test artifacts")
+    func repositoryDoesNotTrackLocalSmokeTestArtifacts() throws {
+        let root = try packageRoot()
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["git", "-C", root.path, "ls-files"]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let forbiddenSuffixes = [".bak", ".log", ".orig", ".tmp", "~"]
+        let offenders = result.output
+            .split(separator: "\n")
+            .map(String.init)
+            .filter { path in
+                let fileName = path.split(separator: "/").last.map(String.init) ?? path
+                return fileName == ".DS_Store"
+                    || fileName.hasPrefix(".tmp-")
+                    || fileName.hasPrefix("tmp-")
+                    || forbiddenSuffixes.contains { fileName.hasSuffix($0) }
+            }
+
+        #expect(
+            offenders.isEmpty,
+            Comment(rawValue: "Tracked local artifacts:\n" + offenders.prefix(50).joined(separator: "\n"))
+        )
+    }
+
     @Test("Package manifest does not exclude moved QuillAppKit GTK sources")
     func packageManifestDoesNotExcludeMovedQuillAppKitGTKSources() throws {
         let root = try packageRoot()
