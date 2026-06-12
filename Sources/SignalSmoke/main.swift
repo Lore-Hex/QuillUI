@@ -12,8 +12,22 @@
 // SignalServiceKit helper. It does NOT register, link a device, or touch any
 // real Signal account. Account actions remain strictly user-gated.
 //
+import Foundation
 import SignalServiceKit
 import LibSignalClient
+
+// Pin chat.signal.org to Signal's own root CA for the URLSession (libcurl/
+// OpenSSL) REST path BEFORE any networking. chat.signal.org chains to Signal's
+// private root, not a public CA; without this the v1/devices/link + v2/keys PUTs
+// fail with "self-signed certificate in certificate chain" on Linux. (libsignal's
+// websocket transport pins independently, so the unauth/provisioning sockets work
+// regardless.) See QuillSignalTrust.swift.
+quillInstallSignalCATrust()
+
+// No-scan TLS probe: confirm the corelibs URLSession REST path now trusts
+// chat.signal.org (the v1/devices/link + v2/keys PUTs go through this same path).
+// ANY HTTP response = TLS validated; a certificate error = trust not installed.
+print("signal-smoke \(quillSignalTLSProbe())")
 
 // libsignal FFI: generate a Curve25519 identity keypair (pure, in-memory).
 let keyPair = IdentityKeyPair.generate()
@@ -63,6 +77,20 @@ catch { print("signal-smoke MIGRATE FAILED: \(error)") }
 // LinkingProvisioningMessage end to end. No network, no account.
 print("signal-smoke PROVISION SELFTEST: \(quillProvisioningRoundTripSelfTest())")
 
+// Device-name crypto self-test: a secondary device must send an ENCRYPTED
+// device name in its registration. Exercises the REAL OWSDeviceNames
+// encrypt/decrypt pair (ephemeral-ECDH + HMAC-SHA256 + AES-CTR) over an
+// in-memory identity keypair. No network, no account.
+print("signal-smoke DEVICENAME SELFTEST: \(quillDeviceNameRoundTripSelfTest())")
+
+// Registration self-test: build the verify-secondary-device request body a
+// freshly-linked device PUTs to v1/devices/link -- aci+pni EC signed prekeys,
+// aci+pni Kyber last-resort prekeys (from LibSignalClient primitives), random
+// registration IDs, and AccountAttributes -- then JSON-encode it. Mirrors the
+// REAL ProvisioningRequestFactory.verifySecondaryDeviceRequest body shape. No
+// network, no account.
+print("signal-smoke REGISTER SELFTEST: \(quillBuildLinkRequestSelfTest())")
+
 // Provisioning: open Signal's provisioning socket and produce the sgnl://linkdevice
 // QR URL (the user would scan it). No account is linked. Hold conn + listener
 // alive past the Task so the connection isn't torn down before the address arrives.
@@ -95,3 +123,36 @@ Task {
 _ = quillProvSem.wait(timeout: .now() + 30)
 _ = quillProvConn
 _ = quillProvListener
+
+do {
+    let p = FileManager.default.temporaryDirectory.appendingPathComponent("quill-persist-\(UUID().uuidString).sqlite").path
+    print("signal-smoke PERSIST: \(try quillSmokeAccountPersistRoundtrip(path: p))")
+} catch { print("signal-smoke PERSIST FAILED: \(error)") }
+
+// Faithful persistence: prove the link credentials round-trip under the REAL
+// SignalServiceKit account/identity keys + value types (NewKeyValueStore raw
+// account state + legacy-archiver identity keys), so the on-disk DB is a genuine
+// real-SSK account store and a restart recovers the reconnect username + token.
+let quillFaithfulPath = FileManager.default.temporaryDirectory.appendingPathComponent("quill-faithful-\(UUID().uuidString).sqlite").path
+print("signal-smoke FAITHFUL PERSIST: \(quillFaithfulPersistSelfTest(path: quillFaithfulPath))")
+
+// One-time prekey self-test: generate 100 EC + 100 Kyber one-time prekeys per
+// identity via the REAL upstream stores (PreKeyId/PreKeyStoreImpl/
+// KyberPreKeyStoreImpl), persist the private halves into the real `PreKey`
+// table, and build the exact v2/keys upload bodies. This is the post-link
+// "fully provisioned" step's machinery, exercised with NO network, NO account.
+print("signal-smoke PREKEYS SELFTEST: \(quillOneTimePreKeysSelfTest())")
+
+// STEP 9/10: the FULL live secondary-device link flow -- strictly USER-GATED
+// behind QUILL_SIGNAL_LINK=1 (default OFF). With the flag set, it prints a QR
+// URL and WAITS for the user to scan with their phone, then registers + persists
+// + authenticates (steps that run ONLY after a real human scan). With the flag
+// unset (the default, and what CI / the self-test run exercises) it instead
+// attempts a DURABLE RECONNECT from any previously-persisted credentials --
+// which is inert when none exist, so the self-tests above are the whole run and
+// EXIT stays 0. Either way nothing initiates a link without a human scanning.
+if ProcessInfo.processInfo.environment["QUILL_SIGNAL_LINK"] == "1" {
+    quillRunLiveLinkFlow()
+} else {
+    quillTryDurableReconnect()
+}

@@ -11,6 +11,13 @@
 // flow (presentation context, callback) belongs alongside UI plumbing.
 
 import QuillFoundation
+import QuillKit
+
+#if os(Linux)
+// CALayer for UIView.layer. On Apple platforms the real QuartzCore arrives
+// transitively via AppKit/UIKit; on Linux it's the in-tree shim module.
+import QuartzCore
+#endif
 
 #if os(iOS)
 // On iOS the real UIKit / AuthenticationServices / WebKit are auto-imported.
@@ -195,13 +202,69 @@ public class UIWindow: UIView {}
 
 @MainActor open class UIView: UIResponder {
     public override init() { super.init() }
-    public init(frame: CGRect) { super.init() }
-    public var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
-    public var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
+    public init(frame: CGRect) {
+        super.init()
+        self.frame = frame
+    }
+    public var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
+        didSet {
+            #if os(Linux)
+            _layer?.frame = frame
+            #endif
+        }
+    }
+    public var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
+        didSet {
+            #if os(Linux)
+            _layer?.bounds = bounds
+            #endif
+        }
+    }
+    public private(set) weak var superview: UIView?
     public var subviews: [UIView] = []
-    public func removeFromSuperview() {}
+    open func removeFromSuperview() {
+        superview?.subviews.removeAll { $0 === self }
+        superview = nil
+        #if os(Linux)
+        _layer?.removeFromSuperlayer()
+        #endif
+    }
     public var backgroundColor: UIColor?
-    public func addSubview(_: UIView) {}
+    open func addSubview(_ view: UIView) {
+        view.removeFromSuperview()
+        subviews.append(view)
+        view.superview = self
+        #if os(Linux)
+        layer.addSublayer(view.layer)
+        #endif
+    }
+
+    #if os(Linux)
+    // UIView.layer — Apple's view/layer pairing. Created lazily (first access)
+    // via `layerClass` so subclasses that override `layerClass` (CAShapeLayer-
+    // backed views etc.) get the right class; geometry writes mirror into it.
+    // There is no compositor on Linux yet, so the layer is a faithful MODEL
+    // (geometry, hierarchy, animation timing) — not pixels. Linux-only block:
+    // on macOS this module builds against real AppKit and predates the shim.
+    private var _layer: CALayer?
+    open class var layerClass: AnyClass { CALayer.self }
+    open var layer: CALayer {
+        if let existing = _layer { return existing }
+        let cls = type(of: self).layerClass as? CALayer.Type ?? CALayer.self
+        let created = cls.init()
+        // Seed from BOTH stored geometry properties: a bounds set before the
+        // first layer access must survive (frame alone would reset the
+        // layer's bounds to the possibly-zero stored frame). frame first —
+        // it derives position + bounds.size — then bounds wins where the
+        // caller set it explicitly.
+        created.frame = frame
+        if bounds != .zero {
+            created.bounds = bounds
+        }
+        _layer = created
+        return created
+    }
+    #endif
     public var window: UIWindow?
     public typealias UserInterfaceStyle = UIUserInterfaceStyle
     public var overrideUserInterfaceStyle: UserInterfaceStyle = .unspecified
@@ -541,13 +604,68 @@ open class UIActivity: NSObject {
     public func activityDidFinish(_: Bool) {}
 }
 
-public class UIApplication: NSObject {
+// THE canonical UIApplication (the UIKit shim re-exports this module; a twin
+// declaration there made `UIApplication.shared` ambiguous once SwiftUI began
+// re-exporting AppKit, whose QuillUIKit re-export exposes this copy).
+public class UIApplication: NSObject, @unchecked Sendable {
     @MainActor public static let shared = UIApplication()
-    @MainActor public func open(_: URL, options: [AnyHashable: Any] = [:], completionHandler: ((Bool) -> Void)? = nil) {}
-    @MainActor public func registerForRemoteNotifications() {}
+    @MainActor @discardableResult public func open(
+        _ url: URL,
+        options: [AnyHashable: Any] = [:],
+        completionHandler: ((Bool) -> Void)? = nil
+    ) -> Bool {
+        #if canImport(AppKit) && !os(Linux)
+        let didOpen = NSWorkspace.shared.open(url)
+        completionHandler?(didOpen)
+        return didOpen
+        #elseif os(Linux)
+        let didOpen = QuillWorkspace.open(url)
+        completionHandler?(didOpen)
+        return didOpen
+        #else
+        completionHandler?(false)
+        return false
+        #endif
+    }
+    // Async form used by SwiftUI/UIKit real source (`await UIApplication.shared.open(url)`).
+    // Disambiguate to the completion-handler overload to avoid recursing into itself.
+    @MainActor @discardableResult public func open(_ url: URL) async -> Bool {
+        open(url, options: [:], completionHandler: nil)
+    }
+    @MainActor public func registerForRemoteNotifications() {
+        QuillNotificationService.shared.registerForRemoteNotifications()
+    }
+    @MainActor public func unregisterForRemoteNotifications() {
+        QuillNotificationService.shared.unregisterForRemoteNotifications()
+    }
+    @MainActor public var isRegisteredForRemoteNotifications: Bool {
+        QuillNotificationService.shared.remoteNotificationsRegistered
+    }
     public enum LaunchOptionsKey: Hashable { case remoteNotification }
     @MainActor public var connectedScenes: Set<UIScene> = []
+    @MainActor public var applicationState: UIApplicationState { .active }
+
+    /// UIKit (and SignalServiceKit's AppContext) name the application-state enum
+    /// `UIApplication.State`; `UIApplicationState` is its top-level alias on iOS.
+    public typealias State = UIApplicationState
+
+    // App-lifecycle notification names. Real UIKit members; SignalServiceKit's
+    // lifecycle observers subscribe to these. No source posts them on Linux yet.
+    public static let didBecomeActiveNotification = Notification.Name("UIApplicationDidBecomeActiveNotification")
+    public static let willResignActiveNotification = Notification.Name("UIApplicationWillResignActiveNotification")
+    public static let didEnterBackgroundNotification = Notification.Name("UIApplicationDidEnterBackgroundNotification")
+    public static let willEnterForegroundNotification = Notification.Name("UIApplicationWillEnterForegroundNotification")
+    public static let willTerminateNotification = Notification.Name("UIApplicationWillTerminateNotification")
+    public static let didReceiveMemoryWarningNotification = Notification.Name("UIApplicationDidReceiveMemoryWarningNotification")
+    public static let significantTimeChangeNotification = Notification.Name("UIApplicationSignificantTimeChangeNotification")
+
+    @MainActor public func setAlternateIconName(_ name: String?, completionHandler: ((Error?) -> Void)? = nil) {
+        completionHandler?(nil)
+    }
+    @MainActor public var alternateIconName: String? { nil }
 }
+
+public enum UIApplicationState: Int { case active, inactive, background }
 
 public class UIScene: NSObject {
     @MainActor public var delegate: Any?
@@ -633,21 +751,9 @@ public class NonIntrinsicImageView: UIImageView {}
 
 #endif // !os(iOS)
 
-// MARK: - AuthenticationServices stubs (Linux)
-
-#if !os(iOS) && !os(macOS)
-public protocol ASWebAuthenticationPresentationContextProviding: AnyObject {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor
-}
-
-public class ASWebAuthenticationSession: NSObject {
-    public init(url: URL, callbackURLScheme: String?, completionHandler: @escaping (URL?, Error?) -> Void) {}
-    public var presentationContextProvider: ASWebAuthenticationPresentationContextProviding?
-    public func start() -> Bool { true }
-    public func cancel() {}
-}
-
-public enum ASWebAuthenticationSessionError: Error {
-    case canceledLogin
-}
-#endif
+// MARK: - AuthenticationServices
+// (The ASWebAuthentication* stubs that used to live here moved to the dedicated
+// `AuthenticationServices` shim — Sources/AppleFrameworkShims/AuthenticationServices.
+// Keeping a duplicate here caused an ambiguous-type-lookup error once a module
+// re-exported both QuillUIKit and AuthenticationServices, e.g. SignalServiceKit
+// re-exporting UIKit while its PayPal flow does `import AuthenticationServices`.)

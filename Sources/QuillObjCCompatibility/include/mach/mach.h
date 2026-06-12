@@ -1,6 +1,10 @@
 #ifndef QUILL_OBJC_MACH_H
 #define QUILL_OBJC_MACH_H
 
+#if defined(__APPLE__)
+#include_next <mach/mach.h>
+#else
+
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -105,5 +109,7 @@ static inline kern_return_t vm_remap(
     }
     return KERN_SUCCESS;
 }
+
+#endif
 
 #endif

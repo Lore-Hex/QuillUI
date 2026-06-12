@@ -1098,8 +1098,8 @@
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
 <tr><td><code>WrappingHStack.init(...)</code></td><td>Usable</td><td>Captures alignment, spacing, and content for current source compatibility.</td></tr>
-<tr><td><code>WrappingHStack.body</code></td><td>Partial</td><td>Renders a plain <code>HStack</code>; it does not measure and wrap children.</td></tr>
-<tr><td>Dynamic wrapping, line spacing, measurement, accessibility order, upstream layout parity</td><td>Incomplete</td><td>Required for WrappingHStack parity.</td></tr>
+<tr><td><code>WrappingHStack.body</code></td><td>Usable</td><td>Provides a portable <code>HStack</code> fallback outside native backends.</td></tr>
+<tr><td>GTK dynamic wrapping, line spacing, natural child sizing, accessibility order</td><td>Partial-real</td><td>Linux GTK renders through <code>GtkFlowBox</code>, so Enchanted prompt and completion chips wrap as rows instead of a compressed plain stack. Remaining work is pixel-level parity with the upstream package across all alignment/spacing combinations and Qt native wrapping.</td></tr>
 </table>
 <br>
 <h3 id="vortex">Vortex</h3>

@@ -119,6 +119,28 @@ gtk_swift_fixed_new(void) {
     return gtk_fixed_new();
 }
 
+static inline GtkWidget *
+gtk_swift_flow_box_new(void) {
+    return gtk_flow_box_new();
+}
+
+static inline void
+gtk_swift_flow_box_configure(GtkWidget *flow, guint spacing) {
+    GtkFlowBox *box = GTK_FLOW_BOX(flow);
+    gtk_flow_box_set_selection_mode(box, GTK_SELECTION_NONE);
+    gtk_flow_box_set_activate_on_single_click(box, FALSE);
+    gtk_flow_box_set_column_spacing(box, spacing);
+    gtk_flow_box_set_row_spacing(box, spacing);
+    gtk_flow_box_set_min_children_per_line(box, 1);
+    gtk_flow_box_set_max_children_per_line(box, 128);
+    gtk_flow_box_set_homogeneous(box, FALSE);
+}
+
+static inline void
+gtk_swift_flow_box_insert(GtkWidget *flow, GtkWidget *child) {
+    gtk_flow_box_insert(GTK_FLOW_BOX(flow), child, -1);
+}
+
 static inline void
 gtk_swift_fixed_put(GtkWidget *fixed, GtkWidget *child, double x, double y) {
     gtk_fixed_put(GTK_FIXED(fixed), child, x, y);

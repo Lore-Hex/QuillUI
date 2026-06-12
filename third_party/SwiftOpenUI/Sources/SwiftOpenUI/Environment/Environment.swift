@@ -180,6 +180,31 @@ private class EnvironmentBox {
     init(_ values: EnvironmentValues) { self.values = values }
 }
 
+// MARK: - Presentation-dismiss context
+//
+// Backends use this stack to carry the active sheet/popover dismissal closure
+// across native callback boundaries. It complements `EnvironmentValues.dismiss`:
+// callbacks already restore their captured environment, but presentation content
+// can be hosted and rebuilt independently of the native presentation modifier.
+// Capturing this context at control registration time keeps legacy
+// `@Environment(\.presentationMode).wrappedValue.dismiss()` wired to the
+// enclosing presentation without app-specific source changes.
+
+private var _presentationDismissActionStack: [() -> Void] = []
+
+public func swiftOpenUIWithPresentationDismissAction<T>(
+    _ action: @escaping () -> Void,
+    perform body: () -> T
+) -> T {
+    _presentationDismissActionStack.append(action)
+    defer { _ = _presentationDismissActionStack.popLast() }
+    return body()
+}
+
+public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
+    _presentationDismissActionStack.last
+}
+
 // MARK: - @Environment property wrapper
 
 /// Reads a value from the current environment at render time.

@@ -16,8 +16,6 @@ SWIFT
 
 s{func loadModels\(\) async throws \{.*?\n    \}\n    \n    func deleteAllModels\(\)}{<<'SWIFT'}se;
 func loadModels() async throws {
-        if __quillModelsDidLoad { return }
-        __quillModelsDidLoad = true
         let environment = ProcessInfo.processInfo.environment
         if environment["QUILLUI_ENCHANTED_REFERENCE_MODE"] == "1"
             || environment["QUILLUI_QUILL_CHAT_REFERENCE_MODE"] == "1" {
@@ -54,9 +52,3 @@ func loadModels() async throws {
 
     func deleteAllModels()
 SWIFT
-
-# Idempotency flag for loadModels (above): SwiftOpenUI re-runs .task on every rebuild,
-# so Chat/Settings/ApplicationEntry repeatedly call loadModels -> each re-fetch updates
-# @Published models -> schedules a rebuild -> destroys the focused composer GtkEntry
-# mid-typing (only "Wh" of a typed prompt survived). Run the model fetch exactly once.
-s!import SwiftData!import SwiftData\n\nnonisolated(unsafe) private var __quillModelsDidLoad = false!g;

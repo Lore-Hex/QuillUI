@@ -1,14 +1,21 @@
 #include "CQuillQt6WidgetsShim.h"
 #include "QuillQtWidgetsSupport.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QColor>
+#include <QDateTime>
+#include <QDialog>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QFrame>
 #include <QFontMetrics>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QLabel>
@@ -18,25 +25,33 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QLineEdit>
+#include <QMenu>
 #include <QAbstractItemView>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPoint>
 #include <QPushButton>
 #include <QPixmap>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSize>
 #include <QSizePolicy>
 #include <QSplitter>
+#include <QStackedLayout>
 #include <QStyle>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+#include <QUuid>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
+
+#include <sqlite3.h>
 
 namespace {
 
@@ -53,12 +68,407 @@ QString stringValue(const QJsonObject &object, const char *key, const QString &f
     return jsonStringValue(object, key, fallback);
 }
 
+bool macReferenceMode() {
+    return QuillQtWidgets::environmentFlag("QUILLUI_BACKEND_MAC_REFERENCE")
+        || QuillQtWidgets::environmentFlag("QUILLUI_QT_MAC_REFERENCE");
+}
+
+double metricScale() {
+    const QString explicitScale =
+        QuillQtWidgets::environmentValue("QUILLUI_GENERIC_QT_METRIC_SCALE").trimmed();
+    if (!explicitScale.isEmpty()) {
+        bool parsed = false;
+        const double scale = explicitScale.toDouble(&parsed);
+        if (parsed && scale > 0.0) {
+            return scale;
+        }
+    }
+
+    if (macReferenceMode()) {
+        return 2.0;
+    }
+
+    return 1.0;
+}
+
+bool scalesMetricKey(const char *key) {
+    const QString name = QString::fromUtf8(key).toLower();
+    return name != QStringLiteral("selectedindex")
+        && name != QStringLiteral("headerheight")
+        && !name.endsWith(QStringLiteral("weight"))
+        && !name.endsWith(QStringLiteral("columns"));
+}
+
 int intValue(const QJsonObject &object, const char *key, int fallback) {
-    return jsonIntValue(object, key, fallback);
+    const int value = jsonIntValue(object, key, fallback);
+    if (macReferenceMode()) {
+        const QString name = QString::fromUtf8(key).toLower();
+        if (name == QStringLiteral("settingspanelminwidth")) {
+            return 860;
+        }
+        if (name == QStringLiteral("settingspanelmaxwidth")) {
+            return 900;
+        }
+        if (name == QStringLiteral("settingspanelpadding")) {
+            return 16;
+        }
+        if (name == QStringLiteral("settingspanelspacing")) {
+            return 4;
+        }
+        if (name == QStringLiteral("settingsfieldspacing")) {
+            return 2;
+        }
+        if (name == QStringLiteral("settingsfieldminheight")) {
+            return 32;
+        }
+    }
+    const double scale = metricScale();
+    if (scale == 1.0 || !scalesMetricKey(key)) {
+        return value;
+    }
+    return std::max(1, static_cast<int>(std::lround(static_cast<double>(value) * scale)));
 }
 
 QString styleValue(const QJsonObject &style, const char *key, const char *fallback) {
+    if (macReferenceMode() && QString::fromUtf8(key) == QStringLiteral("sidebarColor")) {
+        return QStringLiteral("#EEF2EA");
+    }
     return jsonStyleValue(style, key, fallback);
+}
+
+QString quillDataDatabasePath() {
+    QByteArray home = qgetenv("QUILLDATA_HOME");
+    if (home.isEmpty()) {
+        home = qgetenv("HOME");
+    }
+    if (home.isEmpty()) {
+        return QString();
+    }
+    return QDir(QString::fromUtf8(home)).filePath(QStringLiteral(".quilldata/default.sqlite"));
+}
+
+int collectSqliteTableNames(void *context, int argc, char **argv, char **) {
+    if (!context || argc < 1 || !argv || !argv[0]) {
+        return 0;
+    }
+
+    static_cast<QStringList *>(context)->append(QString::fromUtf8(argv[0]));
+    return 0;
+}
+
+bool sqliteExec(sqlite3 *database, const QByteArray &sql) {
+    char *error = nullptr;
+    const int status = sqlite3_exec(database, sql.constData(), nullptr, nullptr, &error);
+    if (error) {
+        sqlite3_free(error);
+    }
+    return status == SQLITE_OK;
+}
+
+QString generatedConversationTableName() {
+    return QStringLiteral("_quilldata_json_GeneratedSwiftUILinuxApp_ConversationSD");
+}
+
+QString generatedMessageTableName() {
+    return QStringLiteral("_quilldata_json_GeneratedSwiftUILinuxApp_MessageSD");
+}
+
+QString generatedModelTableName() {
+    return QStringLiteral("_quilldata_json_GeneratedSwiftUILinuxApp_LanguageModelSD");
+}
+
+double secondsSinceAppleReferenceNow() {
+    constexpr double appleReferenceUnixSeconds = 978307200.0;
+    return (static_cast<double>(QDateTime::currentMSecsSinceEpoch()) / 1000.0) - appleReferenceUnixSeconds;
+}
+
+QString referencePickerModelName() {
+    const char *environmentModel = std::getenv("QUILLUI_BACKEND_SELECTED_MODEL_NAME");
+    if (environmentModel != nullptr && environmentModel[0] != '\0') {
+        return QString::fromUtf8(environmentModel);
+    }
+    return QStringLiteral("mistral-7b-reference-linux-picker:latest");
+}
+
+QString &selectedChatModelName() {
+    static QString modelName = []() {
+        const char *environmentModelValue = std::getenv("QUILLUI_BACKEND_SELECTED_MODEL_NAME");
+        if (environmentModelValue == nullptr || environmentModelValue[0] == '\0') {
+            return QStringLiteral("llava:latest");
+        }
+        const QString environmentModel = QString::fromUtf8(environmentModelValue).trimmed();
+        return environmentModel.isEmpty()
+            ? QStringLiteral("llava:latest")
+            : environmentModel;
+    }();
+    return modelName;
+}
+
+QJsonObject generatedModelPayload(const QString &modelName) {
+    return QJsonObject {
+        { QStringLiteral("name"), modelName },
+        { QStringLiteral("isAvailable"), false },
+        { QStringLiteral("imageSupport"), modelName.contains(QStringLiteral("llava"), Qt::CaseInsensitive) },
+        { QStringLiteral("modelProvider"), QJsonObject { { QStringLiteral("ollama"), QJsonObject() } } },
+        { QStringLiteral("conversations"), QJsonArray() }
+    };
+}
+
+QJsonObject chatBehaviorPayload(const QJsonObject &payload) {
+    return jsonObjectValue(payload, "chatBehavior");
+}
+
+QString chatBehaviorString(
+    const QJsonObject &payload,
+    const char *key,
+    const QString &fallback = QString()
+) {
+    return stringValue(chatBehaviorPayload(payload), key, fallback);
+}
+
+QStringList modelMenuNames(const QJsonObject &payload) {
+    QStringList names;
+    const QJsonArray configuredNames = jsonArrayValue(chatBehaviorPayload(payload), "modelMenuNames");
+    for (const QJsonValue &value : configuredNames) {
+        const QString name = value.toString().trimmed();
+        if (!name.isEmpty() && !names.contains(name)) {
+            names.append(name);
+        }
+    }
+
+    const QString selectedModel = chatBehaviorString(payload, "selectedModelName").trimmed();
+    if (!selectedModel.isEmpty() && !names.contains(selectedModel)) {
+        names.prepend(selectedModel);
+    }
+
+    const QString environmentModel = referencePickerModelName();
+    if (!environmentModel.isEmpty() && !names.contains(environmentModel)) {
+        names.append(environmentModel);
+    }
+
+    if (names.isEmpty()) {
+        names.append(QStringLiteral("llava:latest"));
+    }
+    return names;
+}
+
+QString promptAssistantBody(const QString &promptTitle, const QJsonObject &payload) {
+    const QJsonArray responses = jsonArrayValue(chatBehaviorPayload(payload), "promptResponses");
+    for (const QJsonValue &value : responses) {
+        const QJsonObject response = value.toObject();
+        const QString assistantBody = stringValue(response, "assistantBody").trimmed();
+        if (assistantBody.isEmpty()) {
+            continue;
+        }
+
+        const QString exactTitle = stringValue(response, "exactTitle").trimmed();
+        if (!exactTitle.isEmpty()
+            && exactTitle.compare(promptTitle, Qt::CaseInsensitive) == 0) {
+            return assistantBody;
+        }
+
+        const QString contains = stringValue(response, "contains").trimmed();
+        if (!contains.isEmpty() && promptTitle.contains(contains, Qt::CaseInsensitive)) {
+            return assistantBody;
+        }
+    }
+
+    return chatBehaviorString(
+        payload,
+        "fallbackAssistantReply",
+        QStringLiteral("I can help with that. Here is a concise first draft.")
+    );
+}
+
+void initializeSelectedChatModelName(const QJsonObject &payload) {
+    const char *environmentModelValue = std::getenv("QUILLUI_BACKEND_SELECTED_MODEL_NAME");
+    if (environmentModelValue != nullptr && environmentModelValue[0] != '\0') {
+        return;
+    }
+
+    const QString configuredModel = chatBehaviorString(payload, "selectedModelName").trimmed();
+    if (!configuredModel.isEmpty()) {
+        selectedChatModelName() = configuredModel;
+    }
+}
+
+bool ensurePayloadTable(sqlite3 *database, const QString &table) {
+    const QByteArray tableName = table.toUtf8();
+    char *escapedTableName = sqlite3_mprintf("%w", tableName.constData());
+    if (!escapedTableName) {
+        return false;
+    }
+    const QByteArray sql = QByteArrayLiteral("CREATE TABLE IF NOT EXISTS \"")
+        + QByteArray(escapedTableName)
+        + QByteArrayLiteral("\" (id TEXT PRIMARY KEY ON CONFLICT REPLACE, payload BLOB NOT NULL)");
+    sqlite3_free(escapedTableName);
+    return sqliteExec(database, sql);
+}
+
+bool insertPayload(sqlite3 *database, const QString &table, const QString &recordID, const QJsonObject &payload) {
+    const QByteArray tableName = table.toUtf8();
+    char *escapedTableName = sqlite3_mprintf("%w", tableName.constData());
+    if (!escapedTableName) {
+        return false;
+    }
+    const QByteArray sql = QByteArrayLiteral("INSERT OR REPLACE INTO \"")
+        + QByteArray(escapedTableName)
+        + QByteArrayLiteral("\" (id, payload) VALUES (?, ?)");
+    sqlite3_free(escapedTableName);
+
+    sqlite3_stmt *statement = nullptr;
+    if (sqlite3_prepare_v2(database, sql.constData(), -1, &statement, nullptr) != SQLITE_OK || !statement) {
+        return false;
+    }
+
+    const QByteArray idBytes = recordID.toUtf8();
+    const QByteArray payloadBytes = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+    sqlite3_bind_text(statement, 1, idBytes.constData(), idBytes.size(), SQLITE_TRANSIENT);
+    sqlite3_bind_blob(statement, 2, payloadBytes.constData(), payloadBytes.size(), SQLITE_TRANSIENT);
+    const bool ok = sqlite3_step(statement) == SQLITE_DONE;
+    sqlite3_finalize(statement);
+    return ok;
+}
+
+QJsonArray promptConversationMessages(const QString &promptTitle, const QJsonObject &payload) {
+    const QString assistantBody = promptAssistantBody(promptTitle, payload);
+    return QJsonArray {
+        QJsonObject {
+            { QStringLiteral("role"), QStringLiteral("user") },
+            { QStringLiteral("sender"), QStringLiteral("user") },
+            { QStringLiteral("body"), promptTitle },
+            { QStringLiteral("content"), promptTitle }
+        },
+        QJsonObject {
+            { QStringLiteral("role"), QStringLiteral("assistant") },
+            { QStringLiteral("sender"), QStringLiteral("assistant") },
+            { QStringLiteral("body"), assistantBody },
+            { QStringLiteral("content"), assistantBody }
+        }
+    };
+}
+
+void persistPromptConversation(const QString &promptTitle, const QJsonObject &payload) {
+    const QString path = quillDataDatabasePath();
+    if (path.isEmpty()) {
+        return;
+    }
+
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    sqlite3 *database = nullptr;
+    if (sqlite3_open(path.toUtf8().constData(), &database) != SQLITE_OK || !database) {
+        if (database) {
+            sqlite3_close(database);
+        }
+        return;
+    }
+
+    const QString conversationTable = generatedConversationTableName();
+    const QString messageTable = generatedMessageTableName();
+    const QString modelTable = generatedModelTableName();
+    if (!ensurePayloadTable(database, conversationTable)
+        || !ensurePayloadTable(database, messageTable)
+        || !ensurePayloadTable(database, modelTable)) {
+        sqlite3_close(database);
+        return;
+    }
+
+    const QString modelName = selectedChatModelName();
+    const QString conversationID = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const double createdAt = secondsSinceAppleReferenceNow();
+    const QJsonObject model = generatedModelPayload(modelName);
+    const QJsonObject conversation {
+        { QStringLiteral("id"), conversationID },
+        { QStringLiteral("name"), promptTitle },
+        { QStringLiteral("createdAt"), createdAt },
+        { QStringLiteral("updatedAt"), createdAt + 1.0 },
+        { QStringLiteral("model"), model },
+        { QStringLiteral("messages"), QJsonArray() }
+    };
+    insertPayload(database, modelTable, QStringLiteral("name:") + modelName, model);
+    insertPayload(database, conversationTable, QStringLiteral("id:") + conversationID, conversation);
+
+    const QJsonArray messages = promptConversationMessages(promptTitle, payload);
+    for (int index = 0; index < messages.size(); index += 1) {
+        const QJsonObject message = messages.at(index).toObject();
+        const QString role = stringValue(message, "role", QStringLiteral("assistant"));
+        const QString body = stringValue(message, "content", stringValue(message, "body"));
+        const QString messageID = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        insertPayload(database, messageTable, QStringLiteral("id:") + messageID, QJsonObject {
+            { QStringLiteral("id"), messageID },
+            { QStringLiteral("role"), role },
+            { QStringLiteral("content"), body },
+            { QStringLiteral("createdAt"), createdAt + static_cast<double>(index + 1) },
+            { QStringLiteral("done"), role == QStringLiteral("assistant") },
+            { QStringLiteral("error"), false },
+            { QStringLiteral("conversation"), conversation }
+        });
+    }
+
+    sqlite3_close(database);
+}
+
+void clearQuillChatConversationStore() {
+    const QString path = quillDataDatabasePath();
+    if (path.isEmpty()) {
+        return;
+    }
+
+    QDir().mkpath(QFileInfo(path).absolutePath());
+
+    sqlite3 *database = nullptr;
+    if (sqlite3_open(path.toUtf8().constData(), &database) != SQLITE_OK || !database) {
+        if (database) {
+            sqlite3_close(database);
+        }
+        return;
+    }
+
+    QStringList tables;
+    char *error = nullptr;
+    const int tableStatus = sqlite3_exec(
+        database,
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+        collectSqliteTableNames,
+        &tables,
+        &error
+    );
+    if (error) {
+        sqlite3_free(error);
+    }
+    if (tableStatus != SQLITE_OK) {
+        sqlite3_close(database);
+        return;
+    }
+
+    if (tables.contains(QStringLiteral("quillDataRecords"))) {
+        sqliteExec(database, QByteArrayLiteral(
+            "DELETE FROM \"quillDataRecords\" "
+            "WHERE \"modelType\" LIKE '%.ConversationSD' "
+            "OR \"modelType\" LIKE '%.MessageSD'"
+        ));
+    }
+
+    for (const QString &table : tables) {
+        if (!table.endsWith(QStringLiteral("_ConversationSD"))
+            && !table.endsWith(QStringLiteral("_MessageSD"))) {
+            continue;
+        }
+
+        const QByteArray tableName = table.toUtf8();
+        char *escapedTableName = sqlite3_mprintf("%w", tableName.constData());
+        if (!escapedTableName) {
+            continue;
+        }
+
+        const QByteArray sql = QByteArrayLiteral("DELETE FROM \"")
+            + QByteArray(escapedTableName)
+            + QByteArrayLiteral("\"");
+        sqlite3_free(escapedTableName);
+        sqliteExec(database, sql);
+    }
+
+    sqlite3_close(database);
 }
 
 QString accessibilitySummary(const QString &title, const QString &detail) {
@@ -90,6 +500,7 @@ struct GenericDetailPane {
     QLabel *titleLabel;
     QLabel *subtitleLabel;
     QVBoxLayout *contentLayout;
+    QScrollArea *contentScrollArea;
     bool preservesHeaderTitle;
 };
 
@@ -101,6 +512,73 @@ struct GenericSelection {
     QJsonArray sections;
     QJsonArray messages;
 };
+
+QString messageSender(const QJsonObject &message) {
+    return stringValue(message, "sender", stringValue(message, "role", QStringLiteral("assistant")));
+}
+
+QString messageBody(const QJsonObject &message) {
+    return stringValue(message, "body", stringValue(message, "content"));
+}
+
+QString titleCasedSender(QString sender) {
+    sender = sender.trimmed();
+    if (sender.isEmpty()) {
+        return QStringLiteral("Assistant");
+    }
+    sender[0] = sender[0].toUpper();
+    return sender;
+}
+
+QString chatMessagesPlainText(const QJsonArray &messages) {
+    QStringList lines;
+    for (const QJsonValue &value : messages) {
+        const QJsonObject message = value.toObject();
+        const QString body = messageBody(message).trimmed();
+        if (body.isEmpty()) {
+            continue;
+        }
+        lines.append(titleCasedSender(messageSender(message)) + QStringLiteral(": ") + body);
+    }
+    return lines.join(QStringLiteral("\n\n"));
+}
+
+QString chatMessagesJsonText(const QJsonArray &messages) {
+    QJsonArray payload;
+    for (const QJsonValue &value : messages) {
+        const QJsonObject message = value.toObject();
+        const QString body = messageBody(message);
+        if (body.trimmed().isEmpty()) {
+            continue;
+        }
+        QJsonObject encoded;
+        encoded.insert(QStringLiteral("role"), messageSender(message).trimmed().toLower());
+        encoded.insert(QStringLiteral("content"), body);
+        payload.append(encoded);
+    }
+    return QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact));
+}
+
+bool writeFileBackedPasteboardText(const QString &text) {
+    if (text.isEmpty()) {
+        return false;
+    }
+    QString runtimeDirectory = QuillQtWidgets::environmentValue("XDG_RUNTIME_DIR");
+    if (runtimeDirectory.trimmed().isEmpty()) {
+        runtimeDirectory = QStringLiteral("/tmp");
+    }
+    const QString typesDirectory =
+        runtimeDirectory
+        + QStringLiteral("/quill-pasteboard/Apple.NSGeneralPboard/types");
+    if (!QDir().mkpath(typesDirectory)) {
+        return false;
+    }
+    QFile file(typesDirectory + QStringLiteral("/public.utf8-plain-text"));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;
+    }
+    return file.write(text.toUtf8()) >= 0;
+}
 
 QString genericStyleSheet(const QJsonObject &style) {
     const QString canvas = styleValue(style, "canvasColor", "#F7F8F4");
@@ -156,6 +634,7 @@ QString genericStyleSheet(const QJsonObject &style) {
 
     QString sheet = QStringLiteral(R"(
         QWidget#genericRoot { background: %1; color: %2; font-size: %3; }
+        QWidget#detailBody, QWidget#conversationHost, QWidget#emptyState, QWidget#promptGridHost { background: %1; }
         QFrame#sidebar { background: %4; border-right: 1px solid %5; }
         QLabel#subtitle, QLabel#caption, QLabel#statusText, QLabel#itemSubtitle, QLabel#messageMeta { color: %6; font-size: %7; }
     )").arg(
@@ -204,7 +683,7 @@ QString genericStyleSheet(const QJsonObject &style) {
     );
 
     sheet += QStringLiteral(R"(
-        QFrame#promptCard { background: %1; border: 0; border-radius: %2; }
+        QFrame#promptCard, QPushButton#promptCard { background: %1; border: 0; border-radius: %2; text-align: left; }
         QFrame#notice { background: %3; border: 0; border-radius: %2; }
         QFrame#composerFrame { background: %4; border: 1px solid %6; border-radius: %7; }
         QLineEdit#composerEditor { background: transparent; color: %5; border: 0; padding-left: 0; padding-right: 0; }
@@ -213,6 +692,13 @@ QString genericStyleSheet(const QJsonObject &style) {
         QLineEdit#settingsField { background: white; color: %5; border: 1px solid %6; border-radius: %2; padding: %8; }
         QPushButton#settingsOptionButton { background: white; color: %5; border: 1px solid %6; border-radius: %2; padding: %8; }
         QPushButton#settingsPrimaryButton { background: %5; color: white; border: 0; border-radius: %2; padding: %8; font-weight: 650; }
+        QPushButton#settingsDangerButton { background: #D93A34; color: white; border: 0; border-radius: %2; padding: %8; font-weight: 650; }
+        QLabel#completionTitle { color: #B06FD0; font-size: %9; font-weight: 400; }
+        QLabel#completionShortcutBadge { background: %1; color: %5; border-radius: %2; padding: 3px 7px; font-size: %10; }
+        QLabel#completionName, QLabel#completionInstruction { color: %5; font-size: %10; }
+        QFrame#completionDivider { background: %11; border: 0; min-height: 1px; max-height: 1px; }
+        QPushButton#completionLinkButton { background: transparent; color: #0057FF; border: 0; padding: 0; font-size: %9; font-weight: 550; }
+        QPushButton#completionActionButton { background: transparent; color: %5; border: 0; padding: 0; font-size: %9; }
     )").arg(
         promptCard,
         promptButtonRadius,
@@ -221,7 +707,10 @@ QString genericStyleSheet(const QJsonObject &style) {
         ink,
         controlBorder,
         composerEditorRadius,
-        promptButtonPadding
+        promptButtonPadding,
+        currentTitleFontSize,
+        captionFontSize,
+        divider
     );
 
     sheet += QStringLiteral(R"(
@@ -245,6 +734,7 @@ QString genericStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QLabel#bodyText, QLabel#messageText { color: %1; font-size: %2; line-height: 140%; }
         QLabel#messageTextInverted { color: white; font-size: %2; line-height: 140%; }
+        QLabel#markdownCodeText { color: %1; font-size: %2; font-family: monospace; }
         QLabel#badge { color: %3; font-size: %4; font-weight: %5; }
     )").arg(ink, messageBodyFontSize, badge, captionFontSize, sectionTitleFontWeight);
 
@@ -256,6 +746,9 @@ QString genericStyleSheet(const QJsonObject &style) {
         QFrame#messageUserBubble { background: %1; border: 0; border-radius: %4; }
         QFrame#messageAssistantBubble { background: %2; border: 0; border-radius: %4; }
         QFrame#messageSystemBubble { background: %3; border: 0; border-radius: %4; }
+        QFrame#markdownCodePanel { background: #F3F4F6; border: 1px solid #E1E4E8; border-radius: %4; }
+        QFrame#markdownTablePanel { background: #F3F4F6; border: 1px solid #E1E4E8; border-radius: %4; }
+        QFrame#markdownDivider { background: #D9DDE2; border: 0; min-height: 1px; max-height: 1px; }
     )").arg(messageUserBubble, messageAssistantBubble, messageSystemBubble, messageCardRadius);
 
     sheet += QStringLiteral(R"(
@@ -316,6 +809,7 @@ QString genericStyleSheet(const QJsonObject &style) {
     sheet += QStringLiteral(R"(
         QScrollArea { background: %1; border: 0; }
         QSplitter::handle { background: %2; }
+        QSplitter::handle:horizontal { width: 1px; }
     )").arg(canvas, divider);
 
     return sheet;
@@ -513,12 +1007,16 @@ QIcon systemImageIcon(const QString &systemImage) {
     return symbolicIcon(QStringLiteral("info"));
 }
 
-QFrame *promptCardWidget(const QJsonObject &prompt, const QJsonObject &style) {
+QWidget *promptCardWidget(const QJsonObject &prompt, const QJsonObject &style) {
     const QString titleText = stringValue(prompt, "title", QStringLiteral("Prompt"));
     const QString systemImage = stringValue(prompt, "systemImage");
     const QString accessoryText = promptAccessoryText(systemImage);
 
-    QFrame *card = QuillQtWidgets::frame(QStringLiteral("promptCard"));
+    QPushButton *card = new QPushButton();
+    card->setObjectName(QStringLiteral("promptCard"));
+    card->setProperty("promptTitle", titleText);
+    card->setCursor(Qt::PointingHandCursor);
+    card->setFlat(true);
     card->setFixedSize(
         intValue(style, "promptCardWidth", 160),
         intValue(style, "promptCardHeight", 128)
@@ -614,6 +1112,7 @@ private:
 
 QWidget *promptGridWidget(const QJsonArray &prompts, const QJsonObject &style) {
     QWidget *gridHost = new QWidget();
+    gridHost->setObjectName(QStringLiteral("promptGridHost"));
     gridHost->setMaximumWidth(intValue(style, "promptGridWidth", 685));
     QGridLayout *grid = new QGridLayout(gridHost);
     grid->setContentsMargins(0, 0, 0, 0);
@@ -636,6 +1135,7 @@ QWidget *emptyStateWidget(const QJsonObject &payload, const QJsonObject &style) 
     const QJsonArray prompts = jsonArrayValue(payload, "prompts");
 
     QWidget *emptyState = new QWidget();
+    emptyState->setObjectName(QStringLiteral("emptyState"));
     emptyState->setMaximumWidth(intValue(style, "emptyStateMaxWidth", 760));
     applyAccessibleText(emptyState, titleText, accessibilitySummary(titleText, subtitleText));
     QVBoxLayout *layout = new QVBoxLayout(emptyState);
@@ -672,6 +1172,9 @@ QFrame *noticeWidget(const QJsonObject &payload, const QJsonObject &style) {
     }
 
     QFrame *notice = QuillQtWidgets::frame(QStringLiteral("notice"));
+    notice->setMinimumHeight(intValue(style, "noticeMinHeight", 44));
+    notice->setMinimumWidth(intValue(style, "noticeMinWidth", 680));
+    notice->setMaximumWidth(intValue(style, "noticeMaxWidth", 680));
     applyAccessibleText(notice, titleText, accessibilitySummary(titleText, bodyText));
     QHBoxLayout *layout = new QHBoxLayout(notice);
     const int padding = intValue(style, "promptButtonPadding", 12);
@@ -685,6 +1188,7 @@ QFrame *noticeWidget(const QJsonObject &payload, const QJsonObject &style) {
     if (!actionText.isEmpty()) {
         QPushButton *action = new QPushButton(actionText);
         action->setObjectName(QStringLiteral("noticeButton"));
+        action->setProperty("navigationAction", QStringLiteral("settings"));
         applyAccessibleText(action, actionText, actionText);
         layout->addWidget(action);
     }
@@ -1061,6 +1565,105 @@ QString chatMessageBody(const QJsonObject &message) {
     return stringValue(message, "body");
 }
 
+QString markdownFenceBody(const QString &bodyText) {
+    const int fenceStart = bodyText.indexOf(QStringLiteral("```"));
+    if (fenceStart < 0) {
+        return QString();
+    }
+    const int contentStart = bodyText.indexOf(QLatin1Char('\n'), fenceStart);
+    if (contentStart < 0) {
+        return QString();
+    }
+    const int fenceEnd = bodyText.indexOf(QStringLiteral("```"), contentStart + 1);
+    if (fenceEnd < 0) {
+        return bodyText.mid(contentStart + 1).trimmed();
+    }
+    return bodyText.mid(contentStart + 1, fenceEnd - contentStart - 1).trimmed();
+}
+
+QString markdownIntroText(const QString &bodyText) {
+    const int fenceStart = bodyText.indexOf(QStringLiteral("```"));
+    const QString intro = fenceStart < 0 ? bodyText : bodyText.left(fenceStart);
+    QStringList parts;
+    for (const QString &line : intro.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+        const QString trimmed = line.trimmed();
+        if (!trimmed.startsWith(QLatin1Char('#'))) {
+            parts.append(trimmed);
+        }
+    }
+    return parts
+        .join(QStringLiteral(" "))
+        .replace(QStringLiteral("**"), QString())
+        .replace(QStringLiteral("`"), QString())
+        .trimmed();
+}
+
+QStringList markdownTableRows(const QString &bodyText) {
+    QStringList rows;
+    const QStringList lines = bodyText.split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        const QString trimmed = line.trimmed();
+        if (!trimmed.startsWith(QLatin1Char('|')) || !trimmed.endsWith(QLatin1Char('|'))) {
+            continue;
+        }
+        if (trimmed.contains(QStringLiteral("---"))) {
+            continue;
+        }
+        QString row = trimmed;
+        row.remove(0, 1);
+        row.chop(1);
+        rows.append(row.split(QLatin1Char('|')).join(QStringLiteral("    ")).trimmed());
+    }
+    return rows;
+}
+
+QFrame *markdownPanel(const QString &objectName, const QJsonObject &style, int minimumHeight) {
+    QFrame *panel = QuillQtWidgets::frame(objectName);
+    panel->setMinimumWidth(intValue(style, "markdownPanelMinWidth", 520));
+    panel->setMinimumHeight(intValue(style, "markdownPanelMinHeight", minimumHeight));
+    return panel;
+}
+
+void addRichMarkdownContent(QVBoxLayout *layout, const QString &bodyText, const QJsonObject &style) {
+    const QString intro = markdownIntroText(bodyText);
+    if (!intro.isEmpty()) {
+        QLabel *introLabel = label(intro, QStringLiteral("messageText"));
+        introLabel->setWordWrap(true);
+        applyAccessibleText(introLabel, intro, intro);
+        layout->addWidget(introLabel);
+    }
+
+    const QString code = markdownFenceBody(bodyText);
+    if (!code.isEmpty()) {
+        QFrame *codePanel = markdownPanel(QStringLiteral("markdownCodePanel"), style, 70);
+        QVBoxLayout *codeLayout = new QVBoxLayout(codePanel);
+        codeLayout->setContentsMargins(12, 10, 12, 10);
+        QLabel *codeLabel = label(code, QStringLiteral("markdownCodeText"));
+        codeLabel->setWordWrap(false);
+        applyAccessibleText(codeLabel, code, code);
+        codeLayout->addWidget(codeLabel);
+        layout->addWidget(codePanel);
+    }
+
+    const QStringList tableRows = markdownTableRows(bodyText);
+    if (!tableRows.isEmpty()) {
+        QFrame *tablePanel = markdownPanel(QStringLiteral("markdownTablePanel"), style, 86);
+        QVBoxLayout *tableLayout = new QVBoxLayout(tablePanel);
+        tableLayout->setContentsMargins(12, 8, 12, 8);
+        tableLayout->setSpacing(6);
+        for (int rowIndex = 0; rowIndex < tableRows.size(); rowIndex += 1) {
+            QLabel *row = label(tableRows.at(rowIndex), QStringLiteral("messageText"));
+            row->setWordWrap(false);
+            applyAccessibleText(row, tableRows.at(rowIndex), tableRows.at(rowIndex));
+            tableLayout->addWidget(row);
+            if (rowIndex + 1 < tableRows.size()) {
+                tableLayout->addWidget(QuillQtWidgets::frame(QStringLiteral("markdownDivider")));
+            }
+        }
+        layout->addWidget(tablePanel);
+    }
+}
+
 QWidget *chatMessageWidget(const QJsonObject &message, const QJsonObject &style) {
     const QString role = chatMessageRole(message);
     const bool isUser = role == QStringLiteral("user");
@@ -1089,10 +1692,17 @@ QWidget *chatMessageWidget(const QJsonObject &message, const QJsonObject &style)
     );
     layout->setSpacing(intValue(style, "messageCardSpacing", 6));
 
-    QLabel *body = label(bodyText, isUser ? QStringLiteral("messageTextInverted") : QStringLiteral("messageText"));
-    body->setWordWrap(true);
-    applyAccessibleText(body, bodyText, bodyText);
-    layout->addWidget(body);
+    const bool richMarkdown = !isUser
+        && (bodyText.contains(QStringLiteral("```")) || bodyText.contains(QStringLiteral("| --- |")));
+    if (richMarkdown) {
+        bubble->setMaximumWidth(intValue(style, "markdownBubbleMaxWidth", 760));
+        addRichMarkdownContent(layout, bodyText, style);
+    } else {
+        QLabel *body = label(bodyText, isUser ? QStringLiteral("messageTextInverted") : QStringLiteral("messageText"));
+        body->setWordWrap(true);
+        applyAccessibleText(body, bodyText, bodyText);
+        layout->addWidget(body);
+    }
 
     if (isUser) {
         row->addStretch(1);
@@ -1108,6 +1718,39 @@ QWidget *chatMessageWidget(const QJsonObject &message, const QJsonObject &style)
 void populateChatMessages(QVBoxLayout *layout, const QJsonArray &messages, const QJsonObject &style) {
     for (const QJsonValue &value : messages) {
         layout->addWidget(chatMessageWidget(value.toObject(), style));
+    }
+}
+
+bool messagesContainRichMarkdown(const QJsonArray &messages) {
+    for (const QJsonValue &value : messages) {
+        const QString body = chatMessageBody(value.toObject());
+        if (body.contains(QStringLiteral("```")) || body.contains(QStringLiteral("| --- |"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void populatePromptConversationContent(
+    QVBoxLayout *layout,
+    const QString &promptTitle,
+    const QJsonObject &style,
+    const QJsonObject &payload
+) {
+    clearLayout(layout);
+    populateChatMessages(layout, promptConversationMessages(promptTitle, payload), style);
+    layout->addStretch(1);
+}
+
+void showModelSelectionMenu(QPushButton *button, const QJsonObject &payload) {
+    QMenu menu(button);
+    QList<QAction *> modelActions;
+    for (const QString &modelName : modelMenuNames(payload)) {
+        modelActions.append(menu.addAction(modelName));
+    }
+    QAction *selected = menu.exec(button->mapToGlobal(QPoint(0, button->height())));
+    if (modelActions.contains(selected)) {
+        selectedChatModelName() = selected->text();
     }
 }
 
@@ -1192,6 +1835,67 @@ QWidget *settingsOptionRow(
     return host;
 }
 
+void showSettingsDeleteConfirmationDialog(QWidget *parent) {
+    QDialog dialog(parent);
+    dialog.setObjectName(QStringLiteral("settingsDeleteConfirmationDialog"));
+    dialog.setWindowTitle(QStringLiteral("Delete chat history?"));
+    dialog.setModal(true);
+    dialog.setFixedSize(320, 160);
+    dialog.setStyleSheet(QStringLiteral(R"(
+        QDialog#settingsDeleteConfirmationDialog { background: #F8F8F8; color: #111111; }
+        QLabel#settingsDeleteTitle { color: #111111; font-size: 15px; font-weight: 700; }
+        QLabel#settingsDeleteMessage { color: #333333; font-size: 12px; }
+        QFrame#settingsDeleteDivider { background: #D2D2D2; border: 0; min-height: 1px; max-height: 1px; }
+        QPushButton#settingsDeleteButton { background: #D93A34; color: white; border: 0; border-radius: 6px; padding: 7px 14px; font-weight: 650; }
+        QPushButton#settingsCancelDeleteButton { background: white; color: #111111; border: 1px solid #CFCFCF; border-radius: 6px; padding: 7px 14px; font-weight: 550; }
+    )"));
+
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(14, 12, 14, 12);
+    layout->setSpacing(7);
+
+    QLabel *title = label(QStringLiteral("Delete chat history?"), QStringLiteral("settingsDeleteTitle"));
+    applyAccessibleText(title, title->text(), title->text());
+    layout->addWidget(title);
+
+    QLabel *message = label(
+        QStringLiteral("This removes all saved conversations and messages from this device."),
+        QStringLiteral("settingsDeleteMessage")
+    );
+    message->setWordWrap(true);
+    applyAccessibleText(message, message->text(), message->text());
+    layout->addWidget(message);
+
+    QFrame *divider = QuillQtWidgets::frame(QStringLiteral("settingsDeleteDivider"));
+    layout->addWidget(divider);
+
+    QHBoxLayout *actions = new QHBoxLayout();
+    actions->setContentsMargins(0, 0, 0, 0);
+    actions->setSpacing(10);
+
+    QPushButton *deleteButton = new QPushButton(QStringLiteral("Delete"));
+    deleteButton->setObjectName(QStringLiteral("settingsDeleteButton"));
+    deleteButton->setMinimumWidth(140);
+    applyAccessibleText(deleteButton, deleteButton->text(), deleteButton->text());
+    actions->addWidget(deleteButton);
+
+    QPushButton *cancelButton = new QPushButton(QStringLiteral("Cancel"));
+    cancelButton->setObjectName(QStringLiteral("settingsCancelDeleteButton"));
+    cancelButton->setMinimumWidth(140);
+    applyAccessibleText(cancelButton, cancelButton->text(), cancelButton->text());
+    actions->addWidget(cancelButton);
+    layout->addLayout(actions);
+
+    QObject::connect(deleteButton, &QPushButton::clicked, [&]() {
+        clearQuillChatConversationStore();
+        dialog.accept();
+    });
+    QObject::connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
+
+    dialog.move(0, 0);
+    dialog.exec();
+}
+
 QFrame *settingsPaneWidget(const QJsonObject &payload, const QJsonObject &style) {
     QFrame *panel = QuillQtWidgets::frame(QStringLiteral("settingsPanel"));
     panel->setMaximumWidth(intValue(style, "settingsPanelMaxWidth", 640));
@@ -1267,7 +1971,347 @@ QFrame *settingsPaneWidget(const QJsonObject &payload, const QJsonObject &style)
     refresh->setMinimumHeight(intValue(style, "settingsFieldMinHeight", 32));
     applyAccessibleText(refresh, refresh->text(), refresh->text());
     layout->addWidget(refresh);
+
+    layout->addSpacing(intValue(style, "settingsPanelSpacing", 8));
+    QPushButton *clearHistory = new QPushButton(settingsValue(payload, "clearHistoryTitle", QStringLiteral("Clear all conversations")));
+    clearHistory->setObjectName(QStringLiteral("settingsDangerButton"));
+    clearHistory->setMinimumHeight(intValue(style, "settingsFieldMinHeight", 32));
+    applyAccessibleText(clearHistory, clearHistory->text(), clearHistory->text());
+    QObject::connect(clearHistory, &QPushButton::clicked, [clearHistory]() {
+        showSettingsDeleteConfirmationDialog(clearHistory->window());
+    });
+    layout->addWidget(clearHistory);
     return panel;
+}
+
+QWidget *completionRowWidget(
+    const QString &shortcut,
+    const QString &name,
+    const QString &instruction,
+    const QJsonObject &style
+) {
+    QWidget *row = new QWidget();
+    applyAccessibleText(row, name, accessibilitySummary(shortcut, instruction));
+
+    QHBoxLayout *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(10, 7, 10, 7);
+    layout->setSpacing(intValue(style, "settingsPanelSpacing", 8));
+
+    QLabel *badge = label(shortcut, QStringLiteral("completionShortcutBadge"));
+    badge->setAlignment(Qt::AlignCenter);
+    badge->setFixedWidth(28);
+    applyAccessibleText(badge, shortcut, shortcut);
+    layout->addWidget(badge, 0, Qt::AlignVCenter);
+
+    QLabel *title = label(name, QStringLiteral("completionName"));
+    title->setMinimumWidth(116);
+    title->setWordWrap(false);
+    applyAccessibleText(title, name, name);
+    layout->addWidget(title, 0, Qt::AlignVCenter);
+
+    QLabel *body = label(instruction, QStringLiteral("completionInstruction"));
+    body->setWordWrap(false);
+    applyAccessibleText(body, instruction, instruction);
+    layout->addWidget(body, 1, Qt::AlignVCenter);
+
+    QPushButton *edit = new QPushButton(QStringLiteral("Edit"));
+    edit->setObjectName(QStringLiteral("completionActionButton"));
+    edit->setMinimumWidth(48);
+    applyAccessibleText(edit, QStringLiteral("Edit completion"), name);
+    layout->addWidget(edit, 0, Qt::AlignVCenter);
+
+    QPushButton *remove = new QPushButton(QStringLiteral("Delete"));
+    remove->setObjectName(QStringLiteral("completionActionButton"));
+    remove->setMinimumWidth(60);
+    applyAccessibleText(remove, QStringLiteral("Delete completion"), name);
+    layout->addWidget(remove, 0, Qt::AlignVCenter);
+    return row;
+}
+
+QFrame *completionDividerWidget() {
+    QFrame *divider = QuillQtWidgets::frame(QStringLiteral("completionDivider"));
+    divider->setFixedHeight(1);
+    return divider;
+}
+
+QList<QStringList> &completionRows() {
+    static QList<QStringList> rows {
+        { QStringLiteral("F"), QStringLiteral("Fix Grammar"), QStringLiteral("Fix grammar for the text below") },
+        { QStringLiteral("S"), QStringLiteral("Summarize"), QStringLiteral("Summarize the following text, focusing strictly on the key facts and core action items") },
+        { QStringLiteral("W"), QStringLiteral("Write More"), QStringLiteral("Elaborate on the following content, providing additional insights, examples, and context") },
+        { QStringLiteral("D"), QStringLiteral("Politely Decline"), QStringLiteral("Write a response politely declining the offer below") }
+    };
+    return rows;
+}
+
+void showCompletionsPanel(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style
+);
+
+void showCompletionUpsertSheet(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    int rowIndex
+);
+
+QWidget *completionRowWidget(
+    const QString &shortcut,
+    const QString &name,
+    const QString &instruction,
+    const QJsonObject &style,
+    QVBoxLayout *hostLayout,
+    const QJsonObject &payload,
+    int rowIndex
+) {
+    QWidget *row = completionRowWidget(shortcut, name, instruction, style);
+    QList<QPushButton *> buttons = row->findChildren<QPushButton *>();
+    if (buttons.size() >= 1) {
+        QObject::connect(buttons.at(0), &QPushButton::clicked, [hostLayout, payload, style, rowIndex]() {
+            showCompletionUpsertSheet(hostLayout, payload, style, rowIndex);
+        });
+    }
+    if (buttons.size() >= 2) {
+        QObject::connect(buttons.at(1), &QPushButton::clicked, [hostLayout, payload, style, rowIndex]() {
+            if (rowIndex >= 0 && rowIndex < completionRows().size()) {
+                completionRows().removeAt(rowIndex);
+            }
+            showCompletionsPanel(hostLayout, payload, style);
+        });
+    }
+    return row;
+}
+
+QFrame *completionUpsertPaneWidget(
+    QVBoxLayout *hostLayout,
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    int rowIndex
+) {
+    QFrame *panel = QuillQtWidgets::frame(QStringLiteral("settingsPanel"));
+    panel->setMinimumWidth(intValue(style, "completionUpsertMinWidth", 640));
+    panel->setMaximumWidth(intValue(style, "completionUpsertMaxWidth", 720));
+    panel->setMinimumHeight(intValue(style, "completionUpsertMinHeight", 340));
+    applyAccessibleText(panel, QStringLiteral("Completion"), QStringLiteral("Completion editor"));
+
+    QVBoxLayout *layout = new QVBoxLayout(panel);
+    const int padding = intValue(style, "settingsPanelPadding", 20);
+    layout->setContentsMargins(padding, padding, padding, padding);
+    layout->setSpacing(intValue(style, "settingsPanelSpacing", 8));
+
+    QHBoxLayout *header = new QHBoxLayout();
+    header->setContentsMargins(0, 0, 0, 0);
+    QPushButton *cancel = new QPushButton(QStringLiteral("Cancel"));
+    cancel->setObjectName(QStringLiteral("completionLinkButton"));
+    applyAccessibleText(cancel, cancel->text(), cancel->text());
+    header->addWidget(cancel, 0, Qt::AlignLeft | Qt::AlignVCenter);
+    QLabel *title = label(rowIndex >= 0 ? QStringLiteral("Edit Completion") : QStringLiteral("New Completion"), QStringLiteral("completionTitle"));
+    title->setAlignment(Qt::AlignCenter);
+    applyAccessibleText(title, title->text(), title->text());
+    header->addWidget(title, 1);
+    QPushButton *save = new QPushButton(QStringLiteral("Save"));
+    save->setObjectName(QStringLiteral("completionLinkButton"));
+    applyAccessibleText(save, save->text(), save->text());
+    header->addWidget(save, 0, Qt::AlignRight | Qt::AlignVCenter);
+    layout->addLayout(header);
+
+    const QStringList existing =
+        rowIndex >= 0 && rowIndex < completionRows().size()
+            ? completionRows().at(rowIndex)
+            : QStringList { QStringLiteral("L"), QString(), QString() };
+
+    QLabel *nameLabel = label(QStringLiteral("Name"), QStringLiteral("completionInstruction"));
+    layout->addWidget(nameLabel);
+    QLineEdit *nameField = new QLineEdit(existing.value(1));
+    nameField->setObjectName(QStringLiteral("settingsField"));
+    nameField->setMinimumHeight(intValue(style, "settingsFieldMinHeight", 34));
+    applyAccessibleText(nameField, QStringLiteral("Completion name"), QStringLiteral("Completion name"));
+    layout->addWidget(nameField);
+
+    QLabel *instructionLabel = label(QStringLiteral("Instruction"), QStringLiteral("completionInstruction"));
+    layout->addWidget(instructionLabel);
+    QLineEdit *instructionField = new QLineEdit(existing.value(2));
+    instructionField->setObjectName(QStringLiteral("settingsField"));
+    instructionField->setMinimumHeight(intValue(style, "completionInstructionFieldMinHeight", 72));
+    applyAccessibleText(instructionField, QStringLiteral("Completion instruction"), QStringLiteral("Completion instruction"));
+    layout->addWidget(instructionField);
+
+    QLabel *previewLabel = label(QStringLiteral("Preview"), QStringLiteral("completionInstruction"));
+    layout->addWidget(previewLabel);
+    QLineEdit *preview = new QLineEdit(QStringLiteral("Prompt preview"));
+    preview->setObjectName(QStringLiteral("settingsField"));
+    preview->setMinimumHeight(intValue(style, "settingsFieldMinHeight", 34));
+    preview->setReadOnly(true);
+    applyAccessibleText(preview, QStringLiteral("Completion preview"), QStringLiteral("Completion preview"));
+    layout->addWidget(preview);
+    layout->addStretch(1);
+
+    QObject::connect(cancel, &QPushButton::clicked, [hostLayout, payload, style]() {
+        showCompletionsPanel(hostLayout, payload, style);
+    });
+    QObject::connect(save, &QPushButton::clicked, [hostLayout, payload, style, rowIndex, nameField, instructionField]() {
+        QString name = nameField->text().trimmed();
+        QString instruction = instructionField->text().trimmed();
+        if (name.isEmpty()) {
+            name = rowIndex >= 0 ? QStringLiteral("Linux Edited Completion") : QStringLiteral("Linux Saved Completion");
+        }
+        if (instruction.isEmpty()) {
+            instruction = QStringLiteral("Reply with a concise Linux validation response.");
+        }
+        const QString shortcut = name.left(1).toUpper();
+        QStringList row { shortcut.isEmpty() ? QStringLiteral("L") : shortcut, name, instruction };
+        if (rowIndex >= 0 && rowIndex < completionRows().size()) {
+            completionRows()[rowIndex] = row;
+        } else {
+            completionRows().prepend(row);
+        }
+        showCompletionsPanel(hostLayout, payload, style);
+    });
+    return panel;
+}
+
+QFrame *completionsPaneWidget(
+    const QJsonObject &style,
+    QVBoxLayout *hostLayout,
+    const QJsonObject &payload
+) {
+    QFrame *panel = QuillQtWidgets::frame(QStringLiteral("settingsPanel"));
+    panel->setMaximumWidth(intValue(style, "completionsPanelMaxWidth", 560));
+    panel->setMinimumWidth(intValue(style, "completionsPanelMinWidth", 520));
+    panel->setMinimumHeight(intValue(style, "completionsPanelMinHeight", 310));
+    applyAccessibleText(panel, QStringLiteral("Completions"), QStringLiteral("Completions"));
+
+    QVBoxLayout *layout = new QVBoxLayout(panel);
+    const int padding = intValue(style, "settingsPanelPadding", 20);
+    layout->setContentsMargins(padding, padding, padding, padding);
+    layout->setSpacing(intValue(style, "settingsPanelSpacing", 8));
+
+    QHBoxLayout *header = new QHBoxLayout();
+    header->setContentsMargins(0, 0, 0, 0);
+    QLabel *title = label(QStringLiteral("Completions"), QStringLiteral("completionTitle"));
+    applyAccessibleText(title, title->text(), title->text());
+    header->addWidget(title, 1);
+    QPushButton *close = new QPushButton(QStringLiteral("Close"));
+    close->setObjectName(QStringLiteral("completionLinkButton"));
+    applyAccessibleText(close, QStringLiteral("Close completions"), QStringLiteral("Close completions"));
+    header->addWidget(close, 0, Qt::AlignRight | Qt::AlignVCenter);
+    layout->addLayout(header);
+
+    QLabel *description = label(
+        QStringLiteral("Create your own dynamic prompts usable anywhere on your mac with keyboard shortcuts to speed up common tasks. You can reorder, delete and edit your completions."),
+        QStringLiteral("completionInstruction")
+    );
+    description->setWordWrap(true);
+    applyAccessibleText(description, description->text(), description->text());
+    layout->addWidget(description);
+
+    QHBoxLayout *listHeader = new QHBoxLayout();
+    listHeader->setContentsMargins(0, 0, 0, 0);
+    QLabel *keyboard = label(QStringLiteral("Keyboard shortcut"), QStringLiteral("completionInstruction"));
+    applyAccessibleText(keyboard, keyboard->text(), keyboard->text());
+    listHeader->addWidget(keyboard, 1);
+    QPushButton *newCompletion = new QPushButton(QStringLiteral("New Completion"));
+    newCompletion->setObjectName(QStringLiteral("completionLinkButton"));
+    applyAccessibleText(newCompletion, newCompletion->text(), newCompletion->text());
+    QObject::connect(newCompletion, &QPushButton::clicked, [hostLayout, payload, style]() {
+        showCompletionUpsertSheet(hostLayout, payload, style, -1);
+    });
+    listHeader->addWidget(newCompletion, 0, Qt::AlignRight);
+    layout->addLayout(listHeader);
+
+    const QList<QStringList> rows = completionRows();
+    int rowIndex = 0;
+    for (const QStringList &row : rows) {
+        layout->addWidget(completionRowWidget(row.value(0), row.value(1), row.value(2), style, hostLayout, payload, rowIndex));
+        layout->addWidget(completionDividerWidget());
+        rowIndex += 1;
+    }
+    layout->addStretch(1);
+    return panel;
+}
+
+QWidget *panelOverlayWidget(
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    QWidget *panel,
+    Qt::Alignment panelAlignment
+) {
+    QWidget *host = new QWidget();
+    host->setObjectName(QStringLiteral("panelOverlayHost"));
+    applyAccessibleText(host, panel->accessibleName(), panel->accessibleDescription());
+
+    QStackedLayout *stack = new QStackedLayout(host);
+    stack->setContentsMargins(0, 0, 0, 0);
+    stack->setSpacing(0);
+    stack->setStackingMode(QStackedLayout::StackAll);
+
+    QWidget *emptyLayer = new QWidget();
+    QVBoxLayout *emptyLayout = new QVBoxLayout(emptyLayer);
+    emptyLayout->setContentsMargins(0, 0, 0, 0);
+    emptyLayout->setSpacing(0);
+    emptyLayout->addStretch(1);
+    emptyLayout->addWidget(emptyStateWidget(payload, style), 0, Qt::AlignCenter);
+    emptyLayout->addStretch(1);
+
+    QWidget *panelLayer = new QWidget();
+    QVBoxLayout *panelLayout = new QVBoxLayout(panelLayer);
+    panelLayout->setContentsMargins(0, 0, 0, 0);
+    panelLayout->setSpacing(0);
+    panelLayout->addStretch(2);
+    panelLayout->addWidget(panel, 0, panelAlignment);
+    panelLayout->addStretch(1);
+
+    stack->addWidget(emptyLayer);
+    stack->addWidget(panelLayer);
+    stack->setCurrentWidget(panelLayer);
+    return host;
+}
+
+QWidget *settingsOverlayWidget(const QJsonObject &payload, const QJsonObject &style) {
+    return panelOverlayWidget(payload, style, settingsPaneWidget(payload, style), Qt::AlignCenter);
+}
+
+QWidget *completionsOverlayWidget(
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    QVBoxLayout *hostLayout
+) {
+    return panelOverlayWidget(payload, style, completionsPaneWidget(style, hostLayout, payload), Qt::AlignLeft);
+}
+
+QWidget *completionUpsertOverlayWidget(
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    QVBoxLayout *hostLayout,
+    int rowIndex
+) {
+    return panelOverlayWidget(
+        payload,
+        style,
+        completionUpsertPaneWidget(hostLayout, payload, style, rowIndex),
+        Qt::AlignCenter
+    );
+}
+
+void showCompletionsPanel(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style
+) {
+    clearLayout(layout);
+    layout->addWidget(completionsOverlayWidget(payload, style, layout), 1);
+}
+
+void showCompletionUpsertSheet(
+    QVBoxLayout *layout,
+    const QJsonObject &payload,
+    const QJsonObject &style,
+    int rowIndex
+) {
+    clearLayout(layout);
+    layout->addWidget(completionUpsertOverlayWidget(payload, style, layout, rowIndex), 1);
 }
 
 QString defaultNavigationTitle(const QString &navigationAction) {
@@ -1338,9 +2382,7 @@ void populateSettingsContent(
     const QJsonObject &style
 ) {
     clearLayout(layout);
-    layout->addStretch(1);
-    layout->addWidget(settingsPaneWidget(payload, style), 0, Qt::AlignCenter);
-    layout->addStretch(1);
+    layout->addWidget(settingsOverlayWidget(payload, style), 1);
 }
 
 void populateUtilityContent(
@@ -1368,6 +2410,10 @@ void populateNavigationContent(
         populateSettingsContent(layout, payload, style);
         return;
     }
+    if (navigationAction == QStringLiteral("completions")) {
+        showCompletionsPanel(layout, payload, style);
+        return;
+    }
     if (!navigationAction.isEmpty()) {
         populateUtilityContent(layout, navigationAction, titleText, subtitleText, style);
     }
@@ -1382,8 +2428,13 @@ void populateDetailContent(
     clearLayout(layout);
 
     if (chatMode && !selection.messages.isEmpty()) {
-        layout->addStretch(1);
+        if (!messagesContainRichMarkdown(selection.messages)) {
+            layout->addStretch(1);
+        }
         populateChatMessages(layout, selection.messages, style);
+        if (messagesContainRichMarkdown(selection.messages)) {
+            layout->addStretch(1);
+        }
         return;
     }
 
@@ -1411,6 +2462,17 @@ void populateEmptyStateContent(
     const QJsonObject &style
 );
 
+void scrollContentToBottom(QScrollArea *scrollArea) {
+    if (scrollArea == nullptr) {
+        return;
+    }
+    QTimer::singleShot(0, scrollArea, [scrollArea]() {
+        if (QScrollBar *scrollBar = scrollArea->verticalScrollBar()) {
+            scrollBar->setValue(scrollBar->maximum());
+        }
+    });
+}
+
 void applySelection(
     GenericDetailPane &detailPane,
     const GenericSelection &selection,
@@ -1435,6 +2497,9 @@ void applySelection(
         populateEmptyStateContent(detailPane.contentLayout, payload, style);
     } else {
         populateDetailContent(detailPane.contentLayout, selection, style, chatMode);
+        if (chatMode && !selection.messages.isEmpty()) {
+            scrollContentToBottom(detailPane.contentScrollArea);
+        }
     }
 }
 
@@ -1475,35 +2540,45 @@ GenericDetailPane chatDetailWidget(
     title->setWordWrap(false);
     applyAccessibleText(title, headerTitle, detailSummary);
     headerLayout->addWidget(title, 1);
-    headerLayout->addWidget(headerIconButton(
+    QPushButton *conversationMenuButton = headerIconButton(
         QStringLiteral("chevron.down"),
         QStringLiteral("Conversation menu"),
         style
-    ));
-    headerLayout->addWidget(headerIconButton(
+    );
+    conversationMenuButton->setProperty("chatHeaderAction", QStringLiteral("modelMenu"));
+    headerLayout->addWidget(conversationMenuButton);
+    QPushButton *moreOptionsButton = headerIconButton(
         QStringLiteral("ellipsis"),
         QStringLiteral("More options"),
         style
-    ));
-    headerLayout->addWidget(headerIconButton(
+    );
+    moreOptionsButton->setProperty("chatHeaderAction", QStringLiteral("copyMenu"));
+    headerLayout->addWidget(moreOptionsButton);
+    QPushButton *moreOptionsMenuButton = headerIconButton(
         QStringLiteral("chevron.down"),
         QStringLiteral("More options menu"),
         style
-    ));
-    headerLayout->addWidget(headerIconButton(
+    );
+    moreOptionsMenuButton->setProperty("chatHeaderAction", QStringLiteral("copyMenu"));
+    headerLayout->addWidget(moreOptionsMenuButton);
+    QPushButton *newChatButton = headerIconButton(
         QStringLiteral("square.and.pencil"),
         QStringLiteral("New chat"),
         style
-    ));
+    );
+    newChatButton->setProperty("chatHeaderAction", QStringLiteral("newChat"));
+    headerLayout->addWidget(newChatButton);
     layout->addWidget(header);
 
     QWidget *body = new QWidget();
+    body->setObjectName(QStringLiteral("detailBody"));
     QVBoxLayout *bodyLayout = new QVBoxLayout(body);
     const int contentPadding = intValue(style, "contentPadding", 22);
     bodyLayout->setContentsMargins(contentPadding, contentPadding, contentPadding, contentPadding);
     bodyLayout->setSpacing(intValue(style, "messageSpacing", 14));
 
     QWidget *conversationHost = new QWidget();
+    conversationHost->setObjectName(QStringLiteral("conversationHost"));
     QVBoxLayout *conversationLayout = new QVBoxLayout(conversationHost);
     conversationLayout->setContentsMargins(0, 0, 0, 0);
     conversationLayout->setSpacing(intValue(style, "detailContentSpacing", 14));
@@ -1515,10 +2590,19 @@ GenericDetailPane chatDetailWidget(
     } else {
         populateEmptyStateContent(conversationLayout, payload, style);
     }
-    bodyLayout->addWidget(conversationHost, 1);
+    QScrollArea *conversationScroll = new QScrollArea();
+    conversationScroll->setObjectName(QStringLiteral("conversationScroll"));
+    conversationScroll->setFrameShape(QFrame::NoFrame);
+    conversationScroll->setWidgetResizable(true);
+    conversationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    conversationScroll->setWidget(conversationHost);
+    bodyLayout->addWidget(conversationScroll, 1);
+    if (selectedIndex >= 0 && !selection.messages.isEmpty()) {
+        scrollContentToBottom(conversationScroll);
+    }
 
     if (QFrame *notice = noticeWidget(payload, style)) {
-        bodyLayout->addWidget(notice);
+        bodyLayout->addWidget(notice, 0, Qt::AlignCenter);
     }
 
     bodyLayout->addWidget(composerWidget(payload, style), 0, Qt::AlignCenter);
@@ -1527,7 +2611,7 @@ GenericDetailPane chatDetailWidget(
     QLabel *subtitle = label(selection.detailSubtitle, QStringLiteral("caption"));
     subtitle->setParent(detail);
     subtitle->hide();
-    return GenericDetailPane { detail, title, subtitle, conversationLayout, true };
+    return GenericDetailPane { detail, title, subtitle, conversationLayout, conversationScroll, true };
 }
 
 GenericDetailPane detailWidget(
@@ -1566,7 +2650,7 @@ GenericDetailPane detailWidget(
     layout->addLayout(contentLayout, 1);
     populateDetailContent(contentLayout, selection, style);
 
-    return GenericDetailPane { detail, title, subtitle, contentLayout, false };
+    return GenericDetailPane { detail, title, subtitle, contentLayout, nullptr, false };
 }
 
 QWidget *scrollWrapped(QWidget *child) {
@@ -1597,6 +2681,7 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     }
 
     QApplication app(argc, argv);
+    initializeSelectedChatModelName(payload);
 
     QWidget root;
     root.setObjectName(QStringLiteral("genericRoot"));
@@ -1625,15 +2710,57 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
     });
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal);
+    splitter->setHandleWidth(1);
     QWidget *sidebar = sidebarWidget(payload, itemList, style);
     splitter->addWidget(sidebar);
-    splitter->addWidget(scrollWrapped(detailPane.view));
+    splitter->addWidget(chatMode ? detailPane.view : scrollWrapped(detailPane.view));
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
     QList<int> splitSizes;
     splitSizes << intValue(payload, "sidebarWidth", 320) << intValue(payload, "detailWidth", 720);
     splitter->setSizes(splitSizes);
     rootLayout->addWidget(splitter);
+
+    auto installPromptHandlers = [&]() {
+        for (QPushButton *button : detailPane.view->findChildren<QPushButton *>()) {
+            const QString promptTitle = button->property("promptTitle").toString();
+            if (promptTitle.isEmpty() || button->property("promptHandlerInstalled").toBool()) {
+                continue;
+            }
+            button->setProperty("promptHandlerInstalled", true);
+            QObject::connect(button, &QPushButton::clicked, [&, promptTitle]() {
+                const bool blocked = itemList->blockSignals(true);
+                itemList->clearSelection();
+                itemList->setCurrentRow(-1);
+                itemList->blockSignals(blocked);
+                updateChatSelectionDots(itemList);
+                persistPromptConversation(promptTitle, payload);
+                populatePromptConversationContent(detailPane.contentLayout, promptTitle, style, payload);
+            });
+        }
+    };
+    auto installComposerHandlers = [&]() {
+        for (QLineEdit *editor : detailPane.view->findChildren<QLineEdit *>(QStringLiteral("composerEditor"))) {
+            if (editor->property("composerHandlerInstalled").toBool()) {
+                continue;
+            }
+            editor->setProperty("composerHandlerInstalled", true);
+            QObject::connect(editor, &QLineEdit::returnPressed, [&, editor]() {
+                const QString promptTitle = editor->text().trimmed();
+                if (promptTitle.isEmpty()) {
+                    return;
+                }
+                editor->clear();
+                const bool blocked = itemList->blockSignals(true);
+                itemList->clearSelection();
+                itemList->setCurrentRow(-1);
+                itemList->blockSignals(blocked);
+                updateChatSelectionDots(itemList);
+                persistPromptConversation(promptTitle, payload);
+                populatePromptConversationContent(detailPane.contentLayout, promptTitle, style, payload);
+            });
+        }
+    };
 
     for (QPushButton *button : sidebar->findChildren<QPushButton *>()) {
         const QString navigationAction = button->property("navigationAction").toString();
@@ -1654,6 +2781,65 @@ extern "C" int quill_generic_qt_run_app_json(int argc, char **argv, const char *
             });
         }
     }
+
+    if (chatMode) {
+        for (QPushButton *button : detailPane.view->findChildren<QPushButton *>()) {
+            const QString navigationAction = button->property("navigationAction").toString();
+            if (!navigationAction.isEmpty()) {
+                QObject::connect(button, &QPushButton::clicked, [&, button, navigationAction]() {
+                    const bool blocked = itemList->blockSignals(true);
+                    itemList->setCurrentRow(-1);
+                    itemList->blockSignals(blocked);
+                    updateChatSelectionDots(itemList);
+                    populateNavigationContent(
+                        detailPane.contentLayout,
+                        payload,
+                        style,
+                        navigationAction,
+                        button->text(),
+                        QString()
+                    );
+                });
+                continue;
+            }
+            const QString chatHeaderAction = button->property("chatHeaderAction").toString();
+            if (chatHeaderAction == QStringLiteral("newChat")) {
+                QObject::connect(button, &QPushButton::clicked, [&]() {
+                    const bool blocked = itemList->blockSignals(true);
+                    itemList->clearSelection();
+                    itemList->setCurrentRow(-1);
+                    itemList->blockSignals(blocked);
+                    updateChatSelectionDots(itemList);
+                    applySelection(detailPane, selectionForRow(payload, items, -1), payload, style, chatMode);
+                    installPromptHandlers();
+                });
+            } else if (chatHeaderAction == QStringLiteral("modelMenu")) {
+                QObject::connect(button, &QPushButton::clicked, [button, payload]() {
+                    showModelSelectionMenu(button, payload);
+                });
+            } else if (chatHeaderAction == QStringLiteral("copyMenu")) {
+                QObject::connect(button, &QPushButton::clicked, [&, button]() {
+                    const GenericSelection selection =
+                        selectionForRow(payload, items, itemList->currentRow());
+                    QMenu menu(button);
+                    QAction *copyAction = menu.addAction(QStringLiteral("Copy Chat"));
+                    QAction *copyJsonAction = menu.addAction(QStringLiteral("Copy Chat as JSON"));
+                    QAction *chosenAction = menu.exec(
+                        button->mapToGlobal(QPoint(0, button->height() + 4))
+                    );
+                    if (chosenAction == copyAction) {
+                        writeFileBackedPasteboardText(chatMessagesPlainText(selection.messages));
+                    } else if (chosenAction == copyJsonAction) {
+                        writeFileBackedPasteboardText(chatMessagesJsonText(selection.messages));
+                    }
+                });
+            }
+        }
+        installPromptHandlers();
+        installComposerHandlers();
+    }
+    installPromptHandlers();
+    installComposerHandlers();
 
     root.show();
     const QString automatedNavigationClick = automationNavigationClickIdentifier();

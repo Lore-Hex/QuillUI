@@ -3404,3 +3404,47 @@ future account/database work.
 Remaining NetNewsWire database work is still real: this is a QuillData-backed
 adapter, not a full `RSDatabase`/`FMDatabase` SQL implementation with upstream
 migrations, FTS/search indexes, sync-account semantics, and columnar hot paths.
+
+## Checkpoint 206: Enchanted Interaction Sweep Stabilized
+
+Status: implemented locally; guarded by source hygiene, backend matrix tests,
+focused QuillData lowering tests, and a full real-source GTK Quill Chat
+mac-reference interaction sweep.
+
+The Enchanted/Quill Chat verifier now accepts the actual thin GTK/Pango text
+signal for typed Settings endpoint and ping-interval fields while keeping the
+surrounding structural checks intact. The Completions upsert validator now
+recognizes the in-window sheet shape by its modal surface and pure-white input
+field stack, and the saved/edited validators distinguish the dismissed editor
+from the bright Completions list panel.
+
+The mode runner also fixes its default app-log template so Bash does not
+misparse `{product}` inside parameter expansion. The full 23-mode GTK
+mac-reference sweep passed locally, including Settings, delete-all,
+Completions create/save/edit/delete, New Chat, model selection, prompt send,
+copy/copy JSON, history/transcript/markdown transcript selection, hover
+actions, and long transcript auto-selection. One long-transcript launch crashed
+once during the full sweep and then passed on the built-in retry; three
+standalone long-transcript repeats passed cleanly.
+
+## Checkpoint 207: Enchanted Release Artifact Matrix
+
+Status: implemented locally; guarded by the packaged GTK release artifact
+visual smoke, a full packaged-artifact mac-reference interaction sweep, focused
+source tests, and CI workflow wiring.
+
+The Enchanted/Quill Chat GTK release artifact now passes the same mac-reference
+visual and interaction checks as the generated build path through the packaged
+`.build/releases/quill-chat-linux-gtk/run` launcher. The local release-artifact
+validation built real upstream Enchanted source, emitted desktop/AppStream
+metadata, generated the Flatpak manifest scaffold, audited bundled runtime
+dependencies, passed the `2048x1380` Mac-reference visual smoke, and passed all
+23 settings/completions/sidebar/transcript rows from the packaged launcher.
+
+Two verifier gaps surfaced during the artifact run and were fixed in reusable
+QA code: Settings bearer-token and ping edits now click the center of their GTK
+fields and the root-overlay detector keeps adjacent one-line fields separate;
+Completions upsert detection now backs up from the first form row to the real
+sheet title/action strip and accepts the actual one-line GTK field pixel area.
+The Enchanted parity workflow now names and stores the broad interaction matrix
+as a packaged release-artifact gate instead of a generated-build-path gate.

@@ -100,13 +100,13 @@ Required click-through flows:
 
 ## Current Priority Order
 
-1. Rerun visual and interaction smoke against the packaged release artifact,
-   not only the generated build directory.
-2. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
-3. Extend the QuillPaint GTK hook beyond buttons, rounded text fields, and text
+1. Move remaining profile-only behavior into reusable QuillUI/QuillKit APIs.
+2. Extend the QuillPaint GTK hook beyond buttons, rounded text fields, and text
    editors into the controls that currently fail visual parity.
-4. Turn the first Flatpak manifest scaffold into a full Flatpak build by
+3. Turn the first Flatpak manifest scaffold into a full Flatpak build by
    closing the remaining GTK/system dependency bundle.
+4. Keep the packaged release artifact visual and interaction matrix green while
+   polishing screenshots against the Mac reference.
 5. Only then resume NetNewsWire as the next public app.
 
 Recently cleared:
@@ -115,8 +115,9 @@ Recently cleared:
   `scripts/package-swiftui-linux-app.sh` against real Enchanted source, producing
   a runnable `quill-chat-linux` GTK artifact directory and tarball.
 - The packaged `run` launcher has passed the Mac-reference visual smoke and the
-  `new-chat` semantic interaction row via `QUILLUI_BACKEND_APP_EXECUTABLE`, so
-  QA can now target release artifacts instead of only generated build products.
+  full 23-row settings/completions/sidebar/transcript interaction matrix via
+  `QUILLUI_BACKEND_APP_EXECUTABLE`, so QA now targets release artifacts instead
+  of only generated build products.
 - Enchanted Parity CI now exports the packaged launcher through
   `QUILLUI_BACKEND_APP_EXECUTABLE` after packaging, so the downstream
   interaction and functional rows exercise the same release artifact path.

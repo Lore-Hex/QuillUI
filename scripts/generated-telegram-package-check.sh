@@ -145,6 +145,64 @@ materialize_telegram_shared_headers() {
   local package_name="$1"
   local mirror_dir="$2"
 
+  if [[ "$package_name" == "OpenSSLEncryptionProvider" ]]; then
+    # Upstream's manifest expects the EncryptionProvider protocol header via
+    # headerSearchPath("SharedHeaders/EncryptionProvider"); the EncryptionProvider
+    # overlay is Swift-only, so materialize the upstream header here. The
+    # openssl/ includes resolve from the system libssl-dev headers.
+    local encryption_headers="$UPSTREAM_DIR/submodules/telegram-ios/submodules/EncryptionProvider/PublicHeaders"
+    if [[ -d "$encryption_headers" ]]; then
+      mkdir -p "$mirror_dir/SharedHeaders/EncryptionProvider"
+      cp -R "$encryption_headers"/. "$mirror_dir/SharedHeaders/EncryptionProvider"
+      # Swift importers compile the public-header module without the target's
+      # private headerSearchPath cSettings, so the imported header must also be
+      # self-contained inside PublicHeaders/.
+      if [[ -d "$mirror_dir/PublicHeaders" ]]; then
+        cp -R "$encryption_headers"/. "$mirror_dir/PublicHeaders"
+      fi
+    fi
+  fi
+
+  if [[ "$package_name" == "CryptoUtils" ]]; then
+    # The overlay replaces CryptoUtils with a Swift implementation; its
+    # ObjCHeaders target re-exports the upstream <CryptoUtils/Crypto.h> that
+    # dependents like BuildConfig import via header propagation.
+    local crypto_headers="$UPSTREAM_DIR/submodules/telegram-ios/submodules/CryptoUtils/PublicHeaders"
+    if [[ -d "$crypto_headers" && -d "$mirror_dir/ObjCHeaders" ]]; then
+      mkdir -p "$mirror_dir/ObjCHeaders/include"
+      cp -R "$crypto_headers"/. "$mirror_dir/ObjCHeaders/include"
+    fi
+  fi
+
+  if [[ "$package_name" == "Mozjpeg" ]]; then
+    # Upstream vendors the real mozjpeg tree; its manifest searches
+    # SharedHeaders/libmozjpeg for jpeglib/turbojpeg + the mozjpeg extensions
+    # (jpeg_c_set_int_param, JINT_COMPRESS_PROFILE). jconfig.h is a build
+    # product upstream, so generate a minimal one.
+    local mozjpeg_source="$UPSTREAM_DIR/submodules/telegram-ios/third-party/mozjpeg/mozjpeg"
+    if [[ -d "$mozjpeg_source" ]]; then
+      mkdir -p "$mirror_dir/SharedHeaders/libmozjpeg"
+      find "$mozjpeg_source" -maxdepth 1 -name '*.h' -exec cp {} "$mirror_dir/SharedHeaders/libmozjpeg/" \;
+      cat > "$mirror_dir/SharedHeaders/libmozjpeg/jconfig.h" <<'EOF'
+/* Generated minimal jconfig.h for the QuillUI Telegram compile ratchet. */
+#ifndef QUILLUI_GENERATED_MOZJPEG_JCONFIG_H
+#define QUILLUI_GENERATED_MOZJPEG_JCONFIG_H
+
+#define JPEG_LIB_VERSION 62
+#define C_ARITH_CODING_SUPPORTED 1
+#define D_ARITH_CODING_SUPPORTED 1
+#define MEM_SRCDST_SUPPORTED 1
+#define BITS_IN_JSAMPLE 8
+#define HAVE_STDDEF_H 1
+#define HAVE_STDLIB_H 1
+#define HAVE_UNSIGNED_CHAR 1
+#define HAVE_UNSIGNED_SHORT 1
+
+#endif
+EOF
+    fi
+  fi
+
   if [[ "$package_name" == "libwebp" ]]; then
     local webp_headers="$UPSTREAM_DIR/submodules/telegram-ios/third-party/webp/libwebp/src/webp"
     if [[ -d "$webp_headers" ]]; then
@@ -315,6 +373,27 @@ if [[ "$(uname -s)" == "Linux" ]]; then
     done < <(find "$submodule_mirror_root" -type f -name Package.swift -print | sort)
     ln -s "$submodule_mirror_root" "$package_mirror_root/submodules"
   fi
+
+  # Overlay-only packages: Swift replacements for upstream code that has no
+  # SwiftPM manifest of its own (e.g. CodeSyntax sources, the RLottie_Xcode/
+  # rlottie C++ tree). The overlay IS the package; expose it in the mirror so
+  # the generated app graph can resolve the module.
+  while IFS= read -r overlay_manifest; do
+    overlay_package_dir="$(dirname "$overlay_manifest")"
+    overlay_package_name="$(basename "$overlay_package_dir")"
+    overlay_sibling="$package_mirror_root/$overlay_package_name"
+    # A manifest-less sibling (the plain upstream source symlink, possibly a
+    # case-insensitive-filesystem collision like rlottie vs RLottie) yields to
+    # the overlay package, which is the importable module.
+    if [[ -L "$overlay_sibling" && ! -f "$overlay_sibling/Package.swift" ]]; then
+      rm "$overlay_sibling"
+    fi
+    if [[ ! -e "$overlay_sibling" && ! -L "$overlay_sibling" ]]; then
+      mkdir -p "$overlay_sibling"
+      cp -R "$overlay_package_dir"/. "$overlay_sibling"
+      overlaid_packages+=("$overlay_package_name")
+    fi
+  done < <(find "$overlay_root" -mindepth 2 -maxdepth 2 -name Package.swift -print | sort)
 fi
 
 for package_name in "${packages[@]}"; do
