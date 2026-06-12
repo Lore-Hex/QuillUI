@@ -190,9 +190,11 @@ struct CompatibilityModuleTests {
         #expect(rowSeparator.visibility == .hidden)
         #expect(rowSeparator.edges == .vertical)
 
+        // scrollIndicators is a recorded no-op returning Self since the
+        // ScrollIndicatorVisibility twin was retired (QuillSwiftUICompatibility's
+        // Visibility-typed overload is the sole owner).
         let scrollIndicators = Text("Scroll").scrollIndicators(.hidden)
-        #expect(String(describing: type(of: scrollIndicators)).contains("ScrollIndicatorsView"))
-        #expect(String(describing: scrollIndicators.visibility).contains("hidden"))
+        #expect(String(describing: type(of: scrollIndicators)).contains("Text"))
 
         let scrollBackground = Text("Scroll").scrollContentBackground(.hidden)
         #expect(String(describing: type(of: scrollBackground)).contains("ScrollContentBackgroundView"))

@@ -5,6 +5,7 @@ import SwiftUI
 import SwiftOpenUI
 import QuillKit
 import QuillFoundation
+import class UIKit.NSItemProvider
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -37,54 +38,11 @@ public extension UTType {
 }
 #endif
 
-public final class NSItemProvider: @unchecked Sendable {
-    private enum Representation {
-        case data(Data, UTType)
-        case file(URL, UTType?)
-    }
-
-    private let representations: [Representation]
-
-    public init() {
-        self.representations = []
-    }
-
-    public init(fileURL: URL) {
-        self.representations = [.file(fileURL, UTType.type(for: fileURL))]
-    }
-
-    public convenience init(contentsOf url: URL) {
-        self.init(fileURL: url)
-    }
-
-    public init(data: Data, type: UTType) {
-        self.representations = [.data(data, type)]
-    }
-
-    public func loadDataRepresentation(
-        for contentType: UTType,
-        completionHandler: @escaping (Data?, Error?) -> Void
-    ) -> Progress? {
-        for representation in representations {
-            switch representation {
-            case .data(let data, let type) where type.conforms(to: contentType):
-                completionHandler(data, nil)
-                return nil
-            case .file(let url, let type) where type?.conforms(to: contentType) == true || contentType.accepts(url: url):
-                do {
-                    completionHandler(try Data(contentsOf: url), nil)
-                } catch {
-                    completionHandler(nil, error)
-                }
-                return nil
-            default:
-                continue
-            }
-        }
-        completionHandler(nil, QuillCompatibilityError.representationUnavailable(contentType.identifier))
-        return nil
-    }
-}
+// NSItemProvider lives in the UIKit shim module (UIKit.swift) — a richer
+// superset (object/contentsOf initializers, conformance-checked
+// representations). A second class here was ambiguous for any file that
+// imports both QuillUI and UIKit (the compat-module tests). Imported by
+// name below so this module's onDrop/fileImporter plumbing keeps working.
 
 public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
     case representationUnavailable(String)
