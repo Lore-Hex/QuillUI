@@ -1161,9 +1161,13 @@ public extension View {
         padding(Int(amount))
     }
 
-    func padding(_ edges: Edge.Set, _ amount: Double) -> PaddedView<Self> {
-        padding(edges, Int(amount))
-    }
+    // padding(_ edges:, _ amount: Double) lives IN SwiftOpenUI's
+    // PaddingModifier.swift (it moved there with the other numeric
+    // adapters) — a verbatim twin that lingered here was a cross-module
+    // exact duplicate in every `.padding(edges, n)` overload set (three
+    // such calls in generated Enchanted SettingsView's body give-up).
+    // The CGFloat variants stay: CGFloat is QuillFoundation's type and
+    // SwiftOpenUI core stays platform-independent.
 
     func padding(_ edges: Edge.Set, _ amount: CGFloat) -> PaddedView<Self> {
         padding(edges, Int(amount))

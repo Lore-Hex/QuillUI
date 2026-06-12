@@ -1601,12 +1601,13 @@ public extension View {
     }
 }
 
-public extension Image {
-    func renderingMode(_ mode: ImageRenderingMode?) -> Image {
-        _ = mode
-        return self
-    }
-}
+// Image.renderingMode lives in QuillUI (UpstreamCompatibility.swift) with
+// its `Image.TemplateRenderingMode` — a twin here took `ImageRenderingMode?`,
+// and both argument types expose `.template`/`.original` statics, so
+// implicit-member `.renderingMode(.template)` carried three candidates
+// across two modules (generated Enchanted SettingsView body give-up).
+// The `ImageRenderingMode` type above stays for explicit references; only
+// the modifier twin is gone.
 
 public extension Tab {
     init<Value: Hashable, Label: View>(
@@ -1806,10 +1807,11 @@ public extension View {
         return self
     }
 
-    func font(_ font: Font?) -> Self {
-        _ = font
-        return self
-    }
+    // `font(_: Font?)` now lives IN SwiftOpenUI's StyleModifiers.swift
+    // beside the canonical non-optional overload — a twin here doubled
+    // every `.font(…)` call's candidate set across modules (generated
+    // Enchanted SettingsView body give-up), and silently dropped the font
+    // whenever it won.
 
     func brightness(_ amount: Double) -> Self {
         _ = amount
@@ -1923,11 +1925,12 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
-    func preferredColorScheme(_ colorScheme: ColorScheme?) -> Self {
-        _ = colorScheme
-        return self
-    }
+    // preferredColorScheme(_: ColorScheme?) lives in QuillUI
+    // (Compatibility.swift), which actually writes the environment — a
+    // same-signature no-op twin here (even disfavored: cross-module
+    // disfavor is not trusted inside ViewBuilder closures) fed the
+    // generated Enchanted SettingsView body give-up. No SwiftUI-shim-only
+    // callers exist, so QuillUI is the sole owner.
 
     @_disfavoredOverload
     func contentShape<S: Shape>(_ shape: S) -> Self {
@@ -2052,10 +2055,10 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
-    func foregroundColor(_ color: Color?) -> ForegroundColorView<Self> {
-        foregroundColor(color ?? .clear)
-    }
+    // `foregroundColor(_: Color?)` now lives IN SwiftOpenUI's
+    // StyleModifiers.swift beside the canonical non-optional overload —
+    // the cross-module twin competed on every `.foregroundColor(color)`
+    // call (generated Enchanted SettingsView body give-up).
 
     func alignmentGuide(
         _ alignment: VerticalAlignment,
@@ -2095,17 +2098,13 @@ public extension View {
     // padding(_ insets: EdgeInsets) lives in QuillUI (verbatim twin here
     // made every .padding(insets) call ambiguous).
 
-    func frame(
-        width: Int? = nil,
-        height: Int? = nil,
-        alignment: Alignment = .center
-    ) -> FrameView<Self> {
-        frame(
-            width: width.map(Double.init),
-            height: height.map(Double.init),
-            alignment: alignment
-        )
-    }
+    // `frame(width: Int?, height: Int?, alignment:)` now lives IN
+    // SwiftOpenUI's FrameModifier.swift beside the canonical Double
+    // overload — the cross-module Int? twin competed on every
+    // integer-literal `.frame(width:height:)` call (generated Enchanted
+    // SettingsView body give-up). The CGFloat adapters below stay HERE
+    // (CGFloat is QuillFoundation's type; SwiftOpenUI core must stay
+    // platform-independent).
 
     func frame(maxWidth: CGFloat?, alignment: Alignment = .center) -> FrameView<Self> {
         frame(maxWidth: maxWidth.map(Double.init), alignment: alignment)
@@ -2233,11 +2232,11 @@ public extension View {
         return self
     }
 
-    func foregroundStyle(_ primary: Color, _ secondary: Color) -> Self {
-        _ = primary
-        _ = secondary
-        return self
-    }
+    // foregroundStyle(_:_:) (two-color) lives in QuillUI
+    // (UpstreamCompatibility.swift), which applies the primary color — a
+    // verbatim twin here was a cross-module exact duplicate sitting in
+    // every `foregroundStyle` overload set (five calls in generated
+    // Enchanted SettingsView's body alone).
 
     func presentationDetents(_ detents: Set<PresentationDetent>) -> Self {
         _ = detents

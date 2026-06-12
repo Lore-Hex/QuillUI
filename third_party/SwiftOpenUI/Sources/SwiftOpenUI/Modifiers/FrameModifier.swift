@@ -30,6 +30,25 @@ extension View {
         )
     }
 
+    /// Int-typed adapter beside the canonical Double overload (moved from
+    /// QuillSwiftUICompatibility): the cross-module `Int?` twin competed
+    /// with the `Double?` overload on every integer-literal
+    /// `.frame(width:height:)` call (generated Enchanted SettingsView).
+    /// Same-module ranking is reliable; disfavored so Double arguments
+    /// never tie.
+    @_disfavoredOverload
+    public func frame(
+        width: Int? = nil,
+        height: Int? = nil,
+        alignment: Alignment = .center
+    ) -> FrameView<Self> {
+        frame(
+            width: width.map(Double.init),
+            height: height.map(Double.init),
+            alignment: alignment
+        )
+    }
+
     /// Set flexible size constraints.
     public func frame(
         minWidth: Double? = nil,
