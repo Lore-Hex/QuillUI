@@ -2786,6 +2786,15 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/QuillAppKitQt",
             swiftSettings: appSwiftSettings
         ),
+        // gdk-pixbuf is toolkit-independent (the qt CI deps install it too);
+        // AppKit's NSBitmapImageRep encoder (rung 4) needs it on both graphs.
+        .systemLibrary(
+            name: "CGdkPixbuf",
+            path: "Sources/CGdkPixbuf",
+            providers: [
+                .apt(["libgdk-pixbuf-2.0-dev"])
+            ]
+        ),
         .target(
             name: "QuillQtNativeRuntimeSupport",
             path: "Sources/QuillQtNativeRuntimeSupport",
