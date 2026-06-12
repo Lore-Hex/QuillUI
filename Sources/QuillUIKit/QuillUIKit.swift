@@ -38,6 +38,10 @@ public typealias ASPresentationAnchor = NSObject
 @MainActor open class UIResponder: NSObject {
     open var keyCommands: [UIKeyCommand]? { nil }
 
+    /// UIKit default: a responder refuses first-responder status unless a
+    /// subclass opts in (text fields, SignalUI's ActionSheetController, …).
+    open var canBecomeFirstResponder: Bool { false }
+
     @discardableResult
     open func becomeFirstResponder() -> Bool { true }
 
@@ -99,6 +103,12 @@ public class NSLayoutDimension: NSLayoutAnchor<NSLayoutDimension> {
     }
     public func constraint(equalTo other: NSLayoutDimension, multiplier m: CGFloat = 1, constant c: CGFloat = 0) -> NSLayoutConstraint {
         NSLayoutConstraint(first: self, relation: .equal, second: other, multiplier: m, constant: c)
+    }
+    public func constraint(greaterThanOrEqualTo other: NSLayoutDimension, multiplier m: CGFloat = 1, constant c: CGFloat = 0) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .greaterThanOrEqual, second: other, multiplier: m, constant: c)
+    }
+    public func constraint(lessThanOrEqualTo other: NSLayoutDimension, multiplier m: CGFloat = 1, constant c: CGFloat = 0) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .lessThanOrEqual, second: other, multiplier: m, constant: c)
     }
 }
 
@@ -200,11 +210,35 @@ public enum UIUserInterfaceStyle: Int {
     case dark
 }
 
-public class UILayoutGuide: NSObject {
-    public var topAnchor = NSLayoutYAxisAnchor()
-    public var bottomAnchor = NSLayoutYAxisAnchor()
-    public var leadingAnchor = NSLayoutXAxisAnchor()
-    public var trailingAnchor = NSLayoutXAxisAnchor()
+/// A rectangular region that participates in Auto Layout without a backing
+/// view (safe area, layout margins, free-standing guides added through
+/// UIView.addLayoutGuide). @MainActor to match UIKit's isolation (and because
+/// guides hold references into the view tree).
+@MainActor public class UILayoutGuide: NSObject {
+    public internal(set) weak var owningView: UIView?
+    public var identifier: String = ""
+
+    /// View-created guides (safe area / layout margins) alias the owning view:
+    /// Linux draws no status bar, notch, or home indicator, so the safe area
+    /// IS the view's bounds, and pinning to the guide must solve exactly like
+    /// pinning to the view. Free-standing guides bind anchors to the guide
+    /// object itself; the native layout pass skips items it cannot resolve to
+    /// a view, so their constraints are captured but inert.
+    weak var quillAliasedView: UIView?
+    private var quillAnchorItem: AnyObject { quillAliasedView ?? self }
+
+    // Fresh bound anchor per access — same pattern as UIView's anchors and
+    // QuillAppKit's NSLayoutGuide.
+    public var topAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: quillAnchorItem, attribute: .top) }
+    public var bottomAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: quillAnchorItem, attribute: .bottom) }
+    public var leadingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: quillAnchorItem, attribute: .leading) }
+    public var trailingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: quillAnchorItem, attribute: .trailing) }
+    public var leftAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: quillAnchorItem, attribute: .left) }
+    public var rightAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: quillAnchorItem, attribute: .right) }
+    public var centerXAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: quillAnchorItem, attribute: .centerX) }
+    public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: quillAnchorItem, attribute: .centerY) }
+    public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: quillAnchorItem, attribute: .width) }
+    public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: quillAnchorItem, attribute: .height) }
 }
 
 #if !os(macOS)
@@ -319,17 +353,71 @@ public class UIWindow: UIView {}
     public var alpha: CGFloat = 1.0
     public var tintColor: UIColor?
 
-    public var safeAreaLayoutGuide = UILayoutGuide()
-    public var topAnchor = NSLayoutYAxisAnchor()
-    public var bottomAnchor = NSLayoutYAxisAnchor()
-    public var leadingAnchor = NSLayoutXAxisAnchor()
-    public var trailingAnchor = NSLayoutXAxisAnchor()
-    public var widthAnchor = NSLayoutDimension()
-    public var heightAnchor = NSLayoutDimension()
+    /// View-owned layout guides. Linux draws no status bar, notch, or home
+    /// indicator, so the safe area IS the view's bounds: both guides alias the
+    /// view itself (see UILayoutGuide.quillAliasedView), making constraints
+    /// against them solve exactly like constraints against the view's edges.
+    /// MODEL HONESTY: layoutMargins are recorded (quillLayoutMargins below)
+    /// but the native layout pass does not yet inset the margins guide.
+    public private(set) lazy var safeAreaLayoutGuide: UILayoutGuide = self.quillMakeEdgeAliasedGuide(identifier: "UIViewSafeAreaLayoutGuide")
+    public private(set) lazy var layoutMarginsGuide: UILayoutGuide = self.quillMakeEdgeAliasedGuide(identifier: "UIViewLayoutMarginsGuide")
+    private func quillMakeEdgeAliasedGuide(identifier: String) -> UILayoutGuide {
+        let guide = UILayoutGuide()
+        guide.identifier = identifier
+        guide.owningView = self
+        guide.quillAliasedView = self
+        return guide
+    }
 
-    public func setNeedsLayout() {}
+    /// Backing store for `layoutMargins`. The UIEdgeInsets-typed property
+    /// cannot live here: UIEdgeInsets is declared in the UIKit shim module,
+    /// which depends on this one, so the shim layers `layoutMargins` over this
+    /// value. 8pt on every edge is UIKit's default.
+    public var quillLayoutMargins = QuillEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+
+    /// Guides added via addLayoutGuide(_:). Free-standing guides keep their
+    /// anchors bound to the guide object itself, which the native layout pass
+    /// cannot (yet) resolve to a view — their constraints are captured but
+    /// inert (see UILayoutGuide.quillAliasedView).
+    public private(set) var layoutGuides: [UILayoutGuide] = []
+    open func addLayoutGuide(_ layoutGuide: UILayoutGuide) {
+        layoutGuide.owningView?.removeLayoutGuide(layoutGuide)
+        layoutGuides.append(layoutGuide)
+        layoutGuide.owningView = self
+    }
+    open func removeLayoutGuide(_ layoutGuide: UILayoutGuide) {
+        layoutGuides.removeAll { $0 === layoutGuide }
+        if layoutGuide.owningView === self { layoutGuide.owningView = nil }
+    }
+
+    // Computed so each anchor is bound to this view + its attribute (the
+    // native layout pass reads that binding to translate the constraint into
+    // the solver). Fresh per access — anchors are lightweight value-like
+    // handles, matching QuillAppKit's NSView.
+    public var topAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .top) }
+    public var bottomAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .bottom) }
+    public var leadingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .leading) }
+    public var trailingAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .trailing) }
+    public var leftAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .left) }
+    public var rightAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .right) }
+    public var centerXAnchor: NSLayoutXAxisAnchor { NSLayoutXAxisAnchor(item: self, attribute: .centerX) }
+    public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: self, attribute: .centerY) }
+    public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .width) }
+    public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: self, attribute: .height) }
+
+    /// Layout dirtying. MODEL HONESTY: there is no compositor-driven layout
+    /// pass on Linux — layoutIfNeeded() just gives layoutSubviews() overrides
+    /// one chance to run per dirtying, so upstream code that does manual
+    /// frame math there still executes.
+    private var quillNeedsLayout = true
+    open func setNeedsLayout() { quillNeedsLayout = true }
     public func setNeedsDisplay() {}
-    public func layoutIfNeeded() {}
+    open func layoutIfNeeded() {
+        guard quillNeedsLayout else { return }
+        quillNeedsLayout = false
+        layoutSubviews()
+    }
+    open func layoutSubviews() {}
     public func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
         _ = priority
         _ = axis
@@ -402,19 +490,77 @@ public class UIWindow: UIView {}
 }
 
 @MainActor open class UIViewController: UIResponder {
-    public var view: UIView!
-    public var children: [UIViewController] = []
-    public var presentedViewController: UIViewController?
-    public func present(_ viewControllerToPresent: Any, animated: Bool) {
-        _ = animated
-        presentedViewController = viewControllerToPresent as? UIViewController
+    // View loading mirrors UIKit: the first access to `view` runs loadView()
+    // and then viewDidLoad(), exactly once. There is no nib/storyboard system
+    // here, so the default loadView() makes an empty UIView.
+    private var _view: UIView?
+    open var view: UIView! {
+        get {
+            if _view == nil {
+                loadView()
+                if _view == nil { _view = UIView() }
+                viewDidLoad()
+            }
+            return _view
+        }
+        set { _view = newValue }
     }
-    public func dismiss(animated: Bool, completion: (() -> Void)? = nil) {}
+    public var viewIfLoaded: UIView? { _view }
+    public var isViewLoaded: Bool { _view != nil }
+    open func loadView() { view = UIView() }
+    public func loadViewIfNeeded() { _ = view }
+
+    // Containment. Model-level bookkeeping with UIKit's calling convention:
+    // addChild calls the child's willMove(toParent:), removeFromParent calls
+    // didMove(toParent: nil); containers invoke the other half themselves.
+    public var children: [UIViewController] = []
+    public internal(set) weak var parent: UIViewController?
+    open func addChild(_ childController: UIViewController) {
+        childController.willMove(toParent: self)
+        childController.parent?.children.removeAll { $0 === childController }
+        children.append(childController)
+        childController.parent = self
+    }
+    open func removeFromParent() {
+        parent?.children.removeAll { $0 === self }
+        parent = nil
+        didMove(toParent: nil)
+    }
+    open func willMove(toParent parent: UIViewController?) {}
+    open func didMove(toParent parent: UIViewController?) {}
+
+    // Presentation. Model-level: tracks the presented/presenting relationship
+    // and runs completions synchronously (there is no transition animation to
+    // wait for); nothing reaches the screen until a native window layer
+    // chooses to show the presented controller.
+    public internal(set) var presentedViewController: UIViewController?
+    public internal(set) weak var presentingViewController: UIViewController?
+    open func present(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
+        presentedViewController = viewControllerToPresent
+        viewControllerToPresent.presentingViewController = self
+        completion?()
+    }
+    open func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+        if let presented = presentedViewController {
+            presented.presentingViewController = nil
+            presentedViewController = nil
+        } else if let presenter = presentingViewController {
+            presenter.presentedViewController = nil
+            presentingViewController = nil
+        }
+        completion?()
+    }
+    /// Always nil — no interactive/animated transitions exist to coordinate.
+    open var transitionCoordinator: UIViewControllerTransitionCoordinator? { nil }
+
     open func viewDidLoad() {}
-    open func viewWillAppear(_: Bool) {}
-    open func viewDidAppear(_: Bool) {}
-    open func viewWillDisappear(_: Bool) {}
-    open func viewDidDisappear(_: Bool) {}
+    open func viewWillAppear(_ animated: Bool) {}
+    open func viewDidAppear(_ animated: Bool) {}
+    open func viewWillDisappear(_ animated: Bool) {}
+    open func viewDidDisappear(_ animated: Bool) {}
+    open func viewWillLayoutSubviews() {}
+    open func viewDidLayoutSubviews() {}
+    open func viewSafeAreaInsetsDidChange() {}
     open func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {}
     public var traitCollection = UITraitCollection()
     public var navigationController: UINavigationController?
@@ -643,8 +789,25 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public var image: UIImage?
 }
 
-@MainActor public class UILabel: UIView {
+@MainActor open class UILabel: UIView {
     public var text: String?
+    /// MODEL HONESTY: stored independently of `text` (real UIKit derives the
+    /// plain string from it); no text engine consumes either on Linux yet.
+    public var attributedText: NSAttributedString?
+    public var textColor: UIColor! = .label
+    public var numberOfLines: Int = 1
+    // Module-qualified: on macOS this file imports real AppKit alongside
+    // QuillFoundation, and the shared text-layout enums (NSTextLayoutShared.swift)
+    // would tie with AppKit's under unqualified lookup. No-op on Linux.
+    public var lineBreakMode: QuillFoundation.NSLineBreakMode = .byTruncatingTail
+    public var textAlignment: QuillFoundation.NSTextAlignment = .natural
+    /// Recorded but inert: nothing measures or shrinks text on Linux yet.
+    public var adjustsFontSizeToFitWidth = false
+    public var minimumScaleFactor: CGFloat = 0
+    /// Backing store for `font`. The UIFont-typed accessor cannot live here:
+    /// UIFont is declared in the UIKit shim module, which depends on this one,
+    /// so the shim layers `font: UIFont!` over this slot.
+    public var quillFontStorage: AnyObject?
 }
 
 @MainActor public class UIVisualEffectView: UIView {}
@@ -853,18 +1016,9 @@ public extension UIScrollViewDelegate {
     @MainActor func scrollViewDidEndZooming(_: UIScrollView, with view: UIView?, atScale scale: CGFloat) {}
 }
 
-public class UIGestureRecognizer: NSObject {
-    public enum State: Int {
-        case possible
-        case began
-        case changed
-        case ended
-        case cancelled
-        case failed
-    }
-
-    public var state: State = .possible
-}
+// UIGestureRecognizer (base + tap/long-press/pan/pinch recognizers, the
+// delegate protocol, and the UIView add/removeGestureRecognizer extension)
+// lives in UIGestureRecognizers.swift.
 
 public class UIApplicationShortcutItem: NSObject {
     public var type: String = ""

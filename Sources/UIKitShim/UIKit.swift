@@ -438,7 +438,29 @@ public final class NSTextContainer {
     public init() {}
 }
 
-public class UITextRange: NSObject {}
+// UITextRange — a contiguous span of a text field/view's content. The rest of
+// the text-input surface (UITextPosition, UITextInput, UITextField) lives in
+// UITextInput.swift; positions are plain UTF-16 offsets (no layout engine on
+// Linux), so a range is just a normalized offset pair.
+open class UITextRange: NSObject {
+    public let start: UITextPosition
+    public let end: UITextPosition
+    public var isEmpty: Bool { start.quillUTF16Offset == end.quillUTF16Offset }
+
+    public override init() {
+        self.start = UITextPosition()
+        self.end = UITextPosition()
+        super.init()
+    }
+
+    // Module-internal: ranges are minted by the textRange(from:to:) factories,
+    // matching Apple's opaque construction.
+    init(start: UITextPosition, end: UITextPosition) {
+        self.start = start
+        self.end = end
+        super.init()
+    }
+}
 
 @MainActor public protocol UITextViewDelegate: AnyObject {
     func textViewDidBeginEditing(_ textView: UITextView)
@@ -491,6 +513,50 @@ public final class UITextPasteItem {
     public var inlinePredictionType: UITextInlinePredictionType = .default
     public var keyboardType: UIKeyboardType = .default
     public var textColor: UIColor?
+
+    // MARK: Text-input surface (protocols + trait types in UITextInput.swift)
+    //
+    // `text` is the plain-string view of `attributedText` (Apple couples them;
+    // attributes are dropped on a plain-text write, matching a styled-storage
+    // rewrite). `selectedTextRange` is the UITextRange view over the stored
+    // `selectedRange`, declared in the class body — not an extension — because
+    // SignalUI subclasses override it (LinkingTextView; BodyRangesTextView
+    // overrides `text`). The input traits are faithful STATE: no keyboard,
+    // autocorrect, or Writing Tools engine consumes them on Linux yet.
+
+    open var text: String! {
+        get { attributedText.string }
+        set { attributedText = NSAttributedString(string: newValue ?? "") }
+    }
+
+    open var selectedTextRange: UITextRange? {
+        get {
+            UITextRange(
+                start: UITextPosition(quillUTF16Offset: selectedRange.location),
+                end: UITextPosition(quillUTF16Offset: selectedRange.location + selectedRange.length)
+            )
+        }
+        set {
+            guard let newValue else {
+                // Apple's nil means "no selection"; the NSRange model's closest
+                // honest equivalent is a collapsed caret at the start.
+                selectedRange = NSRange(location: 0, length: 0)
+                return
+            }
+            selectedRange = NSRange(
+                location: newValue.start.quillUTF16Offset,
+                length: newValue.end.quillUTF16Offset - newValue.start.quillUTF16Offset
+            )
+        }
+    }
+
+    public var keyboardAppearance: UIKeyboardAppearance = .default
+    public var spellCheckingType: UITextSpellCheckingType = .default
+    public var isSecureTextEntry = false
+    public var linkTextAttributes: [NSAttributedString.Key: Any] = [:]
+    public var textContentType: UITextContentType!
+    public var writingToolsBehavior: UIWritingToolsBehavior = .default
+    public weak var inputDelegate: (any UITextInputDelegate)?
 
     open func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)

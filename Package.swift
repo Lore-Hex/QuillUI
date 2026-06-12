@@ -2234,9 +2234,18 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "SwiftUI", "Photos", "ContactsUI", "MediaPlayer", "MetalKit", "Vision",
                 "NaturalLanguage", "CoreServices", "Logging", "MobileCoin",
                 "LibMobileCoin", "SDWebImage", "PureLayout", "Lottie", "BonMot",
+                // Full import closure of SignalUI's 270 files (census via
+                // grep of attributed+plain imports): AVKit (ConversationPicker
+                // video previews), WebKit (CaptchaView's WKWebView), CoreImage
+                // (image pipeline), SignalRingRTC (calling type-shim, same one
+                // SSK builds against).
+                "AVKit", "WebKit", "CoreImage", "SignalRingRTC",
                 .product(name: "GRDB", package: "GRDB.swift"),
             ],
             path: ".upstream/signal-ios/SignalUI",
+            // Same concurrency posture as the AppKit shadow + SSK: Signal's
+            // UIKit-era code predates strict concurrency; the shims' @MainActor
+            // annotations otherwise reject thousands of legal UIKit-style calls.
             exclude: [
                 "SignalUI.h",
                 "UIKitExtensions/UIButton+DeprecationWorkaround.h",
@@ -2251,7 +2260,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "UIKitExtensions/UIStackView+SignalUITest.swift",
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal"])]
         )
     ]
 }
@@ -2517,7 +2526,11 @@ targets.append(contentsOf: [
     .target(name: "Logging", dependencies: [], path: "Sources/Logging"),
     .target(name: "MobileCoin", dependencies: [], path: "Sources/MobileCoin"),
     .target(name: "LibMobileCoin", dependencies: [], path: "Sources/LibMobileCoin"),
-    .target(name: "PureLayout", dependencies: [], path: "Sources/PureLayout"),
+    // PureLayout extends QuillUIKit's UIView with constraints built from its
+    // anchor factories, and its insets-taking API uses the UIKit shim's
+    // UIEdgeInsets -- hence the dependency on the UIKit umbrella (which
+    // @_exported-re-exports QuillUIKit).
+    .target(name: "PureLayout", dependencies: ["UIKit"], path: "Sources/PureLayout"),
     .target(name: "Lottie", dependencies: [], path: "Sources/Lottie"),
     .target(name: "BonMot", dependencies: [], path: "Sources/BonMot"),
     .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),

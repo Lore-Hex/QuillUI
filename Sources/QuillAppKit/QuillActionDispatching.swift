@@ -32,17 +32,23 @@
 
 import QuillFoundation
 
-public protocol QuillActionDispatching: QuillSelectorDispatching {
-    /// Invoke the action identified by `selector`, passing the firing control as
-    /// `sender`. The lowering generates an implementation that switches on
-    /// `selector.name` and forwards `sender` to 1-arg (`@objc func foo(sender:)`)
-    /// actions; the default is a no-op so a conforming type with no matching case
-    /// fails safe rather than trapping.
-    func quillPerform(_ selector: Selector, with sender: Any?)
-}
-
-public extension QuillActionDispatching {
-    func quillPerform(_ selector: Selector, with sender: Any?) {}
-}
+// CANONICAL DECLARATION MOVED to QuillFoundation/QuillActionDispatching.swift.
+//
+// Why: the generated conformance's `quillPerform(_ selector: Selector, …)`
+// signature references `Selector`, which on Linux originates in
+// QuillFoundation — declaring the protocol next to it guarantees that every
+// lowered file that can resolve `Selector` also resolves the protocol. That
+// includes UIKit-flavored lowered code (Signal-iOS's SignalUI) which never
+// imports the AppKit shadow, but reaches QuillFoundation through the
+// `@_exported` chains of UIKit / MediaPlayer / SignalServiceKit.
+//
+// This alias keeps the name visible to AppKit-flavored consumers (the
+// `NSControl`/`NSMenuItem` `quillPerform` dispatch in QuillAppKit.swift, plus
+// WireGuard's generated conformances). One canonical type + a typealias is
+// the non-ambiguous shape (LESSONS.md: same-named public types across visible
+// modules are ambiguous; aliases of one canonical type are fine), and a
+// typealias to a protocol works in conformance position
+// (`extension Foo: QuillActionDispatching`).
+public typealias QuillActionDispatching = QuillFoundation.QuillActionDispatching
 
 #endif
