@@ -2535,7 +2535,9 @@ targets.append(contentsOf: [
     // MediaPlayer, MetalKit, Vision, ContactsUI, CoreServices, NaturalLanguage,
     // SDWebImage -- come from the signalAppleFrameworkShims loop above.)
     .target(name: "Logging", dependencies: [], path: "Sources/Logging"),
-    .target(name: "MobileCoin", dependencies: [], path: "Sources/MobileCoin"),
+    // MobileCoin's HttpRequester protocol signature uses LibMobileCoin's
+    // HTTPMethod/HTTPResponse (mirroring the real SDK's module split).
+    .target(name: "MobileCoin", dependencies: ["LibMobileCoin"], path: "Sources/MobileCoin"),
     .target(name: "LibMobileCoin", dependencies: [], path: "Sources/LibMobileCoin"),
     // PureLayout extends QuillUIKit's UIView with constraints built from its
     // anchor factories, and its insets-taking API uses the UIKit shim's
