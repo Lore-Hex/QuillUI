@@ -884,27 +884,64 @@ public class UIBarButtonItem: NSObject {
     public var image: UIImage?
 }
 
-@MainActor public class UITableView: UIView {
-    public var rowHeight: CGFloat = 0
+// UITableView/UICollectionView families: open + UIScrollView-rooted (Apple's
+// hierarchy; Signal subclasses both and reads scroll geometry through them).
+// The wider member surface lives in UITableViewExtras.swift /
+// UICollectionViewExtras.swift; only what MUST be class-body (subclass
+// override points, designated inits, stored enum cases) sits here.
+@MainActor open class UITableView: UIScrollView {
+    /// Apple's default is automaticDimension (-1), not 0. (The static lives
+    /// in UITableViewExtras.swift; same-module visibility.)
+    public var rowHeight: CGFloat = UITableView.automaticDimension
+    // init(frame:style:), style, reloadData and the rest of the member
+    // surface live in UITableViewExtras.swift.
 }
 
-@MainActor public class UITableViewCell: UIView {
-    public enum CellStyle: Int { case `default` }
-    public init(style: CellStyle, reuseIdentifier: String?) { super.init() }
+@MainActor open class UITableViewCell: UIView {
+    public enum CellStyle: Int { case `default`, value1, value2, subtitle }
+    public private(set) var reuseIdentifier: String?
+    public required init(style: CellStyle, reuseIdentifier: String?) {
+        super.init()
+        self.reuseIdentifier = reuseIdentifier
+    }
+    public convenience override init() { self.init(style: .default, reuseIdentifier: nil) }
     public var textLabel: UILabel?
     public var detailTextLabel: UILabel?
     public var imageView: UIImageView?
+
+    // Subclass override points (upstream overrides them with super calls).
+    // isSelected/isHighlighted are the side-table accessors in
+    // UITableViewExtras.swift; same-module assignment works from here.
+    open func setSelected(_ selected: Bool, animated: Bool) { isSelected = selected }
+    open func setHighlighted(_ highlighted: Bool, animated: Bool) { isHighlighted = highlighted }
+    open func prepareForReuse() {}
 }
 
-@MainActor public class UICollectionView: UIView {
+@MainActor open class UICollectionView: UIScrollView {
+    public init(frame: CGRect, collectionViewLayout layout: UICollectionViewLayout) {
+        super.init(frame: frame)
+        self.collectionViewLayout = layout
+    }
     public func cellForItem(at: IndexPath) -> UICollectionViewCell? { nil }
+    open func reloadData() {}
 }
 
-@MainActor public class UICollectionViewCell: UIView {
+@MainActor open class UICollectionViewCell: UIView {
     public var contentView = UIView()
     public var backgroundConfiguration: Any?
     public var isHighlighted: Bool = false
     public var isSelected: Bool = false
+
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+        addSubview(contentView)
+    }
+    public convenience override init() { self.init(frame: .zero) }
+    public required init?(coder: NSCoder) {
+        super.init(frame: .zero)
+        addSubview(contentView)
+    }
+    open func prepareForReuse() {}
 }
 
 @MainActor public class UIAlertController: UIViewController {
@@ -1325,8 +1362,12 @@ public class UIStoryboard: NSObject {
 }
 
 public extension IndexPath {
-    var row: Int { return 0 }
-    var section: Int { return 0 }
+    // Real reads over Foundation.IndexPath's [section, row] ordering (UIKit's
+    // outer/inner convention — matches the inits in UICollectionViewExtras
+    // and the SSK port). The old hardcoded zeros silently misrouted every
+    // multi-section table.
+    var row: Int { count >= 2 ? self[1] : 0 }
+    var section: Int { count >= 1 ? self[0] : 0 }
 }
 
 public class NonIntrinsicImageView: UIImageView {}
