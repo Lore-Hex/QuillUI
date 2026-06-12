@@ -1687,3 +1687,61 @@ links (the SSK *target* alone compiles without resolving it).
   (`libsignal_ffi.a` built), `.upstream/wireguard-apple`.
 - Package.swift gates: `signalUpstreamPresent`, `libsignalUpstreamPresent`,
   `nnwUpstreamPresent`; `signalAppleFrameworkShims`; `SignalServiceKit` ~L1489.
+### Build-infra lessons from the 2026-06-12 merge train (CALayer #514 + #519/#524)
+
+**Masked CI reds stack like an onion — diagnose by signature, fix front-to-back.**
+Main was red for THREE independent reasons, each hidden behind the previous
+(fail-fast ordering): NNW upstream drift (ArticlesDatabase closure arity, fixed
+by #519) → LocalizedStringKey ambiguity (IceCubesShims struct vs the Enchanted
+compat typealias added in fd5fdc8d, fixed by #524) → the Enchanted generated-
+package macro-plugin "Corrupted JSON" red (still open, flagged to that effort).
+A PR's failing check means nothing until its failure SIGNATURE is compared
+against main's: pull --log-failed for BOTH, grep for the distinctive error, and
+check whether main's run even REACHED the failing step (a masked red looks
+"absent" on main). pull_request CI builds refs/pull/N/merge — a PR can inherit
+breakage from main commits that postdate its branch.
+
+**Same-named public types across visible modules = ambiguity; same-named
+aliases of ONE canonical type are fine.** The LocalizedStringKey fix: when two
+shim modules must both export a SwiftUI type name, make both `typealias X =
+<same canonical type>` — never a struct in one and an alias in the other.
+
+**apt clang CLOBBERS the Swift toolchain's clang in swift:* images.** The
+swift:6.2-noble image ships Swift's clang 17 at /usr/bin/clang (accepts
+-index-store-path); `apt-get install clang` replaces it with Ubuntu clang 18,
+which rejects the flag — and `swift test` (whose Linux test discovery needs the
+index store) dies with "unknown argument: '-index-store-path'". This is why
+linux-ci.yml says "do NOT apt-install clang". The quillui-signal-build image
+NEEDS apt clang for the SSK C-shim builds, so it cannot run the canonical
+`swift test`; use the dedicated `quillui-ci-test` image (swift:6.2-noble + CI's
+dep list, no clang) for test runs. Deleting /usr/bin/clang doesn't restore the
+toolchain's (dpkg overwrote the file): rebuild from base instead.
+
+**Shared build volumes rot when used across images/flag-sets.** Today's
+casualties in qui-build: stale ObjectiveC/zlib swiftmodules (June 10, canImport
+flips), index-store units desynced from artifacts (mixing --disable-index-store
+invocations with indexed ones), and COpenCombineHelpers modules that survived
+partial purges via build.db's cached plan. Surgical rm of <target>.build +
+Modules/<t>.* is NOT enough once build.db disagrees. Policy: ONE volume per
+(image, flag-set) pair; when a volume acts haunted across two different
+failures, stop doing archaeology and cold-build a fresh volume.
+
+**git merge/rebase hygiene after this week's two incidents:** (1) NEVER
+`git add <dir>` during a conflict stop — a truncated status hid two still-
+conflicted files and the markers got committed and pushed; resolve file-by-file
+and re-grep `^<<<<<<<` over the WHOLE tree before continuing. (2) Auto-merges
+can be semantically wrong with zero conflicts: a 55-line GTK4Backend hunk
+vanished (call sites kept, definitions dropped) and State.swift gained a
+duplicate declaration. For vendored third_party trees, don't merge at all —
+pin to main (`git checkout origin/main -- third_party/...`) unless the branch
+deliberately owns vendored deltas. (3) A denied force-push converts to a
+merge-into-branch flow; verify `git diff <rebase-tip> HEAD` is EMPTY before
+trusting it — ours wasn't, three files diverged.
+
+**Adversarial review of "finished" code pays.** The CALayer implementation
+built green with 836 lines of its own passing tests, yet a 5-lens × verify
+panel confirmed 10 real divergences from Apple semantics (3 major: bounds-
+origin layout invalidation, nested-transaction completion groups, CADisplayLink
+runloop retention) — every one invisible to the tests it shipped with, because
+the tests pinned the implementation's own assumptions (the tests-fidelity lens
+is the one that catches that).
