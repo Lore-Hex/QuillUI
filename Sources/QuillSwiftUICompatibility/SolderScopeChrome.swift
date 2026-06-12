@@ -125,15 +125,14 @@ extension View {
     ) -> BackgroundView<Self, Color> {
         // Scheme-adaptive approximation: on macOS a material over dark video
         // reads as a dark pill with light content (SolderScope's reference
-        // screenshot), over light content as today's light pill. NOTE: the
-        // GTK background path dims CHILDREN at low alphas (verified by
-        // screenshot), so stay near-opaque until the renderer gains an
-        // rgba background-behind-children path; quillApproximationAlpha
-        // documents the intended per-token translucency for that follow-up.
+        // screenshot), over light content as a light pill. Per-token
+        // translucency via the CSS rgba background (renders behind children;
+        // the GTK background path paints the box background only).
         background(
             Color.quillPrefersDarkScheme
-                ? Color(red: 0.11, green: 0.11, blue: 0.125).opacity(0.92)
-                : Color.white.opacity(0.92)
+                ? Color(red: 0.11, green: 0.11, blue: 0.125)
+                    .opacity(0.55 + material.quillApproximationAlpha * 0.45)
+                : Color.white.opacity(0.55 + material.quillApproximationAlpha * 0.45)
         )
     }
 }
@@ -146,11 +145,22 @@ extension View {
 /// QuillGrowingButtonStyle) already build on the Text shape, and Text is a
 /// full View so modifier chains on `configuration.label` compile unchanged.
 public struct ButtonStyleConfiguration {
-    public var label: Text
+    /// The button's REAL label subtree (Apple's opaque Label, erased here) —
+    /// custom styles receive the full Image+Text content, not a Text proxy.
+    public var label: AnyView
     public var isPressed: Bool
 
-    public init(label: Text, isPressed: Bool) {
+    public init(label: AnyView, isPressed: Bool) {
         self.label = label
+        self.isPressed = isPressed
+    }
+
+    // @MainActor: AnyView's erasing init is isolated (whole-protocol View
+    // isolation); only the framework's isolated buttonStyle path constructs
+    // configurations.
+    @MainActor
+    public init(label: some View, isPressed: Bool) {
+        self.label = AnyView(label)
         self.isPressed = isPressed
     }
 }
@@ -174,8 +184,40 @@ extension View {
     /// keeps the built-in `buttonStyle(_: ButtonStyleType)` overload — and
     /// `.buttonStyle(.plain)` call sites — resolving exactly as before.
     public func buttonStyle<S: ButtonStyle>(_ style: S) -> some View {
-        buttonStyle(ButtonStyleType.plain)
+        // Functional custom styles for the direct application every real app
+        // uses (`Button(...) .buttonStyle(MyStyle())`): rebuild the button
+        // with makeBody's output as its label under plain GTK chrome — the
+        // style owns ALL visuals (colors/padding/background), which is how
+        // SolderScope's ToolbarButtonStyle paints its accent-blue active
+        // states. isPressed is currently always false (GtkButton's own
+        // :active pseudo-state still gives press feedback; reactive pressed
+        // restyling needs press-signal plumbing — documented gap).
+        if let button = self as? QuillStyleableButtonRepresentable {
+            return AnyView(
+                Button(action: button.quillStyleableAction) {
+                    style.makeBody(configuration: .init(
+                        label: button.quillStyleableLabel, isPressed: false))
+                }
+                .buttonStyle(ButtonStyleType.plain)
+            )
+        }
+        // Indirect application (container subtrees) keeps the plain fallback.
+        return AnyView(buttonStyle(ButtonStyleType.plain))
     }
+}
+
+/// Type-erased access to a Button's label and action so the generic
+/// `buttonStyle` overload can rebuild it across any `Label` type.
+/// @MainActor: members of main-actor-isolated View types.
+@MainActor
+public protocol QuillStyleableButtonRepresentable {
+    var quillStyleableLabel: AnyView { get }
+    var quillStyleableAction: () -> Void { get }
+}
+
+extension Button: QuillStyleableButtonRepresentable {
+    public var quillStyleableLabel: AnyView { AnyView(label) }
+    public var quillStyleableAction: () -> Void { action }
 }
 
 // MARK: - ButtonRole (moved from QuillUI)
