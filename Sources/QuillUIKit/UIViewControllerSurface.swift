@@ -509,7 +509,7 @@ extension UISearchBarDelegate {
         super.init()
     }
 
-    public convenience init() {
+    public convenience override init() {
         self.init(searchResultsController: nil)
     }
 }
