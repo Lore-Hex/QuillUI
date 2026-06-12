@@ -794,7 +794,13 @@ public class SLComposeSheetConfigurationItem: NSObject {
     /// MODEL HONESTY: stored independently of `text` (real UIKit derives the
     /// plain string from it); no text engine consumes either on Linux yet.
     public var attributedText: NSAttributedString?
+    // Platform-gated: on macOS UIColor aliases real NSColor, which spells
+    // this semantic color `labelColor`; only the Linux RSColor has `label`.
+    #if os(macOS)
+    public var textColor: UIColor! = .labelColor
+    #else
     public var textColor: UIColor! = .label
+    #endif
     public var numberOfLines: Int = 1
     // Module-qualified: on macOS this file imports real AppKit alongside
     // QuillFoundation, and the shared text-layout enums (NSTextLayoutShared.swift)
