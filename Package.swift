@@ -493,7 +493,13 @@ let wrappingHStackDependencies: [Target.Dependency] = [
     .product(name: "CGTKBridge", package: "SwiftOpenUI"),
 ]
 #else
-let wrappingHStackDependencies: [Target.Dependency] = ["SwiftUI"]
+let wrappingHStackDependencies: [Target.Dependency] = []
+#endif
+
+#if os(Linux)
+let swiftUIIntrospectDependencies: [Target.Dependency] = ["SwiftUI"]
+#else
+let swiftUIIntrospectDependencies: [Target.Dependency] = []
 #endif
 
 #if os(Linux)
@@ -1069,7 +1075,7 @@ var targets: [Target] = [
     ),
     .target(name: "LRUCache", dependencies: [], path: "Sources/LRUCache"),
     .target(name: "Bodega", dependencies: [], path: "Sources/Bodega"),
-    .target(name: "SwiftUIIntrospect", dependencies: ["SwiftUI"], path: "Sources/SwiftUIIntrospect"),
+    .target(name: "SwiftUIIntrospect", dependencies: swiftUIIntrospectDependencies, path: "Sources/SwiftUIIntrospect"),
     .target(
         name: "QuillEnchantedShared",
         dependencies: ["QuillEnchantedData", "QuillFoundation"],
