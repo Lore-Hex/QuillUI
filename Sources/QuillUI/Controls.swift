@@ -787,7 +787,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
                 }
             }
         }
-        .scrollIndicators(Visibility.hidden)
+        .scrollIndicators(.hidden)
         .onAppear { applyInitialSelectionIfNeeded() }
     }
 
