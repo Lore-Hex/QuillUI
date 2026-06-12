@@ -2261,7 +2261,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "UIKitExtensions/UIStackView+SignalUITest.swift",
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
-            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal"])]
+            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
         )
     ]
 }
