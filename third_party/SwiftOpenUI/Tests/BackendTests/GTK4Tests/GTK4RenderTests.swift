@@ -2062,6 +2062,41 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testFlexibleWidthFixedHeightResizableImageMeasuresToFrameHeight() throws {
+        try requireGTK()
+
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("screenshots/linux/showcase-LayoutStress.png")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: fixture.path),
+            "Expected image fixture at \(fixture.path)."
+        )
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            Image(filePath: fixture.path)
+                .resizable()
+                .scaledToFill()
+                .frame(height: 100)
+                .frame(maxWidth: .infinity)
+                .clipped()
+        ))
+
+        var heightMin: Int32 = 0
+        var heightNat: Int32 = 0
+        gtk_swift_widget_measure(wrapper, GTK_ORIENTATION_VERTICAL, 600, &heightMin, &heightNat)
+
+        XCTAssertEqual(heightMin, 100, accuracy: 1)
+        XCTAssertEqual(
+            heightNat,
+            100,
+            accuracy: 1,
+            "A fixed-height flexible-width image frame must not let the bitmap's natural height inflate List/Form rows."
+        )
+    }
+
     func testFrameMinHeightCenteringHelpersAreMarked() throws {
         try requireGTK()
 

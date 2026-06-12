@@ -2024,6 +2024,12 @@ extension FrameView: GTKRenderable, GTKDescribable {
 
         let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
         let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+        if widthMayGrowWithParent && !heightMayGrowWithParent && childExpV {
+            return gtkFrameFlexibleWidthFixedHeightClip(
+                child: child,
+                height: gtkPixelSize(layout.containerSize.height)
+            )
+        }
         gtk_widget_set_size_request(wrapper, requestWidth, requestHeight)
         if childExpH || childExpV {
             gtk_widget_set_size_request(
@@ -2069,7 +2075,7 @@ extension FrameView: GTKRenderable, GTKDescribable {
 
         if childExpV {
             gtk_widget_set_valign(child, GTK_ALIGN_FILL)
-            gtk_widget_set_vexpand(child, 1)
+            gtk_widget_set_vexpand(child, heightMayGrowWithParent ? 1 : 0)
             gtk_box_append(boxPointer(wrapper), child)
             return opaqueFromWidget(wrapper)
         }
@@ -2129,6 +2135,36 @@ extension FrameView: GTKRenderable, GTKDescribable {
         }
 
         return opaqueFromWidget(wrapper)
+    }
+
+    private func gtkFrameFlexibleWidthFixedHeightClip(
+        child: UnsafeMutablePointer<GtkWidget>,
+        height: gint
+    ) -> OpaquePointer {
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+        gtk_scrolled_window_set_min_content_height(scrolledOp, height)
+        gtk_scrolled_window_set_max_content_height(scrolledOp, height)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+
+        gtk_widget_set_hexpand(scrolled, 1)
+        gtk_widget_set_vexpand(scrolled, 0)
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_vexpand(child, 0)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(child, -1, height)
+        gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: true,
+            fillHeight: false
+        )
+        return opaqueFromWidget(scrolled)
     }
 
     /// Build a frame wrapper using GtkBox instead of GtkFixed, for frames

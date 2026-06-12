@@ -1976,6 +1976,85 @@ if has_fixed_frame_clip_region and fixed_frame_box_clipping not in text:
         raise SystemExit("SwiftOpenUI fixed-frame child append shape was not recognized")
     text = text.replace(old_fixed_unclipped_append, new_fixed_unclipped_append, 1)
 
+fixed_frame_flexible_width_fixed_height_clip = "gtkFrameFlexibleWidthFixedHeightClip"
+if has_fixed_frame_clip_region and fixed_frame_flexible_width_fixed_height_clip not in text:
+    old_parent_flexible_request = '''        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
+        let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+        gtk_widget_set_size_request(wrapper, requestWidth, requestHeight)
+'''
+    new_parent_flexible_request = '''        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
+        let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+        if widthMayGrowWithParent && !heightMayGrowWithParent && childExpV {
+            return gtkFrameFlexibleWidthFixedHeightClip(
+                child: child,
+                height: gtkPixelSize(layout.containerSize.height)
+            )
+        }
+        gtk_widget_set_size_request(wrapper, requestWidth, requestHeight)
+'''
+    if old_parent_flexible_request not in text:
+        raise SystemExit("SwiftOpenUI parent-flexible frame request shape was not recognized")
+    text = text.replace(old_parent_flexible_request, new_parent_flexible_request, 1)
+
+    old_parent_flexible_child_expansion = '''        if childExpV {
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+            gtk_widget_set_vexpand(child, 1)
+            gtk_box_append(boxPointer(wrapper), child)
+            return opaqueFromWidget(wrapper)
+        }
+'''
+    new_parent_flexible_child_expansion = '''        if childExpV {
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+            gtk_widget_set_vexpand(child, heightMayGrowWithParent ? 1 : 0)
+            gtk_box_append(boxPointer(wrapper), child)
+            return opaqueFromWidget(wrapper)
+        }
+'''
+    if old_parent_flexible_child_expansion not in text:
+        raise SystemExit("SwiftOpenUI parent-flexible child vexpand shape was not recognized")
+    text = text.replace(old_parent_flexible_child_expansion, new_parent_flexible_child_expansion, 1)
+
+    fixed_height_clip_helper_anchor = '''    /// Build a frame wrapper using GtkBox instead of GtkFixed, for frames
+'''
+    fixed_height_clip_helper = '''    private func gtkFrameFlexibleWidthFixedHeightClip(
+        child: UnsafeMutablePointer<GtkWidget>,
+        height: gint
+    ) -> OpaquePointer {
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+        gtk_scrolled_window_set_min_content_height(scrolledOp, height)
+        gtk_scrolled_window_set_max_content_height(scrolledOp, height)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+
+        gtk_widget_set_hexpand(scrolled, 1)
+        gtk_widget_set_vexpand(scrolled, 0)
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_vexpand(child, 0)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(child, -1, height)
+        gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: true,
+            fillHeight: false
+        )
+        return opaqueFromWidget(scrolled)
+    }
+
+'''
+    if fixed_height_clip_helper_anchor not in text:
+        raise SystemExit("SwiftOpenUI flexible-width fixed-height frame helper anchor was not recognized")
+    text = text.replace(
+        fixed_height_clip_helper_anchor,
+        fixed_height_clip_helper + fixed_height_clip_helper_anchor,
+        1,
+    )
+
 padded_view_child_fill = "PaddedView must let expanding content fill its margin wrapper"
 has_padded_view_region = (
     "extension PaddedView" in text
