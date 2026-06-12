@@ -155,6 +155,9 @@ void quill_qt_grid_container_add_child(
 // that mutates @State and triggers the rebuild).
 void quill_qt_bridge_widget_delete_children(QuillQtWidgetHandle parent);
 
+// Delete a single widget with deleteLater().
+void quill_qt_bridge_widget_delete(QuillQtWidgetHandle widget);
+
 // Set a widget's geometry (x, y, width, height) in its parent's coordinates.
 void quill_qt_bridge_widget_set_geometry(
     QuillQtWidgetHandle widget,
@@ -370,6 +373,12 @@ void quill_qt_bridge_widget_set_stylesheet(
 // Show / hide a widget. Showing the top-level window starts it displaying.
 void quill_qt_bridge_widget_show(QuillQtWidgetHandle widget);
 void quill_qt_bridge_widget_set_visible(QuillQtWidgetHandle widget, int visible);
+
+// Render a widget and its descendants to a PNG via QWidget::grab().
+int quill_qt_bridge_widget_grab_png(
+    QuillQtWidgetHandle widget,
+    const char *path
+);
 
 // --- Measurement -----------------------------------------------------------
 //

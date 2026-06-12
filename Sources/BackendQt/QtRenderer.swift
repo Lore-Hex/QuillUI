@@ -45,6 +45,49 @@ public protocol QtMultiChildRenderable {
 /// `gtkSwiftSpacerMarker`.
 let qtSwiftSpacerObjectName = "quill-qt-spacer"
 
+// MARK: - Stateful view / external mount identity
+
+private var qtStateTypeCounters: [String: [String: Int]] = [:]
+private var qtMountTypeCounters: [String: [String: Int]] = [:]
+private var qtForcedStateIdentityNamespace: String?
+
+func qtStateIdentityNamespace() -> String {
+    qtForcedStateIdentityNamespace ?? "root"
+}
+
+public func qtBeginStateIdentityPass() {
+    let namespace = qtStateIdentityNamespace()
+    qtStateTypeCounters[namespace] = [:]
+    qtMountTypeCounters[namespace] = [:]
+}
+
+public func qtMountIdentity(for type: Any.Type) -> String {
+    let namespace = qtStateIdentityNamespace()
+    let typeName = String(reflecting: type)
+    var counters = qtMountTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    qtMountTypeCounters[namespace] = counters
+    return "\(namespace)|mount|\(typeName)#\(index)"
+}
+
+func qtWithForcedStateIdentityNamespace<T>(_ namespace: String, _ body: () -> T) -> T {
+    let previous = qtForcedStateIdentityNamespace
+    qtForcedStateIdentityNamespace = namespace
+    defer { qtForcedStateIdentityNamespace = previous }
+    return body()
+}
+
+private func qtStateCacheKey<V>(for view: V) -> String {
+    let namespace = qtStateIdentityNamespace()
+    let typeName = String(reflecting: type(of: view))
+    var counters = qtStateTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    qtStateTypeCounters[namespace] = counters
+    return "\(namespace)::\(typeName)#\(index)"
+}
+
 // MARK: - Pointer helpers
 
 /// CQtBridge surfaces every handle as a C `void *`, which Swift imports as
@@ -159,6 +202,7 @@ func qtRenderExpandedChildren(_ children: [any View]) -> [OpaquePointer] {
 /// Wrap a reactive composite view in a QtViewHost and return its container.
 func qtRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
     let host = QtViewHost { qtRenderView(view.body) }
+    host.stateIdentityNamespace = qtStateCacheKey(for: view)
     installState(view, host: host)
     host.performInitialBuild()
     return host.container
