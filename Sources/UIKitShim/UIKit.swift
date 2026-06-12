@@ -314,69 +314,7 @@ public extension UIColor {
     static let placeholderText = RSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
 }
 
-public class NSItemProvider: NSObject {
-    public let suggestedName: String?
-    private let fileURL: URL?
-    private let object: Any?
-
-    public init?(contentsOf url: URL) {
-        self.fileURL = url
-        self.object = nil
-        self.suggestedName = url.lastPathComponent
-        super.init()
-    }
-
-    public init(object: Any) {
-        self.fileURL = nil
-        self.object = object
-        self.suggestedName = nil
-        super.init()
-    }
-
-    public override init() {
-        self.fileURL = nil
-        self.object = nil
-        self.suggestedName = nil
-        super.init()
-    }
-
-    public func registeredContentTypes(conformingTo contentType: UTType) -> [UTType] {
-        guard let url = fileURL,
-              let type = UTType(filenameExtension: url.pathExtension),
-              type.conforms(to: contentType)
-        else { return [] }
-        return [type]
-    }
-
-    public var registeredTypeIdentifiers: [String] {
-        guard let url = fileURL,
-              let type = UTType(filenameExtension: url.pathExtension)
-        else { return [] }
-        return [type.identifier]
-    }
-
-    public func loadItem(
-        forTypeIdentifier typeIdentifier: String,
-        options: [AnyHashable: Any]? = nil,
-        completionHandler: @escaping (Any?, Error?) -> Void
-    ) {
-        _ = typeIdentifier
-        _ = options
-        completionHandler(fileURL ?? object, nil)
-    }
-
-    @discardableResult
-    public func loadTransferable<T: Transferable>(
-        type: T.Type,
-        completionHandler: @escaping (Result<T?, Error>) -> Void
-    ) -> Progress {
-        _ = type
-        completionHandler(.success(nil))
-        return Progress(totalUnitCount: 1)
-    }
-}
-
-public enum UIKeyboardType: Sendable {
+public enum UIKeyboardType: Hashable, Sendable {
     case `default`
     case asciiCapable
     case numbersAndPunctuation

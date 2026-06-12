@@ -3,8 +3,11 @@ import Foundation
 import SwiftUI
 #else
 import SwiftOpenUI
+import QuillSwiftUICompatibility
 import QuillKit
 import QuillFoundation
+import CoreTransferable
+import UIKit
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -36,73 +39,6 @@ public extension UTType {
     }
 }
 #endif
-
-public final class NSItemProvider: @unchecked Sendable {
-    private enum Representation {
-        case data(Data, UTType)
-        case file(URL, UTType?)
-    }
-
-    private let representations: [Representation]
-
-    public init() {
-        self.representations = []
-    }
-
-    public init(fileURL: URL) {
-        self.representations = [.file(fileURL, UTType.type(for: fileURL))]
-    }
-
-    public convenience init(contentsOf url: URL) {
-        self.init(fileURL: url)
-    }
-
-    public init(data: Data, type: UTType) {
-        self.representations = [.data(data, type)]
-    }
-
-    public func loadDataRepresentation(
-        for contentType: UTType,
-        completionHandler: @escaping (Data?, Error?) -> Void
-    ) -> Progress? {
-        for representation in representations {
-            switch representation {
-            case .data(let data, let type) where type.conforms(to: contentType):
-                completionHandler(data, nil)
-                return nil
-            case .file(let url, let type) where type?.conforms(to: contentType) == true || contentType.accepts(url: url):
-                do {
-                    completionHandler(try Data(contentsOf: url), nil)
-                } catch {
-                    completionHandler(nil, error)
-                }
-                return nil
-            default:
-                continue
-            }
-        }
-        completionHandler(nil, QuillCompatibilityError.representationUnavailable(contentType.identifier))
-        return nil
-    }
-}
-
-public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
-    case representationUnavailable(String)
-    case fileSelectionUnavailable
-    case unsupportedFileSelection(URL, [UTType])
-
-    public var errorDescription: String? {
-        switch self {
-        case .representationUnavailable(let identifier):
-            return "No data representation is available for \(identifier)."
-        case .fileSelectionUnavailable:
-            return "No file selection provider is available."
-        case .unsupportedFileSelection(let url, let allowedTypes):
-            let allowed = allowedTypes.map(\.identifier).joined(separator: ", ")
-            return "\(url.path) is not one of the allowed file types: \(allowed)."
-        }
-    }
-}
 
 public enum QuillFileImporter {
     private static let environmentKey = "QUILLUI_FILE_IMPORTER_SELECTION"
@@ -209,26 +145,6 @@ public struct Material: Sendable {
     public static let regularMaterial = Material()
     public static let thickMaterial = Material()
     public static let ultraThickMaterial = Material()
-}
-
-@propertyWrapper
-public struct Namespace: Sendable {
-    public struct ID: Hashable, Sendable {
-        private let rawValue = UUID()
-
-        public init() {}
-    }
-
-    private var id: ID
-
-    public init() {
-        self.id = ID()
-    }
-
-    public var wrappedValue: ID {
-        get { id }
-        set { id = newValue }
-    }
 }
 
 // `FocusState` was previously declared here as a Binding-projecting
@@ -584,15 +500,7 @@ public struct TextContentType: Hashable, Sendable {
     public static let URL = TextContentType("URL")
 }
 
-public struct KeyboardType: Hashable, Sendable {
-    public var rawValue: String
-
-    public init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let URL = KeyboardType("URL")
-}
+public typealias KeyboardType = UIKeyboardType
 
 public struct TextInputAutocapitalization: Hashable, Sendable {
     public var rawValue: String
@@ -1157,12 +1065,28 @@ public extension View {
         return ContentShapeView(content: self, shape: shape)
     }
 
+    func allowsHitTesting(_ enabled: Bool) -> AllowsHitTestingView<Self> {
+        recordQuillUIFallback(
+            "allowsHitTesting",
+            message: "allowsHitTesting is preserved as hit-testing metadata on Linux."
+        )
+        return AllowsHitTestingView(content: self, enabled: enabled)
+    }
+
     func onHover(perform action: @escaping (Bool) -> Void) -> OnHoverView<Self> {
         recordQuillUIFallback(
             "onHover",
             message: "onHover is preserved as hover handler metadata on Linux."
         )
         return OnHoverView(content: self, action: action)
+    }
+
+    func transition(_ transition: AnyTransition) -> TransitionView<Self> {
+        recordQuillUIFallback(
+            "transition",
+            message: "transition is preserved as transition metadata on Linux."
+        )
+        return TransitionView(content: self, transition: transition)
     }
 
     func offset(_ size: CGSize) -> OffsetView<Self> {
@@ -1419,17 +1343,6 @@ public extension View {
         }
     }
 
-    func matchedGeometryEffect<ID: Hashable>(
-        id: ID,
-        in namespace: Namespace.ID
-    ) -> AnimatedView<Self> {
-        recordQuillUIFallback(
-            "matchedGeometryEffect",
-            message: "matchedGeometryEffect is approximated with value-driven animation on Linux."
-        )
-        return animation(.easeInOut(duration: 0.2), value: AnyHashable(id))
-    }
-
     @ViewBuilder
     func buttonStyle<S: ButtonStyle>(_ style: S) -> some View {
         recordQuillUIFallbackView(
@@ -1530,6 +1443,7 @@ public extension View {
         onChange(of: value) { _, _ in action() }
     }
 
+    @_disfavoredOverload
     func confirmationDialog<Actions: View, Message: View>(
         _ title: String,
         isPresented: Binding<Bool>,

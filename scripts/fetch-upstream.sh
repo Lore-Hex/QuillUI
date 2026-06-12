@@ -1911,6 +1911,78 @@ for path in account_dir.rglob("*.swift"):
 print("patched NetNewsWire Account Linux lowering")
 PY
     fi
+
+    local shared_dir="$UPSTREAM_DIR/netnewswire/Shared"
+    if [[ -d "$shared_dir" ]] && grep -rqE 'NSSortDescriptor\(key:|sortDescriptor(\?)?\.key' "$shared_dir" 2>/dev/null; then
+        echo "==> lowering netnewswire Shared Foundation compatibility"
+        ( cd "$ROOT_DIR" && swift run quill-lower-foundation "$shared_dir" )
+    fi
+
+    local article_utilities="$shared_dir/Extensions/ArticleUtilities.swift"
+    if [[ -f "$article_utilities" ]] && grep -qE '^import Images|func iconImage\(' "$article_utilities"; then
+        echo "==> lowering netnewswire Shared ArticleUtilities image-cache island"
+        python3 - "$article_utilities" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("import Images\n", "")
+src = re.sub(
+    r"\n\tfunc iconImage\(\) -> IconImage\? \{\n\t\treturn IconImageCache\.shared\.imageForArticle\(self\)\n\t\}\n\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{\n\t\tif let image = iconImage\(\) \{\n\t\t\tlet fm = FileManager\.default\n\t\t\tvar path = fm\.urls\(for: \.cachesDirectory, in: \.userDomainMask\)\[0\]\n\t\t\tlet feedID = feed\.feedID\.replacingOccurrences\(of: \"/\", with: \"_\"\)\n\t\t\tpath\.appendPathComponent\(feedID \+ \"_smallIcon\.png\"\)\n\t\t\tfm\.createFile\(atPath: path\.path, contents: image\.image\.dataRepresentation\(\)!, attributes: nil\)\n\t\t\treturn path\n\t\t\} else \{\n\t\t\treturn nil\n\t\t\}\n\t\}\n",
+    "\n",
+    src,
+    count=1,
+)
+path.write_text(src)
+print("patched ArticleUtilities without Images/IconImageCache dependency")
+PY
+    fi
+
+    local article_sorter="$shared_dir/Timeline/ArticleSorter.swift"
+    if [[ -f "$article_sorter" ]] && grep -qE 'feedNameFor: \(Article\) -> String|\.sorted \{' "$article_sorter"; then
+        echo "==> lowering netnewswire Shared ArticleSorter for Swift 6 Linux"
+        python3 - "$article_sorter" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "feedNameFor: (Article) -> String = { $0.sortableFeedName }",
+    "feedNameFor: @MainActor (Article) -> String = { $0.sortableFeedName }",
+)
+src = src.replace(
+    "feedNameFor: (Article) -> String) -> [Article]",
+    "feedNameFor: @MainActor (Article) -> String) -> [Article]",
+)
+src = src.replace(".sorted { lhs, rhs in", ".sorted(by: { lhs, rhs in")
+src = src.replace(
+    """\t\t\t\tcase .orderedSame: lhs.feedID < rhs.feedID
+\t\t\t\t}
+\t\t\t}
+\t\t\t.flatMap""",
+    """\t\t\t\tcase .orderedSame: lhs.feedID < rhs.feedID
+\t\t\t\t}
+\t\t\t})
+\t\t\t.flatMap""",
+)
+src = src.replace("articles.sorted { article1, article2 in", "articles.sorted(by: { article1, article2 in")
+src = src.replace(
+    """\t\t\t} else {
+\t\t\t\tarticle1.logicalDatePublished < article2.logicalDatePublished
+\t\t\t}
+\t\t}""",
+    """\t\t\t} else {
+\t\t\t\tarticle1.logicalDatePublished < article2.logicalDatePublished
+\t\t\t}
+\t\t})""",
+)
+path.write_text(src)
+print("patched ArticleSorter actor/default-closure and sorted(by:) lowering")
+PY
+    fi
 }
 
 want=("$@")

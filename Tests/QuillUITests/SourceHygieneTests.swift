@@ -49,7 +49,10 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = ["))
         #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
-        #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + [\n        .library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"]),\n        .executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
+        #expect(manifest.contains("products += ["))
+        #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
+        #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
+        #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target"))
         #expect(manifest.contains("dependencies: [app.qtRuntime.targetDependency]"))
         #expect(manifest.contains("path: app.qtPath"))
@@ -130,7 +133,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("""
                 "KeychainSwift",
                 "UIKit",
-            ],
+                "CryptoKit",
 """))
     }
 
@@ -549,7 +552,7 @@ struct SourceHygieneTests {
         // The SwiftUI shadow now mirrors Apple's macOS re-export topology
         // (AppKit + Combine) and carries the gtk-graph-only representable
         // mount via swiftUIShadowMountDependencies.
-        #expect(manifest.contains("\"QuillUI\", \"QuillSwiftUICompatibility\", \"AppKit\", \"Combine\","))
+        #expect(manifest.contains("\"QuillUI\", \"QuillSwiftUICompatibility\", \"AppKit\", \"UIKit\", \"CoreImage\", \"CoreTransferable\", \"Combine\","))
         #expect(manifest.contains("] + swiftUIShadowMountDependencies"))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
@@ -575,7 +578,7 @@ struct SourceHygieneTests {
         )
 
         #expect(rendererSource.contains("ImageRendererBackend.installViewRenderer"))
-        #expect(compatibilitySource.contains("let renderer = SwiftOpenUI.ImageRenderer(content: self)"))
+        #expect(compatibilitySource.contains("let renderer = SwiftOpenUI.OpenUIImageRenderer(content: self)"))
         #expect(compatibilitySource.contains("if let data = renderer.platformImage?.data"))
         #expect(compatibilitySource.contains("let image = PlatformImage(data: data)"))
         #expect(!compatibilitySource.contains("if let image = renderer.platformImage {\n            return image"))

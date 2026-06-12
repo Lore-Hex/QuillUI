@@ -159,10 +159,6 @@ public extension Notification.Name {
     /// so notifications posted from either side route the same.
     static let lowMemory = Notification.Name("LowMemoryNotification")
 
-    /// Posted when the app moves to the background. Linux app backends can emit
-    /// it when they gain lifecycle hooks; Account uses it to empty caches.
-    static let appDidGoToBackground = Notification.Name("AppDidGoToBackgroundNotification")
-
     /// Posted when a coalesced model mutation batch completes.
     static let BatchUpdateDidPerform = Notification.Name(rawValue: "BatchUpdateDidPerform")
 }
@@ -222,84 +218,6 @@ public let NSUbiquitousKeyValueStoreServerChange = 0
 public let NSUbiquitousKeyValueStoreInitialSyncChange = 1
 public let NSUbiquitousKeyValueStoreQuotaViolationChange = 2
 public let NSUbiquitousKeyValueStoreAccountChange = 3
-
-public final class NSUbiquitousKeyValueStore: @unchecked Sendable {
-    public static let `default` = NSUbiquitousKeyValueStore()
-    public static let didChangeExternallyNotification = Notification.Name("NSUbiquitousKeyValueStoreDidChangeExternallyNotification")
-
-    private let lock = NSLock()
-    private var storage = [String: Any]()
-
-    public init() {}
-
-    public func set(_ value: Any?, forKey key: String) {
-        lock.lock()
-        storage[key] = value
-        lock.unlock()
-    }
-
-    public func set(_ value: Bool, forKey key: String) {
-        set(value as Any, forKey: key)
-    }
-
-    public func set(_ value: Double, forKey key: String) {
-        set(value as Any, forKey: key)
-    }
-
-    public func set(_ value: Int64, forKey key: String) {
-        set(value as Any, forKey: key)
-    }
-
-    public func object(forKey key: String) -> Any? {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage[key]
-    }
-
-    public func data(forKey key: String) -> Data? {
-        object(forKey: key) as? Data
-    }
-
-    public func string(forKey key: String) -> String? {
-        object(forKey: key) as? String
-    }
-
-    public func array(forKey key: String) -> [Any]? {
-        object(forKey: key) as? [Any]
-    }
-
-    public func dictionary(forKey key: String) -> [String: Any]? {
-        object(forKey: key) as? [String: Any]
-    }
-
-    public func bool(forKey key: String) -> Bool {
-        object(forKey: key) as? Bool ?? false
-    }
-
-    public func double(forKey key: String) -> Double {
-        object(forKey: key) as? Double ?? 0
-    }
-
-    public func longLong(forKey key: String) -> Int64 {
-        object(forKey: key) as? Int64 ?? 0
-    }
-
-    public func removeObject(forKey key: String) {
-        lock.lock()
-        storage[key] = nil
-        lock.unlock()
-    }
-
-    public var dictionaryRepresentation: [String: Any] {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage
-    }
-
-    @discardableResult public func synchronize() -> Bool {
-        true
-    }
-}
 
 /// Pure-Swift MD5 implementation (RFC 1321). The intent is to
 /// match the output of upstream RSCore's CryptoKit-backed

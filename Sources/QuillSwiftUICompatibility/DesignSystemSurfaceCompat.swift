@@ -1,6 +1,17 @@
 import Foundation
 import Combine
+import QuillFoundation
+import QuillKit
 import SwiftOpenUI
+
+private func recordSwiftUICompatibilityFallback(_ operation: String, message: String? = nil) {
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "QuillUI",
+        operation: operation,
+        severity: .info,
+        message: message ?? "\(operation) is currently a source-compatibility fallback on Linux."
+    )
+}
 
 public protocol PreviewProvider {
     associatedtype Previews: View
@@ -465,7 +476,9 @@ private func quillCompactNumberString(_ value: Double, fractionLength: Int?) -> 
 
     let scaled = absolute / scale.divisor
     let digits = fractionLength ?? (scaled < 100 ? 1 : 1)
-    var formatted = String(format: "%.\(digits)f", locale: Locale(identifier: "en_US_POSIX"), scaled)
+    let multiplier = pow(10, Double(digits))
+    let rounded = ((scaled * multiplier) + 1e-9).rounded() / multiplier
+    var formatted = String(format: "%.\(digits)f", locale: Locale(identifier: "en_US_POSIX"), rounded)
     if fractionLength == nil, formatted.hasSuffix(".0") {
         formatted.removeLast(2)
     }
@@ -1154,6 +1167,7 @@ public extension Font {
 public extension Binding {
     func animation(_ animation: Animation? = nil) -> Binding<Value> {
         _ = animation
+        recordSwiftUICompatibilityFallback("Binding.animation")
         return self
     }
 }
@@ -1225,26 +1239,6 @@ public extension Text {
         self.init(key)
     }
 
-    func font(_ font: Font) -> Text {
-        _ = font
-        return self
-    }
-
-    func fontWeight(_ weight: FontWeight) -> Text {
-        _ = weight
-        return self
-    }
-
-    func foregroundStyle(_ color: Color) -> Text {
-        _ = color
-        return self
-    }
-
-    func foregroundColor(_ color: Color) -> Text {
-        _ = color
-        return self
-    }
-
     func bold() -> Text {
         self
     }
@@ -1289,7 +1283,14 @@ public extension String.StringInterpolation {
 
 public extension Image {
     init(_ name: String) {
-        self.init(resource: name)
+        if let path = QuillResourceLookup.path(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ) {
+            self.init(filePath: path)
+        } else {
+            self.init(resource: name)
+        }
     }
 }
 
@@ -1553,11 +1554,13 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func formStyle(_ style: GroupedFormStyle) -> Self {
         _ = style
         return self
     }
 
+    @_disfavoredOverload
     func textContentType(_ contentType: TextContentType?) -> Self {
         _ = contentType
         return self
@@ -1609,15 +1612,6 @@ public extension View {
         return self
     }
 
-    func mask<Mask: View>(_ mask: Mask) -> Self {
-        _ = mask
-        return self
-    }
-
-    func mask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> Self {
-        _ = mask()
-        return self
-    }
 }
 
 public extension Image {
@@ -1812,6 +1806,7 @@ public extension View {
 
     func listStyle(_ style: PlainListStyle) -> Self {
         _ = style
+        recordSwiftUICompatibilityFallback("listStyle(PlainListStyle)")
         return self
     }
 
@@ -1879,6 +1874,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func scrollIndicators(_ visibility: Visibility) -> Self {
         _ = visibility
         return self
@@ -1895,8 +1891,10 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
+        recordSwiftUICompatibilityFallback("allowsHitTesting")
         return self
     }
 
@@ -1936,8 +1934,10 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func transition(_ transition: AnyTransition) -> Self {
         _ = transition
+        recordSwiftUICompatibilityFallback("transition")
         return self
     }
 
@@ -2204,30 +2204,6 @@ public extension View {
         return self
     }
 
-    func confirmationDialog<Actions: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        @ViewBuilder actions: () -> Actions
-    ) -> Self {
-        _ = title
-        _ = isPresented
-        _ = actions()
-        return self
-    }
-
-    func confirmationDialog<Actions: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        titleVisibility: Visibility,
-        @ViewBuilder actions: () -> Actions
-    ) -> Self {
-        _ = title
-        _ = isPresented
-        _ = titleVisibility
-        _ = actions()
-        return self
-    }
-
     func swipeActions<Actions: View>(
         edge: Edge = .trailing,
         allowsFullSwipe: Bool = true,
@@ -2351,6 +2327,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
         _ = visibility
         return self
@@ -2362,6 +2339,10 @@ public extension View {
     ) -> Self {
         _ = id
         _ = namespace
+        recordSwiftUICompatibilityFallback(
+            "matchedGeometryEffect",
+            message: "matchedGeometryEffect is currently a source-compatibility fallback on Linux."
+        )
         return self
     }
 
@@ -2423,6 +2404,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func focusEffectDisabled(_ disabled: Bool = true) -> Self {
         _ = disabled
         return self
@@ -2434,6 +2416,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func symbolEffect<Value: Equatable>(
         _ effect: SymbolEffect,
         options: SymbolEffectOptions = .default,
@@ -2442,6 +2425,7 @@ public extension View {
         _ = effect
         _ = options
         _ = value
+        recordSwiftUICompatibilityFallback("symbolEffect")
         return self
     }
 
@@ -2497,6 +2481,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
         _ = edges
         return self

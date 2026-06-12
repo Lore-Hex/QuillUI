@@ -2213,6 +2213,7 @@ struct CompatibilityModuleTests {
     // MARK: - OpenURLAction custom handler
 
     @Test("OpenURLAction routes URLs through the configured handler")
+    @MainActor
     func openURLActionInvokesCustomHandler() {
         let captured = QuillTestBox<URL>()
         let action = OpenURLAction { url in
@@ -2222,12 +2223,12 @@ struct CompatibilityModuleTests {
 
         let url = URL(string: "https://quill.test/path?q=1")!
         let result = action(url)
-        #expect(result == true)
+        #expect(result == .handled)
         #expect(captured.value == url)
 
         // Returning false from the handler propagates.
         let rejecting = OpenURLAction { _ in false }
-        #expect(rejecting(URL(string: "https://example.com")!) == false)
+        #expect(rejecting(URL(string: "https://example.com")!) == .discarded)
     }
 
     // MARK: - QuillMenuAction divider + disabled semantics

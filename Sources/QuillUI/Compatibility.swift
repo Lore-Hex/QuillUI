@@ -516,17 +516,6 @@ private final class QuillImageDataCache: @unchecked Sendable {
 }
 
 public extension Image {
-    init(_ name: String) {
-        if let path = QuillResourceLookup.path(
-            forResource: name,
-            candidateExtensions: QuillResourceLookup.commonImageExtensions
-        ) {
-            self.init(filePath: path)
-        } else {
-            self.init(resource: name)
-        }
-    }
-
     init(data: Data) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("QuillUIImages", isDirectory: true)
@@ -543,13 +532,6 @@ public extension Image {
         }
         let fileURL = QuillImageDataCache.shared.materialize(data, in: directory)
         self.init(filePath: fileURL.path)
-    }
-}
-
-public extension Binding {
-    func animation(_ animation: Animation? = nil) -> Binding<Value> {
-        recordCompatibilityFallback("Binding.animation")
-        return self
     }
 }
 
@@ -613,11 +595,6 @@ public extension View {
         } else {
             self
         }
-    }
-
-    func listStyle(_ style: PlainListStyle) -> Self {
-        recordCompatibilityFallback("listStyle(PlainListStyle)")
-        return self
     }
 
     @ViewBuilder

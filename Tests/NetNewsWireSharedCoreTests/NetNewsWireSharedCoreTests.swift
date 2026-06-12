@@ -1,4 +1,5 @@
 import Foundation
+import Account
 import Testing
 @testable import NetNewsWireSharedCore
 
@@ -101,6 +102,148 @@ struct NetNewsWireSharedCoreTests {
         #expect(plist.name == "Theme")
         #expect(plist.themeIdentifier == "com.example.theme")
         #expect(plist.version == 7)
+    }
+
+    @Test("Share extension feed add requests preserve destination containers")
+    func extensionFeedAddRequestCodableRoundTrip() throws {
+        let request = try JSONDecoder().decode(ExtensionFeedAddRequest.self, from: Data("""
+        {
+          "name": "Example",
+          "feedURL": "https://example.test/feed.xml",
+          "destinationContainerID": {
+            "type": "folder",
+            "accountID": "local",
+            "folderName": "Swift"
+          }
+        }
+        """.utf8))
+
+        #expect(request.name == "Example")
+        #expect(request.feedURL.absoluteString == "https://example.test/feed.xml")
+        #expect(request.destinationContainerID == .folder("local", "Swift"))
+
+        let roundTrip = try JSONDecoder().decode(ExtensionFeedAddRequest.self, from: JSONEncoder().encode(request))
+        #expect(roundTrip.name == request.name)
+        #expect(roundTrip.feedURL == request.feedURL)
+        #expect(roundTrip.destinationContainerID == request.destinationContainerID)
+    }
+
+    @Test("Share extension containers flatten accounts and folders")
+    func extensionContainersCodableAndLookup() throws {
+        let containers = try JSONDecoder().decode(ExtensionContainers.self, from: Data("""
+        {
+          "accounts": [
+            {
+              "name": "Local",
+              "accountID": "local",
+              "type": 1,
+              "disallowFeedInRootFolder": true,
+              "containerID": {
+                "type": "account",
+                "accountID": "local"
+              },
+              "folders": [
+                {
+                  "accountName": "Local",
+                  "accountID": "local",
+                  "name": "Swift",
+                  "containerID": {
+                    "type": "folder",
+                    "accountID": "local",
+                    "folderName": "Swift"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+        """.utf8))
+
+        let account = try #require(containers.findAccount(forName: "Local"))
+        #expect(account.accountID == "local")
+        #expect(account.type == .onMyMac)
+        #expect(account.disallowFeedInRootFolder)
+        #expect(account.containerID == .account("local"))
+
+        let folder = try #require(account.findFolder(forName: "Swift"))
+        #expect(folder.accountName == "Local")
+        #expect(folder.containerID == .folder("local", "Swift"))
+
+        #expect(containers.flattened.map(\.name) == ["Local", "Swift"])
+        #expect(containers.findAccount(forName: "Missing") == nil)
+        #expect(account.findFolder(forName: "Missing") == nil)
+
+        let decodedAgain = try JSONDecoder().decode(ExtensionContainers.self, from: JSONEncoder().encode(containers))
+        #expect(decodedAgain.flattened.map(\.name) == ["Local", "Swift"])
+    }
+
+    @Test("Account type helpers compile through SwiftUI and UIKit shadows")
+    @MainActor func accountTypeHelpers() {
+        #expect(AccountType.feedbin.localizedAccountName() == "Feedbin")
+        #expect(AccountType.newsBlur.localizedAccountName() == "NewsBlur")
+
+        _ = AccountType.onMyMac.image()
+        _ = AccountType.newsBlur.image()
+        _ = AccountType.feedly.logColor
+    }
+
+    @Test("CloudKit account helper degrades without iCloud on Linux")
+    @MainActor func cloudKitAccountHelper() {
+        let error = AddCloudKitAccountError.iCloudDriveMissing
+
+        #expect(error.errorDescription?.contains("Add iCloud Account") == true)
+        #expect(error.recoverySuggestion?.contains("Settings") == true)
+        #expect(error.recoveryOptions.count == 2)
+        #expect(!error.attemptRecovery(optionIndex: 1))
+        #expect(!AddCloudKitAccountUtilities.isiCloudDriveEnabled)
+    }
+
+    @Test("Account stats totals aggregate row counts")
+    func accountStatsTotals() {
+        let rows = [
+            AccountStatsRowData(
+                accountID: "a",
+                name: "A",
+                typeName: "On My Mac",
+                isActive: true,
+                feedCount: 1,
+                folderCount: 2,
+                articleCount: 3,
+                statusesCount: 4,
+                unreadCount: 5,
+                starredCount: 6,
+                databaseSizeBytes: 7
+            ),
+            AccountStatsRowData(
+                accountID: "b",
+                name: "B",
+                typeName: "Feedbin",
+                isActive: false,
+                feedCount: 10,
+                folderCount: 20,
+                articleCount: 30,
+                statusesCount: 40,
+                unreadCount: 50,
+                starredCount: 60,
+                databaseSizeBytes: 70
+            ),
+        ]
+
+        let totals = AccountStatsTotals(rows: rows)
+        #expect(totals.feedCount == 11)
+        #expect(totals.folderCount == 22)
+        #expect(totals.articleCount == 33)
+        #expect(totals.statusesCount == 44)
+        #expect(totals.unreadCount == 55)
+        #expect(totals.starredCount == 66)
+        #expect(totals.databaseSizeBytes == 77)
+    }
+
+    @Test("Article theme notifications retain upstream names")
+    func articleThemeNotifications() {
+        #expect(Notification.Name.didBeginDownloadingTheme.rawValue == "didBeginDownloadingTheme")
+        #expect(Notification.Name.didEndDownloadingTheme.rawValue == "didEndDownloadingTheme")
+        #expect(Notification.Name.didFailToImportThemeWithError.rawValue == "didFailToImportThemeWithError")
     }
 
     @Test("Small shared constants retain their upstream strings")

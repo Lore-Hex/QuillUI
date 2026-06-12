@@ -1296,10 +1296,6 @@ public struct MarkdownTableBackgroundStyle {
 }
 
 public extension Text {
-    static func + (lhs: Text, rhs: Text) -> Text {
-        Text(lhs.content + rhs.content)
-    }
-
     func foregroundColor(_ color: Color) -> Text {
         self
     }
