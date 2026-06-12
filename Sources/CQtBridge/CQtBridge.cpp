@@ -30,6 +30,7 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QRect>
+#include <QResizeEvent>
 #include <QSize>
 #include <QScrollArea>
 #include <QString>
@@ -150,6 +151,89 @@ public:
 private:
     Qt::Orientation orientation_ = Qt::Horizontal;
 };
+
+class QuillQtLabel final : public QLabel {
+public:
+    explicit QuillQtLabel(const QString &text, QWidget *parent = nullptr)
+        : QLabel(parent), fullText(text)
+    {
+        QLabel::setText(text);
+    }
+
+    Qt::TextElideMode quillElideMode() const {
+        return elideMode;
+    }
+
+    void setQuillElideMode(Qt::TextElideMode mode) {
+        if (elideMode == mode) {
+            return;
+        }
+        elideMode = mode;
+        updateDisplayedText();
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QLabel::resizeEvent(event);
+        updateDisplayedText();
+    }
+
+private:
+    QString fullText;
+    Qt::TextElideMode elideMode = Qt::ElideNone;
+
+    void updateDisplayedText() {
+        QString displayed = fullText;
+        if (elideMode != Qt::ElideNone && !wordWrap() && width() > 0) {
+            displayed = fontMetrics().elidedText(fullText, elideMode, width());
+        }
+        if (text() != displayed) {
+            QLabel::setText(displayed);
+        }
+    }
+};
+
+void collectLabels(QWidget *widget, QList<QLabel *> &labels) {
+    if (widget == nullptr) {
+        return;
+    }
+    if (QLabel *label = qobject_cast<QLabel *>(widget)) {
+        labels.append(label);
+        return;
+    }
+    const auto children = widget->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
+    for (QWidget *child : children) {
+        collectLabels(child, labels);
+    }
+}
+
+QList<QLabel *> labelsInSubtree(QWidget *widget) {
+    QList<QLabel *> labels;
+    collectLabels(widget, labels);
+    return labels;
+}
+
+Qt::TextElideMode currentElideMode(QLabel *label) {
+    if (label == nullptr) {
+        return Qt::ElideNone;
+    }
+    if (QuillQtLabel *quillLabel = dynamic_cast<QuillQtLabel *>(label)) {
+        return quillLabel->quillElideMode();
+    }
+    return static_cast<Qt::TextElideMode>(
+        label->property("quillElideMode").toInt()
+    );
+}
+
+void setElideMode(QLabel *label, Qt::TextElideMode mode) {
+    if (label == nullptr) {
+        return;
+    }
+    label->setProperty("quillElideMode", static_cast<int>(mode));
+    if (QuillQtLabel *quillLabel = dynamic_cast<QuillQtLabel *>(label)) {
+        quillLabel->setQuillElideMode(mode);
+    }
+}
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
 // addresses (a dangling QApplication argc reference) produced a bare
@@ -443,11 +527,55 @@ void quill_qt_bridge_widget_set_fixed_size(
 // --- Leaf widgets ----------------------------------------------------------
 
 QuillQtWidgetHandle quill_qt_bridge_label_create(const char *text) {
-    QLabel *label = new QLabel(utf8(text));
+    QLabel *label = new QuillQtLabel(utf8(text));
     // SwiftUI Text reports its intrinsic single-line size to the layout
     // engine; leave word-wrap off so sizeHint() is the natural text size.
     label->setWordWrap(false);
     return reinterpret_cast<QuillQtWidgetHandle>(label);
+}
+
+void quill_qt_bridge_widget_apply_line_limit_to_labels(
+    QuillQtWidgetHandle widget,
+    int line_limit
+) {
+    for (QLabel *label : labelsInSubtree(asWidget(widget))) {
+        if (line_limit < 0) {
+            label->setWordWrap(true);
+            label->setMaximumHeight(QWIDGETSIZE_MAX);
+            setElideMode(label, Qt::ElideNone);
+            continue;
+        }
+
+        const int effectiveLimit = std::max(1, line_limit);
+        label->setWordWrap(effectiveLimit != 1);
+        const int lineHeight = std::max(1, label->fontMetrics().lineSpacing());
+        label->setMaximumHeight(lineHeight * effectiveLimit);
+        if (currentElideMode(label) == Qt::ElideNone) {
+            setElideMode(label, Qt::ElideRight);
+        }
+    }
+}
+
+void quill_qt_bridge_widget_apply_truncation_mode_to_labels(
+    QuillQtWidgetHandle widget,
+    int mode
+) {
+    Qt::TextElideMode qtMode = Qt::ElideRight;
+    switch (mode) {
+    case 0:
+        qtMode = Qt::ElideLeft;
+        break;
+    case 2:
+        qtMode = Qt::ElideMiddle;
+        break;
+    default:
+        qtMode = Qt::ElideRight;
+        break;
+    }
+
+    for (QLabel *label : labelsInSubtree(asWidget(widget))) {
+        setElideMode(label, qtMode);
+    }
 }
 
 void quill_qt_bridge_material_symbols_register_font(const char *font_path) {

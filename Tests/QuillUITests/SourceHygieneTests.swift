@@ -606,6 +606,10 @@ struct SourceHygieneTests {
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
         let quillUI = try String(contentsOf: root.appendingPathComponent("Sources/QuillUI/QuillUI.swift"), encoding: .utf8)
         let swiftUIShim = try String(contentsOf: root.appendingPathComponent("Sources/SwiftUIShim/SwiftUI.swift"), encoding: .utf8)
+        let swiftUIPlatformSurface = try String(
+            contentsOf: root.appendingPathComponent("Sources/SwiftUIShim/PlatformSurface.swift"),
+            encoding: .utf8
+        )
         let compatibility = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/QuillSwiftUICompatibility.swift"),
             encoding: .utf8
@@ -616,6 +620,10 @@ struct SourceHygieneTests {
         )
         let appStorageCompatibility = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/AppStorage.swift"),
+            encoding: .utf8
+        )
+        let iceCubesShims = try String(
+            contentsOf: root.appendingPathComponent("Sources/IceCubesShims/IceCubesShims.swift"),
             encoding: .utf8
         )
         let quillUpstreamCompatibility = try String(
@@ -631,7 +639,10 @@ struct SourceHygieneTests {
         #expect(manifest.contains("\"QuillSwiftUICompatibility\", \"AppKit\", \"UIKit\", \"CoreImage\", \"CoreTransferable\", \"Combine\","))
         #expect(manifest.contains("] + swiftUIShadowMountDependencies"))
         #expect(manifest.contains("\"Observation\",\n    .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\"),\n    \"CGdkPixbuf\","))
-        #expect(manifest.contains("let wrappingHStackDependencies: [Target.Dependency] = [\n    \"SwiftUI\",\n    \"Observation\","))
+        #expect(manifest.contains("let wrappingHStackDependencies: [Target.Dependency] =\n    quillUILinuxBuildBackend == .gtk"))
+        #expect(manifest.contains(": [\"SwiftUI\", \"Observation\"]"))
+        #expect(manifest.contains("let wrappingHStackSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk"))
+        #expect(manifest.contains("swiftSettings: wrappingHStackSwiftSettings,\n        linkerSettings: wrappingHStackLinkerSettings"))
         #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
         #expect(manifest.contains("? [\"Observation\", swiftUIShimBackendDependency] : []"))
         #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"Observation\",\n                    \"CQtBridge\""))
@@ -641,10 +652,35 @@ struct SourceHygieneTests {
         #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
         #expect(designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
+        #expect(designCompatibility.contains("public struct KeyboardTypeView<Content: View, Keyboard>: View"))
+        #expect(swiftUIPlatformSurface.contains("func keyboardType(_ type: UIKeyboardType) -> KeyboardTypeView<Self, UIKeyboardType>"))
         #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))
+        #expect(!iceCubesShims.contains("public struct AppStorage<Value>"))
         #expect(!quillUpstreamCompatibility.contains("public struct PlainButtonStyle"))
         #expect(!quillUpstreamCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
+        #expect(!quillUpstreamCompatibility.contains("public struct KeyboardTypeView<Content: View>"))
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
+    }
+
+    @Test("BackendQt text modifiers use native label traversal")
+    func backendQtTextModifiersUseNativeLabelTraversal() throws {
+        let renderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let bridgeHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let bridgeImplementation = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
+
+        #expect(bridgeHeader.contains("quill_qt_bridge_widget_apply_line_limit_to_labels"))
+        #expect(bridgeHeader.contains("quill_qt_bridge_widget_apply_truncation_mode_to_labels"))
+        #expect(bridgeImplementation.contains("class QuillQtLabel final : public QLabel"))
+        #expect(bridgeImplementation.contains("labelsInSubtree(asWidget(widget))"))
+        #expect(bridgeImplementation.contains("fontMetrics().elidedText(fullText, elideMode, width())"))
+        #expect(bridgeImplementation.contains("setMaximumHeight(lineHeight * effectiveLimit)"))
+        #expect(renderer.contains("quill_qt_bridge_widget_apply_line_limit_to_labels"))
+        #expect(renderer.contains("quill_qt_bridge_widget_apply_truncation_mode_to_labels"))
+        #expect(renderer.contains("let text = title.isEmpty ? qtTextLabel(from: labelView.wrapped) : title"))
+        #expect(renderer.contains("let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }"))
+        #expect(!renderer.contains("TODO: Qt label enumeration not yet implemented"))
+        #expect(!renderer.contains("TODO: Qt truncation mode not yet implemented"))
+        #expect(!renderer.contains("let text = label.isEmpty"))
     }
 
     @Test("ImageRenderer comments describe the current GTK offscreen path")

@@ -621,30 +621,6 @@ public struct ListRowSeparatorView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ScrollIndicatorsView<Content: View>: View {
-    public let content: Content
-    public let visibility: ScrollIndicatorVisibility
-
-    public init(content: Content, visibility: ScrollIndicatorVisibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
-
-public struct ScrollContentBackgroundView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-
-    public init(content: Content, visibility: Visibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
-
 public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public let content: Content
     public let shape: ShapeValue
@@ -693,18 +669,6 @@ public struct TransitionView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ViewMaskView<Content: View, MaskContent: View>: View {
-    public let content: Content
-    public let mask: MaskContent
-
-    public init(content: Content, mask: MaskContent) {
-        self.content = content
-        self.mask = mask
-    }
-
-    public var body: some View { content }
-}
-
 public struct OnHoverView<Content: View>: View {
     public let content: Content
     public let action: (Bool) -> Void
@@ -712,18 +676,6 @@ public struct OnHoverView<Content: View>: View {
     public init(content: Content, action: @escaping (Bool) -> Void) {
         self.content = content
         self.action = action
-    }
-
-    public var body: some View { content }
-}
-
-public struct FocusEffectDisabledView<Content: View>: View {
-    public let content: Content
-    public let disabled: Bool
-
-    public init(content: Content, disabled: Bool) {
-        self.content = content
-        self.disabled = disabled
     }
 
     public var body: some View { content }
@@ -755,18 +707,6 @@ public struct FocusEqualsBindingView<Content: View, Value: Equatable>: View {
     public var body: some View { content }
 }
 
-public struct EdgesIgnoringSafeAreaView<Content: View>: View {
-    public let content: Content
-    public let edges: Edge.Set
-
-    public init(content: Content, edges: Edge.Set) {
-        self.content = content
-        self.edges = edges
-    }
-
-    public var body: some View { content }
-}
-
 public struct IgnoresSafeAreaView<Content: View>: View {
     public let content: Content
     public let edges: Edge.Set
@@ -786,54 +726,6 @@ public struct TextSelectionView<Content: View>: View {
     public init(content: Content, selection: TextSelectability) {
         self.content = content
         self.selection = selection
-    }
-
-    public var body: some View { content }
-}
-
-public struct TextContentTypeView<Content: View>: View {
-    public let content: Content
-    public let contentType: TextContentType?
-
-    public init(content: Content, contentType: TextContentType?) {
-        self.content = content
-        self.contentType = contentType
-    }
-
-    public var body: some View { content }
-}
-
-public struct AutocorrectionDisabledView<Content: View>: View {
-    public let content: Content
-    public let disabled: Bool?
-
-    public init(content: Content, disabled: Bool?) {
-        self.content = content
-        self.disabled = disabled
-    }
-
-    public var body: some View { content }
-}
-
-public struct KeyboardTypeView<Content: View>: View {
-    public let content: Content
-    public let keyboardType: KeyboardType
-
-    public init(content: Content, keyboardType: KeyboardType) {
-        self.content = content
-        self.keyboardType = keyboardType
-    }
-
-    public var body: some View { content }
-}
-
-public struct AutocapitalizationView<Content: View>: View {
-    public let content: Content
-    public let autocapitalization: TextInputAutocapitalization
-
-    public init(content: Content, autocapitalization: TextInputAutocapitalization) {
-        self.content = content
-        self.autocapitalization = autocapitalization
     }
 
     public var body: some View { content }
@@ -1035,42 +927,6 @@ public extension View {
         return SymbolRenderingModeView(content: self, mode: mode)
     }
 
-    @_disfavoredOverload
-    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
-        recordQuillUIFallback(
-            "scrollIndicators",
-            message: "scrollIndicators is preserved as scroll view chrome metadata on Linux."
-        )
-        return ScrollIndicatorsView(content: self, visibility: visibility)
-    }
-
-    @_disfavoredOverload
-    func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
-        recordQuillUIFallback(
-            "scrollContentBackground",
-            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
-        )
-        return ScrollContentBackgroundView(content: self, visibility: visibility)
-    }
-
-    @_disfavoredOverload
-    func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
-        recordQuillUIFallback(
-            "focusEffectDisabled",
-            message: "focusEffectDisabled is preserved as focus-effect metadata on Linux."
-        )
-        return FocusEffectDisabledView(content: self, disabled: disabled)
-    }
-
-    @_disfavoredOverload
-    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
-        recordQuillUIFallback(
-            "edgesIgnoringSafeArea",
-            message: "edgesIgnoringSafeArea is preserved as safe-area layout metadata on Linux."
-        )
-        return EdgesIgnoringSafeAreaView(content: self, edges: edges)
-    }
-
     func ignoresSafeArea(_ edges: Edge.Set = .all) -> IgnoresSafeAreaView<Self> {
         recordQuillUIFallback(
             "ignoresSafeArea",
@@ -1094,15 +950,6 @@ public extension View {
             message: "gesture is preserved as gesture metadata on Linux."
         )
         return GestureView(content: self, gesture: gesture)
-    }
-
-    @_disfavoredOverload
-    func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
-        recordQuillUIFallback(
-            "mask",
-            message: "View masks are preserved as mask metadata on Linux."
-        )
-        return ViewMaskView(content: self, mask: mask)
     }
 
     @_disfavoredOverload
@@ -1138,18 +985,6 @@ public extension View {
         }
     }
 
-    @_disfavoredOverload
-    func matchedGeometryEffect<ID: Hashable>(
-        id: ID,
-        in namespace: Namespace.ID
-    ) -> AnimatedView<Self> {
-        recordQuillUIFallback(
-            "matchedGeometryEffect",
-            message: "matchedGeometryEffect is approximated with value-driven animation on Linux."
-        )
-        return animation(.easeInOut(duration: 0.2), value: AnyHashable(id))
-    }
-
     func focusedSceneValue<K: FocusedValueKey>(
         _ keyPath: WritableKeyPath<FocusedValues, K.Value?>,
         _ value: K.Value
@@ -1166,52 +1001,6 @@ public extension View {
             message: "focusedSceneValue is currently a source-compatibility fallback on Linux."
         )
         return self
-    }
-
-    @_disfavoredOverload
-    func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
-        recordQuillUIFallback(
-            "formStyle",
-            message: "GroupedFormStyle is approximated with grouped padding and background on Linux."
-        )
-        return padding(8)
-            .background(Color.gray5Custom)
-    }
-
-    @_disfavoredOverload
-    func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
-        recordQuillUIFallback(
-            "textContentType",
-            message: "textContentType is preserved as text-input metadata on Linux."
-        )
-        return TextContentTypeView(content: self, contentType: contentType)
-    }
-
-    @_disfavoredOverload
-    func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
-        recordQuillUIFallback(
-            "disableAutocorrection",
-            message: "disableAutocorrection is preserved as text-input metadata on Linux."
-        )
-        return AutocorrectionDisabledView(content: self, disabled: disabled)
-    }
-
-    @_disfavoredOverload
-    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
-        recordQuillUIFallback(
-            "keyboardType",
-            message: "keyboardType is preserved as text-input metadata on Linux."
-        )
-        return KeyboardTypeView(content: self, keyboardType: keyboardType)
-    }
-
-    @_disfavoredOverload
-    func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
-        recordQuillUIFallback(
-            "autocapitalization",
-            message: "autocapitalization is preserved as text-input metadata on Linux."
-        )
-        return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
     }
 
 }
@@ -1383,6 +1172,10 @@ extension ViewMaskView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
+extension FormStyleView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
 extension OnHoverView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
@@ -1432,6 +1225,10 @@ extension KeyboardTypeView: QuillWrappedViewRepresentable {
 }
 
 extension AutocapitalizationView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension ScrollDismissesKeyboardView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

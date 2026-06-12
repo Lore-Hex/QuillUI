@@ -484,15 +484,26 @@ let quillUIDependencies: [Target.Dependency] = [
 #endif
 
 #if os(Linux)
-let wrappingHStackDependencies: [Target.Dependency] = [
-    "SwiftUI",
-    "Observation",
-    .product(name: "BackendGTK4", package: "SwiftOpenUI"),
-    .product(name: "CGTK", package: "SwiftOpenUI"),
-    .product(name: "CGTKBridge", package: "SwiftOpenUI"),
-]
+let wrappingHStackDependencies: [Target.Dependency] =
+    quillUILinuxBuildBackend == .gtk
+    ? [
+        "SwiftUI",
+        "Observation",
+        .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+        .product(name: "CGTK", package: "SwiftOpenUI"),
+        .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+    ]
+    : ["SwiftUI", "Observation"]
+let wrappingHStackSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
+    ? quillUIGTKSwiftImporterSettings
+    : []
+let wrappingHStackLinkerSettings: [LinkerSetting] = quillUILinuxBuildBackend == .gtk
+    ? quillUIGTKLinkerSettings
+    : []
 #else
 let wrappingHStackDependencies: [Target.Dependency] = ["SwiftUI"]
+let wrappingHStackSwiftSettings: [SwiftSetting] = []
+let wrappingHStackLinkerSettings: [LinkerSetting] = []
 #endif
 
 #if os(Linux)
@@ -2510,8 +2521,8 @@ targets.append(contentsOf: [
         name: "WrappingHStack",
         dependencies: wrappingHStackDependencies,
         path: "Sources/WrappingHStack",
-        swiftSettings: quillUIGTKSwiftImporterSettings,
-        linkerSettings: quillUIGTKLinkerSettings
+        swiftSettings: wrappingHStackSwiftSettings,
+        linkerSettings: wrappingHStackLinkerSettings
     ),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),

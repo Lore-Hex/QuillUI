@@ -14,6 +14,7 @@ extension Color {
     public static var accentColor: Color { .blue }
     public static var tint: Color { accentColor }
     public static var foreground: Color { primary }
+    @_disfavoredOverload
     public static var label: Color { Color(RSColor.label) }
     public static var labelCustom: Color { Color("label") }
     public static var systemGray: Color { Color(RSColor.systemGray) }

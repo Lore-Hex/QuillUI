@@ -135,7 +135,7 @@ func qtRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
     if let multi = view as? QtMultiChildRenderable {
         return multi.qtRenderChildren()
     }
-    if let transparent = view as? TransparentMultiChildView {
+    if let transparent = view as? any TransparentMultiChildView {
         return qtRenderExpandedChildren(transparent.children)
     }
     if let multi = view as? MultiChildView {
@@ -149,7 +149,7 @@ func qtRenderExpandedChildren(_ children: [any View]) -> [OpaquePointer] {
         if let multi = child as? QtMultiChildRenderable {
             return multi.qtRenderChildren()
         }
-        if let transparent = child as? TransparentMultiChildView {
+        if let transparent = child as? any TransparentMultiChildView {
             return qtRenderExpandedChildren(transparent.children)
         }
         return [qtRenderAnyView(child)]
@@ -388,7 +388,7 @@ func qtRenderLazyVGridContainer(
 }
 
 func qtRenderLazyVGridCells<V: View>(_ view: V) -> [OpaquePointer] {
-    if let transparent = view as? TransparentMultiChildView {
+    if let transparent = view as? any TransparentMultiChildView {
         return qtRenderExpandedChildren(transparent.children)
     }
 
@@ -1119,7 +1119,7 @@ extension AnyView: QtRenderable {
 
 extension Link: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
-        let text = label.isEmpty ? qtTextLabel(from: labelView.wrapped) : label
+        let text = title.isEmpty ? qtTextLabel(from: labelView.wrapped) : title
         let box = Unmanaged.passRetained(QtClosureBox({})).toOpaque()
         let click: quill_qt_bridge_click_callback = { userData in
             guard let userData else { return }
@@ -1289,13 +1289,6 @@ extension TupleView: QtRenderable {
     }
 }
 
-extension ForEach: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer {
-        let widgets = data.map { qtRenderView(content($0)) }
-        return qtRenderVerticalContainer(widgets, spacing: 0, alignment: .leading)
-    }
-}
-
 extension Grid: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
 }
@@ -1309,7 +1302,10 @@ extension GridCellSpanView: QtRenderable {
 }
 
 extension LazyHGrid: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }
+        return qtRenderHorizontalContainer(children, spacing: 0, alignment: .center)
+    }
 }
 
 extension EnvironmentObjectModifierView: QtRenderable {
@@ -1488,15 +1484,29 @@ extension ItalicView: QtRenderable {
 
 extension LineLimitView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
-        // TODO: Qt label enumeration not yet implemented.
-        qtRenderView(content)
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_apply_line_limit_to_labels(
+            qtHandle(child),
+            Int32(lineLimit ?? -1)
+        )
+        return child
     }
 }
 
 extension TruncationModeView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
-        // TODO: Qt truncation mode not yet implemented.
-        qtRenderView(content)
+        let child = qtRenderView(content)
+        let qtMode: Int32
+        switch mode {
+        case .head:
+            qtMode = 0
+        case .tail:
+            qtMode = 1
+        case .middle:
+            qtMode = 2
+        }
+        quill_qt_bridge_widget_apply_truncation_mode_to_labels(qtHandle(child), qtMode)
+        return child
     }
 }
 

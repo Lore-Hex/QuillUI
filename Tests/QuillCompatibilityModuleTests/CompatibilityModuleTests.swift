@@ -292,31 +292,21 @@ struct CompatibilityModuleTests {
         let operations = Set(captured.events.map { $0.operation })
         #expect(operations.isSuperset(of: Set([
             "symbolEffect",
-            "matchedGeometryEffect",
             "transition",
             "mask",
             "contentShape",
             "allowsHitTesting",
             "gesture",
             "onHover",
-            "focusEffectDisabled",
             "focused",
-            "edgesIgnoringSafeArea",
             "ignoresSafeArea",
             "listRowInsets",
             "listRowSeparator",
-            "scrollIndicators",
-            "scrollContentBackground",
             "minimumScaleFactor",
             "textSelection",
-            "keyboardType",
-            "autocapitalization",
-            "disableAutocorrection",
-            "textContentType",
             "imageScale",
             "symbolRenderingMode",
-            "renderingMode",
-            "formStyle"
+            "renderingMode"
         ])))
     }
 
