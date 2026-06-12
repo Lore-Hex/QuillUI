@@ -1161,9 +1161,12 @@ public extension View {
         padding(Int(amount))
     }
 
-    func padding(_ edges: Edge.Set, _ amount: Double) -> PaddedView<Self> {
-        padding(edges, Int(amount))
-    }
+    // padding(_: Edge.Set, _: Double) lives in SwiftOpenUI
+    // (PaddingModifier.swift, @_disfavoredOverload beside the canonical Int
+    // overloads — same-module ranking is the reliable kind). A favored twin
+    // here sat across modules from that carefully ranked set. The CGFloat
+    // adapters in this file stay: CGFloat is platform-specific and SwiftOpenUI
+    // core must remain platform-independent.
 
     func padding(_ edges: Edge.Set, _ amount: CGFloat) -> PaddedView<Self> {
         padding(edges, Int(amount))

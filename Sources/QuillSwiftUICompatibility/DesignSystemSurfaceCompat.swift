@@ -1133,12 +1133,11 @@ public extension Font {
     }
 }
 
-public extension Binding {
-    func animation(_ animation: Animation? = nil) -> Binding<Value> {
-        _ = animation
-        return self
-    }
-}
+// Binding.animation lives in QuillUI (Compatibility.swift), which records the
+// fallback — a verbatim twin here made every `$value.animation(...)` call
+// ambiguous (generated Enchanted InputFields_macOS: three call sites in one
+// body, surfaced as a solver give-up at `var body`). Every app graph imports
+// QuillUI, so the richer version is always available.
 
 public extension ViewThatFits {
     init(in axes: Axis, @ViewThatFitsBuilder content: () -> [AnyView]) {
@@ -1791,10 +1790,10 @@ public extension View {
         return TaskView(content: self, priority: priority, action: { await box.run() })
     }
 
-    func listStyle(_ style: PlainListStyle) -> Self {
-        _ = style
-        return self
-    }
+    // listStyle(PlainListStyle) lives in QuillUI (Compatibility.swift), which
+    // records the fallback — a verbatim twin here made the generated
+    // MenuBarControlView Events chain ambiguous (reported as "ambiguous use
+    // of 'showIf'" further up the chained expression).
 
     func pickerStyle(_ style: PickerStyle) -> Self {
         _ = style
@@ -1929,11 +1928,11 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
-    func contentShape<S: Shape>(_ shape: S) -> Self {
-        _ = shape
-        return self
-    }
+    // contentShape lives in QuillUI (UpstreamCompatibility.swift), which
+    // preserves the hit-testing shape as metadata. A twin here — even
+    // @_disfavoredOverload — still tied cross-module inside ViewBuilder
+    // closures (generated Enchanted InputFields_macOS,
+    // `.contentShape(Rectangle())` at the tail of the composer body).
 
     @_disfavoredOverload
     func onHover(perform action: @escaping (Bool) -> Void) -> Self {
@@ -2072,12 +2071,11 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
-    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
-        _ = visibility
-        _ = edges
-        return self
-    }
+    // listRowSeparator lives in QuillUI (UpstreamCompatibility.swift), which
+    // preserves it as list-row metadata. Cross-module @_disfavoredOverload is
+    // not honored inside ViewBuilder closures, so a twin here still made the
+    // generated MenuBarControlView Events chain (`.listRowSeparator(.hidden)`
+    // inside ForEach) ambiguous.
 
     // Double/Int? padding adapters now live IN SwiftOpenUI's
     // PaddingModifier.swift (same module as the canonical Int overloads):
