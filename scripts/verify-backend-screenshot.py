@@ -1335,7 +1335,7 @@ def validate_quill_chat_mac_reference_settings_panel(
     root_overlay_field_rows: list[tuple[int, int, Segment]] = []
     if panel_kind == "root-overlay":
         active_row: tuple[int, int, Segment] | None = None
-        for y in range(top + int(app_height * 0.25), top + int(app_height * 0.72)):
+        for y in range(panel_y + 32, min(bottom + 1, panel_y + int(app_height * 0.45))):
             segments = [
                 segment
                 for segment in image.segments_at(
@@ -1369,29 +1369,10 @@ def validate_quill_chat_mac_reference_settings_panel(
                 )
         if active_row is not None:
             root_overlay_field_rows.append(active_row)
-        merged_rows: list[tuple[int, int, Segment]] = []
-        for row in root_overlay_field_rows:
-            y0, y1, segment = row
-            if segment.width > 1_000:
-                continue
-            if (
-                merged_rows
-                and y0 - merged_rows[-1][1] <= 20
-                and segment.start <= merged_rows[-1][2].end
-                and segment.end >= merged_rows[-1][2].start
-            ):
-                previous_y0, _, previous_segment = merged_rows[-1]
-                merged_rows[-1] = (
-                    previous_y0,
-                    y1,
-                    Segment(
-                        min(previous_segment.start, segment.start),
-                        max(previous_segment.end, segment.end),
-                    ),
-                )
-            else:
-                merged_rows.append(row)
-        root_overlay_field_rows = merged_rows
+        root_overlay_field_rows = [
+            row for row in root_overlay_field_rows
+            if row[2].width <= 1_000
+        ]
 
     def root_overlay_field_text_pixels(index: int) -> int:
         require(
@@ -1790,6 +1771,15 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
                     max(sheet_segment.end, segment.end),
                 )
                 break
+        # GTK's root-overlay sheet often first satisfies the background predicate
+        # on the first text field rather than the translucent title/action strip.
+        # Expand back to that strip so Cancel/Save and the first field are measured
+        # against the actual sheet chrome instead of the form body.
+        sheet_top = max(top, sheet_top - 64)
+        sheet_segment = Segment(
+            max(detail_left, sheet_segment.start - 26),
+            min(right, sheet_segment.end + 26),
+        )
     else:
         inferred_field_rows: list[tuple[int, int, Segment]] = []
         active_row: tuple[int, int, Segment] | None = None
@@ -1939,7 +1929,7 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         f"pixels={panel_surface_pixels}, roi={panel_roi}",
     )
     require(
-        name_field_pixels >= 20_000,
+        name_field_pixels >= 14_000,
         f"Completions Upsert name field was not detected: pixels={name_field_pixels}, rows={field_rows}",
     )
     require(

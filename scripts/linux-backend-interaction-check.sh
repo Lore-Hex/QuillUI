@@ -1055,8 +1055,8 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
             token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}"
             token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-640}"
           else
-            token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-650}"
-            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-800}"
+            token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}"
+            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-831}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -1075,12 +1075,12 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           settings_x="$(quill_chat_settings_click_x)"
           settings_y="$(quill_chat_settings_click_y)"
-          ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-650}"
+          ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-1000}"
           if [[ "$SELECTED_BACKEND" == "qt" ]]; then
             ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-1000}"
             ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-706}"
           else
-            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-838}"
+            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-853}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
