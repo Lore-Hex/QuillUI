@@ -82,7 +82,7 @@ public struct WindowGroup<Content: View>: Scene {
         windowSizing: WindowSizing? = nil,
         windowResizeBehavior: WindowResizeBehavior? = nil,
         windowResizability: WindowResizability? = nil,
-        launchesAtStartup: Bool = true
+        launchesAtStartup: Bool = true,
         quillHidesTitleBar: Bool = false
     ) {
         self.title = title
