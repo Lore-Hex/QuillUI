@@ -67,12 +67,7 @@ extension Font {
 
 // MARK: - Text.monospacedDigit
 
-extension Text {
-    /// SwiftUI's `monospacedDigit()`. Compile-surface: returns `self`
-    /// unchanged — tabular figures are not yet wired into the Pango/GTK text
-    /// path, so digits render with the font's default spacing.
-    public func monospacedDigit() -> Text { self }
-}
+// monospacedDigit lives in DesignSystemSurfaceCompat.swift.
 
 // MARK: - Animation.repeatForever (moved from QuillUI)
 
@@ -93,24 +88,7 @@ extension Animation {
 
 // MARK: - Material (moved from QuillUI)
 
-/// SwiftUI's `Material` blur tokens. All five tokens are currently the same
-/// inert value — there is no compositor blur on the GTK path yet, so material
-/// fills/backgrounds are approximated with translucent white (the same
-/// approximation `Shape.fill(_ material:)` uses in QuillUI).
-public struct Material: Sendable {
-    /// Opacity of the translucent-white approximation (no compositor blur on
-    /// the GTK path yet). Thinner materials show more of what's behind them.
-    public let quillApproximationAlpha: Double
-    public init() { self.quillApproximationAlpha = 0.55 }
-    init(quillApproximationAlpha: Double) {
-        self.quillApproximationAlpha = quillApproximationAlpha
-    }
-    public static let ultraThinMaterial = Material(quillApproximationAlpha: 0.25)
-    public static let thinMaterial = Material(quillApproximationAlpha: 0.4)
-    public static let regularMaterial = Material(quillApproximationAlpha: 0.55)
-    public static let thickMaterial = Material(quillApproximationAlpha: 0.7)
-    public static let ultraThickMaterial = Material(quillApproximationAlpha: 0.85)
-}
+// `Material` tokens live in DesignSystemSurfaceCompat.swift.
 
 extension View {
     /// `.background(.ultraThinMaterial)` — Apple's ShapeStyle-based overload,
@@ -128,54 +106,21 @@ extension View {
         // screenshot), over light content as a light pill. Per-token
         // translucency via the CSS rgba background (renders behind children;
         // the GTK background path paints the box background only).
+        // Scheme-adaptive translucent approximation (dark pill over video on
+        // macOS). Per-token alphas await a Material that carries them (the
+        // DesignSystemSurfaceCompat tokens are indistinguishable instances).
         background(
             Color.quillPrefersDarkScheme
-                ? Color(red: 0.11, green: 0.11, blue: 0.125)
-                    .opacity(0.55 + material.quillApproximationAlpha * 0.45)
-                : Color.white.opacity(0.55 + material.quillApproximationAlpha * 0.45)
+                ? Color(red: 0.11, green: 0.11, blue: 0.125).opacity(0.85)
+                : Color.white.opacity(0.92)
         )
     }
 }
 
 // MARK: - ButtonStyle protocol (moved from QuillUI)
 
-/// The values passed to a custom `ButtonStyle`. `label` is `Text` rather than
-/// Apple's opaque `ButtonStyleConfiguration.Label` — a known, documented
-/// difference: existing conformers (QuillUI's PlainButtonStyle and
-/// QuillGrowingButtonStyle) already build on the Text shape, and Text is a
-/// full View so modifier chains on `configuration.label` compile unchanged.
-public struct ButtonStyleConfiguration {
-    /// The button's REAL label subtree (Apple's opaque Label, erased here) —
-    /// custom styles receive the full Image+Text content, not a Text proxy.
-    public var label: AnyView
-    public var isPressed: Bool
-
-    public init(label: AnyView, isPressed: Bool) {
-        self.label = label
-        self.isPressed = isPressed
-    }
-
-    // @MainActor: AnyView's erasing init is isolated (whole-protocol View
-    // isolation); only the framework's isolated buttonStyle path constructs
-    // configurations.
-    @MainActor
-    public init(label: some View, isPressed: Bool) {
-        self.label = AnyView(label)
-        self.isPressed = isPressed
-    }
-}
-
-/// SwiftUI's `ButtonStyle` protocol (custom styles via `makeBody`).
-/// @MainActor @preconcurrency: Apple's exact shape for style protocols —
-/// makeBody composes isolated View values on the main actor.
-@MainActor @preconcurrency
-public protocol ButtonStyle {
-    associatedtype Body: View
-    typealias Configuration = ButtonStyleConfiguration
-
-    @ViewBuilder
-    func makeBody(configuration: Configuration) -> Body
-}
+// ButtonStyle + ButtonStyleConfiguration live in DesignSystemSurfaceCompat.swift
+// (same AnyView label shape; the functional buttonStyle overload below uses them).
 
 extension View {
     /// Accepts a custom `ButtonStyle` conformance. Compile-surface: custom
@@ -222,11 +167,7 @@ extension Button: QuillStyleableButtonRepresentable {
 
 // MARK: - ButtonRole (moved from QuillUI)
 
-/// SwiftUI's `ButtonRole` (`.cancel` / `.destructive`).
-public enum ButtonRole {
-    case cancel
-    case destructive
-}
+// ButtonRole lives in DesignSystemSurfaceCompat.swift.
 
 extension Button where Label == Text {
     /// Role-taking title initializer. The role is currently presentation-only
@@ -237,12 +178,7 @@ extension Button where Label == Text {
     }
 }
 
-extension Button {
-    /// Role-taking label-builder initializer (role accepted and dropped, as above).
-    public init(role: ButtonRole?, action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
-        self.init(action: action, label: label)
-    }
-}
+// Button(role:) inits live in DesignSystemSurfaceCompat.swift.
 
 // MARK: - MenuStyle
 
@@ -718,15 +654,3 @@ extension View {
 
 #endif
 
-// MARK: - View.monospacedDigit
-
-extension View {
-    /// SwiftUI's `View.monospacedDigit()` (macOS 12+): modifies child text to
-    /// use fixed-width digits. Compile-surface passthrough — the GTK text
-    /// pipeline does not yet select tabular-figure features; revisit in the
-    /// paint-fidelity rung. Text's own overload (above) stays preferred for
-    /// direct `Text` chains.
-    public func monospacedDigit() -> some View {
-        self
-    }
-}
