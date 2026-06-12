@@ -2355,7 +2355,12 @@ targets.append(contentsOf: [
         path: "Sources/QuillAppKit",
         swiftSettings: [
             .swiftLanguageMode(.v5),
-            .unsafeFlags(["-strict-concurrency=minimal"])
+            .unsafeFlags(["-strict-concurrency=minimal"]),
+            // The bitmap encoder (rung 4) imports CGdkPixbuf, which has no
+            // pkgConfig (filtered-flag house style): the importer flags must
+            // ride this target or the PCM build races (gdk-pixbuf.h not
+            // found whenever this target builds the PCM first).
+            .unsafeFlags(gdkPixbufSwiftImporterFlags)
         ]
     ),
     // GTK4-backed runtime for QuillAppKit. Separate target so the

@@ -369,7 +369,7 @@ public struct AngularGradient {
 public struct PlainButtonStyle: ButtonStyle {
     public init() {}
 
-    public func makeBody(configuration: Configuration) -> Text {
+    public func makeBody(configuration: Configuration) -> AnyView {
         configuration.label
     }
 }
