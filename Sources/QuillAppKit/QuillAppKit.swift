@@ -2956,7 +2956,9 @@ open class NSRunningApplication: NSObject, @unchecked Sendable {
     }
 
     public static var current: NSRunningApplication {
-        NSRunningApplication(bundleIdentifier: Bundle.main.bundleIdentifier, localizedName: ProcessInfo.processInfo.processName, isActive: NSApp.isActive)
+        // NSApp is @MainActor (#512); app-state reads run on the main loop.
+        let active = MainActor.assumeIsolated { NSApp.isActive }
+        return NSRunningApplication(bundleIdentifier: Bundle.main.bundleIdentifier, localizedName: ProcessInfo.processInfo.processName, isActive: active)
     }
 
     public private(set) var bundleIdentifier: String?
@@ -2991,7 +2993,8 @@ open class NSRunningApplication: NSObject, @unchecked Sendable {
     public func activate(options: ActivationOptions = []) -> Bool {
         _ = options
         isActive = true
-        NSApp.activate(ignoringOtherApps: options.contains(.activateIgnoringOtherApps))
+        let ignoring = options.contains(.activateIgnoringOtherApps)
+        MainActor.assumeIsolated { NSApp.activate(ignoringOtherApps: ignoring) }
         return true
     }
 }

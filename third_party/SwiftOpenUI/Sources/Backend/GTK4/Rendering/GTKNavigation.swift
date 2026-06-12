@@ -691,7 +691,8 @@ private func gtkRenderToolbarWidgets<V: View>(from view: V) -> [UnsafeMutablePoi
         }
     }
     if V.Body.self != Never.self {
-        return gtkRenderToolbarWidgets(from: view.body)
+        // View.body is @MainActor (#513); toolbar walk runs on the GTK main loop.
+        return MainActor.assumeIsolated { gtkRenderToolbarWidgets(from: view.body) }
     }
     return [widgetFromOpaque(gtkRenderView(view))]
 }
