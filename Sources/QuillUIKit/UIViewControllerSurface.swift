@@ -8,8 +8,12 @@
 //  QuillUIKit.swift (one name, one owner):
 //
 //    - UIStatusBarStyle (the enum only — see the status-bar note below)
+//    - UIModalPresentationStyle (the enum; UIViewController's stored
+//      `modalPresentationStyle` lives in the extension below — one owner)
 //    - UIViewController extensions: `title`, `transitioningDelegate`,
-//      `presentationController`, `setNeedsStatusBarAppearanceUpdate()`
+//      `presentationController`, `modalPresentationStyle`,
+//      `overrideUserInterfaceStyle`, `toolbarItems`/`setToolbarItems`,
+//      `setNeedsStatusBarAppearanceUpdate()`
 //    - UIPresentationController + UIAdaptivePresentationControllerDelegate
 //    - The custom-transition protocol family: UIViewControllerContext-
 //      Transitioning (+ the from/to keys), UIViewControllerAnimated-
@@ -59,6 +63,31 @@ public enum UIStatusBarStyle: Int, Sendable {
     case darkContent = 3
 }
 
+// MARK: - UIModalPresentationStyle
+
+/// How a presented controller is displayed. Raw values mirror Apple's
+/// (`.automatic` = -2, `.none` = -1, then 0… in declaration order; the gap at
+/// 8 is tvOS-only `.blurOverFullScreen`). The value is carried so upstream
+/// presentation plumbing type-checks; the base class's model-level
+/// present/dismiss does not consult it (nothing composites on Linux yet).
+///
+/// NOTE: UINavigationController in QuillUIKit.swift still declares a stray
+/// `modalPresentationStyle: Int` stored property that predates this enum. It
+/// shadows the UIViewController extension member below for nav-controller
+/// receivers and must be deleted there (one name, one owner: UIViewController).
+public enum UIModalPresentationStyle: Int, Sendable {
+    case automatic = -2
+    case none = -1
+    case fullScreen = 0
+    case pageSheet = 1
+    case formSheet = 2
+    case currentContext = 3
+    case custom = 4
+    case overFullScreen = 5
+    case overCurrentContext = 6
+    case popover = 7
+}
+
 // MARK: - UIViewController stored-state side table
 
 /// Per-controller stored state for members the base class (QuillUIKit.swift,
@@ -77,6 +106,14 @@ public enum UIStatusBarStyle: Int, Sendable {
     /// presentation controller's own controller refs are weak — the cache
     /// never keeps the owning controller alive.
     var presentationController: UIPresentationController?
+    /// Apple's default since iOS 13 (resolves to a sheet over there; resolves
+    /// to nothing here because nothing presents visually yet).
+    var modalPresentationStyle: UIModalPresentationStyle = .automatic
+    /// Apple's default: inherit the ancestor/system style.
+    var overrideUserInterfaceStyle: UIUserInterfaceStyle = .unspecified
+    /// The controller's contribution to a navigation toolbar (which lives in
+    /// UINavigationExtras.swift and never composites them).
+    var toolbarItems: [UIBarButtonItem]?
 
     init(owner: UIViewController) { self.owner = owner }
 }
@@ -140,6 +177,39 @@ extension UIViewController {
             ?? UIPresentationController(presentedViewController: self, presenting: presentingViewController)
         state.presentationController = created
         return created
+    }
+
+    /// The presentation style upstream assigns before calling present(_:).
+    /// Stored faithfully with Apple's default; the base class's model-level
+    /// present/dismiss doesn't consult it (no compositor). (Apple declares
+    /// this on UIViewController; UINavigationController's stray Int property
+    /// in QuillUIKit.swift shadows this for nav-typed receivers until it is
+    /// deleted there — see the UIModalPresentationStyle note above.)
+    public var modalPresentationStyle: UIModalPresentationStyle {
+        get { surfaceState?.modalPresentationStyle ?? .automatic }
+        set { ensureSurfaceState().modalPresentationStyle = newValue }
+    }
+
+    /// Forced light/dark override for this controller's subtree. Stored
+    /// faithfully (UIView's stored property of the same name already exists in
+    /// QuillUIKit.swift); nothing resolves traits against it yet, so it does
+    /// not cascade into traitCollection.
+    public var overrideUserInterfaceStyle: UIUserInterfaceStyle {
+        get { surfaceState?.overrideUserInterfaceStyle ?? .unspecified }
+        set { ensureSurfaceState().overrideUserInterfaceStyle = newValue }
+    }
+
+    /// The bar items this controller contributes to a navigation toolbar.
+    /// Stored faithfully; no toolbar composites them (UINavigationExtras.swift
+    /// owns the toolbar itself).
+    public var toolbarItems: [UIBarButtonItem]? {
+        get { surfaceState?.toolbarItems }
+        set { ensureSurfaceState().toolbarItems = newValue }
+    }
+
+    /// `animated` is accepted and ignored — there is nothing to animate.
+    public func setToolbarItems(_ toolbarItems: [UIBarButtonItem]?, animated: Bool) {
+        self.toolbarItems = toolbarItems
     }
 
     /// No-op: there is no status bar to restyle. Kept callable so upstream
@@ -225,17 +295,48 @@ extension UIViewController {
 /// `open weak var delegate`, which upstream (OWSNavigationController)
 /// overrides. Empty, as it was in the shim: upstream's optional-requirement
 /// calls on it are a separate (non-override) error family.
-@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
+/// Navigation transition notifications + customization hooks. All members
+/// are optional on Apple (an @objc protocol); required-with-defaults here
+/// (the shim convention — conformer implementations win through the witness
+/// table). Nothing fires them: QuillUIKit's UINavigationController push/pop
+/// are model-level no-ops, so upstream forwarding (OWSNavigationController →
+/// its external delegate) compiles and the calls land in these defaults.
+/// The orientation defaults mirror Apple's unimplemented-method fallbacks
+/// (`.allButUpsideDown` / `.portrait`); the animation hooks default to nil
+/// ("use the standard transition"). UINavigationController.Operation lives in
+/// QuillUIKit/UINavigationExtras.swift; the transitioning protocols in
+/// QuillUIKit/UIViewControllerSurface.swift.
+@MainActor public protocol UINavigationControllerDelegate: AnyObject {
+    func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool)
+    func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool)
+    func navigationControllerSupportedInterfaceOrientations(_ navigationController: UINavigationController) -> UIInterfaceOrientationMask
+    func navigationControllerPreferredInterfaceOrientationForPresentation(_ navigationController: UINavigationController) -> UIInterfaceOrientation
+    func navigationController(_ navigationController: UINavigationController, animationControllerFor operation: UINavigationController.Operation, from fromVC: UIViewController, to toVC: UIViewController) -> (any UIViewControllerAnimatedTransitioning)?
+    func navigationController(_ navigationController: UINavigationController, interactionControllerFor animationController: any UIViewControllerAnimatedTransitioning) -> (any UIViewControllerInteractiveTransitioning)?
+}
+
+extension UINavigationControllerDelegate {
+    public func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool) {}
+    public func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {}
+    public func navigationControllerSupportedInterfaceOrientations(_ navigationController: UINavigationController) -> UIInterfaceOrientationMask { .allButUpsideDown }
+    public func navigationControllerPreferredInterfaceOrientationForPresentation(_ navigationController: UINavigationController) -> UIInterfaceOrientation { .portrait }
+    public func navigationController(_ navigationController: UINavigationController, animationControllerFor operation: UINavigationController.Operation, from fromVC: UIViewController, to toVC: UIViewController) -> (any UIViewControllerAnimatedTransitioning)? { nil }
+    public func navigationController(_ navigationController: UINavigationController, interactionControllerFor animationController: any UIViewControllerAnimatedTransitioning) -> (any UIViewControllerInteractiveTransitioning)? { nil }
+}
 
 /// Adaptivity/dismissal notifications. All members are optional on Apple
-/// (an @objc protocol); here they are defaulted instead. The
-/// UIModalPresentationStyle-typed adaptivity methods are omitted because that
-/// type isn't declared in the shims yet.
+/// (an @objc protocol); here they are defaulted instead. The adaptivity
+/// defaults return `.none` ("do not adapt"), which is also Apple's behavior
+/// when the optional methods are unimplemented.
 public protocol UIAdaptivePresentationControllerDelegate: AnyObject {
     @MainActor func presentationControllerShouldDismiss(_ presentationController: UIPresentationController) -> Bool
     @MainActor func presentationControllerWillDismiss(_ presentationController: UIPresentationController)
     @MainActor func presentationControllerDidDismiss(_ presentationController: UIPresentationController)
     @MainActor func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController)
+    @MainActor func adaptivePresentationStyle(for controller: UIPresentationController) -> UIModalPresentationStyle
+    @MainActor func adaptivePresentationStyle(for controller: UIPresentationController, traitCollection: UITraitCollection) -> UIModalPresentationStyle
+    @MainActor func presentationController(_ controller: UIPresentationController, viewControllerForAdaptivePresentationStyle style: UIModalPresentationStyle) -> UIViewController?
+    @MainActor func presentationController(_ presentationController: UIPresentationController, willPresentWithAdaptiveStyle style: UIModalPresentationStyle, transitionCoordinator: UIViewControllerTransitionCoordinator?)
 }
 
 extension UIAdaptivePresentationControllerDelegate {
@@ -243,6 +344,10 @@ extension UIAdaptivePresentationControllerDelegate {
     @MainActor public func presentationControllerWillDismiss(_ presentationController: UIPresentationController) {}
     @MainActor public func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {}
     @MainActor public func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) {}
+    @MainActor public func adaptivePresentationStyle(for controller: UIPresentationController) -> UIModalPresentationStyle { .none }
+    @MainActor public func adaptivePresentationStyle(for controller: UIPresentationController, traitCollection: UITraitCollection) -> UIModalPresentationStyle { .none }
+    @MainActor public func presentationController(_ controller: UIPresentationController, viewControllerForAdaptivePresentationStyle style: UIModalPresentationStyle) -> UIViewController? { nil }
+    @MainActor public func presentationController(_ presentationController: UIPresentationController, willPresentWithAdaptiveStyle style: UIModalPresentationStyle, transitionCoordinator: UIViewControllerTransitionCoordinator?) {}
 }
 
 // MARK: - Custom-transition protocol family
@@ -267,10 +372,10 @@ public struct UITransitionContextViewKey: RawRepresentable, Hashable, Sendable {
 
 /// The context UIKit hands an animator. The shims never vend one (animators
 /// are only ever *consumers* of this protocol upstream); it exists so
-/// animator signatures type-check. `presentationStyle` is omitted pending a
-/// UIModalPresentationStyle declaration.
+/// animator signatures type-check.
 public protocol UIViewControllerContextTransitioning: AnyObject {
     @MainActor var containerView: UIView { get }
+    @MainActor var presentationStyle: UIModalPresentationStyle { get }
     @MainActor var isAnimated: Bool { get }
     @MainActor var isInteractive: Bool { get }
     @MainActor var transitionWasCancelled: Bool { get }
