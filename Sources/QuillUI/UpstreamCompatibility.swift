@@ -1062,7 +1062,6 @@ public extension View {
         return SymbolRenderingModeView(content: self, mode: mode)
     }
 
-    @_disfavoredOverload
     func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
         recordQuillUIFallback(
             "scrollIndicators",
@@ -1071,7 +1070,6 @@ public extension View {
         return ScrollIndicatorsView(content: self, visibility: visibility)
     }
 
-    @_disfavoredOverload
     func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
         recordQuillUIFallback(
             "scrollContentBackground",
@@ -1080,7 +1078,6 @@ public extension View {
         return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
-    @_disfavoredOverload
     func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
         recordQuillUIFallback(
             "focusEffectDisabled",
@@ -1089,7 +1086,6 @@ public extension View {
         return FocusEffectDisabledView(content: self, disabled: disabled)
     }
 
-    @_disfavoredOverload
     func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
         recordQuillUIFallback(
             "edgesIgnoringSafeArea",
@@ -1114,7 +1110,6 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
     func gesture<Gesture>(_ gesture: Gesture) -> GestureView<Self, Gesture> {
         recordQuillUIFallback(
             "gesture",
@@ -1182,7 +1177,6 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
     func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
         recordQuillUIFallback(
             "formStyle",
@@ -1192,7 +1186,6 @@ public extension View {
             .background(Color.gray5Custom)
     }
 
-    @_disfavoredOverload
     func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
         recordQuillUIFallback(
             "textContentType",
@@ -1201,7 +1194,6 @@ public extension View {
         return TextContentTypeView(content: self, contentType: contentType)
     }
 
-    @_disfavoredOverload
     func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
         recordQuillUIFallback(
             "disableAutocorrection",
@@ -1218,7 +1210,6 @@ public extension View {
         return KeyboardTypeView(content: self, keyboardType: keyboardType)
     }
 
-    @_disfavoredOverload
     func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
         recordQuillUIFallback(
             "autocapitalization",

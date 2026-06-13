@@ -1569,7 +1569,6 @@ if nnwUpstreamPresent {
                 "Assets.swift",
                 "Commands/DeleteCommand.swift",
                 "Commands/MarkStatusCommand.swift",
-                "Exporters",
                 "ExtensionPoints",
                 "Extensions/AddFeedDefaultContainer.swift",
                 "Extensions/CacheCleaner.swift",
@@ -1610,6 +1609,7 @@ if nnwUpstreamPresent {
                 "Dinosaurs/DinosaursViewModel.swift",
                 "Extensions/ArticleStringFormatter.swift",
                 "Extensions/ArticleUtilities.swift",
+                "Exporters/OPMLExporter.swift",
                 "HelpURL.swift",
                 "Settings/AddCloudKitAccount.swift",
                 "ShareExtension/ExtensionContainers.swift",
@@ -3291,7 +3291,7 @@ let packageTestTargets: [Target] = {
         // through the local QuillNetNewsWireCore reader replacement.
         tests.append(.testTarget(
             name: "NetNewsWireSharedCoreTests",
-            dependencies: ["Account", "Articles", "NetNewsWireSharedCore"],
+            dependencies: ["Account", "Articles", "NetNewsWireSharedCore", "RSCore"],
             swiftSettings: nnwSwiftSettings
         ))
     }

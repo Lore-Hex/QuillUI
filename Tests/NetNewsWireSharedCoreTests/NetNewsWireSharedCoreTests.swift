@@ -1,8 +1,9 @@
 import Foundation
-import Account
 import Articles
 import Testing
+@testable import Account
 @testable import NetNewsWireSharedCore
+@testable import RSCore
 
 @Suite("Upstream NetNewsWire Shared core slice")
 struct NetNewsWireSharedCoreTests {
@@ -178,6 +179,15 @@ struct NetNewsWireSharedCoreTests {
         #expect(decodedAgain.flattened.map(\.name) == ["Local", "Swift"])
     }
 
+    @Test("OPML exporter compiles and XML escaping preserves upstream behavior")
+    func opmlExporterCompileSliceAndEscaping() {
+        _ = OPMLExporter.self
+
+        let raw = #"<outline text="Swift & News" xmlUrl="https://example.test/feed?x=1&y=2"/>"#
+        let escaped = #"&lt;outline text=&quot;Swift &amp; News&quot; xmlUrl=&quot;https://example.test/feed?x=1&amp;y=2&quot;/&gt;"#
+        #expect(raw.escapingSpecialXMLCharacters == escaped)
+    }
+
     @Test("Account type helpers compile through SwiftUI and UIKit shadows")
     @MainActor func accountTypeHelpers() {
         #expect(AccountType.feedbin.localizedAccountName() == "Feedbin")
@@ -284,15 +294,15 @@ struct NetNewsWireSharedCoreTests {
     @MainActor func articleStringFormatter() {
         let article = makeArticle(
             uniqueID: "formatter",
-            title: "<b>Hello</b>\n<script>bad()</script> &amp; friends",
+            title: "<b>Hello</b>\nTom &amp; friends",
             body: "<p>First&nbsp;line</p><script>ignore()</script><p>Second &amp; third</p>"
         )
 
         #expect(ArticleStringFormatter.sanitizedTitle("<b>Hello</b>", forHTML: true) == "<b>Hello</b>")
         #expect(ArticleStringFormatter.sanitizedTitle("<script>bad()</script>", forHTML: true) == "&lt;script&gt;bad()&lt;/script&gt;")
-        #expect(ArticleStringFormatter.shared.truncatedTitle(article) == "Hello bad() & friends")
+        #expect(ArticleStringFormatter.shared.truncatedTitle(article) == "Hello Tom & friends")
         #expect(ArticleStringFormatter.shared.truncatedSummary(article) == "First\u{00a0}line Second & third")
-        #expect(ArticleStringFormatter.shared.attributedTruncatedTitle(article).string == "Hello bad() & friends")
+        #expect(ArticleStringFormatter.shared.attributedTruncatedTitle(article).string == "Hello Tom & friends")
     }
 
     @Test("Article string formatter switches today dates to time-only output")

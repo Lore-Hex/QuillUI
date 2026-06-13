@@ -1918,6 +1918,23 @@ PY
         ( cd "$ROOT_DIR" && swift run quill-lower-foundation "$shared_dir" )
     fi
 
+    local netnewswire_dir="$UPSTREAM_DIR/netnewswire"
+    if [[ -d "$netnewswire_dir" ]] && grep -rq 'Bundle.main.bundleIdentifier!' "$netnewswire_dir" 2>/dev/null; then
+        echo "==> lowering netnewswire forced bundle identifiers for Linux test runners"
+        python3 - "$netnewswire_dir" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+fallback = '(Bundle.main.bundleIdentifier ?? "com.ranchero.NetNewsWire")'
+for path in root.rglob("*.swift"):
+    src = path.read_text()
+    patched = src.replace("Bundle.main.bundleIdentifier!", fallback)
+    if patched != src:
+        path.write_text(patched)
+PY
+    fi
+
     local article_string_formatter="$shared_dir/Extensions/ArticleStringFormatter.swift"
     if [[ -f "$article_string_formatter" ]] && grep -q '#selector(handleAppDidGoToBackground' "$article_string_formatter"; then
         echo "==> lowering netnewswire Shared ArticleStringFormatter selector observers"
