@@ -869,6 +869,75 @@ private final class GTKButtonRootEventContext {
     }
 }
 
+private let gtkCustomButtonStyleContextKey = "quill-custom-button-style-context"
+
+private final class GTKCustomButtonStyleContext {
+    let button: UnsafeMutablePointer<GtkWidget>
+    let label: AnyView
+    let style: AnyButtonStyle
+    let environment: EnvironmentValues
+    var isPressed = false
+
+    init(
+        button: UnsafeMutablePointer<GtkWidget>,
+        label: AnyView,
+        style: AnyButtonStyle,
+        environment: EnvironmentValues
+    ) {
+        self.button = button
+        self.label = label
+        self.style = style
+        self.environment = environment
+    }
+
+    @MainActor
+    func makeChild(isPressed: Bool) -> UnsafeMutablePointer<GtkWidget> {
+        var renderEnvironment = environment
+        // The style body is the button label, not another descendant button
+        // scope. Clearing the custom style avoids accidental recursive restyling
+        // if a style implementation contains a Button internally.
+        renderEnvironment.customButtonStyle = nil
+        renderEnvironment.buttonStyle = .plain
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(renderEnvironment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+
+        let styledBody = style.makeBody(configuration: .init(label: label, isPressed: isPressed))
+        let child = widgetFromOpaque(gtkRenderView(styledBody))
+        gtkDisableButtonChildTargeting(child)
+        return child
+    }
+
+    @MainActor
+    func setPressed(_ pressed: Bool) {
+        guard pressed != isPressed else { return }
+        isPressed = pressed
+        let child = makeChild(isPressed: pressed)
+        let buttonPointer = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
+        gtk_button_set_child(buttonPointer, child)
+    }
+}
+
+@discardableResult
+private func gtkSetCustomButtonStylePressed(_ widget: UnsafeMutablePointer<GtkWidget>, pressed: Bool) -> Bool {
+    guard let pointer = g_object_get_data(
+        UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+        gtkCustomButtonStyleContextKey
+    ) else {
+        return false
+    }
+    let context = Unmanaged<GTKCustomButtonStyleContext>.fromOpaque(pointer).takeUnretainedValue()
+    MainActor.assumeIsolated {
+        context.setPressed(pressed)
+    }
+    return true
+}
+
+@discardableResult
+func gtkTestSetCustomButtonStylePressed(_ widget: UnsafeMutablePointer<GtkWidget>, pressed: Bool) -> Bool {
+    gtkSetCustomButtonStylePressed(widget, pressed: pressed)
+}
+
 /// Debug-only: tags a button activation source with the widget's root-frame
 /// so QUILLUI_GTK_DEBUG_ACTIONS logs identify WHICH button fired.
 private func gtkButtonDebugSource(_ source: String, widget: UnsafeMutablePointer<GtkWidget>) -> String {
@@ -943,14 +1012,35 @@ extension Button: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         let button: UnsafeMutablePointer<GtkWidget>
         let childWidget: UnsafeMutablePointer<GtkWidget>
+        let styleContext: GTKCustomButtonStyleContext?
         var buttonWantsHExpand = false
         var buttonWantsVExpand = false
 
         button = gtk_button_new()!
-        if let textLabel = label as? Text {
+        let environment = getCurrentEnvironment()
+        if let customButtonStyle = environment.customButtonStyle {
+            let context = GTKCustomButtonStyleContext(
+                button: button,
+                label: AnyView(label),
+                style: customButtonStyle,
+                environment: environment
+            )
+            childWidget = context.makeChild(isPressed: false)
+            styleContext = context
+            if gtk_widget_get_hexpand(childWidget) != 0 {
+                buttonWantsHExpand = true
+                gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+            }
+            if gtk_widget_get_vexpand(childWidget) != 0 {
+                buttonWantsVExpand = true
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+            }
+        } else if let textLabel = label as? Text {
             childWidget = widgetFromOpaque(textLabel.gtkCreateWidget())
+            styleContext = nil
         } else {
             childWidget = widgetFromOpaque(gtkRenderView(label))
+            styleContext = nil
             if gtk_widget_get_hexpand(childWidget) != 0 {
                 buttonWantsHExpand = true
                 gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
@@ -963,20 +1053,24 @@ extension Button: GTKRenderable, GTKDescribable {
 
         let buttonStyleType = getCurrentEnvironment().buttonStyle
         let handledByQuillPaint: Bool
-        switch buttonStyleType {
-        case .quillPaintMacDefault:
-            handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), true) ?? false
-        case .quillPaintMacBordered:
-            handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
-        default:
+        if styleContext != nil {
             handledByQuillPaint = false
+        } else {
+            switch buttonStyleType {
+            case .quillPaintMacDefault:
+                handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), true) ?? false
+            case .quillPaintMacBordered:
+                handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+            default:
+                handledByQuillPaint = false
+            }
         }
 
         if !handledByQuillPaint {
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
             gtkDisableButtonChildTargeting(childWidget)
-            if !(label is Text) {
+            if styleContext != nil || !(label is Text) {
                 // Remove GTK default button border/padding so custom-styled
                 // labels (with .background/.frame) render cleanly.
                 applyCSSToWidget(button, properties: """
@@ -987,6 +1081,19 @@ extension Button: GTKRenderable, GTKDescribable {
                     min-width: 0;
                     """)
             }
+        }
+
+        if let styleContext {
+            let retained = Unmanaged.passRetained(styleContext).toOpaque()
+            g_object_set_data_full(
+                UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self),
+                gtkCustomButtonStyleContextKey,
+                retained,
+                { userData in
+                    guard let userData else { return }
+                    Unmanaged<GTKCustomButtonStyleContext>.fromOpaque(userData).release()
+                }
+            )
         }
 
         if !handledByQuillPaint {
@@ -1081,6 +1188,7 @@ extension Button: GTKRenderable, GTKDescribable {
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                _ = gtkSetCustomButtonStylePressed(context.widget, pressed: false)
                 gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget))
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
@@ -1095,6 +1203,7 @@ extension Button: GTKRenderable, GTKDescribable {
             unsafeBitCast({ (_: gpointer?, _: gint, _: gdouble, _: gdouble, userData: gpointer?) in
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                _ = gtkSetCustomButtonStylePressed(context.widget, pressed: true)
                 gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget))
             } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
@@ -3327,6 +3436,26 @@ extension ButtonStyleModifier: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env.buttonStyle = style
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        let widget = gtkRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension CustomButtonStyleModifier: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "CustomButtonStyleModifier",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        env.customButtonStyle = style
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         let widget = gtkRenderView(content)

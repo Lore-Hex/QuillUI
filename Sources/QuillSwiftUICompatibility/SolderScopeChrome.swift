@@ -72,53 +72,11 @@ extension View {
     }
 }
 
-// MARK: - ButtonStyle protocol (moved from QuillUI)
+// MARK: - ButtonStyle protocol
 
-// ButtonStyle + ButtonStyleConfiguration live in DesignSystemSurfaceCompat.swift
-// (same AnyView label shape; the functional buttonStyle overload below uses them).
-
-extension View {
-    /// Accepts a custom `ButtonStyle` conformance. Compile-surface: custom
-    /// styles currently fall back to the plain GTK button chrome (the style's
-    /// `makeBody` is not yet invoked by the renderer). Distinct parameter type
-    /// keeps the built-in `buttonStyle(_: ButtonStyleType)` overload — and
-    /// `.buttonStyle(.plain)` call sites — resolving exactly as before.
-    public func buttonStyle<S: ButtonStyle>(_ style: S) -> some View {
-        // Functional custom styles for the direct application every real app
-        // uses (`Button(...) .buttonStyle(MyStyle())`): rebuild the button
-        // with makeBody's output as its label under plain GTK chrome — the
-        // style owns ALL visuals (colors/padding/background), which is how
-        // SolderScope's ToolbarButtonStyle paints its accent-blue active
-        // states. isPressed is currently always false (GtkButton's own
-        // :active pseudo-state still gives press feedback; reactive pressed
-        // restyling needs press-signal plumbing — documented gap).
-        if let button = self as? QuillStyleableButtonRepresentable {
-            return AnyView(
-                Button(action: button.quillStyleableAction) {
-                    style.makeBody(configuration: .init(
-                        label: button.quillStyleableLabel, isPressed: false))
-                }
-                .buttonStyle(ButtonStyleType.plain)
-            )
-        }
-        // Indirect application (container subtrees) keeps the plain fallback.
-        return AnyView(buttonStyle(ButtonStyleType.plain))
-    }
-}
-
-/// Type-erased access to a Button's label and action so the generic
-/// `buttonStyle` overload can rebuild it across any `Label` type.
-/// @MainActor: members of main-actor-isolated View types.
-@MainActor
-public protocol QuillStyleableButtonRepresentable {
-    var quillStyleableLabel: AnyView { get }
-    var quillStyleableAction: () -> Void { get }
-}
-
-extension Button: QuillStyleableButtonRepresentable {
-    public var quillStyleableLabel: AnyView { AnyView(label) }
-    public var quillStyleableAction: () -> Void { action }
-}
+// ButtonStyle + ButtonStyleConfiguration + custom-style propagation are now
+// canonical in SwiftOpenUI so renderers can apply makeBody(configuration:)
+// with live pressed state instead of Quill-only compile shims.
 
 // MARK: - ButtonRole (moved from QuillUI)
 

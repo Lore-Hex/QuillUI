@@ -627,6 +627,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUI/UpstreamCompatibility.swift"),
             encoding: .utf8
         )
+        let swiftOpenUIControlStyles = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains("name: \"QuillSwiftUICompatibility\""))
         #expect(manifest.contains("\"QuillFoundation\",\n    \"QuillSwiftUICompatibility\","))
@@ -638,16 +642,17 @@ struct SourceHygieneTests {
         #expect(manifest.contains("\"Observation\",\n    .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\"),\n    \"CGdkPixbuf\","))
         #expect(manifest.contains("let wrappingHStackDependencies: [Target.Dependency] = [\n    \"SwiftUI\",\n    \"Observation\","))
         #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
-        #expect(manifest.contains("? [\"Observation\", swiftUIShimBackendDependency] : []"))
+        #expect(manifest.contains("quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [\"QuillAppKitQt\", \"Observation\", swiftUIShimBackendDependency] : []"))
         #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"Observation\",\n                    \"CQtBridge\""))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))
         #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
-        #expect(designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
+        #expect(swiftOpenUIControlStyles.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))
         #expect(!quillUpstreamCompatibility.contains("public struct PlainButtonStyle"))
+        #expect(!designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(!quillUpstreamCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
     }
