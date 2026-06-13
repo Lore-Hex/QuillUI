@@ -74,6 +74,44 @@ struct QuillRSCoreShimTests {
         #expect(Notification.Name.lowMemory.rawValue == "LowMemoryNotification")
     }
 
+    @Test("collapsingWhitespace trims ASCII whitespace and preserves non-ASCII text")
+    func collapsingWhitespace() {
+        #expect("".collapsingWhitespace == "")
+        #expect("   hello   ".collapsingWhitespace == "hello")
+        #expect("one \n\t two\r\nthree".collapsingWhitespace == "one two three")
+        let accented = "Caf\u{00e9}   r\u{00e9}sum\u{00e9}"
+        #expect(accented.collapsingWhitespace == "Caf\u{00e9} r\u{00e9}sum\u{00e9}")
+
+        let nonBreakingSpace = "\u{00a0}"
+        #expect("a\(nonBreakingSpace)b".collapsingWhitespace == "a\(nonBreakingSpace)b")
+    }
+
+    @Test("NSAttributedString simpleHTML exposes visible text")
+    func simpleHTMLAttributedString() {
+        let attributed = NSAttributedString(simpleHTML: "<b>Hello</b> &amp; <q>world</q>")
+        #expect(attributed.string.contains("Hello & "))
+        #expect(attributed.string.contains("world"))
+    }
+
+    @Test("postOnMainThread asynchronously delivers a notification")
+    func postOnMainThreadDeliversNotification() async {
+        let name = Notification.Name("QuillRSCoreShimTests.postOnMainThread.\(UUID().uuidString)")
+        var observer: NSObjectProtocol?
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            observer = NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { notification in
+                #expect(notification.name == name)
+                continuation.resume()
+            }
+
+            NotificationCenter.default.postOnMainThread(name: name, object: nil)
+        }
+
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
     @Test("Platform.isRunningUnitTests returns true under XCTest")
     func platformIsRunningUnitTestsUnderXCTest() {
         // The Quill test runner injects XCTestConfigurationFilePath

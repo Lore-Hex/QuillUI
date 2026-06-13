@@ -6,8 +6,7 @@ import SwiftOpenUI
 import QuillSwiftUICompatibility
 import QuillKit
 import QuillFoundation
-import class UIKit.NSItemProvider
-import enum UIKit.UIKeyboardType
+@_exported import CoreTransferable
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -39,24 +38,6 @@ public extension UTType {
     }
 }
 #endif
-
-public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
-    case representationUnavailable(String)
-    case fileSelectionUnavailable
-    case unsupportedFileSelection(URL, [UTType])
-
-    public var errorDescription: String? {
-        switch self {
-        case .representationUnavailable(let identifier):
-            return "No data representation is available for \(identifier)."
-        case .fileSelectionUnavailable:
-            return "No file selection provider is available."
-        case .unsupportedFileSelection(let url, let allowedTypes):
-            let allowed = allowedTypes.map(\.identifier).joined(separator: ", ")
-            return "\(url.path) is not one of the allowed file types: \(allowed)."
-        }
-    }
-}
 
 public enum QuillFileImporter {
     private static let environmentKey = "QUILLUI_FILE_IMPORTER_SELECTION"
@@ -1181,18 +1162,6 @@ public extension View {
         self.contextMenu {
             contextMenu.menuElements
         }
-    }
-
-    @_disfavoredOverload
-    func matchedGeometryEffect<ID: Hashable>(
-        id: ID,
-        in namespace: Namespace.ID
-    ) -> AnimatedView<Self> {
-        recordQuillUIFallback(
-            "matchedGeometryEffect",
-            message: "matchedGeometryEffect is approximated with value-driven animation on Linux."
-        )
-        return animation(.easeInOut(duration: 0.2), value: AnyHashable(id))
     }
 
     func focusedSceneValue<K: FocusedValueKey>(

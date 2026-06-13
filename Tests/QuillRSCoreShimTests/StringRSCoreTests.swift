@@ -63,4 +63,10 @@ struct StringRSCoreTests {
     func trimming() {
         #expect("  x \n".trimmingWhitespace == "x")
     }
+
+    @Test("prepending(tabCount:) adds leading tabs and preserves the payload")
+    func prependingTabs() {
+        #expect("outline".prepending(tabCount: 0) == "outline")
+        #expect("outline".prepending(tabCount: 2) == "\t\toutline")
+    }
 }

@@ -32,9 +32,15 @@ done
 
 (
   cd "$ROOT_DIR"
+  target_triple="$(swift -print-target-info 2>/dev/null | sed -n 's/.*"triple"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 || true)"
+  for triple in "$target_triple" x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+    [[ -n "$triple" ]] || continue
+    mkdir -p "$SCRATCH_PATH/$triple/debug/index/store/v5/units"
+  done
+
   set +e
   "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift test --scratch-path "$SCRATCH_PATH" "${SWIFT_TEST_ARGS[@]}" \
+    swift test --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test.log"
   status=${PIPESTATUS[0]}
   set -e

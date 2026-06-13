@@ -2,12 +2,8 @@ import Foundation
 @_exported import RSDatabaseObjC
 
 public typealias DatabaseResult = Result<FMDatabase, Error>
-// Upstream NetNewsWire (2026-06) hands the database directly to the block;
-// the older DatabaseResult-based shape is kept above for source back-compat.
-public typealias DatabaseBlock = @Sendable (FMDatabase) -> Void
-// Upstream RSDatabase (2026-06) completion blocks take no arguments
-// (call sites pass `{ continuation.resume() }` / `completion()`).
-public typealias DatabaseCompletionBlock = @Sendable () -> Void
+public typealias DatabaseBlock = @Sendable (DatabaseResult) -> Void
+public typealias DatabaseCompletionBlock = @Sendable (Error?) -> Void
 public typealias DatabaseDictionary = [String: Any]
 
 public extension DatabaseResult {
@@ -41,20 +37,20 @@ public final class DatabaseQueue: @unchecked Sendable {
 
     public func runInDatabaseSync(_ databaseBlock: DatabaseBlock) {
         serialDispatchQueue.sync {
-            databaseBlock(database)
+            databaseBlock(.success(database))
         }
     }
 
     public func runInDatabase(_ databaseBlock: @escaping DatabaseBlock) {
         serialDispatchQueue.async {
-            databaseBlock(self.database)
+            databaseBlock(.success(self.database))
         }
     }
 
     public func runInTransactionSync(_ databaseBlock: @escaping DatabaseBlock) {
         serialDispatchQueue.sync {
             self.database.beginTransaction()
-            databaseBlock(self.database)
+            databaseBlock(.success(self.database))
             self.database.commit()
         }
     }
@@ -62,21 +58,32 @@ public final class DatabaseQueue: @unchecked Sendable {
     public func runInTransaction(_ databaseBlock: @escaping DatabaseBlock) {
         serialDispatchQueue.async {
             self.database.beginTransaction()
-            databaseBlock(self.database)
+            databaseBlock(.success(self.database))
             self.database.commit()
         }
     }
 
-    public func runCreateStatements(_ statements: String) {
-        runInDatabaseSync { database in
-            database.runCreateStatements(statements)
+    public func runCreateStatements(_ statements: String) throws {
+        nonisolated(unsafe) var error: Error?
+        runInDatabaseSync { result in
+            switch result {
+            case .success(let database):
+                database.runCreateStatements(statements)
+            case .failure(let databaseError):
+                error = databaseError
+            }
+        }
+        if let error {
+            throw error
         }
     }
 
     public func vacuum() async {
         await withCheckedContinuation { continuation in
-            runInDatabase { database in
-                database.vacuum()
+            runInDatabase { result in
+                if let database = try? result.get() {
+                    database.vacuum()
+                }
                 continuation.resume()
             }
         }

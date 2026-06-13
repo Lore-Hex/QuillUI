@@ -1295,6 +1295,12 @@ public struct MarkdownTableBackgroundStyle {
     }
 }
 
+public extension Text {
+    func foregroundColor(_ color: Color) -> Text {
+        self
+    }
+}
+
 public extension View {
     func markdownTheme(_ theme: Theme) -> some View {
         self

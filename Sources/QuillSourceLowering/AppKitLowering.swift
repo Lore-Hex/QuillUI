@@ -84,7 +84,7 @@ public struct AppKitLowering {
                 localClassNames: mergeCollector.localClassNames,
                 overridesByClass: mergeCollector.overridesByClass
               ).rewrite(pass1)
-        let rewritten = merged.description
+        let rewritten = FoundationLowering().lower(merged.description)
         let conformances = Self.generateDispatchConformances(
             orderedTypes: collector.orderedTypes,
             byType: collector.byType

@@ -41,6 +41,144 @@ public extension String {
         let digest = MD5.hash(Array(self.utf8))
         return MD5.hexString(digest)
     }
+
+    var escapingSpecialXMLCharacters: String {
+        var result = ""
+        result.reserveCapacity(count)
+        for character in self {
+            switch character {
+            case "&": result += "&amp;"
+            case "\"": result += "&quot;"
+            case "'": result += "&apos;"
+            case "<": result += "&lt;"
+            case ">": result += "&gt;"
+            default: result.append(character)
+            }
+        }
+        return result
+    }
+}
+
+public extension NotificationCenter {
+    nonisolated func postOnMainThread(name: Notification.Name, object: Any?, userInfo: [AnyHashable: Any]? = nil) {
+        nonisolated(unsafe) let capturedObject = object
+        nonisolated(unsafe) let capturedUserInfo = userInfo
+        Task { @MainActor in
+            NotificationCenter.default.post(name: name, object: capturedObject, userInfo: capturedUserInfo)
+        }
+    }
+}
+
+public extension Calendar {
+    /// A cached `.autoupdatingCurrent` for compatibility with upstream RSCore.
+    static let cached: Calendar = .autoupdatingCurrent
+
+    /// Determine whether a date is in today.
+    static func dateIsToday(_ date: Date) -> Bool {
+        cached.isDateInToday(date)
+    }
+}
+
+public extension NSAttributedString {
+    /// Lightweight compatibility initializer for NetNewsWire's
+    /// `NSAttributedString(simpleHTML:)` call sites.
+    ///
+    /// Upstream styles a small inline HTML subset with platform fonts. The
+    /// Linux shim keeps the same visible text behavior and omits font traits
+    /// until the AppKit font descriptor surface is rich enough to compile the
+    /// full upstream extension unchanged.
+    convenience init(simpleHTML: String, locale: Locale = Locale.current) {
+        self.init(string: Self.quillPlainText(fromSimpleHTML: simpleHTML, locale: locale))
+    }
+
+    private static func quillPlainText(fromSimpleHTML html: String, locale: Locale) -> String {
+        var result = ""
+        var tag = ""
+        var entity = ""
+        var inTag = false
+        var inEntity = false
+        var quoteDepth = 0
+
+        func appendEntityLiteral() {
+            result += entity.decodingBasicHTMLEntities()
+            entity.removeAll(keepingCapacity: true)
+            inEntity = false
+        }
+
+        for character in html {
+            if inEntity {
+                entity.append(character)
+                if character == ";" {
+                    appendEntityLiteral()
+                } else if character.isWhitespace {
+                    appendEntityLiteral()
+                    result.append(character)
+                }
+                continue
+            }
+
+            if inTag {
+                if character == ">" {
+                    let normalizedTag = tag
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .lowercased()
+                    if normalizedTag == "q" {
+                        quoteDepth += 1
+                        result += (quoteDepth % 2 == 1 ? locale.quotationBeginDelimiter : locale.alternateQuotationBeginDelimiter) ?? "\""
+                    } else if normalizedTag == "/q" {
+                        result += (quoteDepth % 2 == 1 ? locale.quotationEndDelimiter : locale.alternateQuotationEndDelimiter) ?? "\""
+                        quoteDepth = max(0, quoteDepth - 1)
+                    }
+                    tag.removeAll(keepingCapacity: true)
+                    inTag = false
+                } else {
+                    tag.append(character)
+                }
+                continue
+            }
+
+            switch character {
+            case "<":
+                inTag = true
+                tag.removeAll(keepingCapacity: true)
+            case "&":
+                inEntity = true
+                entity = "&"
+            default:
+                result.append(character)
+            }
+        }
+
+        if inEntity {
+            result += entity
+        }
+        return result
+    }
+}
+
+private extension String {
+    func decodingBasicHTMLEntities() -> String {
+        switch self {
+        case "&amp;": return "&"
+        case "&lt;": return "<"
+        case "&gt;": return ">"
+        case "&quot;": return "\""
+        case "&apos;": return "'"
+        default:
+            if hasPrefix("&#x"), hasSuffix(";") {
+                let body = dropFirst(3).dropLast()
+                if let scalar = UInt32(body, radix: 16).flatMap(UnicodeScalar.init) {
+                    return String(Character(scalar))
+                }
+            } else if hasPrefix("&#"), hasSuffix(";") {
+                let body = dropFirst(2).dropLast()
+                if let scalar = UInt32(body, radix: 10).flatMap(UnicodeScalar.init) {
+                    return String(Character(scalar))
+                }
+            }
+            return self
+        }
+    }
 }
 
 /// Mirrors `RSCore.Platform`. Articles' AuthorCache uses
@@ -50,6 +188,10 @@ public extension String {
 /// runner — return false unconditionally; tests can override
 /// the detection with the environment variable upstream uses.
 public struct Platform {
+    public nonisolated static var deviceHasiCloudAccount: Bool {
+        false
+    }
+
     public nonisolated static var isRunningUnitTests: Bool {
         // Same env signal upstream RSCore checks first; matches
         // XCTest's behavior of injecting XCTestConfigurationFilePath
@@ -59,6 +201,64 @@ public struct Platform {
         if env["XCTestConfigurationFilePath"] != nil { return true }
         if env["SWIFT_TESTING_ENABLED"] != nil { return true }
         return false
+    }
+
+    public static func dataSubfolder(forApplication appName: String?, folderName: String) -> String? {
+        let root = AppConfig.dataFolderForApplication(appName)
+        let folder = root.appendingPathComponent(folderName, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            return folder.path
+        } catch {
+            return nil
+        }
+    }
+}
+
+public final class AppConfig {
+    public static var appName: String {
+        (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String)
+            ?? ProcessInfo.processInfo.processName
+    }
+
+    public static var cacheFolder: URL {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        return ensureSubfolder(named: appName, folderURL: base)
+    }
+
+    public static var dataFolder: URL {
+        dataFolderForApplication(appName)
+    }
+
+    public static func cacheSubfolder(named name: String) -> URL {
+        ensureSubfolder(named: name, folderURL: cacheFolder)
+    }
+
+    public static func dataSubfolder(named name: String) -> URL {
+        ensureSubfolder(named: name, folderURL: dataFolder)
+    }
+
+    public static func relativeDataPath(_ absolutePath: String) -> String {
+        let prefix = dataFolder.path + "/"
+        guard absolutePath.hasPrefix(prefix) else {
+            return absolutePath
+        }
+        return String(absolutePath.dropFirst(prefix.count))
+    }
+
+    static func dataFolderForApplication(_ appName: String?) -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        let folder = base.appendingPathComponent(appName ?? Self.appName, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    private static func ensureSubfolder(named name: String, folderURL: URL) -> URL {
+        let folder = folderURL.appendingPathComponent(name, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
     }
 }
 
@@ -70,7 +270,66 @@ public extension Notification.Name {
     /// string ("LowMemoryNotification") is matched byte-for-byte
     /// so notifications posted from either side route the same.
     static let lowMemory = Notification.Name("LowMemoryNotification")
+
+    /// Posted when a coalesced model mutation batch completes.
+    static let BatchUpdateDidPerform = Notification.Name(rawValue: "BatchUpdateDidPerform")
 }
+
+public typealias BatchUpdateBlock = () -> Void
+
+@MainActor public final class BatchUpdate {
+    public static let shared = BatchUpdate()
+
+    private var count = 0
+
+    public var isPerforming: Bool {
+        count > 0
+    }
+
+    public func perform(_ batchUpdateBlock: BatchUpdateBlock) {
+        incrementCount()
+        batchUpdateBlock()
+        decrementCount()
+    }
+
+    public func start() {
+        incrementCount()
+    }
+
+    public func end() {
+        decrementCount()
+    }
+
+    private func incrementCount() {
+        count += 1
+    }
+
+    private func decrementCount() {
+        count -= 1
+        guard count < 1 else {
+            return
+        }
+        count = 0
+        NotificationCenter.default.post(name: .BatchUpdateDidPerform, object: nil)
+    }
+}
+
+public struct AppNotification {
+    public static func postLowMemory() {
+        NotificationCenter.default.post(name: .lowMemory, object: nil)
+    }
+
+    public static func postAppDidGoToBackground() {
+        NotificationCenter.default.post(name: .appDidGoToBackground, object: nil)
+    }
+}
+
+public let NSUbiquitousKeyValueStoreChangeReasonKey = "NSUbiquitousKeyValueStoreChangeReasonKey"
+public let NSUbiquitousKeyValueStoreChangedKeysKey = "NSUbiquitousKeyValueStoreChangedKeysKey"
+public let NSUbiquitousKeyValueStoreServerChange = 0
+public let NSUbiquitousKeyValueStoreInitialSyncChange = 1
+public let NSUbiquitousKeyValueStoreQuotaViolationChange = 2
+public let NSUbiquitousKeyValueStoreAccountChange = 3
 
 /// Pure-Swift MD5 implementation (RFC 1321). The intent is to
 /// match the output of upstream RSCore's CryptoKit-backed

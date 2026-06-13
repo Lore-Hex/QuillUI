@@ -32,6 +32,24 @@ nonisolated public struct SpecialCase {
 		}
 		return false
 	}
+
+	public static func urlStringMatchesDomain(_ urlString: String, _ domains: [String]) -> Bool {
+		guard let url = URL(string: urlString), let host = url.host()?.lowercased(with: localeForLowercasing) else {
+			return false
+		}
+		let normalizedHost: String
+		if host.hasPrefix("www.") {
+			normalizedHost = String(host.dropFirst(4))
+		} else {
+			normalizedHost = host
+		}
+		for domain in domains where !domain.isEmpty {
+			if normalizedHost == domain || normalizedHost.hasSuffix("." + domain) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 nonisolated extension URL {

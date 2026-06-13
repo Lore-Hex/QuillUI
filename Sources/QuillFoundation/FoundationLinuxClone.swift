@@ -157,6 +157,69 @@ public extension QuillKeyValueCoding {
     }
 }
 
+private struct QuillNSSortDescriptorKeyRoot {
+    let value: String
+}
+
+private final class QuillNSSortDescriptorMetadataStore: @unchecked Sendable {
+    static let shared = QuillNSSortDescriptorMetadataStore()
+
+    private final class Entry {
+        weak var descriptor: NSSortDescriptor?
+        let key: String?
+
+        init(descriptor: NSSortDescriptor, key: String?) {
+            self.descriptor = descriptor
+            self.key = key
+        }
+    }
+
+    private let lock = NSLock()
+    private var keys: [ObjectIdentifier: Entry] = [:]
+
+    func setKey(_ key: String?, for descriptor: NSSortDescriptor) {
+        lock.lock()
+        keys[ObjectIdentifier(descriptor)] = Entry(descriptor: descriptor, key: key)
+        lock.unlock()
+    }
+
+    func key(for descriptor: NSSortDescriptor) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        let identifier = ObjectIdentifier(descriptor)
+        guard let entry = keys[identifier] else {
+            return nil
+        }
+        guard entry.descriptor === descriptor else {
+            keys[identifier] = nil
+            return nil
+        }
+        return entry.key
+    }
+}
+
+public extension NSSortDescriptor {
+    /// Builds a Linux-safe descriptor for Apple-source that uses KVC string
+    /// sort keys. swift-corelibs marks `init(key:ascending:)` unavailable and
+    /// traps if availability is suppressed, so source lowering rewrites those
+    /// calls to this adapter and preserves the key in a side table.
+    static func quillKey(_ key: String?, ascending: Bool) -> NSSortDescriptor {
+        let descriptor = NSSortDescriptor(
+            keyPath: \QuillNSSortDescriptorKeyRoot.value,
+            ascending: ascending
+        )
+        QuillNSSortDescriptorMetadataStore.shared.setKey(key, for: descriptor)
+        return descriptor
+    }
+
+    /// Linux companion for Apple's `key` property. Source lowering rewrites
+    /// `sortDescriptor.key` to `sortDescriptor.quillKey` for values created
+    /// by `NSSortDescriptor.quillKey(_:ascending:)`.
+    var quillKey: String? {
+        QuillNSSortDescriptorMetadataStore.shared.key(for: self)
+    }
+}
+
 public func NSStringFromSelector(_ selector: Selector) -> String {
     selector.name
 }
@@ -257,15 +320,73 @@ public extension Data.ReadingOptions {
 
 open class NSUbiquitousKeyValueStore: NSObject, @unchecked Sendable {
     public static let `default` = NSUbiquitousKeyValueStore()
+    public static let didChangeExternallyNotification = Notification.Name("NSUbiquitousKeyValueStoreDidChangeExternallyNotification")
 
+    private let lock = NSLock()
     private var values: [String: Any] = [:]
 
     open func object(forKey aKey: String) -> Any? {
-        values[aKey]
+        lock.lock()
+        defer { lock.unlock() }
+        return values[aKey]
     }
 
     open func set(_ anObject: Any?, forKey aKey: String) {
+        lock.lock()
         values[aKey] = anObject
+        lock.unlock()
+    }
+
+    open func set(_ value: Bool, forKey aKey: String) {
+        set(value as Any, forKey: aKey)
+    }
+
+    open func set(_ value: Double, forKey aKey: String) {
+        set(value as Any, forKey: aKey)
+    }
+
+    open func set(_ value: Int64, forKey aKey: String) {
+        set(value as Any, forKey: aKey)
+    }
+
+    open func data(forKey aKey: String) -> Data? {
+        object(forKey: aKey) as? Data
+    }
+
+    open func string(forKey aKey: String) -> String? {
+        object(forKey: aKey) as? String
+    }
+
+    open func array(forKey aKey: String) -> [Any]? {
+        object(forKey: aKey) as? [Any]
+    }
+
+    open func dictionary(forKey aKey: String) -> [String: Any]? {
+        object(forKey: aKey) as? [String: Any]
+    }
+
+    open func bool(forKey aKey: String) -> Bool {
+        object(forKey: aKey) as? Bool ?? false
+    }
+
+    open func double(forKey aKey: String) -> Double {
+        object(forKey: aKey) as? Double ?? 0
+    }
+
+    open func longLong(forKey aKey: String) -> Int64 {
+        object(forKey: aKey) as? Int64 ?? 0
+    }
+
+    open func removeObject(forKey aKey: String) {
+        lock.lock()
+        values[aKey] = nil
+        lock.unlock()
+    }
+
+    open var dictionaryRepresentation: [String: Any] {
+        lock.lock()
+        defer { lock.unlock() }
+        return values
     }
 
     @discardableResult
