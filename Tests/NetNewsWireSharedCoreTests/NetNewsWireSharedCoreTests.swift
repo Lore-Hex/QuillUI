@@ -1,5 +1,6 @@
 import Foundation
 import Account
+import Articles
 import Testing
 @testable import NetNewsWireSharedCore
 
@@ -264,5 +265,69 @@ struct NetNewsWireSharedCoreTests {
         #expect(!ArticleRenderingSpecialCases.isVergeSpecialCase(URL(string: "https://example.test/story")!))
         #expect(ArticleRenderingSpecialCases.filterHTMLIfNeeded(baseURL: "https://example.test", html: html) == html)
         #expect(ArticleRenderingSpecialCases.filterHTMLIfNeeded(baseURL: "https://www.theverge.com", html: html) == "A ’ quote…")
+    }
+
+    @Test("Mark command validation handles empty, markable, and unmarkable selections")
+    func markCommandValidation() {
+        let unread = makeArticle(uniqueID: "unread", title: "Unread", read: false)
+        let read = makeArticle(uniqueID: "read", title: "Read", read: true)
+        let hasUnreadArticles: (ArticleArray) -> Bool = { articles in
+            articles.contains { !$0.status.read }
+        }
+
+        #expect(MarkCommandValidationStatus.statusFor([], hasUnreadArticles) == .canDoNothing)
+        #expect(MarkCommandValidationStatus.statusFor([unread], hasUnreadArticles) == .canMark)
+        #expect(MarkCommandValidationStatus.statusFor([read], hasUnreadArticles) == .canUnmark)
+    }
+
+    @Test("Article string formatter sanitizes titles and summaries")
+    @MainActor func articleStringFormatter() {
+        let article = makeArticle(
+            uniqueID: "formatter",
+            title: "<b>Hello</b>\n<script>bad()</script> &amp; friends",
+            body: "<p>First&nbsp;line</p><script>ignore()</script><p>Second &amp; third</p>"
+        )
+
+        #expect(ArticleStringFormatter.sanitizedTitle("<b>Hello</b>", forHTML: true) == "<b>Hello</b>")
+        #expect(ArticleStringFormatter.sanitizedTitle("<script>bad()</script>", forHTML: true) == "&lt;script&gt;bad()&lt;/script&gt;")
+        #expect(ArticleStringFormatter.shared.truncatedTitle(article) == "Hello bad() & friends")
+        #expect(ArticleStringFormatter.shared.truncatedSummary(article) == "First\u{00a0}line Second & third")
+        #expect(ArticleStringFormatter.shared.attributedTruncatedTitle(article).string == "Hello bad() & friends")
+    }
+
+    @Test("Article string formatter switches today dates to time-only output")
+    @MainActor func articleStringFormatterDates() {
+        let formatter = ArticleStringFormatter.shared
+        let today = Date()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
+
+        #expect(formatter.dateString(today).contains(":"))
+        #expect(!formatter.dateString(yesterday).isEmpty)
+    }
+
+    private func makeArticle(
+        uniqueID: String,
+        title: String?,
+        read: Bool = false,
+        body: String? = nil
+    ) -> Article {
+        Article(
+            accountID: "account",
+            articleID: "article-\(uniqueID)",
+            feedID: "feed",
+            uniqueID: uniqueID,
+            title: title,
+            contentHTML: body,
+            contentText: nil,
+            markdown: nil,
+            url: nil,
+            externalURL: nil,
+            summary: nil,
+            imageURL: nil,
+            datePublished: nil,
+            dateModified: nil,
+            authors: nil,
+            status: ArticleStatus(articleID: "article-\(uniqueID)", read: read, starred: false, dateArrived: Date(timeIntervalSince1970: 0))
+        )
     }
 }

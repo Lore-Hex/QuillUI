@@ -1918,6 +1918,61 @@ PY
         ( cd "$ROOT_DIR" && swift run quill-lower-foundation "$shared_dir" )
     fi
 
+    local article_string_formatter="$shared_dir/Extensions/ArticleStringFormatter.swift"
+    if [[ -f "$article_string_formatter" ]] && grep -q '#selector(handleAppDidGoToBackground' "$article_string_formatter"; then
+        echo "==> lowering netnewswire Shared ArticleStringFormatter selector observers"
+        python3 - "$article_string_formatter" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init() {
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+	}
+'''
+new_init = '''	init() {
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .appDidGoToBackground, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.handleAppDidGoToBackground(notification)
+			}
+		}
+		_ = NotificationCenter.default.addObserver(forName: .lowMemory, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.handleLowMemory(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+#endif
+	}
+'''
+if old_init not in src:
+    raise SystemExit("ArticleStringFormatter selector observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+
+src = src.replace(
+    "\t@objc func handleAppDidGoToBackground(_ notification: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc handleAppDidGoToBackground(_ notification: Notification) {",
+    1,
+)
+src = src.replace(
+    "\t@objc func handleLowMemory(_ notification: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc handleLowMemory(_ notification: Notification) {",
+    1,
+)
+src = src.replace("return NSAttributedString()", 'return NSAttributedString(string: "")')
+
+path.write_text(src)
+print("patched ArticleStringFormatter selector observer lowering")
+PY
+    fi
+
     local article_utilities="$shared_dir/Extensions/ArticleUtilities.swift"
     if [[ -f "$article_utilities" ]] && grep -qE '^import Images|func iconImage\(' "$article_utilities"; then
         echo "==> lowering netnewswire Shared ArticleUtilities image-cache island"

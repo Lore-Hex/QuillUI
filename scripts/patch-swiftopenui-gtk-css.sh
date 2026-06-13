@@ -444,7 +444,10 @@ new = """    /// SwiftUI-shaped builder overload with a message view.
 
 if old in text:
     text = text.replace(old, new, 1)
-elif "buttons: swiftOpenUIConfirmationDialogButtons(from: actionView)" not in text:
+elif (
+    "buttons: swiftOpenUIConfirmationDialogButtons(from: actionView)" not in text
+    and "buttons: swiftOpenUIConfirmationDialogButtons(from: actions())" not in text
+):
     raise SystemExit("SwiftOpenUI confirmationDialog builder overload shape was not recognized")
 
 path.write_text(text)

@@ -1094,7 +1094,6 @@ public extension View {
         return ViewMaskView(content: self, mask: mask)
     }
 
-    @_disfavoredOverload
     func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
         recordQuillUIFallback(
             "mask",

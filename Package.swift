@@ -1549,7 +1549,7 @@ if nnwUpstreamPresent {
     targets += [
         .target(
             name: "NetNewsWireSharedCore",
-            dependencies: ["Account", "AppKit", "Articles", "ArticlesDatabase", "QuillShims", "RSCore", "SwiftUI", "UIKit"],
+            dependencies: ["Account", "AppKit", "Articles", "ArticlesDatabase", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
             path: ".upstream/netnewswire/Shared",
             exclude: [
                 "Activity/ActivityManager.swift",
@@ -1567,11 +1567,11 @@ if nnwUpstreamPresent {
                 "ArticleStyles/ArticleThemeDownloader.swift",
                 "ArticleStyles/ArticleThemesManager.swift",
                 "Assets.swift",
-                "Commands",
+                "Commands/DeleteCommand.swift",
+                "Commands/MarkStatusCommand.swift",
                 "Exporters",
                 "ExtensionPoints",
                 "Extensions/AddFeedDefaultContainer.swift",
-                "Extensions/ArticleStringFormatter.swift",
                 "Extensions/CacheCleaner.swift",
                 "Extensions/IconImageView.swift",
                 "Extensions/NSAttributedString+Extensions.swift",
@@ -1606,7 +1606,9 @@ if nnwUpstreamPresent {
                 "ArticleStyles/ArticleTheme+Notifications.swift",
                 "ArticleSpecifier.swift",
                 "ArticleStyles/ArticleThemePlist.swift",
+                "Commands/MarkCommandValidationStatus.swift",
                 "Dinosaurs/DinosaursViewModel.swift",
+                "Extensions/ArticleStringFormatter.swift",
                 "Extensions/ArticleUtilities.swift",
                 "HelpURL.swift",
                 "Settings/AddCloudKitAccount.swift",
@@ -3289,7 +3291,7 @@ let packageTestTargets: [Target] = {
         // through the local QuillNetNewsWireCore reader replacement.
         tests.append(.testTarget(
             name: "NetNewsWireSharedCoreTests",
-            dependencies: ["Account", "NetNewsWireSharedCore"],
+            dependencies: ["Account", "Articles", "NetNewsWireSharedCore"],
             swiftSettings: nnwSwiftSettings
         ))
     }

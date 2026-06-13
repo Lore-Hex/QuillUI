@@ -69,6 +69,118 @@ public extension NotificationCenter {
     }
 }
 
+public extension Calendar {
+    /// A cached `.autoupdatingCurrent` for compatibility with upstream RSCore.
+    static let cached: Calendar = .autoupdatingCurrent
+
+    /// Determine whether a date is in today.
+    static func dateIsToday(_ date: Date) -> Bool {
+        cached.isDateInToday(date)
+    }
+}
+
+public extension NSAttributedString {
+    /// Lightweight compatibility initializer for NetNewsWire's
+    /// `NSAttributedString(simpleHTML:)` call sites.
+    ///
+    /// Upstream styles a small inline HTML subset with platform fonts. The
+    /// Linux shim keeps the same visible text behavior and omits font traits
+    /// until the AppKit font descriptor surface is rich enough to compile the
+    /// full upstream extension unchanged.
+    convenience init(simpleHTML: String, locale: Locale = Locale.current) {
+        self.init(string: Self.quillPlainText(fromSimpleHTML: simpleHTML, locale: locale))
+    }
+
+    private static func quillPlainText(fromSimpleHTML html: String, locale: Locale) -> String {
+        var result = ""
+        var tag = ""
+        var entity = ""
+        var inTag = false
+        var inEntity = false
+        var quoteDepth = 0
+
+        func appendEntityLiteral() {
+            result += entity.decodingBasicHTMLEntities()
+            entity.removeAll(keepingCapacity: true)
+            inEntity = false
+        }
+
+        for character in html {
+            if inEntity {
+                entity.append(character)
+                if character == ";" {
+                    appendEntityLiteral()
+                } else if character.isWhitespace {
+                    appendEntityLiteral()
+                    result.append(character)
+                }
+                continue
+            }
+
+            if inTag {
+                if character == ">" {
+                    let normalizedTag = tag
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .lowercased()
+                    if normalizedTag == "q" {
+                        quoteDepth += 1
+                        result += (quoteDepth % 2 == 1 ? locale.quotationBeginDelimiter : locale.alternateQuotationBeginDelimiter) ?? "\""
+                    } else if normalizedTag == "/q" {
+                        result += (quoteDepth % 2 == 1 ? locale.quotationEndDelimiter : locale.alternateQuotationEndDelimiter) ?? "\""
+                        quoteDepth = max(0, quoteDepth - 1)
+                    }
+                    tag.removeAll(keepingCapacity: true)
+                    inTag = false
+                } else {
+                    tag.append(character)
+                }
+                continue
+            }
+
+            switch character {
+            case "<":
+                inTag = true
+                tag.removeAll(keepingCapacity: true)
+            case "&":
+                inEntity = true
+                entity = "&"
+            default:
+                result.append(character)
+            }
+        }
+
+        if inEntity {
+            result += entity
+        }
+        return result
+    }
+}
+
+private extension String {
+    func decodingBasicHTMLEntities() -> String {
+        switch self {
+        case "&amp;": return "&"
+        case "&lt;": return "<"
+        case "&gt;": return ">"
+        case "&quot;": return "\""
+        case "&apos;": return "'"
+        default:
+            if hasPrefix("&#x"), hasSuffix(";") {
+                let body = dropFirst(3).dropLast()
+                if let scalar = UInt32(body, radix: 16).flatMap(UnicodeScalar.init) {
+                    return String(Character(scalar))
+                }
+            } else if hasPrefix("&#"), hasSuffix(";") {
+                let body = dropFirst(2).dropLast()
+                if let scalar = UInt32(body, radix: 10).flatMap(UnicodeScalar.init) {
+                    return String(Character(scalar))
+                }
+            }
+            return self
+        }
+    }
+}
+
 /// Mirrors `RSCore.Platform`. Articles' AuthorCache uses
 /// `isRunningUnitTests` to skip a NotificationCenter
 /// registration during XCTest so tests can be re-run without
