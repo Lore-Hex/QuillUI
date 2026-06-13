@@ -1,6 +1,15 @@
 import XCTest
 @testable import SwiftOpenUI
 
+private final class InputEqualityHost: AnyViewHost {
+    func scheduleRebuild() {}
+    func suppressNextFocusRestore() {}
+}
+
+private final class InputEqualityCounter: SwiftOpenUI.ObservableObject {
+    @SwiftOpenUI.Published var count = 0
+}
+
 final class InputEqualityTests: XCTestCase {
 
     // MARK: - Generation counter
@@ -14,10 +23,14 @@ final class InputEqualityTests: XCTestCase {
         XCTAssertEqual(storage.generation, 2)
     }
 
-    func testPublishedGenerationIncrementsOnSetValue() {
-        let storage = PublishedStorage("hello")
+    func testObservedObjectGenerationIncrementsOnPublishedChange() {
+        let storage = ObservedObjectStorage(InputEqualityCounter())
+        let host = InputEqualityHost()
+        storage.host = host
+
         XCTAssertEqual(storage.generation, 0)
-        storage.setValue("world")
+        storage.object.count = 1
+
         XCTAssertEqual(storage.generation, 1)
     }
 
@@ -40,13 +53,15 @@ final class InputEqualityTests: XCTestCase {
 
     func testSnapshotCapturedDuringTracking() {
         let storage1 = StateStorage(1)
-        let storage2 = PublishedStorage("two")
+        let storage2 = ObservedObjectStorage(InputEqualityCounter())
+        let host = InputEqualityHost()
+        storage2.host = host
         storage1.setValue(10) // generation = 1
-        storage2.setValue("updated") // generation = 1
+        storage2.object.count = 1 // generation = 1
 
         beginDependencyTracking()
         _ = storage1.value
-        _ = storage2.value
+        _ = storage2.access()
         let tracking = endDependencyTracking()
 
         XCTAssertNotNil(tracking)

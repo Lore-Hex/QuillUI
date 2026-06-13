@@ -12,58 +12,13 @@
 // declarations now live HERE canonically and were removed from QuillUI;
 // `import QuillUI` clients keep seeing them through the re-export.
 //
-// Everything genuinely new in this file (Font text-style factory,
-// monospacedDigit, MenuStyle, CommandMenu, WindowStyle, the closure-based
-// alert, onExitCommand) mirrors Apple's names and signatures exactly; inert
-// behavior is documented inline.
+// Everything genuinely new in this file (MenuStyle, WindowStyle, the
+// closure-based alert, onExitCommand) mirrors Apple's names and signatures
+// exactly; inert behavior is documented inline.
 
 import SwiftOpenUI
 
 #if os(Linux)
-
-// MARK: - Font: text-style factory
-
-extension Font {
-    /// SwiftUI's `Font.system(_:design:weight:)` text-style factory.
-    /// `Font.TextStyle` is a typealias for `Font` here, so the preset cases
-    /// (`.caption`, `.headline`, …) flow straight in; they are mapped onto the
-    /// explicit-size factory using the same point sizes the GTK renderer
-    /// assigns the presets (see GTKRenderer's FontModifiedView CSS table), so
-    /// `.system(.caption, design: .monospaced)` renders at the same size as a
-    /// plain `.caption`.
-    public static func system(
-        _ style: Font.TextStyle,
-        design: Font.Design? = nil,
-        weight: Font.Weight? = nil
-    ) -> Font {
-        let metrics = presetMetrics(for: style)
-        return .custom(
-            size: metrics.size,
-            weight: weight ?? metrics.weight,
-            design: design ?? .default
-        )
-    }
-
-    /// Point size + default weight for each preset, matching the GTK backend's
-    /// preset CSS (sizes in px; presets the backend renders bold default to a
-    /// bold weight here so the look survives the trip through `.custom`).
-    private static func presetMetrics(for style: Font.TextStyle) -> (size: Double, weight: FontWeight) {
-        switch style {
-        case .largeTitle: return (28, .regular)
-        case .title: return (24, .regular)
-        case .title2: return (20, .bold)
-        case .title3: return (18, .regular)
-        case .headline: return (14, .bold)
-        case .subheadline: return (12, .bold)
-        case .body: return (14, .regular)
-        case .callout: return (12, .regular)
-        case .footnote: return (10, .regular)
-        case .caption: return (12, .regular)
-        case .caption2: return (10, .bold)
-        case .custom(let size, let weight, _): return (size, weight)
-        }
-    }
-}
 
 // MARK: - Text.monospacedDigit
 
@@ -504,32 +459,6 @@ extension CommandMenuBuilder {
     }
 }
 
-// MARK: - CommandMenu
-
-/// SwiftUI's `CommandMenu` — a named top-level menu in the menu bar.
-///
-/// Content is collected through `CommandMenuBuilder` (Buttons with optional
-/// `.keyboardShortcut` / `.disabled` wrappers become items; `Divider()` has
-/// no item representation yet and is dropped) — the same documented API
-/// difference as `CommandGroup` in SwiftOpenUI.
-///
-/// Compile-surface placement: `CommandGroupPlacement` has no case for named
-/// top-level menus, so extraction cannot surface these items in the menu bar
-/// yet. `body` resolves to `EmptyCommands` so `extractCommandGroups` walks
-/// through a `CommandMenu` safely (it terminates instead of trapping on a
-/// `Never` body); the name/items are preserved as data for a future backend.
-public struct CommandMenu: Commands {
-    public let name: String
-    public let items: [CommandMenuItem]
-
-    public init(_ name: String, @CommandMenuBuilder content: () -> [CommandMenuItem]) {
-        self.name = name
-        self.items = content()
-    }
-
-    public var body: EmptyCommands { EmptyCommands() }
-}
-
 // MARK: - CommandsBuilder: wider blocks
 
 // SwiftOpenUI ships buildBlock for one and two children; real command trees
@@ -583,12 +512,6 @@ extension WindowStyle where Self == HiddenTitleBarWindowStyle {
 }
 
 extension WindowGroup {
-    /// Title-less `WindowGroup { … }` (moved from QuillUI). The window title
-    /// defaults to "Quill" until scene metadata carries the app name.
-    public init(@ViewBuilder content: () -> Content) {
-        self.init("Quill", content: content)
-    }
-
     /// SwiftUI's `defaultSize(width:height:)` (moved from QuillUI); routes to
     /// SwiftOpenUI's `defaultWindowSize`.
     // defaultSize(width:height:) lives in the fork (WindowSizing.swift).
@@ -643,4 +566,3 @@ extension View {
 }
 
 #endif
-

@@ -246,6 +246,8 @@ extension WindowGroup: GTKWindowRenderable {
             // The macOS reference has no in-window menu strip (global menu
             // bar); hidden-title-bar windows drop ours for the same look.
             gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+        } else {
+            gtkSetupCommandShortcutsIfNeeded(winPtr: winWidget, windowID: Int(bitPattern: winPtr))
         }
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
@@ -629,6 +631,94 @@ final class GTK4MenuBarHost {
     }
 }
 
+/// Registers app-level command shortcuts directly on a window without
+/// creating a visible menu bar. Hidden-title-bar windows use this so
+/// CommandMenu keyboard accelerators remain available while the in-window
+/// GtkPopoverMenuBar is intentionally suppressed.
+final class GTK4CommandShortcutHost {
+    let factory: AnyCommandsFactory
+    let windowID: Int
+    private var shortcutRegIDs: [ShortcutRegistrationID] = []
+    private var focusedValuesObserverID: FocusedValuesObserverID?
+
+    init(factory: @escaping AnyCommandsFactory, windowID: Int) {
+        self.factory = factory
+        self.windowID = windowID
+    }
+
+    func setup() {
+        focusedValuesObserverID = FocusedValuesStore.shared.addObserver(windowID: nil) { [weak self] in
+            self?.scheduleReevaluation()
+        }
+
+        evaluateWithTracking()
+    }
+
+    private func scheduleReevaluation() {
+        let box = Unmanaged.passRetained(ClosureBox { [weak self] in
+            self?.evaluateWithTracking()
+        }).toOpaque()
+        g_idle_add({ (userData: gpointer?) -> gboolean in
+            guard let userData else { return 0 }
+            let box = Unmanaged<ClosureBox>.fromOpaque(userData).takeRetainedValue()
+            box.closure()
+            return 0
+        }, box)
+    }
+
+    func evaluateWithTracking() {
+        #if canImport(Observation)
+        if #available(macOS 14.0, iOS 17.0, *) {
+            withObservationTracking {
+                let groups = self.factory()
+                self.updateShortcuts(groups)
+            } onChange: { [weak self] in
+                self?.scheduleReevaluation()
+            }
+            return
+        }
+        #endif
+        let groups = factory()
+        updateShortcuts(groups)
+    }
+
+    private func updateShortcuts(_ groups: [CommandGroupPlacement: [CommandMenuItem]]) {
+        for regID in shortcutRegIDs {
+            KeyboardShortcutRegistry.shared.unregister(id: regID)
+        }
+        shortcutRegIDs.removeAll()
+
+        let allItems = groups.sorted(by: { $0.key.hashValue < $1.key.hashValue })
+            .flatMap { $0.value }
+
+        for item in allItems {
+            guard let shortcut = item.shortcut, !item.isDisabled else { continue }
+            let regID = KeyboardShortcutRegistry.shared.register(
+                shortcut,
+                windowID: windowID,
+                action: item.action
+            )
+            shortcutRegIDs.append(regID)
+        }
+    }
+
+    func destroy() {
+        for regID in shortcutRegIDs {
+            KeyboardShortcutRegistry.shared.unregister(id: regID)
+        }
+        shortcutRegIDs.removeAll()
+
+        if let observerID = focusedValuesObserverID {
+            FocusedValuesStore.shared.removeObserver(id: observerID)
+        }
+        focusedValuesObserverID = nil
+    }
+
+    func shortcutCountForTesting() -> Int {
+        shortcutRegIDs.count
+    }
+}
+
 /// Attach a menu bar host to a window if Commands are declared.
 func gtkSetupMenuBarIfNeeded(
     winPtr: UnsafeMutablePointer<GtkWidget>,
@@ -645,6 +735,24 @@ func gtkSetupMenuBarIfNeeded(
     g_object_set_data_full(gobject, "gtk-swift-menu-bar-host", retained) { userData in
         guard let userData else { return }
         let host = Unmanaged<GTK4MenuBarHost>.fromOpaque(userData).takeRetainedValue()
+        host.destroy()
+    }
+}
+
+/// Attach command shortcuts to a hidden-title-bar window if Commands are declared.
+func gtkSetupCommandShortcutsIfNeeded(
+    winPtr: UnsafeMutablePointer<GtkWidget>,
+    windowID: Int
+) {
+    guard let commandsFactory = globalCommandsFactory else { return }
+    let host = GTK4CommandShortcutHost(factory: commandsFactory, windowID: windowID)
+    host.setup()
+
+    let retained = Unmanaged.passRetained(host).toOpaque()
+    let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(gobject, "gtk-swift-command-shortcut-host", retained) { userData in
+        guard let userData else { return }
+        let host = Unmanaged<GTK4CommandShortcutHost>.fromOpaque(userData).takeRetainedValue()
         host.destroy()
     }
 }

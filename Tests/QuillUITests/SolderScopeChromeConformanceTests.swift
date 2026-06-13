@@ -183,6 +183,19 @@ struct SolderScopeChromeConformanceTests {
         #expect(builds(commands.body))
     }
 
+    @Test func commandMenuItemsExtractForBackendShortcuts() {
+        // Hidden-title-bar SolderScope windows do not show an in-window GTK
+        // menu bar, but the backend still needs the extracted command items
+        // so keyboard shortcuts match the macOS app chrome.
+        let items = extractCommandGroups(from: ZoomCommands())
+            .values
+            .flatMap { $0 }
+
+        #expect(items.count == 1)
+        #expect(items.first?.label == "Zoom In")
+        #expect(items.first?.shortcut == KeyboardShortcut("]", modifiers: .command))
+    }
+
     @Test func keyEquivalentSpaceExists() {
         // SolderScopeCommands: .keyboardShortcut(.space, modifiers: [])
         #expect(KeyEquivalent.space.character == " ")
