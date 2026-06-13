@@ -2132,6 +2132,11 @@ public extension View {
         return self
     }
 
+    // Disfavored: QuillUI.Compatibility has the FUNCTIONAL overload (it
+    // threads \.colorScheme through the environment). Code that imports
+    // both modules (e.g. the generated Enchanted Linux app) must resolve
+    // to that one; this inert twin only serves DSSC-only importers.
+    @_disfavoredOverload
     func preferredColorScheme(_ colorScheme: ColorScheme?) -> Self {
         _ = colorScheme
         return self
