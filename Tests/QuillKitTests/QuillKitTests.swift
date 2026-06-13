@@ -157,6 +157,7 @@ struct QuillKitTests {
         #expect(statuses[.audioSession] == .emulated)
         #expect(statuses[.audioPlayback] == .emulated)
         #expect(statuses[.notifications] == .emulated)
+        #expect(statuses[.cloudKit] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.secureStorage] == .unavailable(reason: "No native Linux backend has been attached yet."))

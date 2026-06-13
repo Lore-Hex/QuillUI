@@ -21,6 +21,7 @@ import OllamaKit
 import AsyncAlgorithms
 import Carbon
 import CoreSpotlight
+import CloudKit
 // Scoped: the AppKit shadow supplies kUTTypeData (upstream Telegram pairs
 // `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
 // `import AppKit` here would collide with the UIKit shim surface.
@@ -308,6 +309,40 @@ struct CompatibilityModuleTests {
             "symbolRenderingMode",
             "renderingMode"
         ])))
+    }
+
+    @Test("CloudKit module reports unavailable OpenCloudKit backend")
+    func cloudKitModuleReportsUnavailableOpenCloudKitBackend() {
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
+            let record = CKRecord(recordType: "Article", recordID: CKRecord.ID(recordName: "quill-record"))
+            record["title"] = "Quill"
+
+            var accountStatus: CKAccountStatus?
+            var saveError: Error?
+            let database = CKContainer.default().privateCloudDatabase
+
+            CKContainer.default().accountStatus { status, _ in
+                accountStatus = status
+            }
+            database.save(record) { _, error in
+                saveError = error
+            }
+
+            return (record: record, database: database, accountStatus: accountStatus, saveError: saveError)
+        }
+
+        #expect(captured.result.record.recordID.recordName == "quill-record")
+        #expect(captured.result.record["title"] as? String == "Quill")
+        #expect(captured.result.database.databaseScope == .private)
+        #expect(captured.result.accountStatus == .couldNotDetermine)
+        #expect((captured.result.saveError as? CKError)?.code == .serviceUnavailable)
+        #expect(QuillCloudKitCompatibility.openCloudKitProviderName == "OpenCloudKit")
+        #expect(QuillCloudKitCompatibility.openCloudKitRepositoryURL == "https://github.com/cocologics/OpenCloudKit")
+        #expect(captured.events.contains {
+            $0.subsystem == "CloudKit"
+                && $0.operation == "saveRecord"
+                && $0.message.contains("OpenCloudKit")
+        })
     }
 
     @Test("third-party UI packages compile to visible SwiftUI-shaped views")

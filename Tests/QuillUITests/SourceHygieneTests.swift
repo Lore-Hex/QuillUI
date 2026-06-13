@@ -833,6 +833,30 @@ struct SourceHygieneTests {
         #expect(!enchantedEmptyFiles.contains("Application/QuillUSBLauncher.swift"))
     }
 
+    @Test("CloudKit shim documents OpenCloudKit provider boundary")
+    func cloudKitShimDocumentsOpenCloudKitProviderBoundary() throws {
+        let manifest = try packageSource("Package.swift")
+        let cloudKit = try packageSource("Sources/AppleFrameworkShims/CloudKit/CloudKit.swift")
+        let apiMatrix = try packageSource("docs/api-coverage-matrix.md")
+        let packageCoverage = try packageSource("docs/apple-package-function-coverage.md")
+        let repositoryBoundaries = try packageSource("docs/repository-boundaries.md")
+        let netNewsWireAudit = try packageSource("docs/netnewswire-audit.md")
+
+        #expect(manifest.contains(".library(name: \"CloudKit\", targets: [\"CloudKit\"])"))
+        #expect(manifest.contains("\"UserNotifications\", \"SystemConfiguration\", \"CloudKit\", \"StoreKit\", \"NaturalLanguage\""))
+        #expect(manifest.contains(".target(name: \"CloudKit\", dependencies: [\"QuillFoundation\", \"QuillKit\"], path: \"Sources/AppleFrameworkShims/CloudKit\")"))
+        #expect(cloudKit.contains("public enum QuillCloudKitCompatibility"))
+        #expect(cloudKit.contains("https://github.com/cocologics/OpenCloudKit"))
+        #expect(cloudKit.contains("public final class CKContainer"))
+        #expect(cloudKit.contains("public final class CKDatabase"))
+        #expect(cloudKit.contains("public final class CKRecord"))
+        #expect(cloudKit.contains("QuillCompatibilityDiagnostics.shared.record"))
+        #expect(apiMatrix.contains("OpenCloudKit"))
+        #expect(packageCoverage.contains("OpenCloudKit"))
+        #expect(repositoryBoundaries.contains("OpenCloudKit"))
+        #expect(netNewsWireAudit.contains("OpenCloudKit"))
+    }
+
     @Test("Linux controls read backend-scoped reference environment")
     func linuxControlsReadBackendScopedReferenceEnvironment() throws {
         let root = try packageRoot()

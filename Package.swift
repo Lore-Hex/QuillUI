@@ -412,6 +412,7 @@ products += [
     .library(name: "Metal", targets: ["Metal"]),
     .library(name: "MetalKit", targets: ["MetalKit"]),
     .library(name: "MetalPerformanceShaders", targets: ["MetalPerformanceShaders"]),
+    .library(name: "CloudKit", targets: ["CloudKit"]),
     .library(name: "StoreKit", targets: ["StoreKit"]),
     // Telegram-Mac app-target products.
     .library(name: "AVKit", targets: ["AVKit"]),
@@ -630,7 +631,7 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "ButtonKit", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
-    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "KeychainSwift"
+    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "CloudKit", "KeychainSwift"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
     // "SwiftUI" comes from quillLinuxShimTestDependencies; keep it in that
@@ -2036,7 +2037,7 @@ let signalAppleFrameworkShims = [
     "ContactsUI", "Intents", "PassKit", "Accelerate",
     "LinkPresentation", "Metal", "MetalKit", "MetalPerformanceShaders",
     "QuartzCore", "CoreText", "ImageIO", "CoreServices", "CoreImage", "CoreLocation", "CoreSpotlight", "Vision", "AuthenticationServices",
-    "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
+    "UserNotifications", "SystemConfiguration", "CloudKit", "StoreKit", "NaturalLanguage",
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio", "CoreVideo", "CoreMedia", "VideoToolbox", "IOSurface",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
     "ObjCAssoc", "System", "notify",
@@ -2065,7 +2066,7 @@ for shimName in signalAppleFrameworkShims {
     // edge is inert for shims that do not import QuillFoundation.
     let dependencies: [Target.Dependency]
     switch shimName {
-    case "AudioToolbox", "UserNotifications":
+    case "AudioToolbox", "UserNotifications", "CloudKit":
         dependencies = ["QuillFoundation", "QuillKit"]
     case "CoreMedia":
         dependencies = ["QuillFoundation", "CoreVideo", "AudioToolbox"]
@@ -2723,6 +2724,7 @@ if quillUILinuxBuildBackend == .qt {
         .target(name: "ImageIO", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/ImageIO"),
         .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
         .target(name: "CoreImage", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreImage"),
+        .target(name: "CloudKit", dependencies: ["QuillFoundation", "QuillKit"], path: "Sources/AppleFrameworkShims/CloudKit"),
         .target(
             name: "AppKit",
             dependencies: appKitShadowDependencies,
@@ -2818,6 +2820,7 @@ if quillUILinuxBuildBackend == .qt {
         // dependency list is enough to pull in its GTK pkg-config warnings even
         // for a native Qt-only smoke app.
         products = quillCanonicalLinuxAppProducts + [
+            .library(name: "CloudKit", targets: ["CloudKit"]),
             .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
             .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
         ]
