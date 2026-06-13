@@ -2467,6 +2467,8 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("quill-wireguard-import-invalid-file"))
         #expect(screenshotVerifier.contains("validate_quill_chatkit_gtk_list_selection"))
         #expect(screenshotVerifier.contains("CHAT_GTK_LIST_SELECTION_PRODUCTS"))
+        #expect(screenshotVerifier.contains("The packaged release launcher renders the same settings controls"))
+        #expect(screenshotVerifier.contains("body_dark_pixels >= 900"))
         #expect(screenshotVerifier.contains("Usage: verify-backend-screenshot.py SCREENSHOT_PATH PRODUCT"))
         #expect(!screenshotVerifier.contains("Quill GTK interaction smoke"))
         #expect(legacyScreenshotVerifier.contains("verify-backend-screenshot.py"))
