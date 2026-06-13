@@ -1741,8 +1741,6 @@ PY
     local account_dir="$UPSTREAM_DIR/netnewswire/Modules/Account/Sources/Account"
     if [[ ! -d "$account_dir" ]]; then
         echo "==> netnewswire Account source not found; skipping Linux lowering"
-    elif [[ -f "$account_dir/CloudKitLinuxUnavailable.swift" ]] && grep -q "QuillUI Linux lowering: CloudKit is unavailable" "$account_dir/CloudKitLinuxUnavailable.swift"; then
-        echo "==> netnewswire Account already patched for Linux"
     else
         echo "==> patching netnewswire Account for Linux FoundationNetworking/selector/CloudKit lowering"
         python3 - "$account_dir" <<'PY'
@@ -1990,6 +1988,107 @@ print("patched ArticleStringFormatter selector observer lowering")
 PY
     fi
 
+    local smart_feed="$shared_dir/SmartFeeds/SmartFeed.swift"
+    if [[ -f "$smart_feed" ]] && grep -q '#selector(unreadCountDidChange' "$smart_feed"; then
+        echo "==> lowering netnewswire Shared SmartFeed selector observers"
+        python3 - "$smart_feed" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init(delegate: SmartFeedDelegate) {
+		self.delegate = delegate
+		NotificationCenter.default.addObserver(self, selector: #selector(unreadCountDidChange(_:)), name: .UnreadCountDidChange, object: nil)
+		queueFetchUnreadCounts() // Fetch unread count at startup
+	}
+'''
+new_init = '''	init(delegate: SmartFeedDelegate) {
+		self.delegate = delegate
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .UnreadCountDidChange, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.unreadCountDidChange(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(unreadCountDidChange(_:)), name: .UnreadCountDidChange, object: nil)
+#endif
+		queueFetchUnreadCounts() // Fetch unread count at startup
+	}
+'''
+if old_init not in src:
+    raise SystemExit("SmartFeed selector observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+
+src = src.replace(
+    "\t@objc func unreadCountDidChange(_ note: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc unreadCountDidChange(_ note: Notification) {",
+    1,
+)
+src = src.replace(
+    "\t@objc func fetchUnreadCounts() {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc fetchUnreadCounts() {",
+    1,
+)
+src = src.replace(
+    "\t\tCoalescingQueue.standard.add(self, #selector(fetchUnreadCounts))",
+    "#if os(Linux)\n\t\tCoalescingQueue.standard.add { [weak self] in\n\t\t\tself?.fetchUnreadCounts()\n\t\t}\n#else\n\t\tCoalescingQueue.standard.add(self, #selector(fetchUnreadCounts))\n#endif",
+    1,
+)
+
+path.write_text(src)
+print("patched SmartFeed selector observer lowering")
+PY
+    fi
+
+    local unread_feed="$shared_dir/SmartFeeds/UnreadFeed.swift"
+    if [[ -f "$unread_feed" ]] && grep -q '#selector(unreadCountDidChange' "$unread_feed"; then
+        echo "==> lowering netnewswire Shared UnreadFeed selector observer"
+        python3 - "$unread_feed" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init() {
+
+		self.unreadCount = appDelegate.unreadCount
+		NotificationCenter.default.addObserver(self, selector: #selector(unreadCountDidChange(_:)), name: .UnreadCountDidChange, object: appDelegate)
+	}
+'''
+new_init = '''	init() {
+
+		self.unreadCount = appDelegate.unreadCount
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .UnreadCountDidChange, object: appDelegate, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.unreadCountDidChange(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(unreadCountDidChange(_:)), name: .UnreadCountDidChange, object: appDelegate)
+#endif
+	}
+'''
+if old_init not in src:
+    raise SystemExit("UnreadFeed selector observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+src = src.replace(
+    "\t@objc func unreadCountDidChange(_ note: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc unreadCountDidChange(_ note: Notification) {",
+    1,
+)
+
+path.write_text(src)
+print("patched UnreadFeed selector observer lowering")
+PY
+    fi
+
     local article_utilities="$shared_dir/Extensions/ArticleUtilities.swift"
     if [[ -f "$article_utilities" ]] && grep -qE '^import Images|func iconImage\(' "$article_utilities"; then
         echo "==> lowering netnewswire Shared ArticleUtilities image-cache island"
@@ -2009,6 +2108,21 @@ src = re.sub(
 )
 path.write_text(src)
 print("patched ArticleUtilities without Images/IconImageCache dependency")
+PY
+    fi
+
+    local dinosaurs_view_model="$shared_dir/Dinosaurs/DinosaursViewModel.swift"
+    if [[ -f "$dinosaurs_view_model" ]] && grep -q '^@Observable$' "$dinosaurs_view_model"; then
+        echo "==> lowering netnewswire Shared DinosaursViewModel Observation macro"
+        python3 - "$dinosaurs_view_model" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("@Observable\n@MainActor final class DinosaursViewModel", "@MainActor final class DinosaursViewModel", 1)
+path.write_text(src)
+print("patched DinosaursViewModel @Observable lowering")
 PY
     fi
 

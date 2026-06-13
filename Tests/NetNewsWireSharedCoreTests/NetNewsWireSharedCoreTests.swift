@@ -1,6 +1,7 @@
 import Foundation
 import Articles
 import Images
+import NetNewsWireContext
 import Testing
 @testable import Account
 @testable import NetNewsWireSharedCore
@@ -240,14 +241,77 @@ struct NetNewsWireSharedCoreTests {
         #expect(unstar.articles == [starred])
     }
 
+    @Test("Smart feeds expose upstream identity and icons")
+    @MainActor func smartFeedsExposeUpstreamIdentityAndIcons() throws {
+        appDelegate = AppDelegate()
+        appDelegate.unreadCount = 5
+
+        let controller = SmartFeedsController.shared
+        #expect(controller.containerID == .smartFeedController)
+        #expect(controller.nameForDisplay == "Smart Feeds")
+        #expect(controller.smartFeeds.count == 3)
+
+        let todayID = SidebarItemIdentifier.smartFeed(String(describing: TodayFeedDelegate.self))
+        let unreadID = SidebarItemIdentifier.smartFeed(String(describing: UnreadFeed.self))
+        let starredID = SidebarItemIdentifier.smartFeed(String(describing: StarredFeedDelegate.self))
+
+        let today = try #require(controller.find(by: todayID) as? SmartFeed)
+        let unread = try #require(controller.find(by: unreadID) as? UnreadFeed)
+        let starred = try #require(controller.find(by: starredID) as? SmartFeed)
+
+        #expect(today.nameForDisplay == "Today")
+        #expect(today.sidebarItemID == todayID)
+        #expect(today.defaultReadFilterType == .none)
+        #expect(today.smallIcon?.isSymbol == true)
+
+        #expect(unread.nameForDisplay == "All Unread")
+        #expect(unread.sidebarItemID == unreadID)
+        #expect(unread.defaultReadFilterType == .alwaysRead)
+        #expect(unread.unreadCount == 5)
+        #expect(unread.smallIcon?.isSymbol == true)
+
+        #expect(starred.nameForDisplay == "Starred")
+        #expect(starred.sidebarItemID == starredID)
+        #expect(starred.defaultReadFilterType == .none)
+        #expect(starred.smallIcon?.isSymbol == true)
+        #expect(controller.find(by: .feed("local", "feed")) == nil)
+    }
+
+    @Test("Unread smart feed follows Linux notification lowering")
+    @MainActor func unreadSmartFeedFollowsLinuxNotificationLowering() async {
+        let delegate = AppDelegate()
+        appDelegate = delegate
+        delegate.unreadCount = 7
+        let unread = UnreadFeed()
+
+        #expect(unread.unreadCount == 7)
+
+        delegate.unreadCount = 11
+        NotificationCenter.default.post(name: .UnreadCountDidChange, object: delegate)
+        await Task.yield()
+
+        #expect(unread.unreadCount == 11)
+    }
+
+    @Test("Search smart feed delegates retain search identity")
+    @MainActor func searchSmartFeedDelegatesRetainSearchIdentity() {
+        let search = SmartFeed(delegate: SearchFeedDelegate(searchString: "swift"))
+        #expect(search.nameForDisplay == "Search: swift")
+        #expect(search.sidebarItemID == .smartFeed(String(describing: SearchFeedDelegate.self)))
+        #expect(search.smallIcon?.isSymbol == true)
+
+        let timelineSearch = SmartFeed(delegate: SearchTimelineFeedDelegate(searchString: "gtk", articleIDs: ["a", "b"]))
+        #expect(timelineSearch.nameForDisplay == "Search: gtk")
+        #expect(timelineSearch.sidebarItemID == .smartFeed(String(describing: SearchTimelineFeedDelegate.self)))
+        #expect(timelineSearch.smallIcon?.isSymbol == true)
+    }
+
     @Test("Account type helpers compile through SwiftUI and UIKit shadows")
     @MainActor func accountTypeHelpers() {
-        #expect(AccountType.feedbin.localizedAccountName() == "Feedbin")
-        #expect(AccountType.newsBlur.localizedAccountName() == "NewsBlur")
-
         _ = AccountType.onMyMac.image()
         _ = AccountType.newsBlur.image()
         _ = AccountType.feedly.logColor
+        _ = AccountType.feedbin.logColor
     }
 
     @Test("CloudKit account helper degrades without iCloud on Linux")

@@ -216,25 +216,20 @@ struct RSDatabaseCompatibilityTests {
             try? FileManager.default.removeItem(atPath: path)
         }
         let queue = DatabaseQueue(databasePath: path)
-        try queue.runCreateStatements("CREATE TABLE items (id INTEGER PRIMARY KEY, title TEXT);")
+        queue.runCreateStatements("CREATE TABLE items (id INTEGER PRIMARY KEY, title TEXT);")
 
-        queue.runInTransactionSync { result in
-            let database = try! result.get()
+        queue.runInTransactionSync { database in
             database.executeUpdate("INSERT INTO items (title) VALUES (?)", withArgumentsIn: ["sync"])
         }
 
         await withCheckedContinuation { continuation in
-            queue.runInDatabase { result in
-                let database = try! result.get()
+            queue.runInDatabase { database in
                 database.executeUpdate("INSERT INTO items (title) VALUES (?)", withArgumentsIn: ["async"])
                 continuation.resume()
             }
         }
 
-        queue.runInDatabaseSync { result in
-            #expect(result.database != nil)
-            #expect(result.error == nil)
-            let database = try! result.get()
+        queue.runInDatabaseSync { database in
             #expect(database.count(sql: "SELECT COUNT(*) FROM items;", parameters: [], tableName: "items") == 2)
             #expect(database.tableExists("items"))
         }

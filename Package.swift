@@ -559,7 +559,7 @@ let quillShimsDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillWebKit", "QuillUIKit", "QuillRS",
     "AppKit", "UIKit", "Combine", "MessageUI", "SafariServices", "MobileCoreServices",
     "Zip", "Tidemark", "UniformTypeIdentifiers", "Network", "NetworkExtension",
-    "KeychainSwift"
+    "KeychainSwift", "NetNewsWireContext"
 ]
 #else
 let quillShimsDependencies: [Target.Dependency] = [
@@ -1026,6 +1026,11 @@ var targets: [Target] = [
         name: "QuillRS",
         dependencies: ["QuillFoundation", "QuillUIKit", "QuillKit", "QuillData"],
         path: "Sources/QuillRS"
+    ),
+    .target(
+        name: "NetNewsWireContext",
+        dependencies: ["QuillFoundation"],
+        path: "Sources/NetNewsWireContext"
     ),
     .target(
         name: "QuillShims",
@@ -1590,7 +1595,7 @@ if nnwUpstreamPresent {
                 "ShareExtension/ExtensionFeedAddRequestFile.swift",
                 "ShareExtension/SafariExt.js",
                 "ShareExtension/ShareDefaultContainer.swift",
-                "SmartFeeds",
+                "SmartFeeds/SmartFeedPasteboardWriter.swift",
                 "Timeline/FetchRequestOperation.swift",
                 "Timeline/FetchRequestQueue.swift",
                 "Timer/AccountRefreshTimer.swift",
@@ -1623,6 +1628,15 @@ if nnwUpstreamPresent {
                 "Settings/AddCloudKitAccount.swift",
                 "ShareExtension/ExtensionContainers.swift",
                 "ShareExtension/ExtensionFeedAddRequest.swift",
+                "SmartFeeds/PseudoFeed.swift",
+                "SmartFeeds/SearchFeedDelegate.swift",
+                "SmartFeeds/SearchTimelineFeedDelegate.swift",
+                "SmartFeeds/SmartFeed.swift",
+                "SmartFeeds/SmartFeedDelegate.swift",
+                "SmartFeeds/SmartFeedsController.swift",
+                "SmartFeeds/StarredFeedDelegate.swift",
+                "SmartFeeds/TodayFeedDelegate.swift",
+                "SmartFeeds/UnreadFeed.swift",
                 "Timeline/ArticleArray.swift",
                 "Timeline/ArticleSorter.swift",
                 "Timer/RefreshInterval.swift",
@@ -3300,7 +3314,7 @@ let packageTestTargets: [Target] = {
         // through the local QuillNetNewsWireCore reader replacement.
         tests.append(.testTarget(
             name: "NetNewsWireSharedCoreTests",
-            dependencies: ["Account", "Articles", "NetNewsWireSharedCore", "RSCore"],
+            dependencies: ["Account", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore"],
             swiftSettings: nnwSwiftSettings
         ))
     }
