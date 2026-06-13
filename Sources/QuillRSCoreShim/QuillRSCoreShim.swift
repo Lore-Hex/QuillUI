@@ -1,4 +1,7 @@
 import Foundation
+#if os(Linux)
+@_exported import QuillFoundation
+#endif
 
 /// QuillRSCoreShim — the minimal subset of upstream RSCore
 /// surface that is reachable from `import RSCore` inside the
@@ -76,6 +79,60 @@ public extension Calendar {
     /// Determine whether a date is in today.
     static func dateIsToday(_ date: Date) -> Bool {
         cached.isDateInToday(date)
+    }
+}
+
+@MainActor public protocol UndoableCommand: AnyObject {
+    var undoActionName: String { get }
+    var redoActionName: String { get }
+    var undoManager: UndoManager { get }
+
+    func perform()
+    func undo()
+}
+
+public extension UndoableCommand {
+    func registerUndo() {
+        undoManager.setActionName(undoActionName)
+        undoManager.registerUndo(withTarget: self) { command in
+            command.undo()
+        }
+    }
+
+    func registerRedo() {
+        undoManager.setActionName(redoActionName)
+        undoManager.registerUndo(withTarget: self) { command in
+            command.perform()
+        }
+    }
+}
+
+@MainActor public protocol UndoableCommandRunner: AnyObject {
+    var undoableCommands: [UndoableCommand] { get set }
+    var undoManager: UndoManager? { get }
+
+    func runCommand(_ undoableCommand: UndoableCommand)
+    func clearUndoableCommands()
+}
+
+public extension UndoableCommandRunner {
+    func runCommand(_ undoableCommand: UndoableCommand) {
+        pushUndoableCommand(undoableCommand)
+        undoableCommand.perform()
+    }
+
+    func pushUndoableCommand(_ undoableCommand: UndoableCommand) {
+        undoableCommands += [undoableCommand]
+    }
+
+    func clearUndoableCommands() {
+        guard let undoManager else {
+            return
+        }
+        for undoableCommand in undoableCommands {
+            undoManager.removeAllActions(withTarget: undoableCommand)
+        }
+        undoableCommands = []
     }
 }
 

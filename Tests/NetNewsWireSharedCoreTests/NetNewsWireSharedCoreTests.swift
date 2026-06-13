@@ -220,6 +220,26 @@ struct NetNewsWireSharedCoreTests {
         #expect(downloader.favicon(with: "https://example.test/favicon.ico", homePageURL: nil) == nil)
     }
 
+    @Test("Mark status command filters articles before mutation")
+    @MainActor func markStatusCommandFiltersArticlesBeforeMutation() throws {
+        let unread = makeArticle(uniqueID: "unread", title: "Unread", read: false)
+        let alreadyRead = makeArticle(uniqueID: "read", title: "Read", read: true)
+        let starred = makeArticle(uniqueID: "starred", title: "Starred", starred: true)
+        let undoManager = UndoManager()
+
+        #expect(MarkStatusCommand(initialArticles: [], markingRead: true, undoManager: undoManager) == nil)
+        #expect(MarkStatusCommand(initialArticles: [alreadyRead], markingRead: true, undoManager: undoManager) == nil)
+
+        let markRead = try #require(MarkStatusCommand(initialArticles: [unread, alreadyRead], markingRead: true, undoManager: undoManager))
+        #expect(markRead.undoActionName == "Mark Read")
+        #expect(markRead.redoActionName == "Mark Read")
+        #expect(markRead.articles == [unread])
+
+        let unstar = try #require(MarkStatusCommand(initialArticles: [unread, starred], markingStarred: false, undoManager: undoManager))
+        #expect(unstar.undoActionName == "Mark Unstarred")
+        #expect(unstar.articles == [starred])
+    }
+
     @Test("Account type helpers compile through SwiftUI and UIKit shadows")
     @MainActor func accountTypeHelpers() {
         #expect(AccountType.feedbin.localizedAccountName() == "Feedbin")
@@ -351,6 +371,7 @@ struct NetNewsWireSharedCoreTests {
         uniqueID: String,
         title: String?,
         read: Bool = false,
+        starred: Bool = false,
         body: String? = nil
     ) -> Article {
         Article(
@@ -369,7 +390,7 @@ struct NetNewsWireSharedCoreTests {
             datePublished: nil,
             dateModified: nil,
             authors: nil,
-            status: ArticleStatus(articleID: "article-\(uniqueID)", read: read, starred: false, dateArrived: Date(timeIntervalSince1970: 0))
+            status: ArticleStatus(articleID: "article-\(uniqueID)", read: read, starred: starred, dateArrived: Date(timeIntervalSince1970: 0))
         )
     }
 }

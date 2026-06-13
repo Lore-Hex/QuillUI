@@ -534,7 +534,7 @@ let quillSwiftTestingAppleOverlaySwiftSettings: [SwiftSetting] = appSwiftSetting
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
 // QuillRSCoreShim's vendored Cache uses OSAllocatedUnfairLock via `import os`
 // (the os shadow target on Linux), same as Articles' AuthorCache.
-let quillRSCoreShimDependencies: [Target.Dependency] = ["os"]
+let quillRSCoreShimDependencies: [Target.Dependency] = ["QuillFoundation", "os"]
 let swiftUIIntrospectTargetDependencies: [Target.Dependency] = ["SwiftUI"]
 #else
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
@@ -1576,7 +1576,6 @@ if nnwUpstreamPresent {
                 "ArticleStyles/ArticleThemeDownloader.swift",
                 "ArticleStyles/ArticleThemesManager.swift",
                 "Commands/DeleteCommand.swift",
-                "Commands/MarkStatusCommand.swift",
                 "ExtensionPoints",
                 "Extensions/AddFeedDefaultContainer.swift",
                 "Extensions/CacheCleaner.swift",
@@ -1614,6 +1613,7 @@ if nnwUpstreamPresent {
                 "ArticleSpecifier.swift",
                 "ArticleStyles/ArticleThemePlist.swift",
                 "Commands/MarkCommandValidationStatus.swift",
+                "Commands/MarkStatusCommand.swift",
                 "Dinosaurs/DinosaursViewModel.swift",
                 "Extensions/ArticleStringFormatter.swift",
                 "Extensions/ArticleUtilities.swift",
