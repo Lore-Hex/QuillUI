@@ -693,6 +693,27 @@ public struct TransitionView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct SymbolEffectView<Content: View, Value: Equatable>: View {
+    public let content: Content
+    public let effect: SymbolEffect
+    public let options: SymbolEffectOptions
+    public let value: Value
+
+    public init(
+        content: Content,
+        effect: SymbolEffect,
+        options: SymbolEffectOptions,
+        value: Value
+    ) {
+        self.content = content
+        self.effect = effect
+        self.options = options
+        self.value = value
+    }
+
+    public var body: some View { content }
+}
+
 public struct ViewMaskView<Content: View, MaskContent: View>: View {
     public let content: Content
     public let mask: MaskContent
@@ -882,6 +903,31 @@ public extension View {
             message: "onHover is preserved as hover handler metadata on Linux."
         )
         return OnHoverView(content: self, action: action)
+    }
+
+    func transition(_ transition: AnyTransition) -> TransitionView<Self> {
+        recordQuillUIFallback(
+            "transition",
+            message: "transition is preserved as transition metadata on Linux."
+        )
+        return TransitionView(content: self, transition: transition)
+    }
+
+    func symbolEffect<Value: Equatable>(
+        _ effect: SymbolEffect,
+        options: SymbolEffectOptions = .default,
+        value: Value
+    ) -> SymbolEffectView<Self, Value> {
+        recordQuillUIFallback(
+            "symbolEffect",
+            message: "symbolEffect is preserved as symbol animation metadata on Linux."
+        )
+        return SymbolEffectView(
+            content: self,
+            effect: effect,
+            options: options,
+            value: value
+        )
     }
 
     func offset(_ size: CGSize) -> OffsetView<Self> {
@@ -1105,7 +1151,6 @@ public extension View {
         return ViewMaskView(content: self, mask: mask)
     }
 
-    @_disfavoredOverload
     func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
         recordQuillUIFallback(
             "mask",
@@ -1196,7 +1241,6 @@ public extension View {
         return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
-    @_disfavoredOverload
     func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
         recordQuillUIFallback(
             "keyboardType",
@@ -1376,6 +1420,10 @@ extension GestureView: QuillWrappedViewRepresentable {
 }
 
 extension TransitionView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension SymbolEffectView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

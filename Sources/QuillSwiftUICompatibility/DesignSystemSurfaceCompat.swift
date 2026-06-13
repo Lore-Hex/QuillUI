@@ -2084,6 +2084,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func transition(_ transition: AnyTransition) -> Self {
         _ = transition
         return self
@@ -2563,6 +2564,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func symbolEffect<Value: Equatable>(
         _ effect: SymbolEffect,
         options: SymbolEffectOptions = .default,

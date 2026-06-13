@@ -975,14 +975,12 @@ fi
 if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
     case "$INTERACTION_MODE" in
       composer-typed)
-        # Target the composer field CENTER. Measured from the mac-reference render
-        # (PR #237): the composer spans x 647..1984 (center ~0.64*W) with its field
-        # row at y~1257 (~window_height-123). The old x=0.34*W (~695) landed at the
-        # field's far-left padding and y=window_height-84 (~1296) fell BELOW the field
-        # row, so the click never focused the TextField (typed text -> pixels=0).
-        # 0.56*W matches the reimpl's proven composer click; -120 sits on the field row.
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
+        # Target the left text-entry portion of the mac-reference composer.
+        # The trailing center controls are clickable too, but they are not the
+        # editable TextField; keep this aligned with the typed-composer verifier,
+        # which looks for typed pixels near the composer's left inset.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 76))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
@@ -994,8 +992,8 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # unreachable for deterministic screenshots, so this verifies the typed
         # message leaves the empty state and renders as a trailing user message;
         # the live Ollama/persistence proof remains a separate functional smoke.
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 76))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"

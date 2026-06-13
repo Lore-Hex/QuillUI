@@ -686,6 +686,18 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Enchanted composer rewrite expands before drawing border")
+    func enchantedComposerRewriteExpandsBeforeDrawingBorder() throws {
+        let root = try packageRoot()
+        let inputFieldsRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/Components/InputFields_macOS.swift.pl"),
+            encoding: .utf8
+        )
+
+        #expect(inputFieldsRule.contains("\\n$1.frame(maxWidth: .infinity)\\n$1.overlay("))
+        #expect(inputFieldsRule.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
+    }
+
     @Test("Apple service aliases live in reusable compatibility modules")
     func appleServiceAliasesLiveInReusableCompatibilityModules() throws {
         let root = try packageRoot()
