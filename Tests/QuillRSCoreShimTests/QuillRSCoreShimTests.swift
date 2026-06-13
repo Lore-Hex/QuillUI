@@ -65,6 +65,13 @@ struct QuillRSCoreShimTests {
         #expect("é".md5String == "66ddcd97cfdeabb2f6fb8a999b4bc76f")
     }
 
+    @Test("escapingSpecialXMLCharacters matches upstream RSCore escaping")
+    func escapingSpecialXMLCharacters() {
+        let raw = #"<foo attr="value">bar&baz's</foo>"#
+        let escaped = #"&lt;foo attr=&quot;value&quot;&gt;bar&amp;baz's&lt;/foo&gt;"#
+        #expect(raw.escapingSpecialXMLCharacters == escaped)
+    }
+
     @Test("Notification.Name.lowMemory matches upstream RSCore string literal")
     func lowMemoryNotificationNameRoundTrip() {
         // Upstream RSCore.AppNotifications declares the same

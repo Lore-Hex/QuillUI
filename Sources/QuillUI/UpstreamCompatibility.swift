@@ -902,7 +902,6 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
     func gesture<Gesture>(_ gesture: Gesture) -> GestureView<Self, Gesture> {
         recordQuillUIFallback(
             "gesture",
@@ -978,7 +977,6 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
     func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
         recordQuillUIFallback(
             "formStyle",

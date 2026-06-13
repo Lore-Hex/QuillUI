@@ -1502,7 +1502,7 @@ if nnwUpstreamPresent {
     targets += [
         .target(
             name: "RSCore",
-            dependencies: ["QuillRSCoreShim"],
+            dependencies: ["QuillRSCoreShim", "UIKit"],
             path: "Sources/RSCoreShimModule",
             swiftSettings: appSwiftSettings
         ),
@@ -1567,8 +1567,17 @@ if nnwUpstreamPresent {
 if nnwUpstreamPresent {
     targets += [
         .target(
+            name: "Images",
+            dependencies: ["RSCore"],
+            path: "Sources/ImagesShimModule",
+            swiftSettings: appSwiftSettings
+        )
+    ]
+
+    targets += [
+        .target(
             name: "NetNewsWireSharedCore",
-            dependencies: ["Account", "AppKit", "Articles", "ArticlesDatabase", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
+            dependencies: ["Account", "AppKit", "Articles", "ArticlesDatabase", "Images", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
             path: ".upstream/netnewswire/Shared",
             exclude: [
                 "Activity/ActivityManager.swift",
@@ -1585,10 +1594,8 @@ if nnwUpstreamPresent {
                 "ArticleStyles/ArticleTheme.swift",
                 "ArticleStyles/ArticleThemeDownloader.swift",
                 "ArticleStyles/ArticleThemesManager.swift",
-                "Assets.swift",
                 "Commands/DeleteCommand.swift",
                 "Commands/MarkStatusCommand.swift",
-                "Exporters",
                 "ExtensionPoints",
                 "Extensions/AddFeedDefaultContainer.swift",
                 "Extensions/CacheCleaner.swift",
@@ -1619,6 +1626,7 @@ if nnwUpstreamPresent {
                 "AccountStats/AccountStatsViewModel.swift",
                 "Activity/ActivityType.swift",
                 "AppNotifications.swift",
+                "Assets.swift",
                 "Article Extractor/ExtractedArticle.swift",
                 "Article Rendering/ArticleRenderingSpecialCases.swift",
                 "Article Rendering/ArticleTextSize.swift",
@@ -1629,6 +1637,7 @@ if nnwUpstreamPresent {
                 "Dinosaurs/DinosaursViewModel.swift",
                 "Extensions/ArticleStringFormatter.swift",
                 "Extensions/ArticleUtilities.swift",
+                "Exporters/OPMLExporter.swift",
                 "HelpURL.swift",
                 "Settings/AddCloudKitAccount.swift",
                 "ShareExtension/ExtensionContainers.swift",
@@ -3384,7 +3393,7 @@ let packageTestTargets: [Target] = {
         // through the local QuillNetNewsWireCore reader replacement.
         tests.append(.testTarget(
             name: "NetNewsWireSharedCoreTests",
-            dependencies: ["Account", "Articles", "NetNewsWireSharedCore"],
+            dependencies: ["Account", "Articles", "NetNewsWireSharedCore", "RSCore"],
             swiftSettings: nnwSwiftSettings
         ))
     }
