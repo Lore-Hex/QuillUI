@@ -276,6 +276,9 @@ struct SourceHygieneTests {
 
         #expect(linuxSwiftTest.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(linuxSwiftTest.contains("scripts/swiftpm-preserve-package-resolved.sh"))
+        #expect(linuxSwiftTest.contains("if [[ ! \" ${SWIFT_TEST_ARGS[*]} \" =~ \" --disable-index-store \" ]]; then"))
+        #expect(linuxSwiftTest.contains("SWIFT_TEST_ARGS=(--disable-index-store \"${SWIFT_TEST_ARGS[@]}\")"))
+        #expect(linuxSwiftTest.contains("swift test --scratch-path \"$SCRATCH_PATH\" \"${SWIFT_TEST_ARGS[@]}\""))
         #expect(!linuxSwiftTest.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(backendBuildScript.contains("quillui_prepare_backend_once()"))
         #expect(backendBuildScript.contains("PREPARED_BACKENDS=$'\\n'"))
@@ -4052,6 +4055,18 @@ struct SourceHygieneTests {
         #expect(!renderer.contains("gtk_widget_grab_focus(widget)"))
     }
 
+    @Test("Vendored GTK decorative overlays propagate horizontal expansion")
+    func vendoredGTKDecorativeOverlaysPropagateHorizontalExpansion() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let renderTests = try packageSource("third_party/SwiftOpenUI/Tests/BackendTests/GTK4Tests/GTK4RenderTests.swift")
+
+        #expect(renderer.contains("let overlayIsDecorative = overlay is GTKDecorativeOverlay"))
+        #expect(renderer.contains("if overlayWantsHExpand {\n            gtk_widget_set_hexpand(container, 1)\n        }"))
+        #expect(renderer.contains("if overlayWantsVExpand && !overlayIsDecorative"))
+        #expect(renderTests.contains("testDecorativeOverlayCanMakeIntrinsicBaseExpandHorizontally"))
+        #expect(renderTests.contains("A stroked RoundedRectangle overlay should draw across the parent allocation"))
+    }
+
     private func packageRoot() throws -> URL {
         var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default
@@ -4090,9 +4105,8 @@ struct SourceHygieneTests {
         process.standardError = pipe
 
         try process.run()
-        process.waitUntilExit()
-
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 }

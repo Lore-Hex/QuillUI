@@ -356,7 +356,9 @@ struct QuillDataSourceLoweringTests {
         #expect(wrapper.contains("--scratch-path=*"))
         #expect(wrapper.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(!wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
-        #expect(wrapper.contains("swift test --scratch-path \"$SCRATCH_PATH\""))
+        #expect(wrapper.contains("if [[ ! \" ${SWIFT_TEST_ARGS[*]} \" =~ \" --disable-index-store \" ]]; then"))
+        #expect(wrapper.contains("SWIFT_TEST_ARGS=(--disable-index-store \"${SWIFT_TEST_ARGS[@]}\")"))
+        #expect(wrapper.contains("swift test --scratch-path \"$SCRATCH_PATH\" \"${SWIFT_TEST_ARGS[@]}\""))
 
         let preparationScript = try String(
             contentsOf: root.appendingPathComponent("scripts/prepare-linux-build-backend.sh"),

@@ -30,6 +30,10 @@ done
 
 "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" --scratch-path "$SCRATCH_PATH"
 
+if [[ ! " ${SWIFT_TEST_ARGS[*]} " =~ " --disable-index-store " ]]; then
+  SWIFT_TEST_ARGS=(--disable-index-store "${SWIFT_TEST_ARGS[@]}")
+fi
+
 (
   cd "$ROOT_DIR"
   target_triple="$(swift -print-target-info 2>/dev/null | sed -n 's/.*"triple"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 || true)"

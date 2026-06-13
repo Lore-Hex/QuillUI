@@ -2150,6 +2150,35 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testDecorativeOverlayCanMakeIntrinsicBaseExpandHorizontally() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            Text("Message")
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28)
+                        .strokeBorder(Color.gray, style: StrokeStyle(lineWidth: 1))
+                )
+        ))
+
+        XCTAssertNotEqual(
+            gtk_widget_get_hexpand(wrapper),
+            0,
+            "A decorative overlay that fills horizontally must propagate hexpand to the overlay container, even when the base view is intrinsic."
+        )
+
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        allocate(widget: wrapper, size: ViewSize(width: 1_200, height: 64))
+
+        let drawingArea = try unwrapFirstDescendant(ofType: "GtkDrawingArea", in: wrapper)
+        let overlaySize = allocatedSize(of: drawingArea)
+        XCTAssertGreaterThan(
+            overlaySize.width,
+            900,
+            "A stroked RoundedRectangle overlay should draw across the parent allocation instead of collapsing to the base text width."
+        )
+    }
+
     func testMiddleTruncationFrameRendersScrolledWindowWithSingleLabel() throws {
         try requireGTK()
 
