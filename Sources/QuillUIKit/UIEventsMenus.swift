@@ -285,6 +285,7 @@ public class UIAction: UIMenuElement {
     public var discoverabilityTitle: String?
     public var attributes: UIMenuElement.Attributes
     public var state: UIMenuElement.State
+    public var sender: Any?
 
     /// The selection handler. Apple keeps this private; it is exposed
     /// `quill`-prefixed so a future menu presenter (or a test) can invoke
@@ -312,6 +313,18 @@ public class UIAction: UIMenuElement {
 
 @MainActor public protocol UIInteraction: AnyObject {
     var view: UIView? { get set }
+}
+
+@MainActor public protocol UIEditMenuInteractionDelegate: AnyObject {}
+
+@MainActor public final class UIEditMenuInteraction: NSObject, UIInteraction {
+    public weak var view: UIView?
+    public weak var delegate: UIEditMenuInteractionDelegate?
+
+    public init(delegate: UIEditMenuInteractionDelegate?) {
+        self.delegate = delegate
+        super.init()
+    }
 }
 
 @MainActor private var quillViewInteractions: [ObjectIdentifier: [any UIInteraction]] = [:]

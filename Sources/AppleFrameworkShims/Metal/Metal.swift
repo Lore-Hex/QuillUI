@@ -403,6 +403,7 @@ public protocol MTLComputeCommandEncoder: AnyObject {
     func setBuffer(_ buffer: MTLBuffer?, offset: Int, index: Int)
     func setBytes(_ bytes: UnsafeRawPointer, length: Int, index: Int)
     func dispatchThreadgroups(_ threadgroupsPerGrid: MTLSize, threadsPerThreadgroup: MTLSize)
+    func dispatchThreads(_ threadsPerGrid: MTLSize, threadsPerThreadgroup: MTLSize)
     func endEncoding()
 }
 
@@ -414,6 +415,7 @@ public final class QuillMTLComputeCommandEncoder: MTLComputeCommandEncoder {
     public func setBuffer(_ buffer: MTLBuffer?, offset: Int, index: Int) { _ = (buffer, offset, index) }
     public func setBytes(_ bytes: UnsafeRawPointer, length: Int, index: Int) { _ = (bytes, length, index) }
     public func dispatchThreadgroups(_ threadgroupsPerGrid: MTLSize, threadsPerThreadgroup: MTLSize) { _ = (threadgroupsPerGrid, threadsPerThreadgroup) }
+    public func dispatchThreads(_ threadsPerGrid: MTLSize, threadsPerThreadgroup: MTLSize) { _ = (threadsPerGrid, threadsPerThreadgroup) }
     public func endEncoding() {}
 }
 

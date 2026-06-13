@@ -271,6 +271,12 @@ public class UISceneConfiguration: NSObject {
 @MainActor public class UIWindowScene: UIScene {
     public var windows: [UIWindow] = []
     public var keyWindow: UIWindow? { windows.first }
+    public var interfaceOrientation: UIInterfaceOrientation = .portrait
+    public var statusBarManager: UIStatusBarManager? = UIStatusBarManager()
+}
+
+@MainActor public final class UIStatusBarManager: NSObject {
+    public var statusBarFrame: CGRect = .zero
 }
 
 public extension UIWindow {
@@ -380,6 +386,13 @@ public class NSItemProvider: NSObject {
         return [type.identifier]
     }
 
+    public func hasItemConformingToTypeIdentifier(_ typeIdentifier: String) -> Bool {
+        let requestedType = UTType(typeIdentifier)
+        return registeredTypeIdentifiers.contains { identifier in
+            identifier == typeIdentifier || requestedType.map { UTType(identifier)?.conforms(to: $0) == true } == true
+        }
+    }
+
     public func loadItem(
         forTypeIdentifier typeIdentifier: String,
         options: [AnyHashable: Any]? = nil,
@@ -418,6 +431,44 @@ public class NSItemProvider: NSObject {
         return nil
     }
 
+    public func loadDataRepresentation(
+        forTypeIdentifier typeIdentifier: String,
+        completionHandler: @escaping (Data?, Error?) -> Void
+    ) -> Progress? {
+        if let contentType = UTType(typeIdentifier) {
+            return loadDataRepresentation(for: contentType, completionHandler: completionHandler)
+        }
+        completionHandler(nil, NSError(
+            domain: "QuillUIKit.NSItemProvider",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "Unknown type identifier \(typeIdentifier)."]
+        ))
+        return nil
+    }
+
+    public func loadFileRepresentation(
+        forTypeIdentifier typeIdentifier: String,
+        completionHandler: @escaping (URL?, Error?) -> Void
+    ) -> Progress? {
+        _ = typeIdentifier
+        completionHandler(fileURL, nil)
+        return nil
+    }
+
+    public func canLoadObject<T: NSItemProviderReading>(ofClass aClass: T.Type) -> Bool {
+        _ = aClass
+        return object is T
+    }
+
+    public func loadObject<T: NSItemProviderReading>(
+        ofClass aClass: T.Type,
+        completionHandler: @escaping (T?, Error?) -> Void
+    ) -> Progress {
+        _ = aClass
+        completionHandler(object as? T, nil)
+        return Progress(totalUnitCount: 1)
+    }
+
     @discardableResult
     public func loadTransferable<T: Transferable>(
         type: T.Type,
@@ -426,6 +477,45 @@ public class NSItemProvider: NSObject {
         _ = type
         completionHandler(.success(nil))
         return Progress(totalUnitCount: 1)
+    }
+}
+
+public protocol NSItemProviderReading {
+    static var readableTypeIdentifiersForItemProvider: [String] { get }
+    static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self
+}
+
+public extension NSItemProviderReading {
+    static var readableTypeIdentifiersForItemProvider: [String] { [] }
+}
+
+extension NSString: NSItemProviderReading {
+    public static var readableTypeIdentifiersForItemProvider: [String] { [UTType.text.identifier, UTType.plainText.identifier] }
+
+    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
+        let value = String(data: data, encoding: .utf8) ?? ""
+        return self.init(string: value)
+    }
+}
+
+extension NSURL: NSItemProviderReading {
+    public static var readableTypeIdentifiersForItemProvider: [String] { [UTType.url.identifier, UTType.fileURL.identifier] }
+
+    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
+        let value = String(data: data, encoding: .utf8) ?? ""
+        let url = typeIdentifier == UTType.fileURL.identifier ? URL(fileURLWithPath: value) : (URL(string: value) ?? URL(fileURLWithPath: value))
+        return NSURL(string: url.absoluteString)! as! Self
+    }
+}
+
+extension UIImage: NSItemProviderReading {
+    public static var readableTypeIdentifiersForItemProvider: [String] { [UTType.image.identifier, UTType.png.identifier, UTType.jpeg.identifier] }
+
+    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
+        if let image = UIImage(data: data) as? Self {
+            return image
+        }
+        return UIImage() as! Self
     }
 }
 
@@ -587,6 +677,80 @@ public final class UITextPasteItem {
     public func setDefaultResult() {}
 }
 
+@MainActor public protocol UIDragSession: AnyObject {
+    func location(in view: UIView?) -> CGPoint
+}
+
+public extension UIDragSession {
+    @MainActor func location(in view: UIView?) -> CGPoint {
+        _ = view
+        return .zero
+    }
+}
+
+@MainActor public final class UIDragItem: NSObject {
+    public let itemProvider: NSItemProvider
+    public var localObject: Any?
+    public var previewProvider: (() -> UIDragPreview?)?
+
+    public init(itemProvider: NSItemProvider) {
+        self.itemProvider = itemProvider
+        super.init()
+    }
+}
+
+@MainActor public protocol UIDragInteractionDelegate: AnyObject {
+    func dragInteraction(_ interaction: UIDragInteraction, itemsForBeginning session: UIDragSession) -> [UIDragItem]
+}
+
+public extension UIDragInteractionDelegate {
+    @MainActor func dragInteraction(_ interaction: UIDragInteraction, itemsForBeginning session: UIDragSession) -> [UIDragItem] {
+        _ = (interaction, session)
+        return []
+    }
+}
+
+@MainActor public final class UIDragInteraction: NSObject, UIInteraction {
+    public weak var view: UIView?
+    public weak var delegate: UIDragInteractionDelegate?
+    public var isEnabled = true
+
+    public init(delegate: UIDragInteractionDelegate?) {
+        self.delegate = delegate
+        super.init()
+    }
+}
+
+@MainActor public final class UIDragPreviewParameters: NSObject {
+    public var visiblePath: UIBezierPath?
+    public var backgroundColor: UIColor?
+
+    public override init() {
+        super.init()
+    }
+
+    public init(textLineRects: [CGRect]) {
+        _ = textLineRects
+        super.init()
+    }
+
+    public init(textLineRects: [NSValue]) {
+        _ = textLineRects
+        super.init()
+    }
+}
+
+@MainActor public final class UIDragPreview: NSObject {
+    public let view: UIView
+    public let parameters: UIDragPreviewParameters?
+
+    public init(view: UIView, parameters: UIDragPreviewParameters? = nil) {
+        self.view = view
+        self.parameters = parameters
+        super.init()
+    }
+}
+
 @MainActor open class UITextView: UIView, UITextPasteConfigurationSupporting {
     open weak var delegate: UITextViewDelegate?
     open weak var pasteDelegate: UITextPasteDelegate?
@@ -663,6 +827,8 @@ public final class UITextPasteItem {
     open var inlinePredictionType: UITextInlinePredictionType = .default
     open var keyboardType: UIKeyboardType = .default
     open var textColor: UIColor?
+    open var typingAttributes: [NSAttributedString.Key: Any] = [:]
+    open var textAlignment: NSTextAlignment = .natural
 
     // MARK: Text-input surface (protocols + trait types in UITextInput.swift)
     //
@@ -719,6 +885,16 @@ public final class UITextPasteItem {
     public func select(_ sender: Any?) {
         _ = sender
     }
+
+    open func caretRect(for position: UITextPosition) -> CGRect {
+        _ = position
+        return CGRect(origin: .zero, size: CGSize(width: 1, height: font?.lineHeight ?? 17))
+    }
+
+    open func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        _ = gestureRecognizer
+        return true
+    }
 }
 
 // UINavigationControllerDelegate moved to QuillUIKit
@@ -756,6 +932,11 @@ public extension UIImagePickerControllerDelegate {
 
     public var sourceType: SourceType = .photoLibrary
     public weak var delegate: (any UINavigationControllerDelegate & UIImagePickerControllerDelegate)?
+
+    public static func isSourceTypeAvailable(_ sourceType: SourceType) -> Bool {
+        _ = sourceType
+        return false
+    }
 }
 
 public enum UIInputViewStyle: Int, Sendable {
@@ -858,6 +1039,7 @@ public class UINotificationFeedbackGenerator: NSObject {
     /// off-main-actor callers can read them (Strings are Sendable).
     nonisolated public var systemVersion: String { "1.0" }
     nonisolated public var model: String { "QuillOS" }
+    nonisolated public var orientation: UIDeviceOrientation { .portrait }
 
     #if os(Linux)
     /// Battery monitoring is unavailable on QuillOS; this notification name
@@ -960,9 +1142,11 @@ public final class UIBezierPath {
     public init(cgPath: CGPath) { self.cgPath = cgPath }
     public func move(to point: CGPoint) {}
     public func addLine(to point: CGPoint) {}
+    public func addCurve(to endPoint: CGPoint, controlPoint1: CGPoint, controlPoint2: CGPoint) {}
     public func addArc(withCenter center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {}
     public func close() {}
     public func append(_ bezierPath: UIBezierPath) {}
+    public func reversing() -> UIBezierPath { UIBezierPath(cgPath: cgPath) }
     public func addClip() {}
     public func fill() {}
     public func stroke() {}

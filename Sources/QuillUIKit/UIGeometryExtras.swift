@@ -440,6 +440,7 @@ public enum UIViewAnimatingPosition: Int, Sendable {
     open var minimumTrackTintColor: UIColor?
     open var maximumTrackTintColor: UIColor?
     open var thumbTintColor: UIColor?
+    open var isTracking: Bool = false
 
     private var thumbImages: [UInt: UIImage] = [:]
     private var minimumTrackImages: [UInt: UIImage] = [:]

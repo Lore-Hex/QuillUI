@@ -103,6 +103,20 @@ extension AVPlayer {
         seek(to: time)
     }
 
+    @discardableResult
+    public func addPeriodicTimeObserver(
+        forInterval interval: CMTime,
+        queue: DispatchQueue?,
+        using block: @escaping (CMTime) -> Void
+    ) -> Any {
+        _ = (interval, queue, block)
+        return UUID()
+    }
+
+    public func removeTimeObserver(_ observer: Any) {
+        _ = observer
+    }
+
     public enum TimeControlStatus: Int, Sendable {
         case paused
         case waitingToPlayAtSpecifiedRate
@@ -120,6 +134,11 @@ extension AVPlayerItem {
     public convenience init(asset: AVAsset) {
         self.init(url: (asset as? AVURLAsset)?.url)
         AVPlaybackSideTables.shared.state(for: self).asset = asset
+    }
+
+    public convenience init(asset: AVAsset, automaticallyLoadedAssetKeys: [String]?) {
+        self.init(asset: asset)
+        _ = automaticallyLoadedAssetKeys
     }
 
     /// The asset this item was created from. Items created via `init(url:)`

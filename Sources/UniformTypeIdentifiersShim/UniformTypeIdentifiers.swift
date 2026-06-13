@@ -59,11 +59,14 @@ public struct UTType: Hashable, Sendable {
     public static let image = UTType("public.image")!
     public static let png = UTType("public.png")!
     public static let jpeg = UTType("public.jpeg")!
+    public static let dng = UTType("com.adobe.raw-image")!
     public static let tiff = UTType("public.tiff")!
     public static let gif = UTType("com.compuserve.gif")!
     public static let heic = UTType("public.heic")!
     public static let heif = UTType("public.heif")!
     public static let webP = UTType("org.webmproject.webp")!
+    public static let jpegxl = UTType("public.jpeg-xl")!
+    public static let vCard = UTType("public.vcard")!
     public static let movie = UTType("public.movie")!
     public static let video = UTType("public.video")!
     public static let mpeg4Movie = UTType("public.mpeg-4")!

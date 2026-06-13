@@ -143,20 +143,6 @@ extension UIViewController {
         return state
     }
 
-    /// A localized title for the controller. As on Apple, setting it also
-    /// feeds the navigation item (Apple couples the two unless the item's
-    /// title was set independently; the shim always mirrors — the simpler
-    /// rule covers upstream's usage, which sets one or the other, not both).
-    /// (Apple declares this `open`; extension members can't be overridden,
-    /// so subclass `override var title` sites need a class-body declaration.)
-    public var title: String? {
-        get { surfaceState?.title }
-        set {
-            ensureSurfaceState().title = newValue
-            navigationItem.title = newValue
-        }
-    }
-
     /// The custom-transition vendor (weak, as on Apple). Stored faithfully so
     /// `presentationController` can consult it; no animator is ever invoked
     /// because no transitions run.

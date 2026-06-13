@@ -798,13 +798,24 @@ public enum QuillImageCompositingOperation: Sendable {
     case sourceOver
 }
 
-open class RSImage: NSObject, @unchecked Sendable {
+open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
+    public static var supportsSecureCoding: Bool { true }
+
     public enum ResizingMode: Int, Sendable {
         case tile
         case stretch
     }
 
     public override init() {}
+    public required init?(coder: NSCoder) {
+        super.init()
+        self.data = coder.decodeObject(forKey: "data") as? Data
+    }
+
+    public func encode(with coder: NSCoder) {
+        coder.encode(data, forKey: "data")
+    }
+
     public init?(data: Data) {
         super.init()
         self.data = data
@@ -960,6 +971,7 @@ public typealias UIImage = RSImage
 public struct RSCGColor: Equatable, Sendable {
     public var components: [CGFloat]?
     public var numberOfComponents: Int { components?.count ?? 0 }
+    public var alpha: CGFloat { components?.last ?? 1 }
     public static var typeID: UInt { 0 }
 
     public init(components: [CGFloat]?) {
@@ -1223,6 +1235,21 @@ public final class UIFontDescriptor: @unchecked Sendable {
 
 public extension CGSize {
     func equalTo(_ other: CGSize) -> Bool { self == other }
+
+    func applying(_ transform: CGAffineTransform) -> CGSize {
+        CGSize(
+            width: width * transform.a + height * transform.c,
+            height: width * transform.b + height * transform.d
+        )
+    }
+
+    var abs: CGSize {
+        CGSize(width: Swift.abs(width), height: Swift.abs(height))
+    }
+
+    static func max(_ lhs: CGSize, _ rhs: CGSize) -> CGSize {
+        CGSize(width: Swift.max(lhs.width, rhs.width), height: Swift.max(lhs.height, rhs.height))
+    }
 }
 
 public extension CGPoint {
@@ -1230,12 +1257,32 @@ public extension CGPoint {
 }
 
 public extension CGRect {
+    func equalTo(_ other: CGRect) -> Bool { self == other }
+
     func applying(_ transform: CGAffineTransform) -> CGRect {
         offsetBy(dx: transform.tx, dy: transform.ty)
     }
 
     func fill() {}
 }
+
+#if os(Linux)
+public final class ListFormatter: Formatter {
+    public var locale: Locale?
+
+    public override init() {
+        super.init()
+    }
+
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    public func string(from items: [Any]) -> String? {
+        items.map { "\($0)" }.joined(separator: ", ")
+    }
+}
+#endif
 
 public class RSScreen: NSObject, @unchecked Sendable {
     public static let main = RSScreen()

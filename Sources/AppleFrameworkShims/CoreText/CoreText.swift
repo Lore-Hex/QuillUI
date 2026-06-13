@@ -7,6 +7,7 @@ import CoreFoundation
 
 public typealias CFIndex = CoreFoundation.CFIndex
 public typealias CFRange = CoreFoundation.CFRange
+public typealias CFError = NSError
 
 public final class CTFramesetter {}
 public final class CTFrame {}
@@ -15,6 +16,24 @@ public typealias CTFont = RSFont
 public let kCTFontAttributeName = "NSFont"
 public let kCTForegroundColorAttributeName = "CTForegroundColor"
 public let kCTForegroundColorFromContextAttributeName = "CTForegroundColorFromContext"
+
+public enum CTFontManagerScope: UInt32, Sendable {
+    case none = 0
+    case process = 1
+    case user = 2
+    case session = 3
+}
+
+@discardableResult
+public func CTFontManagerRegisterFontsForURL(
+    _ fontURL: URL,
+    _ scope: CTFontManagerScope,
+    _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?
+) -> Bool {
+    _ = (fontURL, scope)
+    error?.pointee = nil
+    return true
+}
 public final class CTLine {
     fileprivate let length: Int
 

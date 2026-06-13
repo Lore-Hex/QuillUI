@@ -313,6 +313,23 @@ open class UITapGestureRecognizer: UIGestureRecognizer {
     open var numberOfTouchesRequired: Int = 1
 }
 
+/// A discrete recognizer for directional swipes. Configuration is stored;
+/// recognition awaits the same future event backend as the other recognizers.
+open class UISwipeGestureRecognizer: UIGestureRecognizer {
+    public struct Direction: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+
+        public static let right = Direction(rawValue: 1 << 0)
+        public static let left = Direction(rawValue: 1 << 1)
+        public static let up = Direction(rawValue: 1 << 2)
+        public static let down = Direction(rawValue: 1 << 3)
+    }
+
+    open var direction: Direction = .right
+    open var numberOfTouchesRequired: Int = 1
+}
+
 /// A continuous recognizer for press-and-hold gestures.
 open class UILongPressGestureRecognizer: UIGestureRecognizer {
     /// Seconds a touch must be held before the gesture begins.

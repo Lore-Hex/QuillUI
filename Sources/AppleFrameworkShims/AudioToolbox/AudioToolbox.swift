@@ -44,6 +44,8 @@ public let kAudioFormatFlagIsPacked: AudioFormatFlags = 1 << 3
 public let kAudioFormatFlagsNativeEndian: AudioFormatFlags = 0
 public let kAudioChannelLayoutTag_Mono: AudioChannelLayoutTag = 0x0064_0001
 public let kAudioUnitErr_FailedInitialization: OSStatus = -10875
+public let kAudioFileInvalidFileError: OSStatus = -43
+public let kAudioFileStreamError_InvalidFile: OSStatus = -43
 
 public let kAudioUnitType_Output: UInt32 = 0x6175_6f75 // "auou"
 public let kAudioUnitType_FormatConverter: UInt32 = 0x6175_6663 // "aufc"

@@ -298,7 +298,7 @@ public enum UIAccessibilityContrast: Int {
 #if !os(macOS)
 // Linux-only: UIWindow shadow (macOS already has NSWindow typealiased
 // to UIWindow in QuillFoundation).
-public class UIWindow: UIView {}
+open class UIWindow: UIView {}
 #endif
 
 @MainActor open class UIView: UIResponder {
@@ -859,6 +859,16 @@ public class UIWindow: UIView {}
     }
     public convenience override init() { self.init(nibName: nil, bundle: nil) }
 
+    public class func attemptRotationToDeviceOrientation() {}
+    private var quillTitle: String?
+    open var title: String? {
+        get { quillTitle }
+        set {
+            quillTitle = newValue
+            navigationItem.title = newValue
+        }
+    }
+
     open func viewIsAppearing(_ animated: Bool) { _ = animated }
     open var supportedInterfaceOrientations: UIInterfaceOrientationMask { .all }
     open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -1037,7 +1047,13 @@ public class UIWindow: UIView {}
 @MainActor open class UINavigationController: UIViewController {
     public var navigationBar = UINavigationBar()
     open weak var delegate: (any UINavigationControllerDelegate)?
+    public var interactivePopGestureRecognizer: UIGestureRecognizer? = UIGestureRecognizer()
+    public var interactiveContentPopGestureRecognizer: UIGestureRecognizer? = UIGestureRecognizer()
     public private(set) var isNavigationBarHidden = false
+    public var viewControllers: [UIViewController] {
+        get { topViewController.map { [$0] } ?? [] }
+        set { topViewController = newValue.last }
+    }
     open func setNavigationBarHidden(_ hidden: Bool, animated: Bool) {
         isNavigationBarHidden = hidden
     }
@@ -1057,11 +1073,6 @@ public class UIWindow: UIView {}
     // member (UIViewControllerSurface.swift) is the one owner; an Int-typed
     // shadow here broke enum assignments through nav-typed receivers.
 
-    /// Inert: UIDevice+FeatureSupport.ows_setOrientation calls this to nudge the
-    /// rotation delegate chain after a programmatic orientation change. On QuillOS
-    /// the GTK/Qt window manager owns orientation, so there is nothing to rotate;
-    /// this no-op stand-in lets SSK's orientation hack compile.
-    public static func attemptRotationToDeviceOrientation() {}
 }
 
 @MainActor public class UITabBarController: UIViewController {
@@ -1069,13 +1080,14 @@ public class UIWindow: UIView {}
     public var viewControllers: [UIViewController]?
 }
 
-@MainActor public class UINavigationBar: UIView {
+@MainActor open class UINavigationBar: UIView, UIBarPositioning {
     private static let appearanceProxy = UINavigationBar()
     public var topItem: UINavigationItem?
     public var isTranslucent: Bool = false
     public var barTintColor: UIColor?
     public var titleTextAttributes: [NSAttributedString.Key: Any]?
     public var largeTitleTextAttributes: [NSAttributedString.Key: Any]?
+    open var barPosition: UIBarPosition { .top }
 
     public static func appearance() -> UINavigationBar {
         appearanceProxy
@@ -1192,6 +1204,7 @@ public class UIWindow: UIView {}
     /// Apple's default is automaticDimension (-1), not 0. (The static lives
     /// in UITableViewExtras.swift; same-module visibility.)
     public var rowHeight: CGFloat = UITableView.automaticDimension
+    public var sectionIndexColor: UIColor?
     // init(frame:style:), style, reloadData and the rest of the member
     // surface live in UITableViewExtras.swift.
 }
@@ -1267,7 +1280,22 @@ public class UIAlertAction: NSObject {
     public var barButtonItem: UIBarButtonItem?
     public var sourceView: UIView?
     public var sourceRect: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
+    public var permittedArrowDirections: UIPopoverArrowDirection = .any
 }
+
+public struct UIPopoverArrowDirection: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+
+    public static let up = UIPopoverArrowDirection(rawValue: 1 << 0)
+    public static let down = UIPopoverArrowDirection(rawValue: 1 << 1)
+    public static let left = UIPopoverArrowDirection(rawValue: 1 << 2)
+    public static let right = UIPopoverArrowDirection(rawValue: 1 << 3)
+    public static let any: UIPopoverArrowDirection = [.up, .down, .left, .right]
+    public static let unknown = UIPopoverArrowDirection(rawValue: 1 << 4)
+}
+
+@MainActor public protocol UIPopoverPresentationControllerDelegate: AnyObject {}
 
 @MainActor public class UIActivityViewController: UIViewController {
     public init(url: URL, title: String?, applicationActivities: [Any]?) {
@@ -1817,6 +1845,7 @@ public extension UIBackgroundTaskIdentifier {
 public class UIBackgroundConfiguration: NSObject {
     public static func listGroupedCell() -> UIBackgroundConfiguration { UIBackgroundConfiguration() }
     public static func listSidebarCell() -> UIBackgroundConfiguration { UIBackgroundConfiguration() }
+    public var visualEffect: UIVisualEffect?
 }
 
 public class UIStoryboard: NSObject {

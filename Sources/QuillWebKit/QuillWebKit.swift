@@ -38,7 +38,9 @@ public struct WKAudiovisualMediaTypes: OptionSet, Sendable {
 
     public var configuration = WKWebViewConfiguration()
     public weak var navigationDelegate: WKNavigationDelegate?
+    public var scrollView: UIScrollView { UIScrollView() }
     public var allowsBackForwardNavigationGestures = false
+    public var allowsLinkPreview = false
     public var customUserAgent: String?
     public func loadFileURL(_: URL, allowingReadAccessTo: URL) {}
     public func reload() {}
@@ -69,6 +71,7 @@ public class WKWebViewConfiguration: NSObject {
     public var preferences: WKPreferences
     public var defaultWebpagePreferences: WKWebpagePreferences
     public var mediaTypesRequiringUserActionForPlayback: WKAudiovisualMediaTypes = .all
+    public var websiteDataStore: WKWebsiteDataStore = .default()
 
     public override init() {
         self.preferences = WKPreferences()
@@ -80,7 +83,22 @@ public class WKWebViewConfiguration: NSObject {
     public var userContentController = WKUserContentController()
 }
 
+public class WKWebsiteDataStore: NSObject, @unchecked Sendable {
+    private static let defaultStore = WKWebsiteDataStore()
+    private static let nonPersistentStore = WKWebsiteDataStore()
+
+    public static func `default`() -> WKWebsiteDataStore { defaultStore }
+    public static func nonPersistent() -> WKWebsiteDataStore { nonPersistentStore }
+}
+
 public protocol WKURLSchemeHandler: AnyObject {}
+
+public enum WKNavigationResponsePolicy: Int, Sendable {
+    case cancel
+    case allow
+}
+
+public class WKNavigationResponse: NSObject {}
 
 public class WKPreferences: NSObject {
     public var javaScriptCanOpenWindowsAutomatically = false

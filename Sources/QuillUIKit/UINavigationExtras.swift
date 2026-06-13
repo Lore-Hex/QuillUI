@@ -146,13 +146,6 @@ extension UINavigationBar {
     }
 }
 
-/// A navigation bar sits at the top, as on Apple (`.topAttached` is the
-/// status-bar-abutting refinement upstream delegates opt into; the bar's own
-/// answer is `.top`).
-extension UINavigationBar: UIBarPositioning {
-    public var barPosition: UIBarPosition { .top }
-}
-
 // MARK: - UINavigationItem extras (side table)
 
 /// Per-item stored state for members the class body (QuillUIKit.swift, not

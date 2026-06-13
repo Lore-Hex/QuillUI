@@ -36,6 +36,7 @@ public let CNContactImageDataKey = "imageData"
 public let CNContactThumbnailImageDataKey = "thumbnailImageData"
 public let CNContactImageDataAvailableKey = "imageDataAvailable"
 public let CNContactIdentifierKey = "identifier"
+public let CNContactPropertyAttribute = "CNContactPropertyAttribute"
 
 // MARK: - Labels
 
@@ -144,8 +145,33 @@ public class CNContactFormatter {
         return parts.joined(separator: " ")
     }
 
+    public static func attributedString(
+        from contact: CNContact,
+        style: CNContactFormatterStyle,
+        defaultAttributes attributes: [NSAttributedString.Key: Any]?
+    ) -> NSAttributedString? {
+        guard let value = string(from: contact, style: style) else { return nil }
+        return NSAttributedString(string: value, attributes: attributes)
+    }
+
     public static func descriptorForRequiredKeys(for style: CNContactFormatterStyle) -> CNKeyDescriptor {
         CNContactGivenNameKey
+    }
+}
+
+public class CNPostalAddressFormatter {
+    public enum Style: Sendable {
+        case mailingAddress
+    }
+
+    public var style: Style = .mailingAddress
+
+    public init() {}
+
+    public func string(from postalAddress: CNPostalAddress) -> String {
+        [postalAddress.street, postalAddress.city, postalAddress.state, postalAddress.postalCode, postalAddress.country]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
     }
 }
 

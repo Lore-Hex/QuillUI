@@ -121,7 +121,18 @@ public final class AVSpeechSynthesisVoice: @unchecked Sendable {
 
 public final class AVAudioSession: @unchecked Sendable {
     public enum Category: Int, Sendable { case ambient, soloAmbient, playback, record, playAndRecord, multiRoute }
-    public enum Mode: Int, Sendable { case videoChat, videoRecording, measurement, moviePlayback, spokenAudio }
+    public enum Mode: Int, Sendable {
+        case videoChat = 0
+        case videoRecording = 1
+        case measurement = 2
+        case moviePlayback = 3
+        case spokenAudio = 4
+        case `default` = 5
+        case voiceChat = 6
+    }
+    public enum RecordPermission: Int, Sendable { case undetermined, denied, granted }
+    public enum PortOverride: Int, Sendable { case none, speaker }
+    public enum ErrorCode: Int, Sendable { case isBusy = 560030580 }
     public struct CategoryOptions: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -129,6 +140,8 @@ public final class AVAudioSession: @unchecked Sendable {
         public static let duckOthers = CategoryOptions(rawValue: 1 << 1)
         public static let allowBluetooth = CategoryOptions(rawValue: 1 << 2)
         public static let defaultToSpeaker = CategoryOptions(rawValue: 1 << 3)
+        public static let allowBluetoothHFP = CategoryOptions(rawValue: 1 << 4)
+        public static let allowBluetoothA2DP = CategoryOptions(rawValue: 1 << 5)
     }
     public struct SetActiveOptions: OptionSet, Sendable {
         public let rawValue: UInt
@@ -165,6 +178,21 @@ public final class AVAudioSession: @unchecked Sendable {
         service.isActive
     }
 
+    public var recordPermission: RecordPermission { .granted }
+    public var outputVolume: Float { 1 }
+
+    public func requestRecordPermission(_ response: @escaping (Bool) -> Void) {
+        response(true)
+    }
+
+    public func setAllowHapticsAndSystemSoundsDuringRecording(_ allow: Bool) throws {
+        _ = allow
+    }
+
+    public func overrideOutputAudioPort(_ portOverride: PortOverride) throws {
+        _ = portOverride
+    }
+
     public func setCategory(_ category: Category) throws {
         try setCategory(category, mode: mode, options: categoryOptions)
     }
@@ -194,29 +222,52 @@ public final class AVAudioSession: @unchecked Sendable {
     }
 }
 
-public final class AVPlayer: @unchecked Sendable {
-    public var currentItem: AVPlayerItem?
-    public var audiovisualBackgroundPlaybackPolicy: AVPlayerAudiovisualBackgroundPlaybackPolicy = .automatic
-    public var preventsDisplaySleepDuringVideoPlayback: Bool = false
-    public var isMuted: Bool = false
+open class AVPlayer: NSObject, @unchecked Sendable {
+    public enum Status: Int, Sendable { case unknown, readyToPlay, failed }
 
-    public init() {}
+    open var currentItem: AVPlayerItem?
+    open var audiovisualBackgroundPlaybackPolicy: AVPlayerAudiovisualBackgroundPlaybackPolicy = .automatic
+    open var preventsDisplaySleepDuringVideoPlayback: Bool = false
+    open var isMuted: Bool = false
+    open var status: Status = .readyToPlay
+
+    public override init() {
+        super.init()
+    }
+
     public init(url: URL) {
+        super.init()
         self.currentItem = AVPlayerItem(url: url)
     }
 
-    public func play() {}
-    public func pause() {}
-    public func seek(to time: CMTime) {
+    open func play() {}
+    open func pause() {}
+    open func replaceCurrentItem(with item: AVPlayerItem?) {
+        currentItem = item
+    }
+    open func seek(to time: CMTime) {
         _ = time
     }
 }
 
-public final class AVPlayerItem: @unchecked Sendable {
+open class AVPlayerItem: NSObject, @unchecked Sendable {
+    public enum Status: Int, Sendable { case unknown, readyToPlay, failed }
+
     public let url: URL?
+    open var status: Status = .readyToPlay
 
     public init(url: URL? = nil) {
         self.url = url
+        super.init()
+    }
+}
+
+@MainActor open class AVPlayerLayer: CALayer {
+    open var player: AVPlayer?
+    open var videoGravity: AVLayerVideoGravity = .resizeAspect
+
+    public override init() {
+        super.init()
     }
 }
 
@@ -627,6 +678,8 @@ public final class AVAssetExportSession: @unchecked Sendable {
     public enum Status: Int, Sendable { case unknown, waiting, exporting, completed, failed, cancelled }
     public var outputURL: URL?
     public var outputFileType: AVFileType?
+    public var timeRange: CMTimeRange = CMTimeRange(start: .zero, duration: .zero)
+    public var progress: Float = 0
     public var shouldOptimizeForNetworkUse: Bool = false
     /// Recorded for shape fidelity; the Linux exporter never runs.
     public var metadataItemFilter: AVMetadataItemFilter?
