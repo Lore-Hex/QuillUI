@@ -213,6 +213,24 @@ let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/
 // macOS SwiftUI USB-microscope viewer (MIT) compiled UNMODIFIED on Linux
 // against the SwiftUI/AppKit/AVFoundation/CoreImage shim surface.
 let solderScopeUpstreamPresent: Bool = upstreamPresent(".upstream/solderscope/SolderScope")
+// SceneKit conformance lane (docs/scenekit-conformance.md) — all MIT:
+// nicklockwood/Euclid (pure-Swift 3D geometry/CSG lib + a UIKit/SceneKit
+// Example app) and nicklockwood/ShapeScript (real shipped macOS app whose
+// entire viewport is SceneKit) plus its two pure-Swift deps. ShapeScript
+// pins Euclid 0.8.x via SwiftPM URL deps upstream; we compile it against
+// .upstream/euclid (HEAD == 0.8.14 today) as path-based targets instead so
+// every source stays unmodified and locally inspectable. Fetch via
+// `scripts/fetch-upstream.sh scenekit`.
+let euclidUpstreamPresent: Bool = upstreamPresent(".upstream/euclid/Sources")
+let svgPathUpstreamPresent: Bool = upstreamPresent(".upstream/svgpath/Sources")
+let shapeScriptUpstreamPresent: Bool = upstreamPresent(".upstream/shapescript/ShapeScript")
+// In-repo SceneKit fixture apps (Sources/QuillSceneKitFixtures): authored
+// solar-system + molecule viewers exercising a small, known SCN surface
+// (SCNScene/SCNNode/SCNSphere/SCNCylinder, materials, lights, camera,
+// actions, SceneView) ahead of the real apps. RED until the SceneKit shim
+// grows that surface, so they are opt-in:
+let quillUISceneKitFixturesEnabled: Bool =
+    ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_FIXTURES"] == "1"
 // Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
 // The upstream iOS platform pin is a manifest constraint, not a source one —
 // the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
@@ -459,6 +477,7 @@ products += [
     .library(name: "CoreMediaIO", targets: ["CoreMediaIO"]),
     .library(name: "MapKit", targets: ["MapKit"]),
     .library(name: "SceneKit", targets: ["SceneKit"]),
+    .library(name: "RealityKit", targets: ["RealityKit"]),
     .library(name: "Firebase", targets: ["Firebase"]),
     .library(name: "FirebaseCrashlytics", targets: ["FirebaseCrashlytics"]),
     .library(name: "Lottie", targets: ["Lottie"]),
@@ -2232,7 +2251,7 @@ let signalAppleFrameworkShims = [
     "Quartz", "QuickLook", "OSLog", "AppIntents", "CoreMediaIO",
     // NOTE: "Lottie" is NOT here — Sources/Lottie (Signal's LibMobileCoin dep)
     // already declares it explicitly.
-    "MapKit", "SceneKit", "Firebase", "FirebaseCrashlytics", "TdBinding",
+    "MapKit", "SceneKit", "RealityKit", "Firebase", "FirebaseCrashlytics", "TdBinding",
     // NOTE: "zlib" is intentionally NOT here — it's a real systemLibrary
     // (cZlibTarget, links libz) rather than an inert Swift shim, so it's added to
     // SignalServiceKit's dependencies explicitly below.
@@ -2496,6 +2515,131 @@ if solderScopeUpstreamPresent {
             swiftSettings: appSwiftSettings + [
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "Combine"])
             ]
+        ),
+    ]
+}
+#endif
+
+// SceneKit conformance lane (docs/scenekit-conformance.md). Targets are
+// inert on CI until fetch-upstream.sh populates the checkouts (use the
+// `scenekit` meta-arm). Ladder: Euclid lib (pure Swift, can go green ahead
+// of any SCN surface) → fixtures → Euclid Example → ShapeScript core/CLI →
+// ShapeScript Viewer (real shipped macOS app, NSDocument-based AppKit).
+#if os(Linux)
+if euclidUpstreamPresent {
+    // Euclid's Apple-framework interop files are canImport-gated upstream.
+    // In this package's shared scratch those gates leak TRUE for every shim
+    // module in the graph (lesson: canImport build-order leaks), so the
+    // interop modules must be DECLARED deps for their clang submodules
+    // (CGdkPixbuf etc.) to resolve. Net effect: Euclid's SceneKit/AppKit/
+    // UIKit/CoreGraphics/CoreText interop surface is part of the rung-1
+    // census, not skippable. (`simd` has no module in the graph, so
+    // Euclid+SIMD does drop out.)
+    targets += [
+        .target(
+            name: "Euclid",
+            dependencies: [
+                "AppKit", "UIKit", "CoreGraphics", "CoreText",
+                "SceneKit", "RealityKit",
+            ],
+            path: ".upstream/euclid/Sources"
+        ),
+        // Real UIKit + SceneKit demo app (one RealityKit screen, one
+        // visionOS volumetric view) — the warm-up SCN conformance driver.
+        // Red members here ARE the campaign work-list.
+        .executableTarget(
+            name: "QuillEuclidExample",
+            dependencies: [
+                "Euclid", "QuillUI", "SwiftUI", "UIKit", "SceneKit",
+                "RealityKit", "Combine", "QuillFoundation",
+            ],
+            path: ".upstream/euclid/Example",
+            exclude: [
+                "Assets.xcassets",
+                "Info.plist",
+            ],
+            swiftSettings: appSwiftSettings
+        ),
+    ]
+    products.append(.library(name: "Euclid", targets: ["Euclid"]))
+}
+if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent {
+    // NOTE: ShapeScript's "LRUCache" dependency resolves to the existing
+    // in-repo stub target (Sources/LRUCache, a never-hitting no-op cache —
+    // functionally correct, just uncached). Rung 1 may repoint that target
+    // at .upstream/lrucache/Sources (fetch arm already exists) if real
+    // caching matters; it is API-identical.
+    targets += [
+        .target(
+            name: "SVGPath",
+            dependencies: [],
+            path: ".upstream/svgpath/Sources"
+        ),
+        // The ShapeScript language core + CLI support Linux upstream
+        // (mesh generation via Euclid, no UI) — expected green early.
+        .target(
+            name: "ShapeScript",
+            dependencies: ["Euclid", "LRUCache", "SVGPath"],
+            path: ".upstream/shapescript/ShapeScript",
+            exclude: ["ShapeScript.xctestplan"]
+        ),
+        .executableTarget(
+            name: "QuillShapeScriptCLI",
+            dependencies: ["ShapeScript"],
+            path: ".upstream/shapescript/Viewer/CLI"
+        ),
+        // The Viewer: a real shipped, NSDocument-based AppKit app whose
+        // entire viewport is an SCNView — the flagship SceneKit target,
+        // and an AppKit-reimplementation conformance driver in the same
+        // breath. Mac + Shared sources only (iOS/ lives beside them).
+        .executableTarget(
+            name: "QuillShapeScriptViewer",
+            dependencies: [
+                "ShapeScript", "Euclid", "SVGPath", "QuillUI", "AppKit",
+                "SceneKit", "Combine", "os", "UniformTypeIdentifiers",
+                "QuillFoundation",
+            ],
+            path: ".upstream/shapescript/Viewer",
+            exclude: [
+                "Mac/Base.lproj",
+                "Mac/Info.plist",
+                "Mac/Viewer.entitlements",
+                "Mac/Welcome.rtf",
+                "Mac/WhatsNew.rtf",
+                "Shared/AppIcon.icon",
+                "Shared/Assets.xcassets",
+                "Shared/Licenses.rtf",
+                "Shared/Untitled.shape",
+            ],
+            sources: ["Mac", "Shared"],
+            swiftSettings: appSwiftSettings
+        ),
+    ]
+    products.append(.executable(name: "QuillShapeScriptCLI", targets: ["QuillShapeScriptCLI"]))
+}
+if quillUISceneKitFixturesEnabled {
+    // Authored in-repo fixture apps (NOT upstream source): a solar-system
+    // viewer and a ball-and-stick molecule viewer, written as faithful
+    // macOS SwiftUI+SceneKit apps. They pin down the exact SCN surface the
+    // real apps need, in a scene we fully control for pixel comparison.
+    targets += [
+        .executableTarget(
+            name: "QuillSolarSystem",
+            dependencies: [
+                "QuillUI", "SwiftUI", "AppKit", "SceneKit", "Combine",
+                "QuillFoundation",
+            ],
+            path: "Sources/QuillSceneKitFixtures/SolarSystem",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillMoleculeViewer",
+            dependencies: [
+                "QuillUI", "SwiftUI", "AppKit", "SceneKit", "Combine",
+                "QuillFoundation",
+            ],
+            path: "Sources/QuillSceneKitFixtures/MoleculeViewer",
+            swiftSettings: appSwiftSettings
         ),
     ]
 }
