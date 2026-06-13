@@ -505,6 +505,15 @@ let quillChatKitDependencies: [Target.Dependency] = ["QuillFoundation"]
 
 let nnwSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5),
+    // -module-alias: NNW's Account module is compiled as target "NNWAccount"
+    // because the vendored-IceCubes lane also ships a module named Account
+    // (Sources/IceCubesAccountModuleAlias) and SwiftPM forbids two targets
+    // with one name in a package — the default CI fetch populates BOTH
+    // upstreams, which collided once NNW upstream's Modules/ restructure
+    // flipped nnwUpstreamPresent true. The alias keeps NNW's unmodified
+    // sources' `import Account` resolving to NNWAccount; targets that don't
+    // import Account ignore it.
+    .unsafeFlags(["-module-alias", "Account=NNWAccount"]),
     .unsafeFlags(["-strict-concurrency=minimal", "-Xfrontend", "-import-module", "-Xfrontend", "QuillShims", "-Xfrontend", "-disable-access-control"])
 ]
 
@@ -570,12 +579,12 @@ let quillShimsDependencies: [Target.Dependency] = [
 
 #if os(Linux)
 let nnwLogicDependencies: [Target.Dependency] = [
-    "RSCore", "Account", "Articles", "RSParser", "ArticlesDatabase",
+    "RSCore", "NNWAccount", "Articles", "RSParser", "ArticlesDatabase",
     "RSWeb", "RSTree", "QuillShims", "Zip", "os"
 ]
 #else
 let nnwLogicDependencies: [Target.Dependency] = [
-    "RSCore", "Account", "Articles", "RSParser", "ArticlesDatabase",
+    "RSCore", "NNWAccount", "Articles", "RSParser", "ArticlesDatabase",
     "RSWeb", "RSTree", "QuillShims", "Zip"
 ]
 #endif
@@ -1413,7 +1422,7 @@ if nnwUpstreamPresent {
             swiftSettings: nnwSwiftSettings
         ),
         .target(
-            name: "Account",
+            name: "NNWAccount",
             dependencies: ["RSCore", "Articles", "RSParser", "ArticlesDatabase", "RSWeb", "Secrets", "ErrorLog", "SyncDatabase", "CloudKitSync", "FeedFinder", "NewsBlur", "QuillShims"],
             path: ".upstream/netnewswire/Modules/Account/Sources/Account",
             swiftSettings: nnwSwiftSettings
@@ -1535,7 +1544,9 @@ if nnwUpstreamPresent {
             swiftSettings: nnwSwiftSettings
         ),
         .target(
-            name: "Account",
+            // Module "Account" to NNW's unmodified sources via -module-alias
+            // in nnwSwiftSettings (the IceCubes lane owns the bare name).
+            name: "NNWAccount",
             dependencies: [
                 "RSCore", "Articles", "RSParser", "RSDatabase", "RSDatabaseObjC",
                 "ArticlesDatabase", "SyncDatabase", "RSWeb", "Secrets", "ErrorLog",
@@ -1563,7 +1574,7 @@ if nnwUpstreamPresent {
     targets += [
         .target(
             name: "NetNewsWireSharedCore",
-            dependencies: ["Account", "AppKit", "Articles", "ArticlesDatabase", "Images", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
+            dependencies: ["NNWAccount", "AppKit", "Articles", "ArticlesDatabase", "Images", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
             path: ".upstream/netnewswire/Shared",
             exclude: [
                 "Activity/ActivityManager.swift",
@@ -3314,7 +3325,7 @@ let packageTestTargets: [Target] = {
         // through the local QuillNetNewsWireCore reader replacement.
         tests.append(.testTarget(
             name: "NetNewsWireSharedCoreTests",
-            dependencies: ["Account", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore"],
+            dependencies: ["NNWAccount", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore"],
             swiftSettings: nnwSwiftSettings
         ))
     }
