@@ -188,6 +188,18 @@ struct NetNewsWireSharedCoreTests {
         #expect(raw.escapingSpecialXMLCharacters == escaped)
     }
 
+    @Test("Assets expose upstream icon image wrappers")
+    @MainActor func assetsExposeIconImageWrappers() {
+        let starredFeed = Assets.Images.starredFeed
+        let unreadFeed = Assets.Images.unreadFeed
+
+        #expect(starredFeed.isSymbol)
+        #expect(starredFeed.isBackgroundSuppressed)
+        #expect(starredFeed.preferredColor != nil)
+        #expect(unreadFeed.isSymbol)
+        #expect(Assets.Colors.primaryAccent.cgColor.components?.count == 4)
+    }
+
     @Test("Account type helpers compile through SwiftUI and UIKit shadows")
     @MainActor func accountTypeHelpers() {
         #expect(AccountType.feedbin.localizedAccountName() == "Feedbin")
