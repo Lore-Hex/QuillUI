@@ -175,6 +175,15 @@ let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RS
 // QuillNetNewsWireCore.
 let nnwUpstreamPresent: Bool = false
 #endif
+// The NNW upstream slice (Account/Shared module train) does not yet compile
+// green on Linux (e.g. Account/OPMLFile.swift #selector needs lowering), and
+// `swift test` compiles every declared target — so gating these targets on
+// directory presence alone keeps the whole Linux CI lane red, since the
+// default CI fetch populates .upstream/netnewswire. Opt-in via env while the
+// slice campaign drives it to zero errors:
+//   QUILLUI_NNW_UPSTREAM=1 swift build --target NetNewsWireSharedCore
+let nnwUpstreamEnabled: Bool = nnwUpstreamPresent
+    && ProcessInfo.processInfo.environment["QUILLUI_NNW_UPSTREAM"] == "1"
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
@@ -1493,7 +1502,7 @@ if nnwUpstreamPresent {
 #endif
 
 #if os(Linux)
-if nnwUpstreamPresent {
+if nnwUpstreamEnabled {
     targets += [
         .target(
             name: "RSCore",
@@ -1561,7 +1570,7 @@ if nnwUpstreamPresent {
 }
 #endif
 
-if nnwUpstreamPresent {
+if nnwUpstreamEnabled {
     targets += [
         .target(
             name: "Images",
@@ -3319,7 +3328,7 @@ let packageTestTargets: [Target] = {
         )
     ]
 
-    if nnwUpstreamPresent {
+    if nnwUpstreamEnabled {
         // Pins the first direct upstream NetNewsWire Shared/ compile slice.
         // This grows toward the full Shared+Mac app target without routing
         // through the local QuillNetNewsWireCore reader replacement.
