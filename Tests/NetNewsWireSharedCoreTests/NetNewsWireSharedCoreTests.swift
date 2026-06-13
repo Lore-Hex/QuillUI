@@ -183,8 +183,8 @@ struct NetNewsWireSharedCoreTests {
     func opmlExporterCompileSliceAndEscaping() {
         _ = OPMLExporter.self
 
-        let raw = #"<outline text="Swift & News" xmlUrl="https://example.test/feed?x=1&y=2"/>"#
-        let escaped = #"&lt;outline text=&quot;Swift &amp; News&quot; xmlUrl=&quot;https://example.test/feed?x=1&amp;y=2&quot;/&gt;"#
+        let raw = #"<outline text="Swift & News's" xmlUrl="https://example.test/feed?x=1&y=2"/>"#
+        let escaped = #"&lt;outline text=&quot;Swift &amp; News's&quot; xmlUrl=&quot;https://example.test/feed?x=1&amp;y=2&quot;/&gt;"#
         #expect(raw.escapingSpecialXMLCharacters == escaped)
     }
 

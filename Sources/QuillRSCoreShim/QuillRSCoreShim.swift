@@ -17,6 +17,7 @@ import Foundation
 /// Today's surface:
 ///   - `String.md5String` (RSParser, Articles — content-addressed
 ///     uniqueIDs)
+///   - `String.escapingSpecialXMLCharacters` (OPML/feed export)
 ///   - `Platform.isRunningUnitTests` (Articles' AuthorCache uses
 ///     it to skip lowMemory observer wiring during XCTest runs)
 ///   - `Notification.Name.lowMemory` (Articles' AuthorCache
@@ -49,7 +50,6 @@ public extension String {
             switch character {
             case "&": result += "&amp;"
             case "\"": result += "&quot;"
-            case "'": result += "&apos;"
             case "<": result += "&lt;"
             case ">": result += "&gt;"
             default: result.append(character)
