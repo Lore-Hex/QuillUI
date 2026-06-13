@@ -1,5 +1,6 @@
 import Foundation
 import Articles
+import Images
 import Testing
 @testable import Account
 @testable import NetNewsWireSharedCore
@@ -192,12 +193,31 @@ struct NetNewsWireSharedCoreTests {
     @MainActor func assetsExposeIconImageWrappers() {
         let starredFeed = Assets.Images.starredFeed
         let unreadFeed = Assets.Images.unreadFeed
+        let mainFolder = Assets.Images.mainFolder
 
         #expect(starredFeed.isSymbol)
         #expect(starredFeed.isBackgroundSuppressed)
         #expect(starredFeed.preferredColor != nil)
         #expect(unreadFeed.isSymbol)
+        #expect(mainFolder.isSymbol)
         #expect(Assets.Colors.primaryAccent.cgColor.components?.count == 4)
+    }
+
+    @Test("Images shim exposes upstream favicon API shape")
+    @MainActor func imagesShimExposesFaviconAPIShape() {
+        _ = SmallIconProvider.self
+        #expect(IconSize.small.size == CGSize(width: 24, height: 24))
+        #expect(IconSize.medium.size == CGSize(width: 36, height: 36))
+        #expect(IconSize.large.size == CGSize(width: 48, height: 48))
+
+        let downloader = FaviconDownloader()
+        let icon = IconImage(RSImage())
+        downloader.cache(icon, forFaviconURL: "https://example.test/favicon.ico")
+
+        #expect(downloader.favicon(with: "https://example.test/favicon.ico", homePageURL: nil) === icon)
+        #expect(downloader.favicon(with: "ftp://example.test/favicon.ico", homePageURL: nil) == nil)
+        downloader.emptyCache()
+        #expect(downloader.favicon(with: "https://example.test/favicon.ico", homePageURL: nil) == nil)
     }
 
     @Test("Account type helpers compile through SwiftUI and UIKit shadows")

@@ -1549,7 +1549,7 @@ if nnwUpstreamPresent {
     targets += [
         .target(
             name: "Images",
-            dependencies: ["RSCore"],
+            dependencies: ["Account", "RSCore"],
             path: "Sources/ImagesShimModule",
             swiftSettings: appSwiftSettings
         )
@@ -1584,7 +1584,6 @@ if nnwUpstreamPresent {
                 "Extensions/NSAttributedString+Extensions.swift",
                 "Extensions/Node+Extensions.swift",
                 "Extensions/RSImage+Extensions.swift",
-                "Extensions/SmallIconProvider.swift",
                 "IconImageCache.swift",
                 "Importers",
                 "Resources",
@@ -1618,6 +1617,7 @@ if nnwUpstreamPresent {
                 "Dinosaurs/DinosaursViewModel.swift",
                 "Extensions/ArticleStringFormatter.swift",
                 "Extensions/ArticleUtilities.swift",
+                "Extensions/SmallIconProvider.swift",
                 "Exporters/OPMLExporter.swift",
                 "HelpURL.swift",
                 "Settings/AddCloudKitAccount.swift",
