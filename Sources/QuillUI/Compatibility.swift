@@ -398,14 +398,8 @@ public extension TextField {
     }
 }
 
-public extension Axis {
-    struct Set: OptionSet, Sendable {
-        public let rawValue: Int
-        public init(rawValue: Int) { self.rawValue = rawValue }
-        public static let horizontal = Set(rawValue: Axis.horizontal.rawValue)
-        public static let vertical = Set(rawValue: Axis.vertical.rawValue)
-    }
-}
+// Axis.Set is the fork's typealias (Axis itself is the OptionSet) —
+// the old nested struct here competed with it and was removed.
 
 public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
     public var rawValue: Double

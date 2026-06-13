@@ -210,6 +210,9 @@ public struct CommandMenuBuilder {
 		[item]
 	}
 
+	// @_disfavoredOverload: see MenuBuilder note — compat module ships the
+	// functional view arms.
+	@_disfavoredOverload
 	public static func buildExpression<V: View>(_ view: V) -> [CommandMenuItem] {
 		_ = view
 		return []

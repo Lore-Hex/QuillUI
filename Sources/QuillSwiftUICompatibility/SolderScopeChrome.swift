@@ -591,9 +591,7 @@ extension WindowGroup {
 
     /// SwiftUI's `defaultSize(width:height:)` (moved from QuillUI); routes to
     /// SwiftOpenUI's `defaultWindowSize`.
-    public func defaultSize(width: Double, height: Double) -> WindowGroup<Content> {
-        defaultWindowSize(width: width, height: height)
-    }
+    // defaultSize(width:height:) lives in the fork (WindowSizing.swift).
 
     /// Accepts a `WindowStyle`. Compile-surface: returns `self` unchanged —
     /// WindowGroup's sizing/decoration fields are internal to SwiftOpenUI, so

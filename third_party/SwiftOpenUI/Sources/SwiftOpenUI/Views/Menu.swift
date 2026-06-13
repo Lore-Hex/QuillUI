@@ -66,6 +66,10 @@ public struct MenuBuilder {
         [.submenu(label: submenu.label, children: submenu.children)]
     }
 
+    // @_disfavoredOverload: QuillSwiftUICompatibility ships FUNCTIONAL view
+    // arms (Button label/action extraction); this drop-the-view fallback only
+    // applies where that module is not imported.
+    @_disfavoredOverload
     public static func buildExpression<V: View>(_ view: V) -> [MenuElement] {
         _ = view
         return []

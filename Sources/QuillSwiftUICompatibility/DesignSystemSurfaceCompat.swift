@@ -2332,6 +2332,10 @@ public extension View {
         }
     }
 
+    /// @_disfavoredOverload: SolderScopeChrome ships the FUNCTIONAL variant
+    /// (routes to the real array-based alert modifier); this inert twin only
+    /// applies where that overload cannot.
+    @_disfavoredOverload
     func alert<Actions: View, Message: View>(
         _ title: String,
         isPresented: Binding<Bool>,
