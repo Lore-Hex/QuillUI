@@ -382,8 +382,9 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains(".target(\n        name: \"IOKit\""))
         #expect(manifest.contains("path: \"Sources/IOKit\""))
         #expect(manifest.contains("publicHeadersPath: \".\""))
-        // UserNotifications is @_exported by the UIKit shim so SignalServiceKit's
-        // `import UIKit`-only files resolve UNUserNotificationCenter & co. (Track B).
+        // UserNotifications and CoreTransferable are @_exported by the UIKit
+        // shim so UIKit-only app files resolve notification and share/transfer
+        // APIs without source edits.
         // Both targets take their dependencies from #if os(Linux)-swapped lists:
         // on Linux they add the QuartzCore shim (UIView.layer; UIKit re-exports
         // QuartzCore exactly like iOS), on Apple platforms the real QuartzCore
@@ -392,7 +393,7 @@ struct QuillDataSourceLoweringTests {
         // QuillWorkspace + QuillNotificationService.
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
-        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\"]"))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
         #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\"]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
@@ -666,6 +667,9 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("save_quill_chat_new_completion()"))
         #expect(interactionScript.contains("edit_quill_chat_existing_completion()"))
         #expect(interactionScript.contains("delete_quill_chat_completion()"))
+        #expect(interactionScript.contains("quill_chat_mac_reference_completions_panel_visible()"))
+        #expect(interactionScript.contains("ensure_quill_chat_completions_panel_open()"))
+        #expect(interactionScript.contains("python3 \"$ROOT_DIR/scripts/verify-backend-screenshot.py\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_NAME_TEXT"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_TEXT"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X"))
@@ -2408,7 +2412,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags(\"gtk4\")"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKLinkerFlags)"))
-        #expect(!patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
+        #expect(patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
 
         let patchedRenderer = try String(contentsOf: renderer, encoding: .utf8)
         #expect(patchedRenderer.contains("init(views: [any View], cellMinWidth: Int)"))

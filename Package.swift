@@ -280,6 +280,7 @@ var products: [Product] = [
     // QuillUI compatibility matrix; the CLI ships as `quill-doctor`.
     .library(name: "QuillSourceLowering", targets: ["QuillSourceLowering"]),
     .executable(name: "quill-source-lower", targets: ["quill-source-lower"]),
+    .executable(name: "quill-lower-foundation", targets: ["quill-lower-foundation"]),
     .executable(name: "quill-lower-swiftui", targets: ["quill-lower-swiftui"]),
     .executable(name: "quill-lower-appkit", targets: ["quill-lower-appkit"]),
     .library(name: "QuillDoctor", targets: ["QuillDoctor"]),
@@ -473,6 +474,7 @@ let quillUIDependencies: [Target.Dependency] = [
     // bridge types. macOS uses Apple's real frameworks instead.
     "QuillFoundation",
     "QuillSwiftUICompatibility",
+    "CoreTransferable",
     "UIKit",
     "UniformTypeIdentifiers",
     "Observation",
@@ -498,7 +500,7 @@ let wrappingHStackDependencies: [Target.Dependency] = [
     .product(name: "CGTKBridge", package: "SwiftOpenUI"),
 ]
 #else
-let wrappingHStackDependencies: [Target.Dependency] = ["SwiftUI"]
+let wrappingHStackDependencies: [Target.Dependency] = []
 #endif
 
 #if os(Linux)
@@ -951,6 +953,11 @@ var targets: [Target] = [
         name: "quill-source-lower",
         dependencies: ["QuillSourceLowering"],
         path: "Sources/quill-source-lower"
+    ),
+    .executableTarget(
+        name: "quill-lower-foundation",
+        dependencies: ["QuillSourceLowering"],
+        path: "Sources/quill-lower-foundation"
     ),
     .executableTarget(
         name: "quill-lower-swiftui",
@@ -1541,9 +1548,103 @@ if nnwUpstreamPresent {
             path: ".upstream/netnewswire/Modules/NewsBlur/Sources/NewsBlur",
             swiftSettings: nnwSwiftSettings
         ),
+        .target(
+            name: "Account",
+            dependencies: [
+                "RSCore", "Articles", "RSParser", "RSDatabase", "RSDatabaseObjC",
+                "ArticlesDatabase", "SyncDatabase", "RSWeb", "Secrets", "ErrorLog",
+                "ActivityLog", "FeedFinder", "NewsBlur", "AuthenticationServices",
+                "QuillShims", "os"
+            ],
+            path: ".upstream/netnewswire/Modules/Account/Sources/Account",
+            exclude: ["CloudKit"],
+            swiftSettings: nnwSwiftSettings
+        ),
     ]
 }
 #endif
+
+if nnwUpstreamPresent {
+    targets += [
+        .target(
+            name: "NetNewsWireSharedCore",
+            dependencies: ["Account", "AppKit", "Articles", "ArticlesDatabase", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
+            path: ".upstream/netnewswire/Shared",
+            exclude: [
+                "Activity/ActivityManager.swift",
+                "Article Extractor/ArticleExtractor.swift",
+                "Article Rendering/ArticleRenderer.swift",
+                "Article Rendering/WebViewConfiguration.swift",
+                "DefaultAccountNames.xcstrings",
+                "Localizable.xcstrings",
+                "Article Rendering/core.css",
+                "Article Rendering/main.js",
+                "Article Rendering/newsfoot.js",
+                "Article Rendering/stylesheet.css",
+                "Article Rendering/template.html",
+                "ArticleStyles/ArticleTheme.swift",
+                "ArticleStyles/ArticleThemeDownloader.swift",
+                "ArticleStyles/ArticleThemesManager.swift",
+                "Assets.swift",
+                "Commands/DeleteCommand.swift",
+                "Commands/MarkStatusCommand.swift",
+                "Exporters",
+                "ExtensionPoints",
+                "Extensions/AddFeedDefaultContainer.swift",
+                "Extensions/CacheCleaner.swift",
+                "Extensions/IconImageView.swift",
+                "Extensions/NSAttributedString+Extensions.swift",
+                "Extensions/Node+Extensions.swift",
+                "Extensions/RSImage+Extensions.swift",
+                "Extensions/SmallIconProvider.swift",
+                "IconImageCache.swift",
+                "Importers",
+                "Resources",
+                "ShareExtension/ExtensionContainersFile.swift",
+                "ShareExtension/ExtensionFeedAddRequestFile.swift",
+                "ShareExtension/SafariExt.js",
+                "ShareExtension/ShareDefaultContainer.swift",
+                "SmartFeeds",
+                "Timeline/FetchRequestOperation.swift",
+                "Timeline/FetchRequestQueue.swift",
+                "Timer/AccountRefreshTimer.swift",
+                "Timer/ArticleStatusSyncTimer.swift",
+                "Tree",
+                "UserNotifications",
+                "Widget/WidgetDataDecoder.swift",
+                "Widget/WidgetDataEncoder.swift",
+            ],
+            sources: [
+                "AccountType+Helpers.swift",
+                "AccountStats/AccountStatsViewModel.swift",
+                "Activity/ActivityType.swift",
+                "AppNotifications.swift",
+                "Article Extractor/ExtractedArticle.swift",
+                "Article Rendering/ArticleRenderingSpecialCases.swift",
+                "Article Rendering/ArticleTextSize.swift",
+                "ArticleStyles/ArticleTheme+Notifications.swift",
+                "ArticleSpecifier.swift",
+                "ArticleStyles/ArticleThemePlist.swift",
+                "Commands/MarkCommandValidationStatus.swift",
+                "Dinosaurs/DinosaursViewModel.swift",
+                "Extensions/ArticleStringFormatter.swift",
+                "Extensions/ArticleUtilities.swift",
+                "HelpURL.swift",
+                "Settings/AddCloudKitAccount.swift",
+                "ShareExtension/ExtensionContainers.swift",
+                "ShareExtension/ExtensionFeedAddRequest.swift",
+                "Timeline/ArticleArray.swift",
+                "Timeline/ArticleSorter.swift",
+                "Timer/RefreshInterval.swift",
+                "UserInfoKey.swift",
+                "Widget/WidgetData.swift",
+                "Widget/WidgetDataDecoder.swift",
+                "Widget/WidgetDeepLinks.swift",
+            ],
+            swiftSettings: nnwSwiftSettings
+        )
+    ]
+}
 
 // NOTE: `QuillNetNewsWire` no longer comes from the upstream
 // NetNewsWireLogic block above. The Shared+Mac coupling
@@ -2384,7 +2485,7 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: ["QuillFoundation", "QuillDataMacros", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: ["QuillFoundation", "QuillKit", "QuillDataMacros", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
         path: "Sources/QuillSwiftUICompatibility"
     ),
     .target(
@@ -3276,6 +3377,17 @@ let packageTestTargets: [Target] = {
             swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
         )
     ]
+
+    if nnwUpstreamPresent {
+        // Pins the first direct upstream NetNewsWire Shared/ compile slice.
+        // This grows toward the full Shared+Mac app target without routing
+        // through the local QuillNetNewsWireCore reader replacement.
+        tests.append(.testTarget(
+            name: "NetNewsWireSharedCoreTests",
+            dependencies: ["Account", "Articles", "NetNewsWireSharedCore"],
+            swiftSettings: nnwSwiftSettings
+        ))
+    }
 
     #if os(Linux)
     // Exercises the Apple-framework compatibility modules that real

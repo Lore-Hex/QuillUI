@@ -1,6 +1,17 @@
 import Foundation
 import Combine
+import QuillFoundation
+import QuillKit
 import SwiftOpenUI
+
+private func recordSwiftUICompatibilityFallback(_ operation: String, message: String? = nil) {
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "QuillUI",
+        operation: operation,
+        severity: .info,
+        message: message ?? "\(operation) is currently a source-compatibility fallback on Linux."
+    )
+}
 
 public protocol PreviewProvider {
     associatedtype Previews: View
@@ -504,7 +515,9 @@ private func quillCompactNumberString(_ value: Double, fractionLength: Int?) -> 
 
     let scaled = absolute / scale.divisor
     let digits = fractionLength ?? (scaled < 100 ? 1 : 1)
-    var formatted = String(format: "%.\(digits)f", locale: Locale(identifier: "en_US_POSIX"), scaled)
+    let multiplier = pow(10, Double(digits))
+    let rounded = ((scaled * multiplier) + 1e-9).rounded() / multiplier
+    var formatted = String(format: "%.\(digits)f", locale: Locale(identifier: "en_US_POSIX"), rounded)
     if fractionLength == nil, formatted.hasSuffix(".0") {
         formatted.removeLast(2)
     }
@@ -1206,6 +1219,7 @@ public extension Font {
 public extension Binding {
     func animation(_ animation: Animation? = nil) -> Binding<Value> {
         _ = animation
+        recordSwiftUICompatibilityFallback("Binding.animation")
         return self
     }
 }
@@ -1351,7 +1365,14 @@ public extension String.StringInterpolation {
 public extension Image {
     @_disfavoredOverload
     init(_ name: String) {
-        self.init(resource: name)
+        if let path = QuillResourceLookup.path(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ) {
+            self.init(filePath: path)
+        } else {
+            self.init(resource: name)
+        }
     }
 }
 
@@ -1718,6 +1739,18 @@ public extension View {
     }
 
     @_disfavoredOverload
+    func formStyle(_ style: GroupedFormStyle) -> Self {
+        _ = style
+        return self
+    }
+
+    @_disfavoredOverload
+    func textContentType(_ contentType: TextContentType?) -> Self {
+        _ = contentType
+        return self
+    }
+
+    @_disfavoredOverload
     func textInputAutocapitalization(_ autocapitalization: TextInputAutocapitalization?) -> Self {
         _ = autocapitalization
         return self
@@ -1963,6 +1996,7 @@ public extension View {
 
     func listStyle(_ style: PlainListStyle) -> Self {
         _ = style
+        recordSwiftUICompatibilityFallback("listStyle(PlainListStyle)")
         return self
     }
 
@@ -2041,6 +2075,12 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
+    func scrollIndicators(_ visibility: Visibility) -> Self {
+        _ = visibility
+        return self
+    }
+
     func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = .all) -> Self {
         _ = behavior
         _ = axes
@@ -2055,6 +2095,7 @@ public extension View {
     @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
+        recordSwiftUICompatibilityFallback("allowsHitTesting")
         return self
     }
 
@@ -2097,6 +2138,7 @@ public extension View {
     @_disfavoredOverload
     func transition(_ transition: AnyTransition) -> Self {
         _ = transition
+        recordSwiftUICompatibilityFallback("transition")
         return self
     }
 
@@ -2367,30 +2409,6 @@ public extension View {
         return self
     }
 
-    func confirmationDialog<Actions: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        @ViewBuilder actions: () -> Actions
-    ) -> Self {
-        _ = title
-        _ = isPresented
-        _ = actions()
-        return self
-    }
-
-    func confirmationDialog<Actions: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        titleVisibility: Visibility,
-        @ViewBuilder actions: () -> Actions
-    ) -> Self {
-        _ = title
-        _ = isPresented
-        _ = titleVisibility
-        _ = actions()
-        return self
-    }
-
     func swipeActions<Actions: View>(
         edge: Edge = .trailing,
         allowsFullSwipe: Bool = true,
@@ -2514,6 +2532,25 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
+    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
+        _ = visibility
+        return self
+    }
+
+    func matchedGeometryEffect<ID: Hashable>(
+        id: ID,
+        in namespace: Namespace.ID
+    ) -> Self {
+        _ = id
+        _ = namespace
+        recordSwiftUICompatibilityFallback(
+            "matchedGeometryEffect",
+            message: "matchedGeometryEffect is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
     func matchedTransitionSource<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -2572,6 +2609,12 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
+    func focusEffectDisabled(_ disabled: Bool = true) -> Self {
+        _ = disabled
+        return self
+    }
+
     func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> Self {
         _ = key
         _ = action
@@ -2587,6 +2630,7 @@ public extension View {
         _ = effect
         _ = options
         _ = value
+        recordSwiftUICompatibilityFallback("symbolEffect")
         return self
     }
 
@@ -2639,6 +2683,12 @@ public extension View {
 
     func contentTransition(_ transition: ContentTransition) -> Self {
         _ = transition
+        return self
+    }
+
+    @_disfavoredOverload
+    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
+        _ = edges
         return self
     }
 

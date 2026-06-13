@@ -175,6 +175,20 @@ struct RSDatabaseCompatibilityTests {
         #expect(table.numberWithSQLAndParameters("SELECT COUNT(*) FROM items;", [], in: database) == 1)
     }
 
+    @Test func fmDatabaseColumnExistsMatchesFMDBSelectorShape() throws {
+        let database = try #require(FMDatabase(path: ":memory:"))
+        #expect(database.open())
+        defer {
+            database.close()
+        }
+
+        #expect(database.executeStatements("CREATE TABLE feedSettings (feedID TEXT PRIMARY KEY, lastResponseCode INTEGER);"))
+        #expect(database.columnExists("lastResponseCode", inTableWithName: "feedSettings"))
+        #expect(database.columnExists("lastresponsecode", inTableWithName: "feedSettings"))
+        #expect(!database.columnExists("missing", inTableWithName: "feedSettings"))
+        #expect(!database.columnExists("lastResponseCode", inTableWithName: "missing"))
+    }
+
     @Test func transactionsRollbackAndCommit() throws {
         let database = try #require(FMDatabase(path: ":memory:"))
         #expect(database.open())
@@ -202,20 +216,25 @@ struct RSDatabaseCompatibilityTests {
             try? FileManager.default.removeItem(atPath: path)
         }
         let queue = DatabaseQueue(databasePath: path)
-        queue.runCreateStatements("CREATE TABLE items (id INTEGER PRIMARY KEY, title TEXT);")
+        try queue.runCreateStatements("CREATE TABLE items (id INTEGER PRIMARY KEY, title TEXT);")
 
-        queue.runInTransactionSync { database in
+        queue.runInTransactionSync { result in
+            let database = try! result.get()
             database.executeUpdate("INSERT INTO items (title) VALUES (?)", withArgumentsIn: ["sync"])
         }
 
         await withCheckedContinuation { continuation in
-            queue.runInDatabase { database in
+            queue.runInDatabase { result in
+                let database = try! result.get()
                 database.executeUpdate("INSERT INTO items (title) VALUES (?)", withArgumentsIn: ["async"])
                 continuation.resume()
             }
         }
 
-        queue.runInDatabaseSync { database in
+        queue.runInDatabaseSync { result in
+            #expect(result.database != nil)
+            #expect(result.error == nil)
+            let database = try! result.get()
             #expect(database.count(sql: "SELECT COUNT(*) FROM items;", parameters: [], tableName: "items") == 2)
             #expect(database.tableExists("items"))
         }

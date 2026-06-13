@@ -16,6 +16,7 @@ TOOLBAR_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ToolbarModifie
 LAYOUT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Layout/Layout.swift"
 STATE="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/State.swift"
 CONTROL_STYLE_MODIFIERS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
+CONFIRMATION_DIALOG_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift"
 SYMBOLS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
 SCROLL_VIEW_READER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/ScrollViewReader.swift"
 SWIFT_DEPENDENCIES_MAIN_QUEUE="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainQueue.swift"
@@ -105,6 +106,9 @@ fi
 if [[ -f "$CONTROL_STYLE_MODIFIERS" ]]; then
   chmod u+w "$CONTROL_STYLE_MODIFIERS"
 fi
+if [[ -f "$CONFIRMATION_DIALOG_MODIFIER" ]]; then
+  chmod u+w "$CONFIRMATION_DIALOG_MODIFIER"
+fi
 
 python3 - "$SWIFTOPENUI_MANIFEST" <<'PY'
 import sys
@@ -166,7 +170,23 @@ let swiftOpenUIGTKLinkerFlags: [String] = []
 if "func swiftOpenUIPkgConfigArguments(" not in text:
     text = text.replace("import Foundation\n", "import Foundation\n\n" + helpers, 1)
 
-text = text.replace('        pkgConfig: "gtk4",\n', "")
+if 'pkgConfig: "gtk4"' not in text:
+    cgtk_system_library = """    .systemLibrary(
+        name: "CGTK",
+        path: "Sources/Backend/GTK4/CGTK",
+        providers: [.apt(["libgtk-4-dev"])]
+    ),
+"""
+    cgtk_system_library_patched = """    .systemLibrary(
+        name: "CGTK",
+        path: "Sources/Backend/GTK4/CGTK",
+        pkgConfig: "gtk4",
+        providers: [.apt(["libgtk-4-dev"])]
+    ),
+"""
+    if cgtk_system_library not in text:
+        raise SystemExit("SwiftOpenUI manifest CGTK system library shape was not recognized")
+    text = text.replace(cgtk_system_library, cgtk_system_library_patched, 1)
 
 replacements = [
     (
@@ -238,8 +258,8 @@ for old, new in replacements:
     if old in text:
         text = text.replace(old, new, 1)
 
-if 'pkgConfig: "gtk4"' in text:
-    raise SystemExit("SwiftOpenUI manifest still declares direct gtk4 pkgConfig")
+if 'pkgConfig: "gtk4"' not in text:
+    raise SystemExit("SwiftOpenUI manifest CGTK pkgConfig patch did not apply")
 if text.count(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)") < 4:
     raise SystemExit("SwiftOpenUI manifest GTK importer flag patch did not apply")
 if ".unsafeFlags(swiftOpenUIGTKLinkerFlags)" not in text:
@@ -269,6 +289,167 @@ if "case quillPaintMacDefault" not in text:
     if needle not in text:
         raise SystemExit("SwiftOpenUI ButtonStyleType shape was not recognized")
     text = text.replace(needle, replacement, 1)
+path.write_text(text)
+PY
+fi
+
+if [[ -f "$CONFIRMATION_DIALOG_MODIFIER" ]]; then
+  python3 - "$CONFIRMATION_DIALOG_MODIFIER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+helpers = r"""
+private protocol SwiftOpenUIButtonRepresentable {
+    var swiftOpenUIButtonLabel: String { get }
+    var swiftOpenUIButtonAction: () -> Void { get }
+}
+
+extension Button: SwiftOpenUIButtonRepresentable {
+    fileprivate var swiftOpenUIButtonLabel: String { swiftOpenUITextLabel(from: label) }
+    fileprivate var swiftOpenUIButtonAction: () -> Void { action }
+}
+
+private protocol SwiftOpenUIDisabledRepresentable {
+    var swiftOpenUIDisabledContent: any View { get }
+    var swiftOpenUIIsDisabled: Bool { get }
+}
+
+extension DisabledView: SwiftOpenUIDisabledRepresentable {
+    fileprivate var swiftOpenUIDisabledContent: any View { content }
+    fileprivate var swiftOpenUIIsDisabled: Bool { isDisabled }
+}
+
+private protocol SwiftOpenUIKeyboardShortcutRepresentable {
+    var swiftOpenUIShortcutContent: any View { get }
+}
+
+extension KeyboardShortcutView: SwiftOpenUIKeyboardShortcutRepresentable {
+    fileprivate var swiftOpenUIShortcutContent: any View { content }
+}
+
+private func swiftOpenUITextLabel(from view: any View) -> String {
+    if let text = view as? Text {
+        return text.content
+    }
+
+    if let label = view as? any AnyLabelView {
+        return label.title
+    }
+
+    if let multi = view as? MultiChildView {
+        for child in multi.children {
+            let label = swiftOpenUITextLabel(from: child)
+            if !label.isEmpty {
+                return label
+            }
+        }
+    }
+
+    return ""
+}
+
+private func swiftOpenUIMenuElements(from view: any View) -> [MenuElement] {
+    if let button = view as? any SwiftOpenUIButtonRepresentable {
+        return [.item(label: button.swiftOpenUIButtonLabel, action: button.swiftOpenUIButtonAction)]
+    }
+
+    if let disabled = view as? any SwiftOpenUIDisabledRepresentable {
+        return disabled.swiftOpenUIIsDisabled ? [] : swiftOpenUIMenuElements(from: disabled.swiftOpenUIDisabledContent)
+    }
+
+    if let shortcut = view as? any SwiftOpenUIKeyboardShortcutRepresentable {
+        return swiftOpenUIMenuElements(from: shortcut.swiftOpenUIShortcutContent)
+    }
+
+    if let multi = view as? MultiChildView {
+        return multi.children.flatMap(swiftOpenUIMenuElements)
+    }
+
+    return []
+}
+
+private func swiftOpenUIConfirmationDialogButtons(from view: any View) -> [AlertButton] {
+    swiftOpenUIMenuElements(from: view).flatMap { element in
+        switch element {
+        case .item(let label, let action):
+            return [AlertButton(label, action: action)]
+        case .divider:
+            return []
+        case .submenu(_, let children):
+            return children.flatMap { child -> [AlertButton] in
+                switch child {
+                case .item(let label, let action):
+                    return [AlertButton(label, action: action)]
+                case .divider:
+                    return []
+                case .submenu:
+                    return []
+                }
+            }
+        }
+    }
+}
+
+"""
+
+if "swiftOpenUIConfirmationDialogButtons" not in text:
+    marker = "\nextension View {\n"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI ConfirmationDialog extension marker was not recognized")
+    text = text.replace(marker, "\n" + helpers + marker, 1)
+
+old = """    /// SwiftUI-shaped builder overload with a message view.
+    public func confirmationDialog<Actions: View, Message: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        @ViewBuilder actions: () -> Actions,
+        @ViewBuilder message: () -> Message
+    ) -> ConfirmationDialogView<Self> {
+        _ = actions()
+        _ = message()
+        return ConfirmationDialogView(
+            content: self,
+            title: title,
+            isPresented: isPresented,
+            titleVisibility: .automatic,
+            message: "",
+            buttons: [],
+            participatesInDismissalInterception: false
+        )
+    }
+"""
+new = """    /// SwiftUI-shaped builder overload with a message view.
+    public func confirmationDialog<Actions: View, Message: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        @ViewBuilder actions: () -> Actions,
+        @ViewBuilder message: () -> Message
+    ) -> ConfirmationDialogView<Self> {
+        let actionView = actions()
+        let messageView = message()
+        return ConfirmationDialogView(
+            content: self,
+            title: title,
+            isPresented: isPresented,
+            titleVisibility: .automatic,
+            message: swiftOpenUITextLabel(from: messageView),
+            buttons: swiftOpenUIConfirmationDialogButtons(from: actionView),
+            participatesInDismissalInterception: false
+        )
+    }
+"""
+
+if old in text:
+    text = text.replace(old, new, 1)
+elif (
+    "buttons: swiftOpenUIConfirmationDialogButtons(from: actionView)" not in text
+    and "buttons: swiftOpenUIConfirmationDialogButtons(from: actions())" not in text
+):
+    raise SystemExit("SwiftOpenUI confirmationDialog builder overload shape was not recognized")
+
 path.write_text(text)
 PY
 fi
@@ -4485,7 +4666,6 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
-
 new_function = '''public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
     switch plan.kind {
     case .create, .replace:

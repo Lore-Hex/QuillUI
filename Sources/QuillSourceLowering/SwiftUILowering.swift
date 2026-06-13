@@ -36,7 +36,7 @@ public struct SwiftUILowering {
         let tree = Parser.parse(source: source)
         let rewriter = SwiftUIRewriter()
         let rewritten = rewriter.rewrite(tree)
-        return rewritten.description
+        return FoundationLowering().lower(rewritten.description)
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Files whose
