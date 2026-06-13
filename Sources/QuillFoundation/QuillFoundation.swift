@@ -826,6 +826,11 @@ open class RSImage: NSObject, @unchecked Sendable {
             )
         }
     }
+
+    public convenience init(imageLiteralResourceName name: String) {
+        self.init(named: name)!
+    }
+
     public init?(systemName: String, withConfiguration: Any? = nil) {
         super.init()
         self.size = CGSize(width: 32, height: 32)

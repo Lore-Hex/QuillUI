@@ -8001,6 +8001,7 @@ extension ItalicView: WinRenderable {
 extension FontWeightView: WinRenderable {
     public func winCreateWidget(in context: RenderContext) -> HWND? {
         guard let hwnd = winRenderView(content, in: context) else { return nil }
+        guard let weight else { return hwnd }
         let w: Int32
         switch weight {
         case .ultraLight: w = FW_ULTRALIGHT

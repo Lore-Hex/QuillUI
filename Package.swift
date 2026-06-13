@@ -2058,8 +2058,12 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "QuillKit"]
     case "CoreMedia":
         dependencies = ["QuillFoundation", "CoreVideo", "AudioToolbox"]
-    case "CoreVideo", "MetalKit", "MetalPerformanceShaders":
+    case "CoreVideo", "MetalPerformanceShaders":
         dependencies = ["QuillFoundation", "Metal"]
+    case "MetalKit":
+        dependencies = ["QuillFoundation", "Metal", "QuartzCore", "QuillUIKit"]
+    case "SDWebImage":
+        dependencies = ["QuillFoundation", "QuillUIKit"]
     case "VideoToolbox":
         dependencies = ["QuillFoundation", "CoreMedia", "CoreVideo"]
     case "QuartzCore":

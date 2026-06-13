@@ -36,6 +36,8 @@ public typealias ASPresentationAnchor = NSObject
 // MARK: - UIResponder / UIView / UIViewController stubs
 
 @MainActor open class UIResponder: NSObject {
+    open var next: UIResponder? { nil }
+
     /// Apple's default: no accessory view (ContactShareViewController
     /// overrides this with a super call).
     open var inputAccessoryView: UIView? { nil }
@@ -45,6 +47,7 @@ public typealias ASPresentationAnchor = NSObject
     /// UIKit default: a responder refuses first-responder status unless a
     /// subclass opts in (text fields, SignalUI's ActionSheetController, …).
     open var canBecomeFirstResponder: Bool { false }
+    open var isFirstResponder: Bool { false }
 
     @discardableResult
     open func becomeFirstResponder() -> Bool { true }
@@ -471,6 +474,21 @@ public class UIWindow: UIView {}
         _ = newWindow
     }
 
+    open func willMove(toSuperview newSuperview: UIView?) {
+        _ = newSuperview
+    }
+
+    open func didMoveToSuperview() {}
+
+    open func layoutMarginsDidChange() {}
+
+    open func safeAreaInsetsDidChange() {}
+
+    open func invalidateIntrinsicContentSize() {
+        setNeedsLayout()
+        superview?.setNeedsLayout()
+    }
+
     // MARK: Hit testing
     //
     // CLASS-BODY, not extension: Signal subclasses override both hooks.
@@ -512,10 +530,34 @@ public class UIWindow: UIView {}
     // on macOS this module builds against real AppKit and predates the shim.
     private var _layer: CALayer?
     open class var layerClass: AnyClass { CALayer.self }
+    private func quillInstantiateLayer(_ layerClass: AnyClass) -> CALayer {
+        switch layerClass {
+        case _ where layerClass === CALayer.self:
+            return CALayer()
+        case _ where layerClass === CAShapeLayer.self:
+            return CAShapeLayer()
+        case _ where layerClass === CAGradientLayer.self:
+            return CAGradientLayer()
+        case _ where layerClass === CATextLayer.self:
+            return CATextLayer()
+        case _ where layerClass === CAEmitterLayer.self:
+            return CAEmitterLayer()
+        case _ where layerClass === CAReplicatorLayer.self:
+            return CAReplicatorLayer()
+        case _ where layerClass === CAScrollLayer.self:
+            return CAScrollLayer()
+        case _ where layerClass === CATransformLayer.self:
+            return CATransformLayer()
+        case _ where layerClass === CAMetalLayer.self:
+            return CAMetalLayer()
+        default:
+            return CALayer()
+        }
+    }
+
     open var layer: CALayer {
         if let existing = _layer { return existing }
-        let cls = type(of: self).layerClass as? CALayer.Type ?? CALayer.self
-        let created = cls.init()
+        let created = quillInstantiateLayer(type(of: self).layerClass)
         // Seed from BOTH stored geometry properties: a bounds set before the
         // first layer access must survive (frame alone would reset the
         // layer's bounds to the possibly-zero stored frame). frame first —
@@ -539,6 +581,7 @@ public class UIWindow: UIView {}
     public var isUserInteractionEnabled: Bool = true
     public var alpha: CGFloat = 1.0
     public var tintColor: UIColor?
+    open func tintColorDidChange() {}
 
     /// View-owned layout guides. Linux draws no status bar, notch, or home
     /// indicator, so the safe area IS the view's bounds: both guides alias the
@@ -638,6 +681,9 @@ public class UIWindow: UIView {}
     /// Apple's sentinel for "no intrinsic metric on this axis" (-1).
     public static let noIntrinsicMetric: CGFloat = -1
 
+    public static var areAnimationsEnabled: Bool = true
+    public static var inheritedAnimationDuration: TimeInterval = 0
+
     public func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
         _ = priority
         _ = axis
@@ -652,6 +698,11 @@ public class UIWindow: UIView {}
     public func setContentHuggingPriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
         _ = priority
         _ = axis
+    }
+
+    public func contentHuggingPriority(for axis: NSLayoutConstraint.Axis) -> NSLayoutConstraint.Priority {
+        _ = axis
+        return .defaultLow
     }
 
     public struct AnimationOptions: OptionSet, Sendable {
@@ -688,10 +739,55 @@ public class UIWindow: UIView {}
         public static let preferredFramesPerSecond30 = AnimationOptions(rawValue: 7 << 24)
     }
 
-    public static func animate(withDuration: TimeInterval, animations: @escaping () -> Void) { animations() }
     public static func animate(
         withDuration: TimeInterval,
-        delay: TimeInterval,
+        animations: @escaping () -> Void,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        animations()
+        completion?(true)
+    }
+
+    public static func performWithoutAnimation(_ actionsWithoutAnimation: () -> Void) {
+        actionsWithoutAnimation()
+    }
+
+    public static func transition(
+        with view: UIView,
+        duration: TimeInterval,
+        options: AnimationOptions = [],
+        animations: @escaping () -> Void,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        _ = (view, duration, options)
+        animations()
+        completion?(true)
+    }
+
+    public static func animateKeyframes(
+        withDuration duration: TimeInterval,
+        delay: TimeInterval = 0,
+        options: AnimationOptions = [],
+        animations: @escaping () -> Void,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        _ = (duration, delay, options)
+        animations()
+        completion?(true)
+    }
+
+    public static func addKeyframe(
+        withRelativeStartTime frameStartTime: Double,
+        relativeDuration frameDuration: Double,
+        animations: @escaping () -> Void
+    ) {
+        _ = (frameStartTime, frameDuration)
+        animations()
+    }
+
+    public static func animate(
+        withDuration: TimeInterval,
+        delay: TimeInterval = 0,
         options: AnimationOptions = [],
         animations: @escaping () -> Void,
         completion: ((Bool) -> Void)? = nil
@@ -714,10 +810,11 @@ public class UIWindow: UIView {}
     }
 
     public var traitCollection = UITraitCollection()
-    public func didMoveToSuperview() {}
     public var translatesAutoresizingMaskIntoConstraints: Bool = true
     public var autoresizingMask: AutoresizingMask = []
     public var clipsToBounds: Bool = true
+    public var tag: Int = 0
+    public var semanticContentAttribute: UISemanticContentAttribute = .unspecified
 
     /// Compositing hint ("my content fills my bounds — skip blending behind
     /// me"). Apple's UIView default is true. Faithful STATE only: there is
@@ -811,6 +908,9 @@ public class UIWindow: UIView {}
     // and runs completions synchronously (there is no transition animation to
     // wait for); nothing reaches the screen until a native window layer
     // chooses to show the presented controller.
+    open var definesPresentationContext: Bool = false
+    open var providesPresentationContextTransitionStyle: Bool = false
+    open var isModalInPresentation: Bool = false
     public internal(set) var presentedViewController: UIViewController?
     public internal(set) weak var presentingViewController: UIViewController?
     open func present(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
@@ -974,6 +1074,8 @@ public class UIWindow: UIView {}
     public var topItem: UINavigationItem?
     public var isTranslucent: Bool = false
     public var barTintColor: UIColor?
+    public var titleTextAttributes: [NSAttributedString.Key: Any]?
+    public var largeTitleTextAttributes: [NSAttributedString.Key: Any]?
 
     public static func appearance() -> UINavigationBar {
         appearanceProxy
@@ -1057,10 +1159,17 @@ public class UIWindow: UIView {}
         self.action = action
     }
 
+    public convenience init(image: UIImage?, menu: UIMenu) {
+        self.init(image: image, style: .plain, target: nil, action: nil)
+        self.menu = menu
+    }
+
     public convenience init(customView: UIView) {
         self.init()
         self.customView = customView
     }
+
+    open var menu: UIMenu?
 
     // MARK: Accessibility
     // Same posture as UIView's block above: stored, overridable, read by
@@ -1088,6 +1197,9 @@ public class UIWindow: UIView {}
 }
 
 @MainActor open class UITableViewCell: UIView {
+    private static let appearanceProxy = UITableViewCell(style: .default, reuseIdentifier: nil)
+    public static func appearance() -> UITableViewCell { appearanceProxy }
+
     public enum CellStyle: Int { case `default`, value1, value2, subtitle }
     public private(set) var reuseIdentifier: String?
     public required init(style: CellStyle, reuseIdentifier: String?) {
@@ -1189,6 +1301,15 @@ public class SLComposeSheetConfigurationItem: NSObject {
 // e.g. UIKitShim's `UISwitch: UIControl`. UIView is already open; UIControl is
 // open on iOS too.
 @MainActor open class UIControl: UIView {
+    public enum ContentHorizontalAlignment: Int, Sendable {
+        case center
+        case left
+        case right
+        case fill
+        case leading
+        case trailing
+    }
+
     public struct State: OptionSet, Sendable {
         public let rawValue: UInt
 
@@ -1205,27 +1326,40 @@ public class SLComposeSheetConfigurationItem: NSObject {
         public static let reserved = State(rawValue: 0xFF00_0000)
     }
 
-    public var isEnabled = true
-    public var isSelected = false
-    public var isHighlighted = false
-    public var state: State = .normal
+    open var isEnabled = true
+    open var isSelected = false
+    open var isHighlighted = false
+    open var state: State = .normal
 }
 
-@MainActor public class UIButton: UIControl {
+@MainActor open class UIButton: UIControl {
     public var imageView: UIImageView?
     // (accessibilityLabel moved up to the UIView class body — one
     // declaration, overridable — matching Apple, where UIButton inherits it.)
     public func setTitle(_: String?, for: Any) {}
+    open var menu: UIMenu?
+    open var showsMenuAsPrimaryAction: Bool = false
+    open var contentHorizontalAlignment: UIControl.ContentHorizontalAlignment = .center
+    open func sizeToFit() {}
 }
 
 @MainActor open class UIImageView: UIView {
     // (contentMode moved up to the UIView class body — one declaration,
     // overridable — matching Apple, where UIImageView inherits it.)
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+    }
+
+    public convenience init() {
+        self.init(frame: .zero)
+    }
+
     public init(image: UIImage?) {
         super.init(frame: .zero)
         self.image = image
     }
     public var image: UIImage?
+    public var highlightedImage: UIImage?
 }
 
 @MainActor open class UILabel: UIView {
@@ -1314,8 +1448,22 @@ public class UIKeyCommand: NSObject {
     }
 }
 
+public protocol UIViewControllerTransitionCoordinatorContext: AnyObject {
+    var isCancelled: Bool { get }
+}
+
+public final class QuillUIViewControllerTransitionCoordinatorContext: UIViewControllerTransitionCoordinatorContext {
+    public let isCancelled: Bool
+    public init(isCancelled: Bool = false) {
+        self.isCancelled = isCancelled
+    }
+}
+
 public protocol UIViewControllerTransitionCoordinator: AnyObject {
-    @MainActor func animate(alongsideTransition: ((Any) -> Void)?, completion: ((Any) -> Void)?)
+    @MainActor func animate(
+        alongsideTransition: ((UIViewControllerTransitionCoordinatorContext) -> Void)?,
+        completion: ((UIViewControllerTransitionCoordinatorContext) -> Void)?
+    )
 }
 
 @MainActor public protocol UIActivityItemSource: AnyObject {
@@ -1394,6 +1542,17 @@ public class UIApplication: NSObject, @unchecked Sendable {
     @MainActor public var connectedScenes: Set<UIScene> = []
     @MainActor public var applicationState: UIApplicationState { .active }
 
+    @MainActor @discardableResult public func sendAction(
+        _ action: Selector,
+        to target: Any?,
+        from sender: Any?,
+        for event: UIEvent?
+    ) -> Bool {
+        _ = event
+        (target as? QuillSelectorDispatching)?.quillPerform(action, with: sender)
+        return target is QuillSelectorDispatching
+    }
+
     /// UIKit (and SignalServiceKit's AppContext) name the application-state enum
     /// `UIApplication.State`; `UIApplicationState` is its top-level alias on iOS.
     public typealias State = UIApplicationState
@@ -1445,6 +1604,7 @@ public class UITraitCollection: NSObject {
     public var userInterfaceIdiom: Int = 0
     public var userInterfaceLevel: UIUserInterfaceLevel = .unspecified
     public var accessibilityContrast: UIAccessibilityContrast = .unspecified
+    public var layoutDirection: UIUserInterfaceLayoutDirection = .leftToRight
     /// UIKit's default Dynamic Type category is .large.
     public var preferredContentSizeCategory: UIContentSizeCategory = .large
 
@@ -1486,6 +1646,7 @@ public class UITraitCollection: NSObject {
             if traits.accessibilityContrast != .unspecified {
                 accessibilityContrast = traits.accessibilityContrast
             }
+            layoutDirection = traits.layoutDirection
             preferredContentSizeCategory = traits.preferredContentSizeCategory
         }
     }
@@ -1494,6 +1655,42 @@ public class UITraitCollection: NSObject {
     /// instance per access, like the layout anchors) so there is no shared
     /// mutable static; Linux has a single default trait environment anyway.
     public static var current: UITraitCollection { UITraitCollection() }
+}
+
+public enum UIUserInterfaceLayoutDirection: Int, Sendable {
+    case leftToRight = 0
+    case rightToLeft = 1
+}
+
+public enum UISemanticContentAttribute: Int, Sendable {
+    case unspecified = 0
+    case playback = 1
+    case spatial = 2
+    case forceLeftToRight = 3
+    case forceRightToLeft = 4
+}
+
+public final class UILocalizedIndexedCollation: NSObject {
+    public static func current() -> UILocalizedIndexedCollation {
+        UILocalizedIndexedCollation()
+    }
+
+    public var sectionTitles: [String] { [] }
+    public var sectionIndexTitles: [String] { sectionTitles }
+
+    public func section(forSectionIndexTitle titleIndex: Int) -> Int {
+        titleIndex
+    }
+
+    public func section(for object: Any, collationStringSelector selector: Selector) -> Int {
+        _ = (object, selector)
+        return 0
+    }
+
+    public func sortedArray(from array: [Any], collationStringSelector selector: Selector) -> [Any] {
+        _ = selector
+        return array
+    }
 }
 
 // MARK: - UIColor dynamic colors (trait-resolved)

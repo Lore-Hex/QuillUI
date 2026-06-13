@@ -1135,6 +1135,7 @@ open class UITableViewDiffableDataSource<SectionIdentifierType: Hashable, ItemId
     open func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool { false }
     open func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool { false }
     open func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {}
+    open func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {}
 }
 
 #endif // !os(iOS)

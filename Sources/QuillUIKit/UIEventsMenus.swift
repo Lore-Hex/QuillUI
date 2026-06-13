@@ -293,6 +293,7 @@ public class UIAction: UIMenuElement {
 
     public init(
         title: String = "",
+        subtitle: String? = nil,
         image: UIImage? = nil,
         identifier: UIAction.Identifier? = nil,
         discoverabilityTitle: String? = nil,
@@ -305,8 +306,55 @@ public class UIAction: UIMenuElement {
         self.attributes = attributes
         self.state = state
         self.quillHandler = handler
-        super.init(title: title, image: image)
+        super.init(title: title, subtitle: subtitle, image: image)
     }
+}
+
+@MainActor public protocol UIInteraction: AnyObject {
+    var view: UIView? { get set }
+}
+
+@MainActor private var quillViewInteractions: [ObjectIdentifier: [any UIInteraction]] = [:]
+
+public extension UIView {
+    var interactions: [any UIInteraction] {
+        quillViewInteractions[ObjectIdentifier(self)] ?? []
+    }
+
+    func addInteraction(_ interaction: any UIInteraction) {
+        let key = ObjectIdentifier(self)
+        var entries = quillViewInteractions[key, default: []]
+        if !entries.contains(where: { $0 === interaction }) {
+            entries.append(interaction)
+        }
+        interaction.view = self
+        quillViewInteractions[key] = entries
+    }
+
+    func removeInteraction(_ interaction: any UIInteraction) {
+        let key = ObjectIdentifier(self)
+        guard var entries = quillViewInteractions[key] else { return }
+        entries.removeAll { $0 === interaction }
+        if interaction.view === self {
+            interaction.view = nil
+        }
+        quillViewInteractions[key] = entries.isEmpty ? nil : entries
+    }
+}
+
+@MainActor public final class UIScrollEdgeElementContainerInteraction: NSObject, UIInteraction {
+    public enum Edge: Int, Sendable {
+        case top
+        case left
+        case bottom
+        case right
+        case leading
+        case trailing
+    }
+
+    public weak var view: UIView?
+    public var edge: Edge = .bottom
+    public weak var scrollView: UIScrollView?
 }
 
 // MARK: - UIMenuController / UIMenuItem

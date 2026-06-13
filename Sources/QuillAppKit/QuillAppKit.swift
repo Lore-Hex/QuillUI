@@ -880,7 +880,7 @@ open class NSView: NSResponder {
     open func displayLayer() {}
     open var wantsUpdateLayer: Bool { false }
     open func updateLayer() {}
-    open func makeBackingLayer() -> CALayer { CALayer() }
+    @MainActor open func makeBackingLayer() -> CALayer { CALayer() }
     open func animator() -> Self { self }
     open func rotate(byDegrees angle: CGFloat) {
         frameCenterRotation += angle

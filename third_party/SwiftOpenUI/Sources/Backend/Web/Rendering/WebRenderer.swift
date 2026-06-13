@@ -786,6 +786,7 @@ extension ItalicView: WebRenderable {
 extension FontWeightView: WebRenderable {
     public func webCreateElement() -> JSValue {
         let child = webRenderView(content)
+        guard let weight else { return child }
         let wrapper = document.createElement("span")
         let w: Int
         switch weight {
@@ -2015,6 +2016,7 @@ extension FontModifiedView: WebRenderable, WebDescribable {
         case .custom(let size, let weight, _):
             let w: String
             switch weight {
+            case nil:         w = "400"
             case .ultraLight: w = "100"
             case .thin:       w = "200"
             case .light:      w = "300"

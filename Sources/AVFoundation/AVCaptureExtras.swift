@@ -273,7 +273,7 @@ open class AVCaptureVideoPreviewLayer: CALayer {
         super.init()
     }
 
-    public required init() {
+    public override init() {
         super.init()
     }
 }

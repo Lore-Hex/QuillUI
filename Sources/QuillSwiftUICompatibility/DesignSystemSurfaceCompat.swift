@@ -733,6 +733,13 @@ public enum NavigationBarTitleDisplayMode: Sendable {
 
 public typealias ScrollContentBackgroundVisibility = Visibility
 
+public extension View {
+    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
+        _ = visibility
+        return self
+    }
+}
+
 public enum ScrollBounceBehavior: Sendable {
     case automatic
     case always
@@ -791,6 +798,10 @@ private struct HorizontalSizeClassKey: EnvironmentKey {
     static let defaultValue: UserInterfaceSizeClass? = .regular
 }
 
+private struct VerticalSizeClassKey: EnvironmentKey {
+    static let defaultValue: UserInterfaceSizeClass? = .regular
+}
+
 private struct AccessibilityVoiceOverEnabledKey: EnvironmentKey {
     static let defaultValue = false
 }
@@ -822,6 +833,11 @@ public extension EnvironmentValues {
     var horizontalSizeClass: UserInterfaceSizeClass? {
         get { self[HorizontalSizeClassKey.self] }
         set { self[HorizontalSizeClassKey.self] = newValue }
+    }
+
+    var verticalSizeClass: UserInterfaceSizeClass? {
+        get { self[VerticalSizeClassKey.self] }
+        set { self[VerticalSizeClassKey.self] = newValue }
     }
 
     var accessibilityVoiceOverEnabled: Bool {
@@ -975,8 +991,23 @@ public struct DynamicTypeSize: Hashable, Comparable, Sendable {
     public static let accessibility4 = DynamicTypeSize(10)
     public static let accessibility5 = DynamicTypeSize(11)
 
+    public var isAccessibilitySize: Bool {
+        rawValue >= Self.accessibility1.rawValue
+    }
+
     public static func < (lhs: DynamicTypeSize, rhs: DynamicTypeSize) -> Bool {
         lhs.rawValue < rhs.rawValue
+    }
+}
+
+private struct DynamicTypeSizeKey: EnvironmentKey {
+    static let defaultValue = DynamicTypeSize.large
+}
+
+public extension EnvironmentValues {
+    var dynamicTypeSize: DynamicTypeSize {
+        get { self[DynamicTypeSizeKey.self] }
+        set { self[DynamicTypeSizeKey.self] = newValue }
     }
 }
 
@@ -1283,7 +1314,7 @@ public extension Text {
     }
 
     @_disfavoredOverload
-    func fontWeight(_ weight: FontWeight) -> Text {
+    func fontWeight(_ weight: FontWeight?) -> Text {
         _ = weight
         return self
     }

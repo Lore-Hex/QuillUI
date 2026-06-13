@@ -301,6 +301,8 @@ extension UIBarButtonItem {
 /// knobs are stored with Apple's defaults; nothing is laid out or drawn, and
 /// `setItems(_:animated:)` is the plain assignment (there is no animation).
 @MainActor open class UIToolbar: UIView, UIBarPositioning {
+    private static let appearanceProxy = UIToolbar()
+    public static func appearance() -> UIToolbar { appearanceProxy }
 
     open var items: [UIBarButtonItem]?
 
@@ -312,9 +314,21 @@ extension UIBarButtonItem {
     public var isTranslucent: Bool = true
     public var barTintColor: UIColor?
     open weak var delegate: (any UIToolbarDelegate)?
+    open var quillBackgroundImages: [String: UIImage] = [:]
+
+    public func setBackgroundImage(_ image: UIImage?, forToolbarPosition position: UIBarPosition, barMetrics: UIBarMetrics) {
+        quillBackgroundImages["\(position.rawValue):\(barMetrics.rawValue)"] = image
+    }
 
     /// A toolbar sits at the bottom, as on Apple.
     public var barPosition: UIBarPosition { .bottom }
+}
+
+public enum UIBarMetrics: Int, Sendable {
+    case `default` = 0
+    case compact = 1
+    case defaultPrompt = 101
+    case compactPrompt = 102
 }
 
 // MARK: - UIActivityIndicatorView

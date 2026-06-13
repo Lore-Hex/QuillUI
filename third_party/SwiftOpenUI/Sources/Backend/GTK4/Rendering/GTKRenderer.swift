@@ -2775,8 +2775,9 @@ extension ItalicView: GTKRenderable {
 extension FontWeightView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        let css: String
+        let css: String?
         switch weight {
+        case nil:         css = nil
         case .ultraLight: css = "font-weight: 100;"
         case .thin:       css = "font-weight: 200;"
         case .light:      css = "font-weight: 300;"
@@ -2787,7 +2788,9 @@ extension FontWeightView: GTKRenderable {
         case .heavy:      css = "font-weight: 800;"
         case .black:      css = "font-weight: 900;"
         }
-        applyCSSToWidget(widget, properties: css)
+        if let css {
+            applyCSSToWidget(widget, properties: css)
+        }
         return opaqueFromWidget(widget)
     }
 }

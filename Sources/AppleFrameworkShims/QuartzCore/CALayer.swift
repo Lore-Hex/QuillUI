@@ -63,7 +63,7 @@ public protocol CAMediaTiming {
 
 // MARK: - CAAction
 
-public protocol CAAction {
+@MainActor public protocol CAAction {
     func run(forKey event: String, object anObject: Any, arguments dict: [AnyHashable: Any]?)
 }
 
@@ -160,13 +160,11 @@ public struct CACornerMask: OptionSet, Sendable {
 
 // MARK: - CALayer
 
-open class CALayer: NSObject, CAMediaTiming {
+@MainActor open class CALayer: NSObject, @preconcurrency CAMediaTiming {
 
     // MARK: Initializers
 
-    /// `required` so metatype instantiation works: QuillUIKit's UIView does
-    /// `(Self.layerClass as? CALayer.Type)?.init()`.
-    public required override init() {
+    public override init() {
         super.init()
     }
 
@@ -621,7 +619,7 @@ open class CALayer: NSObject, CAMediaTiming {
     // DispatchQueue.main and calls back into _animationDidComplete(key:) for
     // animations with isRemovedOnCompletion.
 
-    private var animationEntries: [(key: String, animation: CAAnimation)] = []
+    nonisolated(unsafe) private var animationEntries: [(key: String, animation: CAAnimation)] = []
     private var animationKeyCounter: Int = 0
 
     open func add(_ anim: CAAnimation, forKey key: String?) {
@@ -779,7 +777,7 @@ open class CALayer: NSObject, CAMediaTiming {
 // travel as their Swift structs. Unknown keys return nil / no-op (no
 // NSUnknownKeyException machinery, and probing optional keys is common).
 
-extension CALayer: QuillKeyValueCoding {
+extension CALayer: @preconcurrency QuillKeyValueCoding {
 
     public func quillValue(forKey key: String) -> Any? {
         switch key {

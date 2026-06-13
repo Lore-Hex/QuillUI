@@ -208,6 +208,20 @@ struct AppKitLoweringTests {
         #expect(lowered.contains(#"case "foo": foo()"#))
     }
 
+    @Test("Nested private action-handler path is made fileprivate for generated dispatch")
+    func nestedPrivateActionHandlerIsNameableByGeneratedDispatch() {
+        let source = """
+        class BarButton {
+            private class Handler {
+                @objc func fire() {}
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("fileprivate class Handler"))
+        #expect(lowered.contains("extension BarButton.Handler: QuillActionDispatching {"))
+    }
+
     @Test("@objc protocol requirements do NOT get a (bogus) conformance")
     func protocolRequirementsSkipped() {
         let source = """

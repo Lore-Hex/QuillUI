@@ -59,12 +59,18 @@ extension UIControl {
         let events: Event
     }
 
+    private struct QuillControlAction {
+        let action: UIAction
+        let events: Event
+    }
+
     /// Registrations for all controls, keyed by control identity. Static
     /// because an extension cannot add instance storage. Entries for a
     /// deallocated control are not reclaimed — a bounded leak of small
     /// structs (the weak targets inside them do get pruned), accepted for
     /// the shim and noted honestly.
     private static var quillTargetActions: [ObjectIdentifier: [QuillTargetAction]] = [:]
+    private static var quillControlActions: [ObjectIdentifier: [QuillControlAction]] = [:]
 
     public func addTarget(_ target: Any?, action: Selector, for controlEvents: Event) {
         // A nil target means "walk the responder chain" on iOS; there is no
@@ -98,12 +104,22 @@ extension UIControl {
 
     public func sendActions(for controlEvents: Event) {
         let key = ObjectIdentifier(self)
+        for entry in UIControl.quillControlActions[key, default: []] where !entry.events.intersection(controlEvents).isEmpty {
+            entry.action.quillHandler(entry.action)
+        }
         guard var entries = UIControl.quillTargetActions[key] else { return }
         entries.removeAll { $0.target == nil }
         UIControl.quillTargetActions[key] = entries.isEmpty ? nil : entries
         for entry in entries where !entry.events.intersection(controlEvents).isEmpty {
             (entry.target as? QuillSelectorDispatching)?.quillPerform(entry.action, with: self)
         }
+    }
+
+    public func addAction(_ action: UIAction, for controlEvents: Event) {
+        let key = ObjectIdentifier(self)
+        var entries = UIControl.quillControlActions[key, default: []]
+        entries.append(QuillControlAction(action: action, events: controlEvents))
+        UIControl.quillControlActions[key] = entries
     }
 }
 

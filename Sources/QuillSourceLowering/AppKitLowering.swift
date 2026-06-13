@@ -70,7 +70,9 @@ public struct AppKitLowering {
         collector.walk(tree)
         // Pass 1: the in-place rewrites (strip @objc, #selector→Selector,
         // Timer→QuillTimer.make, os.log import, os(macOS) widening).
-        let pass1 = AppKitRewriter().rewrite(tree)
+        let pass1 = AppKitRewriter(
+            dispatchReachabilityClassNames: Self.dispatchReachabilityClassNames(for: collector.orderedTypes)
+        ).rewrite(tree)
         // Pass 2: move `override` members declared in `extension <LocalClass> { … }`
         // into the class body. Swift forbids overriding a non-@objc method from an
         // extension; on macOS these methods are @objc so it's allowed, but on Linux
@@ -173,6 +175,20 @@ public struct AppKitLowering {
         return out
     }
 
+    /// Generated top-level extensions must be able to name every component in a
+    /// nested action-handler path (`Outer.Inner.Handler`). Swift's `private`
+    /// hides a nested type from a same-file extension outside the enclosing
+    /// lexical scope, so the rewriter upgrades those path components to
+    /// `fileprivate` before appending the extension. This is still file-private,
+    /// but nameable by the generated same-file dispatch block.
+    static func dispatchReachabilityClassNames(for orderedTypes: [String]) -> Set<String> {
+        Set(orderedTypes.flatMap { typeName -> [String] in
+            let parts = typeName.split(separator: ".").map(String.init)
+            guard parts.count > 1 else { return [] }
+            return Array(parts.dropFirst())
+        })
+    }
+
     /// The selector key a `#selector` reference to this method lowers to (must
     /// match `AppKitRewriter.selectorKey`): bare name for no-arg, `name(label:)`
     /// for args (external label; `_` for a wildcard label).
@@ -260,6 +276,13 @@ private final class ActionMethodCollector: SyntaxVisitor {
 // MARK: - Rewriter
 
 private final class AppKitRewriter: SyntaxRewriter {
+    private let dispatchReachabilityClassNames: Set<String>
+
+    init(dispatchReachabilityClassNames: Set<String> = []) {
+        self.dispatchReachabilityClassNames = dispatchReachabilityClassNames
+        super.init()
+    }
+
     /// Attributes removed wholesale — the ObjC-exposure markers the shadow
     /// doesn't need (and that don't compile without an ObjC runtime).
     static let strippedAttributeNames: Set<String> = [
@@ -286,7 +309,8 @@ private final class AppKitRewriter: SyntaxRewriter {
         DeclSyntax(stripAttributes(super.visit(node).cast(SubscriptDeclSyntax.self)))
     }
     override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
-        DeclSyntax(stripAttributes(super.visit(node).cast(ClassDeclSyntax.self)))
+        let stripped = stripAttributes(super.visit(node).cast(ClassDeclSyntax.self))
+        return DeclSyntax(repairGeneratedDispatchReachability(stripped))
     }
     override func visit(_ node: ProtocolDeclSyntax) -> DeclSyntax {
         DeclSyntax(stripAttributes(super.visit(node).cast(ProtocolDeclSyntax.self)))
@@ -313,6 +337,20 @@ private final class AppKitRewriter: SyntaxRewriter {
         copy.attributes = kept
         copy.leadingTrivia = savedLeading
         return copy
+    }
+
+    private func repairGeneratedDispatchReachability(_ node: ClassDeclSyntax) -> ClassDeclSyntax {
+        guard dispatchReachabilityClassNames.contains(node.name.text) else { return node }
+        var copy = node
+        var didChange = false
+        copy.modifiers = DeclModifierListSyntax(copy.modifiers.map { modifier in
+            guard modifier.name.text == "private" else { return modifier }
+            didChange = true
+            var replacement = DeclModifierSyntax(name: .keyword(.fileprivate), trailingTrivia: modifier.trailingTrivia)
+            replacement.leadingTrivia = modifier.leadingTrivia
+            return replacement
+        })
+        return didChange ? copy : node
     }
 
     /// Repair pass: upgrade a previously generated dispatch witness to `public`.

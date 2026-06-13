@@ -588,13 +588,13 @@ public final class UITextPasteItem {
 }
 
 @MainActor open class UITextView: UIView, UITextPasteConfigurationSupporting {
-    public weak var delegate: UITextViewDelegate?
-    public weak var pasteDelegate: UITextPasteDelegate?
-    public var attributedText: NSAttributedString = NSAttributedString(string: "")
-    public var selectedRange: NSRange = NSRange(location: 0, length: 0)
-    public var markedTextRange: UITextRange?
-    public var textContainer = NSTextContainer()
-    public var textContainerInset: UIEdgeInsets = .zero
+    open weak var delegate: UITextViewDelegate?
+    open weak var pasteDelegate: UITextPasteDelegate?
+    open var attributedText: NSAttributedString = NSAttributedString(string: "")
+    open var selectedRange: NSRange = NSRange(location: 0, length: 0)
+    open var markedTextRange: UITextRange?
+    open var textContainer = NSTextContainer()
+    open var textContainerInset: UIEdgeInsets = .zero
 
     // MARK: TextKit 1 stack (NSLayoutManagerShim.swift)
     //
@@ -650,19 +650,19 @@ public final class UITextPasteItem {
         quillDefaultTextStorage = created
         return created
     }
-    public var font: UIFont?
-    public var adjustsFontForContentSizeCategory = false
-    public var autocapitalizationType: UITextAutocapitalizationType = .sentences
-    public var autocorrectionType: UITextAutocorrectionType = .default
-    public var isEditable = true
-    public var isSelectable = true
-    public var isScrollEnabled = true
-    public var dataDetectorTypes: UIDataDetectorTypes = []
-    public var allowsEditingTextAttributes = false
-    public var returnKeyType: UIReturnKeyType = .default
-    public var inlinePredictionType: UITextInlinePredictionType = .default
-    public var keyboardType: UIKeyboardType = .default
-    public var textColor: UIColor?
+    open var font: UIFont?
+    open var adjustsFontForContentSizeCategory = false
+    open var autocapitalizationType: UITextAutocapitalizationType = .sentences
+    open var autocorrectionType: UITextAutocorrectionType = .default
+    open var isEditable = true
+    open var isSelectable = true
+    open var isScrollEnabled = true
+    open var dataDetectorTypes: UIDataDetectorTypes = []
+    open var allowsEditingTextAttributes = false
+    open var returnKeyType: UIReturnKeyType = .default
+    open var inlinePredictionType: UITextInlinePredictionType = .default
+    open var keyboardType: UIKeyboardType = .default
+    open var textColor: UIColor?
 
     // MARK: Text-input surface (protocols + trait types in UITextInput.swift)
     //
@@ -700,13 +700,13 @@ public final class UITextPasteItem {
         }
     }
 
-    public var keyboardAppearance: UIKeyboardAppearance = .default
-    public var spellCheckingType: UITextSpellCheckingType = .default
-    public var isSecureTextEntry = false
-    public var linkTextAttributes: [NSAttributedString.Key: Any] = [:]
-    public var textContentType: UITextContentType!
-    public var writingToolsBehavior: UIWritingToolsBehavior = .default
-    public weak var inputDelegate: (any UITextInputDelegate)?
+    open var keyboardAppearance: UIKeyboardAppearance = .default
+    open var spellCheckingType: UITextSpellCheckingType = .default
+    open var isSecureTextEntry = false
+    open var linkTextAttributes: [NSAttributedString.Key: Any] = [:]
+    open var textContentType: UITextContentType!
+    open var writingToolsBehavior: UIWritingToolsBehavior = .default
+    open weak var inputDelegate: (any UITextInputDelegate)?
 
     // `override`: UIView declares the open base (QuillUIKit.swift).
     open override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -756,6 +756,47 @@ public extension UIImagePickerControllerDelegate {
 
     public var sourceType: SourceType = .photoLibrary
     public weak var delegate: (any UINavigationControllerDelegate & UIImagePickerControllerDelegate)?
+}
+
+public enum UIInputViewStyle: Int, Sendable {
+    case `default`
+    case keyboard
+}
+
+@MainActor open class UIInputView: UIView {
+    public var inputViewStyle: UIInputViewStyle
+    public var allowsSelfSizing: Bool = false
+
+    public init(frame: CGRect, inputViewStyle: UIInputViewStyle) {
+        self.inputViewStyle = inputViewStyle
+        super.init(frame: frame)
+    }
+
+    public required init?(coder: NSCoder) {
+        self.inputViewStyle = .default
+        super.init(frame: .zero)
+    }
+}
+
+@MainActor private var quillSearchBarTextFields: [ObjectIdentifier: UITextField] = [:]
+@MainActor private var quillSearchBarWritingToolsBehavior: [ObjectIdentifier: UIWritingToolsBehavior] = [:]
+
+public extension UISearchBar {
+    var searchTextField: UITextField {
+        let key = ObjectIdentifier(self)
+        if let existing = quillSearchBarTextFields[key] {
+            return existing
+        }
+        let field = UITextField(frame: .zero)
+        quillSearchBarTextFields[key] = field
+        addSubview(field)
+        return field
+    }
+
+    var writingToolsBehavior: UIWritingToolsBehavior {
+        get { quillSearchBarWritingToolsBehavior[ObjectIdentifier(self)] ?? .default }
+        set { quillSearchBarWritingToolsBehavior[ObjectIdentifier(self)] = newValue }
+    }
 }
 
 // MARK: - Haptic feedback (no-op on non-iOS)
@@ -1003,7 +1044,7 @@ public extension NSAttributedString {
     }
 }
 
-public final class UIGraphicsImageRendererFormat {
+public final class UIGraphicsImageRendererFormat: @unchecked Sendable {
     public var scale: CGFloat = 1
     public var opaque: Bool = false
     public var prefersExtendedRange: Bool = false
@@ -1012,7 +1053,7 @@ public final class UIGraphicsImageRendererFormat {
     public static func preferred() -> UIGraphicsImageRendererFormat { UIGraphicsImageRendererFormat() }
 }
 
-public final class UIGraphicsImageRendererContext {
+public final class UIGraphicsImageRendererContext: @unchecked Sendable {
     public let cgContext: CGContext
     public let format: UIGraphicsImageRendererFormat
     public init(cgContext: CGContext, format: UIGraphicsImageRendererFormat) {
@@ -1038,20 +1079,23 @@ public final class UIGraphicsImageRenderer {
         self.init(size: bounds.size, format: format)
     }
 
-    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) {
-        actions(UIGraphicsImageRendererContext(cgContext: CGContext(), format: format))
+    private func runActions(_ actions: @MainActor (UIGraphicsImageRendererContext) -> Void) {
+        let context = UIGraphicsImageRendererContext(cgContext: CGContext(), format: format)
+        MainActor.assumeIsolated {
+            actions(context)
+        }
     }
 
     /// Returns a blank placeholder image of `size` (nothing is rasterized).
-    public func image(_ actions: (UIGraphicsImageRendererContext) -> Void) -> UIImage {
+    public func image(_ actions: @MainActor (UIGraphicsImageRendererContext) -> Void) -> UIImage {
         runActions(actions)
         return UIImage(size: size)
     }
-    public func pngData(_ actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
+    public func pngData(_ actions: @MainActor (UIGraphicsImageRendererContext) -> Void) -> Data {
         runActions(actions)
         return Data()
     }
-    public func jpegData(withCompressionQuality quality: CGFloat, actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
+    public func jpegData(withCompressionQuality quality: CGFloat, actions: @MainActor (UIGraphicsImageRendererContext) -> Void) -> Data {
         runActions(actions)
         return Data()
     }
