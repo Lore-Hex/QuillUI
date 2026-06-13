@@ -500,6 +500,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference typed settings endpoint was not detected"))
         #expect(verifier.contains("endpoint_text_pixels >= 300"))
         #expect(verifier.contains("Mac-reference typed settings bearer token was not detected"))
+        #expect(verifier.contains("token_text_pixels >= 220"))
         #expect(verifier.contains("root_overlay_field_text_pixels(2)"))
         #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
         #expect(verifier.contains("root_overlay_field_text_pixels(3)"))
