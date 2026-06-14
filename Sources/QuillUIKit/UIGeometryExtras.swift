@@ -440,7 +440,9 @@ public enum UIViewAnimatingPosition: Int, Sendable {
     open var minimumTrackTintColor: UIColor?
     open var maximumTrackTintColor: UIColor?
     open var thumbTintColor: UIColor?
-    open var isTracking: Bool = false
+    // isTracking is inherited from UIControl (added to the UIControl class
+    // body); UISlider no longer redeclares it — matching Apple, where
+    // isTracking is a UIControl property UISlider inherits.
 
     private var thumbImages: [UInt: UIImage] = [:]
     private var minimumTrackImages: [UInt: UIImage] = [:]
