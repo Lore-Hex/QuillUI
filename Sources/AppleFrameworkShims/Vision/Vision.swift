@@ -8,7 +8,12 @@ import ImageIO
 import CoreVideo
 
 open class VNRequest: @unchecked Sendable {
-    public typealias CompletionHandler = @Sendable (VNRequest, Error?) -> Void
+    // @MainActor (not @Sendable): SignalUI's VNDetectFaceRectanglesRequest
+    // completion closure (ImageEditorViewController+Blur) calls @MainActor members
+    // (faceDetectionFailed, self.view); an @MainActor handler type makes that
+    // closure literal infer @MainActor. Inert on Linux (requests never run a
+    // detector), and `complete()` invokes it via `assumeIsolated`.
+    public typealias CompletionHandler = @MainActor (VNRequest, Error?) -> Void
     public typealias ProgressHandler = @Sendable (VNRequest, Double, Error?) -> Void
 
     public var results: [Any]?
@@ -28,7 +33,10 @@ open class VNRequest: @unchecked Sendable {
     func complete(error: Error? = nil) {
         guard !isCancelled else { return }
         progressHandler?(self, 1.0, error)
-        completionHandler?(self, error)
+        // completionHandler is @MainActor; on Linux detection never runs, and any
+        // call would be on the main thread (UI-driven), so assume isolation.
+        let handler = completionHandler
+        MainActor.assumeIsolated { handler?(self, error) }
     }
 }
 

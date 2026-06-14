@@ -902,16 +902,20 @@ public enum UIAccessibilityContrast: Int {
         public static let preferredFramesPerSecond30 = AnimationOptions(rawValue: 7 << 24)
     }
 
+    // @MainActor closures (Apple's UIView.animate IS @MainActor): SignalUI calls
+    // these from Timer / completion closures, and an @MainActor parameter type makes
+    // the passed closure literal infer @MainActor — so `self.someMainActorMember`
+    // inside resolves without "call in a synchronous nonisolated context".
     public static func animate(
         withDuration: TimeInterval,
-        animations: @escaping () -> Void,
-        completion: ((Bool) -> Void)? = nil
+        animations: @MainActor @escaping () -> Void,
+        completion: (@MainActor (Bool) -> Void)? = nil
     ) {
         animations()
         completion?(true)
     }
 
-    public static func performWithoutAnimation(_ actionsWithoutAnimation: () -> Void) {
+    public static func performWithoutAnimation(_ actionsWithoutAnimation: @MainActor () -> Void) {
         actionsWithoutAnimation()
     }
 
@@ -919,8 +923,8 @@ public enum UIAccessibilityContrast: Int {
         with view: UIView,
         duration: TimeInterval,
         options: AnimationOptions = [],
-        animations: @escaping () -> Void,
-        completion: ((Bool) -> Void)? = nil
+        animations: @MainActor @escaping () -> Void,
+        completion: (@MainActor (Bool) -> Void)? = nil
     ) {
         _ = (view, duration, options)
         animations()
@@ -931,8 +935,8 @@ public enum UIAccessibilityContrast: Int {
         withDuration duration: TimeInterval,
         delay: TimeInterval = 0,
         options: AnimationOptions = [],
-        animations: @escaping () -> Void,
-        completion: ((Bool) -> Void)? = nil
+        animations: @MainActor @escaping () -> Void,
+        completion: (@MainActor (Bool) -> Void)? = nil
     ) {
         _ = (duration, delay, options)
         animations()
@@ -942,7 +946,7 @@ public enum UIAccessibilityContrast: Int {
     public static func addKeyframe(
         withRelativeStartTime frameStartTime: Double,
         relativeDuration frameDuration: Double,
-        animations: @escaping () -> Void
+        animations: @MainActor @escaping () -> Void
     ) {
         _ = (frameStartTime, frameDuration)
         animations()
@@ -952,8 +956,8 @@ public enum UIAccessibilityContrast: Int {
         withDuration: TimeInterval,
         delay: TimeInterval = 0,
         options: AnimationOptions = [],
-        animations: @escaping () -> Void,
-        completion: ((Bool) -> Void)? = nil
+        animations: @MainActor @escaping () -> Void,
+        completion: (@MainActor (Bool) -> Void)? = nil
     ) {
         animations()
         completion?(true)
@@ -965,8 +969,8 @@ public enum UIAccessibilityContrast: Int {
         usingSpringWithDamping: CGFloat,
         initialSpringVelocity: CGFloat,
         options: AnimationOptions = [],
-        animations: @escaping () -> Void,
-        completion: ((Bool) -> Void)? = nil
+        animations: @MainActor @escaping () -> Void,
+        completion: (@MainActor (Bool) -> Void)? = nil
     ) {
         animations()
         completion?(true)
