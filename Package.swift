@@ -2290,10 +2290,14 @@ for shimName in signalAppleFrameworkShims {
     case "AppIntents":
         dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
     case "SceneKit":
-        // SceneKit vends SwiftUI's `SceneView` (the scene-graph types use
-        // QuillFoundation's CGFloat/CGImage shadow). SwiftUI does not import
-        // SceneKit, so this edge is acyclic. Real Apple SceneKit depends on
-        // SwiftUI for exactly the same reason.
+        // SceneKit vends SwiftUI's `SceneView`; the scene-graph types use
+        // QuillFoundation's CGFloat and Foundation's CGPoint (re-exported via
+        // the umbrella). SwiftUI does not import SceneKit, so the edge is
+        // acyclic. (CoreGraphics is intentionally NOT a dep: it would get
+        // built ahead of the CI-inert Euclid target in a shared scratch and
+        // leak canImport(CoreGraphics) into pure Euclid. The CGImage/CGColor
+        // re-export only matters once Euclid's interop is enabled — a rung-2
+        // app-tier concern — and is wired then.)
         dependencies = ["QuillFoundation", "SwiftUI"]
     default:
         dependencies = ["QuillFoundation"]
@@ -2549,6 +2553,16 @@ if euclidUpstreamPresent {
     targets += [
         .target(
             name: "Euclid",
+            // Stays PURE (rung 1). Adding the SceneKit/AppKit/CoreGraphics
+            // interop deps here lights up Euclid's interop AND — because
+            // ShapeScript depends on Euclid — leaks SceneKit/UIKit into
+            // ShapeScript's graph, waking its own dormant interop
+            // (Material+SceneKit / Scene+SceneKit, a deep UIKit/CoreText/ObjC
+            // surface). So the interop enablement is an all-at-once rung-2
+            // app-tier campaign (Euclid + ShapeScript + the viewer apps),
+            // tracked in docs/scenekit-conformance.md. The SceneKit/
+            // CoreGraphics shim surface those need is already in place and
+            // verified to compile Euclid's interop at 0 errors (727 -> 0).
             dependencies: [],
             path: ".upstream/euclid/Sources",
             swiftSettings: [.swiftLanguageMode(.v5)]

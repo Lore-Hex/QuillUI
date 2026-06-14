@@ -15,4 +15,9 @@
 // Rendering is deliberately absent here: the types hold the scene graph
 // faithfully so the rung-3 software rasteriser (over the Cairo CGContext path)
 // can walk it. See docs/scenekit-conformance.md.
-import Foundation
+//
+// Real SceneKit re-exports Foundation + CoreGraphics through its umbrella, so a
+// file with only `import SceneKit` (Euclid's interop) resolves URL / Data /
+// pow / CGPoint / CGSize. On QuillOS those all live in (swift-corelibs)
+// Foundation, so re-export it for the same reach.
+@_exported import Foundation

@@ -74,6 +74,33 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    `QuillEuclidExample` and `QuillShapeScriptViewer` (they need Euclid's
    `canImport(SceneKit)` interop + the `SCNGeometrySource` data marshalling
    to light up — a deeper surface than the fixtures).
+2b. **App-tier interop surface authored; Euclid interop verified** — the
+   Mesh⇄SCNGeometry marshalling that Euclid's `Euclid+SceneKit` needs is now
+   in the shim: `SCNGeometrySource(vertices:/normals:/textureCoordinates:)`,
+   `SCNGeometryElement(indices:primitiveType:)`, `SCNGeometry.boundingBox`/
+   `copy()`, `SCNText`/`SCNShape`, `SCNMatrix4Invert`/`IsIdentity`,
+   `SCNMaterial: Hashable`, `SCNScene.write`. The CoreGraphics shim gained
+   the long-missing `CGPoint`/`CGSize`/`CGRect`/`CGFloat` re-export (real
+   gap — pure-geometry `import CoreGraphics` files expect them) plus
+   `CGPathElement`/`CGPathElementType` + a functional `CGPath.applyWithBlock`
+   (QuillFoundation) and the `CFTypeRef`/`CFGetTypeID`/`CGImage.typeID` sliver
+   `defaultMaterialLookup` needs. With these, **`Euclid`'s full SceneKit/
+   AppKit/CoreGraphics interop compiles 727 → 0 errors** (verified on a
+   branch that declared the interop deps).
+
+   ⚠️ ENABLEMENT IS DEFERRED and is an all-at-once campaign, not a quick step:
+   `ShapeScript` depends on `Euclid`, so giving `Euclid` a `SceneKit` dep
+   leaks `canImport(SceneKit)` (and `UIKit`) into `ShapeScript`'s graph,
+   waking *its* dormant interop (`Material+SceneKit`/`Scene+SceneKit` — a deep
+   UIKit + CoreText-font + ObjC-associated-object + URL-content-type surface,
+   ~50 distinct errors), which would regress the green rung-1 CLI. And the
+   `canImport(CoreGraphics)` build-order leak makes even a *pure* Euclid go
+   red in a poisoned shared scratch. So rung-2 app-tier = enable Euclid
+   interop **and** fix ShapeScript interop **and** the two viewer apps
+   (`QuillEuclidExample` ≈135 errors: UIKit gesture recognisers + RealityKit
+   `ModelEntity` + `#selector`; `QuillShapeScriptViewer` ≈103: AppKit
+   NSDocument) together. Euclid stays pure until then; the shim surface above
+   is committed and ready.
 3. **Fixtures render on GTK**: software-render the scene graph (project the
    sphere/cylinder primitives via the existing Cairo CGContext path — flat
    shading first, the fixtures' scenes are deliberately simple) behind
@@ -98,6 +125,8 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Inert RealityKit shim module (Euclid Example's RealityKitViewController)
 - [x] Rung 1: Euclid + ShapeScript lib/CLI green on Linux (CLI renders .shape → .stl)
 - [x] Rung 2 (fixtures): SceneKit scene-graph shim authored; QuillSolarSystem + QuillMoleculeViewer compile
+- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0 (enablement deferred — see ladder note)
+- [ ] Rung 2c (app-tier enablement): enable Euclid interop + fix ShapeScript interop + QuillEuclidExample + QuillShapeScriptViewer compile (all-at-once)
 - [ ] Rung 3: fixtures render (GTK screenshot gate)
 - [ ] Rung 4: QuillEuclidExample renders
 - [ ] Rung 5: QuillShapeScriptViewer launches
