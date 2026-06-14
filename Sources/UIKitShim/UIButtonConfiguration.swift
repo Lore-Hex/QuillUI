@@ -120,6 +120,58 @@ extension AttributeContainer {
     }
 }
 
+// MARK: - AttributedString.font (Linux)
+
+/// The whole-string `font` accessor Apple exposes via its UIKit attribute scope.
+/// SignalUI sets `attributedTitle.font` on button-configuration titles. Reads
+/// the uniform value (nil when the runs disagree); writes apply to every run.
+extension AttributedString {
+    public var font: UIFont? {
+        get { self[QuillUIFontAttributeKey.self] }
+        set { self[QuillUIFontAttributeKey.self] = newValue }
+    }
+}
+
+// MARK: - AttributedString.mergeAttributes(_:mergePolicy:) (Linux)
+
+extension AttributedString {
+    /// Mirror of Apple's `AttributedString.AttributeMergePolicy` (the conflict
+    /// resolution used by `mergeAttributes(_:mergePolicy:)`).
+    public enum AttributeMergePolicy: Sendable {
+        /// Existing attributes win over the merged-in container.
+        case keepCurrent
+        /// The merged-in container's attributes overwrite existing ones.
+        case keepNew
+    }
+
+    /// Apple's policy-based merge. swift-corelibs only vends the scope-limited
+    /// `mergeAttributes(_:including:)`, so SignalUI's `mergeAttributes(defaults,
+    /// mergePolicy: .keepCurrent)` (apply defaults only where absent) needs this
+    /// overload. Implemented over the per-run key subscripts so the recorded
+    /// attributes match Apple's semantics for the attributes SignalUI sets on
+    /// button-configuration titles (font + foreground color).
+    public mutating func mergeAttributes(
+        _ attributes: AttributeContainer,
+        mergePolicy: AttributeMergePolicy = .keepNew
+    ) {
+        let incomingFont = attributes.font
+        let incomingColor = attributes.foregroundColor
+
+        // Snapshot the run ranges up front: mutating `self` below invalidates the
+        // `runs` view, so we must not iterate it lazily during mutation.
+        let runRanges = runs.map { (range: $0.range, hasFont: $0.attributes.font != nil, hasColor: $0.attributes.foregroundColor != nil) }
+
+        for run in runRanges {
+            if let incomingFont, mergePolicy == .keepNew || !run.hasFont {
+                self[run.range][QuillUIFontAttributeKey.self] = incomingFont
+            }
+            if let incomingColor, mergePolicy == .keepNew || !run.hasColor {
+                self[run.range].foregroundColor = incomingColor
+            }
+        }
+    }
+}
+
 #endif
 
 // MARK: - UIButtonConfiguration
