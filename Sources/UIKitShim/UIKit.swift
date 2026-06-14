@@ -1298,6 +1298,13 @@ public final class UIBezierPath {
     public init(ovalIn rect: CGRect) { self.cgPath = CGPath() }
     public init(rect: CGRect) { self.cgPath = CGPath() }
     public init(roundedRect rect: CGRect, cornerRadius: CGFloat) { self.cgPath = CGPath() }
+    public init(
+        arcCenter center: CGPoint,
+        radius: CGFloat,
+        startAngle: CGFloat,
+        endAngle: CGFloat,
+        clockwise: Bool
+    ) { self.cgPath = CGPath() }
     public init(cgPath: CGPath) { self.cgPath = cgPath }
     public func move(to point: CGPoint) {}
     public func addLine(to point: CGPoint) {}
@@ -1309,6 +1316,19 @@ public final class UIBezierPath {
     public func addClip() {}
     public func fill() {}
     public func stroke() {}
+}
+
+// On Apple, `UIBezierPath` is an `NSObject` and is therefore `Equatable` (via
+// `isEqual(_:)`). Code like `OWSBubbleShapeView.State` embeds a `UIBezierPath`
+// in an `Equatable` struct and relies on that synthesized conformance. This
+// inert Linux shim records no geometry, so equality falls back to object
+// identity -- distinct path instances compare unequal, which faithfully drives
+// the "path changed -> redraw" guard (a freshly fetched mask path is always a
+// new instance) without claiming a content equality the shim cannot compute.
+extension UIBezierPath: Equatable {
+    public static func == (lhs: UIBezierPath, rhs: UIBezierPath) -> Bool {
+        lhs === rhs
+    }
 }
 
 public enum UIDeviceOrientation: Int, Sendable {
