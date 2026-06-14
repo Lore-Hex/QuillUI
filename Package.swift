@@ -1574,7 +1574,11 @@ if nnwUpstreamEnabled {
     targets += [
         .target(
             name: "Images",
-            dependencies: ["Account", "RSCore"],
+            // NNW's Account compiles as the NNWAccount target (the bare
+            // "Account" belongs to the IceCubes lane); this in-repo shim
+            // imports it directly (no module-alias, so it uses the real
+            // target name rather than NNW's aliased `import Account`).
+            dependencies: ["NNWAccount", "RSCore"],
             path: "Sources/ImagesShimModule",
             swiftSettings: appSwiftSettings
         )

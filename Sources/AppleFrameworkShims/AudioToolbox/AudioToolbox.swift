@@ -18,6 +18,12 @@ import QuillKit
 public typealias OSStatus = CoreFoundation.OSStatus
 
 public typealias SystemSoundID = UInt32
+/// On Apple platforms `AudioServicesCreateSystemSoundID` takes a CFURL and
+/// callers write `url as CFURL` (toll-free bridging). corelibs has no
+/// URL→CFURL bridge, so model CFURL as URL itself — the cast becomes an
+/// identity upcast and the shim function takes the URL directly
+/// (IceCubes' SoundEffectManager is the first consumer).
+public typealias CFURL = URL
 public typealias AudioFormatID = UInt32
 public typealias AudioFormatFlags = UInt32
 public typealias AudioChannelLayoutTag = UInt32
