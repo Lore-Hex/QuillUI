@@ -3595,6 +3595,16 @@ if iceCubesLinuxGraphEnabled {
                 "IceCubesApp/App/IceCubesApp-release.entitlements",
                 "IceCubesApp/App/IceCubesApp.entitlements",
                 "IceCubesAppIntents/ListEntity.swift",
+                // Siri/AppIntents image-downsample intent uses ImageIO's CF
+                // toll-free bridging (CFString/CFURL/CFDictionary), which
+                // corelibs Foundation does not provide; and AppShortcuts is
+                // its only referrer (an OS-discovered AppShortcutsProvider, not
+                // referenced in code). Both are Siri-only and Linux-irrelevant —
+                // excluded like ListEntity.swift above. The rest of the app +
+                // AppIntents compile. Re-include once the ImageIO CF surface
+                // lands in the CoreGraphics/ImageIO shadow.
+                "IceCubesAppIntents/InlinePostImageIntent.swift",
+                "IceCubesAppIntents/AppShortcuts.swift",
             ],
             sources: [
                 "IceCubesApp/App",

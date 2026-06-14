@@ -147,6 +147,29 @@ extension View {
             participatesInDismissalInterception: false
         )
     }
+
+    /// SwiftUI-shaped builder overload WITHOUT a message — SwiftUI's
+    /// `confirmationDialog(_:isPresented:titleVisibility:actions:)`. Without
+    /// this, a no-message trailing-closure call (e.g. IceCubes StatusKit's
+    /// `confirmationDialog("", isPresented:) { Button(…) }`) has no ViewBuilder
+    /// candidate and the trailing closure falls back to the `[AlertButton]`
+    /// overload ("trailing closure passed to parameter of type '[AlertButton]'").
+    public func confirmationDialog<Actions: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        titleVisibility: Visibility = .automatic,
+        @ViewBuilder actions: () -> Actions
+    ) -> ConfirmationDialogView<Self> {
+        return ConfirmationDialogView(
+            content: self,
+            title: title,
+            isPresented: isPresented,
+            titleVisibility: titleVisibility,
+            message: "",
+            buttons: swiftOpenUIConfirmationDialogButtons(from: actions()),
+            participatesInDismissalInterception: false
+        )
+    }
 }
 
 private protocol SwiftOpenUIButtonRepresentable {

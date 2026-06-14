@@ -1792,6 +1792,15 @@ public extension View {
         _ = mask()
         return self
     }
+
+    // Value-form `.mask(_:)` (SwiftUI's original signature) — vendored real
+    // source passes a mask view directly, e.g. IceCubes DisplaySettingsView's
+    // `.mask(LinearGradient(...))`, not via a trailing closure.
+    func mask<Mask: View>(alignment: Alignment = .center, _ mask: Mask) -> Self {
+        _ = alignment
+        _ = mask
+        return self
+    }
 }
 
 public extension Image {
