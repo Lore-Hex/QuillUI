@@ -13,7 +13,7 @@ struct SourceHygieneTests {
         // (and without touching linux-ci.yml, whose contents other tests assert on).
         let result = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
-            arguments: ["git", "-c", "safe.directory=" + root.path, "-C", root.path, "ls-files"]
+            arguments: ["git", "-c", "safe.directory=*", "-C", root.path, "ls-files"]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
 
