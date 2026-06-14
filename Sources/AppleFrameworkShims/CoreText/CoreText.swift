@@ -29,17 +29,17 @@ public enum CTFontManagerScope: UInt32, Sendable {
 
 @discardableResult
 public func CTFontManagerRegisterFontsForURL(
-    _ fontURL: CFURL,
+    _ fontURL: URL,
     _ scope: CTFontManagerScope,
-    _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?
+    _ error: UnsafeMutablePointer<Unmanaged<NSError>?>?
 ) -> Bool {
-    // Apple's signature takes a `CFURL` and a `CFError` out-pointer; SUIEnvironment
-    // calls it with `url as CFURL` and `&error` where `error: Unmanaged<CFError>?`.
-    // Match those exactly so the cast and out-pointer resolve. `CFError` here is
-    // CoreFoundation's (the same one the call site's `Unmanaged<CFError>?` denotes),
-    // not QuillKit's NSError alias. There is no font manager on Linux: there is
-    // nothing to register, and reporting success (no error produced) lets bundled
-    // fonts fall through to QuillUI's own font loading.
+    // SUIEnvironment calls this as `CTFontManagerRegisterFontsForURL(url, .process,
+    // &error)` where `url` is a Foundation `URL` (Bundle.urls returns `[URL]`) and
+    // `error: Unmanaged<CFError>?` with `CFError` = QuillKit's `NSError` alias. The
+    // param types match those directly (URL, and `Unmanaged<NSError>?` == the call's
+    // `Unmanaged<CFError>?`), avoiding corelibs CoreFoundation's incompatible CFURL/
+    // CFError. There is no font manager on Linux: nothing to register, and reporting
+    // success (no error produced) lets bundled fonts fall through to QuillUI loading.
     _ = (fontURL, scope)
     error?.pointee = nil
     return true

@@ -738,9 +738,11 @@ public final class AVAssetExportSession: @unchecked Sendable {
 
     /// The no-argument modern async exporter: it relies on `outputURL` /
     /// `outputFileType` being set on the session beforehand (as upstream does).
-    /// No exporter exists on Linux, so it throws like the `to:as:` form.
-    public func export() async throws {
-        throw AVMediaUnavailableOnLinux()
+    /// Upstream (SendableAttachment) calls `await exportSession.export()` WITHOUT
+    /// `try`, so this is non-throwing — Apple's deprecated `export()` reports via
+    /// `status`/`error`, not by throwing. No exporter exists on Linux: inert.
+    public func export() async {
+        // No-op: there is no media export pipeline on Linux.
     }
 }
 

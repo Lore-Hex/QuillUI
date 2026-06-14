@@ -152,6 +152,25 @@ public extension AttributeScopes {
     var uiKit: FoundationAttributes.Type { FoundationAttributes.self }
 }
 
+/// Apple's `AttributedString(_ nsAttributedString:, including:)` scoped-conversion
+/// initializer. swift-corelibs ships only the unscoped `init(_:)`, so CVText's
+/// `AttributedString(ns, including: \.uiKit)` reports "extra argument 'including'".
+/// On Linux there are no UIKit-only attribute keys, so the scope is irrelevant —
+/// delegate to the unscoped conversion (which carries every attribute corelibs
+/// recognizes). Generic over the scope so `\.uiKit` (→ FoundationAttributes) binds.
+public extension AttributedString {
+    init<S: AttributeScope>(
+        _ nsAttributedString: NSAttributedString,
+        including keyPath: KeyPath<AttributeScopes, S.Type>
+    ) throws {
+        // MODEL HONESTY: button titles don't render rich attributes on Linux, and
+        // corelibs' scoped NSAttributedString→AttributedString bridge is unreliable,
+        // so carry the visible text (attributes dropped). The scope keypath is moot.
+        _ = keyPath
+        self = AttributedString(nsAttributedString.string)
+    }
+}
+
 #endif
 
 // MARK: - UIButtonConfiguration

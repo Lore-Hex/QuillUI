@@ -1308,8 +1308,14 @@ public enum UIAccessibilityContrast: Int {
     public override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
     }
-    public convenience init(rootViewController: UIViewController) {
-        self.init(nibName: nil, bundle: nil)
+    // DESIGNATED (not convenience): upstream subclasses (FingerprintViewController)
+    // call `super.init(rootViewController:)` from their own designated init — only
+    // legal against a superclass DESIGNATED init — and OWSNavigationController
+    // declares `override convenience init(rootViewController:)`, which requires the
+    // base to be an overridable designated init. (Apple makes it convenience, but
+    // ObjC relaxes the rules there; on Linux Swift's strict init model needs this.)
+    public init(rootViewController: UIViewController) {
+        super.init(nibName: nil, bundle: nil)
         topViewController = rootViewController
     }
     public convenience init(navigationBarClass: AnyClass?, toolbarClass: AnyClass?) {

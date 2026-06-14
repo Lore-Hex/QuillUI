@@ -43,4 +43,14 @@ public extension NSValue {
     var cgSizeValue: CGSize { sizeValue }
 }
 
+public extension CGFloat {
+    /// Apple vends `init(truncating: NSNumber)` for the standard numeric types via
+    /// NSNumber bridging; swift-corelibs doesn't surface it for CGFloat. SignalUI's
+    /// ScanQRCodeViewController does `CGFloat(truncating: zoomFactorNSNumber)` —
+    /// faithful via `.doubleValue` (CGFloat is Double-width on 64-bit Linux).
+    init(truncating number: NSNumber) {
+        self.init(number.doubleValue)
+    }
+}
+
 #endif // os(Linux)
