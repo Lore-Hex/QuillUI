@@ -2247,7 +2247,10 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 .product(name: "CGTKBridge", package: "SwiftOpenUI"),
             ],
             path: "Sources/SignalUIRender",
-            swiftSettings: appSwiftSettings
+            swiftSettings: appSwiftSettings + [.unsafeFlags(gtk4SwiftImporterFlags)],
+            // Link GTK4 + gdk-pixbuf (pulls glib/gobject/gio/pango/cairo) — needed
+            // for g_*/gtk_*/gdk_* symbols (e.g. g_bytes_unref in the image mapper).
+            linkerSettings: [.unsafeFlags(gtk4LinkerFlags), .unsafeFlags(gdkPixbufLinkerFlags)]
         ),
         // SignalUI: Signal-iOS's OWN UI framework (270 Swift files, UIKit-based),
         // compiled UNMODIFIED against QuillUI's UIKit layer + the framework shims.
