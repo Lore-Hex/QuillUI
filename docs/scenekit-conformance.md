@@ -55,11 +55,25 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    the full evaluate→Euclid-geometry→export pipeline (verified: Ball 66 KB,
    Spring 413 KB, Cog 13 KB, Icosahedron 1 KB) — a real 3D win with zero
    rendering surface.
-2. **SCN surface census, app tier**: enumerate compile errors of the two
-   fixtures + QuillEuclidExample + QuillShapeScriptViewer (the SolderScope
-   error-census pattern); author the SCNScene/SCNNode/material/light/
-   camera/action types in the SceneKit shim, backed by nothing yet (inert
-   render).
+2. **SCN scene-graph shim authored; fixtures compile** — ✅ DONE for the
+   fixtures. The SceneKit shim (`Sources/AppleFrameworkShims/SceneKit`) now
+   models the scene-graph surface: `SCNVector3/4`, `SCNQuaternion`,
+   `SCNMatrix4`, `SCNNode` (position/eulerAngles/scale/orientation/geometry/
+   light/camera/addChildNode/runAction/`look(at:)`), `SCNGeometry` + the
+   parametric primitives (`SCNSphere`/`SCNCylinder`/`SCNBox`/`SCNCone`/…) +
+   `SCNGeometrySource`/`SCNGeometryElement`, `SCNMaterial`/
+   `SCNMaterialProperty` (diffuse/emission/specular + wrap/filter enums),
+   `SCNLight`, `SCNCamera`, `SCNScene`/`SCNSceneSource`, an interpretable
+   `SCNAction` tree, and SwiftUI's `SceneView`. `QuillSolarSystem` and
+   `QuillMoleculeViewer` compile unmodified against it
+   (`QUILLUI_SCENEKIT_FIXTURES=1`). Render is still inert (black `SceneView`);
+   the graph is held faithfully for the rung-3 rasteriser. The SceneKit shim
+   gains a `SwiftUI` dep (for `SceneView`) — acyclic, and the
+   `Color(nsColor:)`/`Color(uiColor:)` bridges real source uses were added
+   to the shared shim. STILL TODO at this rung: census + compile
+   `QuillEuclidExample` and `QuillShapeScriptViewer` (they need Euclid's
+   `canImport(SceneKit)` interop + the `SCNGeometrySource` data marshalling
+   to light up — a deeper surface than the fixtures).
 3. **Fixtures render on GTK**: software-render the scene graph (project the
    sphere/cylinder primitives via the existing Cairo CGContext path — flat
    shading first, the fixtures' scenes are deliberately simple) behind
@@ -83,7 +97,7 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Fixtures authored (faithful macOS SwiftUI+SceneKit source)
 - [x] Inert RealityKit shim module (Euclid Example's RealityKitViewController)
 - [x] Rung 1: Euclid + ShapeScript lib/CLI green on Linux (CLI renders .shape → .stl)
-- [ ] Rung 2: SCN surface census + shim types
+- [x] Rung 2 (fixtures): SceneKit scene-graph shim authored; QuillSolarSystem + QuillMoleculeViewer compile
 - [ ] Rung 3: fixtures render (GTK screenshot gate)
 - [ ] Rung 4: QuillEuclidExample renders
 - [ ] Rung 5: QuillShapeScriptViewer launches
