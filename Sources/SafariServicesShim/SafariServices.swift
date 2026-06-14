@@ -22,7 +22,9 @@ public class SFSafariViewController: UIViewController {
     public init(url: URL, configuration: Configuration = Configuration()) {
         self.url = url
         self.configuration = configuration
-        super.init()
+        // UIViewController's `init()` is convenience; super-call the designated init
+        // (else "undefined symbol UIViewController.init()" at link time).
+        super.init(nibName: nil, bundle: nil)
     }
 
     // QuillUIKit's UIViewController declares `required init?(coder:)`; once this
