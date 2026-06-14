@@ -1340,15 +1340,60 @@ public enum UIAccessibilityContrast: Int {
 }
 
 @MainActor public class UIAlertController: UIViewController {
-    public init(title: String?, message: String?, preferredStyle: Int) {
-        super.init(nibName: nil, bundle: nil)
+    /// Apple's UIAlertController.Style (action sheet vs. alert). Raw values
+    /// match UIKit's (actionSheet == 0, alert == 1). The old `preferredStyle:
+    /// Int` parameter could never accept upstream's `.alert` / `.actionSheet`
+    /// arguments.
+    public enum Style: Int, Sendable {
+        case actionSheet = 0
+        case alert = 1
     }
-    public func addAction(_: Any) {}
+
+    // `title` is inherited from UIViewController (open var title: String?).
+    public var message: String?
+    public private(set) var preferredStyle: Style = .alert
+    /// The actions added via `addAction(_:)`, in insertion order, as on Apple.
+    public private(set) var actions: [UIAlertAction] = []
+    public var preferredAction: UIAlertAction?
+
+    public init(title: String?, message: String?, preferredStyle: Style) {
+        self.message = message
+        self.preferredStyle = preferredStyle
+        super.init(nibName: nil, bundle: nil)
+        self.title = title
+    }
+
+    public func addAction(_ action: UIAlertAction) {
+        actions.append(action)
+    }
     // popoverPresentationController is inherited from UIViewController.
+    // (UITextField-based addTextField(configurationHandler:) belongs in the
+    // UIKitShim layer — UITextField is declared in that dependent module.)
 }
 
 public class UIAlertAction: NSObject {
-    public init(title: String?, style: Int, handler: ((UIAlertAction) -> Void)? = nil) {}
+    /// Apple's UIAlertAction.Style. Raw values match UIKit's (default == 0,
+    /// cancel == 1, destructive == 2). The old `style: Int` parameter could
+    /// never accept upstream's `.default` / `.cancel` / `.destructive`.
+    public enum Style: Int, Sendable {
+        case `default` = 0
+        case cancel = 1
+        case destructive = 2
+    }
+
+    public let title: String?
+    public let style: Style
+    public var isEnabled: Bool = true
+    /// The handler invoked when the action is selected. No event backend fires
+    /// it on Linux; recorded so a future native alert renderer can.
+    public let quillHandler: ((UIAlertAction) -> Void)?
+
+    public init(title: String?, style: Style, handler: ((UIAlertAction) -> Void)? = nil) {
+        self.title = title
+        self.style = style
+        self.quillHandler = handler
+        super.init()
+    }
 }
 
 // UIAction lives in UIEventsMenus.swift with the rest of the menu-element
@@ -1444,7 +1489,12 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public var imageView: UIImageView?
     // (accessibilityLabel moved up to the UIView class body — one
     // declaration, overridable — matching Apple, where UIButton inherits it.)
-    public func setTitle(_: String?, for: Any) {}
+    // setTitle(_:for:) — and the rest of the per-state content surface
+    // (setImage / setTitleColor / setAttributedTitle / titleLabel) — lives in
+    // UIButtonExtras.swift with Apple's exact `for state: UIControl.State`
+    // signature. The old class-body `setTitle(_:for: Any)` here was a wrong-
+    // typed duplicate: `Any` collided with the correct State-typed overload,
+    // making every `button.setTitle(_, for: .normal)` call ambiguous.
     open var menu: UIMenu?
     open var showsMenuAsPrimaryAction: Bool = false
     open var contentHorizontalAlignment: UIControl.ContentHorizontalAlignment = .center
