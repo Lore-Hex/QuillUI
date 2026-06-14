@@ -54,7 +54,11 @@ public enum UIButtonType: Int, Sendable {
 
 // MARK: - Side table
 
-private struct QuillButtonState {
+// `internal` (not `private`): the `quillButtonState` accessor is internal so the
+// class-body `setImage(_:for:)` (QuillUIKit.swift) can reach it; an internal
+// property may not expose a private type, so the struct (and its fields) are
+// internal too.
+struct QuillButtonState {
     /// Backref validating the table entry against address reuse.
     weak var owner: UIButton?
 
