@@ -2099,15 +2099,28 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 src = path.read_text()
-src = src.replace("import Images\n", "")
-src = re.sub(
-    r"\n\tfunc iconImage\(\) -> IconImage\? \{\n\t\treturn IconImageCache\.shared\.imageForArticle\(self\)\n\t\}\n\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{\n\t\tif let image = iconImage\(\) \{\n\t\t\tlet fm = FileManager\.default\n\t\t\tvar path = fm\.urls\(for: \.cachesDirectory, in: \.userDomainMask\)\[0\]\n\t\t\tlet feedID = feed\.feedID\.replacingOccurrences\(of: \"/\", with: \"_\"\)\n\t\t\tpath\.appendPathComponent\(feedID \+ \"_smallIcon\.png\"\)\n\t\t\tfm\.createFile\(atPath: path\.path, contents: image\.image\.dataRepresentation\(\)!, attributes: nil\)\n\t\t\treturn path\n\t\t\} else \{\n\t\t\treturn nil\n\t\t\}\n\t\}\n",
-    "\n",
-    src,
-    count=1,
+# Delete the `iconImage()` + `iconImageUrl(feed:)` island that depends on the
+# `Images` module's IconImage/IconImageCache (IconImageCache.swift is excluded
+# from the NetNewsWireSharedCore target). Match the two function signatures and
+# their 1-tab-indented closing braces, with the BODIES matched non-greedily
+# (DOTALL) so upstream refactors of the body (e.g. adding a `guard let
+# imageData = ...`) don't desync this patch the way an exact-body match did.
+island = re.compile(
+    r"\n\tfunc iconImage\(\) -> IconImage\? \{.*?\n\t\}\n"
+    r"\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{.*?\n\t\}\n",
+    re.DOTALL,
 )
-path.write_text(src)
-print("patched ArticleUtilities without Images/IconImageCache dependency")
+new = island.sub("\n", src, count=1)
+if new != src:
+    # Only drop the import once the functions that used it are gone, so the
+    # import and its users can never get out of sync (the prior desync left
+    # `import Images` stripped while the functions survived -> IconImage
+    # "cannot find type" on Linux).
+    new = new.replace("import Images\n", "")
+    path.write_text(new)
+    print("patched ArticleUtilities without Images/IconImageCache dependency")
+else:
+    print("WARNING: ArticleUtilities iconImage island pattern did not match; left untouched")
 PY
     fi
 
