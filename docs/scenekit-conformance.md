@@ -10,11 +10,11 @@ each target app's compile errors as the work-list.
 
 | Target | Source | License | What it proves |
 | --- | --- | --- | --- |
-| `Euclid` (lib) | [nicklockwood/Euclid](https://github.com/nicklockwood/Euclid) `.upstream/euclid` | MIT | Pure-Swift 3D geometry/CSG core. NOTE: in this package's shared scratch, upstream's canImport gates leak TRUE for every shim module in the graph, so Euclid's SceneKit/AppKit/UIKit/CG/CT interop files compile too — their gaps ARE the first census (and pin down the exact mesh-handoff surface). |
+| `Euclid` (lib) | [nicklockwood/Euclid](https://github.com/nicklockwood/Euclid) `.upstream/euclid` | MIT | Pure-Swift 3D geometry/CSG core. Compiles **green at rung 1** with no Apple deps: its `Euclid+SceneKit/AppKit/UIKit/CG/CT/SIMD` files are `#if canImport(...)` gated and drop out when those modules aren't pulled into the dep graph. Built `.swiftLanguageMode(.v5)` (its global statics + `@Sendable` permutation closures trip Swift 6 strict-concurrency). The SceneKit interop lights up at rung 2 once the SceneKit shim is authored and added as a dep. |
 | `QuillSolarSystem` (fixture) | `Sources/QuillSceneKitFixtures/SolarSystem` (authored in-repo) | — | First SCN surface: SCNScene/SCNNode, SCNSphere, diffuse/emission materials, omni+ambient lights, SCNCamera, repeating SCNActions, `look(at:)`, SwiftUI `SceneView`, `scene.isPaused`. |
 | `QuillMoleculeViewer` (fixture) | `Sources/QuillSceneKitFixtures/MoleculeViewer` (authored in-repo) | — | Adds SCNCylinder, specular materials, directional lights, pivot-oriented bonds, swapping a SceneView's scene from state. |
 | `QuillEuclidExample` | `.upstream/euclid/Example` | MIT | Real UIKit + SceneKit demo app (SCNGeometry from raw mesh data, gesture-driven camera; one RealityKit screen against the inert RealityKit shim; one visionOS volumetric view). |
-| `ShapeScript` (lib) + `QuillShapeScriptCLI` | [nicklockwood/ShapeScript](https://github.com/nicklockwood/ShapeScript) `.upstream/shapescript` | MIT | The 3D-modeling language core; supports Linux upstream — expected green early. Deps: `SVGPath` (MIT, path-based target) and `LRUCache`, which resolves to the existing in-repo stub `Sources/LRUCache` (no-op cache: correct, just uncached; rung 1 may repoint it at `.upstream/lrucache`). |
+| `ShapeScript` (lib) + `QuillShapeScriptCLI` | [nicklockwood/ShapeScript](https://github.com/nicklockwood/ShapeScript) `.upstream/shapescript` | MIT | The 3D-modeling language core; **green at rung 1**. Deps: `Euclid`, `SVGPath` (MIT, path-based), and the REAL `.upstream/lrucache` compiled as `ShapeScriptLRUCache` + `-module-alias LRUCache=ShapeScriptLRUCache` (its `GeometryCache` needs the full LRUCache API the in-repo no-op stub lacks). |
 | `QuillShapeScriptViewer` | `.upstream/shapescript/Viewer` (Mac + Shared) | MIT | **Flagship**: a real shipped, NSDocument-based AppKit macOS app whose entire viewport is an SCNView. Doubles as an AppKit-reimplementation conformance driver (docs/appkit-reimplementation.md). |
 
 Vetted and rejected: BioViewer (custom Metal engine, not SceneKit); the
@@ -44,13 +44,17 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
 
 ## Ladder
 
-1. **Euclid lib green, then ShapeScript lib/CLI green**. Because of the
-   canImport leakage (table note), Euclid-green already requires the first
-   sliver of SCN data types (SCNGeometry sources/elements, SCNVector3 et
-   al.) plus small AppKit/UIKit/CG/CT member fills — a forced, well-scoped
-   census of exactly the mesh-handoff surface. `shapescript` CLI rendering
-   a .shape file to OBJ/STL on QuillOS is then a real, demoable win with
-   zero rendering surface.
+1. **Euclid lib green, then ShapeScript lib/CLI green** — ✅ DONE. No SCN
+   surface needed: Euclid's interop files are `canImport`-gated and drop
+   out with no Apple deps; both targets just need `.swiftLanguageMode(.v5)`
+   (Swift-5 upstream code vs the default Swift 6 strict-concurrency mode).
+   ShapeScript's `GeometryCache` needs the REAL nicklockwood/LRUCache API
+   (the repo's in-repo `LRUCache` stub is a no-op), supplied via a distinct
+   `ShapeScriptLRUCache` target + `-module-alias LRUCache=ShapeScriptLRUCache`.
+   The `shapescript` CLI renders `.shape` → `.stl` on QuillOS Linux through
+   the full evaluate→Euclid-geometry→export pipeline (verified: Ball 66 KB,
+   Spring 413 KB, Cog 13 KB, Icosahedron 1 KB) — a real 3D win with zero
+   rendering surface.
 2. **SCN surface census, app tier**: enumerate compile errors of the two
    fixtures + QuillEuclidExample + QuillShapeScriptViewer (the SolderScope
    error-census pattern); author the SCNScene/SCNNode/material/light/
@@ -78,7 +82,7 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Targets wired, presence/env-gated; fetch arms + meta-arm added
 - [x] Fixtures authored (faithful macOS SwiftUI+SceneKit source)
 - [x] Inert RealityKit shim module (Euclid Example's RealityKitViewController)
-- [ ] Rung 1: Euclid + ShapeScript lib/CLI green on Linux
+- [x] Rung 1: Euclid + ShapeScript lib/CLI green on Linux (CLI renders .shape → .stl)
 - [ ] Rung 2: SCN surface census + shim types
 - [ ] Rung 3: fixtures render (GTK screenshot gate)
 - [ ] Rung 4: QuillEuclidExample renders
