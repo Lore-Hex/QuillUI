@@ -84,12 +84,4 @@ public extension NSAttributedString {
         }
         self.init(string: text)
     }
-
-    /// Apple ships a no-argument `NSAttributedString()` (empty string, no
-    /// attributes); swift-corelibs Foundation on Linux only has `init(string:)`,
-    /// so callers that write `NSAttributedString()` fail to resolve. Forward to
-    /// the empty-string initializer.
-    convenience init() {
-        self.init(string: "")
-    }
 }

@@ -189,8 +189,12 @@ public extension NotificationCenter {
         // on Linux (notifications post synchronously on the caller), so assuming
         // the main actor inside is faithful to Apple's main-thread delivery.
         addObserver(forName: name, object: obj, queue: queue) { notification in
+            // corelibs posts synchronously on the calling thread on Linux, so the
+            // value never actually crosses threads; `nonisolated(unsafe)` tells the
+            // Swift 6 sending-check what the runtime already guarantees here.
+            nonisolated(unsafe) let n = notification
             MainActor.assumeIsolated {
-                block(notification)
+                block(n)
             }
         }
     }
@@ -209,8 +213,12 @@ public extension Timer {
         block: @MainActor @escaping (Timer) -> Void
     ) -> Timer {
         scheduledTimer(withTimeInterval: interval, repeats: repeats) { timer in
+            // Timers fire on the run loop that scheduled them (the main loop at
+            // these call sites); the value never crosses threads, so the
+            // sending-check escape hatch is honest here.
+            nonisolated(unsafe) let t = timer
             MainActor.assumeIsolated {
-                block(timer)
+                block(t)
             }
         }
     }
