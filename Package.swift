@@ -938,6 +938,7 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGdkPixbuf",
         path: "Sources/CGdkPixbuf",
+        pkgConfig: "gdk-pixbuf-2.0",
         providers: [
             .apt(["libgdk-pixbuf-2.0-dev"])
         ]
@@ -2975,6 +2976,7 @@ if quillUILinuxBuildBackend == .qt {
         .systemLibrary(
             name: "CGdkPixbuf",
             path: "Sources/CGdkPixbuf",
+            pkgConfig: "gdk-pixbuf-2.0",
             providers: [
                 .apt(["libgdk-pixbuf-2.0-dev"])
             ]
