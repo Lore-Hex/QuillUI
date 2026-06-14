@@ -620,6 +620,12 @@ public class AVAsset: @unchecked Sendable {
     public convenience init(url: URL) { self.init() }
     public var isReadable: Bool { false }
     public var isPlayable: Bool { false }
+    /// Whether the asset can be exported (AVAssetExportSession-eligible).
+    /// Inert on Linux (no media pipeline); SignalUI's VideoEditorModel reads it
+    /// alongside isPlayable/isReadable when validating an asset.
+    public var isExportable: Bool { false }
+    /// Whether the asset contains DRM-protected content. Always false on Linux.
+    public var hasProtectedContent: Bool { false }
     public var duration: CMTime { .zero }
     public var tracks: [AVAssetTrack] { [] }
     public func tracks(withMediaType mediaType: AVMediaType) -> [AVAssetTrack] { [] }
