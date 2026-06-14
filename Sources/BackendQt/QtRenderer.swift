@@ -1323,6 +1323,18 @@ extension ButtonStyleModifier: QtRenderable {
     }
 }
 
+extension CustomButtonStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.customButtonStyle = style
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
 // Qt stylesheets have no CSS-transition analogue; render the content and let
 // state changes apply immediately (no animated tween).
 extension AnimatedView: QtRenderable {
