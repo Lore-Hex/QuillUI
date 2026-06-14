@@ -1792,6 +1792,14 @@ public extension View {
         _ = mask()
         return self
     }
+
+    // Pre-iOS-15 value form: `.mask(SomeView())`. Upstream apps still call this
+    // (e.g. a gradient fade mask). Preserved as a layout-neutral pass-through.
+    @_disfavoredOverload
+    func mask<Mask: View>(_ mask: Mask) -> Self {
+        _ = mask
+        return self
+    }
 }
 
 public extension Image {

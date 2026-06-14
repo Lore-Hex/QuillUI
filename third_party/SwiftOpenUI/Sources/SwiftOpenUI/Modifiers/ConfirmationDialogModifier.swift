@@ -147,6 +147,44 @@ extension View {
             participatesInDismissalInterception: false
         )
     }
+
+    /// SwiftUI-shaped builder overload with actions only (no message view).
+    /// Upstream apps frequently call `.confirmationDialog(_:isPresented:actions:)`
+    /// without a message; without this overload the call falls through to the
+    /// `[AlertButton]` forms and fails to type-check against a `@ViewBuilder`.
+    public func confirmationDialog<Actions: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        @ViewBuilder actions: () -> Actions
+    ) -> ConfirmationDialogView<Self> {
+        ConfirmationDialogView(
+            content: self,
+            title: title,
+            isPresented: isPresented,
+            titleVisibility: .automatic,
+            message: "",
+            buttons: swiftOpenUIConfirmationDialogButtons(from: actions()),
+            participatesInDismissalInterception: false
+        )
+    }
+
+    /// SwiftUI-shaped builder overload with explicit title visibility, actions only.
+    public func confirmationDialog<Actions: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        titleVisibility: Visibility,
+        @ViewBuilder actions: () -> Actions
+    ) -> ConfirmationDialogView<Self> {
+        ConfirmationDialogView(
+            content: self,
+            title: title,
+            isPresented: isPresented,
+            titleVisibility: titleVisibility,
+            message: "",
+            buttons: swiftOpenUIConfirmationDialogButtons(from: actions()),
+            participatesInDismissalInterception: false
+        )
+    }
 }
 
 private protocol SwiftOpenUIButtonRepresentable {
