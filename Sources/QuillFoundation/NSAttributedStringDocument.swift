@@ -57,7 +57,11 @@ public extension NSAttributedString {
     convenience init(
         data: Data,
         options: [DocumentReadingOptionKey: Any] = [:],
-        documentAttributes dict: AutoreleasingUnsafeMutablePointer<NSDictionary?>? = nil
+        // Apple types this `AutoreleasingUnsafeMutablePointer<NSDictionary?>?`, an
+        // ObjC-interop pointer that doesn't exist on Linux. The out-attributes are
+        // never produced here anyway, so a plain UnsafeMutablePointer matches the
+        // call shape (callers pass `nil`) without the ObjC-only type.
+        documentAttributes dict: UnsafeMutablePointer<NSDictionary?>? = nil
     ) throws {
         _ = dict
         let encoding: String.Encoding
