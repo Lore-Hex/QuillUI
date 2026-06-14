@@ -81,6 +81,13 @@ extension View {
 
     /// Show a confirmation dialog when `isPresented` becomes true.
     /// Buttons are displayed vertically (action sheet style).
+    ///
+    /// Disfavored so a `actions: { … }` ViewBuilder closure (the SwiftUI form
+    /// real apps like IceCubes' StatusKit use) resolves to the
+    /// `confirmationDialog<Actions: View>` overload below rather than binding
+    /// the closure to this `[AlertButton]` parameter. An explicit array
+    /// argument still selects this overload (the builder form can't match it).
+    @_disfavoredOverload
     public func confirmationDialog(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -96,6 +103,7 @@ extension View {
     }
 
     /// Show a confirmation dialog with explicit title visibility.
+    @_disfavoredOverload
     public func confirmationDialog(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -112,6 +120,7 @@ extension View {
     }
 
     /// Show a confirmation dialog with explicit title visibility and message.
+    @_disfavoredOverload
     public func confirmationDialog(
         _ title: String,
         isPresented: Binding<Bool>,
