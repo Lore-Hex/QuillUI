@@ -153,29 +153,49 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
     }
 
     public static func make(_ view: UIView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
-        let fixed = gtk_fixed_new()!
-        // gtk_fixed_put/`GtkFixed` is a typed GTK pointer; CGTKBridge ships no
-        // `fixedPointer` cast, so reinterpret the GtkWidget* locally (same
-        // assumingMemoryBound pattern boxPointer uses).
-        let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
+        let subviews = view.subviews
 
-        for child in view.subviews {
-            guard let childWidget = ctx.render(child) else { continue }
-            let frame = child.frame
-            gtk_fixed_put(
-                fixedPtr,
-                childWidget,
-                gdouble(frame.origin.x),
-                gdouble(frame.origin.y)
-            )
-            gtk_widget_set_size_request(
-                childWidget,
-                gint(frame.width),
-                gint(frame.height)
-            )
+        // Auto Layout isn't solved in this renderer (verdict approach A: sidestep
+        // the constraint solver). So most views arrive with `.zero` frames. Only
+        // use absolute GtkFixed positioning when SOME subview actually carries a
+        // real frame; otherwise frame-positioning would collapse everything to
+        // (0,0)×0 (invisible). With no usable frames, fall back to a vertical
+        // GtkBox so children stack at their natural size and are visible — this is
+        // what makes Signal's constraint-built screens (e.g. the table filling its
+        // controller view, a cell's label/icon row) actually render.
+        let hasRealFrames = subviews.contains { $0.frame.width > 0 && $0.frame.height > 0 }
+
+        if hasRealFrames {
+            let fixed = gtk_fixed_new()!
+            let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
+            for child in subviews {
+                guard let childWidget = ctx.render(child) else { continue }
+                let frame = child.frame
+                gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
+                gtk_widget_set_size_request(childWidget, gint(frame.width), gint(frame.height))
+            }
+            ctx.applyLayerStyle(fixed, view)
+            return fixed
         }
 
-        ctx.applyLayerStyle(fixed, view)
-        return fixed
+        // No-frame fallback: vertical GtkBox. Children fill horizontally and keep
+        // their natural height; a scroll/table child is given room to expand.
+        let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        for child in subviews {
+            guard let childWidget = ctx.render(child) else { continue }
+            gtk_widget_set_hexpand(childWidget, 1)
+            gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+            // Scroll views / tables should grow to fill remaining vertical space;
+            // plain content keeps its natural height and stacks from the top.
+            if child is UIScrollView {
+                gtk_widget_set_vexpand(childWidget, 1)
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+            } else {
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
+            }
+            gtk_box_append(boxPointer(box), childWidget)
+        }
+        ctx.applyLayerStyle(box, view)
+        return box
     }
 }
