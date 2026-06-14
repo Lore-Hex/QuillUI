@@ -42,10 +42,13 @@ UIKIT_TYPES='\bUIColor\b|\bUIImage\b|\bUIFont\b|\bUIView\b|\bUIApplication\b|\bU
 # import is canImport-gated so it is a no-op on Apple.
 FOUNDATIONNETWORKING_TYPES='\bURLRequest\b|\bURLResponse\b|\bHTTPURLResponse\b|\bURLSession\b|\bURLSessionTask\b|\bURLSessionDataTask\b|\bURLSessionUploadTask\b|\bURLSessionDownloadTask\b|\bURLSessionWebSocketTask\b|\bURLSessionConfiguration\b|\bURLSessionDelegate\b|\bURLSessionTaskDelegate\b|\bURLSessionDataDelegate\b|\bURLSessionWebSocketDelegate\b|\bURLAuthenticationChallenge\b|\bURLCredential\b|\bURLProtocol\b|\bURLProtectionSpace\b|\bHTTPCookie\b|\bURLCache\b|\bCachedURLResponse\b'
 
-# ImageIO: CGImageSource and the kCGImage* metadata keys (the ImageIO shim on
-# Linux). On Apple these arrive transitively via UIKit / CoreGraphics, so the
-# upstream files do not import ImageIO explicitly.
-IMAGEIO_TYPES='\bCGImageSource\b|\bkCGImage|\bCGDataProvider\b'
+# ImageIO: CGImageSource, the kCGImage* metadata keys, and the
+# CGImagePropertyOrientation enum (the ImageIO shim on Linux). On Apple these
+# arrive transitively via UIKit / CoreGraphics, so the upstream files do not
+# import ImageIO explicitly. (`\bkCGImage` already covers the
+# kCGImagePropertyOrientation key; the enum TYPE is a distinct symbol and so
+# needs its own word-boundaried alternative.)
+IMAGEIO_TYPES='\bCGImageSource\b|\bkCGImage|\bCGDataProvider\b|\bCGImagePropertyOrientation\b'
 
 # CoreFoundation: the CF* value types. swift-corelibs-foundation's `import
 # Foundation` does not re-export these on Linux (on Apple it does), so files
@@ -58,6 +61,14 @@ COREFOUNDATION_TYPES='\bCFData\b|\bCFString\b|\bCFDictionary\b|\bCFArray\b|\bCFN
 # -link types (the QuartzCore shim on Linux). On Apple these arrive transitively
 # via UIKit, so the upstream files do not import QuartzCore explicitly.
 QUARTZCORE_TYPES='\bCACurrentMediaTime\b|\bCADisplayLink\b|\bCAGradientLayer\b|\bCALayer\b|\bCAShapeLayer\b|\bCAMediaTimingFunction\b|\bCATransaction\b|\bCAAnimation\b'
+
+# CoreText: the CTFontManager* font-registration API (the CoreText shim on
+# Linux). Signal registers its bundled fonts via
+# CTFontManagerRegisterFontsForURL(_:_:CTFontManagerScope...) but imports only
+# UIKit/Foundation (on Apple CoreText arrives transitively via UIKit); on Linux
+# it needs an explicit `import CoreText`. Matches the whole CTFontManager*
+# surface (the register/unregister functions and the CTFontManagerScope enum).
+CORETEXT_TYPES='\bCTFontManager[A-Za-z]*\b'
 
 # Security: the Keychain / SecTrust / SecKey / SecRandom API (the Security shim on
 # Linux). On Apple these arrive via the bridging umbrella; on Linux each file that
@@ -151,6 +162,7 @@ while IFS= read -r f; do
         fi
     fi
     if inject_if_needed "$f" "QuartzCore" "$QUARTZCORE_TYPES"; then touched=1; fi
+    if inject_if_needed "$f" "CoreText" "$CORETEXT_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "Security" "$SECURITY_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "CFNetwork" "$CFNETWORK_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "QuillFoundation" "$TIMECONST_TYPES"; then touched=1; fi

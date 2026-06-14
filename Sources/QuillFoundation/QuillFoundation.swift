@@ -1282,10 +1282,6 @@ public extension CGSize {
         )
     }
 
-    var abs: CGSize {
-        CGSize(width: Swift.abs(width), height: Swift.abs(height))
-    }
-
     static func max(_ lhs: CGSize, _ rhs: CGSize) -> CGSize {
         CGSize(width: Swift.max(lhs.width, rhs.width), height: Swift.max(lhs.height, rhs.height))
     }
