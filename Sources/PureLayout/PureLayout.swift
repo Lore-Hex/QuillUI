@@ -353,6 +353,14 @@ extension UIView {
         return constraints
     }
 
+    /// Signal's PureLayout fork spells the excluding-edge margin pin as a single
+    /// `autoPinEdges(toSuperviewMarginsExcludingEdge:)` selector rather than the
+    /// `autoPinEdgesToSuperviewMargins(excludingEdge:)` form. Same semantics.
+    @discardableResult
+    public func autoPinEdges(toSuperviewMarginsExcludingEdge edge: ALEdge) -> [NSLayoutConstraint] {
+        return autoPinEdgesToSuperviewMargins(excludingEdge: edge)
+    }
+
     /// The `withInset:` parameter matches Signal's PureLayout fork (upstream
     /// has only the bare and `relation:` forms).
     @discardableResult

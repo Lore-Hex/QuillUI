@@ -154,6 +154,13 @@ public final class UIFontDescriptor: @unchecked Sendable {
 public final class UIFontMetrics: @unchecked Sendable {
     public static let `default` = UIFontMetrics()
     public func scaledValue(for value: CGFloat) -> CGFloat { value }
+    /// `scaledValue(for:compatibleWith:)`. With no Dynamic Type backend the
+    /// trait collection has no effect; return the unscaled value, matching the
+    /// bare overload.
+    public func scaledValue(for value: CGFloat, compatibleWith traitCollection: UITraitCollection?) -> CGFloat {
+        _ = traitCollection
+        return value
+    }
 }
 #endif
 
@@ -204,6 +211,16 @@ public extension UIImage {
     /// Inert on Linux: returns self (no template tinting). SSK uses
     /// .alwaysTemplate for theme-tinted glyphs; the original image suffices.
     func withRenderingMode(_ renderingMode: RenderingMode) -> UIImage {
+        return self
+    }
+
+    /// `UIImage.withTintColor(_:)` / `withTintColor(_:renderingMode:)`. There is
+    /// no CoreGraphics tinting backend on Linux, so the color and rendering mode
+    /// are recorded-intent and the original image is returned (matching the
+    /// inert `withRenderingMode` above). `renderingMode` defaults to `.automatic`
+    /// as on Apple.
+    func withTintColor(_ color: UIColor, renderingMode: RenderingMode = .automatic) -> UIImage {
+        _ = (color, renderingMode)
         return self
     }
 
@@ -706,6 +723,10 @@ open class UITextSelectionRect: NSObject {
     func textViewDidChangeSelection(_ textView: UITextView)
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool
     func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool
+    /// Apple's text-attachment companion to the URL overload above. BodyRangesTextView
+    /// forwards both; without this requirement the attachment call resolves to the
+    /// `URL` overload and fails ("cannot convert NSTextAttachment to URL").
+    func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool
 }
 
 public extension UITextViewDelegate {
@@ -717,6 +738,7 @@ public extension UITextViewDelegate {
     @MainActor func textViewDidChangeSelection(_ textView: UITextView) {}
     @MainActor func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool { true }
     @MainActor func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
+    @MainActor func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
 }
 
 @MainActor public protocol UITextPasteConfigurationSupporting: AnyObject {}
@@ -1032,6 +1054,16 @@ public extension UIDragInteractionDelegate {
     /// marked range, matching Apple committing the composition.
     open func unmarkText() {
         markedTextRange = nil
+    }
+
+    /// Apple's `UITextView.editMenu(for:suggestedActions:)` (iOS 16+) lets a
+    /// text view customize the edit menu for a selection. CLASS-BODY `open`:
+    /// BodyRangesTextView overrides it to insert mention/format actions. No edit
+    /// menu is presented on Linux, so the base returns the suggested menu as-is
+    /// (Apple returns `nil` to keep the default, which is also valid here).
+    open func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        _ = (textRange, suggestedActions)
+        return nil
     }
 
     // MARK: Input traits not shared with UITextField

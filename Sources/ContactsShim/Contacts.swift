@@ -121,6 +121,10 @@ public class CNContact: NSObject {
         _ = name
         return NSPredicate(value: false)
     }
+    public static func predicateForContacts(matching phoneNumber: CNPhoneNumber) -> NSPredicate {
+        _ = phoneNumber
+        return NSPredicate(value: false)
+    }
 }
 
 public final class CNMutableContact: CNContact {}

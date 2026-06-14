@@ -343,6 +343,17 @@ public final class AVCaptureDevice: @unchecked Sendable {
         _ = (deviceType, mediaType, position)
         return nil
     }
+
+    /// Enumerates capture devices matching the given criteria. No camera
+    /// hardware is enumerable on Linux, so `devices` is always empty.
+    public final class DiscoverySession: @unchecked Sendable {
+        public let devices: [AVCaptureDevice]
+
+        public init(deviceTypes: [DeviceType], mediaType: AVMediaType?, position: Position) {
+            _ = (deviceTypes, mediaType, position)
+            self.devices = []
+        }
+    }
 }
 
 // Real AVAudioEngine drives the macOS/iOS CoreAudio graph (input
@@ -722,6 +733,13 @@ public final class AVAssetExportSession: @unchecked Sendable {
     public init?(asset: AVAsset, presetName: String) {}
     public func exportAsynchronously(completionHandler handler: @escaping () -> Void) { handler() }
     public func export(to url: URL, as fileType: AVFileType) async throws {
+        throw AVMediaUnavailableOnLinux()
+    }
+
+    /// The no-argument modern async exporter: it relies on `outputURL` /
+    /// `outputFileType` being set on the session beforehand (as upstream does).
+    /// No exporter exists on Linux, so it throws like the `to:as:` form.
+    public func export() async throws {
         throw AVMediaUnavailableOnLinux()
     }
 }

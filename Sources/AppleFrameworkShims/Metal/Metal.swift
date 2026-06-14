@@ -448,6 +448,16 @@ public protocol MTLCommandBuffer: AnyObject {
     func waitUntilCompleted()
 }
 
+public extension MTLCommandBuffer {
+    /// `present(_:afterMinimumDuration:)` schedules the drawable to appear after a
+    /// minimum on-screen interval (frame pacing). There is no display pipeline on
+    /// Linux, so the duration is recorded-intent and we present immediately.
+    func present(_ drawable: MTLDrawable, afterMinimumDuration duration: CFTimeInterval) {
+        _ = duration
+        present(drawable)
+    }
+}
+
 public final class QuillMTLCommandBuffer: MTLCommandBuffer {
     private var scheduledHandlers: [(MTLCommandBuffer) -> Void] = []
     private var completedHandlers: [(MTLCommandBuffer) -> Void] = []
@@ -533,6 +543,23 @@ public protocol MTLDevice: AnyObject {
     func makeRenderPipelineState(descriptor: MTLRenderPipelineDescriptor) throws -> MTLRenderPipelineState
     func makeComputePipelineState(function: MTLFunction) throws -> MTLComputePipelineState
     func makeSamplerState(descriptor: MTLSamplerDescriptor) -> MTLSamplerState?
+}
+
+public extension MTLDevice {
+    /// Apple defaults `options:` to `[]` on the `makeBuffer` family, so call
+    /// sites routinely omit it. The protocol requirements can't carry default
+    /// arguments, so forward through these overloads.
+    func makeBuffer(length: Int) -> MTLBuffer? {
+        makeBuffer(length: length, options: [])
+    }
+
+    func makeBuffer(bytes: UnsafeRawPointer, length: Int) -> MTLBuffer? {
+        makeBuffer(bytes: bytes, length: length, options: [])
+    }
+
+    func makeBuffer<T>(bytes: [T], length: Int) -> MTLBuffer? {
+        makeBuffer(bytes: bytes, length: length, options: [])
+    }
 }
 
 public final class QuillMTLDevice: MTLDevice {

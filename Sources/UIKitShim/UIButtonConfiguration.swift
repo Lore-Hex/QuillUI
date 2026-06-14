@@ -136,6 +136,22 @@ extension AttributedString {
 // are provided by swift-corelibs Foundation 6.x natively — an earlier shim copy
 // here collided ("'AttributeMergePolicy' is ambiguous"), so it was removed.
 
+// MARK: - UIKit attribute scope (Linux)
+
+/// Apple exposes `AttributeScopes.uiKit` (the `UIKitAttributes` scope) as the
+/// `including:` argument when converting an `NSAttributedString` into a typed
+/// `AttributedString` — SignalUI writes `AttributedString(ns, including: \.uiKit)`.
+/// swift-corelibs Foundation on Linux ships no UIKit scope, so the `\.uiKit`
+/// keypath has nothing to resolve against ("cannot infer key path type" / "extra
+/// argument 'including'"). Alias it to the always-present Foundation scope: on
+/// Linux there are no UIKit-only attribute keys to recognize anyway, so the
+/// Foundation scope captures everything the conversion can faithfully carry, and
+/// `\.uiKit` now resolves to a real `AttributeScope` the native
+/// `AttributedString(_:including:)` initializer accepts.
+public extension AttributeScopes {
+    var uiKit: FoundationAttributes.Type { FoundationAttributes.self }
+}
+
 #endif
 
 // MARK: - UIButtonConfiguration
