@@ -2243,6 +2243,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             name: "SignalUIRender",
             dependencies: [
                 "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore",
+                "SignalUI", "SignalServiceKit",
                 .product(name: "CGTK", package: "SwiftOpenUI"),
                 .product(name: "CGTKBridge", package: "SwiftOpenUI"),
             ],

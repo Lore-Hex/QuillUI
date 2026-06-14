@@ -79,8 +79,15 @@ guard gtk_init_check() != 0 else {
 
 // Top-level code is nonisolated; the VC + render path are @MainActor (UIKit +
 // GTK are main-thread-only). We're on the main thread here, so assume isolation.
+// SIGNAL_UI_RENDER_DEMO=firstlight renders the trivial demo; default renders
+// Signal's REAL OWSTableViewController2 (Settings).
 MainActor.assumeIsolated {
-    renderRootViewController(FirstLightViewController(), title: "Signal UI on Linux", width: 390, height: 600)
+    if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] == "firstlight" {
+        renderRootViewController(FirstLightViewController(), title: "Signal UI on Linux", width: 390, height: 600)
+    } else {
+        renderRootViewController(SignalSettingsDemo.makeSettingsViewController(),
+                                 title: "Signal Settings on Linux", width: 390, height: 720)
+    }
 }
 
 let loop = g_main_loop_new(nil, 0)
