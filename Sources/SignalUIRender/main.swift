@@ -24,7 +24,7 @@ final class FirstLightViewController: UIViewController {
 
         let title = UILabel(frame: .zero)
         title.text = "Signal UI — rendering on Linux"
-        title.font = UIFont.boldSystemFont(ofSize: 22)
+        title.font = UIFont.systemFont(ofSize: 22)
         title.textColor = UIColor(red: 0.0, green: 0.48, blue: 1.0, alpha: 1)
 
         let subtitle = UILabel(frame: .zero)
@@ -77,7 +77,11 @@ guard gtk_init_check() != 0 else {
     exit(1)
 }
 
-renderRootViewController(FirstLightViewController(), title: "Signal UI on Linux", width: 390, height: 600)
+// Top-level code is nonisolated; the VC + render path are @MainActor (UIKit +
+// GTK are main-thread-only). We're on the main thread here, so assume isolation.
+MainActor.assumeIsolated {
+    renderRootViewController(FirstLightViewController(), title: "Signal UI on Linux", width: 390, height: 600)
+}
 
 let loop = g_main_loop_new(nil, 0)
 g_main_loop_run(loop)
