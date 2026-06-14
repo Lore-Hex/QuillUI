@@ -1895,6 +1895,20 @@ public extension View {
         _ = mask()
         return self
     }
+
+    // Value-form `.mask(_:)` (SwiftUI's original signature) — vendored real
+    // source that only sees the SwiftUI shadow (which re-exports
+    // QuillSwiftUICompatibility but NOT QuillUI) passes a mask view directly,
+    // e.g. IceCubes DisplaySettingsView's `.mask(LinearGradient(...))`.
+    // Disfavored so that callers who ALSO see QuillUI (e.g. the compat-module
+    // tests) bind to QuillUI's richer value-form mask (-> ViewMaskView /
+    // ClipShapeView) instead of this Self-returning fallback.
+    @_disfavoredOverload
+    func mask<Mask: View>(alignment: Alignment = .center, _ mask: Mask) -> Self {
+        _ = alignment
+        _ = mask
+        return self
+    }
 }
 
 public extension Tab {
@@ -2210,6 +2224,18 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
+    func transition(_ transition: AnyTransition) -> Self {
+        _ = transition
+        recordSwiftUICompatibilityFallback("transition")
+        return self
+    }
+
+    // Disfavored: QuillUI.Compatibility has the FUNCTIONAL overload (it
+    // threads \.colorScheme through the environment). Code that imports
+    // both modules (e.g. the generated Enchanted Linux app) must resolve
+    // to that one; this inert twin only serves DSSC-only importers.
+    @_disfavoredOverload
     func preferredColorScheme(_ colorScheme: ColorScheme?) -> Self {
         _ = colorScheme
         return self
