@@ -260,6 +260,36 @@ public class CNContactStore {
                                keysToFetch keys: [CNKeyDescriptor]) throws -> CNContact {
         throw CNError(.dataAccessError)
     }
+
+    /// Commits a batch of contact mutations. Inert on Linux (no system address
+    /// book): the request's queued add/update/delete operations are dropped and
+    /// the call succeeds. SignalUI: DeleteSystemContactViewController executes a
+    /// delete request here.
+    public func execute(_ saveRequest: CNSaveRequest) throws {
+        _ = saveRequest
+    }
+}
+
+// MARK: - CNSaveRequest
+//
+// Accumulates contact mutations to be committed by CNContactStore.execute(_:).
+// On Linux nothing is persisted (there is no system Contacts store), so the
+// queued operations are recorded but never applied; the type exists so the
+// upstream batch-edit code (DeleteSystemContactViewController) compiles.
+public class CNSaveRequest: NSObject {
+    public override init() { super.init() }
+
+    public func add(_ contact: CNMutableContact, toContainerWithIdentifier identifier: String?) {
+        _ = (contact, identifier)
+    }
+
+    public func update(_ contact: CNMutableContact) {
+        _ = contact
+    }
+
+    public func delete(_ contact: CNMutableContact) {
+        _ = contact
+    }
 }
 
 // MARK: - CNContactsUserDefaults

@@ -222,13 +222,21 @@ public final class AVAudioSession: @unchecked Sendable {
     }
 }
 
-open class AVPlayer: NSObject, @unchecked Sendable {
+// @MainActor to match Apple (and the SignalUI build's `-default-isolation
+// MainActor`): the upstream `LoopingVideoPlayer: AVPlayer` (LoopingVideoView.swift)
+// overrides init(url:)/init(playerItem:)/play()/replaceCurrentItem(with:) under
+// default MainActor isolation; a nonisolated base produced "different actor
+// isolation from nonisolated overridden declaration" on each override.
+@MainActor open class AVPlayer: NSObject, @unchecked Sendable {
     public enum Status: Int, Sendable { case unknown, readyToPlay, failed }
 
     open var currentItem: AVPlayerItem?
     open var audiovisualBackgroundPlaybackPolicy: AVPlayerAudiovisualBackgroundPlaybackPolicy = .automatic
     open var preventsDisplaySleepDuringVideoPlayback: Bool = false
     open var isMuted: Bool = false
+    // Inert on Linux (no external display pipeline); round-trips for the
+    // LoopingVideoPlayer that sets it during sharedInit().
+    open var allowsExternalPlayback: Bool = false
     open var status: Status = .readyToPlay
 
     public override init() {
@@ -250,7 +258,7 @@ open class AVPlayer: NSObject, @unchecked Sendable {
     }
 }
 
-open class AVPlayerItem: NSObject, @unchecked Sendable {
+@MainActor open class AVPlayerItem: NSObject, @unchecked Sendable {
     public enum Status: Int, Sendable { case unknown, readyToPlay, failed }
 
     public let url: URL?
@@ -260,6 +268,10 @@ open class AVPlayerItem: NSObject, @unchecked Sendable {
         self.url = url
         super.init()
     }
+
+    // No seeks are ever pending on Linux (playback is inert); LoopingVideoPlayer
+    // cancels pending seeks on the outgoing item in replaceCurrentItem(with:).
+    open func cancelPendingSeeks() {}
 }
 
 @MainActor open class AVPlayerLayer: CALayer {

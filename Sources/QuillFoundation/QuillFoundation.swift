@@ -945,6 +945,12 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     }
     public var imageOrientation: Orientation { .up }
 
+    /// `UIImage.withHorizontallyFlippedOrientation()` source-compat. On Apple this
+    /// returns a copy whose `imageOrientation` is mirrored horizontally. The Linux
+    /// image is opaque (no raster, orientation always reports `.up`), so this is
+    /// inert and returns self. SignalUI: VideoTimelineView flips the left trim handle.
+    public func withHorizontallyFlippedOrientation() -> RSImage { self }
+
     public func withTintColor(_ color: Any) -> RSImage { self }
     // Typed overload so a leading-dot color literal (e.g. `.white`) resolves its
     // contextual base. SSK: AvatarBuilder.releaseNotesIcon does

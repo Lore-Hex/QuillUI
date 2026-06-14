@@ -1209,6 +1209,13 @@ open class UIWindow: UIView {}
     // surface live in UITableViewExtras.swift.
 }
 
+// The configuration-driven cell content surface (iOS 14+). On Apple a cell's
+// `contentConfiguration` drives its content view; concrete configurations include
+// UIListContentConfiguration and SwiftUI's UIHostingConfiguration (which lives in
+// the SwiftUI shim and conforms to this protocol). Linux is inert: assigning a
+// configuration stores it but renders nothing.
+@MainActor public protocol UIContentConfiguration {}
+
 @MainActor open class UITableViewCell: UIView {
     private static let appearanceProxy = UITableViewCell(style: .default, reuseIdentifier: nil)
     public static func appearance() -> UITableViewCell { appearanceProxy }
@@ -1223,6 +1230,9 @@ open class UIWindow: UIView {}
     public var textLabel: UILabel?
     public var detailTextLabel: UILabel?
     public var imageView: UIImageView?
+    // Inert on Linux: stored but never applied to a content view. SignalUI's
+    // RecipientPickerViewController assigns a UIHostingConfiguration here.
+    public var contentConfiguration: UIContentConfiguration?
 
     // Subclass override points (upstream overrides them with super calls).
     // isSelected/isHighlighted are the side-table accessors in
@@ -1506,7 +1516,12 @@ public extension UIActivityItemSource {
     }
 }
 
-open class UIActivity: NSObject {
+// UIActivity is @MainActor on Apple platforms. The upstream Signal subclasses
+// (CompareSafetyNumbersActivity) override these members under default actor
+// isolation (@MainActor); a nonisolated base produced "different actor isolation
+// from nonisolated overridden declaration" errors. Marking the class @MainActor
+// matches UIKit and silences those overrides.
+@MainActor open class UIActivity: NSObject {
     public override init() {}
     open var activityTitle: String? { nil }
     open var activityImage: UIImage? { nil }
