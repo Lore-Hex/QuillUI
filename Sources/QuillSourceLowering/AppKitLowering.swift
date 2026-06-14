@@ -2097,12 +2097,16 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         if Self.initBodyIsTriviallyNonisolatable(recursed) {
             return DeclSyntax(Self.prependNonisolated(recursed))
         }
-        // Non-trivial body (calls @MainActor work like `ensureState()`, or assigns
-        // a @MainActor member like `label.backgroundColor`): the init must be
-        // `nonisolated` to match its base, but its body needs the main actor. Make it
-        // nonisolated and wrap the post-`super.init()` body in `MainActor.assumeIsolated`
-        // — sound because these objects (UI data sources / label wrappers) are
-        // constructed on the main actor.
+        // Non-trivial body: make the init `nonisolated` (to match its base) and wrap
+        // the body in `MainActor.assumeIsolated` so its @MainActor work type-checks —
+        // but ONLY when the body STARTS with `super.init()`. If there is phase-1 work
+        // before `super.init()` (e.g. `self.contentView = …` in Wallpaper), reordering
+        // it past `super.init()` would break initialization, so leave the init
+        // `@MainActor` (it compiled that way — those classes have @MainActor-base inits;
+        // the over-approximating predicate flagged them unnecessarily).
+        guard Self.initBodyStartsWithSuperInit(recursed) else {
+            return DeclSyntax(recursed)
+        }
         return DeclSyntax(Self.wrappingInitBodyInAssumeIsolated(recursed))
     }
 
@@ -2137,6 +2141,15 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
             }
         }
         return true
+    }
+
+    /// True iff the init body's FIRST statement is `super.init()` — i.e. there is no
+    /// phase-1 stored-property initialization before `super.init()` that the
+    /// assume-isolated wrap would have to preserve.
+    static func initBodyStartsWithSuperInit(_ node: InitializerDeclSyntax) -> Bool {
+        guard let first = node.body?.statements.first,
+              case .expr(let e) = first.item else { return false }
+        return Self.isSuperInitCall(e)
     }
 
     /// Rebuilds an `init()` as `nonisolated <mods> init<sig> { super.init();
