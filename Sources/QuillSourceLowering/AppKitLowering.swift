@@ -214,7 +214,8 @@ public struct AppKitLowering {
             .merging(superclassByType: collector.superclassByType,
                      actionClasses: localActionClasses,
                      knownClasses: collector.knownClasses,
-                     overriddenSignatures: collector.overriddenSignaturesByType)
+                     overriddenSignatures: collector.overriddenSignaturesByType,
+                     classesDeclaringNoArgInit: collector.classesDeclaringNoArgInit)
         // Pass 1: the in-place rewrites (strip @objc, #selector→Selector,
         // Timer→QuillTimer.make, os.log import, os(macOS) widening).
         let pass1 = AppKitRewriter(
@@ -281,8 +282,20 @@ public struct AppKitLowering {
         // `@MainActor` to the deinit of a PROVABLY forest-rooted class (Swift 6.2
         // isolated deinit) — fixing both at once, the runtime hops to main to run
         // it. Model/foreign-base classes are left alone. See the type-level doc.
-        return DeinitMainActorIsolationRewriter(hierarchy: resolvedHierarchy)
-            .rewrite(withIsolation).description
+        let withDeinit = DeinitMainActorIsolationRewriter(hierarchy: resolvedHierarchy)
+            .rewrite(withIsolation)
+        // Pass 6: actor-isolation — LOCAL nested functions. A function declared inside
+        // a closure or another function body is `nonisolated` by default, so under
+        // `-default-isolation MainActor` it cannot touch the `@MainActor` UI state its
+        // surrounding (MainActor) context uses freely (`self.view`,
+        // `viewController.present(…)`, `.overrideUserInterfaceStyle`). The whole
+        // SignalUI module is MainActor-by-default, so marking such LOCAL funcs
+        // `@MainActor` matches their lexical surroundings and the state they touch.
+        // Conservative: ONLY funcs nested in executable code (a function/closure body),
+        // never top-level or type-member funcs (those already get default isolation).
+        // See LocalFunctionMainActorRewriter.
+        return LocalFunctionMainActorRewriter()
+            .rewrite(withDeinit).description
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Mirrors
@@ -474,6 +487,15 @@ public struct HierarchyMap {
     /// base's class body when a subclass elsewhere overrides it (extension members
     /// aren't overridable on Linux). See `someSubclassOverrides`.
     private(set) var overriddenSignaturesByClass: [String: Set<String>] = [:]
+    /// Simple names of classes that declare an EXPLICIT no-arg `init()` in their body.
+    /// A class WITHOUT one inherits/synthesizes its `init()`, whose isolation follows
+    /// the base; a class WITH one has the isolation we choose for that decl. Used by
+    /// `classHasNonisolatedNoArgInit` (Pass 4 / A3) to decide whether a base's `init()`
+    /// is nonisolated: a ROOT class with no explicit `init()` has a compiler-synthesized
+    /// `init()` that is genuinely `nonisolated` under `-default-isolation MainActor`
+    /// (the SheetDisplayableError case), so its subclasses' `init()` overrides must be
+    /// `nonisolated` to match.
+    private(set) var classesDeclaringNoArgInit: Set<String> = []
 
     public init() {}
 
@@ -488,6 +510,37 @@ public struct HierarchyMap {
         "UIGestureRecognizer", "AVPlayer",
         "NSResponder", "NSMenu", "NSMenuItem", "NSAlert",
     ]
+
+    /// Well-known PROTOCOL names that appear FIRST in a class inheritance clause in
+    /// the upstream trees (`class Foo: Error`, `class Bar: CustomDebugStringConvertible`,
+    /// `class Baz: Comparable`). Swift requires a class's superclass to be listed
+    /// first, so a class whose first inherited type is one of these has NO class
+    /// superclass — it is a ROOT class. The HierarchyScanner / ActionMethodCollector
+    /// must NOT record such a name as a "superclass": doing so makes the chain walks
+    /// (`dispatchWitnessIsOverride`, the init-root checks) mistake a protocol for a
+    /// foreign base class. Two concrete bugs this avoids:
+    ///   * `SignalAttachment: CustomDebugStringConvertible` — a no-class-superclass
+    ///     class — was emitting an `override func quillPerform { … super.quillPerform }`
+    ///     ("method does not override" / "'super' cannot be used … no superclass").
+    ///   * `SheetDisplayableError: Error` was treated as having an `Error` base.
+    /// Conservative: only the standard-library / Foundation protocols actually seen
+    /// first in a class clause here. A user TYPE named identically is vanishingly
+    /// unlikely; if one appeared, treating it as "no class super" degrades to the
+    /// safe root outcome. Extend as new protocol-first roots surface.
+    static let knownInheritedProtocolNames: Set<String> = [
+        "Error", "LocalizedError", "CustomNSError",
+        "CustomStringConvertible", "CustomDebugStringConvertible",
+        "Comparable", "Equatable", "Hashable", "Identifiable",
+        "Codable", "Decodable", "Encodable",
+        "Sendable", "CaseIterable", "RawRepresentable",
+        "CustomKeyboard",
+    ]
+
+    /// True iff `name` (simple, no qualifier/generics) is a known protocol that can
+    /// appear first in a class inheritance clause — i.e. it is NOT a class superclass.
+    static func isKnownInheritedProtocol(_ name: String) -> Bool {
+        knownInheritedProtocolNames.contains(simpleName(name))
+    }
 
     /// Shim base classes that are `@MainActor` AND declare/inherit `@MainActor`
     /// designated initializers, so an upstream subclass's init should stay
@@ -537,6 +590,7 @@ public struct HierarchyMap {
         for (owner, sigs) in scanner.overriddenSignaturesByClass {
             overriddenSignaturesByClass[owner, default: []].formUnion(sigs)
         }
+        classesDeclaringNoArgInit.formUnion(scanner.classesDeclaringNoArgInit)
     }
 
     /// Return a copy with the file-local class→superclass entries and the
@@ -547,7 +601,8 @@ public struct HierarchyMap {
         superclassByType localSuperclassByType: [String: String],
         actionClasses localActionClasses: Set<String> = [],
         knownClasses localKnownClasses: Set<String> = [],
-        overriddenSignatures localOverriddenSignatures: [String: Set<String>] = [:]
+        overriddenSignatures localOverriddenSignatures: [String: Set<String>] = [:],
+        classesDeclaringNoArgInit localNoArgInit: Set<String> = []
     ) -> HierarchyMap {
         var copy = self
         for (qualified, superName) in localSuperclassByType {
@@ -559,6 +614,7 @@ public struct HierarchyMap {
         for (owner, sigs) in localOverriddenSignatures {
             copy.overriddenSignaturesByClass[HierarchyMap.simpleName(owner), default: []].formUnion(sigs)
         }
+        copy.classesDeclaringNoArgInit.formUnion(localNoArgInit.map(HierarchyMap.simpleName))
         return copy
     }
 
@@ -641,6 +697,73 @@ public struct HierarchyMap {
             current = simpleSuper
         }
         return false // chain ended at an unknown foreign base → leave alone
+    }
+
+    /// True iff `className`'s no-arg `init()` ends up `nonisolated` under
+    /// `-default-isolation MainActor` — so any in-tree SUBCLASS's `init()` override
+    /// must also be `nonisolated` to match (the override-isolation rule). Three
+    /// nonisolated-init populations (the rest are `@MainActor` and LEFT ALONE):
+    ///
+    ///   1. NSObject-DIRECT (chain reaches literal `NSObject` with no forest root):
+    ///      its `init()` overrides corelibs `NSObject`'s genuinely-`nonisolated`
+    ///      `init()`. (The leaf NSObject-direct case Pass 4 already handles.)
+    ///   2. A ROOT class (no in-tree class superclass) that declares NO explicit
+    ///      `init()`: the compiler-synthesized `init()` of such a class is
+    ///      `nonisolated` under `-default-isolation MainActor` (verified by repro —
+    ///      the `SheetDisplayableError` case). A root class that DOES declare an
+    ///      explicit `init()` gets a `@MainActor` init, so it is NOT in this set.
+    ///   3. An in-tree subclass whose base (recursively) has a `nonisolated init()`
+    ///      AND which declares no explicit `init()` of its own — the nonisolation
+    ///      propagates down through classes that don't re-declare `init()`.
+    ///
+    /// A chain ending at an UNKNOWN foreign base (not literal `NSObject`, not a forest
+    /// root) is treated as `@MainActor` (false) — the conservative "leave alone"
+    /// outcome the init pass already uses for unknown bases.
+    func classHasNonisolatedNoArgInit(forClassNamed className: String) -> Bool {
+        classHasNonisolatedNoArgInit(forClassNamed: className, seen: [])
+    }
+
+    private func classHasNonisolatedNoArgInit(forClassNamed className: String, seen: Set<String>) -> Bool {
+        let simple = HierarchyMap.simpleName(className)
+        if HierarchyMap.mainActorInitRoots.contains(simple) { return false } // forest
+        guard let superName = superclassByClass[simple] else {
+            // No recorded class superclass. Two sub-cases:
+            //   * `simple` is a KNOWN in-tree class → genuine ROOT class (no class
+            //     super, conforms only to protocols). Its compiler-synthesized
+            //     `init()` is nonisolated ONLY if it declares no explicit `init()`
+            //     (population 2 — the SheetDisplayableError case).
+            //   * `simple` is NOT in-tree → an UNKNOWN foreign base we can't see
+            //     (e.g. `CVMeasurementObject` defined in SignalServiceKit). Treat it
+            //     CONSERVATIVELY as `@MainActor` (false) — the same "leave alone"
+            //     outcome the init pass uses for unknown bases; we must never synthesize
+            //     a bogus `nonisolated override init()` for a class whose foreign base
+            //     might be `@MainActor` (or even a non-class).
+            guard knownClasses.contains(simple) else { return false }
+            return !classesDeclaringNoArgInit.contains(simple)
+        }
+        let simpleSuper = HierarchyMap.simpleName(superName)
+        if simpleSuper == "NSObject" { return true }                 // population 1 (direct)
+        if HierarchyMap.mainActorInitRoots.contains(simpleSuper) { return false } // forest base
+        guard !seen.contains(simpleSuper) else { return false }      // cycle guard
+        // In-tree (or unknown-foreign) base: this class's `init()` follows the base's
+        // unless it re-declares `init()` (then it's the decl we annotate to match).
+        // Either way the effective isolation equals the base's — recurse on the base.
+        return classHasNonisolatedNoArgInit(forClassNamed: simpleSuper, seen: seen.union([simple]))
+    }
+
+    /// True iff an `init()` OVERRIDE declared in `className` must be `nonisolated` to
+    /// match the base `init()` it overrides — i.e. the IMMEDIATE in-tree base (or
+    /// literal `NSObject`) has a `nonisolated init()`. Drives both A3 (align a
+    /// subclass `init()` to its base) and the existing NSObject-direct annotation.
+    /// A class with no recorded class superclass overrides nothing, so this is false
+    /// for it (a root class's own `init()` decl is left `@MainActor`).
+    func initOverrideShouldBeNonisolated(forClassNamed className: String) -> Bool {
+        let simple = HierarchyMap.simpleName(className)
+        guard let superName = superclassByClass[simple] else { return false }
+        let simpleSuper = HierarchyMap.simpleName(superName)
+        if simpleSuper == "NSObject" { return true }
+        if HierarchyMap.mainActorInitRoots.contains(simpleSuper) { return false }
+        return classHasNonisolatedNoArgInit(forClassNamed: simpleSuper)
     }
 
     /// True iff `className` PROVABLY descends from a `@MainActor` UIKit/AppKit
@@ -760,6 +883,10 @@ private final class HierarchyScanner: SyntaxVisitor {
     /// by Pass 2's cross-file relocator: a base class's NON-override extension method
     /// must move into the base body when some subclass elsewhere overrides it.
     private(set) var overriddenSignaturesByClass: [String: Set<String>] = [:]
+    /// Simple names of classes that declare an EXPLICIT no-arg `init()` in their body
+    /// (A3 base-init-isolation: a root class with no explicit `init()` has a
+    /// `nonisolated` implicit `init()`). Only class-body inits are recorded.
+    private(set) var classesDeclaringNoArgInit: Set<String> = []
     /// `typeStack` tracks the enclosing class OR extended-type name (innermost last)
     /// so a function visit knows its owning type whether it sits in a class body or
     /// an `extension` (overrides can be declared in either).
@@ -767,13 +894,29 @@ private final class HierarchyScanner: SyntaxVisitor {
     private var classStack: [String] = []
     private var protocolDepth = 0
 
+    override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
+        // Record a class-body no-arg `init()` (no params, no generics/effects) onto
+        // its owning class — the A3 base-init-isolation signal.
+        if protocolDepth == 0, let owner = classStack.last,
+           node.signature.parameterClause.parameters.isEmpty {
+            classesDeclaringNoArgInit.insert(owner)
+        }
+        return .visitChildren
+    }
+
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
         classStack.append(node.name.text)
         typeStack.append(node.name.text)
         knownClasses.insert(node.name.text)
         if let first = node.inheritanceClause?.inheritedTypes.first {
-            superclassByClass[node.name.text] =
-                HierarchyMap.simpleName(first.type.trimmedDescription)
+            let firstSimple = HierarchyMap.simpleName(first.type.trimmedDescription)
+            // Only record a CLASS superclass. A class's superclass must be listed
+            // first, but a class may instead conform to a protocol with no
+            // superclass (`class Foo: Error`); recording that protocol as a
+            // "superclass" makes the chain walks mistake it for a foreign base.
+            if !HierarchyMap.isKnownInheritedProtocol(firstSimple) {
+                superclassByClass[node.name.text] = firstSimple
+            }
         }
         return .visitChildren
     }
@@ -863,21 +1006,36 @@ private final class ActionMethodCollector: SyntaxVisitor {
     /// (class body OR extension), so single-file `lower(_:)` can seed the hierarchy's
     /// `overriddenSignaturesByClass` for Pass 2b's cross-file relocation.
     private(set) var overriddenSignaturesByType: [String: Set<String>] = [:]
+    /// Simple names of classes that declare a class-body no-arg `init()` (A3
+    /// base-init-isolation seeding for single-file `lower(_:)`).
+    private(set) var classesDeclaringNoArgInit: Set<String> = []
     private var typeStack: [String] = []
+    /// Enclosing CLASS names (innermost last), so an init visit knows its owning
+    /// class even when nested in an extension on `typeStack`.
+    private var classStack: [String] = []
     private var protocolDepth = 0
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
         typeStack.append(node.name.text)
+        classStack.append(node.name.text)
         knownClasses.insert(node.name.text)
-        // First inherited type = the superclass candidate (a leading protocol is
-        // impossible in a class inheritance clause — the superclass, if any, is
-        // first). A purely-protocol-conforming class has no superclass here.
-        if let first = node.inheritanceClause?.inheritedTypes.first {
+        // First inherited type = the superclass candidate. A class's superclass, if
+        // any, is listed first — but the first entry may instead be a PROTOCOL the
+        // class conforms to with no superclass (`class Foo: Error`,
+        // `class SignalAttachment: CustomDebugStringConvertible`). Recording that
+        // protocol as a "superclass" makes the dispatch override/root decision treat
+        // it as a foreign base (emitting a bogus `override`/`super.quillPerform` into
+        // a no-superclass class). Only record a genuine class superclass.
+        if let first = node.inheritanceClause?.inheritedTypes.first,
+           !HierarchyMap.isKnownInheritedProtocol(HierarchyMap.simpleName(first.type.trimmedDescription)) {
             superclassByType[typeStack.joined(separator: ".")] = first.type.trimmedDescription
         }
         return .visitChildren
     }
-    override func visitPost(_ node: ClassDeclSyntax) { typeStack.removeLast() }
+    override func visitPost(_ node: ClassDeclSyntax) {
+        typeStack.removeLast()
+        classStack.removeLast()
+    }
 
     override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
         typeStack.append(node.extendedType.trimmedDescription)
@@ -890,6 +1048,14 @@ private final class ActionMethodCollector: SyntaxVisitor {
         return .visitChildren
     }
     override func visitPost(_ node: ProtocolDeclSyntax) { protocolDepth -= 1 }
+
+    override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
+        if protocolDepth == 0, let owner = classStack.last,
+           node.signature.parameterClause.parameters.isEmpty {
+            classesDeclaringNoArgInit.insert(owner)
+        }
+        return .visitChildren
+    }
 
     override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
         guard protocolDepth == 0, let owner = typeStack.last else { return .visitChildren }
@@ -1675,31 +1841,43 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         classStack.append(node.name.text)
         let recursed = super.visit(node).cast(ClassDeclSyntax.self)
         classStack.removeLast()
-        // Part (B) synthesis: an NSObject-direct `@MainActor` class that declares
-        // no initializer at all gets an explicit `nonisolated override init()`.
-        let isNSObjectDirect = !hierarchy.initChainIsMainActorRooted(forClassNamed: node.name.text)
+        // Synthesis: a class whose `init()` override must be `nonisolated` to match a
+        // nonisolated base init (NSObject-direct, OR an in-tree base with a nonisolated
+        // init — the SheetDisplayableError / StickerPackDataSource cases) but which
+        // does NOT itself declare an `init()` gets an explicit
+        // `nonisolated override init() { super.init() }`. This pins its otherwise
+        // implicit/inherited `init()` to the base's isolation. Crucially this fires
+        // EVEN when the class declares OTHER designated inits (e.g.
+        // `init(stickerPackInfo:)`): such a class still implicitly overrides the base
+        // `init()` and would mismatch it without an explicit nonisolated override.
+        let needsNonisolatedInit = hierarchy.initOverrideShouldBeNonisolated(forClassNamed: node.name.text)
         return DeclSyntax(Self.synthesizingNonisolatedInitIfNeeded(
-            recursed, isNSObjectDirect: isNSObjectDirect, memberIndent: memberIndent
+            recursed, needsNonisolatedInit: needsNonisolatedInit, memberIndent: memberIndent
         ))
     }
 
-    /// If `node` is rooted directly at `NSObject` (no `@MainActor` shim init-root)
-    /// and declares NO initializer, append a `nonisolated override init()` so its
-    /// otherwise-implicit `@MainActor init()` stops mismatching `NSObject`'s
-    /// `nonisolated init()`. Idempotent (skips when any init already present —
-    /// including a synthesized one from a prior run). Only acts on classes that
-    /// inherit (have a superclass), since a root-less class has no `init()` to
-    /// override. `memberIndent` is the class-body indentation (4 spaces / level).
+    /// If `node`'s `init()` override must be `nonisolated` (per A3, to match a
+    /// nonisolated base init) and `node` declares NO no-arg `init()` of its own,
+    /// append a `nonisolated override init() { super.init() }`. Idempotent (skips when
+    /// an `init()` is already present — including a synthesized one from a prior run).
+    /// Only acts on classes that inherit (have an inheritance clause), since a
+    /// root-less class has no base `init()` to override. `memberIndent` is the
+    /// class-body indentation (4 spaces / level).
     static func synthesizingNonisolatedInitIfNeeded(
-        _ node: ClassDeclSyntax, isNSObjectDirect: Bool, memberIndent: String
+        _ node: ClassDeclSyntax, needsNonisolatedInit: Bool, memberIndent: String
     ) -> ClassDeclSyntax {
-        guard isNSObjectDirect, node.inheritanceClause != nil else { return node }
-        let hasAnyInit = node.memberBlock.members.contains { $0.decl.is(InitializerDeclSyntax.self) }
-        guard !hasAnyInit else { return node }
+        guard needsNonisolatedInit, node.inheritanceClause != nil else { return node }
+        // Re-run guard / source guard: skip when the class already declares a no-arg
+        // `init()` (the explicit-init `visit` annotates that one instead).
+        let hasNoArgInit = node.memberBlock.members.contains { item in
+            guard let initDecl = item.decl.as(InitializerDeclSyntax.self) else { return false }
+            return initDecl.signature.parameterClause.parameters.isEmpty
+        }
+        guard !hasNoArgInit else { return node }
         // Mirror the dispatch injector's `appending`: the rendered member carries
         // its own indentation; the leading blank line reads it as its own member.
-        let source = "\(memberIndent)// Auto-generated by AppKitLowering: NSObject-direct init isolation"
-            + "\n\(memberIndent)// (matches NSObject's nonisolated init() under -default-isolation MainActor)."
+        let source = "\(memberIndent)// Auto-generated by AppKitLowering: nonisolated init() to match base isolation"
+            + "\n\(memberIndent)// (the base init() is nonisolated under -default-isolation MainActor)."
             + "\n\(memberIndent)nonisolated override init() { super.init() }"
         let member = MemberBlockItemSyntax(decl: DeclSyntax("\n\n\(raw: source)\n"))
         var copy = node
@@ -1749,10 +1927,11 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
     override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax {
         let recursed = super.visit(node).cast(InitializerDeclSyntax.self)
         guard !Self.hasNonisolated(recursed.modifiers) else { return DeclSyntax(recursed) }
-        // (B) Initializer — only one of the NSObject-base designated inits, and
-        // only for a class rooted DIRECTLY at NSObject (the @MainActor forest is
-        // left consistent at @MainActor). `init()` carries `override` (it overrides
-        // NSObject's); `init?(coder:)` carries `required` (the NSCoding/required
+        // (B) Initializer — only one of the NSObject-base designated inits, and only
+        // when the base `init()` being overridden is nonisolated (NSObject-direct, OR
+        // an in-tree base whose init is nonisolated — the SheetDisplayableError /
+        // StickerPackDataSource cases). `init()` carries `override` (it overrides the
+        // base's); `init?(coder:)` carries `required` (the NSCoding/required
         // designated-init requirement) and need not say `override`.
         guard let kind = Self.nonisolatableInitKind(recursed) else { return DeclSyntax(recursed) }
         switch kind {
@@ -1764,7 +1943,20 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
             }
         }
         let owner = classStack.last ?? ""
-        guard !hierarchy.initChainIsMainActorRooted(forClassNamed: owner) else {
+        guard hierarchy.initOverrideShouldBeNonisolated(forClassNamed: owner) else {
+            return DeclSyntax(recursed)
+        }
+        // (A2) Body-isolation refinement: a `nonisolated` init body CANNOT touch
+        // `@MainActor` members (`label.backgroundColor = …`, `view.frame = …`,
+        // `self.present(…)`). Such an init must stay `@MainActor` even though its base
+        // init is nonisolated. Only nonisolate an init whose body is trivially
+        // nonisolatable — empty, or only `super.init(...)` calls and assignments to a
+        // PLAIN stored property (a bare/`self.`-qualified identifier LHS, no member
+        // access chain). When uncertain, leave `@MainActor` (the conservative choice —
+        // a `@MainActor` init still satisfies a nonisolated base init at a call site;
+        // the only hazard the nonisolated annotation fixes is a body-less / trivial
+        // override mismatch, which the trivial-body gate still covers).
+        guard Self.initBodyIsTriviallyNonisolatable(recursed) else {
             return DeclSyntax(recursed)
         }
         return DeclSyntax(Self.prependNonisolated(recursed))
@@ -1772,6 +1964,65 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
 
     private static func hasRequired(_ modifiers: DeclModifierListSyntax) -> Bool {
         modifiers.contains { $0.name.text == "required" }
+    }
+
+    /// True iff `node`'s body is safe to run `nonisolated` — it touches no
+    /// `@MainActor` state. Conservative: only an empty body, or a body whose every
+    /// statement is one of:
+    ///   * a `super.init(...)` call (always allowed — the base init handles its own
+    ///     isolation), or
+    ///   * an assignment whose LHS is a PLAIN stored property — a bare identifier
+    ///     (`x = …`) or `self.<identifier>` (`self.x = …`) with no further member
+    ///     access. An assignment to a member-access chain (`label.backgroundColor`,
+    ///     `view.frame`) is treated as `@MainActor` and makes the body non-trivial.
+    /// Anything else (a method call, a property read off another object, a control-
+    /// flow statement) makes the body non-trivial → leave `@MainActor`.
+    static func initBodyIsTriviallyNonisolatable(_ node: InitializerDeclSyntax) -> Bool {
+        guard let body = node.body else { return true } // declaration-only (protocol) — vacuously fine
+        for stmt in body.statements {
+            switch stmt.item {
+            case .expr(let expr):
+                if Self.isSuperInitCall(expr) { continue }
+                if Self.isPlainStoredAssignment(expr) { continue }
+                return false
+            default:
+                // A declaration or a statement (if/guard/for/return/etc.) — not a
+                // trivial init body.
+                return false
+            }
+        }
+        return true
+    }
+
+    /// True iff `expr` is a `super.init(...)` call.
+    private static func isSuperInitCall(_ expr: ExprSyntax) -> Bool {
+        guard let call = expr.as(FunctionCallExprSyntax.self),
+              let member = call.calledExpression.as(MemberAccessExprSyntax.self),
+              member.declName.baseName.text == "init",
+              member.base?.as(SuperExprSyntax.self) != nil else {
+            return false
+        }
+        return true
+    }
+
+    /// True iff `expr` is an assignment `<lhs> = <rhs>` where `<lhs>` is a PLAIN
+    /// stored property: a bare identifier (`x`) or `self.<identifier>` (`self.x`),
+    /// with no deeper member-access chain. (`label.backgroundColor = …` is NOT plain.)
+    private static func isPlainStoredAssignment(_ expr: ExprSyntax) -> Bool {
+        guard let seq = expr.as(SequenceExprSyntax.self) else { return false }
+        let elements = Array(seq.elements)
+        // `lhs  =  rhs` → exactly three elements with an AssignmentExpr in the middle.
+        guard elements.count == 3, elements[1].is(AssignmentExprSyntax.self) else { return false }
+        let lhs = elements[0]
+        // Bare identifier LHS: `x = …`.
+        if lhs.is(DeclReferenceExprSyntax.self) { return true }
+        // `self.x = …` — member access whose base is `self` and whose member name is a
+        // plain identifier (the base must itself be `self`, not another chain).
+        if let member = lhs.as(MemberAccessExprSyntax.self),
+           member.base?.as(DeclReferenceExprSyntax.self)?.baseName.tokenKind == .keyword(.self) {
+            return true
+        }
+        return false
     }
 
     /// Which NSObject-base init this is, if any. On a class rooted DIRECTLY at
@@ -1891,6 +2142,113 @@ private final class DeinitMainActorIsolationRewriter: SyntaxRewriter {
     /// deinit stays on its own line at its original indentation. Mirrors Pass 4's
     /// `prependNonisolated` trivia handling, for attributes instead of modifiers.
     static func prependingMainActor(_ node: DeinitializerDeclSyntax) -> DeinitializerDeclSyntax {
+        var copy = node
+        let savedLeading = copy.leadingTrivia
+        copy.leadingTrivia = Trivia()
+        let attr = AttributeSyntax(
+            attributeName: TypeSyntax(IdentifierTypeSyntax(name: .identifier("MainActor"))),
+            trailingTrivia: .space
+        )
+        copy.attributes = AttributeListSyntax([.attribute(attr)] + Array(copy.attributes))
+        copy.leadingTrivia = savedLeading
+        return copy
+    }
+}
+
+// MARK: - Local nested-function MainActor isolation (Pass 6 — actor-isolation)
+
+/// Prepends `@MainActor` to a LOCAL nested function — one declared inside a
+/// function/closure body, not as a type member or top-level decl.
+///
+/// Under `-default-isolation MainActor` every type and top-level decl in SignalUI is
+/// implicitly `@MainActor`, but a LOCAL function declared inside a method or closure
+/// body is `nonisolated` by default (local funcs do NOT inherit the enclosing actor
+/// isolation). So when such a local func touches the `@MainActor` UI state its
+/// surrounding context uses freely it errors with "call to main actor-isolated … in a
+/// synchronous nonisolated context" / "property … can not be referenced from a
+/// nonisolated context". Real example (ImageEditorViewController+Blur):
+///
+///     { modal in
+///         func showToast() {                                 // nonisolated local func
+///             let inset = self.view.safeAreaInsets.bottom + 90   // @MainActor self.view → error
+///             toast.presentToastView(from: .bottom, of: self.view, inset: inset)
+///         }
+///     }
+///
+/// Marking the local func `@MainActor` matches its lexical surroundings (the whole
+/// module is MainActor-by-default) and the UI state it touches; its call sites are
+/// the same `@MainActor` closures/funcs, so they call it without a context error.
+///
+/// CONSERVATIVE:
+///   * Only LOCAL funcs — a `FunctionDeclSyntax` whose enclosing scope is executable
+///     code (a function/closure/accessor/control-flow body), tracked by a body-depth
+///     counter. A TYPE-MEMBER func (in a `MemberBlockSyntax`, which does not bump the
+///     counter) and a TOP-LEVEL func (visited at depth 0) already get default
+///     isolation and are NEVER touched.
+///   * Idempotent: a local func already carrying `@MainActor` (the form this emits) or
+///     an explicit `nonisolated` modifier (a deliberate author choice) is left alone.
+private final class LocalFunctionMainActorRewriter: SyntaxRewriter {
+    /// Depth of enclosing executable-code bodies (function/closure/accessor/control-
+    /// flow `CodeBlock`s and closure bodies). A `FunctionDecl` visited at depth > 0
+    /// is a LOCAL nested function. Type member blocks do NOT bump this, so type
+    /// members and top-level decls stay at depth 0.
+    private var bodyDepth = 0
+
+    override func visit(_ node: CodeBlockSyntax) -> CodeBlockSyntax {
+        bodyDepth += 1
+        let recursed = super.visit(node)
+        bodyDepth -= 1
+        return recursed
+    }
+
+    override func visit(_ node: ClosureExprSyntax) -> ExprSyntax {
+        bodyDepth += 1
+        let recursed = super.visit(node)
+        bodyDepth -= 1
+        return recursed
+    }
+
+    override func visit(_ node: AccessorBlockSyntax) -> AccessorBlockSyntax {
+        // A computed property's accessor body is executable code: an IMPLICIT getter
+        // is a bare `CodeBlockItemListSyntax` (not wrapped in a `CodeBlockSyntax`), so
+        // a func nested there would otherwise be missed. Explicit `get`/`set`/`didSet`
+        // accessor bodies ARE `CodeBlockSyntax` (already counted), but bumping here too
+        // is harmless — a nested func is local at depth > 0 either way.
+        bodyDepth += 1
+        let recursed = super.visit(node)
+        bodyDepth -= 1
+        return recursed
+    }
+
+    override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
+        // Capture whether THIS decl is local before recursing into its own body
+        // (which bumps `bodyDepth` for its nested children).
+        let isLocal = bodyDepth > 0
+        let recursed = super.visit(node).cast(FunctionDeclSyntax.self)
+        guard isLocal, !Self.hasMainActorOrNonisolated(recursed) else {
+            return DeclSyntax(recursed)
+        }
+        return DeclSyntax(Self.prependingMainActor(recursed))
+    }
+
+    /// True iff the func already states its isolation — `@MainActor` (the form this
+    /// emits, so re-runs are no-ops) or an explicit `nonisolated` modifier (a
+    /// deliberate author choice we never override).
+    static func hasMainActorOrNonisolated(_ node: FunctionDeclSyntax) -> Bool {
+        let hasMainActorAttr = node.attributes.contains { element in
+            if case .attribute(let attr) = element {
+                return attr.attributeName.trimmedDescription == "MainActor"
+            }
+            return false
+        }
+        let hasNonisolated = node.modifiers.contains { $0.name.text == "nonisolated" }
+        return hasMainActorAttr || hasNonisolated
+    }
+
+    /// Insert `@MainActor` as the func's leading attribute, re-anchoring the decl's
+    /// leading trivia (newline + indent) onto the new attribute so the func stays on
+    /// its own line at its original indentation. Mirrors Pass 5's deinit handling.
+    static func prependingMainActor(_ node: FunctionDeclSyntax) -> FunctionDeclSyntax {
         var copy = node
         let savedLeading = copy.leadingTrivia
         copy.leadingTrivia = Trivia()

@@ -1139,4 +1139,279 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("open func forwardingTarget"))
         #expect(AppKitLowering().lower(lowered) == lowered)   // idempotent
     }
+
+    @Test("forwardingTarget override is stripped even with a class-body super call (BodyRangesTextView)")
+    func forwardingTargetStripWithSuperCall() {
+        // The exact BodyRangesTextView shape: an `override open func forwardingTarget`
+        // whose body calls `super.forwardingTarget`. The override must drop (the shim
+        // provides it as a non-overridable NSObject extension); the `super` call still
+        // resolves to that extension method, so it is harmless to leave.
+        let source = """
+        open class BodyRangesTextView: UITextView {
+            override open func forwardingTarget(for aSelector: Selector!) -> Any? {
+                return super.forwardingTarget(for: aSelector)
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("open func forwardingTarget(for aSelector: Selector!)"))
+        #expect(!lowered.contains("override open func forwardingTarget"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    // MARK: - Problem C: no-superclass dispatch witness
+
+    @Test("A class with only a protocol in its inheritance clause (no superclass) gets a NON-override witness")
+    func noSuperclassDispatchWitness() {
+        // `SignalAttachment: CustomDebugStringConvertible` has NO class superclass — only
+        // a protocol. The dispatch injector must emit the root (non-override) witness
+        // form: `public func quillPerform { … default: break }` + a conformance, NEVER
+        // an `override`/`super.quillPerform` (a no-superclass class can use neither).
+        let source = """
+        public class SignalAttachment: CustomDebugStringConvertible {
+            @objc private func didReceiveMemoryWarningNotification() { }
+            public var debugDescription: String { "x" }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("public func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(!lowered.contains("override func quillPerform"))
+        #expect(!lowered.contains("super.quillPerform"))
+        #expect(lowered.contains("default: break"))
+        #expect(lowered.contains("QuillSelectorDispatching"))
+        #expect(AppKitLowering().lower(lowered) == lowered)   // idempotent
+    }
+
+    @Test("A protocol-only inheritance clause is NOT treated as a class superclass (Error / Comparable)")
+    func protocolInheritanceNotASuperclass() {
+        // `class Foo: Error` with @objc actions must root its own dispatch chain (the
+        // protocol is not a foreign base), so the witness is non-override.
+        let source = """
+        public class Foo: Error {
+            @objc func tap() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("public func quillPerform"))
+        #expect(!lowered.contains("override func quillPerform"))
+        #expect(!lowered.contains("super.quillPerform"))
+    }
+
+    // MARK: - Problem A1: @MainActor on local nested functions
+
+    @Test("Local nested functions get @MainActor; top-level and type-member funcs do not")
+    func nestedLocalFunctionsMainActor() {
+        let source = """
+        func topLevel() {}
+        class VC {
+            func member() {}
+            func doStuff() {
+                present { modal in
+                    func showToast() { self.view = nil }
+                    func failed() { showToast() }
+                    showToast()
+                }
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // Nested funcs inside the closure body are marked.
+        #expect(lowered.contains("@MainActor func showToast()"))
+        #expect(lowered.contains("@MainActor func failed()"))
+        // Top-level and type-member funcs are NOT (they already get default isolation).
+        #expect(!lowered.contains("@MainActor func topLevel"))
+        #expect(!lowered.contains("@MainActor func member"))
+        #expect(lowered.contains("func topLevel() {}"))
+        #expect(lowered.contains("func member() {}"))
+        // Idempotent: no double-annotation on a re-run.
+        #expect(!lowered.contains("@MainActor @MainActor"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("A func nested in a computed-property getter is marked @MainActor")
+    func nestedFunctionInAccessorMainActor() {
+        let source = """
+        class C {
+            var n: Int {
+                func helper() -> Int { 1 }
+                return helper()
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("@MainActor func helper()"))
+    }
+
+    @Test("A nested func deep inside another nested func is also marked")
+    func deeplyNestedFunctionMainActor() {
+        let source = """
+        class C {
+            func f() {
+                run {
+                    func outer() {
+                        func inner() { self.x = 1 }
+                        inner()
+                    }
+                    outer()
+                }
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("@MainActor func outer()"))
+        #expect(lowered.contains("@MainActor func inner()"))
+    }
+
+    @Test("A nested func already carrying @MainActor / nonisolated is left untouched")
+    func nestedFunctionWithIsolationLeftAlone() {
+        let source = """
+        class C {
+            func f() {
+                run {
+                    @MainActor func a() {}
+                    nonisolated func b() {}
+                }
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("@MainActor @MainActor"))
+        #expect(lowered.contains("nonisolated func b()"))
+        #expect(!lowered.contains("@MainActor func b"))
+        // The already-@MainActor one is unchanged (single annotation).
+        #expect(lowered.components(separatedBy: "@MainActor func a()").count - 1 == 1)
+    }
+
+    // MARK: - Problem A2: init-body isolation refinement
+
+    @Test("An override init() whose body touches @MainActor members is LEFT @MainActor")
+    func initWithMainActorBodyLeftAlone() {
+        // CVTextLabel: `override public init()` mutates `label.backgroundColor` /
+        // `label.isOpaque` (@MainActor). A nonisolated init can't touch those, so it
+        // must stay @MainActor even though the class is NSObject-direct.
+        let source = """
+        public class CVTextLabel: NSObject {
+            private let label = Label()
+            override public init() {
+                label.backgroundColor = .clear
+                label.isOpaque = false
+                super.init()
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("override public init()"))
+        #expect(!lowered.contains("nonisolated override public init()"))
+        // And no second init is synthesized (the class already declares init()).
+        #expect(lowered.components(separatedBy: "init()").count - 1 == 1)
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("An override init() with a trivial body (super.init / plain stored assign) is nonisolated")
+    func initWithTrivialBodyNonisolated() {
+        let source = """
+        class Model: NSObject {
+            var n = 0
+            override init() {
+                n = 5
+                super.init()
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("nonisolated override init()"))
+    }
+
+    @Test("A super.init-only override init() is nonisolated (trivial body)")
+    func initSuperOnlyNonisolated() {
+        let lowered = AppKitLowering().lower("class Model: NSObject { override init() { super.init() } }")
+        #expect(lowered.contains("nonisolated override init()"))
+    }
+
+    // MARK: - Problem A3: init-override actor alignment
+
+    @Test("A subclass with only init(arg:) gets a synthesized nonisolated override init() to match its NSObject-direct base")
+    func subclassSynthesizesNonisolatedInitToMatchBase() {
+        // StickerPackDataSource: BaseStickerPackDataSource: NSObject (synth nonisolated
+        // init); InstalledStickerPackDataSource has only `init(stickerPackInfo:)` yet
+        // still implicitly overrides the base init() — so it needs an explicit
+        // `nonisolated override init()`; Recent's explicit `override init()` is annotated.
+        let source = """
+        public class BaseStickerPackDataSource: NSObject { var x = 0 }
+        public class InstalledStickerPackDataSource: BaseStickerPackDataSource {
+            let info: Int
+            public init(stickerPackInfo: Int) { self.info = stickerPackInfo; super.init() }
+        }
+        public class RecentStickerPackDataSource: BaseStickerPackDataSource {
+            override public init() { super.init() }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // Base synth.
+        #expect(lowered.contains("nonisolated override init() { super.init() }"))
+        // Recent annotated.
+        #expect(lowered.contains("nonisolated override public init()"))
+        // Installed gets a synthesized nonisolated override init() despite having init(arg:).
+        let installedStart = lowered.range(of: "class InstalledStickerPackDataSource")!.lowerBound
+        let recentStart = lowered.range(of: "class RecentStickerPackDataSource")!.lowerBound
+        let installedBody = String(lowered[installedStart..<recentStart])
+        #expect(installedBody.contains("nonisolated override init() { super.init() }"))
+        #expect(AppKitLowering().lower(lowered) == lowered)   // idempotent
+    }
+
+    @Test("A subclass of an Error-rooted base (root class, no explicit init) gets a nonisolated override init()")
+    func subclassOfErrorRootedBaseSynthesizesInit() {
+        // SheetDisplayableError: Error is a ROOT class with no explicit init() — its
+        // compiler-synthesized init() is nonisolated under -default-isolation MainActor,
+        // so subclasses must match with a nonisolated override init().
+        let source = """
+        open class SheetDisplayableError: Error {
+            @MainActor open func showSheet() { }
+        }
+        open class ActionSheetDisplayableError: SheetDisplayableError {
+            private let m: String?
+            public init(m: String?) { self.m = m }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        let subStart = lowered.range(of: "class ActionSheetDisplayableError")!.lowerBound
+        let subBody = String(lowered[subStart...])
+        #expect(subBody.contains("nonisolated override init() { super.init() }"))
+        // The Error-root base itself is NOT given a synthesized init (it overrides nothing).
+        let baseBody = String(lowered[lowered.startIndex..<subStart])
+        #expect(!baseBody.contains("nonisolated override init"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("A class with an UNKNOWN foreign base does NOT get a synthesized init (cannot prove base init is nonisolated)")
+    func unknownForeignBaseNoSynthesizedInit() {
+        // `Measurement: CVMeasurementObject` — CVMeasurementObject is not in the tree, so
+        // we cannot prove its init() is nonisolated; synthesizing `nonisolated override
+        // init()` could be wrong (and a struct/foreign base can't even take it).
+        let source = """
+        public class Measurement: CVMeasurementObject {
+            let size: Int
+            public init(size: Int) { self.size = size }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("nonisolated override init"))
+    }
+
+    @Test("Cross-file A3: a subclass of an in-tree NSObject-direct base synthesizes a nonisolated init")
+    func crossFileSubclassInitAlignment() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("appkit-a3-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        // Base (NSObject-direct) in one file; subclass with only init(arg:) in another.
+        try "public class DataBase: NSObject { var a = 0 }"
+            .write(to: tmp.appendingPathComponent("DataBase.swift"), atomically: true, encoding: .utf8)
+        let leafURL = tmp.appendingPathComponent("DataLeaf.swift")
+        try "public class DataLeaf: DataBase {\n    let n: Int\n    public init(n: Int) { self.n = n; super.init() }\n}"
+            .write(to: leafURL, atomically: true, encoding: .utf8)
+        _ = try AppKitLowering().lowerInPlace(sourceDir: tmp)
+        let leaf = try String(contentsOf: leafURL, encoding: .utf8)
+        #expect(leaf.contains("nonisolated override init() { super.init() }"))
+    }
 }
