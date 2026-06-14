@@ -230,6 +230,118 @@ struct AppKitLoweringTests {
         #expect(conformanceCount == 1)
     }
 
+    // MARK: - Hierarchy-aware dispatch (Problem A): chains through action-less bases
+
+    @Test("Foo: HelperWithoutActions (helper is a plain NSObject subclass) ROOTS its chain — conformance + non-override, NOT a bad override")
+    func injectsRootThroughActionlessHelper() {
+        // The bug a literal `super == NSObject` test caused: `Helper != NSObject`
+        // so Foo wrongly emitted `override` of a witness that Helper never got.
+        let source = """
+        class Helper: NSObject {
+            func plain() {}
+        }
+        class Foo: Helper {
+            @objc func tap() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // Foo's chain reaches NSObject through an action-less Helper, so Foo is the
+        // dispatch-chain ROOT: it newly conforms with a NON-override witness.
+        #expect(lowered.contains("class Foo: Helper, QuillSelectorDispatching {"))
+        #expect(lowered.contains("public func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(!lowered.contains("public override func quillPerform"))
+        #expect(lowered.contains("default: break"))      // root terminates the chain
+        // Helper got no witness (no actions).
+        let witnessCount = lowered.components(separatedBy: "func quillPerform(_ selector: Selector, with sender: Any?)").count - 1
+        #expect(witnessCount == 1)
+    }
+
+    @Test("Deep chain A→B→C all with actions: A conforms + non-override, B & C override")
+    func injectsDeepChainAllWithActions() {
+        let source = """
+        class A: NSObject {
+            @objc func a() {}
+        }
+        class B: A {
+            @objc func b() {}
+        }
+        class C: B {
+            @objc func c() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // A roots (super NSObject): conformance + non-override.
+        #expect(lowered.contains("class A: NSObject, QuillSelectorDispatching {"))
+        // B and C inherit a witness from A → override, no re-conformance.
+        #expect(lowered.contains("class B: A {"))
+        #expect(lowered.contains("class C: B {"))
+        // Exactly one conformance clause across the whole chain.
+        let conformanceCount = lowered.components(separatedBy: "QuillSelectorDispatching").count - 1
+        #expect(conformanceCount == 1)
+        // Two overrides (B, C), one non-override (A).
+        let overrideCount = lowered.components(separatedBy: "public override func quillPerform").count - 1
+        #expect(overrideCount == 2)
+        let nonOverrideCount = lowered.components(separatedBy: "public func quillPerform(_ selector: Selector, with sender: Any?)").count - 1
+        #expect(nonOverrideCount == 1)
+    }
+
+    @Test("Subclass of a shim root (UIGestureRecognizer) overrides — no conformance")
+    func injectsOverrideForShimRootSubclass() {
+        let source = """
+        class MyTap: UIGestureRecognizer {
+            @objc func fired() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // UIGestureRecognizer is a known shim dispatch root → override, no conformance.
+        #expect(lowered.contains("public override func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(!lowered.contains("QuillSelectorDispatching"))
+        #expect(lowered.contains("default: super.quillPerform(selector, with: sender)"))
+    }
+
+    @Test("Cross-file: Foo: Helper where Helper (action-less) lives in another file ROOTS its chain")
+    func injectsRootThroughCrossFileActionlessHelper() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("appkit-hier-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        // Helper (no actions) in one file; Foo: Helper (with an action) in another.
+        try "class Helper: NSObject { func plain() {} }"
+            .write(to: tmp.appendingPathComponent("Helper.swift"), atomically: true, encoding: .utf8)
+        let fooURL = tmp.appendingPathComponent("Foo.swift")
+        try "class Foo: Helper { @objc func tap() {} }"
+            .write(to: fooURL, atomically: true, encoding: .utf8)
+
+        _ = try AppKitLowering().lowerInPlace(sourceDir: tmp)
+        let loweredFoo = try String(contentsOf: fooURL, encoding: .utf8)
+        // The cross-file pre-pass knows Helper: NSObject (action-less), so Foo is a
+        // ROOT — conformance + non-override, NOT a bad override.
+        #expect(loweredFoo.contains("QuillSelectorDispatching"))
+        #expect(loweredFoo.contains("public func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(!loweredFoo.contains("public override func quillPerform"))
+    }
+
+    @Test("Cross-file: Sub: Mid where Mid (with actions) is in another file → Sub overrides, no re-conformance")
+    func injectsOverrideThroughCrossFileActionBase() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("appkit-hier2-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        try "class Mid: NSObject { @objc func m() {} }"
+            .write(to: tmp.appendingPathComponent("Mid.swift"), atomically: true, encoding: .utf8)
+        let subURL = tmp.appendingPathComponent("Sub.swift")
+        try "class Sub: Mid { @objc func s() {} }"
+            .write(to: subURL, atomically: true, encoding: .utf8)
+
+        _ = try AppKitLowering().lowerInPlace(sourceDir: tmp)
+        let loweredSub = try String(contentsOf: subURL, encoding: .utf8)
+        // Mid (in the other file) gets a witness, so Sub inherits one → override,
+        // and does NOT re-state the conformance.
+        #expect(loweredSub.contains("public override func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(!loweredSub.contains("QuillSelectorDispatching"))
+        #expect(loweredSub.contains("default: super.quillPerform(selector, with: sender)"))
+    }
+
     @Test("Sender param casts: Any? passes through, AnyObject? optional-casts, AnyObject force-casts")
     func senderCasts() {
         let source = """
@@ -400,8 +512,128 @@ struct AppKitLoweringTests {
         }
         """
         let lowered = AppKitLowering().lower(source)
-        // `var description = 0` is not an override and not the NSObject `String` var.
+        // `var description = 0` is not an override and not the NSObject `String` var;
+        // `isEqual(_: AnyObject)` isn't NSObject's `isEqual(_: Any?)`; `hash(into:)`
+        // is Hashable, not the NSObject `var hash`; `init(frame:)` is a forest-only
+        // designated init this pass never annotates. None get `nonisolated`.
         #expect(!lowered.contains("nonisolated"))
+    }
+
+    // MARK: - actor-isolation policy (Problem B): root-aware init isolation
+
+    @Test("init() in the UIView/UIViewController FOREST is left @MainActor (not nonisolated-ed)")
+    func forestInitLeftMainActor() {
+        // sig6-1 wrongly nonisolated-ed these, mismatching @MainActor siblings.
+        let source = """
+        class MyView: UIView {
+            override init(frame: CGRect) { super.init(frame: frame) }
+            override init() { super.init() }
+        }
+        class MyVC: UIViewController {
+            override init(nibName: String?, bundle: Bundle?) { super.init(nibName: nibName, bundle: bundle) }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // Forest-rooted inits keep the default @MainActor — no `nonisolated`.
+        #expect(!lowered.contains("nonisolated"))
+        // And no init is synthesized into a forest class.
+        #expect(!lowered.contains("Auto-generated by AppKitLowering: NSObject-direct"))
+    }
+
+    @Test("init() / init?(coder:) on an NSObject-DIRECT class are nonisolated-annotated")
+    func nsObjectDirectInitNonisolated() {
+        let source = """
+        class Model: NSObject {
+            override init() { super.init() }
+            required init?(coder: NSCoder) { super.init() }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("nonisolated override init() {"))
+        #expect(lowered.contains("nonisolated required init?(coder: NSCoder)"))
+        // Idempotent.
+        #expect(AppKitLowering().lower(lowered) == lowered)
+        #expect(!lowered.contains("nonisolated nonisolated"))
+    }
+
+    @Test("NSObject-direct class with NO initializer gets a synthesized nonisolated override init()")
+    func nsObjectDirectSynthesizesInit() {
+        let source = """
+        class Model: NSObject {
+            var value = 0
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("nonisolated override init() { super.init() }"))
+        #expect(lowered.contains("Auto-generated by AppKitLowering: NSObject-direct init isolation"))
+        // Idempotent: a second pass does not synthesize a second init.
+        let twice = AppKitLowering().lower(lowered)
+        #expect(twice == lowered)
+        let initCount = lowered.components(separatedBy: "override init()").count - 1
+        #expect(initCount == 1)
+    }
+
+    @Test("Forest class with NO initializer is NOT given a synthesized init")
+    func forestNoSynthesizedInit() {
+        let lowered = AppKitLowering().lower("class MyView: UIView { var n = 0 }")
+        #expect(!lowered.contains("nonisolated"))
+        #expect(!lowered.contains("override init()"))
+    }
+
+    @Test("A class with no superclass is not given a synthesized init (nothing to override)")
+    func rootlessNoSynthesizedInit() {
+        let lowered = AppKitLowering().lower("class Plain { var n = 0 }")
+        #expect(!lowered.contains("override init()"))
+        #expect(!lowered.contains("nonisolated"))
+    }
+
+    @Test("isEqual/description/hash are nonisolated even on a FOREST class (NSObject identity members)")
+    func identityMembersNonisolatedEverywhere() {
+        let source = """
+        class MyView: UIView {
+            override var description: String { "v" }
+            override var hash: Int { 0 }
+            override func isEqual(_ object: Any?) -> Bool { false }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // Identity members override NSObject's nonisolated declarations regardless
+        // of root, so they are nonisolated even in the @MainActor forest.
+        #expect(lowered.contains("nonisolated override var description: String"))
+        #expect(lowered.contains("nonisolated override var hash: Int"))
+        #expect(lowered.contains("nonisolated override func isEqual(_ object: Any?) -> Bool"))
+        // But the forest class is NOT given a synthesized init.
+        #expect(!lowered.contains("Auto-generated by AppKitLowering: NSObject-direct"))
+    }
+
+    @Test("Cross-file: a class rooted at NSObject through an in-tree base gets nonisolated init synthesis; a forest subclass does not")
+    func crossFileInitIsolationRoots() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("appkit-iso-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        // ModelBase: NSObject (in one file); ModelLeaf: ModelBase (another file) —
+        // chain reaches literal NSObject → NSObject-direct → synthesize.
+        try "class ModelBase: NSObject { var a = 0 }"
+            .write(to: tmp.appendingPathComponent("ModelBase.swift"), atomically: true, encoding: .utf8)
+        let leafURL = tmp.appendingPathComponent("ModelLeaf.swift")
+        try "class ModelLeaf: ModelBase { var b = 0 }"
+            .write(to: leafURL, atomically: true, encoding: .utf8)
+        // ViewBase: UIView; ViewLeaf: ViewBase — forest, left alone.
+        try "class ViewBase: UIView { var a = 0 }"
+            .write(to: tmp.appendingPathComponent("ViewBase.swift"), atomically: true, encoding: .utf8)
+        let viewLeafURL = tmp.appendingPathComponent("ViewLeaf.swift")
+        try "class ViewLeaf: ViewBase { var b = 0 }"
+            .write(to: viewLeafURL, atomically: true, encoding: .utf8)
+
+        _ = try AppKitLowering().lowerInPlace(sourceDir: tmp)
+        let leaf = try String(contentsOf: leafURL, encoding: .utf8)
+        let viewLeaf = try String(contentsOf: viewLeafURL, encoding: .utf8)
+        // ModelLeaf chain reaches NSObject (via ModelBase) → synthesized nonisolated init.
+        #expect(leaf.contains("nonisolated override init() { super.init() }"))
+        // ViewLeaf chain reaches the @MainActor forest (via ViewBase: UIView) → left alone.
+        #expect(!viewLeaf.contains("nonisolated"))
+        #expect(!viewLeaf.contains("override init()"))
     }
 
     // MARK: - Linux-compat lowering (os.log / os(macOS)) — for WireGuard Tunnel/

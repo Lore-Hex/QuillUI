@@ -55,11 +55,73 @@ import SwiftSyntaxBuilder
 /// the Qt/GTK control backing invokes it on click via QuillSelectorDispatching.
 /// A class-body method is overridable, so subclass chains resolve dynamically;
 /// see DispatchOverrideInjector and QuillSelectorDispatching (QuillFoundation).
+///
+/// ─────────────────────────────────────────────────────────────────────────────
+/// ACTOR-ISOLATION POLICY (Pass 4 — `NonisolatedNSObjectMemberRewriter`)
+/// ─────────────────────────────────────────────────────────────────────────────
+/// SignalUI (and the other upstream trees) build with `-default-isolation
+/// MainActor`, so every upstream class is implicitly `@MainActor`. The shim
+/// modules (QuillUIKit / QuillAppKit / AVFoundation) build WITHOUT that flag, so
+/// their `@MainActor` is whatever the author wrote — and Linux's `NSObject` is
+/// swift-corelibs-Foundation's, whose `init()` / `isEqual` / `hash` /
+/// `description` / `debugDescription` are all genuinely `nonisolated`.
+///
+/// Swift's override rule: **an override must have the SAME actor isolation as the
+/// declaration it overrides.** A `@MainActor` member overriding a `nonisolated`
+/// one (or vice-versa) is a hard error even under `-strict-concurrency=minimal`
+/// once `-default-isolation` is in play, because isolation is part of the type,
+/// not a concurrency *diagnostic*. So the only internally-consistent state for a
+/// member is "the whole override chain agrees on isolation."
+///
+/// There are TWO distinct NSObject member populations, and they want OPPOSITE
+/// answers — which is why a blanket pass (sig6-1's first cut) made things worse
+/// (140 → 450 init mismatches):
+///
+///  (A) `isEqual` / `hash` / `description` / `debugDescription`.
+///      No shim base ever re-declares these as `@MainActor`; the nearest
+///      declaration up every chain is swift-corelibs `NSObject`'s — `nonisolated`.
+///      => an override in ANY `@MainActor` upstream class MUST be `nonisolated`.
+///      Applied UNCONDITIONALLY. (This part of sig6-1 was correct; kept.)
+///
+///  (B) `init()` / `init(coder:)` / `init(frame:)` / `init(nibName:bundle:)`.
+///      The nearest init up the chain depends on the ROOT:
+///        • Rooted at a `@MainActor` shim base (UIResponder → the whole
+///          UIView/UIViewController forest, UIPresentationController,
+///          UIBarButtonItem, UIGestureRecognizer, AVPlayer): those bases declare
+///          `@MainActor` designated inits, so the forest is `@MainActor`-CONSISTENT.
+///          => leave upstream inits `@MainActor` (the default). DO NOT annotate.
+///          sig6-1 wrongly forced these `nonisolated`, mismatching their
+///          `@MainActor` siblings/subclasses — the bulk of the 450 regression.
+///        • Rooted DIRECTLY at `NSObject` with no `@MainActor` shim base between
+///          (model/helper objects that happen to be `@MainActor`): the nearest
+///          init is `NSObject`'s `nonisolated init()`.
+///          => the overriding init MUST be `nonisolated`. We annotate explicit
+///          inits AND synthesize an explicit `nonisolated override init()` into
+///          such a class that has no initializer at all (so its otherwise-
+///          IMPLICIT `@MainActor init()` — which sig6-1 could never reach — stops
+///          mismatching `NSObject`).
+///
+/// Distinguishing (B)'s two cases needs GLOBAL hierarchy knowledge (a class's
+/// root can be a shim base reached through intermediates in OTHER files), so the
+/// init handling — like the dispatch-witness override/root decision (Pass 3) —
+/// consults the cross-file `HierarchyMap` built by `lowerInPlace`'s pre-pass.
+/// In single-file mode (no map) the pass falls back to the file-local superclass
+/// chain plus the static shim-root set, which is exact for same-file chains.
+///
+/// The known `@MainActor` shim roots are enumerated in `HierarchyMap.shimRoots`
+/// (grep `Sources/` for `open func quillPerform` to keep it in sync). Keeping the
+/// chain consistent at its root is what drives the init-mismatch count down
+/// without trading it for "call to @MainActor member from nonisolated context"
+/// errors (which the *opposite* choice — nonisolated-ing the forest — would mint).
 public struct AppKitLowering {
     public init() {}
 
     /// Lowers a single Swift source string in memory.
-    public func lower(_ source: String) -> String {
+    ///
+    /// `hierarchy` carries cross-file class→superclass knowledge gathered by
+    /// `lowerInPlace`'s pre-pass; pass `nil` (the default) for single-file use,
+    /// in which case Pass 3/4 fall back to the file-local superclass chain.
+    public func lower(_ source: String, hierarchy: HierarchyMap? = nil) -> String {
         let tree = Parser.parse(source: source)
         // Collect target-action methods (and each class's immediate superclass)
         // BEFORE @objc is stripped, so we can inject the `quillPerform` dispatch
@@ -70,6 +132,15 @@ public struct AppKitLowering {
         // existing `quillPerform` and skips it, so the pass stays idempotent.
         let collector = ActionMethodCollector(viewMode: .sourceAccurate)
         collector.walk(tree)
+        // Merge the file-local class→superclass map AND file-local action classes
+        // with the cross-file one so both Pass 3 (dispatch) and Pass 4 (isolation)
+        // can walk full chains even in single-file mode (no pre-pass `hierarchy`).
+        let localActionClasses = Set(collector.byType.compactMap { name, methods in
+            AppKitLowering.emittableActions(methods).isEmpty ? nil : HierarchyMap.simpleName(name)
+        })
+        let resolvedHierarchy = (hierarchy ?? HierarchyMap())
+            .merging(superclassByType: collector.superclassByType,
+                     actionClasses: localActionClasses)
         // Pass 1: the in-place rewrites (strip @objc, #selector→Selector,
         // Timer→QuillTimer.make, os.log import, os(macOS) widening).
         let pass1 = AppKitRewriter(
@@ -98,18 +169,31 @@ public struct AppKitLowering {
             ? merged
             : DispatchOverrideInjector(
                 byType: collector.byType,
-                superclassByType: collector.superclassByType
+                hierarchy: resolvedHierarchy
               ).rewrite(merged)
-        // Pass 4: prepend `nonisolated` to overrides of genuinely-nonisolated
-        // NSObject members (init/description/isEqual/hash/debugDescription) so
-        // they don't inherit SignalUI's `-default-isolation MainActor` and clash
-        // with the nonisolated overridden declaration. See NonisolatedNSObjectMemberRewriter.
-        return NonisolatedNSObjectMemberRewriter().rewrite(withDispatch).description
+        // Pass 4: actor-isolation policy (see the type-level doc block). Always
+        // `nonisolated`-annotates overrides of the genuinely-nonisolated NSObject
+        // identity members (isEqual/hash/description/debugDescription); for inits
+        // it only acts on classes rooted DIRECTLY at NSObject (per `hierarchy`),
+        // leaving the `@MainActor`-consistent UIView/UIViewController forest alone,
+        // and synthesizes a `nonisolated override init()` into an NSObject-direct
+        // `@MainActor` class that declares no initializer at all.
+        return NonisolatedNSObjectMemberRewriter(hierarchy: resolvedHierarchy)
+            .rewrite(withDispatch).description
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Mirrors
     /// `SwiftUILowering.lowerInPlace`: files unchanged by the pass aren't
     /// rewritten (no mtime churn). Returns the number of `.swift` files visited.
+    ///
+    /// Runs in TWO phases. The dispatch-witness override/root decision (Pass 3)
+    /// and the init-isolation decision (Pass 4) both need to know a class's
+    /// transitive superclass chain, which can thread through intermediate classes
+    /// declared in OTHER files. Phase 1 scans every `.swift` file to build a
+    /// cross-file `HierarchyMap` (class→superclass for every class, plus the set
+    /// of classes that will receive a dispatch witness). Phase 2 lowers each file
+    /// with that map in hand. The scan parses each file once with the lightweight
+    /// `HierarchyScanner`; the full rewrite re-parses in `lower`.
     @discardableResult
     public func lowerInPlace(
         sourceDir: URL,
@@ -117,6 +201,25 @@ public struct AppKitLowering {
     ) throws -> Int {
         let normalizedSource = sourceDir.resolvingSymlinksInPath()
 
+        // Phase 1: pre-pass — build the global hierarchy map from all files.
+        var hierarchy = HierarchyMap()
+        guard let scanEnumerator = fileManager.enumerator(
+            at: normalizedSource,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return 0
+        }
+        for case let fileURL as URL in scanEnumerator {
+            let resolved = fileURL.resolvingSymlinksInPath()
+            let resourceValues = try resolved.resourceValues(forKeys: [.isRegularFileKey])
+            guard resourceValues.isRegularFile == true else { continue }
+            guard resolved.pathExtension == "swift" else { continue }
+            let source = try String(contentsOf: resolved, encoding: .utf8)
+            hierarchy.ingest(source: source)
+        }
+
+        // Phase 2: lower each file with the cross-file hierarchy in hand.
         guard let enumerator = fileManager.enumerator(
             at: normalizedSource,
             includingPropertiesForKeys: [.isRegularFileKey],
@@ -133,7 +236,7 @@ public struct AppKitLowering {
             guard resolved.pathExtension == "swift" else { continue }
 
             let original = try String(contentsOf: resolved, encoding: .utf8)
-            let lowered = lower(original)
+            let lowered = lower(original, hierarchy: hierarchy)
             if lowered != original {
                 try lowered.write(to: resolved, atomically: true, encoding: .utf8)
             }
@@ -232,6 +335,207 @@ public struct AppKitLowering {
         if t == "Any?" { return "sender" }
         if t.hasSuffix("?") { return "sender as? \(String(t.dropLast()))" }
         return "sender as! \(t)"
+    }
+}
+
+// MARK: - Cross-file hierarchy map
+
+/// Cross-file class-inheritance knowledge built by `lowerInPlace`'s pre-pass.
+/// Both the dispatch-witness override/root decision (Pass 3) and the
+/// init-isolation decision (Pass 4) need to walk a class's transitive superclass
+/// chain, which can thread through intermediate classes declared in OTHER files
+/// (e.g. `Foo: SomeHelper` where `SomeHelper: NSObject` lives elsewhere and has
+/// no `@objc` actions). The map is keyed by the **simple** (unqualified) class
+/// name — Swift's source-level inheritance clause names the superclass simply, so
+/// that is the only key we can match a chain against without full type resolution.
+/// Nested types collapse to their leaf name here; collisions are vanishingly rare
+/// in the real trees and degrade gracefully (a chain that can't be resolved is
+/// treated as ending at its last known link, the conservative outcome).
+public struct HierarchyMap {
+    /// simple class name -> simple superclass name (first inheritance entry).
+    private(set) var superclassByClass: [String: String] = [:]
+    /// Simple names of classes that declare `@objc` actions (so they WILL receive
+    /// an injected `quillPerform` witness — i.e. an ancestor with one means the
+    /// descendant should `override` rather than newly conform).
+    private(set) var classesWithActions: Set<String> = []
+
+    public init() {}
+
+    /// The Apple-framework shim base classes that DECLARE a class-body
+    /// `quillPerform` witness (grep `Sources/` for `open func quillPerform`). A
+    /// class whose chain reaches one of these inherits a witness, so it (or a
+    /// transparent intermediate) must `override`, never newly conform. These are
+    /// also all `@MainActor` (UIResponder forest, etc.) or — for the AppKit
+    /// roots — sit above `@MainActor` view/controller bases.
+    static let dispatchShimRoots: Set<String> = [
+        "UIResponder", "UIPresentationController", "UIBarButtonItem",
+        "UIGestureRecognizer", "AVPlayer",
+        "NSResponder", "NSMenu", "NSMenuItem", "NSAlert",
+    ]
+
+    /// Shim base classes that are `@MainActor` AND declare/inherit `@MainActor`
+    /// designated initializers, so an upstream subclass's init should stay
+    /// `@MainActor` (the forest is isolation-consistent). A class whose init
+    /// chain reaches one of these must NOT be `nonisolated`-annotated. (AppKit's
+    /// `NSView`/`NSWindow` sit under the non-@MainActor `NSResponder`, but their
+    /// own inits are `@MainActor`-faithful; `NSViewController` already annotates
+    /// its inits `nonisolated` in the shim, so it is intentionally absent here.)
+    static let mainActorInitRoots: Set<String> = [
+        "UIResponder", "UIView", "UIViewController", "UIControl",
+        "UIPresentationController", "UIBarButtonItem", "UIGestureRecognizer",
+        "AVPlayer",
+        "NSView", "NSControl", "NSWindow", "NSButton", "NSTextView",
+    ]
+
+    /// Fold one source file's class declarations into the map (pre-pass).
+    mutating func ingest(source: String) {
+        let tree = Parser.parse(source: source)
+        let scanner = HierarchyScanner(viewMode: .sourceAccurate)
+        scanner.walk(tree)
+        for (name, superName) in scanner.superclassByClass where superclassByClass[name] == nil {
+            superclassByClass[name] = superName
+        }
+        classesWithActions.formUnion(scanner.classesWithActions)
+    }
+
+    /// Return a copy with the file-local class→superclass entries and the
+    /// file-local action-class set merged in (the local data wins for same-file
+    /// classes, which is harmless — it agrees with the pre-pass — and lets
+    /// single-file `lower(_:)` resolve same-file chains with no pre-pass).
+    func merging(
+        superclassByType localSuperclassByType: [String: String],
+        actionClasses localActionClasses: Set<String> = []
+    ) -> HierarchyMap {
+        var copy = self
+        for (qualified, superName) in localSuperclassByType {
+            let simple = HierarchyMap.simpleName(qualified)
+            copy.superclassByClass[simple] = HierarchyMap.simpleName(superName)
+        }
+        copy.classesWithActions.formUnion(localActionClasses)
+        return copy
+    }
+
+    /// Strip a leading type qualifier and any generic argument list, yielding the
+    /// simple class name the inheritance clause would name (`Outer.Inner` ->
+    /// `Inner`, `NSLayoutAnchor<X>` -> `NSLayoutAnchor`).
+    static func simpleName(_ name: String) -> String {
+        var n = name
+        if let lt = n.firstIndex(of: "<") { n = String(n[..<lt]) }
+        if let dot = n.lastIndex(of: ".") { n = String(n[n.index(after: dot)...]) }
+        return n.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// A class needing a dispatch witness emits `override` (vs. newly conform) iff
+    /// it INHERITS a witness — i.e. walking its superclass chain reaches a
+    /// dispatching ancestor (a known shim root, or an in-tree class that itself
+    /// gets a witness) BEFORE reaching `NSObject`. If the chain reaches literal
+    /// `NSObject` first (e.g. `Foo: NSObject`, or `Foo: SomeHelper` where the
+    /// helper is a plain action-less `NSObject` subclass), the class ROOTS its
+    /// own chain and newly conforms with a non-override witness. If the chain
+    /// instead ends at an unknown NON-`NSObject` name (a foreign/shim base we
+    /// can't see, such as `UIViewController`/`UITableViewCell`, which descend from
+    /// a dispatch root), it is treated as inheriting a witness → `override`.
+    func dispatchWitnessIsOverride(forClassNamed className: String) -> Bool {
+        var seen: Set<String> = [HierarchyMap.simpleName(className)]
+        var current = HierarchyMap.simpleName(className)
+        while true {
+            guard let superName = superclassByClass[current] else {
+                // Chain ended. If the last link we know of is itself a foreign
+                // base (current is not a class we recorded a super for and isn't
+                // NSObject), `current` is that base. A bare `NSObject` super is
+                // handled in-loop below; reaching here means `current` is an
+                // unknown non-NSObject leaf base → it descends from a dispatch
+                // root → override. (A literal root `class X {}` with no super has
+                // current == X and never entered the loop body's NSObject check.)
+                return current != HierarchyMap.simpleName(className) && current != "NSObject"
+            }
+            let simpleSuper = HierarchyMap.simpleName(superName)
+            if simpleSuper == "NSObject" { return false }           // chain root
+            if HierarchyMap.dispatchShimRoots.contains(simpleSuper)
+                || classesWithActions.contains(simpleSuper) {
+                return true                                          // inherits a witness
+            }
+            guard seen.insert(simpleSuper).inserted else { return false } // cycle
+            current = simpleSuper
+        }
+    }
+
+    /// An `@MainActor` class's `init` overrides should stay `@MainActor` (leave
+    /// them alone) UNLESS we can prove the class is rooted DIRECTLY at the
+    /// genuinely-`nonisolated` `NSObject` init — i.e. its superclass chain reaches
+    /// literal `NSObject` (through the in-tree map) WITHOUT passing any `@MainActor`
+    /// shim init-root (the UIView/UIViewController forest etc.). Only then is the
+    /// overriding init `nonisolated`-annotated / synthesized.
+    ///
+    /// This is deliberately asymmetric/conservative: a chain that ends at an
+    /// UNKNOWN foreign base (not literal `NSObject`, e.g. a real UIKit class we
+    /// can't see) is treated as `@MainActor`-rooted and LEFT ALONE — most such
+    /// bases are `@MainActor` UIKit view/controllers whose faithful inits are
+    /// `@MainActor`, so the default keeps the chain consistent. We only act where
+    /// the `NSObject` root is provable, which is exactly the model/helper-object
+    /// population that drove the genuine init mismatches.
+    func initChainIsMainActorRooted(forClassNamed className: String) -> Bool {
+        !chainReachesLiteralNSObjectDirectly(forClassNamed: className)
+    }
+
+    /// True iff `className`'s chain reaches literal `NSObject` without passing any
+    /// `@MainActor` shim init-root. False if a forest root is hit first OR the
+    /// chain ends at an unknown non-`NSObject` base (foreign — leave alone).
+    private func chainReachesLiteralNSObjectDirectly(forClassNamed className: String) -> Bool {
+        let simple = HierarchyMap.simpleName(className)
+        if HierarchyMap.mainActorInitRoots.contains(simple) { return false }
+        var seen: Set<String> = [simple]
+        var current = simple
+        while let superName = superclassByClass[current] {
+            let simpleSuper = HierarchyMap.simpleName(superName)
+            if simpleSuper == "NSObject" { return true }            // provable NSObject root
+            if HierarchyMap.mainActorInitRoots.contains(simpleSuper) { return false } // forest
+            guard seen.insert(simpleSuper).inserted else { return false } // cycle
+            current = simpleSuper
+        }
+        return false // chain ended at an unknown foreign base → leave alone
+    }
+}
+
+/// Lightweight pre-pass visitor: records each class's simple name → its immediate
+/// superclass simple name, and which classes declare `@objc` action methods.
+/// Cheaper than the full `ActionMethodCollector` (no per-method param capture);
+/// it only needs the boolean "has any @objc action" and the inheritance edge.
+private final class HierarchyScanner: SyntaxVisitor {
+    private(set) var superclassByClass: [String: String] = [:]
+    private(set) var classesWithActions: Set<String> = []
+    private var classStack: [String] = []
+    private var protocolDepth = 0
+
+    override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
+        classStack.append(node.name.text)
+        if let first = node.inheritanceClause?.inheritedTypes.first {
+            superclassByClass[node.name.text] =
+                HierarchyMap.simpleName(first.type.trimmedDescription)
+        }
+        return .visitChildren
+    }
+    override func visitPost(_ node: ClassDeclSyntax) { classStack.removeLast() }
+
+    override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
+        protocolDepth += 1
+        return .visitChildren
+    }
+    override func visitPost(_ node: ProtocolDeclSyntax) { protocolDepth -= 1 }
+
+    override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
+        guard protocolDepth == 0, let owner = classStack.last else { return .visitChildren }
+        let isObjc = node.attributes.contains { element in
+            if case .attribute(let attr) = element {
+                return attr.attributeName.trimmedDescription == "objc"
+            }
+            return false
+        }
+        // Only 0/1-param actions yield a witness, mirroring emittableActions.
+        if isObjc, node.signature.parameterClause.parameters.count <= 1 {
+            classesWithActions.insert(owner)
+        }
+        return .visitChildren
     }
 }
 
@@ -571,15 +875,23 @@ private final class ExtensionOverrideMerger: SyntaxRewriter {
 /// Per class, keyed by qualified name against the collected `@objc` actions:
 ///   * If the class already has a class-body `quillPerform(_:with:)` (a re-run, or
 ///     a hand-written one), it is left untouched — idempotent.
-///   * If the immediate superclass is `NSObject` (or the class has no superclass),
-///     it is a chain root: a `: QuillSelectorDispatching` conformance clause is
-///     added and a non-`override` witness (with `default: break`) is injected.
-///   * Otherwise the class inherits `quillPerform` from a Quill shim root
+///   * If NO strict ancestor (resolved through the cross-file `HierarchyMap`)
+///     either is a known dispatch shim root OR is an in-tree class that itself
+///     gets a witness, the class is the ROOT of its dispatch chain: a
+///     `: QuillSelectorDispatching` conformance clause is added and a
+///     non-`override` witness (with `default: break`) is injected. This is the
+///     case both for `Foo: NSObject` AND for `Foo: SomeHelper` where `SomeHelper`
+///     is a plain `NSObject` subclass with no actions (the bug a literal
+///     `super == "NSObject"` test produced: `SomeHelper != "NSObject"` so it
+///     wrongly emitted `override` of a non-existent base witness).
+///   * Otherwise the class inherits `quillPerform` from a shim root
 ///     (UIResponder / UIPresentationController / UIBarButtonItem /
-///     UIGestureRecognizer / AVPlayer) or another lowered class — possibly through
-///     transparent intermediate classes that declare no actions — so an
-///     `override` (with `default: super.quillPerform(…)`) is injected and no
-///     conformance clause is added.
+///     UIGestureRecognizer / AVPlayer / NSResponder / NSMenu / NSMenuItem /
+///     NSAlert) or another lowered class — possibly through transparent
+///     intermediate classes that declare no actions — so an `override` (with
+///     `default: super.quillPerform(…)`) is injected and no conformance clause is
+///     added. Exactly ONE class per chain declares the conformance (the root);
+///     every other emits a plain `override`.
 ///
 /// Limitation: `@objc` actions declared in an `extension` of a class defined in
 /// ANOTHER file (e.g. SignalUI's `ImageEditorViewController+Blur.swift`) cannot be
@@ -591,18 +903,19 @@ private final class ExtensionOverrideMerger: SyntaxRewriter {
 /// switch calls them wherever they live.
 private final class DispatchOverrideInjector: SyntaxRewriter {
     private let byType: [String: [ActionMethod]]
-    private let superclassByType: [String: String]
+    private let hierarchy: HierarchyMap
     private var typeStack: [String] = []
 
-    init(byType: [String: [ActionMethod]], superclassByType: [String: String]) {
+    init(byType: [String: [ActionMethod]], hierarchy: HierarchyMap) {
         self.byType = byType
-        self.superclassByType = superclassByType
+        self.hierarchy = hierarchy
         super.init()
     }
 
     override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
         typeStack.append(node.name.text)
         let qualified = typeStack.joined(separator: ".")
+        let simpleName = node.name.text
         // Recurse first so nested classes are handled and any rewrites compose.
         let recursed = super.visit(node).cast(ClassDeclSyntax.self)
         typeStack.removeLast()
@@ -613,13 +926,18 @@ private final class DispatchOverrideInjector: SyntaxRewriter {
         // Idempotent: skip a class that already carries a class-body witness.
         guard !Self.hasDispatchWitness(recursed) else { return DeclSyntax(recursed) }
 
-        let isRoot = Self.isChainRoot(superclassByType[qualified])
+        // Hierarchy-aware: `override` iff a strict ancestor already dispatches
+        // (a shim root, or an in-tree class with actions) — possibly through
+        // action-less intermediates in other files. Otherwise this class roots
+        // its dispatch chain and newly conforms with a non-override witness.
+        let isOverride = hierarchy.dispatchWitnessIsOverride(forClassNamed: simpleName)
+        let isRoot = !isOverride
         // Member indent: `typeStack` has been popped back to the ENCLOSING types,
         // so its count is this class's nesting depth; +1 for the class body.
         // 4 spaces per level matches Swift's house style.
         let indent = String(repeating: "    ", count: typeStack.count + 1)
         let methodSource = AppKitLowering.dispatchMethodSource(
-            for: emittable, asOverride: !isRoot, indent: indent
+            for: emittable, asOverride: isOverride, indent: indent
         )
 
         var copy = recursed
@@ -628,14 +946,6 @@ private final class DispatchOverrideInjector: SyntaxRewriter {
             copy = Self.addingConformance(to: copy)
         }
         return DeclSyntax(copy)
-    }
-
-    /// A class is a dispatch-chain ROOT (emit conformance + non-override witness)
-    /// when its immediate superclass is `NSObject` or it has no class superclass;
-    /// otherwise it inherits `quillPerform` and overrides it.
-    static func isChainRoot(_ superclass: String?) -> Bool {
-        guard let superclass else { return true }
-        return superclass == "NSObject"
     }
 
     /// `true` if the class body already declares a `quillPerform(_:with:)` method
@@ -708,19 +1018,46 @@ private final class DispatchOverrideInjector: SyntaxRewriter {
     }
 }
 
-// MARK: - Nonisolated NSObject-member overrides (Pass 4)
+// MARK: - Nonisolated NSObject-member overrides (Pass 4 — actor-isolation policy)
 
-/// Prepends `nonisolated` to overrides of the genuinely-nonisolated NSObject
-/// members — `init()`, `var description`, `var hash`, `var debugDescription`,
-/// `func isEqual(_:)`. SignalUI builds with `-default-isolation MainActor`, which
-/// would otherwise make these overrides `@MainActor` and clash with the
-/// nonisolated overridden declaration ("main actor-isolated … has different actor
-/// isolation from nonisolated overridden declaration").
+/// Implements the actor-isolation policy documented on `AppKitLowering`. Two parts:
 ///
-/// Conservative: matches ONLY these exact NSObject member signatures, only when
-/// the decl carries `override` and is not already `nonisolated` — so it never
-/// touches an app's own same-named member that doesn't override NSObject's.
+///  (A) IDENTITY MEMBERS — `func isEqual(_:)`, `var description` / `var hash` /
+///      `var debugDescription`. The nearest declaration up EVERY chain is
+///      swift-corelibs `NSObject`'s `nonisolated` one (no shim re-declares them as
+///      `@MainActor`), so an `override` in any `@MainActor` upstream class must be
+///      `nonisolated`. Applied UNCONDITIONALLY (no hierarchy needed).
+///
+///  (B) INITIALIZERS — `init()` / `init(coder:)` / `init(frame:)` /
+///      `init(nibName:bundle:)`. Whether the override must be `nonisolated` depends
+///      on the class's ROOT (resolved through the cross-file `HierarchyMap`):
+///        • init chain reaches a `@MainActor` shim init-root (the
+///          UIView/UIViewController forest etc.) → the chain is `@MainActor`-
+///          consistent; leave the override ALONE. (sig6-1 wrongly nonisolated-ed
+///          these, which mismatched their `@MainActor` siblings — the 140→450
+///          regression this pass undoes.)
+///        • otherwise the class is rooted directly at `NSObject`'s `nonisolated`
+///          init → the explicit override is `nonisolated`-annotated, AND if the
+///          class declares NO initializer at all, a `nonisolated override init()`
+///          is SYNTHESIZED (so its otherwise-implicit `@MainActor init()`, which
+///          sig6-1 could never reach, stops mismatching `NSObject`).
+///
+/// Conservative: matches ONLY these exact NSObject member signatures, only when the
+/// decl carries `override` and is not already `nonisolated`, so it never touches an
+/// app's own same-named member that doesn't override NSObject's. In single-file
+/// mode the hierarchy falls back to the file-local chain + the static shim-root
+/// set, exact for same-file chains.
 private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
+    private let hierarchy: HierarchyMap
+    /// Names of enclosing classes (innermost last) so a member visit knows its
+    /// owner — needed for the per-class init-isolation root decision (B).
+    private var classStack: [String] = []
+
+    init(hierarchy: HierarchyMap) {
+        self.hierarchy = hierarchy
+        super.init()
+    }
+
     private static func hasOverride(_ modifiers: DeclModifierListSyntax) -> Bool {
         modifiers.contains { $0.name.text == "override" }
     }
@@ -741,6 +1078,48 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         return copy
     }
 
+    override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
+        // `classStack` (before pushing) is the ENCLOSING nesting, so its current
+        // count is this class's depth; +1 gives the member indent level — same
+        // convention the dispatch injector uses.
+        let memberIndent = String(repeating: "    ", count: classStack.count + 1)
+        classStack.append(node.name.text)
+        let recursed = super.visit(node).cast(ClassDeclSyntax.self)
+        classStack.removeLast()
+        // Part (B) synthesis: an NSObject-direct `@MainActor` class that declares
+        // no initializer at all gets an explicit `nonisolated override init()`.
+        let isNSObjectDirect = !hierarchy.initChainIsMainActorRooted(forClassNamed: node.name.text)
+        return DeclSyntax(Self.synthesizingNonisolatedInitIfNeeded(
+            recursed, isNSObjectDirect: isNSObjectDirect, memberIndent: memberIndent
+        ))
+    }
+
+    /// If `node` is rooted directly at `NSObject` (no `@MainActor` shim init-root)
+    /// and declares NO initializer, append a `nonisolated override init()` so its
+    /// otherwise-implicit `@MainActor init()` stops mismatching `NSObject`'s
+    /// `nonisolated init()`. Idempotent (skips when any init already present —
+    /// including a synthesized one from a prior run). Only acts on classes that
+    /// inherit (have a superclass), since a root-less class has no `init()` to
+    /// override. `memberIndent` is the class-body indentation (4 spaces / level).
+    static func synthesizingNonisolatedInitIfNeeded(
+        _ node: ClassDeclSyntax, isNSObjectDirect: Bool, memberIndent: String
+    ) -> ClassDeclSyntax {
+        guard isNSObjectDirect, node.inheritanceClause != nil else { return node }
+        let hasAnyInit = node.memberBlock.members.contains { $0.decl.is(InitializerDeclSyntax.self) }
+        guard !hasAnyInit else { return node }
+        // Mirror the dispatch injector's `appending`: the rendered member carries
+        // its own indentation; the leading blank line reads it as its own member.
+        let source = "\(memberIndent)// Auto-generated by AppKitLowering: NSObject-direct init isolation"
+            + "\n\(memberIndent)// (matches NSObject's nonisolated init() under -default-isolation MainActor)."
+            + "\n\(memberIndent)nonisolated override init() { super.init() }"
+        let member = MemberBlockItemSyntax(decl: DeclSyntax("\n\n\(raw: source)\n"))
+        var copy = node
+        var members = copy.memberBlock.members
+        members.append(member)
+        copy.memberBlock.members = members
+        return copy
+    }
+
     override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
         let recursed = super.visit(node).cast(FunctionDeclSyntax.self)
         guard Self.hasOverride(recursed.modifiers), !Self.hasNonisolated(recursed.modifiers) else {
@@ -751,6 +1130,7 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
             && params.count == 1
             && params[0].firstName.text == "_"
             && params[0].type.trimmedDescription == "Any?"
+        // (A) Identity member — always nonisolated, regardless of root.
         guard isIsEqual else { return DeclSyntax(recursed) }
         return DeclSyntax(Self.prependNonisolated(recursed))
     }
@@ -769,6 +1149,7 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
             return DeclSyntax(recursed)
         }
         let name = pattern.identifier.text
+        // (A) Identity members — always nonisolated, regardless of root.
         let matches = (name == "description" && type == "String")
             || (name == "debugDescription" && type == "String")
             || (name == "hash" && type == "Int")
@@ -778,16 +1159,51 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
 
     override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax {
         let recursed = super.visit(node).cast(InitializerDeclSyntax.self)
-        guard Self.hasOverride(recursed.modifiers), !Self.hasNonisolated(recursed.modifiers) else {
-            return DeclSyntax(recursed)
+        guard !Self.hasNonisolated(recursed.modifiers) else { return DeclSyntax(recursed) }
+        // (B) Initializer — only one of the NSObject-base designated inits, and
+        // only for a class rooted DIRECTLY at NSObject (the @MainActor forest is
+        // left consistent at @MainActor). `init()` carries `override` (it overrides
+        // NSObject's); `init?(coder:)` carries `required` (the NSCoding/required
+        // designated-init requirement) and need not say `override`.
+        guard let kind = Self.nonisolatableInitKind(recursed) else { return DeclSyntax(recursed) }
+        switch kind {
+        case .designatedDefault:
+            guard Self.hasOverride(recursed.modifiers) else { return DeclSyntax(recursed) }
+        case .coder:
+            guard Self.hasOverride(recursed.modifiers) || Self.hasRequired(recursed.modifiers) else {
+                return DeclSyntax(recursed)
+            }
         }
-        // Exactly `init()` — no params, no failability, no async/throws/generics.
-        guard recursed.optionalMark == nil,
-              recursed.genericParameterClause == nil,
-              recursed.signature.parameterClause.parameters.isEmpty,
-              recursed.signature.effectSpecifiers == nil else {
+        let owner = classStack.last ?? ""
+        guard !hierarchy.initChainIsMainActorRooted(forClassNamed: owner) else {
             return DeclSyntax(recursed)
         }
         return DeclSyntax(Self.prependNonisolated(recursed))
+    }
+
+    private static func hasRequired(_ modifiers: DeclModifierListSyntax) -> Bool {
+        modifiers.contains { $0.name.text == "required" }
+    }
+
+    /// Which NSObject-base init this is, if any. On a class rooted DIRECTLY at
+    /// `NSObject` these genuinely override a `nonisolated` base init: `init()`
+    /// (NSObject's) and `init(coder:)` (the `NSCoding`/required designated init,
+    /// also nonisolated). The forest inits `init(frame:)` / `init(nibName:bundle:)`
+    /// are intentionally absent: they only ever override `@MainActor`
+    /// UIView/UIViewController bases, which the root check skips. No async/throws/
+    /// generics.
+    enum NonisolatableInitKind { case designatedDefault, coder }
+    static func nonisolatableInitKind(_ node: InitializerDeclSyntax) -> NonisolatableInitKind? {
+        guard node.genericParameterClause == nil,
+              node.signature.effectSpecifiers == nil else { return nil }
+        let params = Array(node.signature.parameterClause.parameters)
+        switch params.count {
+        case 0:
+            return .designatedDefault                      // init()
+        case 1 where params[0].firstName.text == "coder":
+            return .coder                                  // [required] init?(coder:)
+        default:
+            return nil
+        }
     }
 }
