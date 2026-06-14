@@ -1794,8 +1794,13 @@ public extension View {
     }
 
     // Value-form `.mask(_:)` (SwiftUI's original signature) — vendored real
-    // source passes a mask view directly, e.g. IceCubes DisplaySettingsView's
-    // `.mask(LinearGradient(...))`, not via a trailing closure.
+    // source that only sees the SwiftUI shadow (which re-exports
+    // QuillSwiftUICompatibility but NOT QuillUI) passes a mask view directly,
+    // e.g. IceCubes DisplaySettingsView's `.mask(LinearGradient(...))`.
+    // Disfavored so that callers who ALSO see QuillUI (e.g. the compat-module
+    // tests) bind to QuillUI's richer value-form mask (-> ViewMaskView /
+    // ClipShapeView) instead of this Self-returning fallback.
+    @_disfavoredOverload
     func mask<Mask: View>(alignment: Alignment = .center, _ mask: Mask) -> Self {
         _ = alignment
         _ = mask
