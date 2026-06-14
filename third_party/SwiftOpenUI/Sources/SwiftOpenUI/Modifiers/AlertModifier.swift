@@ -67,6 +67,13 @@ private func makeErrorAlertTitleAndMessage(from error: any Error) -> (title: Str
 
 extension View {
     /// Present an alert dialog when `isPresented` becomes true.
+    ///
+    /// Disfavored so a `actions: { … }` ViewBuilder closure (the SwiftUI form
+    /// real apps use) resolves to the `alert<Actions: View>` overload in
+    /// QuillSwiftUICompatibility rather than binding the closure to this
+    /// `[AlertButton]` parameter. An explicit array argument still selects
+    /// this overload.
+    @_disfavoredOverload
     public func alert(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -82,6 +89,7 @@ extension View {
     }
 
     /// Present an alert dialog when `isPresented` becomes true.
+    @_disfavoredOverload
     public func alert(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -98,6 +106,7 @@ extension View {
     }
 
     /// Present an alert dialog when `isPresented` becomes true.
+    @_disfavoredOverload
     public func alert(
         _ title: String,
         isPresented: Binding<Bool>,

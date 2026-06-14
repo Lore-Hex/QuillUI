@@ -141,78 +141,15 @@ extension Optional: IceCubesAppStorageValue where Wrapped: IceCubesAppStorageVal
         Wrapped.writeAppStorageValue(wrapped, forKey: key)
     }
 }
-@propertyWrapper
-public struct AppStorage<Value>: AnyStateStorageProvider {
-    private let writeValue: (Value) -> Void
-    public let storage: StateStorage<Value>
-    public init(wrappedValue d: Value, _ key: String) where Value: IceCubesAppStorageValue {
-        writeValue = { Value.writeAppStorageValue($0, forKey: key) }
-        storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? d)
-    }
-    public init(wrappedValue d: Value, _ key: String, store: UserDefaults?) where Value: IceCubesAppStorageValue {
-        self.init(wrappedValue: d, key, store: store ?? .standard)
-    }
-    public init(wrappedValue d: Value, _ key: String, store: UserDefaults) where Value: IceCubesAppStorageValue {
-        writeValue = { store.setIceCubesAppStorageValue($0, forKey: key) }
-        storage = StateStorage(store.iceCubesAppStorageValue(forKey: key, as: Value.self) ?? d)
-    }
-    public init(_ key: String) where Value: ExpressibleByNilLiteral, Value: IceCubesAppStorageValue {
-        let d: Value = nil
-        writeValue = { Value.writeAppStorageValue($0, forKey: key) }
-        storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? d)
-    }
-    public init(wrappedValue d: Value, _ key: String) where Value: RawRepresentable, Value.RawValue: IceCubesAppStorageValue {
-        writeValue = { Value.RawValue.writeAppStorageValue($0.rawValue, forKey: key) }
-        if let rv = Value.RawValue.readAppStorageValue(forKey: key), let v = Value(rawValue: rv) { storage = StateStorage(v) } else { storage = StateStorage(d) }
-    }
-    public var wrappedValue: Value {
-        get { storage.value }
-        nonmutating set { writeValue(newValue); storage.setValue(newValue) }
-    }
-    public var projectedValue: Binding<Value> {
-        Binding(get: { storage.value }, set: { nv in writeValue(nv); storage.setValue(nv) })
-    }
-    public var anyStorage: AnyStateStorage { storage }
-}
-
-private extension UserDefaults {
-    func iceCubesAppStorageValue<Value: IceCubesAppStorageValue>(forKey key: String, as type: Value.Type) -> Value? {
-        switch Value.self {
-        case is String.Type:
-            return string(forKey: key) as? Value
-        case is Bool.Type:
-            guard object(forKey: key) != nil else { return nil }
-            return bool(forKey: key) as? Value
-        case is Int.Type:
-            guard object(forKey: key) != nil else { return nil }
-            return integer(forKey: key) as? Value
-        case is Double.Type:
-            guard object(forKey: key) != nil else { return nil }
-            return double(forKey: key) as? Value
-        case is Data.Type:
-            return data(forKey: key) as? Value
-        default:
-            return Value.readAppStorageValue(forKey: key)
-        }
-    }
-
-    func setIceCubesAppStorageValue<Value: IceCubesAppStorageValue>(_ value: Value, forKey key: String) {
-        switch value {
-        case let value as String:
-            set(value, forKey: key)
-        case let value as Bool:
-            set(value, forKey: key)
-        case let value as Int:
-            set(value, forKey: key)
-        case let value as Double:
-            set(value, forKey: key)
-        case let value as Data:
-            set(value, forKey: key)
-        default:
-            Value.writeAppStorageValue(value, forKey: key)
-        }
-    }
-}
+// NOTE: IceCubesShims used to carry its own `AppStorage` property wrapper.
+// QuillSwiftUICompatibility (re-exported through the SwiftUI shadow) now
+// declares the canonical one, and two same-named types made every
+// vendored-IceCubes `@AppStorage` ambiguous (type-lookup ambiguity can't
+// be solved with @_disfavoredOverload). The conformer sets are identical
+// (String/Bool/Int/Double/Data/Optional + RawRepresentable), so the
+// canonical wrapper serves the vendored sources directly. The
+// IceCubesAppStorageValue protocol above stays for SceneStorage and
+// friends.
 
 // Linux replacements for IceCubes' SwiftData models that are excluded from the
 // vendored Models target. Keep these shapes aligned with upstream stored
