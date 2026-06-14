@@ -379,6 +379,28 @@ public extension Image {
 
 public protocol KeyboardReadable {}
 
+public struct PlainListStyle: Sendable {
+    public init() {}
+}
+
+// `ButtonRole` and the role-taking Button inits moved to
+// QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that
+// only `import SwiftUI`s sees them (SolderScope's alert buttons); QuillUI
+// re-exports that module.
+
+public extension TextField {
+    init(_ title: String, text: Binding<String>, axis: Axis) {
+        self.init(title, text: text)
+    }
+
+    init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
+        self.init(title, text: text)
+    }
+}
+
+// Axis.Set is the fork's typealias (Axis itself is the OptionSet) —
+// the old nested struct here competed with it and was removed.
+
 public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
     public var rawValue: Double
     public init(_ value: Double) { self.rawValue = value }

@@ -137,6 +137,41 @@ final class GTK4MenuBarHostLayoutTests: XCTestCase {
         XCTAssertEqual(resolved?.width, 320)
         XCTAssertEqual(resolved?.height, 240)
     }
+
+    func testCommandShortcutHostTracksEnabledCommandShortcutsWithoutMenuBar() throws {
+        try requireGTK()
+
+        let shortcut = KeyboardShortcut("b", modifiers: [])
+        let windowID = 99_001
+        var enabled = true
+        var actionCount = 0
+        let factory: AnyCommandsFactory = {
+            [
+                .toolbar: [
+                    CommandMenuItem("Toggle Scale Bar", shortcut: shortcut) {
+                        actionCount += 1
+                    }
+                    .disabled(!enabled),
+                    CommandMenuItem("Recalibrate") {}
+                ]
+            ]
+        }
+
+        let host = GTK4CommandShortcutHost(factory: factory, windowID: windowID)
+        host.setup()
+        defer { host.destroy() }
+
+        XCTAssertEqual(host.shortcutCountForTesting(), 1)
+        XCTAssertTrue(KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID))
+        XCTAssertEqual(actionCount, 1)
+
+        enabled = false
+        host.evaluateWithTracking()
+
+        XCTAssertEqual(host.shortcutCountForTesting(), 0)
+        XCTAssertFalse(KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID))
+        XCTAssertEqual(actionCount, 1)
+    }
 }
 
 private func requireGTK(

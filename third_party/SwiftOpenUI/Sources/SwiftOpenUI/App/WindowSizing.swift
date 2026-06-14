@@ -57,6 +57,27 @@ extension WindowGroup {
         defaultWindowSize(width: width, height: height)
     }
 
+    /// Returns a copy that requests a hidden title bar (the GTK backend maps
+    /// it to an undecorated window). Compatibility layers route SwiftUI's
+    /// `.windowStyle(.hiddenTitleBar)` here.
+    public func quillHidingTitleBar(_ hides: Bool = true) -> WindowGroup<Content> {
+        WindowGroup(
+            title: title,
+            content: content,
+            defaultWindowWidth: defaultWindowWidth,
+            defaultWindowHeight: defaultWindowHeight,
+            minWindowWidth: minWindowWidth,
+            minWindowHeight: minWindowHeight,
+            maxWindowWidth: maxWindowWidth,
+            maxWindowHeight: maxWindowHeight,
+            windowSizing: windowSizing,
+            windowResizeBehavior: windowResizeBehavior,
+            windowResizability: windowResizability,
+            launchesAtStartup: launchesAtStartup,
+            quillHidesTitleBar: hides
+        )
+    }
+
     /// Sets the initial window size.
     public func defaultWindowSize(width: Double, height: Double) -> WindowGroup<Content> {
         WindowGroup(
@@ -71,7 +92,8 @@ extension WindowGroup {
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
-            launchesAtStartup: launchesAtStartup
+            launchesAtStartup: launchesAtStartup,
+            quillHidesTitleBar: quillHidesTitleBar
         )
     }
 
@@ -94,7 +116,8 @@ extension WindowGroup {
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
-            launchesAtStartup: launchesAtStartup
+            launchesAtStartup: launchesAtStartup,
+            quillHidesTitleBar: quillHidesTitleBar
         )
     }
 
@@ -112,7 +135,8 @@ extension WindowGroup {
             windowSizing: sizing,
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
-            launchesAtStartup: launchesAtStartup
+            launchesAtStartup: launchesAtStartup,
+            quillHidesTitleBar: quillHidesTitleBar
         )
     }
 
@@ -130,7 +154,8 @@ extension WindowGroup {
             windowSizing: windowSizing,
             windowResizeBehavior: behavior,
             windowResizability: windowResizability,
-            launchesAtStartup: launchesAtStartup
+            launchesAtStartup: launchesAtStartup,
+            quillHidesTitleBar: quillHidesTitleBar
         )
     }
 
@@ -151,7 +176,8 @@ extension WindowGroup {
             windowSizing: windowSizing,
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: resizability,
-            launchesAtStartup: launchesAtStartup
+            launchesAtStartup: launchesAtStartup,
+            quillHidesTitleBar: quillHidesTitleBar
         )
     }
 }

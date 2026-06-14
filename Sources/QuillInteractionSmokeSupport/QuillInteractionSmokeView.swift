@@ -45,6 +45,9 @@ public struct QuillInteractionSmokeConfiguration: Equatable, Sendable {
 }
 
 public enum QuillInteractionSmokeScene {
+    // @MainActor: QuillAppWindow.scene is isolated (Scene is whole-protocol
+    // @MainActor, #512/#513); callers are App.body builders, already isolated.
+    @MainActor
     public static func scene(
         for backend: QuillBackendIdentifier
     ) -> some Scene {

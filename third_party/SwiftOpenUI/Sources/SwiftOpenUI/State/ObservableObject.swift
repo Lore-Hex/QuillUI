@@ -139,7 +139,7 @@ public class ObservedObjectStorage<ObjectType: ObservableObject>: AnyStateStorag
 public struct StateObject<ObjectType: ObservableObject>: AnyStateStorageProvider {
     public let storage: StateObjectStorage<ObjectType>
 
-    public init(wrappedValue: @autoclosure @escaping () -> ObjectType) {
+    public init(wrappedValue: @autoclosure @escaping @MainActor () -> ObjectType) {
         storage = StateObjectStorage(factory: wrappedValue)
     }
 
@@ -156,7 +156,7 @@ public struct StateObject<ObjectType: ObservableObject>: AnyStateStorageProvider
 /// access and caches it. Since this is a class (reference type), copying
 /// the view struct shares the same storage — the object persists.
 public class StateObjectStorage<ObjectType: ObservableObject>: AnyStateStorage, GenerationTracked {
-    private let factory: () -> ObjectType
+    private let factory: @MainActor () -> ObjectType
     var _object: ObjectType?  // internal for restoreValue cross-storage adoption
     private var cancellable: AnyCancellable?
     public private(set) var generation: UInt64 = 0
@@ -164,13 +164,18 @@ public class StateObjectStorage<ObjectType: ObservableObject>: AnyStateStorage, 
         didSet { wireObjectWillChange() }
     }
 
-    public init(factory: @escaping () -> ObjectType) {
+    public init(factory: @escaping @MainActor () -> ObjectType) {
         self.factory = factory
     }
 
     public var object: ObjectType {
         if let obj = _object { return obj }
-        let obj = factory()
+        // The factory autoclosure is @MainActor (Apple's StateObject shape:
+        // `init(wrappedValue: @autoclosure @escaping @MainActor () -> ObjectType)`).
+        // First access only ever happens during state install / body
+        // evaluation on the backend main loop, which IS the main thread, so
+        // this assumption always holds (blessed boundary pattern).
+        let obj = MainActor.assumeIsolated { factory() }
         _object = obj
         wireObjectWillChange()
         return obj

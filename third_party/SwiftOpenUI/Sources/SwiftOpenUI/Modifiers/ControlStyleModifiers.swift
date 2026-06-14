@@ -16,14 +16,65 @@ public enum ButtonStyleType: Equatable {
     case quillPaintMacBordered
 }
 
+public struct ButtonStyleConfiguration {
+    public let label: AnyView
+    public let isPressed: Bool
+
+    public init(label: AnyView, isPressed: Bool = false) {
+        self.label = label
+        self.isPressed = isPressed
+    }
+}
+
+@MainActor @preconcurrency
+public protocol ButtonStyle {
+    associatedtype Body: View
+    typealias Configuration = ButtonStyleConfiguration
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> Body
+}
+
+public struct PlainButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> AnyView {
+        configuration.label
+    }
+}
+
+public struct AnyButtonStyle {
+    private let makeBodyClosure: @MainActor (ButtonStyleConfiguration) -> AnyView
+
+    public init<S: ButtonStyle>(_ style: S) {
+        self.makeBodyClosure = { configuration in
+            AnyView(style.makeBody(configuration: configuration))
+        }
+    }
+
+    @MainActor
+    public func makeBody(configuration: ButtonStyleConfiguration) -> AnyView {
+        makeBodyClosure(configuration)
+    }
+}
+
 struct ButtonStyleKey: EnvironmentKey {
     static let defaultValue: ButtonStyleType = .automatic
+}
+
+struct CustomButtonStyleKey: EnvironmentKey {
+    static let defaultValue: AnyButtonStyle? = nil
 }
 
 extension EnvironmentValues {
     public var buttonStyle: ButtonStyleType {
         get { self[ButtonStyleKey.self] }
         set { self[ButtonStyleKey.self] = newValue }
+    }
+
+    public var customButtonStyle: AnyButtonStyle? {
+        get { self[CustomButtonStyleKey.self] }
+        set { self[CustomButtonStyleKey.self] = newValue }
     }
 }
 
@@ -83,6 +134,14 @@ public struct ButtonStyleModifier<Content: View>: View, PrimitiveView {
     public var body: Never { fatalError() }
 }
 
+/// Sets a custom SwiftUI-style button style for descendant buttons.
+public struct CustomButtonStyleModifier<Content: View>: View, PrimitiveView {
+    public typealias Body = Never
+    public let content: Content
+    public let style: AnyButtonStyle
+    public var body: Never { fatalError() }
+}
+
 /// Sets the toggle style for descendant toggles.
 public struct ToggleStyleModifier<Content: View>: View, PrimitiveView {
     public typealias Body = Never
@@ -105,6 +164,11 @@ extension View {
     /// Sets the style for buttons within this view.
     public func buttonStyle(_ style: ButtonStyleType) -> ButtonStyleModifier<Self> {
         ButtonStyleModifier(content: self, style: style)
+    }
+
+    /// Sets a custom style for buttons within this view.
+    public func buttonStyle<S: ButtonStyle>(_ style: S) -> CustomButtonStyleModifier<Self> {
+        CustomButtonStyleModifier(content: self, style: AnyButtonStyle(style))
     }
 
     /// Sets the style for toggles within this view.
