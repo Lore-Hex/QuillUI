@@ -1042,6 +1042,26 @@ PY
         echo "==> lowering IceCubes StatusKit Objective-C interop syntax for Linux"
         "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$statusdir"
     fi
+
+    # IceCubes' own `Account` feature package collides with NetNewsWire's
+    # `Account` module — both live as targets in this single SwiftPM graph on
+    # Linux, which SwiftPM rejects ("duplicate target named 'Account'"). The
+    # manifest names the IceCubes feature target `IceCubesAccount`; rewrite the
+    # consumers' `import Account` to match. NetNewsWire keeps the bare `Account`
+    # name (147 importers vs. IceCubes' 15). The `Account` *model* struct (with
+    # `.Field`/`.Source`) lives in the `Models` module, so qualified references
+    # like `Account.Field` are unaffected. Scoped to .upstream/icecubes and
+    # excludes the feature package's own sources. Idempotent.
+    local icedir="$UPSTREAM_DIR/icecubes"
+    if [[ -d "$icedir" ]]; then
+        echo "==> renaming IceCubes 'import Account' -> 'import IceCubesAccount'"
+        grep -rlE '^[[:space:]]*(@_exported |@testable )?import Account[[:space:]]*$' "$icedir" 2>/dev/null \
+            | grep -v '/Packages/Account/Sources/Account/' \
+            | while IFS= read -r f; do
+                sed -i -E 's/^([[:space:]]*)((@_exported |@testable )?)import Account([[:space:]]*)$/\1\2import IceCubesAccount\4/' "$f"
+                echo "patched $(basename "$f")"
+            done
+    fi
 }
 
 patch_signal_ios() {

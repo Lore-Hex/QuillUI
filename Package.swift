@@ -3514,7 +3514,7 @@ if iceCubesLinuxGraphEnabled {
             name: "IceCubesLinuxApp",
             dependencies: [
                 "AVFoundation",
-                "Account",
+                "IceCubesAccount",
                 "AppAccount",
                 "AppIntents",
                 "AuthenticationServices",
@@ -3650,11 +3650,6 @@ if iceCubesLinuxGraphEnabled {
             ]
         ),
         .target(
-            name: "Account",
-            dependencies: ["IceCubesAccount"],
-            path: "Sources/IceCubesAccountModuleAlias"
-        ),
-        .target(
             name: "Timeline",
             dependencies: [
                 "Models",
@@ -3685,7 +3680,7 @@ if iceCubesLinuxGraphEnabled {
         .target(
             name: "Explore",
             dependencies: [
-                "Account",
+                "IceCubesAccount",
                 "Models",
                 "NetworkClient",
                 "Env",
@@ -3735,7 +3730,7 @@ if iceCubesLinuxGraphEnabled {
         .target(
             name: "Lists",
             dependencies: [
-                "Account",
+                "IceCubesAccount",
                 "Models",
                 "NetworkClient",
                 "Env",
