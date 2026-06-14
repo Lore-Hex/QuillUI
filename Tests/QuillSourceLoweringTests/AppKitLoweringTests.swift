@@ -751,7 +751,7 @@ struct AppKitLoweringTests {
         #expect(AppKitLowering().lower(lowered) == lowered)
     }
 
-    @Test("Cross-file: a deinit in a class rooted at the forest THROUGH an in-tree base is isolated; a model-rooted one is not")
+    @Test("Cross-file: a deinit isolates when rooted at the forest OR when its immediate base is an in-tree @MainActor class; an NSObject-DIRECT model root is left alone")
     func crossFileDeinitForestRoots() throws {
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("appkit-deinit-\(UUID().uuidString)", isDirectory: true)
@@ -764,19 +764,29 @@ struct AppKitLoweringTests {
         let viewLeafURL = tmp.appendingPathComponent("ViewLeaf.swift")
         try "class ViewLeaf: ViewBase {\n    deinit { removeFromSuperview() }\n}"
             .write(to: viewLeafURL, atomically: true, encoding: .utf8)
-        // ModelBase: NSObject; ModelLeaf: ModelBase with a deinit — model root, left alone.
-        try "class ModelBase: NSObject { var a = 0 }"
-            .write(to: tmp.appendingPathComponent("ModelBase.swift"), atomically: true, encoding: .utf8)
+        // ModelBase: NSObject (NSObject-DIRECT) — its deinit is LEFT ALONE: its
+        // immediate base is foreign NSObject, whose nonisolated deinit it matches.
+        let modelBaseURL = tmp.appendingPathComponent("ModelBase.swift")
+        try "class ModelBase: NSObject {\n    var a = 0\n    deinit { rootTeardown() }\n}"
+            .write(to: modelBaseURL, atomically: true, encoding: .utf8)
+        // ModelLeaf: ModelBase — its IMMEDIATE base ModelBase is an in-tree
+        // (@MainActor by default-isolation) class, so ModelBase's implicit/explicit
+        // deinit is isolated and ModelLeaf's deinit must match → isolate. (This is
+        // the StickerPackDataSource case the widened gate fixes.)
         let modelLeafURL = tmp.appendingPathComponent("ModelLeaf.swift")
         try "class ModelLeaf: ModelBase {\n    deinit { teardown() }\n}"
             .write(to: modelLeafURL, atomically: true, encoding: .utf8)
 
         _ = try AppKitLowering().lowerInPlace(sourceDir: tmp)
         let viewLeaf = try String(contentsOf: viewLeafURL, encoding: .utf8)
+        let modelBase = try String(contentsOf: modelBaseURL, encoding: .utf8)
         let modelLeaf = try String(contentsOf: modelLeafURL, encoding: .utf8)
         #expect(viewLeaf.contains("@MainActor deinit {"))
-        #expect(modelLeaf.contains("teardown()"))
-        #expect(!modelLeaf.contains("@MainActor deinit"))
+        // NSObject-DIRECT base: left alone (immediate base is foreign NSObject).
+        #expect(modelBase.contains("rootTeardown()"))
+        #expect(!modelBase.contains("@MainActor deinit"))
+        // Subclass of an in-tree base: isolated (overrides the base's isolated deinit).
+        #expect(modelLeaf.contains("@MainActor deinit"))
     }
 
     // MARK: - Linux-compat lowering (os.log / os(macOS)) — for WireGuard Tunnel/
@@ -888,5 +898,245 @@ struct AppKitLoweringTests {
         let extPos = lowered.range(of: "extension External")!.lowerBound
         let fooPos = lowered.range(of: "override func foo")!.lowerBound
         #expect(fooPos > extPos) // still inside the extension
+    }
+
+    // MARK: - #imageLiteral → UIImage(named:)! (Transform 1)
+
+    @Test("#imageLiteral(resourceName:) becomes UIImage(named:)!")
+    func imageLiteralRewritten() {
+        let source = #"let img = #imageLiteral(resourceName: "clock-arabic.pdf")"#
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains(#"UIImage(named: "clock-arabic.pdf")!"#))
+        #expect(!lowered.contains("#imageLiteral"))
+        // Idempotent: the rewritten form has no macro to re-match.
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("#imageLiteral inside a switch/return keeps its expression position")
+    func imageLiteralInReturn() {
+        let source = """
+        var backgroundImage: UIImage {
+            switch self {
+            case .arabic:
+                return #imageLiteral(resourceName: "clock-arabic.pdf")
+            case .baton:
+                return #imageLiteral(resourceName: "clock-baton.pdf")
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains(#"return UIImage(named: "clock-arabic.pdf")!"#))
+        #expect(lowered.contains(#"return UIImage(named: "clock-baton.pdf")!"#))
+        #expect(!lowered.contains("#imageLiteral"))
+    }
+
+    // MARK: - #keyPath(...) → string literal (Transform 2)
+
+    @Test("#keyPath(Type.member) becomes the dotted member string (type dropped)")
+    func keyPathRewritten() {
+        let source = #"let animation = CABasicAnimation(keyPath: #keyPath(CALayer.cornerRadius))"#
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains(#"keyPath: "cornerRadius""#))
+        #expect(!lowered.contains("#keyPath"))
+        #expect(!lowered.contains("CALayer"))   // the leading type component is dropped
+        #expect(AppKitLowering().lower(lowered) == lowered)   // idempotent
+    }
+
+    @Test("#keyPath with a multi-component path keeps the member path after the type")
+    func keyPathMultiComponent() {
+        let source = "let s = #keyPath(Foo.bar.baz)"
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains(#""bar.baz""#))
+        #expect(!lowered.contains("Foo"))
+        #expect(!lowered.contains("#keyPath"))
+    }
+
+    @Test("#keyPath(CAShapeLayer.path) becomes \"path\"")
+    func keyPathShapeLayer() {
+        let lowered = AppKitLowering().lower("let a = #keyPath(CAShapeLayer.path)")
+        #expect(lowered.contains(#""path""#))
+        #expect(!lowered.contains("CAShapeLayer"))
+    }
+
+    // MARK: - strip .method?( optional-protocol-method call (Transform 3)
+
+    @Test("delegate optional-method call .method?( has its ? stripped")
+    func optionalDelegateCallStripped() {
+        let source = """
+        func f() {
+            externalDelegate?.navigationController?(navigationController, willShow: vc, animated: animated)
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // The FIRST ? (on the optional `externalDelegate`) is preserved; the SECOND
+        // ? (the optional-method-call ? after `.navigationController`) is removed.
+        #expect(lowered.contains("externalDelegate?.navigationController(navigationController"))
+        #expect(!lowered.contains(".navigationController?("))
+    }
+
+    @Test("textView delegate optional-method calls have their ? stripped")
+    func optionalTextViewDelegateCallsStripped() {
+        let source = """
+        func g() {
+            _ = bodyRangesDelegate?.textView?(textView, shouldChangeTextIn: range, replacementText: text)
+            bodyRangesDelegate?.textViewDidChangeSelection?(textView)
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("bodyRangesDelegate?.textView(textView"))
+        #expect(lowered.contains("bodyRangesDelegate?.textViewDidChangeSelection(textView)"))
+        #expect(!lowered.contains(".textView?("))
+        #expect(!lowered.contains(".textViewDidChangeSelection?("))
+    }
+
+    @Test("a bare optional-closure call foo?( is PRESERVED (not a member access)")
+    func optionalClosureCallPreserved() {
+        // `onTap` is a stored optional closure, not a delegate member access.
+        let source = "func h() { onTap?(sender) }"
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("onTap?(sender)"))   // ? intact — real optional-closure call
+    }
+
+    @Test("a non-delegate .property?( optional-closure call is PRESERVED")
+    func optionalMemberClosureCallPreserved() {
+        // `.completionHandler` is not a known UIKit-delegate name, so it is left alone.
+        let source = "func i() { self.completionHandler?(result) }"
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("self.completionHandler?(result)"))
+    }
+
+    @Test("optional-protocol-call strip is idempotent")
+    func optionalDelegateCallStripIdempotent() {
+        let source = "func j() { d?.tableView?(tableView, didSelectRowAt: indexPath) }"
+        let once = AppKitLowering().lower(source)
+        #expect(AppKitLowering().lower(once) == once)
+        #expect(once.contains("d?.tableView(tableView"))
+    }
+
+    // MARK: - @MainActor deinit completeness (Transform 4)
+
+    @Test("UITextView-subclass-chain deinit gets @MainActor (forest widened to UITextView)")
+    func deinitForestUITextView() {
+        // OWSTextView: UITextView and BodyRangesTextView: OWSTextView — the chain
+        // reaches UITextView, now a recognized forest root.
+        let source = """
+        open class OWSTextView: UITextView {}
+        open class BodyRangesTextView: OWSTextView {
+            deinit {
+                pickerView?.removeFromSuperview()
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("@MainActor deinit"))
+    }
+
+    @Test("deinit of a subclass of an in-tree NSObject-direct base gets @MainActor")
+    func deinitInTreeNSObjectDirectBase() {
+        // BaseStickerPackDataSource: NSObject is @MainActor by default-isolation, so
+        // its implicit deinit is isolated; the subclass deinit must match it even
+        // though the chain roots at NSObject (forest check alone is false).
+        let source = """
+        public class BaseStickerPackDataSource: NSObject {}
+        public class TransientStickerPackDataSource: BaseStickerPackDataSource {
+            deinit {
+                let urls = self.temporaryFileUrls
+                cleanup(urls)
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("@MainActor deinit"))
+    }
+
+    @Test("deinit of an NSObject-DIRECT model object is LEFT ALONE (off-main ok)")
+    func deinitNSObjectDirectModelLeftAlone() {
+        // Immediate base is foreign NSObject → nonisolated deinit matches NSObject's
+        // nonisolated base deinit; isolating it would be wrong.
+        let source = """
+        public class MyCache: NSObject {
+            deinit { flush() }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("@MainActor deinit"))
+    }
+
+    @Test("@MainActor deinit pass is idempotent")
+    func deinitMainActorIdempotent() {
+        let source = """
+        open class V: UITextView {
+            deinit { teardown() }
+        }
+        """
+        let once = AppKitLowering().lower(source)
+        #expect(once.contains("@MainActor deinit"))
+        #expect(AppKitLowering().lower(once) == once)
+    }
+
+    // MARK: - cross-file extension-member relocation (Transform 5)
+
+    @Test("base extension method overridden by a subclass elsewhere moves into the base body")
+    func crossFileExtensionMethodRelocated() {
+        // Single file modeling both halves: Base's method lives in an extension, and
+        // Sub (a subclass) overrides it — so Base.scrollViewDidScroll must move into
+        // the Base class body.
+        let source = """
+        open class Base: UIViewController {
+            func existing() {}
+        }
+        extension Base {
+            open func scrollViewDidScroll(_ scrollView: UIScrollView) {}
+            func unrelatedHelper() {}
+        }
+        open class Sub: Base {
+            override public func scrollViewDidScroll(_ scrollView: UIScrollView) {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        let classOpen = lowered.range(of: "class Base")!.lowerBound
+        let extOpen = lowered.range(of: "extension Base")!.lowerBound
+        let movedPos = lowered.range(of: "func scrollViewDidScroll")!.lowerBound
+        // The moved method is now in the class body (before `extension Base`).
+        #expect(movedPos > classOpen && movedPos < extOpen)
+        // The unrelated, non-overridden helper stays in the extension.
+        #expect(lowered.contains("func unrelatedHelper()"))
+        // Idempotent.
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("a base extension method NOT overridden by any subclass stays in the extension")
+    func crossFileExtensionMethodNotOverriddenStays() {
+        let source = """
+        open class Base: UIViewController {}
+        extension Base {
+            open func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {}
+        }
+        open class Sub: Base {
+            func unrelated() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        let extOpen = lowered.range(of: "extension Base")!.lowerBound
+        let methodPos = lowered.range(of: "func tableView")!.lowerBound
+        #expect(methodPos > extOpen) // still in the extension
+    }
+
+    @Test("override of forwardingTarget(for:) has its override keyword stripped")
+    func forwardingTargetOverrideStripped() {
+        let source = """
+        open class V: UITextView {
+            override open func forwardingTarget(for aSelector: Selector!) -> Any? {
+                return nil
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("func forwardingTarget(for aSelector: Selector!)"))
+        #expect(!lowered.contains("override open func forwardingTarget"))
+        #expect(!lowered.contains("override public func forwardingTarget"))
+        // The decl keeps its own line + indentation (no merge onto the brace line).
+        #expect(lowered.contains("open func forwardingTarget"))
+        #expect(AppKitLowering().lower(lowered) == lowered)   // idempotent
     }
 }

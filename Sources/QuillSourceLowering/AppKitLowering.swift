@@ -42,13 +42,30 @@ import SwiftSyntaxBuilder
 ///     trailing-closure init is rewritten — the target-action
 ///     `Timer(timeInterval:target:selector:…)` and `Timer.scheduledTimer` are
 ///     left alone.
+///   * `#imageLiteral(resourceName: "X")` → `UIImage(named: "X")!`. Xcode's
+///     asset-literal macro is unavailable on Linux; the shim provides
+///     `UIImage(named:)`. Force-unwrapped because `#imageLiteral` is non-optional.
+///   * `#keyPath(Type.member.path)` → `"member.path"` (the dotted member path as a
+///     string literal, dropping the leading type). On Apple `#keyPath` yields the
+///     ObjC key string; with no ObjC runtime on Linux the member path is what
+///     KVC-string call sites (`CABasicAnimation(keyPath:)`) actually need.
+///   * `.<delegateMethod>?(` → `.<delegateMethod>(` for a maintained set of UIKit
+///     delegate optional-method name prefixes. On Apple these UIKit delegate
+///     methods are `@objc optional`, called with a trailing `?`; the Linux shim
+///     declares them as NON-optional protocol methods, so the inner `?` (between
+///     the member name and the call's `(`) fails to compile. Conservatively gated:
+///     only `.method?(` where `method` matches a known UIKit-delegate name, so a
+///     stored optional-closure call (`foo?(args)`) is never touched.
 ///   * `extension <LocalClass> { override func/var … }` → the `override` members
 ///     are moved into the class body. Swift forbids overriding a non-`@objc`
 ///     method from an extension; on macOS AppKit methods are `@objc` so it's
 ///     allowed, but on Linux there's no `@objc`, so the override must live in the
 ///     class itself (e.g. WireGuard's `LogViewController.cancelOperation`). Only
 ///     extensions of classes defined in the same file are touched; non-`override`
-///     members stay in the extension.
+///     members stay in the extension. A companion cross-file pass also relocates a
+///     base class's NON-override extension method into the base's body when a
+///     subclass in ANOTHER file overrides it (same Linux limitation, surfaced
+///     across files via the `HierarchyMap`).
 ///
 /// Runtime dispatch is wired by injecting a `quillPerform(_:with:)` method into
 /// the CLASS BODY of every class that declared `@objc` actions (Pass 3 below);
@@ -195,7 +212,9 @@ public struct AppKitLowering {
         })
         let resolvedHierarchy = (hierarchy ?? HierarchyMap())
             .merging(superclassByType: collector.superclassByType,
-                     actionClasses: localActionClasses)
+                     actionClasses: localActionClasses,
+                     knownClasses: collector.knownClasses,
+                     overriddenSignatures: collector.overriddenSignaturesByType)
         // Pass 1: the in-place rewrites (strip @objc, #selector→Selector,
         // Timer→QuillTimer.make, os.log import, os(macOS) widening).
         let pass1 = AppKitRewriter(
@@ -215,17 +234,36 @@ public struct AppKitLowering {
                 localClassNames: mergeCollector.localClassNames,
                 overridesByClass: mergeCollector.overridesByClass
               ).rewrite(pass1)
+        // Pass 2b (cross-file): a BASE class's NON-override method declared in an
+        // `extension <Base> { func m … }` must also move into the base's class body
+        // when a subclass in ANOTHER file declares `override func m …`. Linux can't
+        // override an extension member, so the subclass override fails unless `m`
+        // lives in the base's body. Keyed off the cross-file `HierarchyMap`
+        // (`someSubclassOverrides`). Also strips a stray `override` from a subclass's
+        // `forwardingTarget(for:)` (declared in an extension of FOREIGN `NSObject`,
+        // which can't move) — see CrossFileExtensionMemberRelocator. Idempotent.
+        let relocateCollector = CrossFileExtensionRelocateCollector(
+            hierarchy: resolvedHierarchy, viewMode: .sourceAccurate
+        )
+        relocateCollector.walk(merged)
+        let relocated: Syntax = (relocateCollector.relocatableByClass.isEmpty
+                                 && relocateCollector.overrideStripTargets.isEmpty)
+            ? merged
+            : CrossFileExtensionMemberRelocator(
+                relocatableByClass: relocateCollector.relocatableByClass,
+                overrideStripTargets: relocateCollector.overrideStripTargets
+              ).rewrite(merged)
         // Pass 3: inject the `quillPerform(_:with:)` target-action dispatch into
         // the CLASS BODY of every class that declared @objc actions. A class-body
         // method (vs. the old `extension X: QuillActionDispatching { … }`) is
         // overridable, so the per-class override chain resolves dynamically; see
         // DispatchOverrideInjector and QuillSelectorDispatching (QuillFoundation).
         let withDispatch: Syntax = collector.byType.isEmpty
-            ? merged
+            ? relocated
             : DispatchOverrideInjector(
                 byType: collector.byType,
                 hierarchy: resolvedHierarchy
-              ).rewrite(merged)
+              ).rewrite(relocated)
         // Pass 4: actor-isolation policy (see the type-level doc block). Always
         // `nonisolated`-annotates overrides of the genuinely-nonisolated NSObject
         // identity members (isEqual/hash/description/debugDescription); for inits
@@ -423,6 +461,19 @@ public struct HierarchyMap {
     /// an injected `quillPerform` witness — i.e. an ancestor with one means the
     /// descendant should `override` rather than newly conform).
     private(set) var classesWithActions: Set<String> = []
+    /// Simple names of EVERY class declared anywhere in the tree (with or without a
+    /// superclass). Under `-default-isolation MainActor` an in-tree upstream class is
+    /// `@MainActor`, so its (possibly implicit) deinit is isolated — knowing a base
+    /// is in-tree is how Pass 5 detects "this subclass deinit overrides a `@MainActor`
+    /// base deinit" even when the chain ultimately roots at `NSObject` (the
+    /// StickerPackDataSource case). Also lets a subclass-override scan find subclasses.
+    private(set) var knownClasses: Set<String> = []
+    /// Simple owner-type name -> function signature keys it declares with `override`
+    /// (in its class body OR an extension). Drives Pass 2's CROSS-FILE relocator: a
+    /// base class's NON-override method declared in an `extension` must move into the
+    /// base's class body when a subclass elsewhere overrides it (extension members
+    /// aren't overridable on Linux). See `someSubclassOverrides`.
+    private(set) var overriddenSignaturesByClass: [String: Set<String>] = [:]
 
     public init() {}
 
@@ -445,10 +496,31 @@ public struct HierarchyMap {
     /// `NSView`/`NSWindow` sit under the non-@MainActor `NSResponder`, but their
     /// own inits are `@MainActor`-faithful; `NSViewController` already annotates
     /// its inits `nonisolated` in the shim, so it is intentionally absent here.)
+    ///
+    /// This same set is the forest gate for the `deinit`-isolation pass (Pass 5,
+    /// `deinitChainReachesMainActorForestRoot`). It must therefore enumerate the
+    /// COMMON concrete UIView/UIControl leaf bases that upstream subclasses descend
+    /// from directly (`UITextView`, `UILabel`, `UIImageView`, `UIScrollView`,
+    /// `UITableView`/cell, `UICollectionView`/cell, `UIButton`, `UIStackView`, …) —
+    /// not just the abstract roots — so e.g. `BodyRangesTextView: OWSTextView:
+    /// UITextView` is recognized as forest-rooted even when the only foreign link in
+    /// its chain is `UITextView`. All of these are `@MainActor` with `@MainActor`
+    /// inits, so widening the set is sound for both the init (Pass 4) and deinit
+    /// (Pass 5) decisions.
     static let mainActorInitRoots: Set<String> = [
+        // Abstract roots.
         "UIResponder", "UIView", "UIViewController", "UIControl",
         "UIPresentationController", "UIBarButtonItem", "UIGestureRecognizer",
         "AVPlayer",
+        // Concrete UIView/UIControl leaf bases upstream subclasses descend from.
+        "UITextView", "UILabel", "UIImageView", "UIScrollView",
+        "UITableView", "UITableViewCell", "UITableViewHeaderFooterView",
+        "UICollectionView", "UICollectionViewCell", "UICollectionReusableView",
+        "UIButton", "UIStackView", "UITextField", "UISlider", "UISwitch",
+        "UIPickerView", "UIWindow", "UINavigationBar", "UIToolbar",
+        "UIVisualEffectView", "UIActivityIndicatorView", "UIProgressView",
+        "UIPageControl", "UISegmentedControl", "UISearchBar",
+        // AppKit leaf bases.
         "NSView", "NSControl", "NSWindow", "NSButton", "NSTextView",
     ]
 
@@ -461,6 +533,10 @@ public struct HierarchyMap {
             superclassByClass[name] = superName
         }
         classesWithActions.formUnion(scanner.classesWithActions)
+        knownClasses.formUnion(scanner.knownClasses)
+        for (owner, sigs) in scanner.overriddenSignaturesByClass {
+            overriddenSignaturesByClass[owner, default: []].formUnion(sigs)
+        }
     }
 
     /// Return a copy with the file-local class→superclass entries and the
@@ -469,7 +545,9 @@ public struct HierarchyMap {
     /// single-file `lower(_:)` resolve same-file chains with no pre-pass).
     func merging(
         superclassByType localSuperclassByType: [String: String],
-        actionClasses localActionClasses: Set<String> = []
+        actionClasses localActionClasses: Set<String> = [],
+        knownClasses localKnownClasses: Set<String> = [],
+        overriddenSignatures localOverriddenSignatures: [String: Set<String>] = [:]
     ) -> HierarchyMap {
         var copy = self
         for (qualified, superName) in localSuperclassByType {
@@ -477,6 +555,10 @@ public struct HierarchyMap {
             copy.superclassByClass[simple] = HierarchyMap.simpleName(superName)
         }
         copy.classesWithActions.formUnion(localActionClasses)
+        copy.knownClasses.formUnion(localKnownClasses.map(HierarchyMap.simpleName))
+        for (owner, sigs) in localOverriddenSignatures {
+            copy.overriddenSignaturesByClass[HierarchyMap.simpleName(owner), default: []].formUnion(sigs)
+        }
         return copy
     }
 
@@ -597,6 +679,71 @@ public struct HierarchyMap {
         }
         return false // chain ended at an unknown foreign base → cannot prove → leave alone
     }
+
+    /// True iff `className`'s deinit OVERRIDES a `@MainActor` base deinit because its
+    /// IMMEDIATE superclass is another IN-TREE upstream class. Under
+    /// `-default-isolation MainActor` every in-tree upstream class is `@MainActor`, so
+    /// even with no explicit deinit a `@MainActor` base has an IMPLICIT isolated
+    /// deinit; a subclass's nonisolated-by-default deinit then mismatches it
+    /// ("nonisolated deinitializer has different actor isolation from main
+    /// actor-isolated overridden declaration"). This catches the case the forest
+    /// check misses: an NSObject-DIRECT `@MainActor` base (e.g. SignalUI's
+    /// `BaseStickerPackDataSource: NSObject`) whose in-tree subclass
+    /// (`TransientStickerPackDataSource`) declares a deinit. The base roots at
+    /// `NSObject`, so `deinitChainReachesMainActorForestRoot` is false, yet the base
+    /// is `@MainActor` and its (implicit) deinit is isolated.
+    ///
+    /// CONSERVATIVE: keyed strictly on the IMMEDIATE superclass being a recorded
+    /// in-tree class (`knownClasses`). A class whose immediate super is a FOREIGN
+    /// base — literal `NSObject` (a genuine model/helper root, nonisolated base
+    /// deinit, no mismatch) or any non-in-tree foreign class — is NOT caught here;
+    /// such classes are handled (or correctly left alone) by the forest check. We do
+    /// not assume a foreign immediate base is `@MainActor`, only an in-tree one.
+    func deinitOverridesMainActorBaseDeinit(forClassNamed className: String) -> Bool {
+        let simple = HierarchyMap.simpleName(className)
+        guard let superName = superclassByClass[simple] else { return false }
+        let simpleSuper = HierarchyMap.simpleName(superName)
+        return knownClasses.contains(simpleSuper)
+    }
+
+    /// The combined Pass 5 gate: a deinit should be `@MainActor` iff the class either
+    /// provably descends from a `@MainActor` UIKit/AppKit forest root, OR its
+    /// immediate superclass is an in-tree (`@MainActor`) class whose isolated deinit
+    /// it would otherwise mismatch.
+    func deinitShouldBeMainActor(forClassNamed className: String) -> Bool {
+        deinitChainReachesMainActorForestRoot(forClassNamed: className)
+            || deinitOverridesMainActorBaseDeinit(forClassNamed: className)
+    }
+
+    /// True iff `candidate` transitively inherits from `ancestor` (strictly — a class
+    /// is not its own subclass) through the in-tree superclass chain. Resolves names
+    /// simply; a chain that can't be fully resolved ends conservatively (no match).
+    func isSubclass(_ candidate: String, of ancestor: String) -> Bool {
+        let target = HierarchyMap.simpleName(ancestor)
+        var seen: Set<String> = []
+        var current = HierarchyMap.simpleName(candidate)
+        while let superName = superclassByClass[current] {
+            let simpleSuper = HierarchyMap.simpleName(superName)
+            if simpleSuper == target { return true }
+            guard seen.insert(simpleSuper).inserted else { return false } // cycle
+            current = simpleSuper
+        }
+        return false
+    }
+
+    /// True iff SOME in-tree subclass of `baseClass` declares `override`-ing a method
+    /// whose signature key is `signature`. This is the cross-file signal Pass 2's
+    /// relocator needs: a base class's NON-override method declared in an `extension`
+    /// must move into the base's class body so the subclass override (which on Linux
+    /// can't override an extension member) resolves. Scans every class that records an
+    /// override of `signature` and checks whether it descends from `baseClass`.
+    func someSubclassOverrides(baseClass: String, signature: String) -> Bool {
+        let base = HierarchyMap.simpleName(baseClass)
+        for (className, sigs) in overriddenSignaturesByClass where sigs.contains(signature) {
+            if className != base, isSubclass(className, of: base) { return true }
+        }
+        return false
+    }
 }
 
 /// Lightweight pre-pass visitor: records each class's simple name → its immediate
@@ -606,18 +753,40 @@ public struct HierarchyMap {
 private final class HierarchyScanner: SyntaxVisitor {
     private(set) var superclassByClass: [String: String] = [:]
     private(set) var classesWithActions: Set<String> = []
+    /// Simple names of every class declared in the file (Pass 5's in-tree base check).
+    private(set) var knownClasses: Set<String> = []
+    /// Simple owner-type name -> the function signature keys (`name(label:…)`) it
+    /// declares with an `override` modifier — in the class body OR an extension. Used
+    /// by Pass 2's cross-file relocator: a base class's NON-override extension method
+    /// must move into the base body when some subclass elsewhere overrides it.
+    private(set) var overriddenSignaturesByClass: [String: Set<String>] = [:]
+    /// `typeStack` tracks the enclosing class OR extended-type name (innermost last)
+    /// so a function visit knows its owning type whether it sits in a class body or
+    /// an `extension` (overrides can be declared in either).
+    private var typeStack: [String] = []
     private var classStack: [String] = []
     private var protocolDepth = 0
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
         classStack.append(node.name.text)
+        typeStack.append(node.name.text)
+        knownClasses.insert(node.name.text)
         if let first = node.inheritanceClause?.inheritedTypes.first {
             superclassByClass[node.name.text] =
                 HierarchyMap.simpleName(first.type.trimmedDescription)
         }
         return .visitChildren
     }
-    override func visitPost(_ node: ClassDeclSyntax) { classStack.removeLast() }
+    override func visitPost(_ node: ClassDeclSyntax) {
+        classStack.removeLast()
+        typeStack.removeLast()
+    }
+
+    override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
+        typeStack.append(HierarchyMap.simpleName(node.extendedType.trimmedDescription))
+        return .visitChildren
+    }
+    override func visitPost(_ node: ExtensionDeclSyntax) { typeStack.removeLast() }
 
     override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
         protocolDepth += 1
@@ -626,7 +795,15 @@ private final class HierarchyScanner: SyntaxVisitor {
     override func visitPost(_ node: ProtocolDeclSyntax) { protocolDepth -= 1 }
 
     override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
-        guard protocolDepth == 0, let owner = classStack.last else { return .visitChildren }
+        guard protocolDepth == 0 else { return .visitChildren }
+        // Record overrides keyed off the enclosing TYPE (class body or extension).
+        if let owner = typeStack.last,
+           node.modifiers.contains(where: { $0.name.text == "override" }) {
+            overriddenSignaturesByClass[owner, default: []].insert(functionSignatureKey(node))
+        }
+        // @objc-action witness tracking is class-body only (a protocol requirement
+        // and a same-name foreign-type extension method are not dispatchable here).
+        guard let owner = classStack.last else { return .visitChildren }
         let isObjc = node.attributes.contains { element in
             if case .attribute(let attr) = element {
                 return attr.attributeName.trimmedDescription == "objc"
@@ -639,6 +816,20 @@ private final class HierarchyScanner: SyntaxVisitor {
         }
         return .visitChildren
     }
+}
+
+/// A stable signature key for a function: base name plus its argument labels in
+/// `name(extLabel:…)` form (a wildcard `_` label is kept as `_`). Two declarations
+/// with the same Swift overload signature (which is what `override` matches against)
+/// produce the same key — enough to pair a base extension method with a subclass's
+/// `override` of it. Return/parameter types are intentionally excluded: Swift's
+/// override matching is by full name (selector-equivalent), and the trees don't have
+/// label-identical, type-different overrides of these delegate methods.
+func functionSignatureKey(_ node: FunctionDeclSyntax) -> String {
+    let labels = node.signature.parameterClause.parameters.map { p -> String in
+        (p.firstName.text.isEmpty ? "_" : p.firstName.text) + ":"
+    }.joined()
+    return "\(node.name.text)(\(labels))"
 }
 
 // MARK: - Action-method collector
@@ -663,11 +854,21 @@ private final class ActionMethodCollector: SyntaxVisitor {
     /// missing key) means "no class superclass in this file" — treated as a chain
     /// root. Only populated from `class` decls, never from extensions.
     private(set) var superclassByType: [String: String] = [:]
+    /// Simple names of every class declared in this file (with or without a
+    /// superclass), so single-file `lower(_:)` can seed the hierarchy's
+    /// `knownClasses` set for Pass 5's "deinit overrides a `@MainActor` in-tree
+    /// base" check.
+    private(set) var knownClasses: Set<String> = []
+    /// Simple owner-type name -> function signature keys it declares with `override`
+    /// (class body OR extension), so single-file `lower(_:)` can seed the hierarchy's
+    /// `overriddenSignaturesByClass` for Pass 2b's cross-file relocation.
+    private(set) var overriddenSignaturesByType: [String: Set<String>] = [:]
     private var typeStack: [String] = []
     private var protocolDepth = 0
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
         typeStack.append(node.name.text)
+        knownClasses.insert(node.name.text)
         // First inherited type = the superclass candidate (a leading protocol is
         // impossible in a class inheritance clause — the superclass, if any, is
         // first). A purely-protocol-conforming class has no superclass here.
@@ -691,7 +892,13 @@ private final class ActionMethodCollector: SyntaxVisitor {
     override func visitPost(_ node: ProtocolDeclSyntax) { protocolDepth -= 1 }
 
     override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
-        guard protocolDepth == 0, !typeStack.isEmpty else { return .visitChildren }
+        guard protocolDepth == 0, let owner = typeStack.last else { return .visitChildren }
+        // Record overrides keyed off the enclosing type's simple name (class or
+        // extension) for single-file Pass-2b cross-file relocation seeding.
+        if node.modifiers.contains(where: { $0.name.text == "override" }) {
+            overriddenSignaturesByType[HierarchyMap.simpleName(owner), default: []]
+                .insert(functionSignatureKey(node))
+        }
         let isObjc = node.attributes.contains { element in
             if case .attribute(let attr) = element {
                 return attr.attributeName.trimmedDescription == "objc"
@@ -791,21 +998,88 @@ private final class AppKitRewriter: SyntaxRewriter {
         return didChange ? copy : node
     }
 
-    // #selector(x) -> Selector("x")
+    // Freestanding macro-expansion lowerings (`#selector` / `#imageLiteral` /
+    // `#keyPath`). None of these compile on Linux (there is no ObjectiveC module,
+    // and `#imageLiteral` is an Xcode literal macro), so each is rewritten to a
+    // plain Swift expression. Dispatch on the macro name; non-matching macros pass
+    // through untouched. Each preserves the original node's leading/trailing trivia.
     override func visit(_ node: MacroExpansionExprSyntax) -> ExprSyntax {
         let recursed = super.visit(node)
-        guard let macro = recursed.as(MacroExpansionExprSyntax.self),
-              macro.macroName.text == "selector" else {
+        guard let macro = recursed.as(MacroExpansionExprSyntax.self) else {
             return recursed
         }
-        let key = Self.selectorKey(from: macro.arguments.trimmedDescription)
-        let escaped = key
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        var replacement = ExprSyntax("Selector(\"\(raw: escaped)\")")
-        replacement.leadingTrivia = node.leadingTrivia
-        replacement.trailingTrivia = node.trailingTrivia
+        switch macro.macroName.text {
+        case "selector":
+            // #selector(x) -> Selector("x")
+            let key = Self.selectorKey(from: macro.arguments.trimmedDescription)
+            return Self.replacement("Selector(\"\(Self.escapeStringLiteral(key))\")",
+                                    preservingTriviaOf: node)
+        case "imageLiteral":
+            // #imageLiteral(resourceName: "X") -> UIImage(named: "X")!. Xcode's
+            // asset-literal macro is unavailable on Linux; the shim has
+            // `UIImage(named:)`. Force-unwrap because `#imageLiteral` yields a
+            // non-optional `UIImage`, so an unwrapped value keeps the surrounding
+            // expression's type. Only the `resourceName:` form is rewritten (the
+            // only shape Xcode emits); anything else passes through.
+            guard let name = Self.imageLiteralResourceName(from: macro) else { return recursed }
+            return Self.replacement("UIImage(named: \"\(Self.escapeStringLiteral(name))\")!",
+                                    preservingTriviaOf: node)
+        case "keyPath":
+            // #keyPath(Type.member.path) -> "member.path". Apple's `#keyPath`
+            // yields the ObjC key string; on Linux there is no ObjC runtime, so we
+            // emit the dotted MEMBER path (dropping the leading type component) as a
+            // plain string literal — what every call site here (CABasicAnimation's
+            // `keyPath:`, KVC string keys) actually wants.
+            let key = Self.keyPathMemberString(from: macro.arguments.trimmedDescription)
+            return Self.replacement("\"\(Self.escapeStringLiteral(key))\"",
+                                    preservingTriviaOf: node)
+        default:
+            return recursed
+        }
+    }
+
+    /// Build a replacement expression from `text` and re-anchor `source`'s leading
+    /// and trailing trivia onto it, so the rewrite keeps its place on the line.
+    private static func replacement(_ text: String, preservingTriviaOf source: some SyntaxProtocol) -> ExprSyntax {
+        var replacement = ExprSyntax("\(raw: text)")
+        replacement.leadingTrivia = source.leadingTrivia
+        replacement.trailingTrivia = source.trailingTrivia
         return replacement
+    }
+
+    /// Escape a raw string so it is a valid Swift string-literal body.
+    private static func escapeStringLiteral(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    /// The `resourceName:` argument string of an `#imageLiteral(resourceName: "X")`
+    /// macro, or `nil` if it is not that exact shape (single `resourceName:` arg
+    /// whose value is a plain string literal). The returned value is the literal's
+    /// CONTENT (between the quotes), so the rewrite re-quotes it itself.
+    static func imageLiteralResourceName(from macro: MacroExpansionExprSyntax) -> String? {
+        let args = Array(macro.arguments)
+        guard args.count == 1,
+              args[0].label?.text == "resourceName",
+              let literal = args[0].expression.as(StringLiteralExprSyntax.self) else {
+            return nil
+        }
+        // A simple `"…"` literal has exactly one string-segment piece; reject
+        // interpolated / multi-segment literals (we can't make a static name).
+        let segments = Array(literal.segments)
+        guard segments.count == 1,
+              case .stringSegment(let seg) = segments[0] else { return nil }
+        return seg.content.text
+    }
+
+    /// The member path of a `#keyPath(Type.member.path)` argument: drop the leading
+    /// type component (everything up to and including the FIRST dot) and return the
+    /// rest verbatim. `CALayer.cornerRadius` -> `cornerRadius`,
+    /// `Foo.bar.baz` -> `bar.baz`. A path with no dot (bare `x`) is returned as-is.
+    static func keyPathMemberString(from arguments: String) -> String {
+        let t = arguments.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let firstDot = t.firstIndex(of: ".") else { return t }
+        return String(t[t.index(after: firstDot)...])
     }
 
     // `import os.log` -> `import os`. Linux has no `os.log` submodule; the `os`
@@ -848,18 +1122,85 @@ private final class AppKitRewriter: SyntaxRewriter {
     // re-match.
     override func visit(_ node: FunctionCallExprSyntax) -> ExprSyntax {
         let recursed = super.visit(node)
-        guard let call = recursed.as(FunctionCallExprSyntax.self),
-              let callee = call.calledExpression.as(DeclReferenceExprSyntax.self),
+        guard let call = recursed.as(FunctionCallExprSyntax.self) else { return recursed }
+        // Strip an optional-protocol-method call's `?` (`.method?(` -> `.method(`)
+        // when `method` is a known UIKit delegate optional method — see
+        // `strippingOptionalProtocolCall`. Returns the call unchanged otherwise.
+        let call2 = Self.strippingOptionalProtocolCall(call)
+        // Timer(timeInterval:repeats:block:) -> QuillTimer.make(…). Disjoint from
+        // the strip above (this callee is the bare `Timer` identifier).
+        guard let callee = call2.calledExpression.as(DeclReferenceExprSyntax.self),
               callee.baseName.text == "Timer",
-              Self.isTimerBlockInit(call) else {
-            return recursed
+              Self.isTimerBlockInit(call2) else {
+            return ExprSyntax(call2)
         }
         var make = ExprSyntax("QuillTimer.make")
-        make.leadingTrivia = call.calledExpression.leadingTrivia
-        make.trailingTrivia = call.calledExpression.trailingTrivia
-        var copy = call
+        make.leadingTrivia = call2.calledExpression.leadingTrivia
+        make.trailingTrivia = call2.calledExpression.trailingTrivia
+        var copy = call2
         copy.calledExpression = make
         return ExprSyntax(copy)
+    }
+
+    /// Member-name PREFIXES of UIKit/AppKit delegate optional methods. On Apple
+    /// these are `@objc optional` and called with a trailing `?`
+    /// (`delegate?.method?(…)`); the Linux shim declares the delegate protocols'
+    /// methods as NON-optional with default impls, so that inner `?` (between the
+    /// member name and the call's `(`) is "optional chaining on a non-optional
+    /// value" and fails to compile. We strip ONLY that `?`, ONLY when the called
+    /// expression is `<base>?.<member>` (a member access) AND `<member>` begins with
+    /// one of these prefixes. The first `?` (on `<base>`) is genuine optional
+    /// chaining on the optional delegate property and is left intact.
+    ///
+    /// RISK / why prefix-gated: a stored optional CLOSURE call (`onTap?(x)`, or a
+    /// `self.handler?(x)` where `handler` is an `(() -> Void)?` property) is ALSO a
+    /// `FunctionCallExprSyntax` over an `OptionalChainingExprSyntax`, and stripping
+    /// its `?` would change real optional-closure semantics into a crash on nil.
+    /// We avoid that two ways: (1) we only act when the chained expression is a
+    /// MEMBER ACCESS (`.member`), never a bare `name?(…)` (that path stays a
+    /// `DeclReferenceExprSyntax` and is skipped); (2) even for `.member?(…)`, we
+    /// require `member` to match a known UIKit-delegate name prefix, so an app's own
+    /// `.someClosureProperty?(…)` is left untouched. The prefix list is the closed
+    /// set of UIKit delegate families that appear in the trees (navigation, text,
+    /// scroll, table, collection, gesture, picker, etc.); extend as new ones surface.
+    static let delegateOptionalMethodPrefixes: [String] = [
+        "navigationController",
+        "textView", "textField",
+        "scrollView",
+        "tableView",
+        "collectionView",
+        "gestureRecognizer",
+        "pickerView",
+        "imagePickerController",
+        "controller",          // NSFetchedResultsController / generic delegate(controller:…)
+        "webView",
+        "player",
+    ]
+
+    /// If `call`'s callee is `<base>?.<member>(…)` (an `OptionalChainingExprSyntax`
+    /// whose inner expression is a `MemberAccessExprSyntax`) and `<member>` matches a
+    /// `delegateOptionalMethodPrefixes` entry, return the call with that outer `?`
+    /// removed (callee becomes the plain `<base>?.<member>` member access). Otherwise
+    /// return `call` unchanged. Idempotent: once the `?` is gone the callee is a
+    /// `MemberAccessExprSyntax`, not an `OptionalChainingExprSyntax`, so it no longer
+    /// matches.
+    static func strippingOptionalProtocolCall(_ call: FunctionCallExprSyntax) -> FunctionCallExprSyntax {
+        guard let optional = call.calledExpression.as(OptionalChainingExprSyntax.self),
+              let member = optional.expression.as(MemberAccessExprSyntax.self) else {
+            return call
+        }
+        let memberName = member.declName.baseName.text
+        guard Self.delegateOptionalMethodPrefixes.contains(where: { memberName.hasPrefix($0) }) else {
+            return call
+        }
+        // Re-anchor the dropped `?`'s trailing trivia (rare, but preserve it) onto
+        // the member access, then make the member access the new callee.
+        var newCallee = member
+        newCallee.leadingTrivia = optional.leadingTrivia
+        newCallee.trailingTrivia = optional.questionMark.trailingTrivia + member.trailingTrivia
+        var copy = call
+        copy.calledExpression = ExprSyntax(newCallee)
+        return copy
     }
 
     /// True iff `call` is `Timer(timeInterval:repeats:block:)` — labels
@@ -961,6 +1302,152 @@ private final class ExtensionOverrideMerger: SyntaxRewriter {
         guard kept.count != recursed.memberBlock.members.count else { return DeclSyntax(recursed) }
         var copy = recursed
         copy.memberBlock.members = MemberBlockItemListSyntax(kept)
+        return DeclSyntax(copy)
+    }
+}
+
+// MARK: - Cross-file extension-member relocation (Pass 2b)
+
+/// Function signatures whose `override` on a subclass must be STRIPPED rather than
+/// relocated, because the method is declared in an `extension` of a FOREIGN base
+/// (corelibs `NSObject`) that cannot be edited here. The shim provides
+/// `forwardingTarget(for:)` as a non-overridable extension method on `NSObject`; a
+/// subclass `override` of it ("declared in extension of NSObject and cannot be
+/// overridden" / "overriding non-open instance method outside of its defining
+/// module") is harmless to drop — the extension method still applies. Closed,
+/// audited set; extend only with other foreign-NSObject-extension methods.
+let foreignExtensionOverrideStripSignatures: Set<String> = [
+    "forwardingTarget(for:)",
+]
+
+/// Collects the cross-file Pass-2b work over a (Pass-2-merged) tree:
+///
+///  (A) RELOCATE: for each `extension <LocalClass> { func m … }` whose `m` is NOT an
+///      override and whose signature SOME subclass overrides elsewhere (per the
+///      cross-file `HierarchyMap.someSubclassOverrides`), records `m` to be moved into
+///      `<LocalClass>`'s body. Only LOCAL classes (defined in this file) are eligible
+///      targets — the class body we'd append to must be present in this file.
+///
+///  (B) STRIP: records every `override func` whose signature is in
+///      `foreignExtensionOverrideStripSignatures` (e.g. `forwardingTarget(for:)`) so
+///      the merger drops the `override` keyword.
+private final class CrossFileExtensionRelocateCollector: SyntaxVisitor {
+    private let hierarchy: HierarchyMap
+    /// extended-type simple name -> the (non-override) extension methods to move.
+    private(set) var relocatableByClass: [String: [MemberBlockItemSyntax]] = [:]
+    /// `SyntaxIdentifier`s of `override func` decls whose `override` must be stripped.
+    private(set) var overrideStripTargets: Set<SyntaxIdentifier> = []
+    private var localClassNames: Set<String> = []
+
+    init(hierarchy: HierarchyMap, viewMode: SyntaxTreeViewMode) {
+        self.hierarchy = hierarchy
+        super.init(viewMode: viewMode)
+    }
+
+    override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
+        localClassNames.insert(node.name.text)
+        return .visitChildren
+    }
+
+    override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
+        let baseName = HierarchyMap.simpleName(node.extendedType.trimmedDescription)
+        // (A) RELOCATE — only for an extension of a class DEFINED IN THIS FILE (we
+        // can only append to a class body that is present here). A method already
+        // carrying `override` is handled by the same-file `ExtensionOverrideMerger`.
+        guard localClassNames.contains(baseName) else { return .visitChildren }
+        for item in node.memberBlock.members {
+            guard let fn = item.decl.as(FunctionDeclSyntax.self),
+                  !fn.modifiers.contains(where: { $0.name.text == "override" }) else { continue }
+            let signature = functionSignatureKey(fn)
+            if hierarchy.someSubclassOverrides(baseClass: baseName, signature: signature) {
+                relocatableByClass[baseName, default: []].append(item)
+            }
+        }
+        return .visitChildren
+    }
+
+    override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
+        // (B) STRIP — any `override func <foreignExtensionOverride>` anywhere.
+        if node.modifiers.contains(where: { $0.name.text == "override" }),
+           foreignExtensionOverrideStripSignatures.contains(functionSignatureKey(node)) {
+            overrideStripTargets.insert(node.id)
+        }
+        return .visitChildren
+    }
+}
+
+/// Applies the Pass-2b plan from `CrossFileExtensionRelocateCollector`:
+///   * Moves the recorded non-override extension methods into their (local) base
+///     class's body, and removes them from the originating extension.
+///   * Strips the `override` keyword from the recorded `forwardingTarget(for:)`-style
+///     decls.
+/// Idempotent: a second run finds the moved methods already in the class body (so the
+/// extension no longer holds them) and the `override` already gone.
+private final class CrossFileExtensionMemberRelocator: SyntaxRewriter {
+    private let relocatableByClass: [String: [MemberBlockItemSyntax]]
+    private let relocatedSignaturesByClass: [String: Set<String>]
+    private let overrideStripTargets: Set<SyntaxIdentifier>
+
+    init(
+        relocatableByClass: [String: [MemberBlockItemSyntax]],
+        overrideStripTargets: Set<SyntaxIdentifier>
+    ) {
+        self.relocatableByClass = relocatableByClass
+        self.overrideStripTargets = overrideStripTargets
+        // Pre-compute the signature set per class so the extension filter is cheap.
+        var sigs: [String: Set<String>] = [:]
+        for (className, items) in relocatableByClass {
+            sigs[className] = Set(items.compactMap { item in
+                item.decl.as(FunctionDeclSyntax.self).map(functionSignatureKey)
+            })
+        }
+        self.relocatedSignaturesByClass = sigs
+        super.init()
+    }
+
+    override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(ClassDeclSyntax.self)
+        guard let moved = relocatableByClass[recursed.name.text], !moved.isEmpty else {
+            return DeclSyntax(recursed)
+        }
+        var copy = recursed
+        var members = copy.memberBlock.members
+        for item in moved { members.append(item) }
+        copy.memberBlock.members = members
+        return DeclSyntax(copy)
+    }
+
+    override func visit(_ node: ExtensionDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(ExtensionDeclSyntax.self)
+        let baseName = HierarchyMap.simpleName(recursed.extendedType.trimmedDescription)
+        guard let movedSigs = relocatedSignaturesByClass[baseName], !movedSigs.isEmpty else {
+            return DeclSyntax(recursed)
+        }
+        let kept = recursed.memberBlock.members.filter { item in
+            guard let fn = item.decl.as(FunctionDeclSyntax.self),
+                  !fn.modifiers.contains(where: { $0.name.text == "override" }) else { return true }
+            return !movedSigs.contains(functionSignatureKey(fn))
+        }
+        guard kept.count != recursed.memberBlock.members.count else { return DeclSyntax(recursed) }
+        var copy = recursed
+        copy.memberBlock.members = MemberBlockItemListSyntax(kept)
+        return DeclSyntax(copy)
+    }
+
+    override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(FunctionDeclSyntax.self)
+        // Strip `override` from a recorded foreign-extension override. Match against
+        // the ORIGINAL node id (super.visit may rebuild children but preserves id).
+        guard overrideStripTargets.contains(node.id) else { return DeclSyntax(recursed) }
+        let savedLeading = recursed.leadingTrivia
+        let kept = recursed.modifiers.filter { $0.name.text != "override" }
+        guard kept.count != recursed.modifiers.count else { return DeclSyntax(recursed) }
+        var copy = recursed
+        copy.leadingTrivia = Trivia()
+        copy.modifiers = DeclModifierListSyntax(kept)
+        // Re-anchor the decl's leading trivia onto whatever is now first (a surviving
+        // modifier or the `func` keyword) so it keeps its own line + indentation.
+        copy.leadingTrivia = savedLeading
         return DeclSyntax(copy)
     }
 }
@@ -1333,13 +1820,20 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
 ///     hops to the main actor to run the deinit — no `assumeIsolated`, no body
 ///     rewrite, no runtime trap risk.
 ///
-/// CONSERVATIVE GATES:
-///   * Only classes for which `deinitChainReachesMainActorForestRoot` is true.
-///     Model/helper objects (NSObject-direct, or an unknown foreign base) are LEFT
-///     ALONE — their nonisolated deinit MATCHES NSObject's nonisolated base deinit,
-///     so it does not error; isolating it would be both unnecessary and wrong
-///     (those objects can legitimately dealloc off-main). We only annotate where a
-///     `@MainActor` forest root is provable.
+/// CONSERVATIVE GATES (combined in `deinitShouldBeMainActor`):
+///   * Either the class provably descends from a `@MainActor` UIKit/AppKit forest
+///     root (`deinitChainReachesMainActorForestRoot`), OR its IMMEDIATE superclass
+///     is another in-tree upstream class (`deinitOverridesMainActorBaseDeinit`) —
+///     which under `-default-isolation MainActor` is `@MainActor`, so even its
+///     implicit deinit is isolated and a subclass deinit must match it (the
+///     `BaseStickerPackDataSource`/`TransientStickerPackDataSource` case, where the
+///     base roots at `NSObject` so the forest check alone is false).
+///   * Model/helper objects whose IMMEDIATE base is FOREIGN — literal `NSObject`, or
+///     an unknown non-in-tree base — are LEFT ALONE: their nonisolated deinit
+///     MATCHES NSObject's (or the unknown foreign base's presumed nonisolated)
+///     deinit, so it does not error; isolating it would be both unnecessary and
+///     wrong (those objects can legitimately dealloc off-main). We only annotate
+///     where the base's isolated deinit is provable (forest root, or in-tree base).
 ///   * Idempotent: a deinit that already carries `@MainActor` / `nonisolated` /
 ///     `isolated` is left untouched, so a re-run is a no-op. (A hand-written
 ///     `nonisolated deinit` is a deliberate author choice — though it will not
@@ -1351,7 +1845,7 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
 private final class DeinitMainActorIsolationRewriter: SyntaxRewriter {
     private let hierarchy: HierarchyMap
     /// Enclosing class names (innermost last) so a `deinit` knows its owner — the
-    /// forest-root gate is keyed off the owning class.
+    /// `deinitShouldBeMainActor` gate is keyed off the owning class.
     private var classStack: [String] = []
 
     init(hierarchy: HierarchyMap) {
@@ -1369,7 +1863,7 @@ private final class DeinitMainActorIsolationRewriter: SyntaxRewriter {
     override func visit(_ node: DeinitializerDeclSyntax) -> DeclSyntax {
         let recursed = super.visit(node).cast(DeinitializerDeclSyntax.self)
         guard let owner = classStack.last,
-              hierarchy.deinitChainReachesMainActorForestRoot(forClassNamed: owner),
+              hierarchy.deinitShouldBeMainActor(forClassNamed: owner),
               !Self.hasIsolationAttributeOrModifier(recursed) else {
             return DeclSyntax(recursed)
         }
