@@ -75,6 +75,25 @@ public extension View {
         _ = style
         return self
     }
+
+    // SwiftUI's multi-style `foregroundStyle` (primary + secondary [+ tertiary]),
+    // used for multicolor SF Symbols e.g. `.foregroundStyle(.white, .green)`.
+    // The single-Color form exists in SwiftOpenUI; the secondary/tertiary layers
+    // are cosmetic on Linux, so apply nothing and pass through.
+    @_disfavoredOverload
+    func foregroundStyle(_ primary: Color, _ secondary: Color) -> Self {
+        _ = primary
+        _ = secondary
+        return self
+    }
+
+    @_disfavoredOverload
+    func foregroundStyle(_ primary: Color, _ secondary: Color, _ tertiary: Color) -> Self {
+        _ = primary
+        _ = secondary
+        _ = tertiary
+        return self
+    }
 }
 
 /// SwiftUI's `Image.TemplateRenderingMode` shim. Upstream uses it only as an
