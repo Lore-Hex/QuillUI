@@ -24,6 +24,40 @@ public extension AnyPublisher where Failure == Never {
     }
 }
 
+// Combine's KVO publisher: `object.publisher(for: \.keyPath)`. On Apple
+// platforms this is `NSObject.KeyValueObservingPublisher`, backed by real KVO.
+// On Linux there is no Objective-C runtime, so this is inert in the same way as
+// QuillFoundation's `observe(_:)` clone: it emits the keyPath's *current* value
+// once (honoring Combine's default `.initial` semantics so a leading `.sink`
+// still sees a value) and then never fires again. SignalUI's
+// StackSheetViewController subscribes to `\.bounds` this way; the downstream
+// `.removeDuplicates().sink {}` pipeline type-checks and runs without crashing.
+//
+// The `options` parameter is a local OptionSet rather than Foundation's
+// `NSKeyValueObservingOptions` (defined in QuillFoundation, which the low-level
+// Combine shim deliberately does not depend on). It mirrors the option names so
+// call sites that pass `.initial` / `.new` keep compiling.
+public struct _KVOPublisherOptions: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let new = _KVOPublisherOptions(rawValue: 0x01)
+    public static let old = _KVOPublisherOptions(rawValue: 0x02)
+    public static let initial = _KVOPublisherOptions(rawValue: 0x04)
+    public static let prior = _KVOPublisherOptions(rawValue: 0x08)
+}
+
+public extension NSObject {
+    func publisher<Value>(
+        for keyPath: KeyPath<Self, Value>,
+        options: _KVOPublisherOptions = [.initial, .new]
+    ) -> AnyPublisher<Value, Never> {
+        if options.contains(.initial) {
+            return Just(self[keyPath: keyPath]).eraseToAnyPublisher()
+        }
+        return Empty<Value, Never>(completeImmediately: false).eraseToAnyPublisher()
+    }
+}
+
 public extension Publishers {
     struct Merge<UpstreamA: Publisher, UpstreamB: Publisher>: Publisher
         where UpstreamA.Output == UpstreamB.Output, UpstreamA.Failure == UpstreamB.Failure
