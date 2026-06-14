@@ -357,6 +357,32 @@ extension UIView {
         return autoPinEdge(toSuperviewEdge: edge, withInset: 0, relation: relation)
     }
 
+    /// Signal's PureLayout fork exposes the inset+relation margin form too.
+    /// With zero-modeled layout margins this resolves to the superview edge,
+    /// preserving inset/relation-inversion semantics.
+    @discardableResult
+    public func autoPinEdge(toSuperviewMargin edge: ALEdge, withInset inset: CGFloat, relation: NSLayoutConstraint.Relation) -> NSLayoutConstraint {
+        return autoPinEdge(toSuperviewEdge: edge, withInset: inset, relation: relation)
+    }
+
+    @discardableResult
+    public func autoPinEdgesToSuperviewMargins(with insets: UIEdgeInsets, excludingEdge edge: ALEdge) -> [NSLayoutConstraint] {
+        var constraints: [NSLayoutConstraint] = []
+        if edge != .top {
+            constraints.append(autoPinEdge(toSuperviewMargin: .top, withInset: insets.top))
+        }
+        if edge != .leading && edge != .left {
+            constraints.append(autoPinEdge(toSuperviewMargin: .leading, withInset: insets.left))
+        }
+        if edge != .bottom {
+            constraints.append(autoPinEdge(toSuperviewMargin: .bottom, withInset: insets.bottom))
+        }
+        if edge != .trailing && edge != .right {
+            constraints.append(autoPinEdge(toSuperviewMargin: .trailing, withInset: insets.right))
+        }
+        return constraints
+    }
+
     @discardableResult
     public func autoPinEdgesToSuperviewSafeArea(with insets: UIEdgeInsets = .zero) -> [NSLayoutConstraint] {
         return autoPinEdgesToSuperviewEdges(with: insets)

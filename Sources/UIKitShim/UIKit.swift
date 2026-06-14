@@ -206,6 +206,39 @@ public extension UIImage {
     func withRenderingMode(_ renderingMode: RenderingMode) -> UIImage {
         return self
     }
+
+    /// Apple's `UIImage.Configuration` is the abstract base of
+    /// `SymbolConfiguration`; alias it so the `with configuration:` overloads
+    /// below carry the faithful label without introducing a twin type.
+    typealias Configuration = SymbolConfiguration
+
+    // MARK: Asset-catalog / data inits (bundle + trait-aware forms)
+    //
+    // The shim resolves images from QUILLUI_RESOURCE_DIRS / SwiftPM resources
+    // by name only (see RSImage.init?(named:)); the `bundle`, trait-collection,
+    // and configuration arguments are recorded-intent and otherwise inert on
+    // Linux, but the labels match Apple exactly so upstream call sites compile.
+
+    /// `UIImage(named:in:compatibleWith:)`.
+    convenience init?(named name: String, in bundle: Bundle?, compatibleWith traitCollection: UITraitCollection?) {
+        _ = bundle
+        _ = traitCollection
+        self.init(named: name)
+    }
+
+    /// `UIImage(named:in:with:)` (the modern configuration-bearing form).
+    convenience init?(named name: String, in bundle: Bundle?, with configuration: UIImage.Configuration?) {
+        _ = bundle
+        _ = configuration
+        self.init(named: name)
+    }
+
+    /// `UIImage(data:scale:)`. The scale is recorded-intent (the Linux backing
+    /// image is opaque), matching `init(cgImage:scale:orientation:)`.
+    convenience init?(data: Data, scale: CGFloat) {
+        _ = scale
+        self.init(data: data)
+    }
 }
 
 // Standard attributed-string attribute keys (UIKit/AppKit additions; not in
