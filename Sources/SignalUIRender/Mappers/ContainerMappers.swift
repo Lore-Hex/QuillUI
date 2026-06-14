@@ -1,0 +1,181 @@
+// SignalUIRender · ContainerMappers
+// =================================
+// UIKit→GTK4 mappers for the two container shapes Signal-iOS leans on most:
+//
+//   • UIStackView  → GtkBox (vertical/horizontal), honoring axis, spacing,
+//                    alignment (perpendicular axis) and distribution (main
+//                    axis) via GtkWidget halign/valign + hexpand/vexpand —
+//                    mirroring how SwiftOpenUI's VStack/HStack fallback maps
+//                    SwiftUI alignment onto a GtkBox.
+//   • UIView (any) → GtkFixed, placing each subview by its explicit frame.
+//                    This is the coordinate-layout fallback used wherever a
+//                    view positions children with frames rather than a stack.
+//
+// Both mappers are pure adapters over the FIXED CONTRACT (UIViewGtkMapper /
+// UIKitGtkRenderContext / GtkWidgetPtr), which is declared elsewhere in this
+// target — we use it here, never redefine it. Children are produced through
+// `ctx.render`, never by re-entering UIKit directly, so the registry stays the
+// single source of truth for view→widget dispatch.
+//
+// Registry ordering contract: UIStackViewGtkMapper is MORE specific than
+// GenericViewGtkMapper and must be offered to the registry first; the generic
+// mapper's `handles` returns `true` and is therefore the last-resort fallback.
+
+import CGTK
+import CGTKBridge   // boxPointer(_:): UnsafeMutablePointer<GtkWidget> -> UnsafeMutablePointer<GtkBox>
+import Foundation
+import QuillUIKit    // UIView, UIStackView, NSLayoutConstraint.Axis
+
+// MARK: - UIStackView → GtkBox
+
+/// Maps a UIStackView onto a GtkBox laid out along the stack's axis.
+///
+/// Most-specific container mapper: `handles` matches only genuine stack views,
+/// so the registry must try this BEFORE the generic UIView fallback.
+public enum UIStackViewGtkMapper: UIViewGtkMapper {
+
+    public static func handles(_ view: UIView) -> Bool {
+        view is UIStackView
+    }
+
+    public static func make(_ view: UIView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
+        // `handles` guarantees the cast; fall back to a fresh GtkBox defensively
+        // rather than trapping if the registry ever mis-routes a plain UIView.
+        guard let stack = view as? UIStackView else {
+            return gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        }
+
+        let isVertical = (stack.axis == .vertical)
+        let orientation = isVertical ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL
+        let box = gtk_box_new(orientation, gint(stack.spacing))!
+
+        // Distribution governs the MAIN axis (the axis the box stacks along):
+        // the "fill" family stretches children to share the run; the spacing
+        // families leave them at their natural size and only tune gaps.
+        let mainAxisFills: Bool
+        switch stack.distribution {
+        case .fill, .fillEqually, .fillProportionally:
+            mainAxisFills = true
+        case .equalSpacing, .equalCentering:
+            mainAxisFills = false
+        }
+
+        // Alignment governs the PERPENDICULAR axis (cross axis). Map UIKit's
+        // members onto a GtkAlign; `.fill` additionally wants the child to
+        // expand to fill the cross axis.
+        let (crossAlign, crossFills) = crossAxisAlignment(stack.alignment)
+
+        var boxWantsHExpand = false
+        var boxWantsVExpand = false
+
+        for child in stack.arrangedSubviews {
+            guard let childWidget = ctx.render(child) else { continue }
+
+            if isVertical {
+                // Vertical stack: main = vertical, cross = horizontal.
+                if mainAxisFills {
+                    gtk_widget_set_vexpand(childWidget, 1)
+                    gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+                    boxWantsVExpand = true
+                } else {
+                    gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
+                }
+                gtk_widget_set_halign(childWidget, crossAlign)
+                if crossFills {
+                    gtk_widget_set_hexpand(childWidget, 1)
+                    boxWantsHExpand = true
+                }
+            } else {
+                // Horizontal stack: main = horizontal, cross = vertical.
+                if mainAxisFills {
+                    gtk_widget_set_hexpand(childWidget, 1)
+                    gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+                    boxWantsHExpand = true
+                } else {
+                    gtk_widget_set_halign(childWidget, GTK_ALIGN_START)
+                }
+                gtk_widget_set_valign(childWidget, crossAlign)
+                if crossFills {
+                    gtk_widget_set_vexpand(childWidget, 1)
+                    boxWantsVExpand = true
+                }
+            }
+
+            gtk_box_append(boxPointer(box), childWidget)
+        }
+
+        // Propagate expansion up so an enclosing container hands the box room
+        // to actually fill (matches SwiftOpenUI's fallback-stack behavior).
+        if boxWantsHExpand { gtk_widget_set_hexpand(box, 1) }
+        if boxWantsVExpand { gtk_widget_set_vexpand(box, 1) }
+
+        ctx.applyLayerStyle(box, view)
+        return box
+    }
+
+    /// Translate a UIStackView.Alignment into a cross-axis GtkAlign plus a flag
+    /// for whether the child should expand to fill the cross axis (`.fill`).
+    /// Baseline alignments have no GtkBox analogue; approximate first→start and
+    /// last→end so text rows still land sensibly.
+    private static func crossAxisAlignment(
+        _ alignment: UIStackView.Alignment
+    ) -> (GtkAlign, Bool) {
+        switch alignment {
+        case .fill:
+            return (GTK_ALIGN_FILL, true)
+        case .leading:                 // == .top (shared raw value)
+            return (GTK_ALIGN_START, false)
+        case .center:
+            return (GTK_ALIGN_CENTER, false)
+        case .trailing:                // == .bottom (shared raw value)
+            return (GTK_ALIGN_END, false)
+        case .firstBaseline:
+            return (GTK_ALIGN_START, false)
+        case .lastBaseline:
+            return (GTK_ALIGN_END, false)
+        }
+    }
+}
+
+// MARK: - Generic UIView → GtkFixed
+
+/// Last-resort mapper for any UIView. Lays subviews out by their explicit
+/// frames inside a GtkFixed, the GTK widget purpose-built for absolute
+/// coordinate placement.
+///
+/// `handles` returns `true`, so the registry must offer this mapper LAST —
+/// after every more-specific mapper (including UIStackViewGtkMapper) has had
+/// its chance.
+public enum GenericViewGtkMapper: UIViewGtkMapper {
+
+    public static func handles(_ view: UIView) -> Bool {
+        true
+    }
+
+    public static func make(_ view: UIView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
+        let fixed = gtk_fixed_new()!
+        // gtk_fixed_put/`GtkFixed` is a typed GTK pointer; CGTKBridge ships no
+        // `fixedPointer` cast, so reinterpret the GtkWidget* locally (same
+        // assumingMemoryBound pattern boxPointer uses).
+        let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
+
+        for child in view.subviews {
+            guard let childWidget = ctx.render(child) else { continue }
+            let frame = child.frame
+            gtk_fixed_put(
+                fixedPtr,
+                childWidget,
+                gdouble(frame.origin.x),
+                gdouble(frame.origin.y)
+            )
+            gtk_widget_set_size_request(
+                childWidget,
+                gint(frame.width),
+                gint(frame.height)
+            )
+        }
+
+        ctx.applyLayerStyle(fixed, view)
+        return fixed
+    }
+}

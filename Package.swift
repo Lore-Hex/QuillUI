@@ -343,6 +343,10 @@ products += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
+    // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
+    // (and, wired up, SignalUI) UIViewController view trees to an on-screen
+    // GTK window. First-light demo proves the pipeline; Signal's own VCs follow.
+    products.append(.executable(name: "signal-ui-render", targets: ["SignalUIRender"]))
 }
 
 products += [
@@ -2229,6 +2233,21 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             name: "signal-chat",
             dependencies: ["QuillUI", "QuillUIGtk"],
             path: "Sources/SignalChat",
+            swiftSettings: appSwiftSettings
+        ),
+        // signal-ui-render: UIKit→GTK4 renderer. First-light depends only on the
+        // UIKit shim + GTK (fast build, no SignalUI link); the registry + mappers
+        // turn a UIViewController's UIView tree into a GtkWidget window. SignalUI
+        // is added here once the real-VC (Settings) wiring lands.
+        .executableTarget(
+            name: "SignalUIRender",
+            dependencies: [
+                "QuillUIKit", "UIKitShim", "QuillFoundation", "QuartzCore",
+                .product(name: "CGTK", package: "SwiftOpenUI"),
+                .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+                .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+            ],
+            path: "Sources/SignalUIRender",
             swiftSettings: appSwiftSettings
         ),
         // SignalUI: Signal-iOS's OWN UI framework (270 Swift files, UIKit-based),
