@@ -60,4 +60,31 @@ public extension View {
         _ = enabled
         return self
     }
+
+    /// List-row content insets. Disfavored because QuillUI declares a
+    /// `listRowInsets` returning a `ListRowInsetsView`; shadow-only vendored
+    /// source (DesignSystem ScrollToView's `.listRowInsets(.init())`) uses this
+    /// inert fallback. (`EdgeInsets` comes from SwiftOpenUI.)
+    @_disfavoredOverload
+    func listRowInsets(_ insets: EdgeInsets?) -> Self {
+        _ = insets
+        return self
+    }
+
+    /// Hierarchical / SF-Symbol-palette `foregroundStyle` (2- and 3-color
+    /// forms, e.g. IceCubes AppAccountView's `.foregroundStyle(.white, .green)`).
+    /// The shadow only had the single-style form. Only the primary color is
+    /// meaningful headless; the secondary/tertiary palette colors are inert.
+    func foregroundStyle(_ primary: Color, _ secondary: Color) -> Self {
+        _ = primary
+        _ = secondary
+        return self
+    }
+
+    func foregroundStyle(_ primary: Color, _ secondary: Color, _ tertiary: Color) -> Self {
+        _ = primary
+        _ = secondary
+        _ = tertiary
+        return self
+    }
 }
