@@ -2066,14 +2066,19 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         guard hierarchy.initOverrideShouldBeNonisolated(forClassNamed: owner) else {
             return DeclSyntax(recursed)
         }
-        // An `override init()` over a NONISOLATED base init MUST itself be
-        // nonisolated — keeping it `@MainActor` is a hard "different actor isolation
-        // from nonisolated overridden declaration" error (NOT merely a call-site
-        // concern, as an earlier note assumed). So nonisolate it unconditionally.
-        // If the body genuinely touches `@MainActor` state that would be a separate
-        // (rarer) diagnostic, but in practice these init()s run nonisolated-safe work
-        // (super.init + selector-based NotificationCenter.addObserver). The previous
-        // trivial-body gate left RecentStickerPackDataSource & co. erroring.
+        // (A2) Body-isolation refinement: a `nonisolated` init body CANNOT touch
+        // `@MainActor` members (`label.backgroundColor = …`, `view.frame = …`,
+        // `self.present(…)`). Such an init must stay `@MainActor` even though its base
+        // init is nonisolated. Only nonisolate an init whose body is trivially
+        // nonisolatable — empty, or only `super.init(...)` calls and assignments to a
+        // PLAIN stored property (a bare/`self.`-qualified identifier LHS, no member
+        // access chain). When uncertain, leave `@MainActor` (the conservative choice —
+        // a `@MainActor` init still satisfies a nonisolated base init at a call site;
+        // the only hazard the nonisolated annotation fixes is a body-less / trivial
+        // override mismatch, which the trivial-body gate still covers).
+        guard Self.initBodyIsTriviallyNonisolatable(recursed) else {
+            return DeclSyntax(recursed)
+        }
         return DeclSyntax(Self.prependNonisolated(recursed))
     }
 
