@@ -2250,8 +2250,14 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: "Sources/SignalUIRender",
             swiftSettings: appSwiftSettings + [.unsafeFlags(gtk4SwiftImporterFlags)],
             // Link GTK4 + gdk-pixbuf (pulls glib/gobject/gio/pango/cairo) — needed
-            // for g_*/gtk_*/gdk_* symbols (e.g. g_bytes_unref in the image mapper).
-            linkerSettings: [.unsafeFlags(gtk4LinkerFlags), .unsafeFlags(gdkPixbufLinkerFlags)]
+            // for g_*/gtk_*/gdk_* symbols. `-use-ld=lld`: the default BFD linker
+            // OOM-kills on the huge SignalUI+SSK+libsignal+GRDB link (signal-smoke
+            // uses lld for the same reason).
+            linkerSettings: [
+                .unsafeFlags(["-use-ld=lld"]),
+                .unsafeFlags(gtk4LinkerFlags),
+                .unsafeFlags(gdkPixbufLinkerFlags),
+            ]
         ),
         // SignalUI: Signal-iOS's OWN UI framework (270 Swift files, UIKit-based),
         // compiled UNMODIFIED against QuillUI's UIKit layer + the framework shims.
