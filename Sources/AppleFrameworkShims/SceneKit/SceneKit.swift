@@ -21,3 +21,4 @@
 // pow / CGPoint / CGSize. On QuillOS those all live in (swift-corelibs)
 // Foundation, so re-export it for the same reach.
 @_exported import Foundation
+@_exported import CoreGraphics

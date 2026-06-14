@@ -2100,7 +2100,12 @@ for shimName in signalAppleFrameworkShims {
         // leak canImport(CoreGraphics) into pure Euclid. The CGImage/CGColor
         // re-export only matters once Euclid's interop is enabled — a rung-2
         // app-tier concern — and is wired then.)
-        dependencies = ["QuillFoundation", "SwiftUI"]
+        //
+        // Rung 2c: CoreGraphics IS a dep now (re-exported via the umbrella) so
+        // Euclid's enabled interop resolves CGImage/CGColor/CFGetTypeID. With
+        // Euclid no longer pure, the canImport(CoreGraphics) "leak" is just the
+        // real dependency.
+        dependencies = ["QuillFoundation", "SwiftUI", "CoreGraphics"]
     default:
         dependencies = ["QuillFoundation"]
     }
@@ -2345,18 +2350,23 @@ if euclidUpstreamPresent {
     targets += [
         .target(
             name: "Euclid",
-            // Stays PURE (rung 1). Adding the SceneKit/AppKit/CoreGraphics
-            // interop deps here lights up Euclid's interop AND — because
-            // ShapeScript depends on Euclid — leaks SceneKit/UIKit into
-            // ShapeScript's graph, waking its own dormant interop
-            // (Material+SceneKit / Scene+SceneKit, a deep UIKit/CoreText/ObjC
-            // surface). So the interop enablement is an all-at-once rung-2
-            // app-tier campaign (Euclid + ShapeScript + the viewer apps),
-            // tracked in docs/scenekit-conformance.md. The SceneKit/
-            // CoreGraphics shim surface those need is already in place and
-            // verified to compile Euclid's interop at 0 errors (727 -> 0).
-            dependencies: [],
+            // Rung 2c: interop ENABLED. This lights up Euclid's SceneKit/
+            // AppKit/CoreGraphics interop and — because ShapeScript depends on
+            // Euclid — ShapeScript's own interop too (the all-at-once campaign;
+            // see docs/scenekit-conformance.md).
+            dependencies: ["SceneKit", "UIKit", "AppKit", "CoreGraphics"],
             path: ".upstream/euclid/Sources",
+            // On Linux Euclid's OSColor comes from Euclid+UIKit (OSColor=UIColor,
+            // gated `canImport(UIKit)`) — Euclid+AppKit is `canImport(AppKit) &&
+            // !canImport(UIKit)`, dormant once UIKit is present (which SwiftUI
+            // pulls in). So UIKit must be a real dep and Euclid+UIKit must NOT
+            // be excluded. Only the genuinely-unwanted deep interop is excluded:
+            // Euclid+RealityKit (MeshResource/MeshDescriptor surface) and
+            // Euclid+CoreText (glyph→mesh CFAttributedString surface).
+            exclude: [
+                "Euclid+CoreText.swift",
+                "Euclid+RealityKit.swift",
+            ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         // Real UIKit + SceneKit demo app (one RealityKit screen, one
@@ -2389,8 +2399,14 @@ if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent
             name: "SVGPath",
             dependencies: [],
             path: ".upstream/svgpath/Sources",
-            // SVGPath's SwiftUI/CoreGraphics extensions are canImport-gated;
-            // with no such deps here they drop, leaving the pure parser.
+            // SVGPath's SwiftUI/CoreGraphics extensions are canImport-gated. At
+            // rung 1 (no SceneKit graph) they dropped; once the rung-2c interop
+            // graph pulls SwiftUI/CoreGraphics in, canImport flips them on and
+            // SVGPath+SwiftUI drags SwiftUI→OpenCombine→COpenCombineHelpers
+            // (a C module not on SVGPath's search path, since SwiftUI isn't its
+            // declared dep). The apps only use the pure parser, so exclude the
+            // optional extensions to keep SVGPath deterministic.
+            exclude: ["SVGPath+SwiftUI.swift", "SVGPath+CoreGraphics.swift"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         // The REAL nicklockwood/LRUCache. ShapeScript's GeometryCache needs
