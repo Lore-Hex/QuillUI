@@ -223,7 +223,32 @@ public final class NSHashTable<ObjectType>: @unchecked Sendable {
 // Opaque path types (Linux). SSK builds UIBezierPaths and reads `.cgPath`; the
 // CGContext drawing shim takes paths as `Any`, so these only need to exist as
 // inert handles (no real geometry is recorded).
+// CoreGraphics path-element introspection. On Apple these are CoreGraphics
+// types; here they live beside CGPath and are re-exported by the CoreGraphics
+// shim. Euclid's `Path(CGPath)` reads them via `applyWithBlock`.
+public enum CGPathElementType: Int32, Sendable {
+    case moveToPoint = 0
+    case addLineToPoint = 1
+    case addQuadCurveToPoint = 2
+    case addCurveToPoint = 3
+    case closeSubpath = 4
+}
+
+public struct CGPathElement {
+    public var type: CGPathElementType
+    /// Points buffer; length depends on `type` (1 for move/line, 2 for quad,
+    /// 3 for cubic, 0 for close), as on macOS.
+    public var points: UnsafeMutablePointer<CGPoint>
+    public init(type: CGPathElementType, points: UnsafeMutablePointer<CGPoint>) {
+        self.type = type
+        self.points = points
+    }
+}
+
 public class CGPath {
+    /// Recorded path elements (type + its points), so the path is iterable.
+    fileprivate var elements: [(type: CGPathElementType, points: [CGPoint])] = []
+
     public init() {}
 
     public convenience init(
@@ -233,23 +258,47 @@ public class CGPath {
         transform: UnsafePointer<CGAffineTransform>?
     ) {
         self.init()
-        _ = (rect, cornerWidth, cornerHeight, transform)
+        _ = (cornerWidth, cornerHeight, transform)
+        elements = [
+            (.moveToPoint, [CGPoint(x: rect.minX, y: rect.minY)]),
+            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.minY)]),
+            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.maxY)]),
+            (.addLineToPoint, [CGPoint(x: rect.minX, y: rect.maxY)]),
+            (.closeSubpath, []),
+        ]
     }
 
-    public func copy() -> CGPath? { self }
+    public func copy() -> CGPath? {
+        let p = CGPath()
+        p.elements = elements
+        return p
+    }
     public func copy(using transform: UnsafePointer<CGAffineTransform>?) -> CGPath? {
         _ = transform
-        return self
+        return copy()
     }
     public func contains(_ point: CGPoint) -> Bool {
         _ = point
         return false
     }
+
+    /// Iterate path elements (CGPath's `apply(info:function:)` / Swift's
+    /// `applyWithBlock`). Each callback gets a pointer to a CGPathElement whose
+    /// `points` buffer is valid only for that call, as on macOS.
+    public func applyWithBlock(_ block: (UnsafePointer<CGPathElement>) -> Void) {
+        for entry in elements {
+            var pts = entry.points.isEmpty ? [CGPoint(x: 0, y: 0)] : entry.points
+            pts.withUnsafeMutableBufferPointer { buf in
+                var element = CGPathElement(type: entry.type, points: buf.baseAddress!)
+                withUnsafePointer(to: &element) { block($0) }
+            }
+        }
+    }
 }
 public final class CGMutablePath: CGPath {
     public override init() { super.init() }
-    public func move(to point: CGPoint) {}
-    public func addLine(to point: CGPoint) {}
+    public func move(to point: CGPoint) { elements.append((.moveToPoint, [point])) }
+    public func addLine(to point: CGPoint) { elements.append((.addLineToPoint, [point])) }
     public func addLines(between points: [CGPoint]) {
         guard let first = points.first else { return }
         move(to: first)
@@ -257,16 +306,33 @@ public final class CGMutablePath: CGPath {
             addLine(to: point)
         }
     }
-    public func addRect(_ rect: CGRect) {}
-    public func addEllipse(in rect: CGRect) {}
-    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {}
-    public func addQuadCurve(to end: CGPoint, control: CGPoint) {}
-    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {}
-    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {}
-    public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {}
-    public func addPath(_ path: CGPath) { _ = path }
-    public func addPath(_ path: CGPath, transform: CGAffineTransform) { _ = (path, transform) }
-    public func closeSubpath() {}
+    public func addRect(_ rect: CGRect) {
+        move(to: CGPoint(x: rect.minX, y: rect.minY))
+        addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        closeSubpath()
+    }
+    public func addEllipse(in rect: CGRect) { _ = rect }
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {
+        elements.append((.addCurveToPoint, [control1, control2, end]))
+    }
+    public func addQuadCurve(to end: CGPoint, control: CGPoint) {
+        elements.append((.addQuadCurveToPoint, [control, end]))
+    }
+    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
+        _ = (center, radius, startAngle, endAngle, clockwise)
+    }
+    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
+        _ = (tangent1End, tangent2End, radius)
+    }
+    public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
+        _ = (cornerWidth, cornerHeight)
+        addRect(rect)
+    }
+    public func addPath(_ path: CGPath) { elements.append(contentsOf: path.elements) }
+    public func addPath(_ path: CGPath, transform: CGAffineTransform) { _ = transform; addPath(path) }
+    public func closeSubpath() { elements.append((.closeSubpath, [])) }
 }
 
 // MARK: - CGAffineTransform (Linux)

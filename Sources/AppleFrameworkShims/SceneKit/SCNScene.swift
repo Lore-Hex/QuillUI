@@ -24,6 +24,20 @@ public final class SCNScene: @unchecked Sendable {
     public init(named name: String) {
         // Empty scene; the named-asset catalog is not modeled on QuillOS yet.
     }
+
+    /// Exporting a scene to a model file (.scn/.dae/.obj/…) is a rung-4
+    /// concern (it needs the exporters). The API shape matches macOS so
+    /// callers — e.g. Euclid's `Mesh` writers — compile unmodified; it
+    /// reports failure until the exporters land.
+    @discardableResult
+    public func write(
+        to url: URL,
+        options: [String: Any]? = nil,
+        delegate: Any? = nil,
+        progressHandler: ((Float, Error?, UnsafeMutablePointer<ObjCBool>) -> Void)? = nil
+    ) -> Bool {
+        false
+    }
 }
 
 public enum SCNSceneShimError: Error, CustomStringConvertible {

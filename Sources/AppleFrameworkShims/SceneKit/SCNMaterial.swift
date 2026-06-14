@@ -41,7 +41,17 @@ public final class SCNMaterialProperty: @unchecked Sendable {
     }
 }
 
-public final class SCNMaterial: @unchecked Sendable {
+public final class SCNMaterial: Hashable, @unchecked Sendable {
+    // Identity-based Hashable: Euclid stores SCNMaterial as its `Material`
+    // (an AnyHashable) when round-tripping SCNGeometry -> Mesh, so the type
+    // must be Hashable (NSObject provides this on macOS).
+    public static func == (lhs: SCNMaterial, rhs: SCNMaterial) -> Bool {
+        lhs === rhs
+    }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(self))
+    }
+
     public var name: String?
     public let diffuse = SCNMaterialProperty()
     public let ambient = SCNMaterialProperty()
