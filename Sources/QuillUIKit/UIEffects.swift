@@ -163,6 +163,14 @@ public enum UIVibrancyEffectStyle: Int, Sendable {
     public convenience init() {
         self.init(effect: nil)
     }
+
+    // Own designated init suppresses inheritance of UIView's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        self.effect = nil
+        super.init(coder: coder)
+        addSubview(_contentView)
+    }
 }
 
 #endif // !os(iOS)

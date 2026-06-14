@@ -303,6 +303,11 @@ public extension UIWindow {
         self.selectedFontDescriptor = UIFontDescriptor()
         super.init(nibName: nil, bundle: nil)
     }
+    // Own designated init suppresses inheritance of UIViewController's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
 }
 
 public extension UIColor {
@@ -812,6 +817,13 @@ public extension UIDragInteractionDelegate {
 
     public convenience init() {
         self.init(frame: .zero, textContainer: nil)
+    }
+
+    // Own designated init suppresses inheritance of UIView's
+    // required init?(coder:); restate it. The TextKit stack is lazy (created on
+    // first access to layoutManager/textStorage), so nothing else is needed.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
     }
 
     /// Strong anchors for the lazily-created default stack (the container's

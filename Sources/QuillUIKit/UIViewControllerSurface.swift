@@ -489,6 +489,15 @@ extension UIViewControllerTransitioningDelegate {
         super.init()
     }
 
+    // Own designated init suppresses inheritance of UIViewController's
+    // required init?(coder:); restate it with Apple's per-style defaults.
+    public required init?(coder: NSCoder) {
+        self.transitionStyle = .pageCurl
+        self.navigationOrientation = .horizontal
+        self.spineLocation = .min
+        super.init(coder: coder)
+    }
+
     /// Replaces the visible page set. Containment is real (old pages are
     /// removed with the willMove/removeFromParent convention, new ones added
     /// with addChild/didMove and their views installed); `direction` and
@@ -615,6 +624,13 @@ extension UISearchBarDelegate {
 
     public convenience init() {
         self.init(searchResultsController: nil)
+    }
+
+    // Own designated init suppresses inheritance of UIViewController's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        self.searchResultsController = nil
+        super.init(coder: coder)
     }
 }
 

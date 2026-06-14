@@ -24,4 +24,13 @@ public class SFSafariViewController: UIViewController {
         self.configuration = configuration
         super.init()
     }
+
+    // QuillUIKit's UIViewController declares `required init?(coder:)`; once this
+    // class adds its own designated init it must restate the required init.
+    // No archive is decoded on Linux, so url falls back to a blank URL.
+    public required init?(coder: NSCoder) {
+        self.url = URL(string: "about:blank")!
+        self.configuration = Configuration()
+        super.init(coder: coder)
+    }
 }
