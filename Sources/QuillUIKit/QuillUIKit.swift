@@ -75,6 +75,24 @@ public typealias ASPresentationAnchor = NSObject
         _ = builder
     }
 
+    // MARK: Edit menu / standard editing actions
+    //
+    // CLASS-BODY, not extension: Signal subclasses override these standard
+    // editing-action methods AND call up through super (text views, message
+    // cells, ActionSheet). On Apple these are part of UIResponderStandardEdit
+    // Actions, implemented by UIResponder; there is no responder chain or edit
+    // menu on Linux, so the bases are honest no-ops and canPerformAction
+    // refuses everything (Apple's UIResponder default is also false — a
+    // subclass opts in per action).
+    open func cut(_ sender: Any?) { _ = sender }
+    open func copy(_ sender: Any?) { _ = sender }
+    open func paste(_ sender: Any?) { _ = sender }
+    open func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        _ = action
+        _ = sender
+        return false
+    }
+
     // MARK: Touch dispatch
     //
     // CLASS-BODY, not extension: Signal subclasses override these (extensions
@@ -439,14 +457,27 @@ public enum UIAccessibilityContrast: Int {
 
     public private(set) weak var superview: UIView?
     public var subviews: [UIView] = []
+
+    /// Whether subviews are resized when this view's bounds change. Apple's
+    /// default is true. Faithful STATE: there is no autoresizing pass on Linux
+    /// (Auto Layout drives all measured ports), so nothing reads it back yet —
+    /// but it is `open` + stored so the rare subclass that overrides it
+    /// resolves cross-module.
+    open var autoresizesSubviews: Bool = true
+
     open func removeFromSuperview() {
+        // Apple notifies the (old) superview before the subview leaves, so the
+        // hook still sees `self` in `subviews`.
+        superview?.willRemoveSubview(self)
         superview?.subviews.removeAll { $0 === self }
         superview = nil
         #if os(Linux)
         _layer?.removeFromSuperlayer()
         #endif
     }
-    public var backgroundColor: UIColor?
+    // `open` (not just `public`): a classic overridable Apple UIView property
+    // — Signal subclasses override backgroundColor with didSet observers.
+    open var backgroundColor: UIColor?
     open func addSubview(_ view: UIView) {
         view.willMove(toWindow: window)
         view.removeFromSuperview()
@@ -456,7 +487,18 @@ public enum UIAccessibilityContrast: Int {
         #if os(Linux)
         layer.addSublayer(view.layer)
         #endif
+        // Apple calls didAddSubview on the receiver after the subview is in
+        // place (so overrides can observe the new child).
+        didAddSubview(view)
     }
+
+    // MARK: Subview observation hooks
+    //
+    // CLASS-BODY, not extension: subclasses override these and call super.
+    // Apple's defaults are empty; the install/remove paths above fire them at
+    // the documented moments.
+    open func didAddSubview(_ subview: UIView) { _ = subview }
+    open func willRemoveSubview(_ subview: UIView) { _ = subview }
 
     /// Inserts a subview at an explicit z-position (index 0 is backmost).
     /// Same installation sequence as addSubview. APPROXIMATION: Apple raises
@@ -480,6 +522,8 @@ public enum UIAccessibilityContrast: Int {
             layer.addSublayer(view.layer)
         }
         #endif
+        // Apple fires didAddSubview for every insertion path.
+        didAddSubview(view)
     }
 
     /// Apple requires `siblingSubview` to already be a child (behavior is
@@ -608,10 +652,14 @@ public enum UIAccessibilityContrast: Int {
     public var window: UIWindow?
     public typealias UserInterfaceStyle = UIUserInterfaceStyle
     public var overrideUserInterfaceStyle: UserInterfaceStyle = .unspecified
-    public var isHidden: Bool = false
-    public var isUserInteractionEnabled: Bool = true
-    public var alpha: CGFloat = 1.0
-    public var tintColor: UIColor?
+    // `open` (not just `public`): these are the well-known overridable Apple
+    // UIView properties — Signal subclasses override them (often with didSet
+    // observers) and that requires the stored property itself to be
+    // overridable cross-module.
+    open var isHidden: Bool = false
+    open var isUserInteractionEnabled: Bool = true
+    open var alpha: CGFloat = 1.0
+    open var tintColor: UIColor?
     open func tintColorDidChange() {}
 
     /// View-owned layout guides. Linux draws no status bar, notch, or home
@@ -993,6 +1041,30 @@ public enum UIAccessibilityContrast: Int {
     open var prefersStatusBarHidden: Bool { false }
     open var childForStatusBarStyle: UIViewController? { nil }
     open var childForStatusBarHidden: UIViewController? { nil }
+
+    /// Whether this controller wants the home indicator hidden. Apple's
+    /// default: false. CLASS-BODY `open` so SignalUI controllers (media
+    /// viewers, call screens) override it and call super; there is no home
+    /// indicator on Linux, so nothing reads it back yet.
+    open var prefersHomeIndicatorAutoHidden: Bool { false }
+
+    // MARK: Editing mode
+    //
+    // CLASS-BODY, not extension: SignalUI controllers (list/settings screens)
+    // override setEditing(_:animated:) and call super, and read/observe
+    // isEditing. Apple's UIViewController stores the editing flag and the
+    // default setEditing just records it; there is no Edit button bar item to
+    // toggle on Linux, but the state is faithful so view code that branches on
+    // it behaves.
+    private var quillIsEditing: Bool = false
+    open var isEditing: Bool {
+        get { quillIsEditing }
+        set { quillIsEditing = newValue }
+    }
+    open func setEditing(_ editing: Bool, animated: Bool) {
+        _ = animated
+        quillIsEditing = editing
+    }
 
     /// VoiceOver's "escape" (two-finger Z) hook — on Apple it's part of
     /// NSObject's accessibility protocol; class-body here so SignalUI's
@@ -1438,6 +1510,13 @@ public class SLComposeSheetConfigurationItem: NSObject {
     open var isSelected = false
     open var isHighlighted = false
     open var state: State = .normal
+
+    /// Whether the control is currently tracking a touch. On Apple this is a
+    /// read-only property driven by the touch-tracking machinery
+    /// (beginTracking…endTracking); there is no live touch tracking on Linux,
+    /// so it stays false. `open var` (settable) so subclasses that override it
+    /// — or drive it from their own gesture handling — resolve cross-module.
+    open var isTracking: Bool = false
 }
 
 @MainActor open class UIButton: UIControl {

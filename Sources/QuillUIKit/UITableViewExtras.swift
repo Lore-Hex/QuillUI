@@ -766,6 +766,12 @@ extension UITableViewCell {
     /// Stored background view; nothing composites it on Linux yet.
     public var backgroundView: UIView?
 
+    /// Configuration-based background (iOS 14+). `Any?` to match the cell
+    /// classes' `backgroundConfiguration` (upstream assigns
+    /// UIBackgroundConfiguration.clear()/.listGroupedCell() etc.); nothing
+    /// composites it on Linux yet.
+    public var backgroundConfiguration: Any?
+
     public init(reuseIdentifier: String?) {
         self.reuseIdentifier = reuseIdentifier
         super.init(frame: .zero)
