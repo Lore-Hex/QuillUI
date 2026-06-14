@@ -47,12 +47,17 @@ public struct _KVOPublisherOptions: OptionSet, Sendable {
 }
 
 public extension NSObject {
-    func publisher<Value>(
-        for keyPath: KeyPath<Self, Value>,
+    // Generic over `Root` rather than `Self`: Swift forbids covariant `Self` in
+    // a parameter position of a non-final class-extension method. The keypath's
+    // root is recovered by casting `self` (always succeeds at the real call
+    // sites, where the receiver IS the keypath root, e.g. `view.publisher(for:
+    // \.bounds)`). Inert on Linux (no KVO) beyond the optional initial value.
+    func publisher<Root, Value>(
+        for keyPath: KeyPath<Root, Value>,
         options: _KVOPublisherOptions = [.initial, .new]
     ) -> AnyPublisher<Value, Never> {
-        if options.contains(.initial) {
-            return Just(self[keyPath: keyPath]).eraseToAnyPublisher()
+        if options.contains(.initial), let root = self as? Root {
+            return Just(root[keyPath: keyPath]).eraseToAnyPublisher()
         }
         return Empty<Value, Never>(completeImmediately: false).eraseToAnyPublisher()
     }
