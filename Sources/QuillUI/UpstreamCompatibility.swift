@@ -910,7 +910,12 @@ public extension View {
         return GestureView(content: self, gesture: gesture)
     }
 
-    @_disfavoredOverload
+    // The View-mask is the FAVORED functional overload (a View covers Shapes
+    // too). It must win over QuillSwiftUICompatibility's inert
+    // `mask(alignment:_:)` fallback — leaving BOTH disfavored made
+    // `mask(Text(…))` ambiguous (two equally-disfavored View overloads). The
+    // Shape-mask below is disfavored instead, so `mask(Rectangle())` also binds
+    // here (ViewMaskView) rather than tying with the Shape overload.
     func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
         recordQuillUIFallback(
             "mask",
@@ -919,6 +924,7 @@ public extension View {
         return ViewMaskView(content: self, mask: mask)
     }
 
+    @_disfavoredOverload
     func mask<S: Shape>(_ shape: S) -> ClipShapeView<Self, S> {
         recordQuillUIFallback(
             "mask",

@@ -34,19 +34,24 @@ public extension View {
         return self
     }
 
-    /// Whether the view's text is user-selectable. Inert headless.
+    /// Whether the view's text is user-selectable. Inert headless. Disfavored
+    /// so a functional overload (where one exists) wins for callers that see
+    /// both; shadow-only vendored source keeps this fallback.
+    @_disfavoredOverload
     func textSelection(_ selectability: TextSelectability) -> Self {
         _ = selectability
         return self
     }
 
     /// Drive an SF Symbol effect from an `Equatable` value (iOS 17+). Inert.
+    @_disfavoredOverload
     func symbolEffect<V: Equatable>(_ effect: SymbolEffect, value: V) -> Self {
         _ = effect
         _ = value
         return self
     }
 
+    @_disfavoredOverload
     func symbolEffect(_ effect: SymbolEffect) -> Self {
         _ = effect
         return self
@@ -63,6 +68,9 @@ public extension View {
     }
 
     /// Whether the view participates in hit-testing. Inert headless.
+    /// Disfavored so QuillUI's functional `allowsHitTesting` wins for callers
+    /// that see both.
+    @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
         return self
@@ -82,12 +90,14 @@ public extension View {
     /// forms, e.g. IceCubes AppAccountView's `.foregroundStyle(.white, .green)`).
     /// The shadow only had the single-style form. Only the primary color is
     /// meaningful headless; the secondary/tertiary palette colors are inert.
+    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color) -> Self {
         _ = primary
         _ = secondary
         return self
     }
 
+    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color, _ tertiary: Color) -> Self {
         _ = primary
         _ = secondary
