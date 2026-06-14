@@ -1288,6 +1288,41 @@ extension DisclosureGroup: QtRenderable {
 
 // MARK: - Core container Qt extensions
 
+// The placeholder SwiftUI substitutes for "the content being modified" inside a
+// custom ViewModifier's body. It carries the original view in `wrapped`; render
+// straight through to it (mirrors the GTK backend). Without this, every custom
+// ViewModifier subtree (e.g. IceCubes' ThemeApplier) dead-ends as an empty
+// placeholder.
+extension _ViewModifierContent: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderAnyView(wrapped.wrapped)
+    }
+}
+
+extension ButtonStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.buttonStyle = style
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+// Qt stylesheets have no CSS-transition analogue; render the content and let
+// state changes apply immediately (no animated tween).
+extension AnimatedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+// The destination factory is consumed by the navigation system; the modifier is
+// transparent to layout, so render the source content straight through.
+extension NavigationDestinationModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
 extension Group: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
 }
