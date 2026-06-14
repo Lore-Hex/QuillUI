@@ -356,7 +356,12 @@ struct QuillDataSourceLoweringTests {
         #expect(wrapper.contains("--scratch-path=*"))
         #expect(wrapper.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(!wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
-        #expect(wrapper.contains("swift test --scratch-path \"$SCRATCH_PATH\""))
+        // The wrapper builds the test bundle first (untimed) then runs it with
+        // a timeout, so a post-suite hang (a leaked GTK/Xvfb subprocess) can't
+        // wedge the CI step. Both invocations pass the scratch path through.
+        #expect(wrapper.contains("swift build --build-tests --scratch-path \"$SCRATCH_PATH\""))
+        #expect(wrapper.contains("swift test --skip-build --scratch-path \"$SCRATCH_PATH\""))
+        #expect(wrapper.contains("TEST_RUN_TIMEOUT"))
 
         let preparationScript = try String(
             contentsOf: root.appendingPathComponent("scripts/prepare-linux-build-backend.sh"),
