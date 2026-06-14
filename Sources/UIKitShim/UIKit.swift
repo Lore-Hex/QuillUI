@@ -647,16 +647,43 @@ open class UITextRange: NSObject {
     }
 }
 
+/// One rect of a text selection (Apple returns an array of these from
+/// `selectionRects(for:)`). The abstract base carries the geometry +
+/// edge/writing-direction flags upstream reads off drag-preview rects. No glyph
+/// layout on Linux means the shim never produces instances (`selectionRects`
+/// returns `[]`), but the type must exist for the signature to type-check.
+open class UITextSelectionRect: NSObject {
+    open var rect: CGRect { .zero }
+    open var writingDirection: NSWritingDirection { .natural }
+    open var containsStart: Bool { false }
+    open var containsEnd: Bool { false }
+    open var isVertical: Bool { false }
+}
+
+// On Apple `UITextViewDelegate` refines `UIScrollViewDelegate` (a text view IS
+// a scroll view). The shim keeps UITextView a UIView, so the protocol stands
+// alone; every method has a default no-op so conformers implement only what
+// they need (Objective-C optional-method parity).
 @MainActor public protocol UITextViewDelegate: AnyObject {
+    func textViewShouldBeginEditing(_ textView: UITextView) -> Bool
+    func textViewShouldEndEditing(_ textView: UITextView) -> Bool
     func textViewDidBeginEditing(_ textView: UITextView)
+    func textViewDidEndEditing(_ textView: UITextView)
     func textViewDidChange(_ textView: UITextView)
+    func textViewDidChangeSelection(_ textView: UITextView)
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool
+    func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool
 }
 
 public extension UITextViewDelegate {
+    @MainActor func textViewShouldBeginEditing(_ textView: UITextView) -> Bool { true }
+    @MainActor func textViewShouldEndEditing(_ textView: UITextView) -> Bool { true }
     @MainActor func textViewDidBeginEditing(_ textView: UITextView) {}
+    @MainActor func textViewDidEndEditing(_ textView: UITextView) {}
     @MainActor func textViewDidChange(_ textView: UITextView) {}
+    @MainActor func textViewDidChangeSelection(_ textView: UITextView) {}
     @MainActor func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool { true }
+    @MainActor func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
 }
 
 @MainActor public protocol UITextPasteConfigurationSupporting: AnyObject {}
@@ -751,6 +778,17 @@ public extension UIDragInteractionDelegate {
     }
 }
 
+// On Apple, `UITextView: UIScrollView` (it scrolls its own text). The shim
+// keeps it a plain `UIView` on purpose: UIScrollView's stored
+// `delegate: UIScrollViewDelegate?` (QuillUIKit.swift) would collide with
+// UITextView's own `delegate: UITextViewDelegate?` — Swift can't redeclare a
+// settled stored property with a covariant type, and UICollectionView only
+// dodges that because UICollectionViewDelegate REFINES UIScrollViewDelegate
+// (UITextViewDelegate does too on Apple, but the stored-property collision
+// remains). So the scroll surface SignalUI's UITextView subclasses use
+// (contentOffset / contentSize / contentInset / scrollIndicatorInsets /
+// setContentOffset / scrollRangeToVisible) is declared directly on this class
+// body below — `open`, because BodyRangesTextView & co. override several of them.
 @MainActor open class UITextView: UIView, UITextPasteConfigurationSupporting {
     open weak var delegate: UITextViewDelegate?
     open weak var pasteDelegate: UITextPasteDelegate?
@@ -889,6 +927,93 @@ public extension UIDragInteractionDelegate {
     open func caretRect(for position: UITextPosition) -> CGRect {
         _ = position
         return CGRect(origin: .zero, size: CGSize(width: 1, height: font?.lineHeight ?? 17))
+    }
+
+    /// The bounding rect of the text in `range`. MODEL HONESTY: with no glyph
+    /// layout on Linux the geometry isn't real; a degenerate caret-height rect
+    /// at the origin is the honest stand-in (same as `caretRect`).
+    open func firstRect(for range: UITextRange) -> CGRect {
+        _ = range
+        return CGRect(origin: .zero, size: CGSize(width: 0, height: font?.lineHeight ?? 17))
+    }
+
+    /// The selection-handle rects for `range`. No glyph layout means no real
+    /// per-line rects; SignalUI reads this for drag-preview geometry, which
+    /// degrades to "no rects" honestly. (Apple returns `[UITextSelectionRect]`.)
+    open func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
+        _ = range
+        return []
+    }
+
+    /// Replaces the text in `range` with `text`, operating on the UTF-16 model
+    /// behind `attributedText` (the positions are plain offsets — see
+    /// UITextPosition; NSRange is also UTF-16, so the edit is exact). Out-of-range
+    /// positions clamp to the document, matching a best-effort edit; the
+    /// selection collapses to the end of the inserted text, as Apple leaves the
+    /// caret. Replacing with the typing attributes keeps a styled view from
+    /// dropping its run attributes wholesale on a partial edit.
+    open func replace(_ range: UITextRange, withText text: String) {
+        let length = attributedText.length
+        let lower = min(max(0, range.start.quillUTF16Offset), length)
+        let upper = min(max(lower, range.end.quillUTF16Offset), length)
+        let mutable = NSMutableAttributedString(attributedString: attributedText)
+        mutable.replaceCharacters(
+            in: NSRange(location: lower, length: upper - lower),
+            with: NSAttributedString(string: text, attributes: typingAttributes)
+        )
+        attributedText = mutable
+        let caret = lower + text.utf16.count
+        selectedRange = NSRange(location: caret, length: 0)
+    }
+
+    /// Clears any marked (in-composition) text. No input method runs on Linux,
+    /// so there is never marked text to clear — the honest no-op is to drop the
+    /// marked range, matching Apple committing the composition.
+    open func unmarkText() {
+        markedTextRange = nil
+    }
+
+    // MARK: Input traits not shared with UITextField
+    //
+    // Whether the Return key auto-disables until there is text. Faithful state;
+    // no keyboard consumes it on Linux. (UITextField inherits this from
+    // UITextInputTraits on Apple; SignalUI only sets it on text views here.)
+    open var enablesReturnKeyAutomatically = false
+
+    // MARK: Scroll surface
+    //
+    // On Apple UITextView IS a UIScrollView; the shim keeps it a UIView (the
+    // delegate-type collision documented on the class declaration), so the slice
+    // of the scroll API SignalUI's UITextView subclasses use is declared here
+    // directly. `open`, because BodyRangesTextView overrides them. MODEL HONESTY:
+    // there is no compositor, so these are faithful stored geometry — no actual
+    // scrolling happens, and `scrollRangeToVisible` records intent only.
+
+    open var contentSize: CGSize = .zero
+    open var contentOffset: CGPoint = .zero
+    open var contentInset: UIEdgeInsets = .zero
+    open var scrollIndicatorInsets: UIEdgeInsets = .zero
+    open var verticalScrollIndicatorInsets: UIEdgeInsets = .zero
+    open var horizontalScrollIndicatorInsets: UIEdgeInsets = .zero
+    /// Read-only on Apple; equals `contentInset` here (no safe areas / keyboard
+    /// avoidance on Linux to adjust by). (`isScrollEnabled` is already declared
+    /// above with the other UITextView config flags.)
+    open var adjustedContentInset: UIEdgeInsets { contentInset }
+    open var alwaysBounceVertical = false
+    open var alwaysBounceHorizontal = false
+    open var showsVerticalScrollIndicator = true
+    open var showsHorizontalScrollIndicator = true
+    open var keyboardDismissMode: UIScrollView.KeyboardDismissMode = .none
+
+    open func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
+        _ = animated
+        self.contentOffset = contentOffset
+    }
+
+    /// Scrolls so the characters in `range` are visible. MODEL HONESTY: nothing
+    /// scrolls on Linux yet; this records the request without moving content.
+    open func scrollRangeToVisible(_ range: NSRange) {
+        _ = range
     }
 
     open func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {

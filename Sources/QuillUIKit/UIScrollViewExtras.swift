@@ -56,14 +56,12 @@ private struct QuillScrollViewState {
     /// UIGestureRecognizers.swift for the rationale.
     weak var owner: UIScrollView?
 
-    var contentSize: CGSize = .zero
     var isScrollEnabled = true
     var isPagingEnabled = false
     var isDirectionalLockEnabled = false
     var bounces = true
     var alwaysBounceVertical = false
     var alwaysBounceHorizontal = false
-    var scrollsToTop = true
     var canCancelContentTouches = true
     var delaysContentTouches = true
     var automaticallyAdjustsScrollIndicatorInsets = true
@@ -144,62 +142,14 @@ extension UIScrollView {
     }
 
     // MARK: - Content geometry
-
-    /// The origin of the visible content region. On Apple a scroll view
-    /// scrolls by translating its own bounds, and `contentOffset` is that
-    /// translation — modeled identically here (`bounds.origin`), so any
-    /// geometry code sees programmatic scrolls. Setting a new value
-    /// notifies `scrollViewDidScroll`, as Apple's setter does.
-    /// (Apple declares this `open var`; extension members can't be `open`,
-    /// so it is `public` — same note for every member below.)
-    public var contentOffset: CGPoint {
-        get { bounds.origin }
-        set {
-            guard bounds.origin != newValue else { return }
-            bounds.origin = newValue
-            delegate?.scrollViewDidScroll(self)
-        }
-    }
-
-    /// Scrolls to the given offset. MODEL HONESTY: there is no animation
-    /// backend, so `animated: true` completes instantly —
-    /// `scrollViewDidScroll` fires from the offset change and
-    /// `scrollViewDidEndScrollingAnimation` fires synchronously (Apple
-    /// fires it only for animated changes that actually animate, so a
-    /// same-offset call stays silent, as on Apple).
-    public func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
-        guard self.contentOffset != contentOffset else { return }
-        self.contentOffset = contentOffset
-        if animated {
-            delegate?.scrollViewDidEndScrollingAnimation(self)
-        }
-    }
-
-    /// The size of the scrollable content. Faithful storage; nothing on
-    /// Linux derives it from subview layout yet.
-    public var contentSize: CGSize {
-        get { quillScrollState.contentSize }
-        set { quillScrollState.contentSize = newValue }
-    }
-
-    /// Scrolls the minimum distance needed to bring `rect` (content
-    /// coordinates) into the visible region, clamped to the content bounds —
-    /// Apple's documented behavior, computed from the live model geometry.
-    /// A rect already visible (or a degenerate viewport) scrolls nothing.
-    public func scrollRectToVisible(_ rect: CGRect, animated: Bool) {
-        var offset = contentOffset
-        if bounds.width > 0 {
-            if rect.maxX > offset.x + bounds.width { offset.x = rect.maxX - bounds.width }
-            if rect.minX < offset.x { offset.x = rect.minX }
-            offset.x = min(max(0, offset.x), max(0, contentSize.width - bounds.width))
-        }
-        if bounds.height > 0 {
-            if rect.maxY > offset.y + bounds.height { offset.y = rect.maxY - bounds.height }
-            if rect.minY < offset.y { offset.y = rect.minY }
-            offset.y = min(max(0, offset.y), max(0, contentSize.height - bounds.height))
-        }
-        setContentOffset(offset, animated: animated)
-    }
+    //
+    // contentOffset / setContentOffset(_:animated:) / contentSize /
+    // scrollRectToVisible / scrollsToTop moved to the UIScrollView CLASS BODY
+    // (QuillUIKit.swift): Apple declares them `open` and upstream subclasses
+    // override them, but extension members "cannot be overridden". (The members
+    // that REMAIN below are `open var` on Apple too, but nothing overrides them,
+    // so they stay extension members — `public`, since extensions can't be
+    // `open`.)
 
     // MARK: - Scrolling configuration (stored Apple defaults)
 
@@ -239,12 +189,6 @@ extension UIScrollView {
     public var alwaysBounceHorizontal: Bool {
         get { quillScrollState.alwaysBounceHorizontal }
         set { quillScrollState.alwaysBounceHorizontal = newValue }
-    }
-
-    /// Whether a status-bar tap scrolls to the top. Apple's default: true.
-    public var scrollsToTop: Bool {
-        get { quillScrollState.scrollsToTop }
-        set { quillScrollState.scrollsToTop = newValue }
     }
 
     /// Whether touches already delivered to content can be canceled to

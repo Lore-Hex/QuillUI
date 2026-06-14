@@ -1792,13 +1792,82 @@ public struct UIContentSizeCategory: RawRepresentable, Equatable, Hashable, Send
     }
 
     public weak var delegate: UIScrollViewDelegate?
-    public var contentInsetAdjustmentBehavior: ContentInsetAdjustmentBehavior = .automatic
+    open var contentInsetAdjustmentBehavior: ContentInsetAdjustmentBehavior = .automatic
     public var maximumZoomScale: CGFloat = 1
     public var minimumZoomScale: CGFloat = 1
     public var zoomScale: CGFloat = 1
     public var bouncesZoom: Bool = false
     public var showsHorizontalScrollIndicator: Bool = true
     public var showsVerticalScrollIndicator: Bool = true
+
+    // MARK: - Content geometry (overridable: class body, not an extension)
+    //
+    // These were extension members (UIScrollViewExtras.swift). Apple declares
+    // them `open`, and upstream subclasses across the scroll-view family override
+    // them — but extension members "cannot be overridden", which produced the
+    // bulk of the contentSize / scrollsToTop errors in the sig6 histogram. They
+    // live in the class body now; their CGSize/CGPoint/Bool types are visible in
+    // QuillUIKit, so there is no module-layering issue (unlike the
+    // UIEdgeInsets-typed contentInset, which can't live here — UIEdgeInsets is
+    // declared in the UIKit shim that DEPENDS on this module — and so stays an
+    // extension accessor in UIScrollViewInsets.swift; UITextView, which DOES
+    // override the insets, carries its own UIEdgeInsets-typed class-body copies
+    // there). The remaining scroll surface (configuration flags, gesture
+    // recognizers, live-interaction state) stays in UIScrollViewExtras.swift;
+    // nothing overrides it.
+
+    /// The origin of the visible content region. On Apple a scroll view scrolls
+    /// by translating its own bounds, and `contentOffset` is that translation —
+    /// modeled identically here (`bounds.origin`), so any geometry code sees
+    /// programmatic scrolls. Setting a new value notifies `scrollViewDidScroll`,
+    /// as Apple's setter does.
+    open var contentOffset: CGPoint {
+        get { bounds.origin }
+        set {
+            guard bounds.origin != newValue else { return }
+            bounds.origin = newValue
+            delegate?.scrollViewDidScroll(self)
+        }
+    }
+
+    /// Scrolls to the given offset. MODEL HONESTY: there is no animation backend,
+    /// so `animated: true` completes instantly — `scrollViewDidScroll` fires from
+    /// the offset change and `scrollViewDidEndScrollingAnimation` fires
+    /// synchronously (Apple fires it only for animated changes that actually
+    /// animate, so a same-offset call stays silent, as on Apple).
+    open func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
+        guard self.contentOffset != contentOffset else { return }
+        self.contentOffset = contentOffset
+        if animated {
+            delegate?.scrollViewDidEndScrollingAnimation(self)
+        }
+    }
+
+    /// The size of the scrollable content. Faithful storage; nothing on Linux
+    /// derives it from subview layout yet.
+    open var contentSize: CGSize = .zero
+
+    /// Whether a status-bar tap scrolls to the top. Apple's default: true.
+    open var scrollsToTop: Bool = true
+
+    /// Scrolls the minimum distance needed to bring `rect` (content coordinates)
+    /// into the visible region, clamped to the content bounds — Apple's
+    /// documented behavior, computed from the live model geometry. A rect already
+    /// visible (or a degenerate viewport) scrolls nothing.
+    open func scrollRectToVisible(_ rect: CGRect, animated: Bool) {
+        var offset = contentOffset
+        if bounds.width > 0 {
+            if rect.maxX > offset.x + bounds.width { offset.x = rect.maxX - bounds.width }
+            if rect.minX < offset.x { offset.x = rect.minX }
+            offset.x = min(max(0, offset.x), max(0, contentSize.width - bounds.width))
+        }
+        if bounds.height > 0 {
+            if rect.maxY > offset.y + bounds.height { offset.y = rect.maxY - bounds.height }
+            if rect.minY < offset.y { offset.y = rect.minY }
+            offset.y = min(max(0, offset.y), max(0, contentSize.height - bounds.height))
+        }
+        setContentOffset(offset, animated: animated)
+    }
 
     public func setZoomScale(_ scale: CGFloat, animated: Bool) {
         _ = animated
