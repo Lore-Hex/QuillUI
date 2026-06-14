@@ -37,7 +37,13 @@ fetch_repo() {
     else
         echo "==> cloning $name from $url"
         if [[ -n "$ref" ]]; then
-            git clone --depth=1 --branch "$ref" "$url" "$dest" >/dev/null
+            # ref may be a branch, tag, or full commit SHA. `git clone --branch`
+            # rejects SHAs, so clone shallow then fetch + checkout the ref — this
+            # works uniformly for all three and lets us pin an upstream to a
+            # specific commit (GitHub serves reachable SHAs in a want).
+            git clone --depth=1 "$url" "$dest" >/dev/null
+            git -C "$dest" fetch --depth=1 origin "$ref" >/dev/null
+            git -C "$dest" checkout --detach FETCH_HEAD >/dev/null
         else
             git clone --depth=1 "$url" "$dest" >/dev/null
         fi
@@ -2132,22 +2138,51 @@ PY
     local article_utilities="$shared_dir/Extensions/ArticleUtilities.swift"
     if [[ -f "$article_utilities" ]] && grep -qE '^import Images|func iconImage\(' "$article_utilities"; then
         echo "==> lowering netnewswire Shared ArticleUtilities image-cache island"
+        # iconImage()/iconImageUrl(feed:) need IconImageCache, which is excluded
+        # from NetNewsWireSharedCore on Linux (NSImage/UIImage-backed disk cache).
+        # Strip both methods + the now-unused `import Images`. Brace-matched, not
+        # body-pattern-matched, so upstream refactors of the bodies (e.g. the
+        # dataRepresentation guard rewrite) don't silently no-op the patch and
+        # leave IconImage referenced with no import. Idempotent.
         python3 - "$article_utilities" <<'PY'
-import re
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
 src = path.read_text()
-src = src.replace("import Images\n", "")
-src = re.sub(
-    r"\n\tfunc iconImage\(\) -> IconImage\? \{\n\t\treturn IconImageCache\.shared\.imageForArticle\(self\)\n\t\}\n\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{\n\t\tif let image = iconImage\(\) \{\n\t\t\tlet fm = FileManager\.default\n\t\t\tvar path = fm\.urls\(for: \.cachesDirectory, in: \.userDomainMask\)\[0\]\n\t\t\tlet feedID = feed\.feedID\.replacingOccurrences\(of: \"/\", with: \"_\"\)\n\t\t\tpath\.appendPathComponent\(feedID \+ \"_smallIcon\.png\"\)\n\t\t\tfm\.createFile\(atPath: path\.path, contents: image\.image\.dataRepresentation\(\)!, attributes: nil\)\n\t\t\treturn path\n\t\t\} else \{\n\t\t\treturn nil\n\t\t\}\n\t\}\n",
-    "\n",
-    src,
-    count=1,
-)
-path.write_text(src)
-print("patched ArticleUtilities without Images/IconImageCache dependency")
+lines = src.split("\n")
+
+
+def remove_method(lines, sig):
+    out, i, n, removed = [], 0, len(lines), False
+    while i < n:
+        line = lines[i]
+        if not removed and sig in line and line.lstrip().startswith("func "):
+            depth, started, j = 0, False, i
+            while j < n:
+                depth += lines[j].count("{") - lines[j].count("}")
+                if "{" in lines[j]:
+                    started = True
+                if started and depth <= 0:
+                    break
+                j += 1
+            i = j + 1
+            # swallow one trailing blank line left behind, if any
+            if i < n and lines[i].strip() == "":
+                i += 1
+            removed = True
+            continue
+        out.append(line)
+        i += 1
+    return out, removed
+
+
+lines, _ = remove_method(lines, "func iconImage(")
+lines, _ = remove_method(lines, "func iconImageUrl(")
+new = "\n".join(lines).replace("import Images\n", "")
+if new != src:
+    path.write_text(new)
+    print("patched ArticleUtilities: stripped iconImage()/iconImageUrl() + import Images")
 PY
     fi
 
@@ -2274,7 +2309,12 @@ for name in "${want[@]}"; do
             fetch_repo enchanted https://github.com/gluonfield/enchanted.git
             ;;
         netnewswire)
-            fetch_repo netnewswire https://github.com/Ranchero-Software/NetNewsWire.git
+            # Pinned to a specific commit (not HEAD): the NetNewsWire Linux
+            # bring-up tracks upstream source through brittle lowering patches,
+            # and tracking HEAD lets unrelated upstream refactors (e.g. moving
+            # IconImage into Modules/Images) silently break our required CI.
+            # Bump deliberately, re-validating the patches, rather than drifting.
+            fetch_repo netnewswire https://github.com/Ranchero-Software/NetNewsWire.git eb82dd3ce3fe2b370261f9cdb677400f7e2f3535
             patch_netnewswire
             ;;
         wireguard)
