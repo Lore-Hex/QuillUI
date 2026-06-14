@@ -1293,6 +1293,20 @@ private final class AppKitRewriter: SyntaxRewriter {
         // when `method` is a known UIKit delegate optional method — see
         // `strippingOptionalProtocolCall`. Returns the call unchanged otherwise.
         let call2 = Self.strippingOptionalProtocolCall(call)
+        // `NSAttributedString()` -> `NSAttributedString(string: "")`. swift-corelibs
+        // ships no no-arg initializer (only `init(string:)`), and one can't be added
+        // via extension (it would "override" the inherited `NSObject.init()` from an
+        // extension, which Swift forbids). CVTextLabel writes the bare `NSAttributedString()`.
+        if let nsCallee = call2.calledExpression.as(DeclReferenceExprSyntax.self),
+           nsCallee.baseName.text == "NSAttributedString",
+           call2.arguments.isEmpty,
+           call2.trailingClosure == nil,
+           call2.leftParen != nil {
+            var replacement = ExprSyntax("NSAttributedString(string: \"\")")
+            replacement.leadingTrivia = call2.leadingTrivia
+            replacement.trailingTrivia = call2.trailingTrivia
+            return replacement
+        }
         // Timer(timeInterval:repeats:block:) -> QuillTimer.make(…). Disjoint from
         // the strip above (this callee is the bare `Timer` identifier).
         guard let callee = call2.calledExpression.as(DeclReferenceExprSyntax.self),
