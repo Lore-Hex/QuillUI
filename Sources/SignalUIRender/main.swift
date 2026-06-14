@@ -10,7 +10,7 @@
 import CGTK
 import CGTKBridge
 import QuillUIKit
-import UIKitShim
+import UIKit
 import QuillFoundation
 import Foundation
 

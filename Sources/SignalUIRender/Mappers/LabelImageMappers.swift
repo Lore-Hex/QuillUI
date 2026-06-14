@@ -19,7 +19,7 @@
 
 import CGTK            // UnsafeMutablePointer<GtkWidget>, all gtk_* / gdk_* / g_* C functions
 import QuillUIKit      // UIView, UILabel, UIImageView (UIView.ContentMode)
-import UIKitShim       // UIFont (+ UILabel.font accessor), UIColor/UIImage aliases, NSTextAlignment
+import UIKit       // UIFont (+ UILabel.font accessor), UIColor/UIImage aliases, NSTextAlignment
 import QuillFoundation // NSTextAlignment, RSColor/RSImage (the Linux UIColor/UIImage)
 import Foundation
 
@@ -27,7 +27,7 @@ import Foundation
 // but on Linux the styled-leaf surface actually lives in the shim modules:
 //   • `UILabel.font` is layered onto QuillUIKit's storage slot by UIKitShim
 //     (UIFontExtras.swift), so the typed `font` accessor is only visible with
-//     `import UIKitShim`.
+//     `import UIKit`.
 //   • `UIColor`/`UIImage` are typealiases to `RSColor`/`RSImage` declared in
 //     QuillFoundation; `NSTextAlignment` likewise lives in QuillFoundation
 //     (NSTextLayoutShared.swift).
