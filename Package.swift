@@ -2289,6 +2289,12 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "CoreVideo"]
     case "AppIntents":
         dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
+    case "SceneKit":
+        // SceneKit vends SwiftUI's `SceneView` (the scene-graph types use
+        // QuillFoundation's CGFloat/CGImage shadow). SwiftUI does not import
+        // SceneKit, so this edge is acyclic. Real Apple SceneKit depends on
+        // SwiftUI for exactly the same reason.
+        dependencies = ["QuillFoundation", "SwiftUI"]
     default:
         dependencies = ["QuillFoundation"]
     }

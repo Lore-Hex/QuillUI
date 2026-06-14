@@ -42,6 +42,17 @@ extension Color {
         self.init(red: color._red, green: color._green, blue: color._blue, opacity: color._alpha)
     }
 
+    /// SwiftUI's labeled platform-color bridges. `NSColor`/`UIColor` are both
+    /// `RSColor` on QuillOS, so these mirror the macOS/iOS `Color(nsColor:)` /
+    /// `Color(uiColor:)` initializers real source uses to tint SwiftUI views.
+    public init(nsColor: RSColor) {
+        self.init(nsColor)
+    }
+
+    public init(uiColor: RSColor) {
+        self.init(uiColor)
+    }
+
     public init(rgba: UInt32) {
         self.init(
             red: Double((rgba >> 24) & 0xff) / 255.0,
