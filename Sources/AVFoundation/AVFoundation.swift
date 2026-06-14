@@ -256,6 +256,14 @@ public final class AVAudioSession: @unchecked Sendable {
         self.currentItem = AVPlayerItem(url: url)
     }
 
+    // Designated init (class body, not the AVPlayerPlayback extension) so
+    // LoopingVideoPlayer can override `init(playerItem:)` and call
+    // `super.init(playerItem:)` -- an extension convenience init can do neither.
+    public init(playerItem item: AVPlayerItem?) {
+        super.init()
+        self.currentItem = item
+    }
+
     open func play() {}
     open func pause() {}
     open func replaceCurrentItem(with item: AVPlayerItem?) {

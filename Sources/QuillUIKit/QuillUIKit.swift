@@ -282,6 +282,14 @@ public enum UIUserInterfaceStyle: Int {
     case dark
 }
 
+/// Apple's UIUserInterfaceIdiom. Declared here (not in the UIKit umbrella) so
+/// `UITraitCollection.userInterfaceIdiom` below can be typed with it; the
+/// umbrella re-exports it under the same name. Raw values match UIKit's
+/// (.unspecified == -1).
+public enum UIUserInterfaceIdiom: Int, Sendable {
+    case unspecified = -1, phone = 0, pad = 1, tv = 2, carPlay = 3, mac = 5, vision = 6
+}
+
 /// Apple's UIUserInterfaceLevel (base vs. elevated window layers). Raw values
 /// match UIKit's (.unspecified == -1).
 public enum UIUserInterfaceLevel: Int {
@@ -783,6 +791,16 @@ public enum UIAccessibilityContrast: Int {
     /// Apple's sentinel for "no intrinsic metric on this axis" (-1).
     public static let noIntrinsicMetric: CGFloat = -1
 
+    /// Apple's UIView class property; custom-layout views (VideoTimelineView,
+    /// LineWrappingStackView) override it to return `true`. `open` class var so
+    /// those overrides are valid cross-module. Apple's default is `false`.
+    open class var requiresConstraintBasedLayout: Bool { false }
+
+    /// Window-membership override point (BezierPathView / OWSBubbleShapeView
+    /// react to entering a window). No window graph drives it on Linux, but the
+    /// `open` declaration makes the subclass overrides valid.
+    open func didMoveToWindow() {}
+
     public static var areAnimationsEnabled: Bool = true
     public static var inheritedAnimationDuration: TimeInterval = 0
 
@@ -1237,15 +1255,25 @@ public enum UIAccessibilityContrast: Int {
     open func setViewControllers(_ viewControllers: [UIViewController], animated: Bool) {
         self.viewControllers = viewControllers
     }
-    public init(rootViewController: UIViewController) {
-        super.init(nibName: nil, bundle: nil)
+    // Apple's UINavigationController inherits `init(nibName:bundle:)` from
+    // UIViewController as its designated initializer; `init(rootViewController:)`
+    // and `init(navigationBarClass:toolbarClass:)` are CONVENIENCE inits that
+    // chain through it. OWSNavigationController overrides `init(nibName:bundle:)`
+    // and calls `super.init(nibName:bundle:)`, so that designated init must be
+    // exposed here (a subclass with its own designated inits does not inherit
+    // it). Restate it as the designated init and make the others convenience.
+    public override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
+        super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
+    }
+    public convenience init(rootViewController: UIViewController) {
+        self.init(nibName: nil, bundle: nil)
         topViewController = rootViewController
     }
-    public init(navigationBarClass: AnyClass?, toolbarClass: AnyClass?) {
-        super.init(nibName: nil, bundle: nil)
+    public convenience init(navigationBarClass: AnyClass?, toolbarClass: AnyClass?) {
+        self.init(nibName: nil, bundle: nil)
     }
     public convenience init() { self.init(navigationBarClass: nil, toolbarClass: nil) }
-    // Own designated inits suppress inheritance of UIViewController's
+    // Own designated init suppresses inheritance of UIViewController's
     // required init?(coder:); restate it.
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
@@ -1457,7 +1485,22 @@ public enum UIAccessibilityContrast: Int {
 
     public enum CellStyle: Int { case `default`, value1, value2, subtitle }
     public private(set) var reuseIdentifier: String?
-    public required init(style: CellStyle, reuseIdentifier: String?) {
+    // Apple's `UITableViewCell.init(style:reuseIdentifier:)` is the DESIGNATED
+    // initializer and is NOT `required` -- only `init?(coder:)` is (from
+    // NSCoding). The earlier `required` here drove the lowered cells into two
+    // contradictory errors:
+    //   * subclasses that only OVERRIDE it (ContactCell, ContactTableViewCell,
+    //     NonContactTableViewCell, MentionPicker, SafetyNumberConfirmationSheet)
+    //     hit "use the 'required' modifier to override a required initializer"
+    //     -- Apple subclasses write plain `override init(style:)`, no `required`.
+    //   * subclasses that add their OWN designated init (ContactShareViewController,
+    //     ContactReminderTableViewCell, GroupTableViewCell, OWSTableItem's cell)
+    //     hit "'required' initializer 'init(style:reuseIdentifier:)' must be
+    //     provided by subclass" -- a `required` base forces every such subclass
+    //     to restate it, which faithful Apple code does not do.
+    // Making it a plain designated init (required ONLY on init?(coder:), exactly
+    // like Apple) resolves both families at once.
+    public init(style: CellStyle, reuseIdentifier: String?) {
         super.init(frame: .zero)
         self.reuseIdentifier = reuseIdentifier
     }
@@ -1474,6 +1517,11 @@ public enum UIAccessibilityContrast: Int {
     // Inert on Linux: stored but never applied to a content view. SignalUI's
     // RecipientPickerViewController assigns a UIHostingConfiguration here.
     public var contentConfiguration: UIContentConfiguration?
+
+    /// Configuration-based background (iOS 14+). `Any?` to match the upstream
+    /// assignment of `UIBackgroundConfiguration.listGroupedCell()` etc.
+    /// (MentionPicker's cell sets it). Nothing composites it on Linux yet.
+    public var backgroundConfiguration: Any?
 
     /// A custom trailing accessory view (wins over `accessoryType` on Apple).
     /// CLASS-BODY `open`, not extension: SignalUI's ContactTableViewCell
@@ -1716,6 +1764,20 @@ public class SLComposeSheetConfigurationItem: NSObject {
     open var showsMenuAsPrimaryAction: Bool = false
     open var contentHorizontalAlignment: UIControl.ContentHorizontalAlignment = .center
     open func sizeToFit() {}
+
+    // `setImage(_:for:)` lives in the CLASS BODY (not the UIButtonExtras
+    // extension) and is `open` because AvatarImageView OVERRIDES it — an
+    // extension method cannot be overridden cross-module. The backing state
+    // accessors (`quillButtonState`, `quillRefreshContent`) are `internal` in
+    // UIButtonExtras.swift so this reaches them.
+    open func setImage(_ image: UIImage?, for state: UIControl.State) {
+        if let image {
+            quillButtonState.images[state.rawValue] = image
+        } else {
+            quillButtonState.images.removeValue(forKey: state.rawValue)
+        }
+        quillRefreshContent()
+    }
 }
 
 @MainActor open class UIImageView: UIView {
@@ -1830,6 +1892,14 @@ public class UIKeyCommand: NSObject {
         self.action = action
         self.discoverabilityTitle = discoverabilityTitle
         super.init()
+    }
+
+    /// Apple's older `UIKeyCommand` convenience initializer puts `action:`
+    /// first (`init(action:input:modifierFlags:discoverabilityTitle:)`).
+    /// MediaTextView uses this argument order, so expose it alongside the
+    /// `input:`-first form above.
+    public convenience init(action: Selector, input: String, modifierFlags: UIKeyModifierFlags, discoverabilityTitle: String? = nil) {
+        self.init(input: input, modifierFlags: modifierFlags, action: action, discoverabilityTitle: discoverabilityTitle)
     }
 
     public init(title: String, image: Any?, action: Selector, input: String, modifierFlags: UIKeyModifierFlags, propertyList: Any? = nil, alternates: [UIKeyCommand] = [], discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [], state: UIMenuElement.State = .off) {
@@ -2049,7 +2119,7 @@ open class UIScene: NSObject {
 
 public class UITraitCollection: NSObject {
     public var userInterfaceStyle: UIUserInterfaceStyle = .unspecified
-    public var userInterfaceIdiom: Int = 0
+    public var userInterfaceIdiom: UIUserInterfaceIdiom = .unspecified
     public var userInterfaceLevel: UIUserInterfaceLevel = .unspecified
     public var accessibilityContrast: UIAccessibilityContrast = .unspecified
     public var layoutDirection: UIUserInterfaceLayoutDirection = .leftToRight
@@ -2085,7 +2155,7 @@ public class UITraitCollection: NSObject {
             if traits.userInterfaceStyle != .unspecified {
                 userInterfaceStyle = traits.userInterfaceStyle
             }
-            if traits.userInterfaceIdiom != 0 {
+            if traits.userInterfaceIdiom != .unspecified {
                 userInterfaceIdiom = traits.userInterfaceIdiom
             }
             if traits.userInterfaceLevel != .unspecified {

@@ -18,7 +18,12 @@ public struct WKAudiovisualMediaTypes: OptionSet, Sendable {
     public static let all: WKAudiovisualMediaTypes = [.audio, .video]
 }
 
-@MainActor open class WKWebView: NSView, @unchecked Sendable {
+// On Apple platforms `WKWebView` is a `UIView` subclass (it inherits
+// `addSubview`-ability, `layoutMargins`, and its `scrollView`). Signal's
+// CaptchaView relies on all three (`addSubview(webView)`,
+// `autoPinEdgesToSuperviewEdges`, `webView.layoutMargins = .zero`), so the
+// shadow must subclass UIView -- not NSView -- to match.
+@MainActor open class WKWebView: UIView, @unchecked Sendable {
     public override init(frame: CGRect) {
         super.init(frame: frame)
     }
@@ -32,13 +37,16 @@ public struct WKAudiovisualMediaTypes: OptionSet, Sendable {
         super.init(frame: frame)
     }
 
-    public init(coder: NSCoder) {
-        super.init(frame: .zero)
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
     }
 
     public var configuration = WKWebViewConfiguration()
     public weak var navigationDelegate: WKNavigationDelegate?
-    public var scrollView: UIScrollView { UIScrollView() }
+    /// Stored (not recomputed per access) so callers that mutate the scroll
+    /// view -- e.g. CaptchaView tweaking inset/indicator behavior -- observe a
+    /// stable instance, mirroring UIKit's `WKWebView.scrollView`.
+    public private(set) lazy var scrollView = UIScrollView()
     public var allowsBackForwardNavigationGestures = false
     public var allowsLinkPreview = false
     public var customUserAgent: String?
@@ -140,8 +148,50 @@ public class WKContentRuleListStore: NSObject {
     public func compileContentRuleList(forIdentifier: String, encodedContentRuleList: String) async throws -> WKContentRuleList? { nil }
 }
 
+// Apple's `WKNavigationDelegate` methods are ALL optional. Swift protocols
+// have no `optional` outside `@objc`, so instead every method gets a default
+// implementation in the extension below; conformers (CaptchaView) implement
+// only the subset they need and still satisfy the protocol.
 @MainActor public protocol WKNavigationDelegate: AnyObject {
-    func webView(_: WKWebView, didFinish: WKNavigation!)
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!)
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error)
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error)
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!)
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!)
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    )
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationResponse: WKNavigationResponse,
+        decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+    )
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView)
+}
+
+public extension WKNavigationDelegate {
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {}
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {}
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {}
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {}
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {}
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        decisionHandler(.allow)
+    }
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationResponse: WKNavigationResponse,
+        decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+    ) {
+        decisionHandler(.allow)
+    }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {}
 }
 
 public class WKNavigation: NSObject {}

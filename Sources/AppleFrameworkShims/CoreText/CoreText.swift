@@ -7,7 +7,10 @@ import CoreFoundation
 
 public typealias CFIndex = CoreFoundation.CFIndex
 public typealias CFRange = CoreFoundation.CFRange
-public typealias CFError = NSError
+// `CFError` is owned by QuillKit (alongside CFString/CFURL). CoreText must not
+// also export it publicly: SUIEnvironment imports both modules and an exported
+// twin here made the name ambiguous. CoreText's only use (the CTFontManager
+// error out-pointer below) spells the underlying NSError directly.
 
 public final class CTFramesetter {}
 public final class CTFrame {}
@@ -28,7 +31,7 @@ public enum CTFontManagerScope: UInt32, Sendable {
 public func CTFontManagerRegisterFontsForURL(
     _ fontURL: URL,
     _ scope: CTFontManagerScope,
-    _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?
+    _ error: UnsafeMutablePointer<Unmanaged<NSError>?>?
 ) -> Bool {
     _ = (fontURL, scope)
     error?.pointee = nil
