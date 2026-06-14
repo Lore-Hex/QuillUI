@@ -252,9 +252,8 @@ public extension Animation {
 
     // `repeatForever(autoreverses:)` moved to QuillSwiftUICompatibility
     // (SolderScopeChrome.swift) so `import SwiftUI` files see it as well.
-    // (The compatibility-diagnostics record was dropped in the move — the
-    // compat module doesn't link QuillKit; the repeat metadata note now
-    // lives in the doc comment there.)
+    // That module links QuillKit (via DesignSystemSurfaceCompat), so it keeps
+    // recording the `.info` compatibility diagnostic there.
 
     func delay(_ delay: Double) -> Animation {
         recordQuillUIFallback(
