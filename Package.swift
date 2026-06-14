@@ -2245,7 +2245,6 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore",
                 .product(name: "CGTK", package: "SwiftOpenUI"),
                 .product(name: "CGTKBridge", package: "SwiftOpenUI"),
-                .product(name: "BackendGTK4", package: "SwiftOpenUI"),
             ],
             path: "Sources/SignalUIRender",
             swiftSettings: appSwiftSettings

@@ -486,7 +486,10 @@ extension UIViewControllerTransitioningDelegate {
         self.spineLocation = (options?[.spineLocation] as? Int)
             .flatMap(SpineLocation.init(rawValue:))
             ?? (style == .pageCurl ? .min : .none)
-        super.init()
+        // Designated super init (not the convenience `init()`, whose allocating
+        // thunk isn't emitted for `super.init()` calls — link error when QuillUIKit
+        // is linked into an executable).
+        super.init(nibName: nil, bundle: nil)
     }
 
     // Own designated init suppresses inheritance of UIViewController's
