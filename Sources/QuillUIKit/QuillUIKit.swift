@@ -314,7 +314,22 @@ public enum UIAccessibilityContrast: Int {
 #if !os(macOS)
 // Linux-only: UIWindow shadow (macOS already has NSWindow typealiased
 // to UIWindow in QuillFoundation).
-open class UIWindow: UIView {}
+@MainActor open class UIWindow: UIView {
+    // CLASS-BODY designated inits, not extension: SignalUI's OWSWindow
+    // overrides both `init(frame:)` and `init(windowScene:)`, and Swift
+    // cannot override an initializer introduced in an extension. Declaring a
+    // designated init here also disables auto-inheritance of UIView's
+    // `init(frame:)`, so it is re-declared as an override to keep
+    // `UIWindow(frame:)` callable. The scene is recorded (Apple ties the
+    // window to its scene); nothing composites on Linux.
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+    }
+    public init(windowScene: UIWindowScene) {
+        super.init(frame: .zero)
+        windowScene.windows.append(self)
+    }
+}
 #endif
 
 @MainActor open class UIView: UIResponder {
@@ -991,6 +1006,25 @@ open class UIWindow: UIView {}
     public var splitViewController: UISplitViewController?
     public var navigationItem = UINavigationItem()
     public var preferredContentSize: CGSize = CGSize(width: 0, height: 0)
+
+    // MARK: Presentation style
+    //
+    // CLASS-BODY, not extension: SignalUI's HeroSheetViewController overrides
+    // `modalPresentationStyle` with a `willSet` observer, and Swift cannot
+    // override a member introduced in an extension (no @objc dynamism on
+    // Linux). Stored with Apple's iOS-13 default (`.automatic`); the
+    // model-level present/dismiss does not consult it (nothing composites on
+    // Linux yet). The UIModalPresentationStyle enum lives in
+    // UIViewControllerSurface.swift.
+    open var modalPresentationStyle: UIModalPresentationStyle = .automatic
+
+    /// The popover-presentation controller, when this controller is (or will
+    /// be) presented as a popover. nil by default — no popover presentation
+    /// runs on Linux — but SignalUI reads it on UIActivityViewController and
+    /// plain controllers (every use is `if let`/`?`), so it lives on the base
+    /// class. Stored + `open` so a subclass could vend one; UIAlertController
+    /// inherits this and no longer declares its own.
+    open var popoverPresentationController: UIPopoverPresentationController?
 }
 
 @MainActor public class UISplitViewController: UIViewController {
@@ -1072,6 +1106,13 @@ open class UIWindow: UIView {}
     }
     open func setNavigationBarHidden(_ hidden: Bool, animated: Bool) {
         isNavigationBarHidden = hidden
+    }
+    /// Replaces the controller stack. `animated` is accepted and ignored —
+    /// there is no push/pop transition to run. Model-level only: the stack is
+    /// flattened to `topViewController` (the last entry), matching how
+    /// `viewControllers` is modeled above.
+    open func setViewControllers(_ viewControllers: [UIViewController], animated: Bool) {
+        self.viewControllers = viewControllers
     }
     public init(rootViewController: UIViewController) {
         super.init(nibName: nil, bundle: nil)
@@ -1246,6 +1287,13 @@ open class UIWindow: UIView {}
     public var detailTextLabel: UILabel?
     public var imageView: UIImageView?
 
+    /// A custom trailing accessory view (wins over `accessoryType` on Apple).
+    /// CLASS-BODY `open`, not extension: SignalUI's ContactTableViewCell
+    /// overrides it with a `didSet`, which an extension member cannot satisfy.
+    /// Pure storage — no layout pass places it yet. (`accessoryType` and the
+    /// rest of the cell surface live in UITableViewExtras.swift.)
+    open var accessoryView: UIView?
+
     // Subclass override points (upstream overrides them with super calls).
     // isSelected/isHighlighted are the side-table accessors in
     // UITableViewExtras.swift; same-module assignment works from here.
@@ -1286,7 +1334,7 @@ open class UIWindow: UIView {}
         super.init(nibName: nil, bundle: nil)
     }
     public func addAction(_: Any) {}
-    public var popoverPresentationController: UIPopoverPresentationController?
+    // popoverPresentationController is inherited from UIViewController.
 }
 
 public class UIAlertAction: NSObject {
@@ -1649,6 +1697,25 @@ open class UIScene: NSObject {
     @MainActor public var delegate: Any?
 }
 
+// UIWindowScene + UIStatusBarManager live here (not in the UIKit shim) so the
+// UIWindow class body can declare an `open` designated `init(windowScene:)`
+// that SignalUI's OWSWindow overrides — an extension initializer in the shim
+// cannot be overridden cross-module. Faithful MODEL: a window remembers the
+// scene that vended it; nothing composites.
+
+@MainActor public protocol UIWindowSceneDelegate: AnyObject {}
+
+@MainActor public class UIWindowScene: UIScene {
+    public var windows: [UIWindow] = []
+    public var keyWindow: UIWindow? { windows.first }
+    public var interfaceOrientation: UIInterfaceOrientation = .portrait
+    public var statusBarManager: UIStatusBarManager? = UIStatusBarManager()
+}
+
+@MainActor public final class UIStatusBarManager: NSObject {
+    public var statusBarFrame: CGRect = .zero
+}
+
 public class UITraitCollection: NSObject {
     public var userInterfaceStyle: UIUserInterfaceStyle = .unspecified
     public var userInterfaceIdiom: Int = 0
@@ -1705,6 +1772,71 @@ public class UITraitCollection: NSObject {
     /// instance per access, like the layout anchors) so there is no shared
     /// mutable static; Linux has a single default trait environment anyway.
     public static var current: UITraitCollection { UITraitCollection() }
+}
+
+// MARK: - UITrait + registerForTraitChanges (iOS 17)
+//
+// The iOS-17 trait-observation API. SignalUI passes trait *types*
+// (`UITraitUserInterfaceStyle.self`, …) to `registerForTraitChanges` on its
+// views and reacts in a handler — the modern replacement for
+// `traitCollectionDidChange`. Faithful MODEL: the trait types are real marker
+// types and the registration is recorded, but no trait ever changes on Linux,
+// so the handlers never fire (exactly as `traitCollectionDidChange` never
+// fires here). The registration object Apple returns is unused upstream, so a
+// lightweight token stands in.
+
+/// A bindable trait, identified by its type. Adopted by the marker trait
+/// types below; `registerForTraitChanges` takes an array of these
+/// metatypes.
+public protocol UITrait {}
+
+/// Light/dark interface style. (A marker type — the live value is read off
+/// `traitCollection.userInterfaceStyle`, as upstream does inside the
+/// handler.)
+public enum UITraitUserInterfaceStyle: UITrait {}
+
+/// Dynamic Type size category. Marker type.
+public enum UITraitPreferredContentSizeCategory: UITrait {}
+
+/// Vertical size class (compact/regular). Marker type.
+public enum UITraitVerticalSizeClass: UITrait {}
+
+/// Horizontal size class (compact/regular). Marker type.
+public enum UITraitHorizontalSizeClass: UITrait {}
+
+/// The opaque handle Apple returns from `registerForTraitChanges`. Inert
+/// here (no registry to deregister from); upstream never inspects it.
+public struct UITraitChangeRegistration: Hashable, Sendable {
+    public init() {}
+}
+
+extension UIView {
+    /// Registers a handler for changes to the given traits (iOS 17). The
+    /// handler's first parameter is the observing object; its concrete type
+    /// is inferred from the closure (`UILabel`, `Self`, a custom view, …).
+    /// No trait ever changes on Linux, so the handler is stored-and-dropped;
+    /// the returned token is inert. Trailing-closure form.
+    @discardableResult
+    public func registerForTraitChanges<T>(
+        _ traits: [any UITrait.Type],
+        handler: @escaping (T, UITraitCollection) -> Void
+    ) -> UITraitChangeRegistration {
+        UITraitChangeRegistration()
+    }
+
+    /// Target/action form (iOS 17). The selector is accepted and never
+    /// invoked (no trait changes on Linux).
+    @discardableResult
+    public func registerForTraitChanges(
+        _ traits: [any UITrait.Type],
+        target: Any,
+        action: Selector
+    ) -> UITraitChangeRegistration {
+        UITraitChangeRegistration()
+    }
+
+    /// No-op: there is no registry to remove from.
+    public func unregisterForTraitChanges(_ registration: UITraitChangeRegistration) {}
 }
 
 public enum UIUserInterfaceLayoutDirection: Int, Sendable {

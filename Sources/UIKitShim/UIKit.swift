@@ -266,18 +266,10 @@ public class UISceneConfiguration: NSObject {
     }
 }
 
-@MainActor public protocol UIWindowSceneDelegate: AnyObject {}
-
-@MainActor public class UIWindowScene: UIScene {
-    public var windows: [UIWindow] = []
-    public var keyWindow: UIWindow? { windows.first }
-    public var interfaceOrientation: UIInterfaceOrientation = .portrait
-    public var statusBarManager: UIStatusBarManager? = UIStatusBarManager()
-}
-
-@MainActor public final class UIStatusBarManager: NSObject {
-    public var statusBarFrame: CGRect = .zero
-}
+// UIWindowScene, UIStatusBarManager, and UIWindowSceneDelegate moved to
+// QuillUIKit (alongside UIScene) so the UIWindow class body can declare an
+// `open` `init(windowScene:)` that SignalUI's OWSWindow overrides — an
+// extension initializer here could not be overridden cross-module.
 
 public extension UIWindow {
     var isKeyWindow: Bool { false }
@@ -288,11 +280,6 @@ public extension UIWindow {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { scene in scene.windows.contains { $0 === self } }
-    }
-
-    convenience init(windowScene: UIWindowScene) {
-        self.init()
-        windowScene.windows.append(self)
     }
 
     var rootViewController: UIViewController? {
