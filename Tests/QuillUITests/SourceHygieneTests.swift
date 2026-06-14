@@ -6,9 +6,14 @@ struct SourceHygieneTests {
     @Test("Repository does not track local smoke-test artifacts")
     func repositoryDoesNotTrackLocalSmokeTestArtifacts() throws {
         let root = try packageRoot()
+        // `-c safe.directory=…`: CI runs tests as a different user than the one
+        // that owns the checkout (root-owned container vs the runner user), so a
+        // bare `git` aborts with "detected dubious ownership" (exit 128). Scope
+        // the exception to this invocation rather than mutating global git config
+        // (and without touching linux-ci.yml, whose contents other tests assert on).
         let result = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
-            arguments: ["git", "-C", root.path, "ls-files"]
+            arguments: ["git", "-c", "safe.directory=" + root.path, "-C", root.path, "ls-files"]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
 
