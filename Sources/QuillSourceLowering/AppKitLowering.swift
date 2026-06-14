@@ -2094,10 +2094,16 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         // a `@MainActor` init still satisfies a nonisolated base init at a call site;
         // the only hazard the nonisolated annotation fixes is a body-less / trivial
         // override mismatch, which the trivial-body gate still covers).
-        guard Self.initBodyIsTriviallyNonisolatable(recursed) else {
-            return DeclSyntax(recursed)
+        if Self.initBodyIsTriviallyNonisolatable(recursed) {
+            return DeclSyntax(Self.prependNonisolated(recursed))
         }
-        return DeclSyntax(Self.prependNonisolated(recursed))
+        // Non-trivial body (calls @MainActor work like `ensureState()`, or assigns
+        // a @MainActor member like `label.backgroundColor`): the init must be
+        // `nonisolated` to match its base, but its body needs the main actor. Make it
+        // nonisolated and wrap the post-`super.init()` body in `MainActor.assumeIsolated`
+        // — sound because these objects (UI data sources / label wrappers) are
+        // constructed on the main actor.
+        return DeclSyntax(Self.wrappingInitBodyInAssumeIsolated(recursed))
     }
 
     private static func hasRequired(_ modifiers: DeclModifierListSyntax) -> Bool {
@@ -2131,6 +2137,38 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
             }
         }
         return true
+    }
+
+    /// Rebuilds an `init()` as `nonisolated <mods> init<sig> { super.init();
+    /// MainActor.assumeIsolated { <rest of body> } }`. Used when the init must be
+    /// nonisolated (to match its base) but its body touches `@MainActor` state. The
+    /// existing `super.init()` (if any) is hoisted out of the wrapper; everything
+    /// else runs inside `assumeIsolated`. These objects are built on the main actor.
+    static func wrappingInitBodyInAssumeIsolated(_ node: InitializerDeclSyntax) -> InitializerDeclSyntax {
+        guard let body = node.body else { return node }
+        var rest: [String] = []
+        for stmt in body.statements {
+            if case .expr(let e) = stmt.item, Self.isSuperInitCall(e) { continue }
+            rest.append(stmt.trimmedDescription)
+        }
+        let restJoined = rest.joined(separator: "\n            ")
+        let mods = node.modifiers.map { $0.name.text }.joined(separator: " ")
+        let modPrefix = mods.isEmpty ? "nonisolated" : "nonisolated \(mods)"
+        let sig = node.signature.trimmedDescription
+        let declText = """
+        \(modPrefix) init\(sig) {
+                super.init()
+                MainActor.assumeIsolated {
+                    \(restJoined)
+                }
+            }
+        """
+        guard let rebuilt = DeclSyntax("\(raw: declText)").as(InitializerDeclSyntax.self) else {
+            return node
+        }
+        var result = rebuilt
+        result.leadingTrivia = node.leadingTrivia
+        return result
     }
 
     /// True iff `expr` is a `…addObserver(…)` call. The selector-based
