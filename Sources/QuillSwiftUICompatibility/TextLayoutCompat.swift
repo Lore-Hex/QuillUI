@@ -29,6 +29,14 @@ public extension Font {
         return .system(size: size)
     }
 
+    /// Apple's fixed-size `Font.custom(_:size:)` (no Dynamic Type scaling).
+    /// SignalSymbols loads a custom glyph font at an absolute point size; with
+    /// no custom-font loader on Linux this resolves to the system font.
+    static func custom(_ name: String, size: Double) -> Font {
+        _ = name
+        return .system(size: size)
+    }
+
     func bold() -> Font { self.weight(.bold) }
 }
 

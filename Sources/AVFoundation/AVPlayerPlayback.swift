@@ -73,10 +73,11 @@ private final class AVPlaybackSideTables: @unchecked Sendable {
 }
 
 extension AVPlayer {
-    public convenience init(playerItem item: AVPlayerItem?) {
-        self.init()
-        self.currentItem = item
-    }
+    // `init(playerItem:)` is NOT here: it lives in the AVPlayer CLASS BODY
+    // (AVFoundation.swift) as a designated init so LoopingVideoPlayer can
+    // OVERRIDE it and `super.init(playerItem:)` resolves to a designated init.
+    // (An extension convenience init can be neither overridden cross-module nor
+    // called via super as a designated initializer.)
 
     /// Playback rate (0 = paused, 1 = normal speed). Round-trips but is inert.
     public var rate: Float {

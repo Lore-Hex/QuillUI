@@ -270,6 +270,14 @@ extension UIView {
         ]
     }
 
+    /// Signal call sites pass a bare `CGFloat` inset (a uniform inset on all
+    /// four edges); PureLayout itself only takes `UIEdgeInsets`, so add the
+    /// convenience overload that wraps the scalar in a uniform inset.
+    @discardableResult
+    public func autoPinEdgesToSuperviewEdges(withInset inset: CGFloat) -> [NSLayoutConstraint] {
+        return autoPinEdgesToSuperviewEdges(with: UIEdgeInsets(top: inset, left: inset, bottom: inset, right: inset))
+    }
+
     @discardableResult
     public func autoPinEdgesToSuperviewEdges(with insets: UIEdgeInsets, excludingEdge edge: ALEdge) -> [NSLayoutConstraint] {
         var constraints: [NSLayoutConstraint] = []
@@ -429,6 +437,24 @@ extension UIView {
         return constraint
     }
 
+    // MARK: All edges to another view
+    //
+    // PureLayout's `autoPinEdgesToSuperviewEdges` has a non-superview sibling
+    // that pins all four edges to an arbitrary view; Signal call sites spell it
+    // `autoPinEdges(toEdgesOf:)`. The bottom/trailing edges invert their inset
+    // so a positive inset shrinks `self` inside `otherView`, matching the
+    // superview-edges behavior above.
+
+    @discardableResult
+    public func autoPinEdges(toEdgesOf otherView: UIView, with insets: UIEdgeInsets = .zero) -> [NSLayoutConstraint] {
+        return [
+            autoPinEdge(.top, to: .top, of: otherView, withOffset: insets.top),
+            autoPinEdge(.leading, to: .leading, of: otherView, withOffset: insets.left),
+            autoPinEdge(.bottom, to: .bottom, of: otherView, withOffset: -insets.bottom),
+            autoPinEdge(.trailing, to: .trailing, of: otherView, withOffset: -insets.right),
+        ]
+    }
+
     // MARK: Axis alignment / centering
 
     @discardableResult
@@ -562,5 +588,26 @@ extension UIView {
         )
         constraint.autoInstall()
         return constraint
+    }
+
+    // MARK: Top / bottom layout guides
+    //
+    // Signal's PureLayout fork adds helpers that pin a view to a view
+    // controller's `topLayoutGuide` / `bottomLayoutGuide`. Those legacy guides
+    // (deprecated by Apple in favor of `safeAreaLayoutGuide`) coincide with the
+    // controller view's top/bottom edge once status-bar / nav-bar overlap is
+    // accounted for. QuillOS models neither a status bar nor safe-area insets
+    // (see the margins note above), so the guides resolve to the controller
+    // view's edges; the `withInset:` offset is applied verbatim, inverted on
+    // the bottom guide so a positive inset moves `self` up inside the view.
+
+    @discardableResult
+    public func autoPin(toTopLayoutGuideOf viewController: UIViewController, withInset inset: CGFloat = 0) -> NSLayoutConstraint {
+        return autoPinEdge(.top, to: .top, of: viewController.view, withOffset: inset)
+    }
+
+    @discardableResult
+    public func autoPin(toBottomLayoutGuideOf viewController: UIViewController, withInset inset: CGFloat = 0) -> NSLayoutConstraint {
+        return autoPinEdge(.bottom, to: .bottom, of: viewController.view, withOffset: -inset)
     }
 }

@@ -436,4 +436,21 @@ extension UIButton {
     }
 }
 
+// `UIBackgroundConfiguration.backgroundInsets` is NSDirectionalEdgeInsets-typed
+// (MentionPicker sets it on its list-cell configuration). That type lives in
+// this UIKit shim module, so the typed accessor is layered HERE over the
+// edge-relative `quillBackgroundInsets` storage in QuillUIKit -- the same split
+// used for UIView.directionalLayoutMargins.
+public extension UIBackgroundConfiguration {
+    var backgroundInsets: NSDirectionalEdgeInsets {
+        get {
+            let stored = quillBackgroundInsets
+            return NSDirectionalEdgeInsets(top: stored.top, leading: stored.left, bottom: stored.bottom, trailing: stored.right)
+        }
+        set {
+            quillBackgroundInsets = UIEdgeInsets(top: newValue.top, left: newValue.leading, bottom: newValue.bottom, right: newValue.trailing)
+        }
+    }
+}
+
 #endif // !os(iOS)

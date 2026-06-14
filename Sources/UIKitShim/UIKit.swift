@@ -226,6 +226,14 @@ public extension UIImage {
         self.init(named: name)
     }
 
+    /// `UIImage(named:compatibleWith:)` -- the no-bundle trait-aware form
+    /// (SignalSymbols loads asset glyphs against the current trait collection).
+    /// The trait collection is recorded-intent on Linux.
+    convenience init?(named name: String, compatibleWith traitCollection: UITraitCollection?) {
+        _ = traitCollection
+        self.init(named: name)
+    }
+
     /// `UIImage(named:in:with:)` (the modern configuration-bearing form).
     convenience init?(named name: String, in bundle: Bundle?, with configuration: UIImage.Configuration?) {
         _ = bundle
@@ -817,7 +825,11 @@ public extension UIDragInteractionDelegate {
 @MainActor open class UITextView: UIView, UITextPasteConfigurationSupporting {
     open weak var delegate: UITextViewDelegate?
     open weak var pasteDelegate: UITextPasteDelegate?
-    open var attributedText: NSAttributedString = NSAttributedString(string: "")
+    // Apple types `UITextView.attributedText` as `NSAttributedString!` (an
+    // implicitly-unwrapped optional): reads never return nil, but the property
+    // is OPTIONAL-typed so subclasses (BodyRangesTextView) can override it with
+    // `NSAttributedString?`. A non-optional base rejected that override.
+    open var attributedText: NSAttributedString! = NSAttributedString(string: "")
     open var selectedRange: NSRange = NSRange(location: 0, length: 0)
     open var markedTextRange: UITextRange?
     open var textContainer = NSTextContainer()
@@ -934,6 +946,23 @@ public extension UIDragInteractionDelegate {
                 length: newValue.end.quillUTF16Offset - newValue.start.quillUTF16Offset
             )
         }
+    }
+
+    // Apple's UITextView is a UIScrollView subclass, so it inherits the
+    // scroll-view surface. In this shim UITextView descends from UIView (the
+    // TextKit-backed text view is modeled directly), so the scroll-view members
+    // upstream reads on a text view are restated here. MediaTextView sets
+    // `scrollsToTop`. Apple's default: true.
+    open var scrollsToTop: Bool = true
+
+    // UIResponder declares `inputAccessoryView` get-only (overridable). A text
+    // view, however, exposes a SETTABLE accessory view; Signal assigns it
+    // (ImageEditorViewController+Text). Override here with a stored get/set
+    // backing -- a get-only base may be overridden by a get/set property.
+    private var quillInputAccessoryView: UIView?
+    open override var inputAccessoryView: UIView? {
+        get { quillInputAccessoryView }
+        set { quillInputAccessoryView = newValue }
     }
 
     open var keyboardAppearance: UIKeyboardAppearance = .default
@@ -1234,9 +1263,10 @@ public extension Notification.Name {
 }
 #endif
 
-public enum UIUserInterfaceIdiom: Int, Sendable {
-    case unspecified = -1, phone = 0, pad = 1, tv = 2, carPlay = 3, mac = 5, vision = 6
-}
+// UIUserInterfaceIdiom moved to QuillUIKit (next to UIUserInterfaceStyle): the
+// UITraitCollection class body there needs the type for `userInterfaceIdiom`
+// (OWSViewController compares it against `.pad`; CustomKeyboard assigns it).
+// Still visible to `import UIKit` consumers via `@_exported import QuillUIKit`.
 
 // MARK: - UIEdgeInsets
 //
@@ -1309,6 +1339,20 @@ public final class UIBezierPath {
     public func addClip() {}
     public func fill() {}
     public func stroke() {}
+
+    /// `-[UIBezierPath applyTransform:]`: transforms all points in place.
+    /// Path geometry is not materialized on Linux (cgPath is a placeholder),
+    /// so the transform is recorded-intent and the call is inert.
+    public func apply(_ transform: CGAffineTransform) {
+        _ = transform
+    }
+
+    /// NSCopying's `copy()` (UIBezierPath conforms on Apple). Returns `Any` to
+    /// match the platform signature; OWSBubbleShapeView casts the result back
+    /// to `UIBezierPath`. The copy shares the placeholder cgPath.
+    public func copy() -> Any {
+        return UIBezierPath(cgPath: cgPath)
+    }
 }
 
 public enum UIDeviceOrientation: Int, Sendable {

@@ -81,7 +81,10 @@ extension UIButton {
 
     /// The instance's state, validated against address reuse on read and
     /// re-stamped with `owner` on write (the UIScrollViewExtras pattern).
-    private var quillButtonState: QuillButtonState {
+    /// `internal` (not `private`): `setImage(_:for:)` lives in the UIButton
+    /// CLASS BODY (QuillUIKit.swift) so AvatarImageView can `override` it, and
+    /// that override needs to reach this accessor.
+    var quillButtonState: QuillButtonState {
         get {
             if let state = quillButtonStates[ObjectIdentifier(self)], state.owner === self {
                 return state
@@ -220,15 +223,11 @@ extension UIButton {
     }
 
     // MARK: Per-state images
-
-    public func setImage(_ image: UIImage?, for state: UIControl.State) {
-        if let image {
-            quillButtonState.images[state.rawValue] = image
-        } else {
-            quillButtonState.images.removeValue(forKey: state.rawValue)
-        }
-        quillRefreshContent()
-    }
+    //
+    // `setImage(_:for:)` is NOT here: it lives in the UIButton CLASS BODY
+    // (QuillUIKit.swift) as `open` so AvatarImageView can override it (an
+    // extension method cannot be overridden cross-module). The read side stays
+    // in the extension.
 
     public func image(for state: UIControl.State) -> UIImage? {
         quillButtonState.images[state.rawValue]
@@ -261,7 +260,8 @@ extension UIButton {
     /// running this after every mutation IS Apple's update pass. The label
     /// and image view are only created once there is content for them, so
     /// image-only buttons don't grow a stray empty label.
-    private func quillRefreshContent() {
+    /// `internal` (not `private`): the class-body `setImage(_:for:)` calls it.
+    func quillRefreshContent() {
         let state = quillButtonState
         if !state.titles.isEmpty || !state.attributedTitles.isEmpty {
             if let attributed = quillStateValue(state.attributedTitles) {
@@ -301,6 +301,10 @@ private struct QuillBackgroundConfigurationState {
     var cornerRadius: CGFloat = 0
     var strokeColor: UIColor?
     var strokeWidth: CGFloat = 0
+    // Stored as QuillEdgeInsets (== UIEdgeInsets): this module can't name
+    // NSDirectionalEdgeInsets (it lives in the UIKit shim). The directional-
+    // typed `backgroundInsets` accessor is layered in Sources/UIKitShim.
+    var backgroundInsets: QuillEdgeInsets = .zero
 }
 
 /// Not MainActor-bound: Apple's type is a value type usable off-main, and the
@@ -354,6 +358,15 @@ extension UIBackgroundConfiguration {
     public var strokeWidth: CGFloat {
         get { quillBackgroundState.strokeWidth }
         set { quillBackgroundState.strokeWidth = newValue }
+    }
+
+    /// Edge-relative backing for the directional `backgroundInsets` accessor
+    /// layered in Sources/UIKitShim (NSDirectionalEdgeInsets isn't nameable
+    /// here). `public` so the shim's layered accessor — in a downstream module —
+    /// can read/write it (the `quillLayoutMargins` precedent).
+    public var quillBackgroundInsets: QuillEdgeInsets {
+        get { quillBackgroundState.backgroundInsets }
+        set { quillBackgroundState.backgroundInsets = newValue }
     }
 }
 
