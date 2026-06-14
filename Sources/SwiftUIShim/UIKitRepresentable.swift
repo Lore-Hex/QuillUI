@@ -12,6 +12,36 @@ open class UIHostingController<Content: View>: UIViewController {
     }
 }
 
+// UIHostingConfiguration (iOS 16+) wraps a SwiftUI view as a cell's
+// `contentConfiguration`. On Apple it hosts the SwiftUI content inside the cell's
+// content view and conforms to UIKit's UIContentConfiguration. Linux is inert: the
+// view builder runs (so its body type-checks), but nothing is rendered into a cell.
+// The margins/minSize/background modifiers return self for source fidelity; the only
+// upstream user (RecipientPickerViewController) uses the bare initializer.
+@MainActor
+public struct UIHostingConfiguration<Content: View>: UIContentConfiguration {
+    public let content: Content
+
+    public init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    public func margins(_ edges: Edge.Set = .all, _ length: CGFloat) -> UIHostingConfiguration<Content> {
+        _ = (edges, length)
+        return self
+    }
+
+    public func minSize(width: CGFloat? = nil, height: CGFloat? = nil) -> UIHostingConfiguration<Content> {
+        _ = (width, height)
+        return self
+    }
+
+    public func background<S: View>(@ViewBuilder content: () -> S) -> UIHostingConfiguration<Content> {
+        _ = content()
+        return self
+    }
+}
+
 public struct UIViewControllerRepresentableContext<Representable> {
     private let coordinatorStorage: Any
 

@@ -1,5 +1,11 @@
 import Foundation
 import QuillFoundation
+// CGImagePropertyOrientation (ImageIO) and CVPixelBuffer (CoreVideo) are the
+// argument types of VNImageRequestHandler's init overloads SignalUI drives
+// (ImageEditorViewController+Blur.swift's face detection passes a
+// CGImagePropertyOrientation; ScanQRCodeViewController passes a CVPixelBuffer).
+import ImageIO
+import CoreVideo
 
 open class VNRequest: @unchecked Sendable {
     public typealias CompletionHandler = @Sendable (VNRequest, Error?) -> Void
@@ -48,10 +54,31 @@ public final class VNRecognizeTextRequest: VNRequest, @unchecked Sendable {
 }
 
 public final class VNImageRequestHandler: @unchecked Sendable {
-    public let cgImage: CGImage
+    // The source the handler was built over. On Apple these are distinct init
+    // overloads (cgImage:, cvPixelBuffer:, ciImage:, url:, data:). Inert on Linux,
+    // so the stored source is unused -- perform() never produces observations.
+    public let cgImage: CGImage?
 
     public init(cgImage: CGImage) {
         self.cgImage = cgImage
+    }
+
+    public init(
+        cgImage: CGImage,
+        orientation: CGImagePropertyOrientation,
+        options: [VNImageOption: Any] = [:]
+    ) {
+        _ = (orientation, options)
+        self.cgImage = cgImage
+    }
+
+    public init(
+        cvPixelBuffer: CVPixelBuffer,
+        orientation: CGImagePropertyOrientation,
+        options: [VNImageOption: Any] = [:]
+    ) {
+        _ = (cvPixelBuffer, orientation, options)
+        self.cgImage = nil
     }
 
     public func perform(_ requests: [VNRequest]) throws {
@@ -62,11 +89,61 @@ public final class VNImageRequestHandler: @unchecked Sendable {
     }
 }
 
+// VNImageOption keys (e.g. `.ciContext`, `.properties`). Upstream constructs
+// handlers with an empty options dictionary; the keys exist for signature
+// fidelity only.
+public struct VNImageOption: RawRepresentable, Hashable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+
+    public static let properties = VNImageOption(rawValue: "VNImageOptionProperties")
+    public static let cameraIntrinsics = VNImageOption(rawValue: "VNImageOptionCameraIntrinsics")
+    public static let ciContext = VNImageOption(rawValue: "VNImageOptionCIContext")
+}
+
 open class VNObservation: @unchecked Sendable {
     public var boundingBox: CGRect
 
     public init(boundingBox: CGRect = .zero) {
         self.boundingBox = boundingBox
+    }
+}
+
+// MARK: - Face detection
+//
+// SignalUI's auto-blur (ImageEditorViewController+Blur.swift) builds a
+// VNDetectFaceRectanglesRequest, runs it through a VNImageRequestHandler, and
+// reads `request.results as? [VNFaceObservation]`, mapping each observation's
+// `boundingBox`. On Apple the hierarchy is
+// VNObservation -> VNDetectedObjectObservation -> VNFaceObservation. Detection is
+// INERT on Linux (perform() yields no results), so auto-blur simply finds no
+// faces; the types exist so the upstream compiles unmodified.
+
+open class VNDetectedObjectObservation: VNObservation, @unchecked Sendable {
+    public override init(boundingBox: CGRect = .zero) {
+        super.init(boundingBox: boundingBox)
+    }
+}
+
+public final class VNFaceObservation: VNDetectedObjectObservation, @unchecked Sendable {
+    public override init(boundingBox: CGRect = .zero) {
+        super.init(boundingBox: boundingBox)
+    }
+}
+
+/// Base class for requests that operate on a single image. On Apple this sits
+/// between VNRequest and the concrete image requests; modeled as a thin pass-through.
+open class VNImageBasedRequest: VNRequest, @unchecked Sendable {
+    public override init(completionHandler: CompletionHandler? = nil) {
+        super.init(completionHandler: completionHandler)
+    }
+}
+
+public final class VNDetectFaceRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
+    public var revision = 1
+
+    public override init(completionHandler: CompletionHandler? = nil) {
+        super.init(completionHandler: completionHandler)
     }
 }
 

@@ -2077,6 +2077,11 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "CoreVideo"]
     case "AppIntents":
         dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
+    case "Vision":
+        // VNImageRequestHandler's init overloads take ImageIO's
+        // CGImagePropertyOrientation and CoreVideo's CVPixelBuffer (face
+        // detection / QR scanning). No cycle: neither shim imports Vision.
+        dependencies = ["QuillFoundation", "ImageIO", "CoreVideo"]
     default:
         dependencies = ["QuillFoundation"]
     }
