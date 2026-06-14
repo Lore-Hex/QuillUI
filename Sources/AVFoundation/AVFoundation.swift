@@ -222,7 +222,12 @@ public final class AVAudioSession: @unchecked Sendable {
     }
 }
 
-open class AVPlayer: NSObject, @unchecked Sendable {
+open class AVPlayer: NSObject, @unchecked Sendable, QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime); roots the override
+    /// chain for `@objc`-action AVPlayer subclasses (LoopingVideoView). Class-
+    /// body, not an extension. See QuillSelectorDispatching (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
+
     public enum Status: Int, Sendable { case unknown, readyToPlay, failed }
 
     open var currentItem: AVPlayerItem?

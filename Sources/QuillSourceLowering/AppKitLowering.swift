@@ -50,22 +50,24 @@ import SwiftSyntaxBuilder
 ///     extensions of classes defined in the same file are touched; non-`override`
 ///     members stay in the extension.
 ///
-/// Runtime dispatch (a generated per-class `quillPerform(_:)` the Qt control
-/// backing invokes on click) layers on separately; this pass produces source
-/// that *compiles* against the shadow, which is conformance milestone #1.
+/// Runtime dispatch is wired by injecting a `quillPerform(_:with:)` method into
+/// the CLASS BODY of every class that declared `@objc` actions (Pass 3 below);
+/// the Qt/GTK control backing invokes it on click via QuillSelectorDispatching.
+/// A class-body method is overridable, so subclass chains resolve dynamically;
+/// see DispatchOverrideInjector and QuillSelectorDispatching (QuillFoundation).
 public struct AppKitLowering {
     public init() {}
 
     /// Lowers a single Swift source string in memory.
     public func lower(_ source: String) -> String {
         let tree = Parser.parse(source: source)
-        // Collect target-action methods per type BEFORE @objc is stripped, so we
-        // can synthesize the `QuillActionDispatching` conformance that the
-        // runtime (`NSControl.sendAction`) invokes. See QuillActionDispatching
-        // in QuillFoundation (declared next to `Selector`; QuillAppKit aliases
-        // it). On a second pass the source has no `@objc` left, so the
-        // collector finds nothing and nothing is appended — the pass stays
-        // idempotent.
+        // Collect target-action methods (and each class's immediate superclass)
+        // BEFORE @objc is stripped, so we can inject the `quillPerform` dispatch
+        // the runtime (UIControl.sendActions / NSControl.sendAction / Timer /
+        // CADisplayLink / UndoManager) invokes via `QuillSelectorDispatching`.
+        // On a second pass the source has no `@objc` left, so the collector finds
+        // nothing and nothing is injected — and the injector itself detects an
+        // existing `quillPerform` and skips it, so the pass stays idempotent.
         let collector = ActionMethodCollector(viewMode: .sourceAccurate)
         collector.walk(tree)
         // Pass 1: the in-place rewrites (strip @objc, #selector→Selector,
@@ -87,12 +89,22 @@ public struct AppKitLowering {
                 localClassNames: mergeCollector.localClassNames,
                 overridesByClass: mergeCollector.overridesByClass
               ).rewrite(pass1)
-        let rewritten = merged.description
-        let conformances = Self.generateDispatchConformances(
-            orderedTypes: collector.orderedTypes,
-            byType: collector.byType
-        )
-        return conformances.isEmpty ? rewritten : rewritten + conformances
+        // Pass 3: inject the `quillPerform(_:with:)` target-action dispatch into
+        // the CLASS BODY of every class that declared @objc actions. A class-body
+        // method (vs. the old `extension X: QuillActionDispatching { … }`) is
+        // overridable, so the per-class override chain resolves dynamically; see
+        // DispatchOverrideInjector and QuillSelectorDispatching (QuillFoundation).
+        let withDispatch: Syntax = collector.byType.isEmpty
+            ? merged
+            : DispatchOverrideInjector(
+                byType: collector.byType,
+                superclassByType: collector.superclassByType
+              ).rewrite(merged)
+        // Pass 4: prepend `nonisolated` to overrides of genuinely-nonisolated
+        // NSObject members (init/description/isEqual/hash/debugDescription) so
+        // they don't inherit SignalUI's `-default-isolation MainActor` and clash
+        // with the nonisolated overridden declaration. See NonisolatedNSObjectMemberRewriter.
+        return NonisolatedNSObjectMemberRewriter().rewrite(withDispatch).description
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Mirrors
@@ -130,49 +142,58 @@ public struct AppKitLowering {
         return count
     }
 
-    // MARK: - Dispatch-conformance generation
+    // MARK: - Dispatch-override generation
 
-    /// Emit, per type that declares `@objc` target-action methods, an
-    /// `extension Type: QuillActionDispatching { public func quillPerform(_:with:) }`
-    /// that switches over the selector name and calls the method. This is the
-    /// runtime half of the lowering: `#selector(x)` became `Selector("x")`, and
+    /// Render the `quillPerform(_:with:)` target-action dispatch method that the
+    /// injector drops into a class body. `#selector(x)` became `Selector("x")`;
     /// this turns that token back into a real call without an ObjC runtime.
-    /// General + automatic — generated from the app's own `@objc` methods.
-    static func generateDispatchConformances(
-        orderedTypes: [String],
-        byType: [String: [ActionMethod]]
+    /// General + automatic — built from the class's own `@objc` methods.
+    ///
+    /// `asOverride` selects the shape (see DispatchOverrideInjector for which is
+    /// chosen per class):
+    ///   * `true`  — `public override func quillPerform { switch …; default:
+    ///     super.quillPerform(selector, with: sender) }`. The class inherits a
+    ///     `quillPerform` (from a Quill shim root such as UIResponder, or another
+    ///     lowered class through any number of transparent intermediates), so it
+    ///     overrides it and falls through to `super` for inherited selectors.
+    ///   * `false` — `public func quillPerform { switch …; default: break }`,
+    ///     emitted alongside a `: QuillSelectorDispatching` conformance clause on
+    ///     the class. The class's immediate superclass is `NSObject` (a chain
+    ///     root that does not itself dispatch), so it newly conforms; `break`
+    ///     terminates the chain (NSObject has no `quillPerform` to call).
+    ///
+    /// `indent` is the class-body member indentation (4 spaces per nesting level)
+    /// so the injected method lines up with its siblings. `public`: a witness
+    /// must be at least as accessible as its conformance, and lowered SignalUI
+    /// has public/open conformers; `public override` is legal on any conformer.
+    static func dispatchMethodSource(
+        for methods: [ActionMethod],
+        asOverride: Bool,
+        indent: String
     ) -> String {
-        var out = ""
-        for typeName in orderedTypes {
-            guard let methods = byType[typeName] else { continue }
-            // AppKit actions take 0 or 1 (sender) param; anything else isn't a
-            // target-action, so we don't synthesize a call for it.
-            let emittable = methods.filter { $0.params.count <= 1 }
-            guard !emittable.isEmpty else { continue }
-
-            var lines: [String] = []
-            lines.append("")
-            lines.append("// Auto-generated by AppKitLowering: target-action dispatch")
-            lines.append("// (turns Selector(\"…\") back into a real call — no ObjC runtime).")
-            lines.append("extension \(typeName): QuillActionDispatching {")
-            // `public`: a witness must be at least as accessible as the
-            // conformance, and lowered framework code (Signal-iOS's SignalUI)
-            // has public/open conformers where an implicitly-internal witness
-            // is rejected ("must be declared public because it matches a
-            // requirement in public protocol"). `public` is legal and
-            // warning-free on internal/private conformers too (verified).
-            lines.append("    public func quillPerform(_ selector: Selector, with sender: Any?) {")
-            lines.append("        switch selector.name {")
-            for m in emittable {
-                lines.append("        case \"\(selectorKeyForDecl(m))\": \(callExpression(m))")
-            }
-            lines.append("        default: break")
-            lines.append("        }")
-            lines.append("    }")
-            lines.append("}")
-            out += "\n" + lines.joined(separator: "\n") + "\n"
+        let member = indent + "    "  // method body is one level deeper than the decl
+        var lines: [String] = []
+        lines.append("\(indent)// Auto-generated by AppKitLowering: target-action dispatch")
+        lines.append("\(indent)// (turns Selector(\"…\") back into a real call — no ObjC runtime).")
+        let modifiers = asOverride ? "public override func" : "public func"
+        lines.append("\(indent)\(modifiers) quillPerform(_ selector: Selector, with sender: Any?) {")
+        lines.append("\(member)switch selector.name {")
+        for m in methods {
+            lines.append("\(member)case \"\(selectorKeyForDecl(m))\": \(callExpression(m))")
         }
-        return out
+        // An override forwards unknown selectors up the chain so inherited
+        // target-action still resolves; an NSObject-rooted conformer has nothing
+        // above it, so it fails safe with `break`.
+        lines.append("\(member)default: \(asOverride ? "super.quillPerform(selector, with: sender)" : "break")")
+        lines.append("\(member)}")
+        lines.append("\(indent)}")
+        return lines.joined(separator: "\n")
+    }
+
+    /// AppKit actions take 0 or 1 (sender) param; anything else isn't a
+    /// target-action, so it gets no dispatch case.
+    static func emittableActions(_ methods: [ActionMethod]) -> [ActionMethod] {
+        methods.filter { $0.params.count <= 1 }
     }
 
     /// Generated top-level extensions must be able to name every component in a
@@ -224,17 +245,29 @@ struct ActionMethod {
 }
 
 /// Walks a parsed file and records, per type (qualified name, source order), the
-/// `@objc` methods — the target-action handlers AppKitLowering synthesizes a
-/// `QuillActionDispatching` conformance for. Methods inside protocols are skipped
+/// `@objc` methods — the target-action handlers AppKitLowering injects a
+/// `quillPerform` dispatch for — and each class's immediate superclass (to pick
+/// the override vs. root-conformance shape). Methods inside protocols are skipped
 /// (a protocol requirement is not a dispatchable implementation).
 private final class ActionMethodCollector: SyntaxVisitor {
     private(set) var orderedTypes: [String] = []
     private(set) var byType: [String: [ActionMethod]] = [:]
+    /// Qualified class name -> its immediate superclass name (the first entry of
+    /// the inheritance clause; Swift requires the superclass first). `nil` (or a
+    /// missing key) means "no class superclass in this file" — treated as a chain
+    /// root. Only populated from `class` decls, never from extensions.
+    private(set) var superclassByType: [String: String] = [:]
     private var typeStack: [String] = []
     private var protocolDepth = 0
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
         typeStack.append(node.name.text)
+        // First inherited type = the superclass candidate (a leading protocol is
+        // impossible in a class inheritance clause — the superclass, if any, is
+        // first). A purely-protocol-conforming class has no superclass here.
+        if let first = node.inheritanceClause?.inheritedTypes.first {
+            superclassByType[typeStack.joined(separator: ".")] = first.type.trimmedDescription
+        }
         return .visitChildren
     }
     override func visitPost(_ node: ClassDeclSyntax) { typeStack.removeLast() }
@@ -296,8 +329,7 @@ private final class AppKitRewriter: SyntaxRewriter {
     // the decl's leading trivia onto the surviving first token, so removing a
     // line-leading `@objc` keeps the decl on its own line.
     override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
-        let stripped = stripAttributes(super.visit(node).cast(FunctionDeclSyntax.self))
-        return DeclSyntax(repairDispatchWitnessAccess(stripped))
+        DeclSyntax(stripAttributes(super.visit(node).cast(FunctionDeclSyntax.self)))
     }
     override func visit(_ node: VariableDeclSyntax) -> DeclSyntax {
         DeclSyntax(stripAttributes(super.visit(node).cast(VariableDeclSyntax.self)))
@@ -351,55 +383,6 @@ private final class AppKitRewriter: SyntaxRewriter {
             return replacement
         })
         return didChange ? copy : node
-    }
-
-    /// Repair pass: upgrade a previously generated dispatch witness to `public`.
-    ///
-    /// `generateDispatchConformances` emits `public func quillPerform(_:with:)`,
-    /// but earlier versions of this tool emitted it without an access modifier.
-    /// Those stale blocks persist in already-lowered vendored trees (e.g.
-    /// Signal-iOS's SignalUI, lowered in place by quill-signal-lower-ui.sh):
-    /// the conformance generator keys off `@objc`, which a lowered tree no
-    /// longer contains, so a re-run appends nothing and cannot self-heal. On a
-    /// public conformer the implicitly-internal witness is rejected ("method
-    /// must be declared public because it matches a requirement in public
-    /// protocol 'QuillSelectorDispatching'") — Swift access-checks the matched
-    /// member even though the protocol has a default implementation, so the
-    /// default never rescues an under-accessible witness. Fixing it here (the
-    /// long-lived tool) instead of hand-editing vendored files means any
-    /// re-run of the standard lowering scripts repairs the whole tree.
-    ///
-    /// `quillPerform` is a Quill-invented name that only this generator ever
-    /// writes, so keying on the exact generated signature is safe. Skips decls
-    /// that already carry any access modifier (idempotent) and bodyless decls
-    /// (protocol requirements may not carry access modifiers).
-    private func repairDispatchWitnessAccess(_ node: FunctionDeclSyntax) -> FunctionDeclSyntax {
-        guard node.name.text == "quillPerform", node.body != nil else { return node }
-        let params = Array(node.signature.parameterClause.parameters)
-        guard params.count == 2,
-              params[0].firstName.text == "_",
-              params[0].secondName?.text == "selector",
-              params[0].type.trimmedDescription == "Selector",
-              params[1].firstName.text == "with",
-              params[1].secondName?.text == "sender",
-              params[1].type.trimmedDescription == "Any?" else { return node }
-        let accessKeywords: Set<String> = [
-            "public", "open", "package", "internal", "fileprivate", "private",
-        ]
-        guard !node.modifiers.contains(where: { accessKeywords.contains($0.name.text) }) else {
-            return node
-        }
-        // Re-anchor the decl's leading trivia (newline + indent) onto `public`,
-        // which becomes the decl's new first token (generated decls carry no
-        // attributes and no other modifiers).
-        var copy = node
-        let savedLeading = copy.leadingTrivia
-        copy.leadingTrivia = Trivia()
-        copy.modifiers = DeclModifierListSyntax(
-            Array(copy.modifiers) + [DeclModifierSyntax(name: .keyword(.public), trailingTrivia: .space)]
-        )
-        copy.leadingTrivia = savedLeading
-        return copy
     }
 
     // #selector(x) -> Selector("x")
@@ -573,5 +556,238 @@ private final class ExtensionOverrideMerger: SyntaxRewriter {
         var copy = recursed
         copy.memberBlock.members = MemberBlockItemListSyntax(kept)
         return DeclSyntax(copy)
+    }
+}
+
+// MARK: - Dispatch-override injection (Pass 3)
+
+/// Injects a `quillPerform(_:with:)` target-action dispatch method into the CLASS
+/// BODY of every class that declared `@objc` action methods. A class-body method
+/// is overridable (unlike the old `extension X: QuillActionDispatching { … }`,
+/// whose static dispatch made per-class overrides unreachable and forced one
+/// conformance per class — the source of the redundant-conformance and
+/// cannot-override diagnostics). See QuillSelectorDispatching (QuillFoundation).
+///
+/// Per class, keyed by qualified name against the collected `@objc` actions:
+///   * If the class already has a class-body `quillPerform(_:with:)` (a re-run, or
+///     a hand-written one), it is left untouched — idempotent.
+///   * If the immediate superclass is `NSObject` (or the class has no superclass),
+///     it is a chain root: a `: QuillSelectorDispatching` conformance clause is
+///     added and a non-`override` witness (with `default: break`) is injected.
+///   * Otherwise the class inherits `quillPerform` from a Quill shim root
+///     (UIResponder / UIPresentationController / UIBarButtonItem /
+///     UIGestureRecognizer / AVPlayer) or another lowered class — possibly through
+///     transparent intermediate classes that declare no actions — so an
+///     `override` (with `default: super.quillPerform(…)`) is injected and no
+///     conformance clause is added.
+///
+/// Limitation: `@objc` actions declared in an `extension` of a class defined in
+/// ANOTHER file (e.g. SignalUI's `ImageEditorViewController+Blur.swift`) cannot be
+/// folded into that class's single injected switch, since this pass is per-file
+/// and the class decl is absent. Such actions still compile (no conformance is
+/// emitted in the extension file — that would re-introduce the redundant
+/// conformance) but their selectors fall to the base no-op. Same-file extension
+/// actions ARE handled: the collector keys them onto the class, and the injected
+/// switch calls them wherever they live.
+private final class DispatchOverrideInjector: SyntaxRewriter {
+    private let byType: [String: [ActionMethod]]
+    private let superclassByType: [String: String]
+    private var typeStack: [String] = []
+
+    init(byType: [String: [ActionMethod]], superclassByType: [String: String]) {
+        self.byType = byType
+        self.superclassByType = superclassByType
+        super.init()
+    }
+
+    override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
+        typeStack.append(node.name.text)
+        let qualified = typeStack.joined(separator: ".")
+        // Recurse first so nested classes are handled and any rewrites compose.
+        let recursed = super.visit(node).cast(ClassDeclSyntax.self)
+        typeStack.removeLast()
+
+        guard let methods = byType[qualified] else { return DeclSyntax(recursed) }
+        let emittable = AppKitLowering.emittableActions(methods)
+        guard !emittable.isEmpty else { return DeclSyntax(recursed) }
+        // Idempotent: skip a class that already carries a class-body witness.
+        guard !Self.hasDispatchWitness(recursed) else { return DeclSyntax(recursed) }
+
+        let isRoot = Self.isChainRoot(superclassByType[qualified])
+        // Member indent: `typeStack` has been popped back to the ENCLOSING types,
+        // so its count is this class's nesting depth; +1 for the class body.
+        // 4 spaces per level matches Swift's house style.
+        let indent = String(repeating: "    ", count: typeStack.count + 1)
+        let methodSource = AppKitLowering.dispatchMethodSource(
+            for: emittable, asOverride: !isRoot, indent: indent
+        )
+
+        var copy = recursed
+        copy.memberBlock = Self.appending(methodSource, to: copy.memberBlock)
+        if isRoot {
+            copy = Self.addingConformance(to: copy)
+        }
+        return DeclSyntax(copy)
+    }
+
+    /// A class is a dispatch-chain ROOT (emit conformance + non-override witness)
+    /// when its immediate superclass is `NSObject` or it has no class superclass;
+    /// otherwise it inherits `quillPerform` and overrides it.
+    static func isChainRoot(_ superclass: String?) -> Bool {
+        guard let superclass else { return true }
+        return superclass == "NSObject"
+    }
+
+    /// `true` if the class body already declares a `quillPerform(_:with:)` method
+    /// (any access / `override`) — re-run guard.
+    static func hasDispatchWitness(_ node: ClassDeclSyntax) -> Bool {
+        node.memberBlock.members.contains { item in
+            guard let fn = item.decl.as(FunctionDeclSyntax.self),
+                  fn.name.text == "quillPerform" else { return false }
+            let params = Array(fn.signature.parameterClause.parameters)
+            return params.count == 2
+                && params[0].type.trimmedDescription == "Selector"
+                && params[1].type.trimmedDescription == "Any?"
+        }
+    }
+
+    /// Append the rendered dispatch method (parsed as a member) to a class body,
+    /// preceded by a blank line so it reads as its own member. `methodSource`
+    /// carries its own indentation (comment + decl lines); the leading newlines
+    /// become the parsed decl's leading trivia, keeping comments and indent.
+    static func appending(_ methodSource: String, to block: MemberBlockSyntax) -> MemberBlockSyntax {
+        let member = MemberBlockItemSyntax(decl: DeclSyntax("\n\n\(raw: methodSource)\n"))
+        var members = block.members
+        members.append(member)
+        var copy = block
+        copy.members = members
+        return copy
+    }
+
+    /// Add `QuillSelectorDispatching` to a class's inheritance clause (creating
+    /// one if absent), so an NSObject-rooted class newly conforms. Preserves the
+    /// single space before the opening brace and emits a `, ` separator.
+    static func addingConformance(to node: ClassDeclSyntax) -> ClassDeclSyntax {
+        var copy = node
+        if var clause = copy.inheritanceClause {
+            // Already has inherited types (e.g. `: NSObject `). The last type
+            // carries the trailing space before `{`; reuse it on the appended
+            // conformance, and turn the old last type's trailing into a `, `.
+            var types = clause.inheritedTypes
+            var newTrailing: Trivia = .space
+            if let lastIndex = types.indices.last {
+                var last = types[lastIndex]
+                newTrailing = last.trailingTrivia
+                last.trailingTrivia = Trivia()
+                last.trailingComma = .commaToken(trailingTrivia: .space)
+                types[lastIndex] = last
+            }
+            let conformance = InheritedTypeSyntax(
+                type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("QuillSelectorDispatching"))),
+                trailingTrivia: newTrailing
+            )
+            types.append(conformance)
+            clause.inheritedTypes = types
+            copy.inheritanceClause = clause
+        } else {
+            // No inheritance clause: synthesize `: QuillSelectorDispatching `.
+            // The name carries the trailing space before `{`; move it onto the
+            // conformance so `class X: QuillSelectorDispatching {` spaces right.
+            let nameTrailing = copy.name.trailingTrivia
+            copy.name.trailingTrivia = Trivia()
+            let conformance = InheritedTypeSyntax(
+                type: TypeSyntax(IdentifierTypeSyntax(name: .identifier("QuillSelectorDispatching"))),
+                trailingTrivia: nameTrailing
+            )
+            copy.inheritanceClause = InheritanceClauseSyntax(
+                colon: .colonToken(trailingTrivia: .space),
+                inheritedTypes: InheritedTypeListSyntax([conformance])
+            )
+        }
+        return copy
+    }
+}
+
+// MARK: - Nonisolated NSObject-member overrides (Pass 4)
+
+/// Prepends `nonisolated` to overrides of the genuinely-nonisolated NSObject
+/// members — `init()`, `var description`, `var hash`, `var debugDescription`,
+/// `func isEqual(_:)`. SignalUI builds with `-default-isolation MainActor`, which
+/// would otherwise make these overrides `@MainActor` and clash with the
+/// nonisolated overridden declaration ("main actor-isolated … has different actor
+/// isolation from nonisolated overridden declaration").
+///
+/// Conservative: matches ONLY these exact NSObject member signatures, only when
+/// the decl carries `override` and is not already `nonisolated` — so it never
+/// touches an app's own same-named member that doesn't override NSObject's.
+private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
+    private static func hasOverride(_ modifiers: DeclModifierListSyntax) -> Bool {
+        modifiers.contains { $0.name.text == "override" }
+    }
+    private static func hasNonisolated(_ modifiers: DeclModifierListSyntax) -> Bool {
+        modifiers.contains { $0.name.text == "nonisolated" }
+    }
+
+    /// Insert `nonisolated` as the first modifier, re-anchoring the decl's leading
+    /// trivia (newline + indent) onto it so the decl stays on its own line.
+    private static func prependNonisolated<S: SyntaxProtocol & WithModifiersSyntax>(_ node: S) -> S {
+        var copy = node
+        let savedLeading = copy.leadingTrivia
+        copy.leadingTrivia = Trivia()
+        var nonisolated = DeclModifierSyntax(name: .keyword(.nonisolated), trailingTrivia: .space)
+        nonisolated.leadingTrivia = Trivia()
+        copy.modifiers = DeclModifierListSyntax([nonisolated] + Array(copy.modifiers))
+        copy.leadingTrivia = savedLeading
+        return copy
+    }
+
+    override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(FunctionDeclSyntax.self)
+        guard Self.hasOverride(recursed.modifiers), !Self.hasNonisolated(recursed.modifiers) else {
+            return DeclSyntax(recursed)
+        }
+        let params = Array(recursed.signature.parameterClause.parameters)
+        let isIsEqual = recursed.name.text == "isEqual"
+            && params.count == 1
+            && params[0].firstName.text == "_"
+            && params[0].type.trimmedDescription == "Any?"
+        guard isIsEqual else { return DeclSyntax(recursed) }
+        return DeclSyntax(Self.prependNonisolated(recursed))
+    }
+
+    override func visit(_ node: VariableDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(VariableDeclSyntax.self)
+        guard Self.hasOverride(recursed.modifiers), !Self.hasNonisolated(recursed.modifiers) else {
+            return DeclSyntax(recursed)
+        }
+        // Single `var name: Type` binding with an identifier pattern.
+        guard recursed.bindingSpecifier.text == "var",
+              recursed.bindings.count == 1,
+              let binding = recursed.bindings.first,
+              let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+              let type = binding.typeAnnotation?.type.trimmedDescription else {
+            return DeclSyntax(recursed)
+        }
+        let name = pattern.identifier.text
+        let matches = (name == "description" && type == "String")
+            || (name == "debugDescription" && type == "String")
+            || (name == "hash" && type == "Int")
+        guard matches else { return DeclSyntax(recursed) }
+        return DeclSyntax(Self.prependNonisolated(recursed))
+    }
+
+    override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(InitializerDeclSyntax.self)
+        guard Self.hasOverride(recursed.modifiers), !Self.hasNonisolated(recursed.modifiers) else {
+            return DeclSyntax(recursed)
+        }
+        // Exactly `init()` — no params, no failability, no async/throws/generics.
+        guard recursed.optionalMark == nil,
+              recursed.genericParameterClause == nil,
+              recursed.signature.parameterClause.parameters.isEmpty,
+              recursed.signature.effectSpecifiers == nil else {
+            return DeclSyntax(recursed)
+        }
+        return DeclSyntax(Self.prependNonisolated(recursed))
     }
 }

@@ -11,10 +11,10 @@
 // controls do from their programmatic state changes (e.g. UITextField's
 // becomeFirstResponder fires .editingDidBegin). Dispatch follows the repo's
 // no-ObjC contract: a Selector is an opaque token, and a fired action reaches
-// its target via QuillSelectorDispatching (QuillFoundation) — the protocol
-// the AppKitLowering pass conforms app classes to with a generated
-// quillPerform(_:with:) (see QuillAppKit/QuillActionDispatching.swift).
-// A target that doesn't conform fails safe: the action is dropped.
+// its target via QuillSelectorDispatching (QuillFoundation) — the protocol the
+// AppKitLowering pass satisfies by injecting a class-body quillPerform(_:with:)
+// into every app class with @objc actions. A target that doesn't conform fails
+// safe: the action is dropped.
 
 import QuillFoundation
 

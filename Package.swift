@@ -1753,7 +1753,8 @@ if wireguardUpstreamPresent {
                 // StatusMenu: the status-bar dropdown (NSMenu subclass) + TunnelMenuItem
                 // (NSMenuItem subclass observing tunnel name/status via KVO). Builds the
                 // per-tunnel menu, manage/import/about/quit items; @objc actions lowered to
-                // QuillActionDispatching. The biggest bootstrap file; dep of TunnelsTracker.
+                // an injected quillPerform (QuillSelectorDispatching). The biggest bootstrap
+                // file; dep of TunnelsTracker.
                 "Sources/WireGuardApp/UI/macOS/StatusMenu.swift",
                 // TunnelsTracker: observes each tunnel's status (KVO) + the TunnelsManager
                 // list/activation delegates, forwarding changes to StatusMenu / StatusItemController /
@@ -1807,7 +1808,7 @@ if wireguardUpstreamPresent {
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
                 // ButtonRow: the action-button cell dequeued by TunnelDetailTableViewController
                 // (NSButton momentaryPushIn/rounded + onButtonClicked). Conforms QuillReusableView
-                // (required init()) for generic dequeue; target-action lowered to QuillActionDispatching.
+                // (required init()) for generic dequeue; target-action lowered to QuillSelectorDispatching.
                 "Sources/WireGuardApp/UI/macOS/View/ButtonRow.swift",
                 // NSColor+Hex: NSColor(hex:) convenience init (chains to the shadow's
                 // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;
@@ -1847,13 +1848,13 @@ if wireguardUpstreamPresent {
                 // remaining). Dequeues KeyValueRow/KeyValueImageRow/ButtonRow (all QuillReusableView);
                 // presents TunnelEditViewController; PrivateDataConfirmation key-reveal gate;
                 // ActivateOnDemandViewModel + TunnelViewModel; KVO via Cocoa shim; @objc actions
-                // lowered to QuillActionDispatching. Imports WireGuardKit (TunnelConfiguration).
+                // lowered to QuillSelectorDispatching. Imports WireGuardKit (TunnelConfiguration).
                 "Sources/WireGuardApp/UI/macOS/ViewController/TunnelDetailTableViewController.swift",
                 // TunnelsListTableViewController: the main tunnels list (the OTHER table VC).
                 // NSPopUpButton add/action menus (popup.cell as? NSPopUpButtonCell — arrowPosition),
                 // NSButton remove action, dequeues TunnelListRow (QuillReusableView ✓), declares its
                 // own TunnelsListTableViewControllerDelegate, presents TunnelEditViewController for add;
-                // NSMenuItemValidation; @objc actions lowered to QuillActionDispatching. import Cocoa only.
+                // NSMenuItemValidation; @objc actions lowered to QuillSelectorDispatching. import Cocoa only.
                 "Sources/WireGuardApp/UI/macOS/ViewController/TunnelsListTableViewController.swift",
                 // ManageTunnelsRootViewController: the SPLIT-VIEW ROOT — the LAST VC of the
                 // WireGuard macOS UI. Hosts TunnelsListTableViewController (left) +

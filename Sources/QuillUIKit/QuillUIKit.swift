@@ -35,7 +35,23 @@ public typealias ASPresentationAnchor = NSObject
 
 // MARK: - UIResponder / UIView / UIViewController stubs
 
-@MainActor open class UIResponder: NSObject {
+@MainActor open class UIResponder: NSObject, @preconcurrency QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime). The source lowering
+    /// (AppKitLowering) injects an `override` of this into every UIResponder
+    /// subclass that declares `@objc` action methods; each override switches on
+    /// `selector.name` and falls through to `super.quillPerform` for inherited
+    /// selectors, terminating here in a no-op. CLASS-BODY (not an extension) so
+    /// the overrides are reachable through a base-class-typed reference — see
+    /// QuillSelectorDispatching (QuillFoundation) for the full rationale.
+    ///
+    /// `@preconcurrency`: the witness is `@MainActor` (this class is) but the
+    /// protocol requirement is nonisolated so target-action can fire from
+    /// nonisolated callers (Timer / CADisplayLink / UndoManager). On an
+    /// explicitly-`@MainActor` class that mismatch is a hard error without
+    /// `@preconcurrency`, which downgrades it to a runtime main-thread check —
+    /// correct here since UI target-action always fires on the main thread.
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
+
     open var next: UIResponder? { nil }
 
     /// Apple's default: no accessory view (ContactShareViewController
@@ -1107,7 +1123,13 @@ open class UIWindow: UIView {}
 /// delegates to a real initializer here, then sets accessibilityIdentifier).
 /// The old stubs took `style: Int`/`barButtonSystemItem: Int`, which could
 /// never match upstream's `UIBarButtonItem.Style`/`.SystemItem` arguments.
-@MainActor open class UIBarButtonItem: NSObject {
+@MainActor open class UIBarButtonItem: NSObject, @preconcurrency QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime); roots the override
+    /// chain for `@objc`-action UIBarButtonItem subclasses. Class-body, not an
+    /// extension. `@preconcurrency`: nonisolated requirement, @MainActor witness
+    /// — see UIResponder. See QuillSelectorDispatching (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
+
     public enum Style: Int, Sendable {
         case plain = 0
         case bordered = 1

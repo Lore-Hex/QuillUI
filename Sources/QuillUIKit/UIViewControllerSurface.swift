@@ -210,7 +210,13 @@ extension UIViewController {
 /// container view and drives adaptivity; here it is an inert, subclassable
 /// record of the (presented, presenting) pair — Signal's custom presentation
 /// controllers override the open hooks below, which simply never fire.
-@MainActor open class UIPresentationController: NSObject {
+@MainActor open class UIPresentationController: NSObject, @preconcurrency QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime). The lowering injects
+    /// `override func quillPerform` into NSObject-direct UIPresentationController
+    /// subclasses that declare `@objc` actions; this class-body no-op roots their
+    /// override chain. `@preconcurrency`: nonisolated requirement, @MainActor
+    /// witness — see UIResponder. See QuillSelectorDispatching (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
 
     // Weak backing refs break the retain cycle through the side-table cache
     // (table -> controller state -> presentation controller -> controller).

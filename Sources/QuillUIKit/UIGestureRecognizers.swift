@@ -46,7 +46,12 @@ import QuillFoundation
 /// `UIView.addGestureRecognizer(_:)` and reports its progress through
 /// `state`. On Linux the recognition machinery is inert until an event
 /// backend exists — see the file header for exactly what is and isn't real.
-@MainActor open class UIGestureRecognizer: NSObject {
+@MainActor open class UIGestureRecognizer: NSObject, @preconcurrency QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime); roots the override
+    /// chain for `@objc`-action UIGestureRecognizer subclasses. Class-body, not
+    /// an extension. `@preconcurrency`: nonisolated requirement, @MainActor
+    /// witness — see UIResponder. See QuillSelectorDispatching (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
 
     /// The current state of the recognition state machine.
     public enum State: Int, Sendable {

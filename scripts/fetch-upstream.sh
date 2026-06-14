@@ -128,15 +128,15 @@ PY
 
 patch_wireguard_apple() {
     # Lower the macOS UI's AppKit target-action for Linux (strip @objc,
-    # #selector(x) -> Selector("x"), generate the QuillActionDispatching
+    # #selector(x) -> Selector("x"), inject the class-body quillPerform
     # dispatch) so the QuillWireGuardConformanceUI target compiles against the
     # QuillAppKit shadow, which has no Objective-C runtime. Self-guarded +
     # idempotent: only runs while un-lowered source is present, so it's safe
     # regardless of the WireGuardKitC.h early-return below and of cached
     # .upstream trees.
     # Linux-only: on macOS the real AppKit handles #selector/@objc, and the
-    # generated QuillActionDispatching extension references a Linux-only shadow
-    # type — so leave the source pristine for any macOS consumer.
+    # injected quillPerform (QuillSelectorDispatching) references a Linux-only
+    # shadow type — so leave the source pristine for any macOS consumer.
     # Lower the WHOLE app (WireGuardApp: UI/macOS + Tunnel/ + …) AND its Shared/
     # helpers (Logging/Logger.swift = wg_log, etc.), not just UI/macOS, so model
     # files also compile in the Linux conformance targets — toward the
@@ -701,8 +701,8 @@ PY
 
     # ButtonRow is dequeued by TunnelDetailTableViewController → conform to
     # QuillReusableView (required init()). It already carries a lowered
-    # `extension ButtonRow: QuillActionDispatching`, so guard on the class-line
-    # conformance specifically (not a bare QuillReusableView grep).
+    # class-body quillPerform (QuillSelectorDispatching), so guard on the
+    # class-line conformance specifically (not a bare QuillReusableView grep).
     local btnrow="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/View/ButtonRow.swift"
     if [[ -f "$btnrow" ]] && ! grep -q 'class ButtonRow: NSView, QuillReusableView' "$btnrow"; then
         echo "==> patching ButtonRow.swift for QuillReusableView (required init)"

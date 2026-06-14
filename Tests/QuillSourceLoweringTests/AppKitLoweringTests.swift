@@ -162,28 +162,78 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("func buttonClicked()"))
     }
 
-    // MARK: - Dispatch-conformance generation (half-2)
+    // MARK: - Dispatch-override injection (half-2)
 
-    @Test("Generates a QuillActionDispatching conformance for a class with @objc actions")
-    func generatesConformance() {
+    @Test("NSObject-rooted class conforms + gets a non-override class-body witness")
+    func injectsRootWitness() {
         let source = """
-        class VC {
+        class VC: NSObject {
             @objc func saveClicked() {}
             @objc func listDoubleClicked(sender: AnyObject) {}
         }
         """
         let lowered = AppKitLowering().lower(source)
-        #expect(lowered.contains("extension VC: QuillActionDispatching {"))
-        #expect(lowered.contains("func quillPerform(_ selector: Selector, with sender: Any?)"))
+        // CLASS BODY, not an extension: no `extension VC: …` is emitted.
+        #expect(!lowered.contains("extension VC"))
+        // Root (super == NSObject): conformance clause added, NON-override witness.
+        #expect(lowered.contains("class VC: NSObject, QuillSelectorDispatching {"))
+        #expect(lowered.contains("public func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(!lowered.contains("public override func quillPerform"))
         #expect(lowered.contains(#"case "saveClicked": saveClicked()"#))
         #expect(lowered.contains(#"case "listDoubleClicked(sender:)": listDoubleClicked(sender: sender as! AnyObject)"#))
+        // Root terminates the chain with `break` (NSObject has no quillPerform).
         #expect(lowered.contains("default: break"))
+    }
+
+    @Test("Subclass of a non-NSObject class gets an override with super fallthrough, no conformance")
+    func injectsSubclassOverride() {
+        let source = """
+        class VC: UIViewController {
+            @objc func tap() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // Subclass (super != NSObject): override, NO conformance clause re-stated.
+        #expect(lowered.contains("public override func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(!lowered.contains("QuillSelectorDispatching"))   // no conformance clause
+        #expect(lowered.contains(#"case "tap": tap()"#))
+        // Inherited selectors forward up the chain.
+        #expect(lowered.contains("default: super.quillPerform(selector, with: sender)"))
+    }
+
+    @Test("A class with no explicit superclass conforms as a root")
+    func injectsRootWhenNoSuperclass() {
+        let lowered = AppKitLowering().lower("class VC { @objc func tap() {} }")
+        #expect(lowered.contains("class VC: QuillSelectorDispatching {"))
+        #expect(lowered.contains("public func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(!lowered.contains("override"))
+        #expect(lowered.contains("default: break"))
+    }
+
+    @Test("Subclass + superclass in one file: subclass overrides, neither conformance is redundant")
+    func injectsChainWithinFile() {
+        let source = """
+        class Base: NSObject {
+            @objc func a() {}
+        }
+        class Sub: Base {
+            @objc func b() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // Base (root) conforms once; Sub overrides without re-conforming.
+        #expect(lowered.contains("class Base: NSObject, QuillSelectorDispatching {"))
+        #expect(lowered.contains("class Sub: Base {"))   // NO `, QuillSelectorDispatching`
+        #expect(lowered.contains("public override func quillPerform"))
+        // Exactly one conformance clause across the file (Sub does not re-state it).
+        let conformanceCount = lowered.components(separatedBy: ": NSObject, QuillSelectorDispatching").count - 1
+        #expect(conformanceCount == 1)
     }
 
     @Test("Sender param casts: Any? passes through, AnyObject? optional-casts, AnyObject force-casts")
     func senderCasts() {
         let source = """
-        class VC {
+        class VC: NSObject {
             @objc func a(sender: AnyObject?) {}
             @objc func copy(_ sender: Any?) {}
             @objc func b(sender: AnyObject) {}
@@ -195,34 +245,39 @@ struct AppKitLoweringTests {
         #expect(lowered.contains(#"case "b(sender:)": b(sender: sender as! AnyObject)"#))
     }
 
-    @Test("@objc actions declared in an extension are collected onto the extended type")
+    @Test("@objc actions declared in a same-file extension are injected into the class body")
     func actionsInExtension() {
         let source = """
-        class VC {}
+        class VC: NSObject {}
         extension VC {
             @objc func foo() {}
         }
         """
         let lowered = AppKitLowering().lower(source)
-        #expect(lowered.contains("extension VC: QuillActionDispatching {"))
+        // The switch goes into the CLASS body; it calls `foo()` (defined in the
+        // extension — accessible). No `extension VC: …` conformance is emitted.
+        #expect(lowered.contains("class VC: NSObject, QuillSelectorDispatching {"))
         #expect(lowered.contains(#"case "foo": foo()"#))
+        #expect(!lowered.contains("extension VC: "))
     }
 
-    @Test("Nested private action-handler path is made fileprivate for generated dispatch")
-    func nestedPrivateActionHandlerIsNameableByGeneratedDispatch() {
+    @Test("Nested private action-handler path is made fileprivate for dispatch reachability")
+    func nestedPrivateActionHandlerIsNameable() {
         let source = """
         class BarButton {
-            private class Handler {
+            private class Handler: NSObject {
                 @objc func fire() {}
             }
         }
         """
         let lowered = AppKitLowering().lower(source)
         #expect(lowered.contains("fileprivate class Handler"))
-        #expect(lowered.contains("extension BarButton.Handler: QuillActionDispatching {"))
+        // The witness is injected into Handler's class body (a root: super NSObject).
+        #expect(lowered.contains("QuillSelectorDispatching"))
+        #expect(lowered.contains(#"case "fire": fire()"#))
     }
 
-    @Test("@objc protocol requirements do NOT get a (bogus) conformance")
+    @Test("@objc protocol requirements do NOT get a (bogus) witness")
     func protocolRequirementsSkipped() {
         let source = """
         @objc protocol Respondable {
@@ -230,79 +285,56 @@ struct AppKitLoweringTests {
         }
         """
         let lowered = AppKitLowering().lower(source)
-        #expect(!lowered.contains("extension Respondable: QuillActionDispatching"))
+        #expect(!lowered.contains("quillPerform"))
+        #expect(!lowered.contains("QuillSelectorDispatching"))
     }
 
-    @Test("A class with no @objc actions gets no conformance")
-    func noConformanceWhenNoActions() {
-        let lowered = AppKitLowering().lower("class VC { func plain() {} }")
-        #expect(!lowered.contains("QuillActionDispatching"))
+    @Test("A class with no @objc actions gets no witness")
+    func noWitnessWhenNoActions() {
+        let lowered = AppKitLowering().lower("class VC: NSObject { func plain() {} }")
+        #expect(!lowered.contains("quillPerform"))
+        #expect(!lowered.contains("QuillSelectorDispatching"))
     }
 
-    @Test("Conformance generation is idempotent (second pass adds nothing)")
-    func conformanceIdempotent() {
-        let once = AppKitLowering().lower("class VC { @objc func tap() {} }")
+    @Test("Injection is idempotent (a re-run injects nothing more)")
+    func injectionIdempotent() {
+        let once = AppKitLowering().lower("class VC: NSObject { @objc func tap() {} }")
         let twice = AppKitLowering().lower(once)
         #expect(once == twice)
-        let count = once.components(separatedBy: "extension VC: QuillActionDispatching").count - 1
+        let count = once.components(separatedBy: "func quillPerform(_ selector: Selector, with sender: Any?)").count - 1
         #expect(count == 1)
     }
 
-    @Test("Generated dispatch witness is public (required on public conformers)")
-    func generatedWitnessIsPublic() {
-        let lowered = AppKitLowering().lower("public class VC { @objc func tap() {} }")
+    @Test("Injected witness is public (required on public conformers)")
+    func injectedWitnessIsPublic() {
+        let lowered = AppKitLowering().lower("public class VC: NSObject { @objc func tap() {} }")
         #expect(lowered.contains("public func quillPerform(_ selector: Selector, with sender: Any?)"))
     }
 
-    @Test("Re-run repairs a stale non-public generated witness, idempotently")
-    func repairsStaleWitnessAccess() {
-        // Output shape of an earlier tool version: already lowered (no @objc
-        // left, so nothing is re-collected/appended), conformance present, but
-        // the witness lacks `public` — rejected on public conformers ("must be
-        // declared public because it matches a requirement in public protocol").
-        let stale = """
-        public class VC {
+    @Test("An existing class-body quillPerform is left untouched (re-run / hand-written)")
+    func skipsExistingWitness() {
+        // Already lowered: no @objc remains, class-body override present. A re-run
+        // must not double-inject or wrap it in an extension.
+        let already = """
+        public class VC: UIViewController {
             func tap() {}
-        }
 
-        // Auto-generated by AppKitLowering: target-action dispatch
-        // (turns Selector("…") back into a real call — no ObjC runtime).
-        extension VC: QuillActionDispatching {
-            func quillPerform(_ selector: Selector, with sender: Any?) {
+            public override func quillPerform(_ selector: Selector, with sender: Any?) {
                 switch selector.name {
                 case "tap": tap()
-                default: break
+                default: super.quillPerform(selector, with: sender)
                 }
             }
         }
         """
-        let repaired = AppKitLowering().lower(stale)
-        // `public` added, indentation preserved.
-        #expect(repaired.contains("\n    public func quillPerform(_ selector: Selector, with sender: Any?) {"))
-        // No duplicate conformance appended; second pass is a no-op.
-        let count = repaired.components(separatedBy: "extension VC: QuillActionDispatching").count - 1
+        let lowered = AppKitLowering().lower(already)
+        #expect(lowered == already)   // pure no-op
+        let count = lowered.components(separatedBy: "func quillPerform").count - 1
         #expect(count == 1)
-        #expect(AppKitLowering().lower(repaired) == repaired)
     }
 
-    @Test("Witness repair leaves non-generated quillPerform shapes alone")
-    func repairSkipsNonGeneratedShapes() {
-        let source = """
-        protocol P {
-            func quillPerform(_ selector: Selector, with sender: Any?)
-        }
-        class C {
-            private func quillPerform(_ selector: Selector, with sender: Any?) {}
-            func quillPerform(_ selector: Selector) {}
-        }
-        """
-        let lowered = AppKitLowering().lower(source)
-        #expect(!lowered.contains("public func quillPerform"))
-        #expect(lowered.contains("private func quillPerform(_ selector: Selector, with sender: Any?)"))
-    }
-
-    @Test("Whole WireGuard macOS UI tree: every type with @objc actions gets a conformance")
-    func realUpstreamGeneratesConformances() throws {
+    @Test("Whole WireGuard macOS UI tree: every class with @objc actions gets an injected witness")
+    func realUpstreamInjectsWitnesses() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let macUI = repoRoot
@@ -321,14 +353,55 @@ struct AppKitLoweringTests {
             let original = try String(contentsOf: url, encoding: .utf8)
             let lowered = pass.lower(original)
             if original.contains("@objc func") {
-                // Files that declare @objc actions (not just an @objc protocol) get a conformance.
-                if lowered.contains(": QuillActionDispatching {") { generatedAny = true }
+                // Files that declare @objc actions (not just an @objc protocol) get a witness.
+                if lowered.contains("func quillPerform(_ selector: Selector, with sender: Any?)") { generatedAny = true }
             }
-            // Generated dispatch must be clean + idempotent.
+            // No `extension …: QuillSelectorDispatching` is ever emitted.
+            #expect(!lowered.contains("extension") || !lowered.contains(": QuillSelectorDispatching {"))
+            // Injected dispatch must be clean + idempotent.
             #expect(!lowered.contains("#selector("))
             #expect(pass.lower(lowered) == lowered)
         }
         #expect(generatedAny)
+    }
+
+    // MARK: - nonisolated NSObject-member overrides
+
+    @Test("override of nonisolated NSObject members gets `nonisolated` prepended")
+    func nonisolatedNSObjectOverrides() {
+        let source = """
+        class C: NSObject {
+            override init() { super.init() }
+            override var description: String { "c" }
+            override var debugDescription: String { "c!" }
+            override var hash: Int { 0 }
+            override func isEqual(_ object: Any?) -> Bool { false }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("nonisolated override init()"))
+        #expect(lowered.contains("nonisolated override var description: String"))
+        #expect(lowered.contains("nonisolated override var debugDescription: String"))
+        #expect(lowered.contains("nonisolated override var hash: Int"))
+        #expect(lowered.contains("nonisolated override func isEqual(_ object: Any?) -> Bool"))
+        // Idempotent: a second pass does not double-prepend.
+        #expect(!lowered.contains("nonisolated nonisolated"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("nonisolated pass leaves non-matching members and non-overrides alone")
+    func nonisolatedLeavesOthersAlone() {
+        let source = """
+        class C: NSObject {
+            var description = 0
+            override func isEqual(_ object: AnyObject) -> Bool { false }
+            func hash(into h: inout Hasher) {}
+            override init(frame: Int) { super.init() }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // `var description = 0` is not an override and not the NSObject `String` var.
+        #expect(!lowered.contains("nonisolated"))
     }
 
     // MARK: - Linux-compat lowering (os.log / os(macOS)) — for WireGuard Tunnel/

@@ -29,20 +29,53 @@ public struct Selector: Hashable, Sendable {
 }
 #endif
 
+// QuillSelectorDispatching
+// ========================
+// The single canonical target-action dispatch contract on Linux (there is no
+// Objective-C runtime to `perform` a `Selector` dynamically). The AppKit/UIKit
+// source-lowering (QuillSourceLowering.AppKitLowering) rewrites `#selector(x)`
+// -> `Selector("x")` and injects a `quillPerform(_:with:)` into the class body
+// of every class that declared `@objc` action methods. Dispatch sites
+// (UIControl.sendActions, NSControl.sendAction, UIGestureRecognizer, Timer,
+// CADisplayLink, UndoManager) call
+// `(target as? QuillSelectorDispatching)?.quillPerform(selector, with: sender)`.
+//
+// DISPATCH MUST BE DYNAMIC. The injected `quillPerform` is a real **class-body**
+// method (NOT an extension method): extension methods are statically dispatched,
+// so a subclass override declared in an extension can never be reached through a
+// superclass-typed reference — the very bug this protocol's prior shape caused.
+// The override chain is rooted at a class-body witness on the Apple-framework
+// base classes that originate target-action: `UIResponder` (the whole
+// UIView/UIViewController forest), plus the NSObject-direct UIKit/AVFoundation
+// roots (`UIPresentationController`, `UIBarButtonItem`, `UIGestureRecognizer`,
+// `AVPlayer`). On Linux `NSObject` is swift-corelibs-Foundation's and cannot be
+// given an overridable member (a non-`@objc` method added in an extension of a
+// foreign-module class is not overridable, and there is no @objc dynamism on
+// Linux), so the base lives on the Quill shim roots instead — which is exactly
+// where target-action originates on Apple platforms too.
+//
+// The lowering therefore emits, per class:
+//   * super IS `NSObject` (a chain root): `: QuillSelectorDispatching` plus a
+//     class-body witness with NO `override` — it newly conforms.
+//   * super is anything else (a shim base, or another lowered class, possibly
+//     through transparent intermediates): an `override func quillPerform` with
+//     NO conformance clause, whose `default:` calls `super.quillPerform(...)`.
+// This makes the per-class redundant-conformance and cannot-override-from-
+// extension diagnostics structurally impossible: a subclass never restates the
+// conformance, and the witness it overrides is a real (inherited) class member.
+//
+// On Apple platforms this is dormant — real target-action goes through the ObjC
+// runtime — but compiles unmodified, keeping macOS `swift build`/`swift test`
+// green.
 public protocol QuillSelectorDispatching: AnyObject {
-    /// Invoke the action identified by `selector`, passing the firing control
-    /// as `sender`. The source lowering (QuillSourceLowering.AppKitLowering)
-    /// generates a `public` witness that switches on `selector.name`; the
-    /// default below is a no-op so a conforming type with no matching case
-    /// fails safe rather than trapping.
+    /// Invoke the action identified by `selector`, passing the firing control as
+    /// `sender`. The lowering injects a class-body witness that switches on
+    /// `selector.name`; the no-op default below is the existential fail-safe so
+    /// `(x as? QuillSelectorDispatching)?.quillPerform(...)` on a type with no
+    /// matching case (or that reaches the base) does nothing rather than trapping.
     ///
-    /// This is the single canonical requirement slot — `QuillActionDispatching`
-    /// refines this protocol WITHOUT restating it (see its file for why).
-    /// NOTE: the default implementation does not relax witness access rules:
-    /// on a public conformer an implicitly-internal `quillPerform` is still
-    /// rejected ("must be declared public because it matches a requirement in
-    /// public protocol") — generated witnesses must be `public`, which the
-    /// lowering both emits and retroactively repairs on re-runs.
+    /// Witnesses are emitted `public`: a witness must be at least as accessible
+    /// as its conformance, and lowered SignalUI has public/open conformers.
     func quillPerform(_ selector: Selector, with sender: Any?)
 }
 

@@ -495,7 +495,18 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 
 // MARK: - NSResponder / NSView / NSViewController / NSWindow
 
-open class NSResponder: NSObject {
+open class NSResponder: NSObject, QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime). AppKitLowering injects
+    /// an `override` of this into every NSResponder subclass (NSView /
+    /// NSViewController / NSControl / NSWindow / NSTextView / NSButton …) that
+    /// declares `@objc` actions; each override switches on `selector.name` and
+    /// falls through to `super.quillPerform` for inherited selectors, terminating
+    /// here in a no-op. CLASS-BODY (not an extension) so the overrides are
+    /// reachable through a base-class-typed reference (NSControl.sendAction casts
+    /// `target as? QuillSelectorDispatching`). See QuillSelectorDispatching
+    /// (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
+
     fileprivate weak var quillExplicitNextResponder: NSResponder?
 
     /// Opaque native-backend widget handle (e.g. a QWidget for QuillAppKitQt).
@@ -3208,7 +3219,12 @@ open class NSShadow: NSObject, @unchecked Sendable {
 
 // MARK: - NSMenu / NSMenuItem
 
-open class NSMenu: NSObject {
+open class NSMenu: NSObject, QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime); roots the override
+    /// chain for `@objc`-action NSMenu subclasses. Class-body, not an extension.
+    /// See QuillSelectorDispatching (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
+
     public var title: String = ""
     open var items: [NSMenuItem] = []
     public weak var delegate: NSMenuDelegate?
@@ -3318,7 +3334,13 @@ open class NSMenu: NSObject {
     }
 }
 
-open class NSMenuItem: NSObject {
+open class NSMenuItem: NSObject, QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime); roots the override
+    /// chain for `@objc`-action NSMenuItem subclasses (WireGuard's StatusMenu
+    /// items). Class-body, not an extension. See QuillSelectorDispatching
+    /// (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
+
     open var title: String = ""
     public var action: Selector?
     public weak var target: AnyObject?
@@ -3479,7 +3501,12 @@ public extension NSToolbarDelegate {
 
 // MARK: - NSAlert / NSSavePanel / NSOpenPanel
 
-open class NSAlert: NSObject {
+open class NSAlert: NSObject, QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime); roots the override
+    /// chain for `@objc`-action NSAlert subclasses. Class-body, not an extension.
+    /// See QuillSelectorDispatching (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
+
     public var messageText: String = ""
     public var informativeText: String = ""
     public var icon: NSImage?
@@ -4222,11 +4249,11 @@ open class NSControl: NSView {
         guard let resolvedTarget else { return false }
         // Dispatch to the target's lowered action handler, passing this control
         // as the sender (AppKit hands the control to `foo(sender:)` actions).
-        // App classes that wire up target-action conform to QuillActionDispatching
-        // — the AppKit source lowering injects `quillPerform(_:with:)` switching
-        // on the selector name. A target that doesn't conform is still a valid
-        // "had a target" match (returns true, per AppKit); it just performs nothing.
-        (resolvedTarget as? QuillActionDispatching)?.quillPerform(selector, with: self)
+        // App classes that wire up target-action carry an injected class-body
+        // `quillPerform(_:with:)` (QuillSelectorDispatching) switching on the
+        // selector name. A target that doesn't conform is still a valid "had a
+        // target" match (returns true, per AppKit); it just performs nothing.
+        (resolvedTarget as? QuillSelectorDispatching)?.quillPerform(selector, with: self)
         return true
     }
     public func sizeToFit() {}
