@@ -2527,22 +2527,25 @@ if solderScopeUpstreamPresent {
 // ShapeScript Viewer (real shipped macOS app, NSDocument-based AppKit).
 #if os(Linux)
 if euclidUpstreamPresent {
-    // Euclid's Apple-framework interop files are canImport-gated upstream.
-    // In this package's shared scratch those gates leak TRUE for every shim
-    // module in the graph (lesson: canImport build-order leaks), so the
-    // interop modules must be DECLARED deps for their clang submodules
-    // (CGdkPixbuf etc.) to resolve. Net effect: Euclid's SceneKit/AppKit/
-    // UIKit/CoreGraphics/CoreText interop surface is part of the rung-1
-    // census, not skippable. (`simd` has no module in the graph, so
-    // Euclid+SIMD does drop out.)
+    // Euclid's Apple-framework interop files (Euclid+SceneKit/RealityKit/
+    // AppKit/UIKit/CoreGraphics/CoreText/SIMD) are `#if canImport(...)`
+    // gated upstream. With NO Apple deps declared here those gates are
+    // correctly FALSE, so the interop files drop out and Euclid compiles as
+    // its pure-Swift geometry/CSG core — the rung-1 target. (The canImport
+    // leak only bites when the module is actually pulled into the dep
+    // graph; keeping Euclid dep-free avoids it.) The SceneKit interop comes
+    // online at rung 2, when the SceneKit shim exists and is added as a dep.
+    // `.swiftLanguageMode(.v5)`: Euclid is Swift-5-mode code; the default
+    // Swift 6 mode flags its global statics / @Sendable closures as
+    // concurrency errors (Transform.identity, Polygon.codableClasses,
+    // Utilities' permutation helpers). v5 mode downgrades them to warnings,
+    // exactly as the other vendored upstreams (IceCubes, NNW) do.
     targets += [
         .target(
             name: "Euclid",
-            dependencies: [
-                "AppKit", "UIKit", "CoreGraphics", "CoreText",
-                "SceneKit", "RealityKit",
-            ],
-            path: ".upstream/euclid/Sources"
+            dependencies: [],
+            path: ".upstream/euclid/Sources",
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         // Real UIKit + SceneKit demo app (one RealityKit screen, one
         // visionOS volumetric view) — the warm-up SCN conformance driver.
@@ -2573,20 +2576,47 @@ if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent
         .target(
             name: "SVGPath",
             dependencies: [],
-            path: ".upstream/svgpath/Sources"
+            path: ".upstream/svgpath/Sources",
+            // SVGPath's SwiftUI/CoreGraphics extensions are canImport-gated;
+            // with no such deps here they drop, leaving the pure parser.
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-        // The ShapeScript language core + CLI support Linux upstream
-        // (mesh generation via Euclid, no UI) — expected green early.
+        // The REAL nicklockwood/LRUCache. ShapeScript's GeometryCache needs
+        // its full API (setValue/removeValue/count/init(totalCostLimit:)),
+        // which the repo's in-repo `LRUCache` stub (a no-op cache kept for
+        // other consumers) lacks. Compiled under a distinct target name to
+        // avoid the duplicate, then surfaced to ShapeScript's unmodified
+        // `import LRUCache` via `-module-alias` (same pattern as NNWAccount).
+        .target(
+            name: "ShapeScriptLRUCache",
+            dependencies: [],
+            path: ".upstream/lrucache/Sources",
+            exclude: ["Info.plist"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // The ShapeScript language core + CLI support Linux upstream (mesh
+        // generation via Euclid, no UI). Its SceneKit/AppKit/UIKit interop
+        // (Material+SceneKit, Scene+SceneKit, EvaluationContext's importer)
+        // is `#if canImport(SceneKit)` gated, so with no SceneKit dep here
+        // those files drop and the language core compiles against Euclid +
+        // LRUCache + SVGPath alone — rung 1. v5 mode matches upstream.
         .target(
             name: "ShapeScript",
-            dependencies: ["Euclid", "LRUCache", "SVGPath"],
+            dependencies: ["Euclid", "ShapeScriptLRUCache", "SVGPath"],
             path: ".upstream/shapescript/ShapeScript",
-            exclude: ["ShapeScript.xctestplan"]
+            exclude: ["ShapeScript.xctestplan"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-module-alias", "LRUCache=ShapeScriptLRUCache"]),
+            ]
         ),
+        // `shapescript <file.shape> <out.obj/.stl>` renders 3D models on
+        // Linux with zero rendering surface — the rung-1 demo.
         .executableTarget(
             name: "QuillShapeScriptCLI",
             dependencies: ["ShapeScript"],
-            path: ".upstream/shapescript/Viewer/CLI"
+            path: ".upstream/shapescript/Viewer/CLI",
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         // The Viewer: a real shipped, NSDocument-based AppKit app whose
         // entire viewport is an SCNView — the flagship SceneKit target,
