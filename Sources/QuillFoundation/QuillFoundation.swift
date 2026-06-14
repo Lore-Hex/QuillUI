@@ -1282,9 +1282,10 @@ public extension CGSize {
         )
     }
 
-    static func max(_ lhs: CGSize, _ rhs: CGSize) -> CGSize {
-        CGSize(width: Swift.max(lhs.width, rhs.width), height: Swift.max(lhs.height, rhs.height))
-    }
+    // NOTE: `static func max(_:_:)` is NOT declared here. SignalServiceKit owns
+    // the canonical `CGSize.max(_:_:)` (Util/OWSMath.swift, alongside ceil /
+    // floor / round / add / scale). A twin here made every `CGSize.max($0, $1)`
+    // in SignalUI ambiguous (64 errors) — one name, one owner.
 }
 
 public extension CGPoint {

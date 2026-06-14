@@ -1244,19 +1244,21 @@ public enum UIUserInterfaceIdiom: Int, Sendable {
 // reaches it via `import UIKit`. Only the raw four-edge value-holder lives here;
 // SSK's own `UIEdgeInsets(margin:)` convenience init is an extension that builds
 // on this base.
-public struct UIEdgeInsets: Equatable, Sendable {
-    public var top: CGFloat
-    public var left: CGFloat
-    public var bottom: CGFloat
-    public var right: CGFloat
-    public init(top: CGFloat = 0, left: CGFloat = 0, bottom: CGFloat = 0, right: CGFloat = 0) {
-        self.top = top
-        self.left = left
-        self.bottom = bottom
-        self.right = right
-    }
-    public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-}
+// `UIEdgeInsets` is the canonical four-edge inset type declared as
+// `QuillEdgeInsets` DOWN in QuillUIKit (UIViewLayout.swift), re-exported here
+// under its Apple name — the same `UIImage = NSImage` / `UIColor = NSColor`
+// pattern used throughout this module. It MUST be the same type as
+// QuillUIKit's, not a separate struct: UIScrollView (in QuillUIKit) now
+// declares `contentInset` / `scrollIndicatorInsets` as `open` class-body
+// members typed `QuillEdgeInsets`, so upstream scroll-view subclasses
+// (StickerPackCollectionView & co., which `import UIKit` and write
+// `override var contentInset: UIEdgeInsets`) override the SAME inherited
+// member rather than colliding with an un-overridable extension accessor.
+// With a distinct struct here the override saw two `contentInset`s →
+// "ambiguous use of 'contentInset'"; the typealias makes them one.
+// SSK's convenience inits (`init(hMargin:vMargin:)`, the leading/trailing
+// init) extend this same underlying type and are unaffected.
+public typealias UIEdgeInsets = QuillEdgeInsets
 
 // MARK: - NSDirectionalEdgeInsets
 //

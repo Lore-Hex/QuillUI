@@ -27,12 +27,12 @@
 //      a real model: programmatic selection mutates stored index paths and,
 //      per Apple's documented behavior, does NOT notify the delegate.
 //
-//  Inset layering: `contentInset` (table) and `separatorInset` (table + cell)
-//  are UIEdgeInsets-typed on Apple, and UIEdgeInsets lives in the UIKit shim
-//  module which DEPENDS on this one. Following the `quillLayoutMargins` /
-//  `quillContentInset` precedent, the QuillEdgeInsets-typed backings live
-//  here (`quillTableContentInset` & co.) and the UIEdgeInsets accessors are
-//  layered in Sources/UIKitShim/UITableViewInsets.swift.
+//  Inset layering: `contentInset` is INHERITED from UIScrollView's class body
+//  (UITableView is a UIScrollView subclass; UIScrollView owns the `open`
+//  UIEdgeInsets-typed insets now that UIEdgeInsets is a typealias to this
+//  module's QuillEdgeInsets). Only `separatorInset` (table + cell) is
+//  table-specific: its QuillEdgeInsets backing lives here and the
+//  UIEdgeInsets accessor is layered in Sources/UIKitShim/UITableViewInsets.swift.
 //
 //  NOT here on purpose (class-body needs deferred to the QuillUIKit.swift
 //  owner, since extension members cannot be `open` or overridden):
@@ -293,10 +293,10 @@ private struct QuillTableViewState {
     var isEditing = false
     var cellLayoutMarginsFollowReadableWidth = false
 
-    /// QuillEdgeInsets backings for the UIEdgeInsets accessors layered in
-    /// the UIKit shim (Sources/UIKitShim/UITableViewInsets.swift).
-    var contentInset = QuillEdgeInsets.zero
-    /// Apple's documented default separator inset: {0, 15, 0, 0}.
+    /// QuillEdgeInsets backing for the UIEdgeInsets `separatorInset` accessor
+    /// layered in the UIKit shim (Sources/UIKitShim/UITableViewInsets.swift).
+    /// (`contentInset` is inherited from UIScrollView's class body — no
+    /// separate backing needed.) Apple's documented default: {0, 15, 0, 0}.
     var separatorInset = QuillEdgeInsets(top: 0, left: 15, bottom: 0, right: 0)
 }
 
@@ -607,13 +607,8 @@ extension UITableView {
 
     // MARK: Inset backings (UIEdgeInsets accessors live in the UIKit shim)
 
-    /// Backing store for `contentInset` (UIKitShim/UITableViewInsets.swift).
-    /// Distinctly named so it cannot collide with UIScrollView's
-    /// `quillContentInset` if UITableView is later re-parented.
-    public var quillTableContentInset: QuillEdgeInsets {
-        get { quillTableState.contentInset }
-        set { quillTableState.contentInset = newValue }
-    }
+    // `contentInset` is inherited from UIScrollView's class body — no separate
+    // table backing (the old `quillTableContentInset` is gone).
 
     /// Backing store for the table-wide `separatorInset`.
     public var quillTableSeparatorInset: QuillEdgeInsets {

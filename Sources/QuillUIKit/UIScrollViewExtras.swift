@@ -29,12 +29,13 @@
 //  `owner` backref guards every read against ObjectIdentifier address reuse,
 //  and dead entries are swept on write.
 //
-//  Inset layering: contentInset / scrollIndicatorInsets are UIEdgeInsets-
-//  typed on Apple, but UIEdgeInsets is declared in the UIKit shim module,
-//  which DEPENDS on this one. Following the `quillLayoutMargins` precedent,
-//  this file stores the values as `QuillEdgeInsets` (`quillContentInset`
-//  & co.) and the shim layers the UIEdgeInsets-typed accessors on top
-//  (Sources/UIKitShim/UIScrollViewInsets.swift).
+//  Insets: contentInset / scrollIndicatorInsets / adjustedContentInset are
+//  UIEdgeInsets-typed and `open` (subclasses override them), so they live in
+//  the UIScrollView CLASS BODY (QuillUIKit.swift), typed `QuillEdgeInsets`.
+//  This is possible because `UIEdgeInsets` is a typealias to `QuillEdgeInsets`
+//  (declared in this module) — the UIKit shim re-exports it under the Apple
+//  name. They are NOT in this extension (extension members cannot be
+//  overridden, which made every upstream override ambiguous).
 //
 //  NOT here on purpose: `contentLayoutGuide` / `frameLayoutGuide` (the Auto
 //  Layout surface owns those).
@@ -69,11 +70,11 @@ private struct QuillScrollViewState {
     var keyboardDismissMode = UIScrollView.KeyboardDismissMode.none
     var indicatorStyle = UIScrollView.IndicatorStyle.default
 
-    /// QuillEdgeInsets backing for the UIEdgeInsets-typed accessors layered
-    /// in the UIKit shim (see the file header).
-    var contentInset = QuillEdgeInsets.zero
-    var verticalScrollIndicatorInsets = QuillEdgeInsets.zero
-    var horizontalScrollIndicatorInsets = QuillEdgeInsets.zero
+    // contentInset / verticalScrollIndicatorInsets / horizontalScrollIndicatorInsets
+    // are NO LONGER stored here. They are `open` stored properties on the
+    // UIScrollView class body (QuillUIKit.swift) now that UIEdgeInsets is a
+    // typealias to QuillEdgeInsets (this module's type) — so subclasses can
+    // override them. The side table only holds state that has no class-body home.
 
     /// Lazily-created scroll-driving recognizers. Strong, like the view's
     /// hold on any attached recognizer; the recognizers' weak `view`
@@ -282,35 +283,10 @@ extension UIScrollView {
         return recognizer
     }
 
-    // MARK: - Inset backing (UIEdgeInsets accessors live in the UIKit shim)
-
-    /// Backing store for `contentInset`. QuillEdgeInsets-typed for the same
-    /// layering reason as `UIView.quillLayoutMargins` (see the file header);
-    /// the UIKit shim's `contentInset` accessor wraps this. A genuine change
-    /// notifies `scrollViewDidChangeAdjustedContentInset`, since the
-    /// adjusted inset (== the raw inset on Linux, where safe areas are zero)
-    /// changed with it.
-    public var quillContentInset: QuillEdgeInsets {
-        get { quillScrollState.contentInset }
-        set {
-            guard quillScrollState.contentInset != newValue else { return }
-            quillScrollState.contentInset = newValue
-            delegate?.scrollViewDidChangeAdjustedContentInset(self)
-        }
-    }
-
-    /// Backing store for `verticalScrollIndicatorInsets` (and the vertical
-    /// half of legacy `scrollIndicatorInsets`).
-    public var quillVerticalScrollIndicatorInsets: QuillEdgeInsets {
-        get { quillScrollState.verticalScrollIndicatorInsets }
-        set { quillScrollState.verticalScrollIndicatorInsets = newValue }
-    }
-
-    /// Backing store for `horizontalScrollIndicatorInsets`.
-    public var quillHorizontalScrollIndicatorInsets: QuillEdgeInsets {
-        get { quillScrollState.horizontalScrollIndicatorInsets }
-        set { quillScrollState.horizontalScrollIndicatorInsets = newValue }
-    }
+    // Inset accessors (contentInset / scrollIndicatorInsets &c.) moved to the
+    // UIScrollView CLASS BODY (QuillUIKit.swift): they are `open` and upstream
+    // subclasses override them, which an extension member cannot allow. They
+    // are typed `QuillEdgeInsets` (== UIEdgeInsets via the UIKit-shim typealias).
 }
 
 // MARK: - UIScrollViewDelegate defaults

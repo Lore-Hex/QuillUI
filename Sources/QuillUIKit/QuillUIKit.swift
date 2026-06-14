@@ -1687,11 +1687,19 @@ public class SLComposeSheetConfigurationItem: NSObject {
     open var state: State = .normal
 
     /// Whether the control is currently tracking a touch. On Apple this is a
-    /// read-only property driven by the touch-tracking machinery
-    /// (beginTracking…endTracking); there is no live touch tracking on Linux,
-    /// so it stays false. `open var` (settable) so subclasses that override it
-    /// — or drive it from their own gesture handling — resolve cross-module.
-    open var isTracking: Bool = false
+    /// READ-ONLY computed property (`open var isTracking: Bool { get }`) driven
+    /// by the touch-tracking machinery (beginTracking…endTracking); there is no
+    /// live touch tracking on Linux, so it is honestly `false`.
+    ///
+    /// It MUST be read-only (computed `{ get }`), not a stored `var = false`:
+    /// upstream subclasses override it read-only (e.g. ImageEditor's
+    /// RotationControl: `override var isTracking { scrollView.isTracking }`).
+    /// A stored mutable `var` cannot be overridden by a read-only computed one
+    /// ("cannot override mutable property with read-only property"), and that
+    /// failed override then becomes a SECOND `isTracking` declaration on the
+    /// subclass → "ambiguous use of 'isTracking'". Read-only here lets the
+    /// override resolve as a true override, one owner per type.
+    open var isTracking: Bool { false }
 }
 
 @MainActor open class UIButton: UIControl {
@@ -2281,6 +2289,57 @@ public struct UIContentSizeCategory: RawRepresentable, Equatable, Hashable, Send
 
     public weak var delegate: UIScrollViewDelegate?
     open var contentInsetAdjustmentBehavior: ContentInsetAdjustmentBehavior = .automatic
+
+    // MARK: - Insets (overridable: class body, not an extension)
+    //
+    // contentInset / scrollIndicatorInsets are `open var` on Apple and upstream
+    // scroll-view subclasses override them (StickerPackCollectionView overrides
+    // `contentInset` with a `didSet`; others observe it). They were extension
+    // accessors in UIKitShim/UIScrollViewInsets.swift because they are
+    // UIEdgeInsets-typed and UIEdgeInsets used to be declared only in the UIKit
+    // shim (which DEPENDS on this module) — but an extension member "cannot be
+    // overridden", so every subclass override became a second declaration →
+    // "ambiguous use of 'contentInset'" (198 errors). The fix: UIEdgeInsets is
+    // now `typealias UIEdgeInsets = QuillEdgeInsets`, and QuillEdgeInsets lives
+    // HERE, so these can be `open` class-body members typed by it — visible to
+    // QuillUIKit, and the same type the shim re-exports as UIEdgeInsets, so the
+    // upstream overrides resolve as true overrides. (UITableView inherits
+    // these; it no longer needs a separate inset backing.)
+
+    /// Extra padding around the content. A genuine change notifies
+    /// `scrollViewDidChangeAdjustedContentInset` (the adjusted inset tracks
+    /// this one, since Linux safe areas are zero), as Apple's setter does.
+    open var contentInset: QuillEdgeInsets = .zero {
+        didSet {
+            guard contentInset != oldValue else { return }
+            delegate?.scrollViewDidChangeAdjustedContentInset(self)
+        }
+    }
+
+    /// The content inset after safe-area/keyboard adjustment — read-only, as
+    /// on Apple. MODEL HONESTY: Linux has no safe areas or keyboard avoidance
+    /// (`UIView.safeAreaInsets` is `.zero`), so the adjustment is always zero
+    /// and this equals `contentInset`.
+    open var adjustedContentInset: QuillEdgeInsets { contentInset }
+
+    /// Insets for the vertical scroll indicator. Stored configuration —
+    /// nothing draws indicators on Linux.
+    open var verticalScrollIndicatorInsets: QuillEdgeInsets = .zero
+
+    /// Insets for the horizontal scroll indicator.
+    open var horizontalScrollIndicatorInsets: QuillEdgeInsets = .zero
+
+    /// The legacy unified indicator inset: Apple documents setting it as
+    /// setting both per-axis values and reading it as reading the vertical
+    /// one — mirrored exactly.
+    open var scrollIndicatorInsets: QuillEdgeInsets {
+        get { verticalScrollIndicatorInsets }
+        set {
+            verticalScrollIndicatorInsets = newValue
+            horizontalScrollIndicatorInsets = newValue
+        }
+    }
+
     public var maximumZoomScale: CGFloat = 1
     public var minimumZoomScale: CGFloat = 1
     public var zoomScale: CGFloat = 1
