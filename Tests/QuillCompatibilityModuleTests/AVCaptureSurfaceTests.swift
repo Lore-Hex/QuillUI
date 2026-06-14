@@ -102,11 +102,23 @@ struct AVCaptureSurfaceTests {
             return
         }
         writer.startSession(atSourceTime: CMTime(value: 0, timescale: 600))
-        #expect(adaptor.append(CVPixelBuffer(width: 4, height: 4, pixelFormatType: kCVPixelFormatType_32BGRA),
+        // The appended frame must match the writer's configured geometry
+        // (AVVideoWidthKey/HeightKey above): the Linux ffmpeg-backed encoder
+        // is launched as a fixed-size rawvideo pipe and rejects a mismatched
+        // frame (encoder.appendFrame guards pixelBuffer.width/height == the
+        // configured width/height). A 4x4 buffer only ever "passed" on macOS,
+        // whose shim append path is inert-true. Feed a real 1280x720 frame.
+        #expect(adaptor.append(CVPixelBuffer(width: 1280, height: 720, pixelFormatType: kCVPixelFormatType_32BGRA),
                                withPresentationTime: CMTime(value: 1, timescale: 30)))
         input.markAsFinished()
-        // Deterministic finalize: the callback form finishes on a detached
-        // thread, so await the async overload rather than racing a flag.
+        // finishWriting is asynchronous on both platforms: Apple delivers the
+        // completion off the calling thread, and the Linux shim detaches a
+        // thread that closes the ffmpeg stdin pipe and waitUntilExit()s the
+        // encoder. Await the async form so encoding is fully finalized before
+        // asserting. Reading a plain `var finished` on the next line was a
+        // race that only ever passed on macOS — whose shim path completes
+        // synchronously — and on Linux additionally left the detached encoder
+        // thread running into suite teardown (a likely SIGILL source).
         await writer.finishWriting()
         #expect(writer.status == .completed)
     }
