@@ -3,7 +3,13 @@ import Testing
 @testable import QuillUI
 
 #if os(Linux)
+// `@MainActor`: ForEach.children invokes the MainActor-isolated content
+// closure, so accessing it off-main trips the Swift-6 isolation runtime
+// check (dispatch_assert_queue → SIGTRAP). Swift Testing runs @Test cases
+// on a background pool by default; pin the suite to the main actor so the
+// children getter evaluates where its isolation expects.
 @Suite("ForEach binding compatibility")
+@MainActor
 struct ForEachBindingCompatibilityTests {
     @Test("Binding collection editActions initializer renders current rows")
     func bindingCollectionEditActionsRendersRows() {

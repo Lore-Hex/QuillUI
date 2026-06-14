@@ -70,7 +70,14 @@ private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
     }
 }
 
+// `@MainActor`: many tests here construct MainActor-isolated SwiftUI views
+// (WrappingHStack, etc.) whose initializers run a Swift-6 isolation runtime
+// check that SIGTRAPs when evaluated off the main actor. Swift Testing runs
+// @Test cases on a background pool, so pin the whole suite to the main actor
+// rather than relying on a per-function annotation that's easy to miss
+// (thirdPartyUIShimsCompile lacked one and crashed the Linux run).
 @Suite("Linux compatibility import modules", .serialized)
+@MainActor
 struct CompatibilityModuleTests {
     private func pngDimensions(_ data: Data) -> (width: UInt32, height: UInt32)? {
         let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
