@@ -1108,7 +1108,12 @@ private final class AppKitRewriter: SyntaxRewriter {
     // the decl's leading trivia onto the surviving first token, so removing a
     // line-leading `@objc` keeps the decl on its own line.
     override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
-        DeclSyntax(stripAttributes(super.visit(node).cast(FunctionDeclSyntax.self)))
+        let stripped = stripAttributes(super.visit(node).cast(FunctionDeclSyntax.self))
+        // `func forwardingTarget(for:)` now overrides UIResponder's class-body
+        // declaration (QuillUIKit), so the upstream `open func` (no `override`)
+        // needs the `override` keyword added. BodyRangesTextView declares it
+        // verbatim and calls `super.forwardingTarget(for:)`.
+        return DeclSyntax(Self.addingForwardingTargetOverride(stripped))
     }
     override func visit(_ node: VariableDeclSyntax) -> DeclSyntax {
         DeclSyntax(stripAttributes(super.visit(node).cast(VariableDeclSyntax.self)))
@@ -1147,6 +1152,40 @@ private final class AppKitRewriter: SyntaxRewriter {
         var copy = node
         copy.attributes = kept
         copy.leadingTrivia = savedLeading
+        return copy
+    }
+
+    /// Adds `override` to an `open/public func forwardingTarget(for:)` that lacks
+    /// it. UIResponder (QuillUIKit) now declares this method in its class body, so
+    /// any subclass declaring it (BodyRangesTextView) must mark it `override`.
+    /// Idempotent (skips when `override` is already present).
+    static func addingForwardingTargetOverride(_ node: FunctionDeclSyntax) -> FunctionDeclSyntax {
+        guard node.name.text == "forwardingTarget",
+              functionSignatureKey(node) == "forwardingTarget(for:)",
+              !node.modifiers.contains(where: { $0.name.text == "override" }) else {
+            return node
+        }
+        var copy = node
+        let mods = Array(node.modifiers)
+        if let first = mods.first {
+            // Move the decl's leading trivia (indentation) onto `override`; the
+            // former-first modifier loses its leading and follows after a space.
+            let overrideMod = DeclModifierSyntax(
+                leadingTrivia: first.leadingTrivia,
+                name: .keyword(.override),
+                trailingTrivia: .space
+            )
+            var firstNoLead = first
+            firstNoLead.leadingTrivia = []
+            copy.modifiers = DeclModifierListSyntax([overrideMod, firstNoLead] + mods.dropFirst())
+        } else {
+            // Bare `func` (no modifiers): place `override` before the keyword.
+            let leading = copy.funcKeyword.leadingTrivia
+            copy.funcKeyword.leadingTrivia = []
+            copy.modifiers = DeclModifierListSyntax([
+                DeclModifierSyntax(leadingTrivia: leading, name: .keyword(.override), trailingTrivia: .space)
+            ])
+        }
         return copy
     }
 
@@ -1306,6 +1345,37 @@ private final class AppKitRewriter: SyntaxRewriter {
             replacement.leadingTrivia = call2.leadingTrivia
             replacement.trailingTrivia = call2.trailingTrivia
             return replacement
+        }
+        // Member-access call rewrites for @MainActor-closure APIs whose corelibs
+        // signatures take `@Sendable` blocks (so SignalUI's `{ self.mainActorMethod() }`
+        // closures fail). Redirect to distinctly-named shims whose blocks are
+        // non-`@Sendable`, so the closure infers @MainActor at the call site.
+        if let member = call2.calledExpression.as(MemberAccessExprSyntax.self) {
+            let memberName = member.declName.baseName.text
+            let firstLabel = call2.arguments.first?.label?.text
+            // `Timer.scheduledTimer(withTimeInterval:repeats:){…}` -> `QuillTimer.scheduledTimer(…)`
+            // (NOT the `timeInterval:target:selector:` variant — gated on the first label).
+            if memberName == "scheduledTimer",
+               let base = member.base?.as(DeclReferenceExprSyntax.self),
+               base.baseName.text == "Timer",
+               firstLabel == "withTimeInterval" {
+                var newBase = DeclReferenceExprSyntax(baseName: .identifier("QuillTimer"))
+                newBase.leadingTrivia = base.leadingTrivia
+                var newMember = member
+                newMember.base = ExprSyntax(newBase)
+                var copy = call2
+                copy.calledExpression = ExprSyntax(newMember)
+                return ExprSyntax(copy)
+            }
+            // `<nc>.addObserver(forName:object:queue:using:){…}` -> `.quillAddObserver(…)`
+            // (NOT the `addObserver(_:selector:name:object:)` variant — gated on `forName`).
+            if memberName == "addObserver", firstLabel == "forName" {
+                var newMember = member
+                newMember.declName = DeclReferenceExprSyntax(baseName: .identifier("quillAddObserver"))
+                var copy = call2
+                copy.calledExpression = ExprSyntax(newMember)
+                return ExprSyntax(copy)
+            }
         }
         // Timer(timeInterval:repeats:block:) -> QuillTimer.make(…). Disjoint from
         // the strip above (this callee is the bare `Timer` identifier).
@@ -1496,9 +1566,10 @@ private final class ExtensionOverrideMerger: SyntaxRewriter {
 /// overridden" / "overriding non-open instance method outside of its defining
 /// module") is harmless to drop — the extension method still applies. Closed,
 /// audited set; extend only with other foreign-NSObject-extension methods.
-let foreignExtensionOverrideStripSignatures: Set<String> = [
-    "forwardingTarget(for:)",
-]
+// Empty: `forwardingTarget(for:)` is now a real `open` member of UIResponder's
+// CLASS BODY (QuillUIKit), so subclass declarations legitimately `override` it —
+// `addingForwardingTargetOverride` ADDS the keyword rather than stripping it.
+let foreignExtensionOverrideStripSignatures: Set<String> = []
 
 /// Collects the cross-file Pass-2b work over a (Pass-2-merged) tree:
 ///

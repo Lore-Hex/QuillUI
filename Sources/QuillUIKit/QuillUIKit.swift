@@ -52,6 +52,13 @@ public typealias ASPresentationAnchor = NSObject
     /// correct here since UI target-action always fires on the main thread.
     open func quillPerform(_ selector: Selector, with sender: Any?) {}
 
+    /// NSObject's ObjC message-forwarding hook. Declared `open` in the CLASS BODY
+    /// (not an extension of corelibs `NSObject`, which can't be overridden) so
+    /// BodyRangesTextView can `override` it and call `super.forwardingTarget(for:)`.
+    /// The lowering adds the `override` keyword to such upstream declarations.
+    /// MODEL HONESTY: no ObjC runtime on Linux, so nothing forwards — returns nil.
+    open func forwardingTarget(for aSelector: Selector!) -> Any? { nil }
+
     open var next: UIResponder? { nil }
 
     /// Apple's default: no accessory view (ContactShareViewController

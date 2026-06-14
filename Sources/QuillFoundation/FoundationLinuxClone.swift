@@ -185,9 +185,23 @@ public extension NotificationCenter {
         queue: OperationQueue?,
         using block: @MainActor @escaping (Notification) -> Void
     ) -> any NSObjectProtocol {
-        // Re-wrap as the @Sendable closure corelibs expects. The hop is a no-op
-        // on Linux (notifications post synchronously on the caller), so assuming
-        // the main actor inside is faithful to Apple's main-thread delivery.
+        quillAddObserver(forName: name, object: obj, queue: queue, using: block)
+    }
+
+    /// DISTINCT-name @MainActor `addObserver`. A same-name `@MainActor` overload
+    /// does NOT win resolution against corelibs' `@Sendable` one (the @Sendable
+    /// closure is an equally-valid match), so SignalUI's observers still bound to
+    /// the nonisolated overload. `AppKitLowering` rewrites
+    /// `<nc>.addObserver(forName:object:queue:using:){…}` → `.quillAddObserver(…)`,
+    /// a unique symbol whose @MainActor block lets the closure call @MainActor
+    /// members. Inert hop on Linux (notifications post synchronously).
+    @discardableResult
+    func quillAddObserver(
+        forName name: NSNotification.Name?,
+        object obj: Any?,
+        queue: OperationQueue?,
+        using block: @MainActor @escaping (Notification) -> Void
+    ) -> any NSObjectProtocol {
         addObserver(forName: name, object: obj, queue: queue) { notification in
             // corelibs posts synchronously on the calling thread on Linux, so the
             // value never actually crosses threads; `nonisolated(unsafe)` tells the
