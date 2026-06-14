@@ -21,10 +21,10 @@ enum SignalSettingsDemo {
     /// Install just enough environment that `OWSTableViewController2` can lay out
     /// without the full SSK bootstrap.
     static func bootstrapMinimalEnvironment() {
-        // Dark-mode detection otherwise reads CurrentAppContext()/databaseStorage;
-        // the test hook returns before either, so Theme's colors resolve statically.
-        Theme.setIsDarkThemeEnabledForTests(false)
-        // A no-DB app context for any incidental CurrentAppContext() reads.
+        // Theme.isDarkThemeEnabled returns isSystemDarkThemeEnabled() early when the
+        // app isn't marked ready (which we never do) — so it never reaches
+        // CurrentAppContext()/databaseStorage. We still install a no-DB app context
+        // for any other incidental CurrentAppContext() read in the layout path.
         if !quillRenderAppContextInstalled {
             SetCurrentAppContext(QuillSmokeAppContext(), isRunningTests: false)
             quillRenderAppContextInstalled = true
