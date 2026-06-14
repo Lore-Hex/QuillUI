@@ -1984,8 +1984,11 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
                 }
                 // Has a default value → self-initializing.
                 if binding.initializer != nil { return false }
-                // Implicitly-nil optional `var x: Type?` → self-initializing.
-                if let type = binding.typeAnnotation?.type,
+                // Implicitly-nil optional → self-initializing ONLY for `var`. An
+                // optional `let x: T?` gets NO implicit nil — it must be initialized
+                // in an init (ActionSheetDisplayableError's `let localizedTitle: String?`).
+                if varDecl.bindingSpecifier.text == "var",
+                   let type = binding.typeAnnotation?.type,
                    type.is(OptionalTypeSyntax.self) || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
                     return false
                 }
@@ -2119,6 +2122,7 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
             case .expr(let expr):
                 if Self.isSuperInitCall(expr) { continue }
                 if Self.isPlainStoredAssignment(expr) { continue }
+                if Self.isAddObserverCall(expr) { continue }
                 return false
             default:
                 // A declaration or a statement (if/guard/for/return/etc.) — not a
@@ -2127,6 +2131,19 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
             }
         }
         return true
+    }
+
+    /// True iff `expr` is a `…addObserver(…)` call. The selector-based
+    /// `NotificationCenter.default.addObserver(self, selector:name:object:)`
+    /// (used in RecentStickerPackDataSource's init) is `nonisolated`, so it's
+    /// safe inside a `nonisolated` init even though it's a call (unlike a
+    /// `@MainActor` member assignment).
+    private static func isAddObserverCall(_ expr: ExprSyntax) -> Bool {
+        guard let call = expr.as(FunctionCallExprSyntax.self),
+              let member = call.calledExpression.as(MemberAccessExprSyntax.self) else {
+            return false
+        }
+        return member.declName.baseName.text == "addObserver"
     }
 
     /// True iff `expr` is a `super.init(...)` call.
