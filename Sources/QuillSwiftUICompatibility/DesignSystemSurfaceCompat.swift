@@ -1792,14 +1792,6 @@ public extension View {
         _ = mask()
         return self
     }
-
-    // Pre-iOS-15 value form: `.mask(SomeView())`. Upstream apps still call this
-    // (e.g. a gradient fade mask). Preserved as a layout-neutral pass-through.
-    @_disfavoredOverload
-    func mask<Mask: View>(_ mask: Mask) -> Self {
-        _ = mask
-        return self
-    }
 }
 
 public extension Image {
@@ -2140,6 +2132,11 @@ public extension View {
         return self
     }
 
+    // Disfavored so apps importing BOTH this module and QuillUI (e.g. generated
+    // quill-chat) resolve to QuillUI's real `preferredColorScheme(_:) -> some View`
+    // instead of hitting an ambiguous-overload error. IceCubes-style apps, which
+    // import only this module, still pick this up as the sole candidate.
+    @_disfavoredOverload
     func preferredColorScheme(_ colorScheme: ColorScheme?) -> Self {
         _ = colorScheme
         return self

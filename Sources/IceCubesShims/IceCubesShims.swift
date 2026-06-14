@@ -216,4 +216,18 @@ public final class RecentTag: PersistentModel, Equatable, Identifiable {
         lhs.id == rhs.id
     }
 }
+
+// Pre-iOS-15 value-form `.mask(SomeView())`. IceCubes' DisplaySettingsView uses
+// it for a gradient fade. Lives here (icecubes-only, force-imported via
+// `-import-module IceCubesShims`) rather than in the shared SwiftUI shim so it
+// does NOT collide with QuillUI's own value-form `mask` for generated apps that
+// import both modules (e.g. quill-chat) — that collision is an ambiguous-use
+// error. Layout-neutral pass-through, matching the shim's closure-form `mask`.
+public extension View {
+    @_disfavoredOverload
+    func mask<Mask: View>(_ mask: Mask) -> Self {
+        _ = mask
+        return self
+    }
+}
 #endif
