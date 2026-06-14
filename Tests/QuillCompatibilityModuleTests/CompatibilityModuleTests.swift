@@ -70,7 +70,16 @@ private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
     }
 }
 
+// @MainActor: these cases construct and read SwiftUI `View` values (which are
+// @MainActor-isolated) synchronously. Swift Testing runs synchronous cases on a
+// background cooperative-pool executor on Linux, and Swift 6.2's strict
+// isolation runtime check (swift_task_isCurrentExecutor) SIGTRAPs via
+// dispatch_assert_queue_fail the moment a @MainActor closure (e.g. the
+// `Optional.map`s inside WrappingHStack) runs off the main actor. Pinning the
+// whole suite to the main actor is the correct fix — UI-type tests belong on
+// the main actor — and avoids whack-a-mole over every @MainActor closure.
 @Suite("Linux compatibility import modules", .serialized)
+@MainActor
 struct CompatibilityModuleTests {
     private func pngDimensions(_ data: Data) -> (width: UInt32, height: UInt32)? {
         let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]

@@ -69,7 +69,7 @@ struct AVCaptureSurfaceTests {
         #expect(discovery.devices.isEmpty) // until #515 enumerates /dev/video*
     }
 
-    @Test func assetWriterLifecycle() throws {
+    @Test func assetWriterLifecycle() async throws {
         let url = URL(fileURLWithPath: "/tmp/quill-avwriter-test.mov")
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         #expect(writer.outputURL == url)
@@ -91,12 +91,24 @@ struct AVCaptureSurfaceTests {
             assetWriterInput: input, sourcePixelBufferAttributes: nil)
         #expect(writer.startWriting())
         writer.startSession(atSourceTime: CMTime(value: 0, timescale: 600))
-        #expect(adaptor.append(CVPixelBuffer(width: 4, height: 4, pixelFormatType: kCVPixelFormatType_32BGRA),
+        // The appended frame must match the writer's configured geometry
+        // (AVVideoWidthKey/HeightKey above): the Linux ffmpeg-backed encoder
+        // is launched as a fixed-size rawvideo pipe and rejects a mismatched
+        // frame (encoder.appendFrame guards pixelBuffer.width/height == the
+        // configured width/height). A 4x4 buffer only ever "passed" on macOS,
+        // whose shim append path is inert-true. Feed a real 1280x720 frame.
+        #expect(adaptor.append(CVPixelBuffer(width: 1280, height: 720, pixelFormatType: kCVPixelFormatType_32BGRA),
                                withPresentationTime: CMTime(value: 1, timescale: 30)))
         input.markAsFinished()
-        var finished = false
-        writer.finishWriting { finished = true }
-        #expect(finished)
+        // finishWriting is asynchronous on both platforms: Apple delivers the
+        // completion off the calling thread, and the Linux shim detaches a
+        // thread that closes the ffmpeg stdin pipe and waitUntilExit()s the
+        // encoder. Await the async form so encoding is fully finalized before
+        // asserting. Reading a plain `var finished` on the next line was a
+        // race that only ever passed on macOS — whose shim path completes
+        // synchronously — and on Linux additionally left the detached encoder
+        // thread running into suite teardown (a likely SIGILL source).
+        await writer.finishWriting()
         #expect(writer.status == .completed)
     }
 

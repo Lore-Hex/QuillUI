@@ -17,6 +17,7 @@
 // exactly; inert behavior is documented inline.
 
 import SwiftOpenUI
+import QuillKit
 
 #if os(Linux)
 
@@ -31,7 +32,19 @@ extension Animation {
     /// preserved on the Animation value; GTK transition repeat loops are not
     /// yet implemented, so playback currently runs the transition once.
     public func repeatForever(autoreverses: Bool = true) -> Animation {
-        Animation(
+        // Record an .info fallback like the sibling Animation chain methods
+        // (Animation.delay / .snappy in QuillUI's UpstreamCompatibility): the
+        // repeat metadata is preserved but GTK transition repeat loops are not
+        // implemented yet, so playback runs the transition once. The
+        // "previously-silent stubs now record diagnostics" contract test
+        // asserts this operation is recorded with .info severity.
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillUI",
+            operation: "Animation.repeatForever",
+            severity: .info,
+            message: "repeatForever metadata is preserved on Linux; GTK transition repeat loops run the transition once until repeat playback is implemented."
+        )
+        return Animation(
             curve: curve,
             duration: duration,
             delay: delay,
