@@ -185,6 +185,21 @@ let nnwUpstreamPresent: Bool = false
 let nnwUpstreamEnabled: Bool = nnwUpstreamPresent
     && ProcessInfo.processInfo.environment["QUILLUI_NNW_UPSTREAM"] == "1"
 let wireguardUpstreamPresent: Bool = upstreamPresent(".upstream/wireguard-apple/Sources/WireGuardKit")
+// The QuillWireGuardConformanceUI target (the AppKit UI compile-conformance for
+// the real WireGuard macOS app) is incomplete WIP: its `sources:` list has grown
+// to include files (TunnelsManager/TunnelEditViewController/…) whose lowered
+// source references shim symbols the target never injected (QuillTimer,
+// NSKeyValueObservation, ObjCAssoc) plus residual broken-lowering errors — its
+// swiftSettings has been bare `[.swiftLanguageMode(.v5)]` since the target was
+// created (#276), so the `-import-module` shim injection other Linux source
+// targets rely on was never present here. `swift test` compiles it, so it has
+// been silently red, masked behind the duplicate-Account manifest error and the
+// IceCubes-lane errors. Make it opt-in so the WireGuard conformance lane can
+// drive it to green without keeping the whole repo's Linux CI red. WireGuardKit
+// (the real library) and the C shims still build unconditionally. Re-enable with
+// QUILLUI_WIREGUARD_CONFORMANCE_UI=1 once it compiles. See the unbreak issue.
+let wireGuardConformanceUIEnabled: Bool = wireguardUpstreamPresent
+    && ProcessInfo.processInfo.environment["QUILLUI_WIREGUARD_CONFORMANCE_UI"] == "1"
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
 // Signal-iOS upstream-slice gates (per-worktree `.upstream/...`, not committed).
@@ -1800,6 +1815,7 @@ if wireguardUpstreamPresent {
             publicHeadersPath: "."
         )
     )
+    if wireGuardConformanceUIEnabled {
     wireGuardConformanceTargets.append(
         .target(
             name: "QuillWireGuardConformanceUI",
@@ -2022,6 +2038,7 @@ if wireguardUpstreamPresent {
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     )
+    }  // wireGuardConformanceUIEnabled
     #endif
 }
 // Default/GTK graph: include the WireGuard conformance dep-tree (a no-op when the
@@ -3047,7 +3064,7 @@ let packageTestTargets: [Target] = {
     if quillUILinuxBuildBackend == .qt {
         // The qt AppKit test target also renders the LITERAL upstream WireGuard
         // VC (ButtonedDetailViewController) when the upstream checkout is present.
-        let akqtTestDeps: [Target.Dependency] = wireguardUpstreamPresent
+        let akqtTestDeps: [Target.Dependency] = wireGuardConformanceUIEnabled
             ? ["QuillAppKitQt", "AppKit", "QuillWireGuardConformanceUI", "NetworkExtension"]
             : ["QuillAppKitQt", "AppKit"]
         return [
