@@ -7061,6 +7061,17 @@ extension ButtonStyleModifier: WinRenderable {
     }
 }
 
+extension CustomButtonStyleModifier: WinRenderable {
+    public func winCreateWidget(in context: RenderContext) -> HWND? {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.customButtonStyle = style
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(prev) }
+        return winRenderView(content, in: context)
+    }
+}
+
 extension ToggleStyleModifier: WinRenderable {
     public func winCreateWidget(in context: RenderContext) -> HWND? {
         let prev = getCurrentEnvironment()

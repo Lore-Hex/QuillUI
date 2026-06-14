@@ -50,6 +50,25 @@ final class GTK4StyleTests: XCTestCase {
         XCTAssertNotNil(widget)
     }
 
+    func testCustomButtonStyleTracksPressedState() throws {
+        try requireGTK()
+        let widget = widgetFromOpaque(gtkRenderView(
+            Button("Tap") {}.buttonStyle(PressedOpacityButtonStyle())
+        ))
+
+        let button = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkButton.self)
+        var child = try XCTUnwrap(gtk_button_get_child(button))
+        XCTAssertEqual(gtk_widget_get_opacity(child), 1.0, accuracy: 0.01)
+
+        XCTAssertTrue(gtkTestSetCustomButtonStylePressed(widget, pressed: true))
+        child = try XCTUnwrap(gtk_button_get_child(button))
+        XCTAssertEqual(gtk_widget_get_opacity(child), 0.5, accuracy: 0.01)
+
+        XCTAssertTrue(gtkTestSetCustomButtonStylePressed(widget, pressed: false))
+        child = try XCTUnwrap(gtk_button_get_child(button))
+        XCTAssertEqual(gtk_widget_get_opacity(child), 1.0, accuracy: 0.01)
+    }
+
     // MARK: - Toggle style modifier rendering
 
     func testToggleStyleCheckboxRendersCheckButton() throws {
@@ -144,6 +163,12 @@ final class GTK4StyleTests: XCTestCase {
 }
 
 // MARK: - Helpers
+
+private struct PressedOpacityButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.5 : 1)
+    }
+}
 
 private func requireGTK(
     file: StaticString = #filePath,

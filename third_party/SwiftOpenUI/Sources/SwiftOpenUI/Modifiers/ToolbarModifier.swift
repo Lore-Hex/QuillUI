@@ -154,11 +154,14 @@ public struct AnyToolbarItem {
         self.wrapped = item.content
         if let multi = item.content as? MultiChildView {
             self.renderedViews = multi.children
-        } else if Content.Body.self != Never.self,
-                  let multi = item.content.body as? MultiChildView {
-            self.renderedViews = multi.children
         } else if Content.Body.self != Never.self {
-            self.renderedViews = [item.content.body]
+                  // body is @MainActor (#513); toolbar erasure runs on the GTK main loop.
+                  let body = MainActor.assumeIsolated { item.content.body }
+                  if let multi = body as? MultiChildView {
+            self.renderedViews = multi.children
+        } else {
+            self.renderedViews = [body]
+        }
         } else {
             self.renderedViews = [item.content]
         }

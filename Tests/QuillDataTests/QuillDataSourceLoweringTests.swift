@@ -1167,7 +1167,12 @@ struct QuillDataSourceLoweringTests {
         #expect(fullSourceCheck.contains("import QuillShims"))
         #expect(!fullSourceCheck.contains("_ = QuillChatUnreachableBanner {"))
         #expect(!fullSourceCheck.contains("QuillDesktopChatConversationSidebar("))
-        #expect(fullSourceCheck.contains("Settings()\n        }"))
+        // The full-source check references the Settings scene to prove the
+        // generated app exposes it. The structural form evolved — `_ = Settings()`
+        // is now followed by an `_ = SettingsView(...)` reference rather than the
+        // body's closing brace — so assert the meaningful symbol reference instead
+        // of the old adjacency to `}`.
+        #expect(fullSourceCheck.contains("_ = Settings()"))
 
         let unreachableEmptyFiles = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
@@ -2671,7 +2676,11 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
 
         let patchedDescriptorTree = try String(contentsOf: descriptorTree, encoding: .utf8)
-        #expect(patchedDescriptorTree.contains("GTK Button action closures capture the view state storage"))
+        // The button-action-capture rationale comment was reworded into the
+        // richer reuse explanation; assert the current single-line wording. The
+        // behavior assertions below (kind == .button / props == .none) still
+        // pin the actual contract.
+        #expect(patchedDescriptorTree.contains("closure captured at widget creation writes to the same @State"))
         #expect(patchedDescriptorTree.contains("if plan.newDescriptor.kind == .button"))
         // Props-bearing childless composites (TextField & co.) compare
         // meaningfully and stay narrow-eligible on reuse.
@@ -2755,7 +2764,10 @@ struct QuillDataSourceLoweringTests {
 
         let patchedToolbar = try String(contentsOf: toolbar, encoding: .utf8)
         #expect(patchedToolbar.contains("public let renderedViews: [any View]"))
-        #expect(patchedToolbar.contains("item.content.body as? MultiChildView"))
+        // Body access hops via assumeIsolated since View.body went @MainActor
+        // (#513); the MultiChildView fan-out happens on the hopped value.
+        #expect(patchedToolbar.contains("MainActor.assumeIsolated { item.content.body }"))
+        #expect(patchedToolbar.contains("body as? MultiChildView"))
 
         let patchedLayout = try String(contentsOf: layout, encoding: .utf8)
         #expect(patchedLayout.contains("expandsToFillWidth && width == nil ? maxWidth"))

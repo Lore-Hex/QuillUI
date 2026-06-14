@@ -6,9 +6,14 @@ struct SourceHygieneTests {
     @Test("Repository does not track local smoke-test artifacts")
     func repositoryDoesNotTrackLocalSmokeTestArtifacts() throws {
         let root = try packageRoot()
+        // `-c safe.directory=…`: CI runs tests as a different user than the one
+        // that owns the checkout (root-owned container vs the runner user), so a
+        // bare `git` aborts with "detected dubious ownership" (exit 128). Scope
+        // the exception to this invocation rather than mutating global git config
+        // (and without touching linux-ci.yml, whose contents other tests assert on).
         let result = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
-            arguments: ["git", "-C", root.path, "ls-files"]
+            arguments: ["git", "-c", "safe.directory=*", "-C", root.path, "ls-files"]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
 
@@ -93,7 +98,7 @@ struct SourceHygieneTests {
         // Signal upstream is present (Track B), so non-Signal builds don't get an
         // unused-dependency warning. See Package.swift `if signalUpstreamPresent`.
         #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
-        #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
+        #expect(manifest.contains("cSQLiteTarget,\n        cCairoTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
@@ -322,6 +327,7 @@ struct SourceHygieneTests {
             "scripts/linux-backend-profile.sh",
             "scripts/linux-backend-visual-check.sh",
             "scripts/linux-backend-interaction-check.sh",
+            "scripts/linux-solderscope-smoke-check.sh",
         ]
 
         for relativePath in guardedScripts {
@@ -598,7 +604,9 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"], path: \"Sources/AVFoundation\")"))
+        // V4L2 (#515): the capture backend's CV4L2 system library joins the
+        // dependency list Linux-only via quillV4L2Dependencies.
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
     }
 
@@ -632,6 +640,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUI/UpstreamCompatibility.swift"),
             encoding: .utf8
         )
+        let swiftOpenUIControlStyles = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains("name: \"QuillSwiftUICompatibility\""))
         #expect(manifest.contains("\"QuillFoundation\",\n    \"QuillSwiftUICompatibility\","))
@@ -646,19 +658,20 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let wrappingHStackSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk"))
         #expect(manifest.contains("swiftSettings: wrappingHStackSwiftSettings,\n        linkerSettings: wrappingHStackLinkerSettings"))
         #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
-        #expect(manifest.contains("? [\"Observation\", swiftUIShimBackendDependency] : []"))
+        #expect(manifest.contains("quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [\"QuillAppKitQt\", \"Observation\", swiftUIShimBackendDependency] : []"))
         #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"Observation\",\n                    \"CQtBridge\""))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))
         #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
-        #expect(designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
+        #expect(swiftOpenUIControlStyles.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(designCompatibility.contains("public struct KeyboardTypeView<Content: View, Keyboard>: View"))
         #expect(swiftUIPlatformSurface.contains("func keyboardType(_ type: UIKeyboardType) -> KeyboardTypeView<Self, UIKeyboardType>"))
         #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))
         #expect(!iceCubesShims.contains("public struct AppStorage<Value>"))
         #expect(!quillUpstreamCompatibility.contains("public struct PlainButtonStyle"))
+        #expect(!designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(!quillUpstreamCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(!quillUpstreamCompatibility.contains("public struct KeyboardTypeView<Content: View>"))
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
@@ -2452,6 +2465,9 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("warm_wordmark_pixel"))
         #expect(screenshotVerifier.contains("Mac-reference wordmark lost its blue-to-red color range"))
         #expect(screenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
+        #expect(screenshotVerifier.contains("validate_quill_solderscope_launch"))
+        #expect(screenshotVerifier.contains("product == \"quill-solderscope-launch\""))
+        #expect(screenshotVerifier.contains("SolderScope dark toolbar pixels were not detected near the top"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
@@ -2575,6 +2591,7 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
+        #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))

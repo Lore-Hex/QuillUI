@@ -105,6 +105,7 @@ final class GTK4AnimationTests: XCTestCase {
 
     // MARK: - Descriptor conformance
 
+    @MainActor
     func testOpacityViewDescriptor() throws {
         try requireGTK()
 
@@ -122,6 +123,7 @@ final class GTK4AnimationTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testOffsetViewDescriptor() throws {
         try requireGTK()
 
@@ -139,6 +141,7 @@ final class GTK4AnimationTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testScaleEffectViewDescriptor() throws {
         try requireGTK()
 
@@ -156,6 +159,7 @@ final class GTK4AnimationTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testRotationViewDescriptor() throws {
         try requireGTK()
 
@@ -172,6 +176,7 @@ final class GTK4AnimationTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testAnimatedViewDescriptor() throws {
         try requireGTK()
 
@@ -190,6 +195,7 @@ final class GTK4AnimationTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testAnimatedViewDescriptorNilAnimation() throws {
         try requireGTK()
 
@@ -201,6 +207,7 @@ final class GTK4AnimationTests: XCTestCase {
         XCTAssertEqual(node.props, .none)
     }
 
+    @MainActor
     func testAnimatedViewDescriptorDistinguishesCurves() throws {
         try requireGTK()
 

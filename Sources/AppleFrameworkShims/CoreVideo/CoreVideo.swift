@@ -24,6 +24,20 @@ public final class CVImageBuffer: @unchecked Sendable {
             body(buffer.baseAddress)
         }
     }
+
+    /// Safe scoped read access for bridges (CoreImage's CIImage(cvPixelBuffer:)
+    /// path and, eventually, encoders). Keeps `storage` private while letting
+    /// other shims copy frame bytes without the escaping-pointer hazards of
+    /// the C-style accessor functions.
+    public func quillWithReadOnlyBytes<R>(_ body: (UnsafeRawBufferPointer) -> R) -> R {
+        storage.withUnsafeBytes(body)
+    }
+
+    /// Mutable scoped access — the V4L2 capture path (#515) writes converted
+    /// BGRA frames through this.
+    public func quillWithMutableBytes<R>(_ body: (UnsafeMutableRawBufferPointer) -> R) -> R {
+        storage.withUnsafeMutableBytes(body)
+    }
 }
 
 /// Apple's CoreVideo models CVPixelBuffer as a typealias of CVImageBuffer;
@@ -70,6 +84,8 @@ public struct CVPixelBufferLockFlags: OptionSet, Sendable {
     public init(rawValue: UInt64) {
         self.rawValue = rawValue
     }
+
+    public static let readOnly = CVPixelBufferLockFlags(rawValue: 1 << 0)
 }
 
 public func CGMainDisplayID() -> UInt32 {
@@ -156,6 +172,10 @@ public func CVPixelBufferGetBytesPerRow(_ pixelBuffer: CVPixelBuffer) -> Int {
 
 public func CVPixelBufferGetPixelFormatType(_ pixelBuffer: CVPixelBuffer) -> OSType {
     pixelBuffer.pixelFormatType
+}
+
+public func CVPixelBufferGetDataSize(_ pixelBuffer: CVPixelBuffer) -> Int {
+    CVPixelBufferGetBytesPerRow(pixelBuffer) * pixelBuffer.height
 }
 
 public func CVPixelBufferGetWidth(_ pixelBuffer: CVPixelBuffer) -> Int {

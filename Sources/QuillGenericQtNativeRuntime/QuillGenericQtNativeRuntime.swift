@@ -1648,6 +1648,50 @@ public enum QuillGenericQtAppCatalog {
             .init(title: "Playlist", body: "Playlist rows keep titles, durations, codecs, and selected-state detail easy to compare.")
         ]
     )
+
+    public static let solderScope = QuillGenericQtAppSnapshot(
+        windowTitle: "SolderScope",
+        minimumWidth: 960,
+        minimumHeight: 600,
+        defaultWidth: 1280,
+        defaultHeight: 720,
+        sidebarTitle: "SolderScope",
+        sidebarSubtitle: "USB microscope viewer",
+        primaryActionTitle: "Snapshot",
+        secondaryActionTitle: "Record",
+        listTitle: "Cameras",
+        status: "No camera connected",
+        selectedIndex: 0,
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(),
+        detailTitle: "Viewport",
+        detailSubtitle: "Live microscope viewport with zoom, calibration, and capture controls.",
+        items: [
+            .init(
+                title: "USB 2.0 Camera",
+                subtitle: "1600x1200 YUYV",
+                badge: "25 fps",
+                detailSubtitle: "Live viewport with the floating tool pill (zoom, scale bar, flip, rotate).",
+                sections: [
+                    .init(title: "View controls", body: "Zoom 1-8x, flip horizontal/vertical, rotate in 90-degree steps; the status HUD keeps FPS, resolution, and zoom visible."),
+                    .init(title: "Capture", body: "Snapshot writes PNG; recording encodes H.264 into .mov via the AVAssetWriter surface.")
+                ]
+            ),
+            .init(
+                title: "No camera",
+                subtitle: "Connect a USB microscope to begin",
+                badge: "idle",
+                detailSubtitle: "Empty state matching the GTK and macOS renders.",
+                sections: [
+                    .init(title: "Discovery", body: "Cameras enumerate from /dev/video*; YUYV-capable devices negotiate automatically on start."),
+                    .init(title: "Calibration", body: "Draw a line over a feature of known length to set microns-per-pixel; the scale bar tracks zoom.")
+                ]
+            )
+        ],
+        sections: [
+            .init(title: "Toolbar", body: "A floating pill keeps camera picker, zoom, scale bar, flip/rotate, pause, snapshot, and record in one row."),
+            .init(title: "Status", body: "FPS, capture resolution, and zoom factor stay pinned to the lower-right corner of the viewport.")
+        ]
+    )
 }
 
 public enum QuillGenericQtNativeApp {

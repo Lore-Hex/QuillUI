@@ -2235,6 +2235,14 @@ for name in "${want[@]}"; do
             ;;
         netnewswire)
             fetch_repo netnewswire https://github.com/Ranchero-Software/NetNewsWire.git
+            # PINNED to NNW main as of 2026-06-08: the Linux Account/Shared
+            # module train (merged 2026-06-09) compiles against this tree;
+            # upstream HEAD has since drifted its RSDatabase wrapper API
+            # (DatabaseResult lost tableExists/executeStatements/...), which
+            # turned the Linux CI lane red. Advance the pin together with
+            # the slice, not implicitly via HEAD-tracking fetches.
+            git -C "$UPSTREAM_DIR/netnewswire" fetch --depth=1 origin 7fc1e65308583fb014818c342ecbb1560e8461db
+            git -C "$UPSTREAM_DIR/netnewswire" reset --hard 7fc1e65308583fb014818c342ecbb1560e8461db
             patch_netnewswire
             ;;
         wireguard)

@@ -1,5 +1,5 @@
 import Foundation
-import Account
+import NNWAccount  // NNW's Account target (bare "Account" is the IceCubes lane)
 import RSCore
 
 extension RSImage {

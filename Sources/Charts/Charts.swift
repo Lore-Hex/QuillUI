@@ -89,7 +89,13 @@ public extension LineMark {
     }
 }
 
-public extension Chart {
+// On Apple's Swift Charts these modifiers are declared on `View`, not on the
+// `Chart` value, so they work anywhere in a chart-modifier chain (after the
+// first modifier the chain type is `some View`, not `Chart`). Declaring them on
+// `Chart` only made vendored real source fail with "value of type 'some View'
+// has no member 'chartXSelection'" (IceCubes AccountMetricsComponents). `Chart`
+// conforms to `View`, so these still apply to a `Chart` directly.
+public extension View {
     func chartLegend(_ visibility: Visibility) -> Self {
         _ = visibility
         return self
@@ -187,4 +193,46 @@ public extension View {
 public struct ChartSymbolShape: Sendable {
     public init() {}
     public static let circle = ChartSymbolShape()
+}
+
+// MARK: - ChartContent
+
+/// Apple's Swift Charts `ChartContent` protocol. Vendored real source uses it
+/// for `@ChartContentBuilder`-built properties (e.g. IceCubes
+/// `AccountMetricsComponents.selectedRuleMark: some ChartContent`). It refines
+/// `View` so that a value typed `some ChartContent` still satisfies the `View`
+/// requirement of a `Chart { … }` `@ViewBuilder` content closure (an opaque
+/// `some ChartContent` would otherwise erase the underlying `View` conformance,
+/// breaking `ViewBuilder.buildPartialBlock`).
+public protocol ChartContent: View {}
+
+/// Type-erased terminal for `@ChartContentBuilder`.
+public struct AnyChartContent: ChartContent {
+    public init() {}
+    public var body: some View { EmptyView() }
+}
+
+extension BarMark: ChartContent {}
+extension LineMark: ChartContent {}
+extension PointMark: ChartContent {}
+extension AreaMark: ChartContent {}
+extension RuleMark: ChartContent {}
+extension RectangleMark: ChartContent {}
+extension SectorMark: ChartContent {}
+
+@resultBuilder
+public enum ChartContentBuilder {
+    // Marks and ForEach-of-marks arrive as `View`s; collapse the whole block to
+    // a single type-erased terminal (rendering is inert in the shim).
+    public static func buildExpression<V: View>(_ expression: V) -> AnyChartContent {
+        _ = expression
+        return AnyChartContent()
+    }
+    public static func buildExpression(_ expression: AnyChartContent) -> AnyChartContent { expression }
+    public static func buildBlock(_ components: AnyChartContent...) -> AnyChartContent { AnyChartContent() }
+    public static func buildOptional(_ component: AnyChartContent?) -> AnyChartContent { AnyChartContent() }
+    public static func buildEither(first: AnyChartContent) -> AnyChartContent { first }
+    public static func buildEither(second: AnyChartContent) -> AnyChartContent { second }
+    public static func buildArray(_ components: [AnyChartContent]) -> AnyChartContent { AnyChartContent() }
+    public static func buildLimitedAvailability(_ component: AnyChartContent) -> AnyChartContent { component }
 }

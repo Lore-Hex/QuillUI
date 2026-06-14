@@ -175,6 +175,12 @@ public final class CMFormatDescription: @unchecked Sendable {
 
 public typealias CMVideoFormatDescription = CMFormatDescription
 public typealias CMAudioFormatDescription = CMFormatDescription
+
+/// Four-char media subtype (the codec/pixel-format code). Derived from the
+/// description's codecType when set; 0 otherwise.
+public func CMFormatDescriptionGetMediaSubType(_ desc: CMFormatDescription) -> FourCharCode {
+    desc.codecType ?? 0
+}
 public typealias CMAttachmentMode = UInt32
 
 public final class CMClock: @unchecked Sendable {

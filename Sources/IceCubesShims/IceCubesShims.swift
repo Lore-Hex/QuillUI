@@ -101,6 +101,56 @@ public extension AttributedString {
     }
 }
 
+// `@AppStorage` for the vendored IceCubes targets, backed by SwiftOpenUI's
+// StateStorage/Binding (UserDefaults-persisted). IceCubes-scoped (not the
+// shared QuillUI AppStorage) so it resolves via -import-module without the
+// SwiftUI shim having to `@_exported import QuillUI`.
+public protocol IceCubesAppStorageValue {
+    static func readAppStorageValue(forKey key: String) -> Self?
+    static func writeAppStorageValue(_ value: Self, forKey key: String)
+}
+extension String: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> String? { UserDefaults.standard.string(forKey: key) }
+    public static func writeAppStorageValue(_ value: String, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension Bool: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Bool? { UserDefaults.standard.object(forKey: key) != nil ? UserDefaults.standard.bool(forKey: key) : nil }
+    public static func writeAppStorageValue(_ value: Bool, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension Int: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Int? { UserDefaults.standard.object(forKey: key) != nil ? UserDefaults.standard.integer(forKey: key) : nil }
+    public static func writeAppStorageValue(_ value: Int, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension Double: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Double? { UserDefaults.standard.object(forKey: key) != nil ? UserDefaults.standard.double(forKey: key) : nil }
+    public static func writeAppStorageValue(_ value: Double, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension Data: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Data? { UserDefaults.standard.data(forKey: key) }
+    public static func writeAppStorageValue(_ value: Data, forKey key: String) { UserDefaults.standard.set(value, forKey: key) }
+}
+extension Optional: IceCubesAppStorageValue where Wrapped: IceCubesAppStorageValue {
+    public static func readAppStorageValue(forKey key: String) -> Optional<Wrapped>? {
+        Wrapped.readAppStorageValue(forKey: key)
+    }
+    public static func writeAppStorageValue(_ value: Optional<Wrapped>, forKey key: String) {
+        guard let wrapped = value else {
+            UserDefaults.standard.removeObject(forKey: key)
+            return
+        }
+        Wrapped.writeAppStorageValue(wrapped, forKey: key)
+    }
+}
+// NOTE: IceCubesShims used to carry its own `AppStorage` property wrapper.
+// QuillSwiftUICompatibility (re-exported through the SwiftUI shadow) now
+// declares the canonical one, and two same-named types made every
+// vendored-IceCubes `@AppStorage` ambiguous (type-lookup ambiguity can't
+// be solved with @_disfavoredOverload). The conformer sets are identical
+// (String/Bool/Int/Double/Data/Optional + RawRepresentable), so the
+// canonical wrapper serves the vendored sources directly. The
+// IceCubesAppStorageValue protocol above stays for SceneStorage and
+// friends.
+
 // Linux replacements for IceCubes' SwiftData models that are excluded from the
 // vendored Models target. Keep these shapes aligned with upstream stored
 // properties so Query/FetchDescriptor/ModelContext can use QuillData.
@@ -214,20 +264,6 @@ public final class RecentTag: PersistentModel, Equatable, Identifiable {
 
     public static func == (lhs: RecentTag, rhs: RecentTag) -> Bool {
         lhs.id == rhs.id
-    }
-}
-
-// Pre-iOS-15 value-form `.mask(SomeView())`. IceCubes' DisplaySettingsView uses
-// it for a gradient fade. Lives here (icecubes-only, force-imported via
-// `-import-module IceCubesShims`) rather than in the shared SwiftUI shim so it
-// does NOT collide with QuillUI's own value-form `mask` for generated apps that
-// import both modules (e.g. quill-chat) — that collision is an ambiguous-use
-// error. Layout-neutral pass-through, matching the shim's closure-form `mask`.
-public extension View {
-    @_disfavoredOverload
-    func mask<Mask: View>(_ mask: Mask) -> Self {
-        _ = mask
-        return self
     }
 }
 #endif

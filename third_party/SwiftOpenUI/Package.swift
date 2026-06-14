@@ -114,6 +114,7 @@ targets += [
     .systemLibrary(
         name: "CGTK",
         path: "Sources/Backend/GTK4/CGTK",
+        pkgConfig: "gtk4",
         providers: [.apt(["libgtk-4-dev"])]
     ),
     .target(

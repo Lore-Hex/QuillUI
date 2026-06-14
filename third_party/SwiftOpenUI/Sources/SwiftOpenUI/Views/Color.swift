@@ -1,8 +1,10 @@
+import Foundation
+
 /// A color value for use with `.foregroundColor()`, `.background()`, `.border()`.
 ///
 /// Supports hex strings, RGB/RGBA components, fractional components,
 /// and an `.opacity()` modifier.
-public struct Color: Equatable, Sendable, View, PrimitiveView {
+public struct Color: Equatable, Sendable {
     public typealias Body = Never
 
     /// Red component (0.0–1.0).
@@ -100,8 +102,19 @@ public struct Color: Equatable, Sendable, View, PrimitiveView {
     public static let teal = Color(red: 0.188, green: 0.690, blue: 0.780)
     public static let indigo = Color(red: 0.345, green: 0.337, blue: 0.839)
 
-    public static let primary = Color.black
-    public static let secondary = Color.gray
+    /// Process-wide scheme for semantic colors. QuillOS sets
+    /// QUILLUI_COLOR_SCHEME=dark for apps whose macOS appearance is dark
+    /// (video/imaging tools like SolderScope); defaults to light, matching
+    /// the historical hardcoded values.
+    public static let quillPrefersDarkScheme: Bool =
+        ProcessInfo.processInfo.environment["QUILLUI_COLOR_SCHEME"]?.lowercased() == "dark"
+
+    public static var primary: Color {
+        quillPrefersDarkScheme ? Color(red: 1.0, green: 1.0, blue: 1.0) : .black
+    }
+    public static var secondary: Color {
+        quillPrefersDarkScheme ? Color(red: 0.682, green: 0.682, blue: 0.698) : .gray
+    }
 
     // MARK: - Helpers
 
@@ -120,3 +133,10 @@ public struct Color: Equatable, Sendable, View, PrimitiveView {
     private static func clamp01(_ v: Double) -> Double { min(max(v, 0), 1) }
     private static func clamp255(_ v: Int) -> Int { min(max(v, 0), 255) }
 }
+
+// View conformance lives in an extension (Apple declares it the same
+// way for primitive value views): protocol-isolation inference applies
+// only to conformances declared on the type itself, so statics like
+// Color.accentColor stay nonisolated and remain usable as default
+// argument values in nonisolated app code (IceCubes ToastCenter).
+extension Color: View, PrimitiveView {}

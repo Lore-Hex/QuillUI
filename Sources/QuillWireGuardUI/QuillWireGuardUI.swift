@@ -14,6 +14,9 @@ public enum QuillWireGuardScene {
     public static let minimumWidth = QuillWireGuardAppMetadata.linuxMinimumWidth
     public static let minimumHeight = QuillWireGuardAppMetadata.linuxMinimumHeight
 
+    // @MainActor: QuillAppWindow.scene is isolated (Scene is whole-protocol
+    // @MainActor, #512/#513); callers are App.body builders, already isolated.
+    @MainActor
     public static func scene() -> some Scene {
         QuillAppWindow.scene(
             title,

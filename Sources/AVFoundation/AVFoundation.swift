@@ -233,8 +233,11 @@ public extension Notification.Name {
 public final class AVCaptureDevice: @unchecked Sendable {
     public final class Format: @unchecked Sendable {
         public let formatDescription: CMFormatDescription
-        public init(formatDescription: CMFormatDescription = CMFormatDescription()) {
+        public var videoSupportedFrameRateRanges: [AVFrameRateRange]
+        public init(formatDescription: CMFormatDescription = CMFormatDescription(),
+                    videoSupportedFrameRateRanges: [AVFrameRateRange] = []) {
             self.formatDescription = formatDescription
+            self.videoSupportedFrameRateRanges = videoSupportedFrameRateRanges
         }
     }
 
@@ -243,10 +246,27 @@ public final class AVCaptureDevice: @unchecked Sendable {
         public init(rawValue: String) { self.rawValue = rawValue }
         public init(stringLiteral value: String) { self.rawValue = value }
         public static let builtInWideAngleCamera = DeviceType(rawValue: "wide")
+        public static let external = DeviceType(rawValue: "external")
+        public static let continuityCamera = DeviceType(rawValue: "continuityCamera")
+        public static let microphone = DeviceType(rawValue: "microphone")
     }
 
     public enum Position: Int, Sendable { case unspecified, back, front }
+
+    // Identity + capabilities. Inert defaults until the V4L2 backend (#515)
+    // constructs devices from /dev/video* enumeration.
+    public var uniqueID: String = ""
+    public var localizedName: String = ""
+    public var deviceType: DeviceType = .builtInWideAngleCamera
+    public var formats: [Format] = []
     public var activeFormat: Format = Format()
+    public var activeVideoMinFrameDuration: CMTime = CMTime(value: 1, timescale: 30)
+    public var activeVideoMaxFrameDuration: CMTime = CMTime(value: 1, timescale: 30)
+
+    public init() {}
+
+    public func lockForConfiguration() throws {}
+    public func unlockForConfiguration() {}
 
     public static func `default`(for mediaType: AVMediaType) -> AVCaptureDevice? {
         _ = mediaType
@@ -256,6 +276,52 @@ public final class AVCaptureDevice: @unchecked Sendable {
     public static func `default`(_ deviceType: DeviceType, for mediaType: AVMediaType?, position: Position) -> AVCaptureDevice? {
         _ = (deviceType, mediaType, position)
         return nil
+    }
+
+    public static func authorizationStatus(for mediaType: AVMediaType) -> AVAuthorizationStatus {
+        _ = mediaType
+        return .authorized
+    }
+
+    public static func requestAccess(for mediaType: AVMediaType,
+                                     completionHandler: @escaping (Bool) -> Void) {
+        _ = mediaType
+        completionHandler(true)
+    }
+
+    public static func requestAccess(for mediaType: AVMediaType) async -> Bool {
+        _ = mediaType
+        return true
+    }
+
+    /// Device discovery, backed on Linux by the V4L2 backend (#515):
+    /// /dev/video* nodes that report VIDEO_CAPTURE+STREAMING, with their
+    /// node path as `uniqueID` (the marker the session bridge keys on).
+    /// Empty when the CV4L2 shim isn't built or no camera is attached.
+    public final class DiscoverySession: @unchecked Sendable {
+        public let devices: [AVCaptureDevice]
+        public init(deviceTypes: [DeviceType], mediaType: AVMediaType?, position: Position) {
+            _ = (deviceTypes, mediaType, position)
+            self.devices = AVCaptureDevice.quillV4L2DiscoveredDevices()
+        }
+    }
+}
+
+public enum AVAuthorizationStatus: Int, Sendable {
+    case notDetermined = 0, restricted = 1, denied = 2, authorized = 3
+}
+
+public final class AVFrameRateRange: @unchecked Sendable {
+    public let minFrameRate: Float64
+    public let maxFrameRate: Float64
+    public let minFrameDuration: CMTime
+    public let maxFrameDuration: CMTime
+    public init(minFrameRate: Float64 = 1, maxFrameRate: Float64 = 30,
+                minFrameDuration: CMTime = CMTime(value: 1, timescale: 30), maxFrameDuration: CMTime = CMTime(value: 1, timescale: 1)) {
+        self.minFrameRate = minFrameRate
+        self.maxFrameRate = maxFrameRate
+        self.minFrameDuration = minFrameDuration
+        self.maxFrameDuration = maxFrameDuration
     }
 }
 

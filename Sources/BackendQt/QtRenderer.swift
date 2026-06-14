@@ -106,6 +106,14 @@ public func qtRenderView<V: View>(_ view: V) -> OpaquePointer {
 
     // Stateless composite view — recurse through body.
     return qtRenderView(view.body)
+    // Stateless composite view — recurse through body. SwiftOpenUI's body is
+    // @MainActor; the Qt renderer runs on the Qt GUI thread, so assume the
+    // isolation that is true by construction.
+    nonisolated(unsafe) var rendered: OpaquePointer?
+    MainActor.assumeIsolated {
+        rendered = qtRenderView(view.body)
+    }
+    return rendered!
 }
 
 // MARK: - onChange Qt extensions (mirror of the GTK pair)
@@ -158,7 +166,13 @@ func qtRenderExpandedChildren(_ children: [any View]) -> [OpaquePointer] {
 
 /// Wrap a reactive composite view in a QtViewHost and return its container.
 func qtRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
-    let host = QtViewHost { qtRenderView(view.body) }
+    let host = QtViewHost {
+        nonisolated(unsafe) var rendered: OpaquePointer?
+        MainActor.assumeIsolated {
+            rendered = qtRenderView(view.body)
+        }
+        return rendered!
+    }
     installState(view, host: host)
     host.performInitialBuild()
     return host.container

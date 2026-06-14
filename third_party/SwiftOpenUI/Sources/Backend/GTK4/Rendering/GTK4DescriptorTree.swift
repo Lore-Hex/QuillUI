@@ -492,6 +492,9 @@ public struct GTK4HookResult: Equatable {
 // MARK: - Describe protocol
 
 /// Protocol for GTK4 views that can produce a descriptor without creating widgets.
+/// @MainActor: same reasoning as GTKRenderable — witnesses are members of
+/// main-actor-isolated View types; describe passes run on the GTK main loop.
+@MainActor
 public protocol GTKDescribable {
     func gtkDescribeNode() -> GTK4DescriptorNode
 }
@@ -507,6 +510,48 @@ private var gtkDescriptorPayloadCollectorKey: pthread_key_t = {
     pthread_key_create(&key, nil)
     return key
 }()
+
+private let gtkDescribeCycleCaptureDepth = 200
+private let gtkDescribeCycleFatalDepth = 256
+private let gtkDescribeCycleRingCapacity = 8
+
+nonisolated(unsafe) private var gtkDescribeDepth = 0
+nonisolated(unsafe) private var gtkDescribeCycleTypeRing: [String] = []
+nonisolated(unsafe) private var gtkDescribeCycleTypeRingCursor = 0
+nonisolated(unsafe) var gtkDescribeDepthLimitExceededHandler: (([String]) -> Void)?
+
+private func gtkDescribeRecordTypeName(_ typeName: String, at depth: Int) {
+    if depth == gtkDescribeCycleCaptureDepth + 1 {
+        gtkDescribeCycleTypeRing.removeAll(keepingCapacity: true)
+        gtkDescribeCycleTypeRingCursor = 0
+    }
+
+    if gtkDescribeCycleTypeRing.count < gtkDescribeCycleRingCapacity {
+        gtkDescribeCycleTypeRing.append(typeName)
+    } else {
+        gtkDescribeCycleTypeRing[gtkDescribeCycleTypeRingCursor] = typeName
+    }
+    gtkDescribeCycleTypeRingCursor = (gtkDescribeCycleTypeRingCursor + 1) % gtkDescribeCycleRingCapacity
+}
+
+private func gtkDescribeRecentTypeNames() -> [String] {
+    let count = gtkDescribeCycleTypeRing.count
+    guard count == gtkDescribeCycleRingCapacity else {
+        return gtkDescribeCycleTypeRing
+    }
+    return (0..<count).map { offset in
+        gtkDescribeCycleTypeRing[(gtkDescribeCycleTypeRingCursor + offset) % count]
+    }
+}
+
+private func gtkDescribeCycleExceeded(_ typeNames: [String]) -> GTK4DescriptorNode {
+    if let handler = gtkDescribeDepthLimitExceededHandler {
+        handler(typeNames)
+        return GTK4DescriptorNode(kind: .composite, typeName: "gtkDescribeView cycle")
+    }
+
+    fatalError("gtkDescribeView cycle: \(typeNames.joined(separator: " -> "))")
+}
 
 public func gtkCollectCanvasPayload(_ payload: GTK4CanvasPayload) {
     guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
@@ -546,8 +591,19 @@ public func gtkDescribeCapturingCanvasPayloads(
 
 /// Build a GTK4-local descriptor tree without creating widgets.
 public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
+    gtkDescribeDepth += 1
+    let depth = gtkDescribeDepth
+    defer { gtkDescribeDepth -= 1 }
+
+    if depth > gtkDescribeCycleCaptureDepth {
+        gtkDescribeRecordTypeName(String(describing: type(of: view)), at: depth)
+        if depth > gtkDescribeCycleFatalDepth {
+            return gtkDescribeCycleExceeded(gtkDescribeRecentTypeNames())
+        }
+    }
+
     if let describable = view as? GTKDescribable {
-        return describable.gtkDescribeNode()
+        return MainActor.assumeIsolated { describable.gtkDescribeNode() }
     }
     if let multi = view as? MultiChildView {
         return GTK4DescriptorNode(
@@ -557,7 +613,9 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
         )
     }
     if V.Body.self != Never.self {
-        return gtkDescribeAnyView(view.body)
+        // View.body is @MainActor (Apple semantics); description passes run
+        // on the GTK main loop == the main thread.
+        return MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
     }
     // Generic describe-through for single-content wrappers (font/style/line
     // modifiers and similar): a Body=Never primitive whose only stored View
@@ -842,19 +900,10 @@ public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
         // destroyed mid-typing. A button whose own props changed plans as
         // .update (intent .none) and still takes the full rebuild.
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            // Props-bearing leaves (TextField & co.) compare meaningfully:
-            // identical descriptors mean nothing changed, and the native
-            // widget owns its visible state, so reuse is safe. Only
-            // prop-less childless composites are opaque.
-            if case .none = plan.newDescriptor.props {
-                return false
-            }
+            return false
         }
         return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
     case .update:
-        if plan.newDescriptor.kind == .button {
-            return false
-        }
         guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
                 || plan.updateIntent == .canvasContent
                 || plan.updateIntent == .sliderValue

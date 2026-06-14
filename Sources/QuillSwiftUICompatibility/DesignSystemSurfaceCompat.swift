@@ -562,6 +562,54 @@ public enum ScrollIndicatorVisibility: Sendable {
     case never
 }
 
+public struct ScrollIndicatorsView<Content: View>: View {
+    public let content: Content
+    public let visibility: ScrollIndicatorVisibility
+
+    public init(content: Content, visibility: ScrollIndicatorVisibility) {
+        self.content = content
+        self.visibility = visibility
+    }
+
+    public var body: some View { content }
+}
+
+public struct ScrollContentBackgroundView<Content: View>: View {
+    public let content: Content
+    public let visibility: Visibility
+
+    public init(content: Content, visibility: Visibility) {
+        self.content = content
+        self.visibility = visibility
+    }
+
+    public var body: some View { content }
+}
+
+public struct FocusEffectDisabledView<Content: View>: View {
+    public let content: Content
+    public let disabled: Bool
+
+    public init(content: Content, disabled: Bool) {
+        self.content = content
+        self.disabled = disabled
+    }
+
+    public var body: some View { content }
+}
+
+public struct EdgesIgnoringSafeAreaView<Content: View>: View {
+    public let content: Content
+    public let edges: Edge.Set
+
+    public init(content: Content, edges: Edge.Set) {
+        self.content = content
+        self.edges = edges
+    }
+
+    public var body: some View { content }
+}
+
 public enum ScenePhase: Sendable {
     case active
     case inactive
@@ -993,32 +1041,6 @@ public struct DynamicTypeSize: Hashable, Comparable, Sendable {
     }
 }
 
-public struct ButtonStyleConfiguration {
-    public let label: AnyView
-    public let isPressed: Bool
-
-    public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
-        self.label = label
-        self.isPressed = isPressed
-    }
-}
-
-public protocol ButtonStyle {
-    associatedtype Body: View
-    typealias Configuration = ButtonStyleConfiguration
-
-    @ViewBuilder
-    func makeBody(configuration: Configuration) -> Body
-}
-
-public struct PlainButtonStyle: ButtonStyle {
-    public init() {}
-
-    public func makeBody(configuration: Configuration) -> AnyView {
-        configuration.label
-    }
-}
-
 public struct RoundedBorderTextFieldStyle: Sendable {
     public init() {}
 }
@@ -1081,7 +1103,7 @@ public extension ProposedViewSize {
     }
 }
 
-public struct UnevenRoundedRectangle: Shape {
+public struct UnevenRoundedRectangle: @preconcurrency Shape {
     public typealias Body = Never
     public var topLeadingRadius: CGFloat
     public var bottomLeadingRadius: CGFloat
@@ -1191,22 +1213,24 @@ public struct VStackLayout: Layout {
 public extension Font {
     static func system(
         _ style: Font.TextStyle,
-        weight: Font.Weight = .regular,
-        design: Font.Design = .default
+        design: Font.Design? = nil,
+        weight: Font.Weight? = nil
     ) -> Font {
+        let resolvedWeight = weight ?? .regular
+        let resolvedDesign = design ?? .default
         switch style {
-        case .largeTitle: return .system(size: 34, weight: weight, design: design)
-        case .title: return .system(size: 28, weight: weight, design: design)
-        case .title2: return .system(size: 22, weight: weight, design: design)
-        case .title3: return .system(size: 20, weight: weight, design: design)
-        case .headline: return .system(size: 17, weight: weight, design: design)
-        case .subheadline: return .system(size: 15, weight: weight, design: design)
-        case .body: return .system(size: 17, weight: weight, design: design)
-        case .callout: return .system(size: 16, weight: weight, design: design)
-        case .footnote: return .system(size: 13, weight: weight, design: design)
-        case .caption: return .system(size: 12, weight: weight, design: design)
-        case .caption2: return .system(size: 11, weight: weight, design: design)
-        case .custom(let size, _, _): return .system(size: size, weight: weight, design: design)
+        case .largeTitle: return .system(size: 34, weight: resolvedWeight, design: resolvedDesign)
+        case .title: return .system(size: 28, weight: resolvedWeight, design: resolvedDesign)
+        case .title2: return .system(size: 22, weight: resolvedWeight, design: resolvedDesign)
+        case .title3: return .system(size: 20, weight: resolvedWeight, design: resolvedDesign)
+        case .headline: return .system(size: 17, weight: resolvedWeight, design: resolvedDesign)
+        case .subheadline: return .system(size: 15, weight: resolvedWeight, design: resolvedDesign)
+        case .body: return .system(size: 17, weight: resolvedWeight, design: resolvedDesign)
+        case .callout: return .system(size: 16, weight: resolvedWeight, design: resolvedDesign)
+        case .footnote: return .system(size: 13, weight: resolvedWeight, design: resolvedDesign)
+        case .caption: return .system(size: 12, weight: resolvedWeight, design: resolvedDesign)
+        case .caption2: return .system(size: 11, weight: resolvedWeight, design: resolvedDesign)
+        case .custom(let size, _, _): return .system(size: size, weight: resolvedWeight, design: resolvedDesign)
         }
     }
 
@@ -1338,8 +1362,11 @@ public struct ToolbarTitleMenu<Content: View>: ToolbarContent, ToolbarContentIte
         self.content = content()
     }
 
-    public var toolbarContentItems: [AnyToolbarItem] {
-        [AnyToolbarItem(ToolbarItem(placement: .principal) { content })]
+    nonisolated public var toolbarContentItems: [AnyToolbarItem] {
+        let box = QuillIsolationHopBox(value: content)
+        return MainActor.assumeIsolated {
+            [AnyToolbarItem(ToolbarItem(placement: .principal) { box.value })]
+        }
     }
 
     public var body: Never {
@@ -1505,10 +1532,14 @@ public extension TabBuilder {
         if !tabs.isEmpty {
             return tabs
         }
-        return [AnyTab(Tab("", id: "tab-\(String(reflecting: V.self))") { view })]
+        let box = QuillIsolationHopBox(value: view)
+        return MainActor.assumeIsolated {
+            [AnyTab(Tab("", id: "tab-\(String(reflecting: V.self))") { box.value })]
+        }
     }
 }
 
+@MainActor // witnesses are members of isolated View types
 fileprivate protocol QuillTabCollectible {
     var quillCollectedTabs: [AnyTab] { get }
 }
@@ -1519,7 +1550,9 @@ fileprivate func quillCollectTabs<V: View>(from view: V) -> [AnyTab] {
 
 fileprivate func quillCollectTabs(fromAny view: any View) -> [AnyTab] {
     if let tabSource = view as? any QuillTabCollectible {
-        return tabSource.quillCollectedTabs
+        // Witnesses are isolated (View whole-protocol); collection runs on
+        // the backend main loop == main thread.
+        return MainActor.assumeIsolated { tabSource.quillCollectedTabs }
     }
     if let multi = view as? any MultiChildView {
         return multi.children.flatMap(quillCollectTabs(fromAny:))
@@ -1607,6 +1640,54 @@ public struct TextInputAutocapitalization: Hashable, Sendable {
     public init(_ rawValue: String) { self.rawValue = rawValue }
     public static let never = TextInputAutocapitalization("never")
     public static let none = TextInputAutocapitalization("none")
+}
+
+public struct TextContentTypeView<Content: View>: View {
+    public let content: Content
+    public let contentType: TextContentType?
+
+    public init(content: Content, contentType: TextContentType?) {
+        self.content = content
+        self.contentType = contentType
+    }
+
+    public var body: some View { content }
+}
+
+public struct AutocorrectionDisabledView<Content: View>: View {
+    public let content: Content
+    public let disabled: Bool?
+
+    public init(content: Content, disabled: Bool?) {
+        self.content = content
+        self.disabled = disabled
+    }
+
+    public var body: some View { content }
+}
+
+public struct KeyboardTypeView<Content: View>: View {
+    public let content: Content
+    public let keyboardType: KeyboardType
+
+    public init(content: Content, keyboardType: KeyboardType) {
+        self.content = content
+        self.keyboardType = keyboardType
+    }
+
+    public var body: some View { content }
+}
+
+public struct AutocapitalizationView<Content: View>: View {
+    public let content: Content
+    public let autocapitalization: TextInputAutocapitalization
+
+    public init(content: Content, autocapitalization: TextInputAutocapitalization) {
+        self.content = content
+        self.autocapitalization = autocapitalization
+    }
+
+    public var body: some View { content }
 }
 
 public struct TableColumn<RowValue, Content: View>: View {
@@ -1715,13 +1796,6 @@ public struct SharedBackgroundVisibility: Hashable, Sendable {
     public static let hidden = SharedBackgroundVisibility("hidden")
 }
 
-public struct ImageRenderingMode: Hashable, Sendable {
-    public var rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public static let original = ImageRenderingMode("original")
-    public static let template = ImageRenderingMode("template")
-}
-
 public extension View {
     func tabViewStyle(_ style: PageTabViewStyle) -> Self {
         _ = style
@@ -1729,26 +1803,55 @@ public extension View {
     }
 
     @_disfavoredOverload
-    func formStyle(_ style: GroupedFormStyle) -> Self {
-        _ = style
-        return self
+    func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "textContentType",
+            message: "textContentType is preserved as text-input metadata on Linux."
+        )
+        return TextContentTypeView(content: self, contentType: contentType)
     }
 
     @_disfavoredOverload
-    func textContentType(_ contentType: TextContentType?) -> Self {
-        _ = contentType
-        return self
+    func textInputAutocapitalization(_ autocapitalization: TextInputAutocapitalization?) -> AutocapitalizationView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "textInputAutocapitalization",
+            message: "textInputAutocapitalization is preserved as text-input metadata on Linux."
+        )
+        return AutocapitalizationView(content: self, autocapitalization: autocapitalization ?? .none)
+    }
+
+    func autocorrectionDisabled(_ disabled: Bool = true) -> AutocorrectionDisabledView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "autocorrectionDisabled",
+            message: "autocorrectionDisabled is preserved as text-input metadata on Linux."
+        )
+        return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
     @_disfavoredOverload
-    func textInputAutocapitalization(_ autocapitalization: TextInputAutocapitalization?) -> Self {
-        _ = autocapitalization
-        return self
+    func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "disableAutocorrection",
+            message: "disableAutocorrection is preserved as text-input metadata on Linux."
+        )
+        return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
-    func autocorrectionDisabled(_ disabled: Bool = true) -> Self {
-        _ = disabled
-        return self
+    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "keyboardType",
+            message: "keyboardType is preserved as text-input metadata on Linux."
+        )
+        return KeyboardTypeView(content: self, keyboardType: keyboardType)
+    }
+
+    @_disfavoredOverload
+    func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "autocapitalization",
+            message: "autocapitalization is preserved as text-input metadata on Linux."
+        )
+        return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
     }
 
     @_disfavoredOverload
@@ -1792,11 +1895,18 @@ public extension View {
         _ = mask()
         return self
     }
-}
 
-public extension Image {
-    func renderingMode(_ mode: ImageRenderingMode?) -> Image {
-        _ = mode
+    // Value-form `.mask(_:)` (SwiftUI's original signature) — vendored real
+    // source that only sees the SwiftUI shadow (which re-exports
+    // QuillSwiftUICompatibility but NOT QuillUI) passes a mask view directly,
+    // e.g. IceCubes DisplaySettingsView's `.mask(LinearGradient(...))`.
+    // Disfavored so that callers who ALSO see QuillUI (e.g. the compat-module
+    // tests) bind to QuillUI's richer value-form mask (-> ViewMaskView /
+    // ClipShapeView) instead of this Self-returning fallback.
+    @_disfavoredOverload
+    func mask<Mask: View>(alignment: Alignment = .center, _ mask: Mask) -> Self {
+        _ = alignment
+        _ = mask
         return self
     }
 }
@@ -2034,12 +2144,6 @@ public extension View {
         self
     }
 
-    @_disfavoredOverload
-    func buttonStyle<S: ButtonStyle>(_ style: S) -> Self {
-        _ = style
-        return self
-    }
-
     func textFieldStyle(_ style: RoundedBorderTextFieldStyle) -> TextFieldStyleModifier<Self> {
         _ = style
         return textFieldStyle(.roundedBorder)
@@ -2065,10 +2169,12 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
-    func scrollIndicators(_ visibility: Visibility) -> Self {
-        _ = visibility
-        return self
+    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "scrollIndicators",
+            message: "scrollIndicators is preserved as scroll view chrome metadata on Linux."
+        )
+        return ScrollIndicatorsView(content: self, visibility: visibility)
     }
 
     func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = .all) -> Self {
@@ -2079,13 +2185,6 @@ public extension View {
 
     func refreshable(action: @escaping () async -> Void) -> Self {
         _ = action
-        return self
-    }
-
-    @_disfavoredOverload
-    func allowsHitTesting(_ enabled: Bool) -> Self {
-        _ = enabled
-        recordSwiftUICompatibilityFallback("allowsHitTesting")
         return self
     }
 
@@ -2132,25 +2231,13 @@ public extension View {
         return self
     }
 
-    // Disfavored so apps importing BOTH this module and QuillUI (e.g. generated
-    // quill-chat) resolve to QuillUI's real `preferredColorScheme(_:) -> some View`
-    // instead of hitting an ambiguous-overload error. IceCubes-style apps, which
-    // import only this module, still pick this up as the sole candidate.
+    // Disfavored: QuillUI.Compatibility has the FUNCTIONAL overload (it
+    // threads \.colorScheme through the environment). Code that imports
+    // both modules (e.g. the generated Enchanted Linux app) must resolve
+    // to that one; this inert twin only serves DSSC-only importers.
     @_disfavoredOverload
     func preferredColorScheme(_ colorScheme: ColorScheme?) -> Self {
         _ = colorScheme
-        return self
-    }
-
-    @_disfavoredOverload
-    func contentShape<S: Shape>(_ shape: S) -> Self {
-        _ = shape
-        return self
-    }
-
-    @_disfavoredOverload
-    func onHover(perform action: @escaping (Bool) -> Void) -> Self {
-        _ = action
         return self
     }
 
@@ -2248,18 +2335,6 @@ public extension View {
     }
 
     @_disfavoredOverload
-    func textSelection(_ selection: TextSelectability = .enabled) -> Self {
-        _ = selection
-        return self
-    }
-
-    @_disfavoredOverload
-    func minimumScaleFactor(_ factor: Double) -> Self {
-        _ = factor
-        return self
-    }
-
-    @_disfavoredOverload
     func buttonBorderShape(_ shape: ButtonBorderShape) -> Self {
         _ = shape
         return self
@@ -2276,19 +2351,6 @@ public extension View {
     ) -> Self {
         _ = alignment
         _ = computeValue(ViewDimensions())
-        return self
-    }
-
-    @_disfavoredOverload
-    func listRowInsets(_ insets: EdgeInsets?) -> Self {
-        _ = insets
-        return self
-    }
-
-    @_disfavoredOverload
-    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
-        _ = visibility
-        _ = edges
         return self
     }
 
@@ -2370,6 +2432,10 @@ public extension View {
         }
     }
 
+    /// @_disfavoredOverload: SolderScopeChrome ships the FUNCTIONAL variant
+    /// (routes to the real array-based alert modifier); this inert twin only
+    /// applies where that overload cannot.
+    @_disfavoredOverload
     func alert<Actions: View, Message: View>(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -2437,12 +2503,6 @@ public extension View {
 
     func redacted(reason: RedactionReasons) -> Self {
         _ = reason
-        return self
-    }
-
-    func foregroundStyle(_ primary: Color, _ secondary: Color) -> Self {
-        _ = primary
-        _ = secondary
         return self
     }
 
@@ -2524,9 +2584,12 @@ public extension View {
     }
 
     @_disfavoredOverload
-    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
-        _ = visibility
-        return self
+    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> ScrollContentBackgroundView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "scrollContentBackground",
+            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
+        )
+        return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
     func matchedGeometryEffect<ID: Hashable>(
@@ -2601,27 +2664,17 @@ public extension View {
     }
 
     @_disfavoredOverload
-    func focusEffectDisabled(_ disabled: Bool = true) -> Self {
-        _ = disabled
-        return self
+    func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "focusEffectDisabled",
+            message: "focusEffectDisabled is preserved as focus-effect metadata on Linux."
+        )
+        return FocusEffectDisabledView(content: self, disabled: disabled)
     }
 
     func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> Self {
         _ = key
         _ = action
-        return self
-    }
-
-    @_disfavoredOverload
-    func symbolEffect<Value: Equatable>(
-        _ effect: SymbolEffect,
-        options: SymbolEffectOptions = .default,
-        value: Value
-    ) -> Self {
-        _ = effect
-        _ = options
-        _ = value
-        recordSwiftUICompatibilityFallback("symbolEffect")
         return self
     }
 
@@ -2678,9 +2731,21 @@ public extension View {
     }
 
     @_disfavoredOverload
-    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
-        _ = edges
-        return self
+    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "edgesIgnoringSafeArea",
+            message: "edgesIgnoringSafeArea is preserved as safe-area layout metadata on Linux."
+        )
+        return EdgesIgnoringSafeAreaView(content: self, edges: edges)
+    }
+
+    @_disfavoredOverload
+    func ignoresSafeArea(_ edges: Edge.Set = .all) -> SwiftOpenUI.IgnoresSafeAreaView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "ignoresSafeArea",
+            message: "ignoresSafeArea is preserved as safe-area layout metadata on Linux."
+        )
+        return ignoresSafeArea(.all, edges: edges)
     }
 
     func safeAreaBar<Content: View>(
@@ -2771,3 +2836,7 @@ public extension URL {
     func startAccessingSecurityScopedResource() -> Bool { true }
     func stopAccessingSecurityScopedResource() {}
 }
+
+/// Crosses non-Sendable view values into assumeIsolated hops (single
+/// thread: backend main loop). Same pattern as the V4L2 delivery box.
+struct QuillIsolationHopBox<T>: @unchecked Sendable { let value: T }

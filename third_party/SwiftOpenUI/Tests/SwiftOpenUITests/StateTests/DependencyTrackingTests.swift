@@ -12,6 +12,10 @@ private class MockViewHost: AnyViewHost, DependencyTrackingHost {
     func suppressNextFocusRestore() {}
 }
 
+private final class TrackingCounter: SwiftOpenUI.ObservableObject {
+    @SwiftOpenUI.Published var count = 0
+}
+
 final class DependencyTrackingTests: XCTestCase {
 
     // MARK: - Tracking context
@@ -63,10 +67,10 @@ final class DependencyTrackingTests: XCTestCase {
         XCTAssertTrue(tracking!.readSet.contains(ObjectIdentifier(storage)))
     }
 
-    func testPublishedStorageRecordsDependency() {
-        let storage = PublishedStorage("hello")
+    func testObservedObjectStorageRecordsDependency() {
+        let storage = ObservedObjectStorage(TrackingCounter())
         beginDependencyTracking()
-        _ = storage.value
+        _ = storage.access()
         let tracking = endDependencyTracking()
         XCTAssertNotNil(tracking)
         XCTAssertTrue(tracking!.readSet.contains(ObjectIdentifier(storage)))
@@ -88,64 +92,42 @@ final class DependencyTrackingTests: XCTestCase {
         XCTAssertEqual(host.rebuildCount, 1, "@State must always rebuild — may pass value via Binding")
     }
 
-    // MARK: - @Published gating
+    // MARK: - ObservableObject input gating
 
-    func testPublishedSkipsRebuildForUnreadStorage() {
+    func testObservedObjectInputsRemainUnchangedForUnreadStorageMutation() {
         let host = MockViewHost()
-        let readPublished = PublishedStorage("read")
-        let unreadPublished = PublishedStorage("unread")
-
-        readPublished.setObserver(token: ObjectIdentifier(host)) { [weak host] in
-            guard let host = host else { return }
-            if let trackingHost = host as? DependencyTrackingHost,
-               let readSet = trackingHost.lastReadSet,
-               !isDependency(readPublished, in: readSet) {
-                return
-            }
-            host.scheduleRebuild()
-        }
-        unreadPublished.setObserver(token: ObjectIdentifier(host)) { [weak host] in
-            guard let host = host else { return }
-            if let trackingHost = host as? DependencyTrackingHost,
-               let readSet = trackingHost.lastReadSet,
-               !isDependency(unreadPublished, in: readSet) {
-                return
-            }
-            host.scheduleRebuild()
-        }
+        let readObject = ObservedObjectStorage(TrackingCounter())
+        let unreadObject = ObservedObjectStorage(TrackingCounter())
+        readObject.host = host
+        unreadObject.host = host
 
         beginDependencyTracking()
-        _ = readPublished.value
+        _ = readObject.access()
         let tracking = endDependencyTracking()
         host.lastReadSet = tracking?.readSet
+        host.lastInputSnapshot = tracking?.snapshots
 
         host.rebuildCount = 0
-        unreadPublished.setValue("changed")
-        XCTAssertEqual(host.rebuildCount, 0, "Should skip rebuild for unread @Published")
+        unreadObject.object.count = 1
+
+        XCTAssertTrue(inputsUnchanged(snapshot: host.lastInputSnapshot ?? []))
     }
 
-    func testPublishedRebuildsForReadStorage() {
+    func testObservedObjectInputsChangeForReadStorageMutation() {
         let host = MockViewHost()
-        let readPublished = PublishedStorage("read")
-
-        readPublished.setObserver(token: ObjectIdentifier(host)) { [weak host] in
-            guard let host = host else { return }
-            if let trackingHost = host as? DependencyTrackingHost,
-               let readSet = trackingHost.lastReadSet,
-               !isDependency(readPublished, in: readSet) {
-                return
-            }
-            host.scheduleRebuild()
-        }
+        let readObject = ObservedObjectStorage(TrackingCounter())
+        readObject.host = host
 
         beginDependencyTracking()
-        _ = readPublished.value
+        _ = readObject.access()
         let tracking = endDependencyTracking()
         host.lastReadSet = tracking?.readSet
+        host.lastInputSnapshot = tracking?.snapshots
 
         host.rebuildCount = 0
-        readPublished.setValue("changed")
-        XCTAssertEqual(host.rebuildCount, 1, "Should rebuild for read @Published")
+        readObject.object.count = 1
+
+        XCTAssertFalse(inputsUnchanged(snapshot: host.lastInputSnapshot ?? []))
     }
 
     // MARK: - Nested tracking (stack-based)

@@ -14,6 +14,10 @@ extension Color {
     public static var accentColor: Color { .blue }
     public static var tint: Color { accentColor }
     public static var foreground: Color { primary }
+    // Disfavored: IceCubes' DesignSystem ships its own `Color.label`, and
+    // StatusKit imports both it and this shadow (re-exported via SwiftUI),
+    // which made `Color.label` ambiguous. Ports that don't pull DesignSystem
+    // still get this one; DesignSystem's wins where both are visible.
     @_disfavoredOverload
     public static var label: Color { Color(RSColor.label) }
     public static var labelCustom: Color { Color("label") }
