@@ -46,18 +46,26 @@ public struct _KVOPublisherOptions: OptionSet, Sendable {
     public static let prior = _KVOPublisherOptions(rawValue: 0x08)
 }
 
-public extension NSObject {
-    // Generic over `Root` rather than `Self`: Swift forbids covariant `Self` in
-    // a parameter position of a non-final class-extension method. The keypath's
-    // root is recovered by casting `self` (always succeeds at the real call
-    // sites, where the receiver IS the keypath root, e.g. `view.publisher(for:
-    // \.bounds)`). Inert on Linux (no KVO) beyond the optional initial value.
-    func publisher<Root, Value>(
-        for keyPath: KeyPath<Root, Value>,
+// The KVO publisher must carry a keypath rooted in the *receiver's* type so a
+// bare `\.bounds` literal can infer its root from the call (`view.publisher(for:
+// \.bounds)`). A plain `NSObject` extension method generic over `Root` cannot do
+// this — Swift won't bind a free `Root` from a keypath literal, hence "cannot
+// infer key path type from context." A protocol extension, however, MAY use
+// `Self` in parameter position, which pins the keypath root to the concrete
+// receiver and makes inference succeed.
+public protocol _KVOPublishing: NSObject {}
+extension NSObject: _KVOPublishing {}
+
+public extension _KVOPublishing {
+    // `KeyPath<Self, Value>` pins the root to the receiver's static type, so the
+    // `\.bounds` literal infers its root. Inert on Linux (no KVO) beyond emitting
+    // the keypath's current value once when `.initial` is requested.
+    func publisher<Value>(
+        for keyPath: KeyPath<Self, Value>,
         options: _KVOPublisherOptions = [.initial, .new]
     ) -> AnyPublisher<Value, Never> {
-        if options.contains(.initial), let root = self as? Root {
-            return Just(root[keyPath: keyPath]).eraseToAnyPublisher()
+        if options.contains(.initial) {
+            return Just(self[keyPath: keyPath]).eraseToAnyPublisher()
         }
         return Empty<Value, Never>(completeImmediately: false).eraseToAnyPublisher()
     }

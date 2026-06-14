@@ -335,6 +335,22 @@ public enum UIAccessibilityContrast: Int {
     public var centerYAnchor: NSLayoutYAxisAnchor { NSLayoutYAxisAnchor(item: quillAnchorItem, attribute: .centerY) }
     public var widthAnchor: NSLayoutDimension { NSLayoutDimension(item: quillAnchorItem, attribute: .width) }
     public var heightAnchor: NSLayoutDimension { NSLayoutDimension(item: quillAnchorItem, attribute: .height) }
+
+    /// iOS 26 corner-adaptation hint for `Source.margins` — whether the guide
+    /// should pull in to avoid rounded display corners / window controls along an
+    /// axis. Recorded-intent only on Linux.
+    public enum Adaptivity: Sendable {
+        case automatic
+        case none
+        case horizontal
+        case vertical
+    }
+
+    /// iOS 26 `UILayoutGuide.Source`, the argument to `UIView.layoutGuide(for:)`.
+    public enum Source: Sendable {
+        case margins(cornerAdaptation: Adaptivity)
+        case safeArea
+    }
 }
 
 #if !os(macOS)
@@ -709,6 +725,19 @@ public enum UIAccessibilityContrast: Int {
         return guide
     }
 
+    /// iOS 26 `UIView.layoutGuide(for:)`: resolves a layout guide from a
+    /// `UILayoutGuide.Source` (e.g. `.margins(cornerAdaptation:)`). On Linux the
+    /// margins source aliases the layout-margins guide; the corner-adaptation
+    /// hint (for avoiding window controls) has no compositor to honor it.
+    public func layoutGuide(for source: UILayoutGuide.Source) -> UILayoutGuide {
+        switch source {
+        case .margins:
+            return layoutMarginsGuide
+        case .safeArea:
+            return safeAreaLayoutGuide
+        }
+    }
+
     /// Backing store for `layoutMargins`. The UIEdgeInsets-typed property
     /// cannot live here: UIEdgeInsets is declared in the UIKit shim module,
     /// which depends on this one, so the shim layers `layoutMargins` over this
@@ -759,6 +788,16 @@ public enum UIAccessibilityContrast: Int {
     }
     open func layoutSubviews() {}
 
+    /// Apple's UIView is its own layer's delegate and implements
+    /// `CALayerDelegate.action(for:forKey:)`. CLASS-BODY `open`: BezierPathView
+    /// and OWSBubbleShapeView override it to return `nil` / `NSNull()` and disable
+    /// implicit CALayer animations. No implicit-animation engine runs on Linux, so
+    /// the default returns `nil` (no action).
+    open func action(for layer: CALayer, forKey event: String) -> CAAction? {
+        _ = (layer, event)
+        return nil
+    }
+
     // MARK: Constraint pass + measurement
     //
     // CLASS-BODY `open`: Signal overrides all three (CVLabel/CVButton/
@@ -801,7 +840,11 @@ public enum UIAccessibilityContrast: Int {
     /// `open` declaration makes the subclass overrides valid.
     open func didMoveToWindow() {}
 
-    public static var areAnimationsEnabled: Bool = true
+    /// `nonisolated(unsafe)`: OWSNavigationController reads this in a nonisolated
+    /// default-argument context. It is a plain Bool (no UI state behind it on
+    /// Linux), so reading it across actors is safe — Apple likewise lets
+    /// `UIView.areAnimationsEnabled` be queried from any thread.
+    nonisolated(unsafe) public static var areAnimationsEnabled: Bool = true
     public static var inheritedAnimationDuration: TimeInterval = 0
 
     public func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
@@ -921,7 +964,7 @@ public enum UIAccessibilityContrast: Int {
         delay: TimeInterval,
         usingSpringWithDamping: CGFloat,
         initialSpringVelocity: CGFloat,
-        options: AnimationOptions,
+        options: AnimationOptions = [],
         animations: @escaping () -> Void,
         completion: ((Bool) -> Void)? = nil
     ) {
@@ -1280,6 +1323,10 @@ public enum UIAccessibilityContrast: Int {
     }
     public func pushViewController(_: UIViewController, animated: Bool) {}
     public func popViewController(animated: Bool) -> UIViewController? { nil }
+    @discardableResult
+    public func popToViewController(_: UIViewController, animated: Bool) -> [UIViewController]? { nil }
+    @discardableResult
+    public func popToRootViewController(animated: Bool) -> [UIViewController]? { nil }
     public var topViewController: UIViewController?
     public var visibleViewController: UIViewController? { topViewController }
     // modalPresentationStyle: the enum-typed UIViewController extension
@@ -1311,6 +1358,11 @@ public enum UIAccessibilityContrast: Int {
     public var rightBarButtonItem: UIBarButtonItem?
     public var rightBarButtonItems: [UIBarButtonItem]?
     public var leftBarButtonItem: UIBarButtonItem?
+    /// The bar button item shown as the back button on the NEXT view controller
+    /// pushed on top of one owning this item (OWSTableViewController2 sets a
+    /// blank-title back button to hide the previous title). Faithful storage; no
+    /// navigation bar renders it on Linux yet.
+    public var backBarButtonItem: UIBarButtonItem?
     public var title: String?
 }
 
@@ -1536,6 +1588,14 @@ public enum UIAccessibilityContrast: Int {
     open func setSelected(_ selected: Bool, animated: Bool) { isSelected = selected }
     open func setHighlighted(_ highlighted: Bool, animated: Bool) { isHighlighted = highlighted }
     open func prepareForReuse() {}
+
+    /// Apple's configuration-based cell-update hook (iOS 14+). CLASS-BODY `open`:
+    /// MentionPicker's MentionableUserCell overrides it to recolor its background
+    /// for the selected/highlighted state. Nothing drives the update pass on Linux
+    /// yet, so the base is a no-op.
+    open func updateConfiguration(using state: UICellConfigurationState) {
+        _ = state
+    }
 }
 
 @MainActor open class UICollectionView: UIScrollView {
@@ -1802,6 +1862,11 @@ public class SLComposeSheetConfigurationItem: NSObject {
     }
     public var image: UIImage?
     public var highlightedImage: UIImage?
+    /// Apple's `UIImageView.isHighlighted` toggles between `image` and
+    /// `highlightedImage`. CLASS-BODY `open`: VideoTimelineView's TrimHandleView
+    /// overrides it with a `willSet` observer to lazily build the highlighted
+    /// image. Pure storage — no renderer swaps the displayed image on Linux yet.
+    open var isHighlighted: Bool = false
 }
 
 @MainActor open class UILabel: UIView {
@@ -1933,6 +1998,17 @@ public protocol UIViewControllerTransitionCoordinator: AnyObject {
         alongsideTransition: ((UIViewControllerTransitionCoordinatorContext) -> Void)?,
         completion: ((UIViewControllerTransitionCoordinatorContext) -> Void)?
     )
+}
+
+public extension UIViewControllerTransitionCoordinator {
+    /// Apple defaults `completion:` to `nil`, so the common call site passes only
+    /// the `alongsideTransition` block (often as a trailing closure). The protocol
+    /// requirement can't carry a default argument, so forward through this overload.
+    @MainActor func animate(
+        alongsideTransition: ((UIViewControllerTransitionCoordinatorContext) -> Void)?
+    ) {
+        animate(alongsideTransition: alongsideTransition, completion: nil)
+    }
 }
 
 @MainActor public protocol UIActivityItemSource: AnyObject {
