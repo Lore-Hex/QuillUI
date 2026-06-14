@@ -47,15 +47,75 @@ final class FirstLightViewController: UIViewController {
     }
 }
 
+// MARK: - Debug
+
+@MainActor
+func dumpViewTree(_ view: UIView, depth: Int) {
+    let indent = String(repeating: "  ", count: depth)
+    let f = view.frame
+    var line = "\(indent)\(type(of: view)) frame=(\(Int(f.origin.x)),\(Int(f.origin.y)),\(Int(f.width))x\(Int(f.height))) subviews=\(view.subviews.count)"
+    if let label = view as? UILabel { line += " label=\"\(label.text ?? "")\"" }
+    if let tv = view as? UITableView {
+        let ds = tv.dataSource
+        let secs = ds?.numberOfSections(in: tv) ?? -1
+        line += " TABLE dataSource=\(ds == nil ? "nil" : "set") sections=\(secs)"
+        if let ds, secs > 0 {
+            for s in 0..<secs { line += " rows[\(s)]=\(ds.tableView(tv, numberOfRowsInSection: s))" }
+        }
+    }
+    FileHandle.standardError.write(Data((line + "\n").utf8))
+    for sub in view.subviews { dumpViewTree(sub, depth: depth + 1) }
+}
+
 // MARK: - GTK host
+
+/// Install a global CSS baseline for the default display: an iOS grouped-settings
+/// gray window canvas. Signal's real cells color their primary label with
+/// `Theme.primaryTextColor` (near-black in light mode), so without a light canvas
+/// the names render black-on-black (GTK's default window background is dark) and
+/// vanish. The gray canvas both makes them legible and makes the shot read like
+/// Signal's actual Settings screen.
+@MainActor
+func installSettingsCanvasCSS() {
+    // The container's GTK ships a dark default theme (GTK_THEME=Adwaita:light
+    // isn't guaranteed present), which paints box/row nodes with a dark fill.
+    // Our provider runs at APPLICATION priority (it already wins for `window`),
+    // so neutralize the theme's structural fills to transparent and paint only
+    // what we want: a light grouped canvas, white rounded section cards, and a
+    // dark text default (Pango markup foreground still overrides per-label).
+    let css = """
+    window { background-color: #EFEFF4; }
+    box, label, viewport, scrolledwindow, separator { background-color: transparent; }
+    label { color: #1C1C1E; }
+    .qcard { background-color: #FFFFFF; border-radius: 10px; }
+    .qcell { background-color: transparent; padding: 11px 16px; }
+    .qsep { background-color: rgba(60, 60, 67, 0.18); min-height: 1px; }
+    """
+    let provider = gtk_css_provider_new()
+    css.withCString { gtk_css_provider_load_from_string(provider, $0) }
+    if let display = gdk_display_get_default() {
+        gtk_style_context_add_provider_for_display(
+            display,
+            OpaquePointer(provider),
+            guint(GTK_STYLE_PROVIDER_PRIORITY_APPLICATION)
+        )
+    }
+    g_object_unref(provider)
+}
 
 @MainActor
 func renderRootViewController(_ vc: UIViewController, title: String, width: Int, height: Int) {
+    installSettingsCanvasCSS()
+
     // Force the view to load + lay out.
     vc.loadViewIfNeeded()
     vc.viewDidLoad()
     vc.view.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
     vc.view.layoutIfNeeded()
+
+    if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DUMP"] == "1" {
+        dumpViewTree(vc.view, depth: 0)
+    }
 
     guard let rootWidget = UIKitGtkRenderer.render(vc.view) else {
         FileHandle.standardError.write(Data("signal-ui-render: root view produced no widget\n".utf8))

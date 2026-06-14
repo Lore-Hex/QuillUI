@@ -66,27 +66,27 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         let (crossAlign, crossFills) = crossAxisAlignment(stack.alignment)
 
         var boxWantsHExpand = false
-        var boxWantsVExpand = false
 
+        // The VERTICAL axis is unbounded in this renderer (content flows
+        // top-to-bottom at natural height — there's no constraint solver to give
+        // a stack a fixed height to distribute). So a stack NEVER propagates
+        // vexpand: doing so let a cell's vertical label stack balloon its whole
+        // section card. Only horizontal fill (the bounded window width) expands.
         for child in stack.arrangedSubviews {
             guard let childWidget = ctx.render(child) else { continue }
 
             if isVertical {
-                // Vertical stack: main = vertical, cross = horizontal.
-                if mainAxisFills {
-                    gtk_widget_set_vexpand(childWidget, 1)
-                    gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
-                    boxWantsVExpand = true
-                } else {
-                    gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
-                }
+                // Vertical stack: main = vertical (natural height, top-packed),
+                // cross = horizontal.
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
                 gtk_widget_set_halign(childWidget, crossAlign)
                 if crossFills {
                     gtk_widget_set_hexpand(childWidget, 1)
                     boxWantsHExpand = true
                 }
             } else {
-                // Horizontal stack: main = horizontal, cross = vertical.
+                // Horizontal stack: main = horizontal (bounded → may fill),
+                // cross = vertical (natural height, never vexpand).
                 if mainAxisFills {
                     gtk_widget_set_hexpand(childWidget, 1)
                     gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
@@ -94,20 +94,15 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
                 } else {
                     gtk_widget_set_halign(childWidget, GTK_ALIGN_START)
                 }
-                gtk_widget_set_valign(childWidget, crossAlign)
-                if crossFills {
-                    gtk_widget_set_vexpand(childWidget, 1)
-                    boxWantsVExpand = true
-                }
+                gtk_widget_set_valign(childWidget, crossFills ? GTK_ALIGN_FILL : crossAlign)
             }
 
             gtk_box_append(boxPointer(box), childWidget)
         }
 
-        // Propagate expansion up so an enclosing container hands the box room
-        // to actually fill (matches SwiftOpenUI's fallback-stack behavior).
+        // Propagate only horizontal expansion up so an enclosing container hands
+        // the box the window width to fill.
         if boxWantsHExpand { gtk_widget_set_hexpand(box, 1) }
-        if boxWantsVExpand { gtk_widget_set_vexpand(box, 1) }
 
         ctx.applyLayerStyle(box, view)
         return box

@@ -96,6 +96,11 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
         }
         guard !rules.isEmpty else { return }
 
+        if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DUMP"] == "1" {
+            FileHandle.standardError.write(Data(
+                "applyLayerStyle \(type(of: view)) -> \(rules.joined(separator: " "))\n".utf8))
+        }
+
         cssClassCounter += 1
         let cls = "qrender\(cssClassCounter)"
         let css = ".\(cls) { \(rules.joined(separator: " ")) }"
@@ -134,28 +139,41 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
 }
 
 // MARK: - Color helpers
+//
+// ALPHA MATTERS: Signal's cell config sets `contentView.backgroundColor = .clear`
+// (RGBA 0,0,0,0). An alpha-blind "#RRGGBB" turns that fully-transparent color into
+// OPAQUE BLACK, painting black rectangles over everything. So these emit a CSS
+// color that honors alpha — and return nil for a fully-transparent color so the
+// caller paints no background at all (lets the parent/section card show through).
 
-/// UIColor (RSColor on Linux) → "#RRGGBB". Channels always read (placeholder
-/// colors store real values on Linux).
+/// Build a CSS color string from RGBA channels (0...1). nil if fully transparent.
+private func cssColor(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat) -> String? {
+    if a <= 0.004 { return nil }  // ~transparent → no paint
+    let ri = Int((r * 255).rounded()), gi = Int((g * 255).rounded()), bi = Int((b * 255).rounded())
+    if a >= 0.996 {
+        return String(format: "#%02X%02X%02X", ri, gi, bi)
+    }
+    return String(format: "rgba(%d, %d, %d, %.3f)", ri, gi, bi, Double(a))
+}
+
+/// UIColor (RSColor on Linux) → CSS color honoring alpha; nil if transparent.
 func uiColorHex(_ color: UIColor) -> String? {
     var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
     guard color.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
-    return String(format: "#%02X%02X%02X",
-                  Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
+    return cssColor(r, g, b, a)
 }
 
-/// CGColor → "#RRGGBB" via its components.
+/// CGColor → CSS color honoring alpha; nil if transparent.
 func cgColorHex(_ color: CGColor) -> String? {
     let comps = color.components ?? []
-    if comps.count >= 3 {
-        return String(format: "#%02X%02X%02X",
-                      Int((comps[0] * 255).rounded()),
-                      Int((comps[1] * 255).rounded()),
-                      Int((comps[2] * 255).rounded()))
+    if comps.count >= 4 {
+        return cssColor(comps[0], comps[1], comps[2], comps[3])
+    }
+    if comps.count == 3 {
+        return cssColor(comps[0], comps[1], comps[2], 1)
     }
     if comps.count == 2 { // grayscale + alpha
-        let v = Int((comps[0] * 255).rounded())
-        return String(format: "#%02X%02X%02X", v, v, v)
+        return cssColor(comps[0], comps[0], comps[0], comps[1])
     }
     return nil
 }

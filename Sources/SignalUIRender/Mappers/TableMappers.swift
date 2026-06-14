@@ -44,17 +44,6 @@ import CGTKBridge      // boxPointer (proven pointer cast)
 import QuillUIKit      // UIView, UITableView, UITableViewCell, IndexPath, UITableViewDataSource
 import Foundation
 
-// CGTKBridge ships `boxPointer` but not a `scrolledWindowPointer`. The GTK
-// scrolled-window setters are bound to take an OpaquePointer (the C
-// GTK_SCROLLED_WINDOW() cast), which is exactly what the GTK4 backend passes
-// everywhere (`OpaquePointer(scrolled)`). Provide the named helper the table
-// mapper reads against, mirroring that proven form so the call sites stay
-// legible without depending on a symbol CGTKBridge doesn't export.
-@inlinable
-func scrolledWindowPointer(_ ptr: GtkWidgetPtr) -> OpaquePointer {
-    OpaquePointer(ptr)
-}
-
 // MARK: - UITableView
 
 /// Maps a `UITableView` to a `GtkScrolledWindow` wrapping a vertical `GtkBox`
@@ -68,15 +57,15 @@ public enum UITableViewGtkMapper: UIViewGtkMapper {
     }
 
     public static func make(_ view: UIView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
-        let sw = gtk_scrolled_window_new()!
-        gtk_scrolled_window_set_policy(
-            scrolledWindowPointer(sw),
-            GTK_POLICY_AUTOMATIC,
-            GTK_POLICY_AUTOMATIC
-        )
-
-        // Vertical stack of materialized rows (and optional section headers).
-        let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        // A static snapshot doesn't need scrolling, and GtkScrolledWindow's
+        // viewport paints the dark GTK theme background and bottom-aligns short
+        // content — both fought the render. Stack the materialized rows directly
+        // in a vertical GtkBox; each SECTION becomes a white rounded "card" on the
+        // gray canvas, the iOS grouped-table look the constraint solver would
+        // otherwise produce. (.qcard/.qcell/.qsep are defined in the global CSS.)
+        let outer = gtk_box_new(GTK_ORIENTATION_VERTICAL, 18)!
+        gtk_widget_set_margin_top(outer, 18)
+        gtk_widget_set_margin_bottom(outer, 18)
 
         let tv = view as! UITableView
         // Guard the data source itself for nil; the optional protocol methods
@@ -84,30 +73,44 @@ public enum UITableViewGtkMapper: UIViewGtkMapper {
         if let ds = tv.dataSource {
             let sections = ds.numberOfSections(in: tv)
             for section in 0..<max(0, sections) {
-                // Optional section header → a GtkLabel (only when present).
-                if let title = ds.tableView(tv, titleForHeaderInSection: section),
-                   !title.isEmpty {
-                    let header = gtk_label_new(title)!
-                    // Left-align the header, like a grouped-table section title.
-                    gtk_widget_set_halign(header, GTK_ALIGN_START)
-                    gtk_box_append(boxPointer(box), header)
-                }
-
                 let rows = ds.tableView(tv, numberOfRowsInSection: section)
-                for row in 0..<max(0, rows) {
+                guard rows > 0 else { continue }
+
+                let card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+                "qcard".withCString { gtk_widget_add_css_class(card, $0) }
+                gtk_widget_set_margin_start(card, 16)
+                gtk_widget_set_margin_end(card, 16)
+                gtk_widget_set_halign(card, GTK_ALIGN_FILL)
+
+                for row in 0..<rows {
                     let indexPath = IndexPath(row: row, section: section)
                     let cell = ds.tableView(tv, cellForRowAt: indexPath)
-                    if let cellWidget = ctx.render(cell) {
-                        gtk_box_append(boxPointer(box), cellWidget)
+                    guard let cellWidget = ctx.render(cell) else { continue }
+                    "qcell".withCString { gtk_widget_add_css_class(cellWidget, $0) }
+                    gtk_widget_set_hexpand(cellWidget, 1)
+                    gtk_widget_set_halign(cellWidget, GTK_ALIGN_FILL)
+                    // Each row keeps its natural height (no vertical stretch) so a
+                    // single-row card doesn't balloon to absorb slack.
+                    gtk_widget_set_valign(cellWidget, GTK_ALIGN_START)
+                    gtk_box_append(boxPointer(card), cellWidget)
+
+                    // Hairline separator between rows (inset from the leading edge,
+                    // like iOS), but not after the last row.
+                    if row < rows - 1 {
+                        let sep = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+                        "qsep".withCString { gtk_widget_add_css_class(sep, $0) }
+                        gtk_widget_set_size_request(sep, -1, 1)
+                        gtk_widget_set_margin_start(sep, 16)
+                        gtk_box_append(boxPointer(card), sep)
                     }
                 }
+
+                gtk_box_append(boxPointer(outer), card)
             }
         }
 
-        gtk_scrolled_window_set_child(scrolledWindowPointer(sw), box)
-
-        ctx.applyLayerStyle(sw, view)
-        return sw
+        ctx.applyLayerStyle(outer, view)
+        return outer
     }
 }
 
@@ -159,7 +162,10 @@ public enum UITableViewCellGtkMapper: UIViewGtkMapper {
             result = body
         }
 
-        ctx.applyLayerStyle(result, view)
+        // NB: we deliberately do NOT apply the cell's own backgroundColor here.
+        // On the no-DB Linux render path the cell resolves a dark fill that would
+        // paint over the white `.qcard` section background. The grouped card
+        // provides the row background; the cell only contributes its content.
         return result
     }
 
