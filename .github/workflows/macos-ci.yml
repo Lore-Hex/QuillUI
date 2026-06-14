@@ -178,4 +178,13 @@ jobs:
       # or removed.
       - name: Run tests (best-effort)
         continue-on-error: true
+        # Step-level cap: this step is best-effort (continue-on-error), but a
+        # hanging `swift test` (a test or a spawned subprocess that never exits
+        # after the suite finishes) would otherwise burn the whole 30-min job
+        # budget and cancel the job — turning the required "Build all 4 apps +
+        # test" check red despite every build step passing. continue-on-error
+        # tolerates a step *failure* but not a step that never returns, so the
+        # step needs its own timeout. The suite builds+runs well under this;
+        # the cap only kills a post-suite hang.
+        timeout-minutes: 15
         run: swift test
