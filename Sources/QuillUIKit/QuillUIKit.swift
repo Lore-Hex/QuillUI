@@ -1316,6 +1316,50 @@ public enum UIAccessibilityContrast: Int {
         self.customView = customView
     }
 
+    /// The action invoked when the item is tapped (iOS 14+). Recorded; no
+    /// native toolbar fires it on Linux yet, mirroring `target`/`action`.
+    open var primaryAction: UIAction? {
+        didSet {
+            if let primaryAction {
+                if title == nil, !primaryAction.title.isEmpty { title = primaryAction.title }
+                if image == nil { image = primaryAction.image }
+            }
+        }
+    }
+
+    /// `UIBarButtonItem(primaryAction:)` (iOS 14+).
+    public convenience init(primaryAction: UIAction?) {
+        self.init()
+        self.primaryAction = primaryAction
+    }
+
+    /// `UIBarButtonItem(title:image:primaryAction:menu:)` (iOS 14+).
+    public convenience init(title: String?, image: UIImage?, primaryAction: UIAction?, menu: UIMenu?) {
+        self.init()
+        self.title = title
+        self.image = image
+        self.primaryAction = primaryAction
+        self.menu = menu
+    }
+
+    /// `UIBarButtonItem(title:image:target:action:menu:)` (iOS 14+).
+    public convenience init(title: String?, image: UIImage?, target: Any?, action: Selector?, menu: UIMenu?) {
+        self.init()
+        self.title = title
+        self.image = image
+        self.target = target as AnyObject?
+        self.action = action
+        self.menu = menu
+    }
+
+    /// `UIBarButtonItem(systemItem:primaryAction:menu:)` (iOS 14+).
+    public convenience init(systemItem: SystemItem, primaryAction: UIAction? = nil, menu: UIMenu? = nil) {
+        self.init()
+        self.quillSystemItem = systemItem
+        self.primaryAction = primaryAction
+        self.menu = menu
+    }
+
     open var menu: UIMenu?
 
     // MARK: Accessibility
@@ -1662,25 +1706,44 @@ public struct UIKeyModifierFlags: OptionSet, Sendable {
 }
 
 public class UIKeyCommand: NSObject {
+    // Apple's hardware-key input sentinels (UIKeyCommand exposes these as the
+    // strings passed for `input:`). Values mirror the documented constants:
+    // arrows are the UIKit private-use escape strings, escape is ESC.
+    public static let inputUpArrow = "UIKeyInputUpArrow"
+    public static let inputDownArrow = "UIKeyInputDownArrow"
+    public static let inputLeftArrow = "UIKeyInputLeftArrow"
+    public static let inputRightArrow = "UIKeyInputRightArrow"
     public static let inputEscape = "\u{1B}"
+    public static let inputPageUp = "UIKeyInputPageUp"
+    public static let inputPageDown = "UIKeyInputPageDown"
+    public static let inputHome = "UIKeyInputHome"
+    public static let inputEnd = "UIKeyInputEnd"
+
     public let input: String
     public let modifierFlags: UIKeyModifierFlags
     public let action: Selector
+    /// Title shown in the iPad discoverability HUD / keyboard-shortcut list.
+    public var discoverabilityTitle: String?
 
-    public init(input: String, modifierFlags: UIKeyModifierFlags, action: Selector) {
+    public init(input: String, modifierFlags: UIKeyModifierFlags, action: Selector, discoverabilityTitle: String? = nil) {
         self.input = input
         self.modifierFlags = modifierFlags
         self.action = action
+        self.discoverabilityTitle = discoverabilityTitle
         super.init()
     }
 
-    public init(title: String, image: Any?, action: Selector, input: String, modifierFlags: UIKeyModifierFlags, propertyList: Any? = nil) {
+    public init(title: String, image: Any?, action: Selector, input: String, modifierFlags: UIKeyModifierFlags, propertyList: Any? = nil, alternates: [UIKeyCommand] = [], discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [], state: UIMenuElement.State = .off) {
         _ = title
         _ = image
         _ = propertyList
+        _ = alternates
+        _ = attributes
+        _ = state
         self.input = input
         self.modifierFlags = modifierFlags
         self.action = action
+        self.discoverabilityTitle = discoverabilityTitle ?? title
         super.init()
     }
 }

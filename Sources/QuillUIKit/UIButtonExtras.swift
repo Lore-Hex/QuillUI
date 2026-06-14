@@ -116,6 +116,28 @@ extension UIButton {
         quillButtonState.buttonType = buttonType
     }
 
+    /// iOS 14+ `UIButton(type:primaryAction:)`. The action (when non-nil) is
+    /// registered for `.primaryActionTriggered`, and its title/image seed the
+    /// button's `.normal` content — exactly as UIKit's convenience does.
+    public convenience init(type buttonType: ButtonType = .system, primaryAction: UIAction?) {
+        self.init(type: buttonType)
+        if let primaryAction {
+            if !primaryAction.title.isEmpty { setTitle(primaryAction.title, for: .normal) }
+            if let image = primaryAction.image { setImage(image, for: .normal) }
+            addAction(primaryAction, for: .primaryActionTriggered)
+        }
+    }
+
+    /// `UIButton(frame:primaryAction:)` companion of the above.
+    public convenience init(frame: CGRect, primaryAction: UIAction?) {
+        self.init(frame: frame)
+        if let primaryAction {
+            if !primaryAction.title.isEmpty { setTitle(primaryAction.title, for: .normal) }
+            if let image = primaryAction.image { setImage(image, for: .normal) }
+            addAction(primaryAction, for: .primaryActionTriggered)
+        }
+    }
+
     // MARK: titleLabel
 
     /// The label that shows the current title. Created (and added as a
