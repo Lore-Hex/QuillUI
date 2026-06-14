@@ -1055,12 +1055,32 @@ PY
     local icedir="$UPSTREAM_DIR/icecubes"
     if [[ -d "$icedir" ]]; then
         echo "==> renaming IceCubes 'import Account' -> 'import IceCubesAccount'"
-        grep -rlE '^[[:space:]]*(@_exported |@testable )?import Account[[:space:]]*$' "$icedir" 2>/dev/null \
-            | grep -v '/Packages/Account/Sources/Account/' \
-            | while IFS= read -r f; do
-                sed -i -E 's/^([[:space:]]*)((@_exported |@testable )?)import Account([[:space:]]*)$/\1\2import IceCubesAccount\4/' "$f"
-                echo "patched $(basename "$f")"
-            done
+        # python (not sed) for macOS/Linux portability — BSD and GNU sed differ
+        # on -i and backreference handling, matching the rest of patch_icecubes.
+        python3 - "$icedir" <<'PY'
+import os, re, sys
+
+root = sys.argv[1]
+# Bare `import Account` (optionally @_exported/@testable), whole line only.
+pat = re.compile(r'^(\s*)((?:@_exported |@testable )?)import Account\s*$')
+skip = os.path.join("Packages", "Account", "Sources", "Account")  # feature pkg's own sources
+for dirpath, _dirs, files in os.walk(root):
+    if skip in dirpath:
+        continue
+    for name in files:
+        if not name.endswith(".swift"):
+            continue
+        path = os.path.join(dirpath, name)
+        src = open(path).read()
+        out = []
+        for line in src.split("\n"):
+            m = pat.match(line)
+            out.append(m.group(1) + m.group(2) + "import IceCubesAccount" if m else line)
+        new = "\n".join(out)
+        if new != src:
+            open(path, "w").write(new)
+            print("patched", os.path.relpath(path, root))
+PY
     fi
 }
 
