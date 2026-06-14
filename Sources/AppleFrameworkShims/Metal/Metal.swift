@@ -452,7 +452,7 @@ public extension MTLCommandBuffer {
     /// `present(_:afterMinimumDuration:)` schedules the drawable to appear after a
     /// minimum on-screen interval (frame pacing). There is no display pipeline on
     /// Linux, so the duration is recorded-intent and we present immediately.
-    func present(_ drawable: MTLDrawable, afterMinimumDuration duration: CFTimeInterval) {
+    func present(_ drawable: MTLDrawable, afterMinimumDuration duration: Double) {
         _ = duration
         present(drawable)
     }
