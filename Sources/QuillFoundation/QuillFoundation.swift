@@ -1343,10 +1343,13 @@ public class RSScreen: NSObject, @unchecked Sendable {
     }
     /// `UIScreen.scale` source-compat (SSK avatar/thumbnail pixel math).
     public var scale: CGFloat { backingScaleFactor }
-    /// Pixel-space bounds (points * scale); SSK reads .nativeBounds.height for
-    /// device-class heuristics.
+    /// Pixel-space bounds. SSK's UIDevice+FeatureSupport switches on the EXACT
+    /// `.nativeBounds.height` against known iPhone pixel heights and traps
+    /// (owsFailDebug "unknown device format") on anything else. Report a real
+    /// device profile (iPhone 16: 1179×2556) so those heuristics resolve; the GTK
+    /// window's own size is independent (driven by view frames, not this).
     public var nativeBounds: CGRect {
-        CGRect(x: 0, y: 0, width: bounds.width * scale, height: bounds.height * scale)
+        CGRect(x: 0, y: 0, width: 1179, height: 2556)
     }
     public var nativeScale: CGFloat { scale }
     public var visibleFrame: CGRect { bounds }
