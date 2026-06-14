@@ -112,6 +112,14 @@ extension UINavigationBarDelegate {
     /// delegate; the bar must not immortalize it).
     weak var delegate: (any UINavigationBarDelegate)?
 
+    /// The iOS-13 scrollable appearances. Stored faithfully (strong, as on
+    /// Apple — the bar owns them); installed by SignalUI's OWSNavigationBar
+    /// but never composited.
+    var standardAppearance: UINavigationBarAppearance?
+    var scrollEdgeAppearance: UINavigationBarAppearance?
+    var compactAppearance: UINavigationBarAppearance?
+    var compactScrollEdgeAppearance: UINavigationBarAppearance?
+
     init(owner: UINavigationBar) { self.owner = owner }
 }
 
@@ -144,6 +152,33 @@ extension UINavigationBar {
         get { extrasState?.delegate }
         set { ensureExtrasState().delegate = newValue }
     }
+
+    /// The appearance used in the bar's standard (non-scrolled) state.
+    /// Stored faithfully; nothing draws bar chrome on Linux.
+    public var standardAppearance: UINavigationBarAppearance {
+        get { extrasState?.standardAppearance ?? UINavigationBarAppearance() }
+        set { ensureExtrasState().standardAppearance = newValue }
+    }
+
+    /// The appearance used when scrolled to the top edge. Nil means "fall
+    /// back to standardAppearance", as on Apple.
+    public var scrollEdgeAppearance: UINavigationBarAppearance? {
+        get { extrasState?.scrollEdgeAppearance }
+        set { ensureExtrasState().scrollEdgeAppearance = newValue }
+    }
+
+    /// The appearance used in a compact (landscape-phone) bar. Nil means
+    /// "fall back to standardAppearance", as on Apple.
+    public var compactAppearance: UINavigationBarAppearance? {
+        get { extrasState?.compactAppearance }
+        set { ensureExtrasState().compactAppearance = newValue }
+    }
+
+    /// The appearance used in a compact bar scrolled to the top edge.
+    public var compactScrollEdgeAppearance: UINavigationBarAppearance? {
+        get { extrasState?.compactScrollEdgeAppearance }
+        set { ensureExtrasState().compactScrollEdgeAppearance = newValue }
+    }
 }
 
 // MARK: - UINavigationItem extras (side table)
@@ -155,8 +190,19 @@ extension UINavigationBar {
     /// Strong, as on Apple — the navigation item owns its search controller.
     var searchController: UISearchController?
     var hidesSearchBarWhenScrolling = true
+    var preferredSearchBarPlacement: UINavigationItem.SearchBarPlacement = .automatic
 
     init(owner: UINavigationItem) { self.owner = owner }
+}
+
+extension UINavigationItem {
+    /// Where the integrated search bar sits relative to the title. Raw values
+    /// mirror Apple's (iOS 16+).
+    public enum SearchBarPlacement: Int, Sendable {
+        case automatic = 0
+        case inline = 1
+        case stacked = 2
+    }
 }
 
 @MainActor private var navigationItemExtrasStates: [ObjectIdentifier: NavigationItemExtrasState] = [:]
@@ -190,6 +236,13 @@ extension UINavigationItem {
     public var hidesSearchBarWhenScrolling: Bool {
         get { extrasState?.hidesSearchBarWhenScrolling ?? true }
         set { ensureExtrasState().hidesSearchBarWhenScrolling = newValue }
+    }
+
+    /// The preferred placement of the integrated search bar. Stored faithfully
+    /// (Apple's default is `.automatic`); no navigation bar lays it out.
+    public var preferredSearchBarPlacement: SearchBarPlacement {
+        get { extrasState?.preferredSearchBarPlacement ?? .automatic }
+        set { ensureExtrasState().preferredSearchBarPlacement = newValue }
     }
 }
 
@@ -323,6 +376,155 @@ public enum UIBarMetrics: Int, Sendable {
     case defaultPrompt = 101
     case compactPrompt = 102
 }
+
+// MARK: - UIBarAppearance family
+//
+// The iOS-13 scrollable-appearance objects (UIBarAppearance and its
+// per-bar subclasses). SignalUI's OWSNavigationBar builds a
+// UINavigationBarAppearance, fills in background/title/shadow fields, and
+// installs it on the bar's standard/scrollEdge/compact slots. Faithful
+// MODEL: every field is stored with Apple's default; nothing draws bar
+// chrome on Linux, so the installed appearance is inert state. The
+// `configureWith*Background()` helpers reset the background fields exactly
+// as Apple documents (opaque/default leave a system fill; transparent
+// clears it).
+
+/// The shared base for the per-bar appearance objects. Background, shadow,
+/// and idiom configuration, as on Apple.
+@MainActor open class UIBarAppearance: NSObject {
+
+    /// Which idiom this appearance was created for. Apple defaults to the
+    /// current device idiom; there is one idiom on Linux, so `.unspecified`.
+    public enum Idiom: Int, Sendable {
+        case unspecified = -1
+        case phone = 0
+        case pad = 1
+        case tv = 2
+        case carPlay = 3
+        case mac = 5
+        case vision = 6
+    }
+
+    /// The bar's background fill. Nil means "use the effect / system
+    /// default", as on Apple.
+    open var backgroundColor: UIColor?
+
+    /// The blur/vibrancy applied behind the bar.
+    open var backgroundEffect: UIBlurEffect?
+
+    /// A background image drawn behind the bar (wins over the color/effect
+    /// on Apple).
+    open var backgroundImage: UIImage?
+
+    /// How the background image is tiled/stretched. Raw value mirrors
+    /// Apple's `UIView.ContentMode`-shaped default (`.scaleToFill`).
+    open var backgroundImageContentMode: UIView.ContentMode = .scaleToFill
+
+    /// The hairline separator color below the bar. Nil clears it (SignalUI
+    /// sets `shadowColor = nil` to suppress the default).
+    open var shadowColor: UIColor?
+
+    /// A custom separator image below the bar.
+    open var shadowImage: UIImage?
+
+    public override init() {
+        super.init()
+    }
+
+    /// Apple's idiom-typed initializer; the idiom is accepted and dropped
+    /// (one idiom on Linux).
+    public init(idiom: Idiom) {
+        super.init()
+    }
+
+    /// Copy initializer, as on Apple (OWSNavigationBar never uses it, but
+    /// upstream appearance plumbing relies on it existing).
+    public init(barAppearance: UIBarAppearance) {
+        self.backgroundColor = barAppearance.backgroundColor
+        self.backgroundEffect = barAppearance.backgroundEffect
+        self.backgroundImage = barAppearance.backgroundImage
+        self.backgroundImageContentMode = barAppearance.backgroundImageContentMode
+        self.shadowColor = barAppearance.shadowColor
+        self.shadowImage = barAppearance.shadowImage
+        super.init()
+    }
+
+    /// Resets to an opaque system background (Apple drops any custom
+    /// image/effect and restores the default fill + shadow).
+    open func configureWithOpaqueBackground() {
+        backgroundColor = nil
+        backgroundImage = nil
+        backgroundEffect = nil
+    }
+
+    /// Resets to the default translucent system background.
+    open func configureWithDefaultBackground() {
+        backgroundColor = nil
+        backgroundImage = nil
+        backgroundEffect = nil
+    }
+
+    /// Clears the background and the shadow (Apple's transparent preset).
+    open func configureWithTransparentBackground() {
+        backgroundColor = nil
+        backgroundImage = nil
+        backgroundEffect = nil
+        shadowColor = nil
+        shadowImage = nil
+    }
+}
+
+/// Text/tint styling for a UIBarButtonItem within a bar appearance.
+/// Faithful container of the per-state text attributes; nothing renders it.
+@MainActor open class UIBarButtonItemAppearance: NSObject {
+
+    public enum Style: Int, Sendable {
+        case plain = 0
+        case done = 1
+    }
+
+    /// The styling for a single control state. (Apple calls this
+    /// UIBarButtonItemStateAppearance; the only members SignalUI-class code
+    /// touches are the text attributes.)
+    @MainActor public final class StateAppearance: NSObject {
+        public var titleTextAttributes: [NSAttributedString.Key: Any] = [:]
+    }
+
+    public let normal = StateAppearance()
+    public let highlighted = StateAppearance()
+    public let disabled = StateAppearance()
+    public let focused = StateAppearance()
+
+    public override init() { super.init() }
+
+    public init(style: Style) { super.init() }
+}
+
+/// The navigation-bar specialization. Adds the title/large-title text
+/// attributes and the per-position bar-button appearances, as on Apple.
+@MainActor open class UINavigationBarAppearance: UIBarAppearance {
+
+    /// Styling for the (centered) title. SignalUI assigns this directly.
+    open var titleTextAttributes: [NSAttributedString.Key: Any] = [:]
+
+    /// Styling for the large title.
+    open var largeTitleTextAttributes: [NSAttributedString.Key: Any] = [:]
+
+    /// Appearance for regular bar-button items.
+    open var buttonAppearance = UIBarButtonItemAppearance()
+    /// Appearance for "Done"-style bar-button items.
+    open var doneButtonAppearance = UIBarButtonItemAppearance()
+    /// Appearance for the back button.
+    open var backButtonAppearance = UIBarButtonItemAppearance()
+
+    public override init() { super.init() }
+    public override init(idiom: Idiom) { super.init(idiom: idiom) }
+    public override init(barAppearance: UIBarAppearance) { super.init(barAppearance: barAppearance) }
+}
+
+// (UIToolbarAppearance / UITabBarAppearance are the other UIBarAppearance
+// subclasses on Apple, but SignalUI never builds them, so they are omitted —
+// add them if a future file references them.)
 
 // MARK: - UIActivityIndicatorView
 

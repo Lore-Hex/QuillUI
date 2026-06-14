@@ -8,12 +8,12 @@
 //  QuillUIKit.swift (one name, one owner):
 //
 //    - UIStatusBarStyle (the enum only — see the status-bar note below)
-//    - UIModalPresentationStyle (the enum; UIViewController's stored
-//      `modalPresentationStyle` lives in the extension below — one owner)
+//    - UIModalPresentationStyle (the enum only; UIViewController's stored
+//      `modalPresentationStyle` lives in the class body in QuillUIKit.swift —
+//      one owner — because SignalUI overrides it with a `willSet`)
 //    - UIViewController extensions: `title`, `transitioningDelegate`,
-//      `presentationController`, `modalPresentationStyle`,
-//      `overrideUserInterfaceStyle`, `toolbarItems`/`setToolbarItems`,
-//      `setNeedsStatusBarAppearanceUpdate()`
+//      `presentationController`, `overrideUserInterfaceStyle`,
+//      `toolbarItems`/`setToolbarItems`, `setNeedsStatusBarAppearanceUpdate()`
 //    - UIPresentationController + UIAdaptivePresentationControllerDelegate
 //    - The custom-transition protocol family: UIViewControllerContext-
 //      Transitioning (+ the from/to keys), UIViewControllerAnimated-
@@ -71,10 +71,9 @@ public enum UIStatusBarStyle: Int, Sendable {
 /// presentation plumbing type-checks; the base class's model-level
 /// present/dismiss does not consult it (nothing composites on Linux yet).
 ///
-/// NOTE: UINavigationController in QuillUIKit.swift still declares a stray
-/// `modalPresentationStyle: Int` stored property that predates this enum. It
-/// shadows the UIViewController extension member below for nav-controller
-/// receivers and must be deleted there (one name, one owner: UIViewController).
+/// The stored `modalPresentationStyle` property of this type lives in the
+/// UIViewController class body (QuillUIKit.swift), `open`, so SignalUI's
+/// HeroSheetViewController can override it with a `willSet` observer.
 public enum UIModalPresentationStyle: Int, Sendable {
     case automatic = -2
     case none = -1
@@ -106,9 +105,6 @@ public enum UIModalPresentationStyle: Int, Sendable {
     /// presentation controller's own controller refs are weak — the cache
     /// never keeps the owning controller alive.
     var presentationController: UIPresentationController?
-    /// Apple's default since iOS 13 (resolves to a sheet over there; resolves
-    /// to nothing here because nothing presents visually yet).
-    var modalPresentationStyle: UIModalPresentationStyle = .automatic
     /// Apple's default: inherit the ancestor/system style.
     var overrideUserInterfaceStyle: UIUserInterfaceStyle = .unspecified
     /// The controller's contribution to a navigation toolbar (which lives in
@@ -165,16 +161,10 @@ extension UIViewController {
         return created
     }
 
-    /// The presentation style upstream assigns before calling present(_:).
-    /// Stored faithfully with Apple's default; the base class's model-level
-    /// present/dismiss doesn't consult it (no compositor). (Apple declares
-    /// this on UIViewController; UINavigationController's stray Int property
-    /// in QuillUIKit.swift shadows this for nav-typed receivers until it is
-    /// deleted there — see the UIModalPresentationStyle note above.)
-    public var modalPresentationStyle: UIModalPresentationStyle {
-        get { surfaceState?.modalPresentationStyle ?? .automatic }
-        set { ensureSurfaceState().modalPresentationStyle = newValue }
-    }
+    // `modalPresentationStyle` moved to the UIViewController class body
+    // (QuillUIKit.swift): SignalUI's HeroSheetViewController overrides it with
+    // a `willSet`, which an extension member cannot satisfy. See the note in
+    // the UIModalPresentationStyle declaration above.
 
     /// Forced light/dark override for this controller's subtree. Stored
     /// faithfully (UIView's stored property of the same name already exists in

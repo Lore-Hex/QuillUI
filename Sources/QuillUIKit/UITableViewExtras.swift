@@ -635,7 +635,9 @@ private struct QuillTableCellState {
     var selectionStyle: UITableViewCell.SelectionStyle = .default
     var accessoryType: UITableViewCell.AccessoryType = .none
     var editingAccessoryType: UITableViewCell.AccessoryType = .none
-    var accessoryView: UIView?
+    // accessoryView moved to the UITableViewCell class body (QuillUIKit.swift):
+    // SignalUI's ContactTableViewCell overrides it with a `didSet`, which an
+    // extension member cannot satisfy.
     var backgroundView: UIView?
     var selectedBackgroundView: UIView?
     var multipleSelectionBackgroundView: UIView?
@@ -702,12 +704,8 @@ extension UITableViewCell {
         set { quillCellState.editingAccessoryType = newValue }
     }
 
-    /// A custom accessory view (wins over `accessoryType` on Apple). Pure
-    /// storage — no layout pass places it yet.
-    public var accessoryView: UIView? {
-        get { quillCellState.accessoryView }
-        set { quillCellState.accessoryView = newValue }
-    }
+    // accessoryView lives in the UITableViewCell class body (QuillUIKit.swift),
+    // `open`, so SignalUI's ContactTableViewCell can override it with a `didSet`.
 
     /// Stored background views; nothing composites them on Linux yet.
     public var backgroundView: UIView? {
