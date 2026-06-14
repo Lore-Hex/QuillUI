@@ -113,6 +113,61 @@ import SwiftSyntaxBuilder
 /// chain consistent at its root is what drives the init-mismatch count down
 /// without trading it for "call to @MainActor member from nonisolated context"
 /// errors (which the *opposite* choice — nonisolated-ing the forest — would mint).
+///
+/// ─────────────────────────────────────────────────────────────────────────────
+/// ACTOR-ISOLATION RIPPLE (Pass 5 — `DeinitMainActorIsolationRewriter`)
+/// ─────────────────────────────────────────────────────────────────────────────
+/// Pass 4 keeps the override-isolation MATRIX consistent (a `@MainActor` member
+/// overrides a `@MainActor` base, a `nonisolated` identity member overrides
+/// NSObject's). That fixes the declaration side. The FLIP side is the CALL side:
+/// a `nonisolated` upstream context that TOUCHES a `@MainActor` member errors with
+/// "call to main actor-isolated … in a synchronous nonisolated context" /
+/// "main actor-isolated property … can not be referenced/mutated from a
+/// nonisolated context".
+///
+/// The single largest, app-agnostic, provably-safe source of such contexts is
+/// **`deinit`**. Under `-default-isolation MainActor` this bites in TWO ways:
+///   1. STRUCTURAL: a `@MainActor` class has an ISOLATED deinit, so a subclass's
+///      deinit — `nonisolated` by default — mismatches it ("nonisolated
+///      deinitializer has different actor isolation from main actor-isolated
+///      overridden declaration"). This fires on EVERY forest deinit, even an empty
+///      one that touches nothing.
+///   2. BODY: a forest deinit routinely touches the `@MainActor` members the rest
+///      of the class uses freely (`view.removeFromSuperview()`,
+///      `timer?.invalidate()` on a `@MainActor` property, nil-ing a `@MainActor`
+///      child/observer, reading a `@MainActor` token) — the "main actor-isolated …
+///      from a synchronous nonisolated context" ripple.
+///
+/// IMPORTANT — why NOT "make the shim members `nonisolated`" (the brief's first
+/// instinct): it does not work for the call side, and would regress Pass 4.
+/// Empirically (swiftc, Swift 6.2, `-default-isolation MainActor`):
+///   • `@preconcurrency` on the CONFORMANCE only lets a `@MainActor` witness
+///     SATISFY a `nonisolated` requirement; the member STAYS `@MainActor`, so the
+///     call site still errors.
+///   • Marking the witness/member `nonisolated` just MOVES the error inward: the
+///     `nonisolated` body then "can not reference `@MainActor` property `x`".
+///   • The members in the ripple (`removeFromSuperview`, `frame`,
+///     `accessibilityIdentifier`, `view`) are `open` and/or mutate `@MainActor`
+///     stored state, so nonisolated-ing them BOTH fails AND breaks the override
+///     matrix Pass 4 fixed (every upstream `override` would then mismatch). And
+///     none of that even addresses the STRUCTURAL deinit mismatch (1), which has
+///     nothing to do with the body.
+///
+/// The clean fix for BOTH (1) and (2) is to ISOLATE the deinit itself:
+/// `@MainActor deinit { … }` (Swift 6.2 isolated deinitializers, SE-0371). Its
+/// isolation then MATCHES the `@MainActor` base's isolated deinit, and its body
+/// runs on the main actor so the member access is legal — the runtime hops to the
+/// main actor to run the deinit. No body rewrite, no `MainActor.assumeIsolated`
+/// wrap, no runtime-trap risk.
+///
+/// So Pass 5 prepends `@MainActor` to a deinit — but ONLY for a class that PROVABLY
+/// descends from a `@MainActor` UIKit/AppKit view-or-controller forest root
+/// (`deinitChainReachesMainActorForestRoot`). Model/helper objects (NSObject-
+/// direct, or an unknown foreign base) are LEFT ALONE: their `nonisolated` deinit
+/// MATCHES NSObject's `nonisolated` base deinit, so it does not error in the first
+/// place, and they may legitimately dealloc off-main (caches, network results) —
+/// isolating them would be both needless and wrong. The prepend is idempotent (a
+/// deinit already carrying `@MainActor` / `nonisolated` / `isolated` is skipped).
 public struct AppKitLowering {
     public init() {}
 
@@ -178,8 +233,18 @@ public struct AppKitLowering {
         // leaving the `@MainActor`-consistent UIView/UIViewController forest alone,
         // and synthesizes a `nonisolated override init()` into an NSObject-direct
         // `@MainActor` class that declares no initializer at all.
-        return NonisolatedNSObjectMemberRewriter(hierarchy: resolvedHierarchy)
-            .rewrite(withDispatch).description
+        let withIsolation = NonisolatedNSObjectMemberRewriter(hierarchy: resolvedHierarchy)
+            .rewrite(withDispatch)
+        // Pass 5: actor-isolation RIPPLE — `deinit`. Under `-default-isolation
+        // MainActor` a `@MainActor` class has an ISOLATED deinit, so a subclass's
+        // (nonisolated-by-default) deinit STRUCTURALLY mismatches it AND can't touch
+        // the `@MainActor` UI members it teardown-uses (`removeFromSuperview()`,
+        // `timer?.invalidate()`, nil-ing a `@MainActor` child). This pass prepends
+        // `@MainActor` to the deinit of a PROVABLY forest-rooted class (Swift 6.2
+        // isolated deinit) — fixing both at once, the runtime hops to main to run
+        // it. Model/foreign-base classes are left alone. See the type-level doc.
+        return DeinitMainActorIsolationRewriter(hierarchy: resolvedHierarchy)
+            .rewrite(withIsolation).description
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Mirrors
@@ -494,6 +559,43 @@ public struct HierarchyMap {
             current = simpleSuper
         }
         return false // chain ended at an unknown foreign base → leave alone
+    }
+
+    /// True iff `className` PROVABLY descends from a `@MainActor` UIKit/AppKit
+    /// view-or-controller forest root (`HierarchyMap.mainActorInitRoots` — UIView /
+    /// UIViewController / UIControl / AVPlayer / NSView / NSWindow …), i.e. the
+    /// class IS, or transitively inherits from, one of those bases.
+    ///
+    /// This is the gate for the `deinit`-isolation pass (Pass 5). Under
+    /// `-default-isolation MainActor` a `@MainActor` (forest) class has an ISOLATED
+    /// deinit, so a subclass's nonisolated-by-default deinit both STRUCTURALLY
+    /// mismatches it and can't touch the `@MainActor` UI members it teardown-uses
+    /// (`removeFromSuperview()`, releasing a `@MainActor` view/timer property,
+    /// reading a `@MainActor` token). Prepending `@MainActor` to such a deinit
+    /// (Swift 6.2 isolated deinit) fixes both: it matches the base and runs the
+    /// body on the main actor. Sound — instances of a forest (view/controller)
+    /// class are created and destroyed on the main actor.
+    ///
+    /// DELIBERATELY STRICTER than `!initChainIsMainActorRooted`: that predicate
+    /// also returns "leave alone" for a chain ending at an UNKNOWN foreign base,
+    /// which could be a genuinely `nonisolated` foreign class. Here we require a
+    /// PROVABLE forest root in the (cross-file) map before isolating the deinit, so
+    /// model/helper objects — whose nonisolated deinit already MATCHES NSObject's
+    /// nonisolated base deinit (no error), and which may dealloc off-main (caches,
+    /// network results) — are NEVER given a wrongly-isolated deinit.
+    func deinitChainReachesMainActorForestRoot(forClassNamed className: String) -> Bool {
+        let simple = HierarchyMap.simpleName(className)
+        if HierarchyMap.mainActorInitRoots.contains(simple) { return true }
+        var seen: Set<String> = [simple]
+        var current = simple
+        while let superName = superclassByClass[current] {
+            let simpleSuper = HierarchyMap.simpleName(superName)
+            if HierarchyMap.mainActorInitRoots.contains(simpleSuper) { return true } // provable forest
+            if simpleSuper == "NSObject" { return false }           // model/helper root
+            guard seen.insert(simpleSuper).inserted else { return false } // cycle
+            current = simpleSuper
+        }
+        return false // chain ended at an unknown foreign base → cannot prove → leave alone
     }
 }
 
@@ -1205,5 +1307,105 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         default:
             return nil
         }
+    }
+}
+
+// MARK: - deinit MainActor isolation (Pass 5 — actor-isolation ripple)
+
+/// Prepends `@MainActor` to a `deinit` declared in a class that PROVABLY descends
+/// from a `@MainActor` UIKit/AppKit view-or-controller forest root. See the
+/// type-level "ACTOR-ISOLATION RIPPLE (Pass 5)" doc block for the full rationale;
+/// in brief:
+///
+///   * Under `-default-isolation MainActor`, a `@MainActor` class has an ISOLATED
+///     deinit, so a subclass's deinit — `nonisolated` by default — STRUCTURALLY
+///     mismatches it: "nonisolated deinitializer has different actor isolation from
+///     main actor-isolated overridden declaration." This fires on EVERY forest
+///     deinit, even an empty one.
+///   * On top of that, a forest deinit routinely touches the `@MainActor` UI
+///     members the rest of the class uses (`view.removeFromSuperview()`,
+///     `timer?.invalidate()` on a `@MainActor` property, nil-ing a `@MainActor`
+///     child) — the "main actor-isolated … from a synchronous nonisolated context"
+///     ripple.
+///   * `@MainActor` on the deinit (Swift 6.2 isolated deinit, SE-0371) fixes BOTH
+///     at once: the deinit's isolation now MATCHES the base's isolated deinit, AND
+///     the body runs on the main actor so the member access is legal. The runtime
+///     hops to the main actor to run the deinit — no `assumeIsolated`, no body
+///     rewrite, no runtime trap risk.
+///
+/// CONSERVATIVE GATES:
+///   * Only classes for which `deinitChainReachesMainActorForestRoot` is true.
+///     Model/helper objects (NSObject-direct, or an unknown foreign base) are LEFT
+///     ALONE — their nonisolated deinit MATCHES NSObject's nonisolated base deinit,
+///     so it does not error; isolating it would be both unnecessary and wrong
+///     (those objects can legitimately dealloc off-main). We only annotate where a
+///     `@MainActor` forest root is provable.
+///   * Idempotent: a deinit that already carries `@MainActor` / `nonisolated` /
+///     `isolated` is left untouched, so a re-run is a no-op. (A hand-written
+///     `nonisolated deinit` is a deliberate author choice — though it will not
+///     compile against a `@MainActor` base, that is the author's bug to see, not
+///     ours to silently flip.)
+///
+/// `deinit` carries no parameters and no isolation in source by default, so this
+/// is a pure attribute prepend — the body is never touched.
+private final class DeinitMainActorIsolationRewriter: SyntaxRewriter {
+    private let hierarchy: HierarchyMap
+    /// Enclosing class names (innermost last) so a `deinit` knows its owner — the
+    /// forest-root gate is keyed off the owning class.
+    private var classStack: [String] = []
+
+    init(hierarchy: HierarchyMap) {
+        self.hierarchy = hierarchy
+        super.init()
+    }
+
+    override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
+        classStack.append(node.name.text)
+        let recursed = super.visit(node).cast(ClassDeclSyntax.self)
+        classStack.removeLast()
+        return DeclSyntax(recursed)
+    }
+
+    override func visit(_ node: DeinitializerDeclSyntax) -> DeclSyntax {
+        let recursed = super.visit(node).cast(DeinitializerDeclSyntax.self)
+        guard let owner = classStack.last,
+              hierarchy.deinitChainReachesMainActorForestRoot(forClassNamed: owner),
+              !Self.hasIsolationAttributeOrModifier(recursed) else {
+            return DeclSyntax(recursed)
+        }
+        return DeclSyntax(Self.prependingMainActor(recursed))
+    }
+
+    /// True iff the deinit already states its isolation — `@MainActor` (the form
+    /// this pass emits, so re-runs are no-ops), or an explicit `nonisolated` /
+    /// `isolated` modifier (a deliberate author choice we never override).
+    static func hasIsolationAttributeOrModifier(_ node: DeinitializerDeclSyntax) -> Bool {
+        let hasMainActorAttr = node.attributes.contains { element in
+            if case .attribute(let attr) = element {
+                return attr.attributeName.trimmedDescription == "MainActor"
+            }
+            return false
+        }
+        let hasIsolationModifier = node.modifiers.contains {
+            $0.name.text == "nonisolated" || $0.name.text == "isolated"
+        }
+        return hasMainActorAttr || hasIsolationModifier
+    }
+
+    /// Insert `@MainActor` as the deinit's leading attribute, re-anchoring the
+    /// decl's leading trivia (newline + indent) onto the new attribute so the
+    /// deinit stays on its own line at its original indentation. Mirrors Pass 4's
+    /// `prependNonisolated` trivia handling, for attributes instead of modifiers.
+    static func prependingMainActor(_ node: DeinitializerDeclSyntax) -> DeinitializerDeclSyntax {
+        var copy = node
+        let savedLeading = copy.leadingTrivia
+        copy.leadingTrivia = Trivia()
+        let attr = AttributeSyntax(
+            attributeName: TypeSyntax(IdentifierTypeSyntax(name: .identifier("MainActor"))),
+            trailingTrivia: .space
+        )
+        copy.attributes = AttributeListSyntax([.attribute(attr)] + Array(copy.attributes))
+        copy.leadingTrivia = savedLeading
+        return copy
     }
 }

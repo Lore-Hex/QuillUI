@@ -636,6 +636,149 @@ struct AppKitLoweringTests {
         #expect(!viewLeaf.contains("override init()"))
     }
 
+    // MARK: - actor-isolation RIPPLE (Pass 5): @MainActor isolated deinit
+
+    @Test("deinit in a FOREST (UIView) class is isolated with @MainActor")
+    func forestDeinitIsolated() {
+        let source = """
+        class MyView: UIView {
+            var timer: Timer?
+            deinit {
+                timer?.invalidate()
+                removeFromSuperview()
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("@MainActor deinit {"))
+        // The body is untouched (no rewrite / re-indent).
+        #expect(lowered.contains("timer?.invalidate()"))
+        #expect(lowered.contains("removeFromSuperview()"))
+        // No assumeIsolated wrap — isolation is on the deinit itself.
+        #expect(!lowered.contains("assumeIsolated"))
+        // Idempotent: a second pass does not double-annotate.
+        let twice = AppKitLowering().lower(lowered)
+        #expect(twice == lowered)
+        let annots = lowered.components(separatedBy: "@MainActor deinit").count - 1
+        #expect(annots == 1)
+    }
+
+    @Test("deinit in a UIViewController subclass is isolated (forest controller root)")
+    func forestControllerDeinitIsolated() {
+        let source = """
+        class MyVC: UIViewController {
+            deinit {
+                NotificationCenter.default.removeObserver(self)
+                view.removeFromSuperview()
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("@MainActor deinit {"))
+        #expect(lowered.contains("view.removeFromSuperview()"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("an EMPTY forest deinit is STILL isolated (the mismatch is structural, not body)")
+    func emptyForestDeinitIsolated() {
+        // Even a body-less deinit mismatches the @MainActor base's isolated deinit.
+        let lowered = AppKitLowering().lower("class MyView: UIView { deinit {} }")
+        #expect(lowered.contains("@MainActor deinit {"))
+    }
+
+    @Test("deinit in an NSObject-DIRECT model class is LEFT ALONE (matches NSObject's nonisolated deinit)")
+    func modelDeinitLeftAlone() {
+        let source = """
+        class Model: NSObject {
+            var token: Int = 0
+            deinit {
+                token = 0
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        // A model's nonisolated deinit matches NSObject's; isolating it would be
+        // needless and wrong (model objects can dealloc off-main).
+        #expect(!lowered.contains("@MainActor deinit"))
+    }
+
+    @Test("deinit in a class with NO superclass is left alone (cannot prove forest root)")
+    func rootlessDeinitLeftAlone() {
+        let lowered = AppKitLowering().lower("class Plain { deinit { print(\"x\") } }")
+        #expect(!lowered.contains("@MainActor deinit"))
+    }
+
+    @Test("deinit in a class with an UNKNOWN foreign base is left alone (cannot prove main-pinned)")
+    func unknownBaseDeinitLeftAlone() {
+        // SomeForeignThing is not in the map and is not a known forest root.
+        let lowered = AppKitLowering().lower(
+            "class C: SomeForeignThing { deinit { cleanup() } }"
+        )
+        #expect(!lowered.contains("@MainActor deinit"))
+    }
+
+    @Test("a deinit already carrying @MainActor / nonisolated is left untouched")
+    func deinitWithIsolationLeftAlone() {
+        // @MainActor already present → idempotent no-op (no double-annotation).
+        let already = AppKitLowering().lower("class MyView: UIView { @MainActor deinit { cleanup() } }")
+        #expect(already.components(separatedBy: "@MainActor deinit").count - 1 == 1)
+        // An explicit `nonisolated deinit` is a deliberate author choice we never flip.
+        let noniso = AppKitLowering().lower("class MyView: UIView { nonisolated deinit { cleanup() } }")
+        #expect(!noniso.contains("@MainActor"))
+        #expect(noniso.contains("nonisolated deinit"))
+    }
+
+    @Test("isolating a forest deinit preserves the body verbatim (no re-indent / rewrite)")
+    func forestDeinitBodyPreserved() {
+        let source = """
+        class MyView: UIView {
+            var children: [UIView] = []
+            deinit {
+                for child in children {
+                    child.removeFromSuperview()
+                }
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("@MainActor deinit {"))
+        // Body block is byte-identical (only the attribute was prepended).
+        #expect(lowered.contains("""
+                for child in children {
+                    child.removeFromSuperview()
+                }
+        """))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("Cross-file: a deinit in a class rooted at the forest THROUGH an in-tree base is isolated; a model-rooted one is not")
+    func crossFileDeinitForestRoots() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("appkit-deinit-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        // ViewBase: UIView (one file); ViewLeaf: ViewBase (another) with a deinit —
+        // chain reaches the forest through ViewBase → isolate.
+        try "class ViewBase: UIView { var a = 0 }"
+            .write(to: tmp.appendingPathComponent("ViewBase.swift"), atomically: true, encoding: .utf8)
+        let viewLeafURL = tmp.appendingPathComponent("ViewLeaf.swift")
+        try "class ViewLeaf: ViewBase {\n    deinit { removeFromSuperview() }\n}"
+            .write(to: viewLeafURL, atomically: true, encoding: .utf8)
+        // ModelBase: NSObject; ModelLeaf: ModelBase with a deinit — model root, left alone.
+        try "class ModelBase: NSObject { var a = 0 }"
+            .write(to: tmp.appendingPathComponent("ModelBase.swift"), atomically: true, encoding: .utf8)
+        let modelLeafURL = tmp.appendingPathComponent("ModelLeaf.swift")
+        try "class ModelLeaf: ModelBase {\n    deinit { teardown() }\n}"
+            .write(to: modelLeafURL, atomically: true, encoding: .utf8)
+
+        _ = try AppKitLowering().lowerInPlace(sourceDir: tmp)
+        let viewLeaf = try String(contentsOf: viewLeafURL, encoding: .utf8)
+        let modelLeaf = try String(contentsOf: modelLeafURL, encoding: .utf8)
+        #expect(viewLeaf.contains("@MainActor deinit {"))
+        #expect(modelLeaf.contains("teardown()"))
+        #expect(!modelLeaf.contains("@MainActor deinit"))
+    }
+
     // MARK: - Linux-compat lowering (os.log / os(macOS)) — for WireGuard Tunnel/
 
     @Test("import os.log is rewritten to import os")
