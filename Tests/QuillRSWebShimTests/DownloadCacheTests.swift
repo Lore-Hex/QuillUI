@@ -9,7 +9,13 @@ import QuillRSCoreShim
 /// Pins the vendored RSWeb DownloadCache (the in-memory cache behind real
 /// FeedFinder.find()'s downloadUsingCache) and the HTTPResponse429
 /// Retry-After bookkeeping.
-@Suite("RSWeb clone — DownloadCache + HTTPResponse429")
+// `.serialized`: these tests post the GLOBAL `.appDidGoToBackground` /
+// `.lowMemory` notifications, and every live `DownloadCache` observes both on
+// `NotificationCenter.default` and responds with `removeAll()`. Run in
+// parallel (Swift Testing's default), one test's post races another's
+// `cache["k"]` read and clears it first. Serializing this suite keeps each
+// post scoped to the test that intends it.
+@Suite("RSWeb clone — DownloadCache + HTTPResponse429", .serialized)
 struct DownloadCacheTests {
 
     @Test("add() and subscript round-trip data and nils")
