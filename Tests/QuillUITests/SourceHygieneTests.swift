@@ -554,8 +554,14 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
-        #expect(appKit.contains("public protocol NSApplicationDelegate"))
-        #expect(!appKit.contains("@MainActor public protocol NSApplicationDelegate"))
+        // SolderScope's @preconcurrency pivot (#548) made NSApplicationDelegate
+        // @MainActor (its delegate methods are main-thread). `@preconcurrency`
+        // downgrades the isolation check to Swift-5 mode, so a nonisolated
+        // Telegram conformance is a warning rather than the hard error a bare
+        // `@MainActor` protocol would cause — the protocol must carry BOTH
+        // annotations and never appear as a bare (line-leading) `@MainActor`.
+        #expect(appKit.contains("@preconcurrency @MainActor public protocol NSApplicationDelegate"))
+        #expect(!appKit.contains("\n@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,
