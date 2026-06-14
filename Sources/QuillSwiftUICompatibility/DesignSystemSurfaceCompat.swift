@@ -1,6 +1,17 @@
 import Foundation
 import Combine
+import QuillFoundation
+import QuillKit
 import SwiftOpenUI
+
+private func recordSwiftUICompatibilityFallback(_ operation: String, message: String? = nil) {
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "QuillUI",
+        operation: operation,
+        severity: .info,
+        message: message ?? "\(operation) is currently a source-compatibility fallback on Linux."
+    )
+}
 
 public protocol PreviewProvider {
     associatedtype Previews: View
@@ -504,7 +515,9 @@ private func quillCompactNumberString(_ value: Double, fractionLength: Int?) -> 
 
     let scaled = absolute / scale.divisor
     let digits = fractionLength ?? (scaled < 100 ? 1 : 1)
-    var formatted = String(format: "%.\(digits)f", locale: Locale(identifier: "en_US_POSIX"), scaled)
+    let multiplier = pow(10, Double(digits))
+    let rounded = ((scaled * multiplier) + 1e-9).rounded() / multiplier
+    var formatted = String(format: "%.\(digits)f", locale: Locale(identifier: "en_US_POSIX"), rounded)
     if fractionLength == nil, formatted.hasSuffix(".0") {
         formatted.removeLast(2)
     }
@@ -657,62 +670,10 @@ public struct ProgressViewStyle: Sendable {
     public static let linear = ProgressViewStyle()
 }
 
-public struct FocusEffectDisabledView<Content: View>: View {
-    public let content: Content
-    public let disabled: Bool
-
-    public init(content: Content, disabled: Bool) {
-        self.content = content
-        self.disabled = disabled
-    }
-
-    public var body: some View { content }
+public enum KeyPressResult: Sendable {
+    case handled
+    case ignored
 }
-
-public struct ScrollIndicatorsView<Content: View>: View {
-    public let content: Content
-    public let visibility: ScrollIndicatorVisibility
-
-    public init(content: Content, visibility: ScrollIndicatorVisibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
-
-public struct ScrollContentBackgroundView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-
-    public init(content: Content, visibility: Visibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
-
-public struct EdgesIgnoringSafeAreaView<Content: View>: View {
-    public let content: Content
-    public let edges: Edge.Set
-
-    public init(content: Content, edges: Edge.Set) {
-        self.content = content
-        self.edges = edges
-    }
-
-    public var body: some View { content }
-}
-
-public struct KeyPress: Sendable {
-    public enum Result: Sendable {
-        case handled
-        case ignored
-    }
-}
-
-public typealias KeyPressResult = KeyPress.Result
 
 public struct ScrollTargetBehavior: Sendable {
     public init() {}
@@ -1257,6 +1218,7 @@ public extension Font {
 public extension Binding {
     func animation(_ animation: Animation? = nil) -> Binding<Value> {
         _ = animation
+        recordSwiftUICompatibilityFallback("Binding.animation")
         return self
     }
 }
@@ -1399,7 +1361,14 @@ public extension String.StringInterpolation {
 public extension Image {
     @_disfavoredOverload
     init(_ name: String) {
-        self.init(resource: name)
+        if let path = QuillResourceLookup.path(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ) {
+            self.init(filePath: path)
+        } else {
+            self.init(resource: name)
+        }
     }
 }
 
@@ -1620,18 +1589,6 @@ public struct GroupedFormStyle: Sendable {
     public static let grouped = GroupedFormStyle()
 }
 
-public struct FormStyleView<Content: View, Style>: View {
-    public let content: Content
-    public let style: Style
-
-    public init(content: Content, style: Style) {
-        self.content = content
-        self.style = style
-    }
-
-    public var body: some View { content }
-}
-
 public struct TextContentType: Hashable, Sendable {
     public var rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
@@ -1650,78 +1607,6 @@ public struct TextInputAutocapitalization: Hashable, Sendable {
     public init(_ rawValue: String) { self.rawValue = rawValue }
     public static let never = TextInputAutocapitalization("never")
     public static let none = TextInputAutocapitalization("none")
-}
-
-public struct ViewMaskView<Content: View, MaskContent: View>: View {
-    public let content: Content
-    public let mask: MaskContent
-
-    public init(content: Content, mask: MaskContent) {
-        self.content = content
-        self.mask = mask
-    }
-
-    public var body: some View { content }
-}
-
-public struct TextContentTypeView<Content: View>: View {
-    public let content: Content
-    public let contentType: TextContentType?
-
-    public init(content: Content, contentType: TextContentType?) {
-        self.content = content
-        self.contentType = contentType
-    }
-
-    public var body: some View { content }
-}
-
-public struct AutocorrectionDisabledView<Content: View>: View {
-    public let content: Content
-    public let disabled: Bool?
-
-    public init(content: Content, disabled: Bool?) {
-        self.content = content
-        self.disabled = disabled
-    }
-
-    public var body: some View { content }
-}
-
-public struct KeyboardTypeView<Content: View, Keyboard>: View {
-    public let content: Content
-    public let keyboardType: Keyboard
-
-    public init(content: Content, keyboardType: Keyboard) {
-        self.content = content
-        self.keyboardType = keyboardType
-    }
-
-    public var body: some View { content }
-}
-
-public struct AutocapitalizationView<Content: View>: View {
-    public let content: Content
-    public let autocapitalization: TextInputAutocapitalization
-
-    public init(content: Content, autocapitalization: TextInputAutocapitalization) {
-        self.content = content
-        self.autocapitalization = autocapitalization
-    }
-
-    public var body: some View { content }
-}
-
-public struct ScrollDismissesKeyboardView<Content: View>: View {
-    public let content: Content
-    public let mode: ScrollDismissesKeyboardMode
-
-    public init(content: Content, mode: ScrollDismissesKeyboardMode) {
-        self.content = content
-        self.mode = mode
-    }
-
-    public var body: some View { content }
 }
 
 public struct TableColumn<RowValue, Content: View>: View {
@@ -1844,6 +1729,18 @@ public extension View {
     }
 
     @_disfavoredOverload
+    func formStyle(_ style: GroupedFormStyle) -> Self {
+        _ = style
+        return self
+    }
+
+    @_disfavoredOverload
+    func textContentType(_ contentType: TextContentType?) -> Self {
+        _ = contentType
+        return self
+    }
+
+    @_disfavoredOverload
     func textInputAutocapitalization(_ autocapitalization: TextInputAutocapitalization?) -> Self {
         _ = autocapitalization
         return self
@@ -1891,38 +1788,9 @@ public extension View {
     }
 
     @_disfavoredOverload
-    func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
-        ViewMaskView(content: self, mask: mask)
-    }
-
-    @_disfavoredOverload
-    func mask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> ViewMaskView<Self, Mask> {
-        ViewMaskView(content: self, mask: mask())
-    }
-
-    @_disfavoredOverload
-    func formStyle(_ style: GroupedFormStyle) -> FormStyleView<Self, GroupedFormStyle> {
-        FormStyleView(content: self, style: style)
-    }
-
-    @_disfavoredOverload
-    func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
-        TextContentTypeView(content: self, contentType: contentType)
-    }
-
-    @_disfavoredOverload
-    func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
-        AutocorrectionDisabledView(content: self, disabled: disabled)
-    }
-
-    @_disfavoredOverload
-    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self, KeyboardType> {
-        KeyboardTypeView(content: self, keyboardType: keyboardType)
-    }
-
-    @_disfavoredOverload
-    func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
-        AutocapitalizationView(content: self, autocapitalization: autocapitalization)
+    func mask<Mask: View>(@ViewBuilder _ mask: () -> Mask) -> Self {
+        _ = mask()
+        return self
     }
 }
 
@@ -2118,6 +1986,7 @@ public extension View {
 
     func listStyle(_ style: PlainListStyle) -> Self {
         _ = style
+        recordSwiftUICompatibilityFallback("listStyle(PlainListStyle)")
         return self
     }
 
@@ -2126,8 +1995,9 @@ public extension View {
         return self
     }
 
-    func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> ScrollDismissesKeyboardView<Self> {
-        ScrollDismissesKeyboardView(content: self, mode: mode)
+    func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> Self {
+        _ = mode
+        return self
     }
 
     func font(_ font: Font?) -> Self {
@@ -2195,6 +2065,12 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
+    func scrollIndicators(_ visibility: Visibility) -> Self {
+        _ = visibility
+        return self
+    }
+
     func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = .all) -> Self {
         _ = behavior
         _ = axes
@@ -2209,6 +2085,7 @@ public extension View {
     @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
+        recordSwiftUICompatibilityFallback("allowsHitTesting")
         return self
     }
 
@@ -2248,8 +2125,10 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func transition(_ transition: AnyTransition) -> Self {
         _ = transition
+        recordSwiftUICompatibilityFallback("transition")
         return self
     }
 
@@ -2516,30 +2395,6 @@ public extension View {
         return self
     }
 
-    func confirmationDialog<Actions: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        @ViewBuilder actions: () -> Actions
-    ) -> Self {
-        _ = title
-        _ = isPresented
-        _ = actions()
-        return self
-    }
-
-    func confirmationDialog<Actions: View>(
-        _ title: String,
-        isPresented: Binding<Bool>,
-        titleVisibility: Visibility,
-        @ViewBuilder actions: () -> Actions
-    ) -> Self {
-        _ = title
-        _ = isPresented
-        _ = titleVisibility
-        _ = actions()
-        return self
-    }
-
     func swipeActions<Actions: View>(
         edge: Edge = .trailing,
         allowsFullSwipe: Bool = true,
@@ -2663,16 +2518,26 @@ public extension View {
         return self
     }
 
-    func matchedTransitionSource<ID: Hashable>(
+    @_disfavoredOverload
+    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
+        _ = visibility
+        return self
+    }
+
+    func matchedGeometryEffect<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
     ) -> Self {
         _ = id
         _ = namespace
+        recordSwiftUICompatibilityFallback(
+            "matchedGeometryEffect",
+            message: "matchedGeometryEffect is currently a source-compatibility fallback on Linux."
+        )
         return self
     }
 
-    func matchedGeometryEffect<ID: Hashable>(
+    func matchedTransitionSource<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
     ) -> Self {
@@ -2730,20 +2595,10 @@ public extension View {
         return self
     }
 
-    func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
-        FocusEffectDisabledView(content: self, disabled: disabled)
-    }
-
-    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
-        ScrollIndicatorsView(content: self, visibility: visibility)
-    }
-
-    func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
-        ScrollContentBackgroundView(content: self, visibility: visibility)
-    }
-
-    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
-        EdgesIgnoringSafeAreaView(content: self, edges: edges)
+    @_disfavoredOverload
+    func focusEffectDisabled(_ disabled: Bool = true) -> Self {
+        _ = disabled
+        return self
     }
 
     func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> Self {
@@ -2752,6 +2607,7 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
     func symbolEffect<Value: Equatable>(
         _ effect: SymbolEffect,
         options: SymbolEffectOptions = .default,
@@ -2760,6 +2616,7 @@ public extension View {
         _ = effect
         _ = options
         _ = value
+        recordSwiftUICompatibilityFallback("symbolEffect")
         return self
     }
 
@@ -2812,6 +2669,12 @@ public extension View {
 
     func contentTransition(_ transition: ContentTransition) -> Self {
         _ = transition
+        return self
+    }
+
+    @_disfavoredOverload
+    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> Self {
+        _ = edges
         return self
     }
 

@@ -76,6 +76,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = ["))
         #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
+        #expect(manifest.contains("products += ["))
         #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
         #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
@@ -179,6 +180,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("""
                 "KeychainSwift",
                 "UIKit",
+                "CryptoKit",
 """))
     }
 
@@ -742,6 +744,18 @@ struct SourceHygieneTests {
         #expect(!FileManager.default.fileExists(
             atPath: rules.appendingPathComponent("Services/Clipboard.swift.pl").path
         ))
+    }
+
+    @Test("Enchanted composer rewrite expands before drawing border")
+    func enchantedComposerRewriteExpandsBeforeDrawingBorder() throws {
+        let root = try packageRoot()
+        let inputFieldsRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/Components/InputFields_macOS.swift.pl"),
+            encoding: .utf8
+        )
+
+        #expect(inputFieldsRule.contains("\\n$1.frame(maxWidth: .infinity)\\n$1.overlay("))
+        #expect(inputFieldsRule.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
     }
 
     @Test("Apple service aliases live in reusable compatibility modules")

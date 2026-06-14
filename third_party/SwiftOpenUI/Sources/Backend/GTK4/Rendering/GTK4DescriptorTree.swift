@@ -834,14 +834,13 @@ public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
     case .create, .replace:
         return false
     case .reuse:
-        if plan.newDescriptor.kind == .button {
-            // GTK Button action closures capture the view state storage from
-            // the render pass that created the widget. Until the retained
-            // descriptor path can refresh those closures in-place, hosts that
-            // contain buttons must take the full rebuild path so actions mutate
-            // the current @State storage.
-            return false
-        }
+        // Reused buttons stay on the narrow path: host state identity is
+        // stable across rebuilds (structural-path namespaces), so the action
+        // closure captured at widget creation writes to the same @State
+        // storage the current pass reads. Without this, any host containing a
+        // button tears down on every keystroke and the focused entry is
+        // destroyed mid-typing. A button whose own props changed plans as
+        // .update (intent .none) and still takes the full rebuild.
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
             // Props-bearing leaves (TextField & co.) compare meaningfully:
             // identical descriptors mean nothing changed, and the native

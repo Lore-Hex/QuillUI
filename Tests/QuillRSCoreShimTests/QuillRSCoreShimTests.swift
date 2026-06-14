@@ -65,6 +65,13 @@ struct QuillRSCoreShimTests {
         #expect("é".md5String == "66ddcd97cfdeabb2f6fb8a999b4bc76f")
     }
 
+    @Test("escapingSpecialXMLCharacters matches upstream RSCore escaping")
+    func escapingSpecialXMLCharacters() {
+        let raw = #"<foo attr="value">bar&baz's</foo>"#
+        let escaped = #"&lt;foo attr=&quot;value&quot;&gt;bar&amp;baz's&lt;/foo&gt;"#
+        #expect(raw.escapingSpecialXMLCharacters == escaped)
+    }
+
     @Test("Notification.Name.lowMemory matches upstream RSCore string literal")
     func lowMemoryNotificationNameRoundTrip() {
         // Upstream RSCore.AppNotifications declares the same
@@ -72,6 +79,44 @@ struct QuillRSCoreShimTests {
         // means observers registered on either side route the
         // same notification.
         #expect(Notification.Name.lowMemory.rawValue == "LowMemoryNotification")
+    }
+
+    @Test("collapsingWhitespace trims ASCII whitespace and preserves non-ASCII text")
+    func collapsingWhitespace() {
+        #expect("".collapsingWhitespace == "")
+        #expect("   hello   ".collapsingWhitespace == "hello")
+        #expect("one \n\t two\r\nthree".collapsingWhitespace == "one two three")
+        let accented = "Caf\u{00e9}   r\u{00e9}sum\u{00e9}"
+        #expect(accented.collapsingWhitespace == "Caf\u{00e9} r\u{00e9}sum\u{00e9}")
+
+        let nonBreakingSpace = "\u{00a0}"
+        #expect("a\(nonBreakingSpace)b".collapsingWhitespace == "a\(nonBreakingSpace)b")
+    }
+
+    @Test("NSAttributedString simpleHTML exposes visible text")
+    func simpleHTMLAttributedString() {
+        let attributed = NSAttributedString(simpleHTML: "<b>Hello</b> &amp; <q>world</q>")
+        #expect(attributed.string.contains("Hello & "))
+        #expect(attributed.string.contains("world"))
+    }
+
+    @Test("postOnMainThread asynchronously delivers a notification")
+    func postOnMainThreadDeliversNotification() async {
+        let name = Notification.Name("QuillRSCoreShimTests.postOnMainThread.\(UUID().uuidString)")
+        var observer: NSObjectProtocol?
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            observer = NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { notification in
+                #expect(notification.name == name)
+                continuation.resume()
+            }
+
+            NotificationCenter.default.postOnMainThread(name: name, object: nil)
+        }
+
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     @Test("Platform.isRunningUnitTests returns true under XCTest")

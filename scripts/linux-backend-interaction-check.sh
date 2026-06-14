@@ -592,6 +592,27 @@ open_quill_chat_completions_panel() {
   sleep "$post_click_sleep"
 }
 
+quill_chat_mac_reference_completions_panel_visible() {
+  local probe_path
+
+  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 1
+  probe_path="$OUTPUT_DIR/quill-chat-completions-panel-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}.png"
+  DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" >/dev/null 2>&1 || return 1
+  python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+    "$probe_path" \
+    quill-chat-linux-mac-reference-completions-panel \
+    >/dev/null 2>&1
+}
+
+ensure_quill_chat_completions_panel_open() {
+  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
+  if quill_chat_mac_reference_completions_panel_visible; then
+    return 0
+  fi
+
+  open_quill_chat_completions_panel
+}
+
 open_quill_chat_new_completion_sheet() {
   local new_x
   local new_y
@@ -666,6 +687,7 @@ save_quill_chat_new_completion() {
   sleep 0.5
   click_at "$save_x" "$save_y"
   sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
+  ensure_quill_chat_completions_panel_open
 }
 
 edit_quill_chat_existing_completion() {
@@ -711,6 +733,7 @@ edit_quill_chat_existing_completion() {
   sleep 0.5
   click_at "$save_x" "$save_y"
   sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
+  ensure_quill_chat_completions_panel_open
 }
 
 delete_quill_chat_completion() {
@@ -975,14 +998,12 @@ fi
 if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
     case "$INTERACTION_MODE" in
       composer-typed)
-        # Target the composer field CENTER. Measured from the mac-reference render
-        # (PR #237): the composer spans x 647..1984 (center ~0.64*W) with its field
-        # row at y~1257 (~window_height-123). The old x=0.34*W (~695) landed at the
-        # field's far-left padding and y=window_height-84 (~1296) fell BELOW the field
-        # row, so the click never focused the TextField (typed text -> pixels=0).
-        # 0.56*W matches the reimpl's proven composer click; -120 sits on the field row.
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
+        # Target the left text-entry portion of the mac-reference composer.
+        # The trailing center controls are clickable too, but they are not the
+        # editable TextField; keep this aligned with the typed-composer verifier,
+        # which looks for typed pixels near the composer's left inset.
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 76))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
@@ -994,8 +1015,8 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # unreachable for deterministic screenshots, so this verifies the typed
         # message leaves the empty state and renders as a trailing user message;
         # the live Ollama/persistence proof remains a separate functional smoke.
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 56 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 120))}"
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 76))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"

@@ -19,6 +19,32 @@
 import Foundation
 
 public extension Data {
+	var md5String: String {
+		MD5.hexString(MD5.hash(Array(self)))
+	}
+
+	var isImage: Bool {
+		if starts(with: [0xFF, 0xD8, 0xFF]) {
+			return true
+		}
+		if starts(with: [0x89, 0x50, 0x4E, 0x47]) {
+			return true
+		}
+		if starts(with: Array("GIF87a".utf8)) || starts(with: Array("GIF89a".utf8)) {
+			return true
+		}
+		if starts(with: Array("BM".utf8)) {
+			return true
+		}
+		if count >= 12 {
+			let riff = self[startIndex..<index(startIndex, offsetBy: 4)]
+			let webp = self[index(startIndex, offsetBy: 8)..<index(startIndex, offsetBy: 12)]
+			if riff.elementsEqual("RIFF".utf8) && webp.elementsEqual("WEBP".utf8) {
+				return true
+			}
+		}
+		return false
+	}
 
 	/// Constants for `isProbablyHTML`.
 	private enum RSSearch {

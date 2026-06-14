@@ -427,17 +427,6 @@ private final class QuillImageDataCache: @unchecked Sendable {
 }
 
 public extension Image {
-    init(_ name: String) {
-        if let path = QuillResourceLookup.path(
-            forResource: name,
-            candidateExtensions: QuillResourceLookup.commonImageExtensions
-        ) {
-            self.init(filePath: path)
-        } else {
-            self.init(resource: name)
-        }
-    }
-
     init(data: Data) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("QuillUIImages", isDirectory: true)
@@ -510,6 +499,15 @@ public extension EnvironmentValues {
 }
 
 public extension View {
+    @ViewBuilder
+    func preferredColorScheme(_ colorScheme: ColorScheme?) -> some View {
+        if let colorScheme {
+            environment(\.colorScheme, colorScheme)
+        } else {
+            self
+        }
+    }
+
     @_disfavoredOverload
     @ViewBuilder
     func quillGTKSizeRequest(width: Int = -1, height: Int = -1) -> some View {
