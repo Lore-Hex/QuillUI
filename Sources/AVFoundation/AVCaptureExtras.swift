@@ -67,19 +67,9 @@ extension AVCaptureDevice {
         case custom = 3
     }
 
-    /// No camera hardware to enumerate on Linux — `devices` is always empty,
-    /// so upstream device selection falls through to its failure path.
-    public final class DiscoverySession: @unchecked Sendable {
-        public let devices: [AVCaptureDevice] = []
-
-        public init(
-            deviceTypes: [AVCaptureDevice.DeviceType],
-            mediaType: AVMediaType?,
-            position: AVCaptureDevice.Position
-        ) {
-            _ = (deviceTypes, mediaType, position)
-        }
-    }
+    // DiscoverySession (with init(deviceTypes:mediaType:position:)) is declared
+    // in AVFoundation.swift — one owner. A duplicate here caused "invalid
+    // redeclaration of 'DiscoverySession'".
 
     /// `AVCaptureDevice.DeviceType` on the (nonexistent) Linux device.
     public var deviceType: DeviceType { .builtInWideAngleCamera }
