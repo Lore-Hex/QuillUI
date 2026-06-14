@@ -8,6 +8,21 @@
 // the QuillEdgeInsets backing stores live down in QuillUIKit
 // (UIScrollViewExtras.swift: `quillContentInset` & co.) and the public
 // UIEdgeInsets-typed accessors are layered here on top.
+//
+// OVERRIDABILITY / module-layering decision (the sig6-2 crux):
+// These accessors are EXTENSION members and so "cannot be overridden". That is
+// fine for the scroll-view family that uses them — UIScrollView itself,
+// UITableView, UICollectionView — because nothing overrides contentInset /
+// scrollIndicatorInsets there. The members SignalUI overrides
+// (BodyRangesTextView & co.) are on UITextView, which on Apple IS a
+// UIScrollView but in this shim is a plain UIView (UIScrollView's stored
+// `delegate: UIScrollViewDelegate?` would collide with UITextView's
+// `delegate: UITextViewDelegate?`). UITextView therefore carries its OWN
+// UIEdgeInsets-typed contentInset / scrollIndicatorInsets in its CLASS BODY
+// (UIKit.swift) — `open`, hence overridable — and it can be UIEdgeInsets-typed
+// there because UITextView is declared in THIS module, where UIEdgeInsets is
+// visible. UIScrollView's body can't host these (it lives in QuillUIKit, which
+// can't see UIEdgeInsets), so the split is intentional, not a duplication bug.
 
 import QuillFoundation
 import QuillUIKit
