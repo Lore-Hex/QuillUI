@@ -10,6 +10,14 @@ open class UIHostingController<Content: View>: UIViewController {
         super.init(nibName: nil, bundle: nil)
         self.view = UIView()
     }
+
+    // UIViewController now declares `required init?(coder:)` (Apple-faithful);
+    // a subclass with its own designated init must restate it. Storyboards
+    // don't exist on Linux, so it's unavailable like Apple's UIHostingController.
+    @available(*, unavailable)
+    public required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) is not available on Linux")
+    }
 }
 
 // UIHostingConfiguration (iOS 16+) wraps a SwiftUI view as a cell's
