@@ -187,6 +187,10 @@ import QuillFoundation
     /// header view) inherit it, keeping `HeaderView()` call sites working.
     public convenience init() { self.init(frame: .zero) }
 
+    // Own designated init suppresses inheritance of UIView's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) { super.init(coder: coder) }
+
     open func prepareForReuse() {}
 }
 

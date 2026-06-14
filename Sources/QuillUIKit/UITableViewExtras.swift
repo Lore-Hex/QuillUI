@@ -782,6 +782,13 @@ extension UITableViewCell {
         self.init(reuseIdentifier: nil)
     }
 
+    // Own designated init suppresses inheritance of UIView's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        addSubview(contentView)
+    }
+
     /// Called when a view is about to be recycled. With no recycle pool on
     /// Linux nothing calls it, but subclasses override it, so it must exist
     /// (and be open) here.
@@ -843,6 +850,17 @@ extension UITableViewCell {
     public init(style: UITableView.Style) {
         super.init(nibName: nil, bundle: nil)
         let tableView = UITableView(frame: .zero, style: style)
+        tableView.dataSource = self
+        tableView.delegate = self
+        self.tableView = tableView
+    }
+
+    // Own designated init suppresses inheritance of UIViewController's
+    // required init?(coder:); restate it (a plain-style table view, matching
+    // Apple's coder path default).
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        let tableView = UITableView(frame: .zero, style: .plain)
         tableView.dataSource = self
         tableView.delegate = self
         self.tableView = tableView

@@ -88,6 +88,12 @@ import QuillKit
         super.init(frame: frame)
     }
 
+    // Own designated inits suppress inheritance of UIView's
+    // required init?(coder:); restate it (an empty arrangement).
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
     // MARK: - Arranged subviews
 
     /// Insertion-ordered arrangement. Entries whose view has left the view

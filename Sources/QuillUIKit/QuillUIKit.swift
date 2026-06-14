@@ -347,6 +347,12 @@ public enum UIAccessibilityContrast: Int {
         super.init(frame: .zero)
         windowScene.windows.append(self)
     }
+    // UIView's required init?(coder:) is no longer inherited once this class
+    // declares its own designated inits above; restate it (OWSWindow's faithful
+    // override needs a base to override).
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
 }
 #endif
 
@@ -400,6 +406,23 @@ public enum UIAccessibilityContrast: Int {
         super.init()
         self.frame = frame
     }
+
+    // Apple's UIView declares `public required init?(coder:)`. It must live on
+    // the base for two reasons that together drive ~hundreds of lowered errors:
+    //   1. Signal's faithful subclasses declare `required init?(coder:)` (the
+    //      `fatalError("init(coder:) has not been implemented")` boilerplate
+    //      Xcode generates). Without a `required init?(coder:)` here, those are
+    //      "initializer does not override a designated initializer," and a
+    //      subclass that adds its own designated init hits "initializer
+    //      'init(coder:)' must be provided by subclass."
+    //   2. `required` (not plain) is what lets a subclass that adds NO new init
+    //      INHERIT it instead of being forced to restate it.
+    // No NSCoder archive is ever decoded on Linux; this builds an empty view.
+    public required init?(coder: NSCoder) {
+        super.init()
+        _ = coder
+    }
+
     // `open` (not just `public`): Signal subclasses override frame/bounds with
     // didSet observers everywhere (CVImageView, ManualLayoutView, OWSLayerView,
     // …) and that requires the stored property itself to be overridable
@@ -938,6 +961,16 @@ public enum UIAccessibilityContrast: Int {
     }
     public convenience override init() { self.init(nibName: nil, bundle: nil) }
 
+    // Apple's UIViewController declares `public required init?(coder:)`. Same
+    // rationale as UIView's: lowered Signal subclasses ship the faithful
+    // `required init?(coder:)` boilerplate and need a base to override; marking
+    // it `required` lets init-free subclasses inherit it. No nib/storyboard is
+    // ever decoded on Linux.
+    public required init?(coder: NSCoder) {
+        super.init()
+        _ = coder
+    }
+
     public class func attemptRotationToDeviceOrientation() {}
     private var quillTitle: String?
     open var title: String? {
@@ -1019,6 +1052,19 @@ public enum UIAccessibilityContrast: Int {
     }
     /// Always nil — no interactive/animated transitions exist to coordinate.
     open var transitionCoordinator: UIViewControllerTransitionCoordinator? { nil }
+
+    // MARK: Transition-state flags
+    //
+    // On Apple these read true only during the narrow window of an
+    // appearance/containment transition. There are no animated transitions on
+    // Linux (present/dismiss and addChild/removeFromParent complete
+    // synchronously), so the window is always empty and all four read false —
+    // the faithful steady-state value. Class-body so SignalUI controllers that
+    // branch on them resolve through base-typed references.
+    open var isBeingPresented: Bool { false }
+    open var isBeingDismissed: Bool { false }
+    open var isMovingToParent: Bool { false }
+    open var isMovingFromParent: Bool { false }
 
     open func viewDidLoad() {}
     open func viewWillAppear(_ animated: Bool) {}
@@ -1167,6 +1213,11 @@ public enum UIAccessibilityContrast: Int {
 }
 
 @MainActor open class UINavigationController: UIViewController {
+    /// UIKit's documented bar show/hide animation duration. There is no bar
+    /// animation on Linux, but SignalUI reads this constant to time its own
+    /// coordinated animations, so it carries Apple's exact value.
+    public static let hideShowBarDuration: CGFloat = 0.33
+
     public var navigationBar = UINavigationBar()
     open weak var delegate: (any UINavigationControllerDelegate)?
     public var interactivePopGestureRecognizer: UIGestureRecognizer? = UIGestureRecognizer()
@@ -1194,6 +1245,11 @@ public enum UIAccessibilityContrast: Int {
         super.init(nibName: nil, bundle: nil)
     }
     public convenience init() { self.init(navigationBarClass: nil, toolbarClass: nil) }
+    // Own designated inits suppress inheritance of UIViewController's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
     public func pushViewController(_: UIViewController, animated: Bool) {}
     public func popViewController(animated: Bool) -> UIViewController? { nil }
     public var topViewController: UIViewController?
@@ -1406,6 +1462,12 @@ public enum UIAccessibilityContrast: Int {
         self.reuseIdentifier = reuseIdentifier
     }
     public convenience init() { self.init(style: .default, reuseIdentifier: nil) }
+    // Own designated init above suppresses inheritance of UIView's
+    // required init?(coder:); restate it so SignalUI cell subclasses' faithful
+    // `required init?(coder:)` overrides resolve.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
     public var textLabel: UILabel?
     public var detailTextLabel: UILabel?
     public var imageView: UIImageView?
@@ -1432,6 +1494,11 @@ public enum UIAccessibilityContrast: Int {
     public init(frame: CGRect, collectionViewLayout layout: UICollectionViewLayout) {
         super.init(frame: frame)
         self.collectionViewLayout = layout
+    }
+    // Own designated init suppresses inheritance of UIView's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
     }
     public func cellForItem(at: IndexPath) -> UICollectionViewCell? { nil }
     open func reloadData() {}
@@ -1478,6 +1545,11 @@ public enum UIAccessibilityContrast: Int {
         super.init(nibName: nil, bundle: nil)
         self.title = title
     }
+    // Own designated init suppresses inheritance of UIViewController's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
 
     public func addAction(_ action: UIAlertAction) {
         actions.append(action)
@@ -1522,6 +1594,11 @@ public class UIAlertAction: NSObject {
     public var sourceView: UIView?
     public var sourceRect: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0)
     public var permittedArrowDirections: UIPopoverArrowDirection = .any
+    public weak var delegate: (any UIPopoverPresentationControllerDelegate)?
+    /// Views outside the popover that still receive touches while it is up.
+    /// Recorded faithfully; no popover dimming view composites on Linux yet,
+    /// so nothing reads it back. nil by default, matching UIKit.
+    public var passthroughViews: [UIView]?
 }
 
 public struct UIPopoverArrowDirection: OptionSet, Sendable {
@@ -1545,6 +1622,15 @@ public struct UIPopoverArrowDirection: OptionSet, Sendable {
     public init(activityItems: [Any], applicationActivities: [Any]?) {
         super.init(nibName: nil, bundle: nil)
     }
+    // Own designated inits suppress inheritance of UIViewController's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+    /// Activity types to omit from the share sheet. Recorded faithfully; no
+    /// share sheet composites on Linux yet, so nothing reads it back. nil by
+    /// default, matching UIKit.
+    public var excludedActivityTypes: [UIActivity.ActivityType]?
 }
 
 public class UIPasteboard: NSObject {
@@ -1638,6 +1724,11 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public init(image: UIImage?) {
         super.init(frame: .zero)
         self.image = image
+    }
+    // Own designated inits suppress inheritance of UIView's
+    // required init?(coder:); restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
     }
     public var image: UIImage?
     public var highlightedImage: UIImage?
@@ -1791,6 +1882,31 @@ public extension UIActivityItemSource {
     public struct ActivityType: RawRepresentable, Equatable, Hashable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
+        public init(_ rawValue: String) { self.rawValue = rawValue }
+
+        // Apple's system activity-type constants (UIActivity.ActivityType.*),
+        // carried so SignalUI's excludedActivityTypes lists resolve. The
+        // rawValues match UIKit's `com.apple.UIKit.activity.*` identifiers.
+        public static let postToFacebook = ActivityType("com.apple.UIKit.activity.PostToFacebook")
+        public static let postToTwitter = ActivityType("com.apple.UIKit.activity.PostToTwitter")
+        public static let postToWeibo = ActivityType("com.apple.UIKit.activity.PostToWeibo")
+        public static let message = ActivityType("com.apple.UIKit.activity.Message")
+        public static let mail = ActivityType("com.apple.UIKit.activity.Mail")
+        public static let print = ActivityType("com.apple.UIKit.activity.Print")
+        public static let copyToPasteboard = ActivityType("com.apple.UIKit.activity.CopyToPasteboard")
+        public static let assignToContact = ActivityType("com.apple.UIKit.activity.AssignToContact")
+        public static let saveToCameraRoll = ActivityType("com.apple.UIKit.activity.SaveToCameraRoll")
+        public static let addToReadingList = ActivityType("com.apple.UIKit.activity.AddToReadingList")
+        public static let postToFlickr = ActivityType("com.apple.UIKit.activity.PostToFlickr")
+        public static let postToVimeo = ActivityType("com.apple.UIKit.activity.PostToVimeo")
+        public static let postToTencentWeibo = ActivityType("com.apple.UIKit.activity.PostToTencentWeibo")
+        public static let airDrop = ActivityType("com.apple.UIKit.activity.AirDrop")
+        public static let openInIBooks = ActivityType("com.apple.UIKit.activity.OpenInIBooks")
+        public static let markupAsPDF = ActivityType("com.apple.UIKit.activity.MarkupAsPDF")
+        public static let sharePlay = ActivityType("com.apple.UIKit.activity.SharePlay")
+        public static let collaborationInviteWithLink = ActivityType("com.apple.UIKit.activity.CollaborationInviteWithLink")
+        public static let collaborationCopyLink = ActivityType("com.apple.UIKit.activity.CollaborationCopyLink")
+        public static let addToHomeScreen = ActivityType("com.apple.UIKit.activity.AddToHomeScreen")
     }
     open var activityType: ActivityType? { nil }
 
@@ -1979,6 +2095,17 @@ public class UITraitCollection: NSObject {
     /// instance per access, like the layout anchors) so there is no shared
     /// mutable static; Linux has a single default trait environment anyway.
     public static var current: UITraitCollection { UITraitCollection() }
+
+    /// Whether color-rendering traits (interface style, contrast, display
+    /// gamut) differ between the two collections — UIKit uses it to decide
+    /// when CGColor-backed content needs re-resolving. There is a single
+    /// default color environment on Linux, so this returns false; SignalUI
+    /// calls it from traitCollectionDidChange and only needs the answer not
+    /// to over-trigger redraws.
+    public func hasDifferentColorAppearance(comparedTo traitCollection: UITraitCollection?) -> Bool {
+        _ = traitCollection
+        return false
+    }
 }
 
 // MARK: - UITrait + registerForTraitChanges (iOS 17)

@@ -28,6 +28,12 @@ open class SDAnimatedImage: UIImage {
     public convenience init() {
         self.init(frame: .zero)
     }
+
+    // UIImageView declares `required init?(coder:)`; the own designated init
+    // above suppresses inheritance, so restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
 }
 
 /// The coder registry. INERT: registered coders are ignored on Linux (no real
