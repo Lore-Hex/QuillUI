@@ -14,7 +14,11 @@ import QuillFoundation
 // (SymbolEffect — with `.pulse` etc. — is declared in DesignSystemSurfaceCompat.)
 
 public extension View {
-    /// Pointer-hover callback (iPadOS/macOS). Inert headless.
+    /// Pointer-hover callback (iPadOS/macOS). Inert headless. Disfavored:
+    /// QuillUI declares a functional `onHover` returning `OnHoverView`;
+    /// callers that see both (e.g. QuillUI/Controls.swift) must bind to that
+    /// one, while shadow-only vendored DesignSystem source uses this fallback.
+    @_disfavoredOverload
     func onHover(perform action: @escaping (Bool) -> Void) -> Self {
         _ = action
         return self
@@ -49,6 +53,9 @@ public extension View {
     }
 
     /// List-row separator visibility (and which edges). Inert headless.
+    /// Disfavored: QuillUI declares a functional `listRowSeparator` returning
+    /// `ListRowSeparatorView`; callers that see both must bind to that one.
+    @_disfavoredOverload
     func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
         _ = visibility
         _ = edges
