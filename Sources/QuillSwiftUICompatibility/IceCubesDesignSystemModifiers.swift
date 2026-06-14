@@ -12,18 +12,29 @@ import QuillFoundation
 // shadow, can see them. HoverEffect, Visibility, TextSelectability, Edge.Set,
 // and AnyTransition already exist elsewhere in this module / SwiftOpenUI.
 // (SymbolEffect — with `.pulse` etc. — is declared in DesignSystemSurfaceCompat.)
+//
+// EVERY modifier here is `@_disfavoredOverload`. QuillUI already declares a
+// *functional* twin for all of these (onHover→OnHoverView, listRowSeparator→
+// ListRowSeparatorView, contentShape→ContentShapeView, …, in QuillUI's
+// UpstreamCompatibility.swift). QuillUI imports the SwiftUI shadow, so when
+// QuillUI's own source compiles it sees BOTH its functional twin and these
+// inert ones — an unqualified call would be "ambiguous use". `@_disfavoredOverload`
+// makes the compiler prefer QuillUI's functional implementation whenever both
+// are visible, while vendored shadow-only consumers (IceCubes, which can't see
+// QuillUI) still bind to these inert fallbacks. Forgetting the attribute on any
+// one of these silently breaks the *core* QuillUI build (and thus all of Linux
+// CI), since this module is always compiled regardless of the IceCubes gate.
 
 public extension View {
     /// Pointer-hover callback (iPadOS/macOS). Inert headless.
+    @_disfavoredOverload
     func onHover(perform action: @escaping (Bool) -> Void) -> Self {
         _ = action
         return self
     }
 
-    /// Interaction hit-test shape. Disfavored because QuillUI declares a
-    /// `contentShape` returning a `ContentShapeView`; callers that see both
-    /// (e.g. the compat-module tests) bind to that richer one, while
-    /// shadow-only vendored source (DesignSystem) uses this inert fallback.
+    /// Interaction hit-test shape. QuillUI declares a functional
+    /// `contentShape` returning a `ContentShapeView`.
     @_disfavoredOverload
     func contentShape<S: Shape>(_ shape: S) -> Self {
         _ = shape
@@ -31,24 +42,28 @@ public extension View {
     }
 
     /// Whether the view's text is user-selectable. Inert headless.
+    @_disfavoredOverload
     func textSelection(_ selectability: TextSelectability) -> Self {
         _ = selectability
         return self
     }
 
     /// Drive an SF Symbol effect from an `Equatable` value (iOS 17+). Inert.
+    @_disfavoredOverload
     func symbolEffect<V: Equatable>(_ effect: SymbolEffect, value: V) -> Self {
         _ = effect
         _ = value
         return self
     }
 
+    @_disfavoredOverload
     func symbolEffect(_ effect: SymbolEffect) -> Self {
         _ = effect
         return self
     }
 
     /// List-row separator visibility (and which edges). Inert headless.
+    @_disfavoredOverload
     func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
         _ = visibility
         _ = edges
@@ -56,15 +71,14 @@ public extension View {
     }
 
     /// Whether the view participates in hit-testing. Inert headless.
+    @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
         return self
     }
 
-    /// List-row content insets. Disfavored because QuillUI declares a
-    /// `listRowInsets` returning a `ListRowInsetsView`; shadow-only vendored
-    /// source (DesignSystem ScrollToView's `.listRowInsets(.init())`) uses this
-    /// inert fallback. (`EdgeInsets` comes from SwiftOpenUI.)
+    /// List-row content insets. QuillUI declares a functional `listRowInsets`
+    /// returning a `ListRowInsetsView`. (`EdgeInsets` comes from SwiftOpenUI.)
     @_disfavoredOverload
     func listRowInsets(_ insets: EdgeInsets?) -> Self {
         _ = insets
@@ -75,12 +89,14 @@ public extension View {
     /// forms, e.g. IceCubes AppAccountView's `.foregroundStyle(.white, .green)`).
     /// The shadow only had the single-style form. Only the primary color is
     /// meaningful headless; the secondary/tertiary palette colors are inert.
+    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color) -> Self {
         _ = primary
         _ = secondary
         return self
     }
 
+    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color, _ tertiary: Color) -> Self {
         _ = primary
         _ = secondary
