@@ -14,7 +14,11 @@ import QuillFoundation
 // (SymbolEffect — with `.pulse` etc. — is declared in DesignSystemSurfaceCompat.)
 
 public extension View {
-    /// Pointer-hover callback (iPadOS/macOS). Inert headless.
+    /// Pointer-hover callback (iPadOS/macOS). Inert headless. Disfavored so
+    /// QuillUI's own `onHover` wins for callers that see both modules (e.g.
+    /// QuillUI/Controls.swift, generated quill-chat); shadow-only vendored
+    /// source (DesignSystem) uses this inert fallback.
+    @_disfavoredOverload
     func onHover(perform action: @escaping (Bool) -> Void) -> Self {
         _ = action
         return self
@@ -31,24 +35,28 @@ public extension View {
     }
 
     /// Whether the view's text is user-selectable. Inert headless.
+    @_disfavoredOverload
     func textSelection(_ selectability: TextSelectability) -> Self {
         _ = selectability
         return self
     }
 
     /// Drive an SF Symbol effect from an `Equatable` value (iOS 17+). Inert.
+    @_disfavoredOverload
     func symbolEffect<V: Equatable>(_ effect: SymbolEffect, value: V) -> Self {
         _ = effect
         _ = value
         return self
     }
 
+    @_disfavoredOverload
     func symbolEffect(_ effect: SymbolEffect) -> Self {
         _ = effect
         return self
     }
 
     /// List-row separator visibility (and which edges). Inert headless.
+    @_disfavoredOverload
     func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
         _ = visibility
         _ = edges
@@ -56,6 +64,7 @@ public extension View {
     }
 
     /// Whether the view participates in hit-testing. Inert headless.
+    @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
         return self
@@ -75,12 +84,14 @@ public extension View {
     /// forms, e.g. IceCubes AppAccountView's `.foregroundStyle(.white, .green)`).
     /// The shadow only had the single-style form. Only the primary color is
     /// meaningful headless; the secondary/tertiary palette colors are inert.
+    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color) -> Self {
         _ = primary
         _ = secondary
         return self
     }
 
+    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color, _ tertiary: Color) -> Self {
         _ = primary
         _ = secondary
