@@ -213,6 +213,13 @@ let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/
 // macOS SwiftUI USB-microscope viewer (MIT) compiled UNMODIFIED on Linux
 // against the SwiftUI/AppKit/AVFoundation/CoreImage shim surface.
 let solderScopeUpstreamPresent: Bool = upstreamPresent(".upstream/solderscope/SolderScope")
+// QuillV4L2LiveProbe — headless end-to-end V4L2 live-capture check (the real
+// QuillV4L2Camera path the SolderScope camera bridge uses), driven by
+// scripts/linux-v4l2-loopback-smoke.sh against a v4l2loopback virtual webcam.
+// Opt-in so it never enters the default build/test graph (loading the loopback
+// kernel module is impossible in the container CI runs in); the smoke script
+// sets QUILLUI_V4L2_LIVE_PROBE=1 on hosts that can load it.
+let v4l2LiveProbeEnabled: Bool = ProcessInfo.processInfo.environment["QUILLUI_V4L2_LIVE_PROBE"] == "1"
 // Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
 // The upstream iOS platform pin is a manifest constraint, not a source one —
 // the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
@@ -2496,6 +2503,26 @@ if solderScopeUpstreamPresent {
             swiftSettings: appSwiftSettings + [
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "Combine"])
             ]
+        ),
+    ]
+}
+#endif
+
+// QuillV4L2LiveProbe (opt-in: QUILLUI_V4L2_LIVE_PROBE=1) — headless executable
+// that drives the real QuillV4L2Camera capture path against a live /dev/video*
+// device. Kept out of the default graph because creating a V4L2 capture node
+// needs a kernel module the container CI can't load; the source under
+// Sources/QuillV4L2LiveProbe is simply unbuilt when the flag is unset.
+// scripts/linux-v4l2-loopback-smoke.sh sets the flag and stands up a
+// v4l2loopback virtual webcam to run it on a real-kernel host.
+#if os(Linux)
+if v4l2LiveProbeEnabled {
+    products.append(.executable(name: "QuillV4L2LiveProbe", targets: ["QuillV4L2LiveProbe"]))
+    targets += [
+        .executableTarget(
+            name: "QuillV4L2LiveProbe",
+            dependencies: ["AVFoundation", "CoreVideo"],
+            path: "Sources/QuillV4L2LiveProbe"
         ),
     ]
 }
