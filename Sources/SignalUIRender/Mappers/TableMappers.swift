@@ -159,19 +159,29 @@ public enum UITableViewCellGtkMapper: UIViewGtkMapper {
             body = ctx.render(contentView) ?? gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
         }
 
-        // Accessory (disclosure chevron etc.) → trailing "›" label. When there
-        // is one, wrap the body in a horizontal box so the chevron sits at the
-        // trailing edge; otherwise return the body directly.
+        // Trailing accessory, in priority order: a real `accessoryView` (e.g. the
+        // UISwitch from OWSTableItem.switch) wins; else a non-`.none`
+        // accessoryType becomes a "›" chevron. When present, wrap the body in a
+        // horizontal box so the accessory sits at the trailing edge.
+        let trailing: GtkWidgetPtr?
+        if let accessoryView = cell.accessoryView {
+            trailing = ctx.render(accessoryView)
+        } else if cell.accessoryType != .none {
+            let chevron = gtk_label_new("›")!
+            gtk_widget_set_halign(chevron, GTK_ALIGN_END)
+            trailing = chevron
+        } else {
+            trailing = nil
+        }
+
         let result: GtkWidgetPtr
-        if cell.accessoryType != .none {
-            let row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+        if let trailing {
+            let row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8)!
             gtk_widget_set_hexpand(body, 1)
             gtk_widget_set_halign(body, GTK_ALIGN_FILL)
             gtk_box_append(boxPointer(row), body)
-
-            let chevron = gtk_label_new("›")!
-            gtk_widget_set_halign(chevron, GTK_ALIGN_END)
-            gtk_box_append(boxPointer(row), chevron)
+            gtk_widget_set_halign(trailing, GTK_ALIGN_END)
+            gtk_box_append(boxPointer(row), trailing)
             result = row
         } else {
             result = body

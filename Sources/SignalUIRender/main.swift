@@ -153,6 +153,9 @@ MainActor.assumeIsolated {
         renderRootViewController(SignalConversationDemo.makeConversationViewController(),
                                  title: "Signal on Linux", width: 760, height: 720,
                                  windowBackground: "#FFFFFF")
+    case "privacy":
+        renderRootViewController(SignalSettingsDemo.makePrivacyViewController(),
+                                 title: "Signal Privacy on Linux", width: 390, height: 720)
     default:
         renderRootViewController(SignalSettingsDemo.makeSettingsViewController(),
                                  title: "Signal Settings on Linux", width: 390, height: 720)

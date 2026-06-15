@@ -78,6 +78,47 @@ enum SignalSettingsDemo {
         return vc
     }
 
+    /// Build a Privacy-shaped table: same real `OWSTableViewController2`, but with
+    /// Signal's real toggle rows (`OWSTableItem.switch`, which sets
+    /// `cell.accessoryView = UISwitch()`). A genuinely different screen — switches
+    /// instead of disclosure rows.
+    static func makePrivacyViewController() -> UIViewController {
+        bootstrapMinimalEnvironment()
+
+        let vc = OWSTableViewController2()
+        let contents = OWSTableContents(title: "Privacy")
+
+        let messaging = OWSTableSection(items: [
+            OWSTableItem.switch(withText: "Read Receipts", isOn: { true }),
+            OWSTableItem.switch(withText: "Typing Indicators", isOn: { true }),
+        ])
+        messaging.customHeaderView = sectionHeaderLabel("MESSAGING")
+
+        let security = OWSTableSection(items: [
+            OWSTableItem.switch(withText: "Screen Lock", isOn: { false }),
+            OWSTableItem.switch(withText: "Screen Security", isOn: { true }),
+        ])
+        security.customHeaderView = sectionHeaderLabel("APP SECURITY")
+
+        let ink = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
+        let disappearing = OWSTableSection(items: [
+            OWSTableItem.item(name: "Default Timer", textColor: ink, accessoryText: "Off", accessoryType: .disclosureIndicator),
+        ])
+        disappearing.customHeaderView = sectionHeaderLabel("DISAPPEARING MESSAGES")
+
+        let calls = OWSTableSection(items: [
+            OWSTableItem.switch(withText: "Always Relay Calls", isOn: { false }),
+        ])
+        calls.customHeaderView = sectionHeaderLabel("CALLS")
+
+        contents.add(messaging)
+        contents.add(security)
+        contents.add(disappearing)
+        contents.add(calls)
+        vc.contents = contents
+        return vc
+    }
+
     /// A grouped-table section header: small, gray, letter-spaced caps — set as a
     /// section's `customHeaderView` so `viewForHeaderInSection` returns it and the
     /// renderer (which maps UILabel) draws it above the card.

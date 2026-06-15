@@ -48,6 +48,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     static let mappers: [UIViewGtkMapper.Type] = [
         UILabelGtkMapper.self,
         UIImageViewGtkMapper.self,
+        UISwitchGtkMapper.self,
         UITableViewGtkMapper.self,
         UITableViewCellGtkMapper.self,
         UIStackViewGtkMapper.self,
