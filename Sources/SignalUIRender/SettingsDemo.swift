@@ -51,19 +51,18 @@ enum SignalSettingsDemo {
         // The renderer walks that contentView, so the rows draw. (The bare
         // `OWSTableItem(title:)` path instead sets `cell.textLabel?.text`, and the
         // Linux UITableViewCell shim's textLabel is nil — so those rows render empty.)
-        let profileSection = OWSTableSection(title: nil, items: [
-            OWSTableItem.item(
-                name: "Jane Appleseed",
-                subtitle: "+1 555-0100",
-                textColor: ink,
-                accessoryType: .disclosureIndicator
-            ),
+        // Profile row: a real custom cell (avatar circle + name + number), the
+        // same OWSTableItem(customCellBlock:) shape Signal uses for rich rows.
+        let profileSection = OWSTableSection(items: [
+            OWSTableItem(customCellBlock: { makeProfileCell(name: "Jane Appleseed", number: "+1 555-0100", ink: ink) },
+                         actionBlock: nil),
         ])
         let mainSection = OWSTableSection(title: "Account", items: [
             OWSTableItem.disclosureItem(withText: "Account", textColor: ink),
             OWSTableItem.disclosureItem(withText: "Linked Devices", textColor: ink),
             OWSTableItem.disclosureItem(withText: "Donate to Signal", textColor: ink),
         ])
+        mainSection.customHeaderView = sectionHeaderLabel("ACCOUNT")
         let prefsSection = OWSTableSection(title: "Preferences", items: [
             OWSTableItem.item(name: "Appearance", textColor: ink, accessoryText: "System", accessoryType: .disclosureIndicator),
             OWSTableItem.disclosureItem(withText: "Chats", textColor: ink),
@@ -71,11 +70,59 @@ enum SignalSettingsDemo {
             OWSTableItem.disclosureItem(withText: "Privacy", textColor: ink),
             OWSTableItem.item(name: "Data Usage", textColor: ink, accessoryText: "Wi-Fi", accessoryType: .disclosureIndicator),
         ])
+        prefsSection.customHeaderView = sectionHeaderLabel("PREFERENCES")
         contents.add(profileSection)
         contents.add(mainSection)
         contents.add(prefsSection)
         vc.contents = contents
         return vc
+    }
+
+    /// A grouped-table section header: small, gray, letter-spaced caps — set as a
+    /// section's `customHeaderView` so `viewForHeaderInSection` returns it and the
+    /// renderer (which maps UILabel) draws it above the card.
+    private static func sectionHeaderLabel(_ text: String) -> UILabel {
+        let label = UILabel()
+        label.text = text
+        label.textColor = UIColor(red: 0.42, green: 0.42, blue: 0.45, alpha: 1)
+        label.font = UIFont.systemFont(ofSize: 13)
+        return label
+    }
+
+    /// A profile cell: circular avatar with initials + name over phone number.
+    private static func makeProfileCell(name: String, number: String, ink: UIColor) -> UITableViewCell {
+        let cell = OWSTableItem.newCell()
+
+        let avatar = UIView(frame: CGRect(x: 0, y: 0, width: 56, height: 56))
+        avatar.backgroundColor = UIColor(red: 0.18, green: 0.33, blue: 0.92, alpha: 1) // Signal blue
+        avatar.layer.cornerRadius = 28
+        let initials = UILabel()
+        initials.text = String(name.split(separator: " ").compactMap(\.first).prefix(2)).uppercased()
+        initials.textColor = .white
+        initials.font = UIFont.systemFont(ofSize: 22)
+        initials.textAlignment = .center
+        avatar.addSubview(initials)
+
+        let nameLabel = UILabel()
+        nameLabel.text = name
+        nameLabel.textColor = ink
+        nameLabel.font = UIFont.systemFont(ofSize: 20)
+        let numberLabel = UILabel()
+        numberLabel.text = number
+        numberLabel.textColor = UIColor(red: 0.42, green: 0.42, blue: 0.45, alpha: 1)
+        numberLabel.font = UIFont.systemFont(ofSize: 15)
+
+        let labels = UIStackView(arrangedSubviews: [nameLabel, numberLabel])
+        labels.axis = .vertical
+        labels.spacing = 2
+
+        let row = UIStackView(arrangedSubviews: [avatar, labels])
+        row.axis = .horizontal
+        row.alignment = .center
+        row.spacing = 12
+        cell.contentView.addSubview(row)
+        cell.accessoryType = .disclosureIndicator
+        return cell
     }
 }
 

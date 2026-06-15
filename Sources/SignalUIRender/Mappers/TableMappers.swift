@@ -76,6 +76,21 @@ public enum UITableViewGtkMapper: UIViewGtkMapper {
                 let rows = ds.tableView(tv, numberOfRowsInSection: section)
                 guard rows > 0 else { continue }
 
+                // Section header: the controller's delegate vends it via
+                // viewForHeaderInSection. We render the ones supplied as a
+                // customHeaderView UILabel (grouped-table caps header), placed
+                // above the card like iOS.
+                if let delegate = tv.delegate as? UITableViewDelegate,
+                   let header = delegate.tableView(tv, viewForHeaderInSection: section),
+                   header is UILabel,
+                   let headerWidget = ctx.render(header) {
+                    gtk_widget_set_halign(headerWidget, GTK_ALIGN_START)
+                    gtk_widget_set_margin_start(headerWidget, 32)
+                    gtk_widget_set_margin_top(headerWidget, 6)
+                    gtk_widget_set_margin_bottom(headerWidget, 2)
+                    gtk_box_append(boxPointer(outer), headerWidget)
+                }
+
                 let card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
                 "qcard".withCString { gtk_widget_add_css_class(card, $0) }
                 gtk_widget_set_margin_start(card, 16)

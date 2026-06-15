@@ -75,6 +75,18 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         for child in stack.arrangedSubviews {
             guard let childWidget = ctx.render(child) else { continue }
 
+            // Honor an explicit fixed size on an arranged subview (e.g. a 56×56
+            // avatar): pin the size and DON'T let the distribution stretch it
+            // (otherwise a `.fill` row turns the circle into an ellipse). Auto
+            // Layout views arrive at .zero and fall through to the expand logic.
+            if child.frame.width > 0, child.frame.height > 0 {
+                gtk_widget_set_size_request(childWidget, gint(child.frame.width), gint(child.frame.height))
+                gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
+                gtk_box_append(boxPointer(box), childWidget)
+                continue
+            }
+
             if isVertical {
                 // Vertical stack: main = vertical (natural height, top-packed),
                 // cross = horizontal.
@@ -175,18 +187,28 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
 
         // No-frame fallback: vertical GtkBox. Children fill horizontally and keep
         // their natural height; a scroll/table child is given room to expand.
+        // A rounded badge (cornerRadius > 0, e.g. an avatar circle) centers its
+        // single content (the initials) instead of top-left filling.
+        let isBadge = view.layer.cornerRadius > 0
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         for child in subviews {
             guard let childWidget = ctx.render(child) else { continue }
-            gtk_widget_set_hexpand(childWidget, 1)
-            gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
-            // Scroll views / tables should grow to fill remaining vertical space;
-            // plain content keeps its natural height and stacks from the top.
-            if child is UIScrollView {
+            if isBadge {
+                gtk_widget_set_hexpand(childWidget, 1)
                 gtk_widget_set_vexpand(childWidget, 1)
-                gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+                gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
             } else {
-                gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
+                gtk_widget_set_hexpand(childWidget, 1)
+                gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+                // Scroll views / tables grow to fill remaining vertical space;
+                // plain content keeps its natural height and stacks from the top.
+                if child is UIScrollView {
+                    gtk_widget_set_vexpand(childWidget, 1)
+                    gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+                } else {
+                    gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
+                }
             }
             gtk_box_append(boxPointer(box), childWidget)
         }
