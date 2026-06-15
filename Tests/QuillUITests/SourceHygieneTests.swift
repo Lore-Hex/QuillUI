@@ -554,8 +554,20 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
-        #expect(appKit.contains("public protocol NSApplicationDelegate"))
-        #expect(!appKit.contains("@MainActor public protocol NSApplicationDelegate"))
+        // NSApplicationDelegate is @MainActor, matching Apple's real AppKit
+        // declaration. Unmodified macOS apps (e.g. SolderScope) declare their
+        // @NSApplicationDelegateAdaptor delegate as `class AppDelegate: NSObject,
+        // NSApplicationDelegate` WITHOUT an explicit @MainActor and rely on the
+        // protocol to supply the main-actor isolation Apple gives it; making it
+        // nonisolated breaks their compile (the app body's main-actor
+        // assumptions, e.g. Combine `.receive(on: .main).assign(to:)` bindings,
+        // no longer hold). This is distinct from the menu/table/outline
+        // delegates below — Telegram's TGUIKit conforms to THOSE from
+        // nonisolated code, so those stay nonisolated; NSApplicationDelegate is
+        // not among them. If a future un-gated Telegram needs a nonisolated app
+        // delegate, it should bridge via MainActor.assumeIsolated at its
+        // conformance, the same pattern the menu delegates use.
+        #expect(appKit.contains("@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,

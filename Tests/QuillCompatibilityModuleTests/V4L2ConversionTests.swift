@@ -30,6 +30,42 @@ private func convert(
     return converted ? bgra : nil
 }
 
+/// Thread-safe sink for the V4L2 capture callback, which fires on the camera's
+/// background queue. Records the frame count and the first frame's BGRA byte
+/// checksum, and lets the test block until a target count or a timeout.
+private final class LiveFrameCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private let sem = DispatchSemaphore(value: 0)
+    private var count = 0
+    private var target = 0
+    private(set) var firstChecksum: UInt64 = 0
+
+    func record(_ pixelBuffer: CVPixelBuffer) {
+        lock.lock()
+        count += 1
+        if count == 1 {
+            firstChecksum = pixelBuffer.quillWithReadOnlyBytes { raw in
+                var sum: UInt64 = 0
+                var i = 0
+                while i < raw.count { sum &+= UInt64(raw[i]); i += 997 }
+                return sum
+            }
+        }
+        let reached = target > 0 && count >= target
+        lock.unlock()
+        if reached { sem.signal() }
+    }
+
+    func waitForFrames(_ n: Int, timeout seconds: Double) -> Bool {
+        lock.lock()
+        target = n
+        let already = count >= n
+        lock.unlock()
+        if already { return true }
+        return sem.wait(timeout: .now() + seconds) == .success
+    }
+}
+
 struct V4L2ConversionTests {
 
     @Test func lumaExtremesAndMacropixelByteOrder() throws {
@@ -137,6 +173,34 @@ struct V4L2ConversionTests {
             #expect(device.path.hasPrefix("/dev/video"))
             #expect(!device.card.isEmpty || !device.driver.isEmpty)
         }
+    }
+
+    @Test func liveCaptureDeliversConvertedBGRAFrames() throws {
+        // Skips where there is no real V4L2 capture node (CI containers can't
+        // load v4l2loopback, so /dev/video0 is absent). On a real-kernel host —
+        // a physical webcam, or the v4l2loopback virtual cam stood up by
+        // scripts/linux-v4l2-live-capture-check.sh — this drives the FULL live
+        // path through QuillV4L2Camera: enumerate (QUERYCAP) -> configure
+        // (S_FMT/G_FMT YUYV) -> mmap ring (REQBUFS/QUERYBUF/QBUF) -> STREAMON ->
+        // poll+DQBUF loop -> YUYV->BGRA -> CVPixelBuffer. Proves SolderScope's
+        // camera capture works end-to-end against a live device, not just the
+        // pure-Swift converter fixtures above.
+        guard FileManager.default.fileExists(atPath: "/dev/video0") else { return }
+        let info = try #require(QuillV4L2Camera.enumerateDevices().first)
+        let camera = try #require(QuillV4L2Camera(devicePath: info.path))
+        try #require(camera.configure(width: 1280, height: 720, frameRate: 30))
+        #expect(camera.frameWidth > 0 && camera.frameHeight > 0)
+
+        let collector = LiveFrameCollector()
+        let started = camera.start { pixelBuffer, _ in collector.record(pixelBuffer) }
+        #expect(started)
+        let gotFrames = collector.waitForFrames(3, timeout: 10)
+        camera.stop()
+
+        #expect(gotFrames, "expected >=3 frames from \(info.path) within 10s")
+        // Non-zero checksum proves the delivered BGRA buffer carries real,
+        // converted pixels rather than an all-zero/blank frame.
+        #expect(collector.firstChecksum != 0, "captured BGRA frame should carry real pixels")
     }
     #endif
 }
