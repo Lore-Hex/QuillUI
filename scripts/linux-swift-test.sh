@@ -96,7 +96,15 @@ done
   # run; judge the result by the suite's own reported summary in the log, NOT
   # the killed-process exit code. (TEST_RUN_TIMEOUT overridable.)
   : "${TEST_RUN_TIMEOUT:=900}"
+  # `stdbuf -oL -eL`: GitHub's non-TTY stdout makes swift-testing BLOCK-buffer
+  # its output. When the process is SIGKILLed on a post-suite leak, the final
+  # "Test run with N tests … passed" summary is still stuck in that buffer and
+  # lost, so the rescue below can't find it and a clean run is misreported as a
+  # hang (the buffered tail only shows some test's "started" line). Line-buffer
+  # so every result — and the completion summary — reaches the log immediately.
+  # (LD_PRELOAD set by stdbuf is inherited by the swift grandchild.)
   timeout --signal=KILL "$TEST_RUN_TIMEOUT" \
+    stdbuf -oL -eL \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
     swift test --skip-build --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test.log"
@@ -117,6 +125,13 @@ done
       fi
     else
       echo "=== HANG: the suite never reported completion within ${TEST_RUN_TIMEOUT}s ==="
+      echo "--- last 5 tests that completed before the hang ---"
+      grep -E '(✔|✘) Test ' "$SCRATCH_PATH/swift-test.log" | tail -5
+      echo "--- tests started but never completed (with line-buffered output, the hang is among these) ---"
+      comm -23 \
+        <(grep -oE '◇ Test "[^"]+" started' "$SCRATCH_PATH/swift-test.log" | sed -E 's/◇ Test "(.*)" started/\1/' | sort -u) \
+        <(grep -oE '(✔|✘) Test "[^"]+"' "$SCRATCH_PATH/swift-test.log" | sed -E 's/[^"]*"(.*)"/\1/' | sort -u) \
+        | head -20
       status=124
     fi
   fi
