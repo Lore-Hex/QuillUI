@@ -147,6 +147,7 @@ public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) ->
 public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
 public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil
 public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
+public var quill_gtk_slider_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
 
 private final class GTKTextBindingIdleUpdate {
     let binding: Binding<String>
@@ -6030,6 +6031,12 @@ extension Slider: GTKRenderable, GTKDescribable {
         // The debounced commit (150ms) already prevents constant rebuilds.
 
         gtkApplyEnabledState(to: scale)
+        if let paintedSlider = quill_gtk_slider_paint_hook?(
+            OpaquePointer(scale),
+            false
+        ) {
+            return paintedSlider
+        }
         return opaqueFromWidget(scale)
     }
 }

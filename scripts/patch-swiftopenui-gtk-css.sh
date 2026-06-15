@@ -5949,7 +5949,8 @@ hook_decl = (
     "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
     "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
     "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
-    "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n\n"
+    "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n"
+    "public var quill_gtk_slider_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n\n"
 )
 if "quill_gtk_button_paint_hook" not in text:
     marker = "// MARK: - GTK rendering protocol\n"
@@ -5975,6 +5976,13 @@ if "quill_gtk_toggle_paint_hook" not in text:
         "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
         "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
         "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
+        1,
+    )
+if "quill_gtk_slider_paint_hook" not in text:
+    text = text.replace(
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n"
+        "public var quill_gtk_slider_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n",
         1,
     )
 
@@ -6564,6 +6572,24 @@ if "quill_gtk_toggle_paint_hook?(" not in toggle_section:
     if return_index == -1:
         raise SystemExit("SwiftOpenUI Toggle switch return shape was not recognized")
     text = text[:return_index] + new_switch_return + text[return_index + len(old_switch_return):]
+
+if "quill_gtk_slider_paint_hook?(" not in text:
+    old_slider_return = '''        gtkApplyEnabledState(to: scale)
+        return opaqueFromWidget(scale)
+'''
+    new_slider_return = '''        gtkApplyEnabledState(to: scale)
+        if let paintedSlider = quill_gtk_slider_paint_hook?(
+            OpaquePointer(scale),
+            false
+        ) {
+            return paintedSlider
+        }
+        return opaqueFromWidget(scale)
+'''
+    return_index = text.find(old_slider_return)
+    if return_index == -1:
+        raise SystemExit("SwiftOpenUI Slider scale return shape was not recognized")
+    text = text[:return_index] + new_slider_return + text[return_index + len(old_slider_return):]
 
 if "remainingTotalTicks: Int" not in text:
     old_scroll_retry_context = '''private final class GTKScrollToContext {

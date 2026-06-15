@@ -14,6 +14,7 @@ public enum QuillGtkBackend: QuillBackend {
         installQuillButtonHook()
         installQuillTextFieldHook()
         installQuillToggleHook()
+        installQuillSliderHook()
         #endif
     }
 }
