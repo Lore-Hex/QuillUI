@@ -104,8 +104,6 @@ public func qtRenderView<V: View>(_ view: V) -> OpaquePointer {
         return container
     }
 
-    // Stateless composite view — recurse through body.
-    return qtRenderView(view.body)
     // Stateless composite view — recurse through body. SwiftOpenUI's body is
     // @MainActor; the Qt renderer runs on the Qt GUI thread, so assume the
     // isolation that is true by construction.

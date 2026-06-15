@@ -3064,7 +3064,16 @@ if quillUILinuxBuildBackend == .qt {
     // SwiftUI tree through QtBackend().run(QtSmokeApp.self). The 9 production
     // apps keep their existing per-app C++ shims and are not touched.
     if quillUIQtGenericEnabled {
-        targets += [
+        // Combine / QuillSwiftUICompatibility / SwiftUI are already appended
+        // unconditionally for every Linux build (see the `targets.append` block
+        // earlier in this file) AND, in the QUILLUI_QT_GENERIC append path, the
+        // graph is NOT reset (line ~3030 only filters in new qtGraphTargets).
+        // So re-adding them here verbatim produces "duplicate target named …"
+        // manifest errors. Filter the QT_GENERIC additions against the names
+        // already defined — the same dedup the qtGraphTargets append uses — so
+        // only the genuinely new targets (CQtBridge, BackendQt, the smoke
+        // executable) land. The bridge + backend are what this slice adds.
+        let qtGenericTargets: [Target] = [
             .target(
                 name: "Combine",
                 dependencies: [
@@ -3100,7 +3109,8 @@ if quillUILinuxBuildBackend == .qt {
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
                     .product(name: "SwiftOpenUISymbols", package: "SwiftOpenUI"),
                     "Observation",
-                    "CQtBridge"
+                    "CQtBridge",
+                    "QuillPaint"
                 ],
                 path: "Sources/BackendQt",
                 swiftSettings: appSwiftSettings + [
@@ -3125,6 +3135,8 @@ if quillUILinuxBuildBackend == .qt {
                 ]
             )
         ]
+        let existingQtGenericNames = Set(targets.map(\.name))
+        targets += qtGenericTargets.filter { !existingQtGenericNames.contains($0.name) }
         products.append(
             .executable(name: "quill-qt-generic-smoke", targets: ["QuillQtGenericSmoke"])
         )
