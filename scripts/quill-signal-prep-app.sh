@@ -38,6 +38,31 @@ for sub in Calls DeviceTransfer Backups QuickRestore Provisioning test; do
     rm -rf "$APP/$sub"
 done
 
+# (1b) Shrink to the CONVERSATION-RENDERING slice: prune non-conversation
+#      subsystems + leaf screens (registration, notifications, emoji picker,
+#      photo capture / media gallery, polls, stories, app launch, the chat-list
+#      home UI, etc.). These are referenced only narrowly by the conversation
+#      path, so their types are stubbed in QuillAppStubs instead. Keeping them
+#      would mean compiling the whole app; we only need ConversationViewController
+#      + the CVComponent message pipeline to render.
+for sub in \
+    AppLaunch Registration Notifications Emoji Megaphones Profiles Spam Sharing \
+    OrphanData Accessibility Debugging Storage Expiration Avatars/Editing \
+    src/ViewControllers/Photos src/ViewControllers/MediaGallery \
+    src/ViewControllers/Polls src/ViewControllers/Stories \
+    src/ViewControllers/HomeView src/ViewControllers/ThreadSettings \
+    src/ViewControllers/Registration src/ViewControllers/DonationViewControllers \
+; do
+    rm -rf "$APP/$sub"
+done
+for f in \
+    "src/views/MarqueeLabel.swift" \
+    "src/views/MockConversationView.swift" \
+    "src/ViewControllers/SafetyTipsViewController.swift" \
+; do
+    rm -f "$APP/$f"
+done
+
 # (2) Prune any remaining file importing a framework with no Linux shim, so the
 #     module isn't walled on "no such module".
 # Match every import form (plain / public / internal / @_exported / attributed).
