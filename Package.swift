@@ -2302,6 +2302,37 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
         )
     ]
+    // SignalApp: Signal-iOS's main *app* target (`Signal/`), home of the real
+    // ConversationViewController + CVComponent message-cell pipeline. Brought to
+    // Linux as a conversation-rendering slice: `quill-signal-prep-app.sh` prunes
+    // the iOS-only subsystems (calling / device-transfer / backups) that need
+    // un-shimmed frameworks, then lowers the remainder exactly like SignalUI.
+    // Inert until the prep script has run against the disposable .upstream copy
+    // (gated on a pruned-tree marker so a pristine fetch doesn't try to build it).
+    if FileManager.default.fileExists(atPath: ".upstream/signal-ios/Signal/ConversationView")
+        && !FileManager.default.fileExists(atPath: ".upstream/signal-ios/Signal/Calls") {
+        targets += [
+            .target(
+                name: "SignalApp",
+                dependencies: [
+                    "SignalUI", "SignalServiceKit", "LibSignalClient",
+                    "UIKit", "AVFoundation", "Contacts", "SafariServices", "MessageUI",
+                    "UniformTypeIdentifiers", "Combine", "PhotosUI", "MobileCoreServices",
+                    "SwiftUI", "Photos", "ContactsUI", "MediaPlayer", "MetalKit", "Vision",
+                    "NaturalLanguage", "CoreServices", "Logging", "MobileCoin",
+                    "LibMobileCoin", "SDWebImage", "PureLayout", "Lottie", "BonMot",
+                    "AVKit", "WebKit", "CoreImage", "SignalRingRTC",
+                    "StoreKit", "AuthenticationServices", "QuickLook", "QuartzCore",
+                    .product(name: "GRDB", package: "GRDB.swift"),
+                ],
+                path: ".upstream/signal-ios/Signal",
+                exclude: [
+                    "Signal-Prefix.pch",
+                ],
+                swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
+            )
+        ]
+    }
 }
 #endif
 
