@@ -68,9 +68,29 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
             if view.alpha < 0.999 {
                 gtk_widget_set_opacity(widget, gdouble(view.alpha))
             }
+            applyAccessibilityHints(widget, view)
             return widget
         }
         return nil
+    }
+
+    /// Render hints carried on `accessibilityIdentifier` (a property views already
+    /// expose, so the demo can tag views without a custom UIView subclass):
+    ///   "qspacer"      → hexpand (a flexible gap that pushes a chat bubble to one side)
+    ///   "qclass:NAME"  → add CSS class NAME (styled in the global stylesheet)
+    private static func applyAccessibilityHints(_ widget: GtkWidgetPtr, _ view: UIView) {
+        guard let id = view.accessibilityIdentifier else { return }
+        if id == "qspacer" {
+            gtk_widget_set_hexpand(widget, 1)
+        } else if id.hasPrefix("qclass:") {
+            let cls = String(id.dropFirst("qclass:".count))
+            cls.withCString { gtk_widget_add_css_class(widget, $0) }
+            // A composer text field fills the available width beside the Send button.
+            if cls == "qfield" {
+                gtk_widget_set_hexpand(widget, 1)
+                gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+            }
+        }
     }
 
     // MARK: - CALayer styling → CSS

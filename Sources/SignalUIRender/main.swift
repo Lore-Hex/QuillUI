@@ -69,27 +69,28 @@ func dumpViewTree(_ view: UIView, depth: Int) {
 
 // MARK: - GTK host
 
-/// Install a global CSS baseline for the default display: an iOS grouped-settings
-/// gray window canvas. Signal's real cells color their primary label with
-/// `Theme.primaryTextColor` (near-black in light mode), so without a light canvas
-/// the names render black-on-black (GTK's default window background is dark) and
-/// vanish. The gray canvas both makes them legible and makes the shot read like
-/// Signal's actual Settings screen.
+/// Install the global CSS baseline for the default display. The container's GTK
+/// ships a dark default theme (GTK_THEME=Adwaita:light isn't guaranteed present),
+/// which paints box/row nodes with a dark fill. Our provider runs at APPLICATION
+/// priority (it wins even for `window`), so neutralize the theme's structural
+/// fills to transparent and paint only what we want. `windowBackground` sets the
+/// canvas (grouped-gray for Settings, white for a chat). The named classes are
+/// applied by mappers (qcard/qcell/qsep) or via a view's accessibilityIdentifier
+/// hint "qclass:NAME" (qbubble/qmsgpad/qheader/qcomposer/qfield).
 @MainActor
-func installSettingsCanvasCSS() {
-    // The container's GTK ships a dark default theme (GTK_THEME=Adwaita:light
-    // isn't guaranteed present), which paints box/row nodes with a dark fill.
-    // Our provider runs at APPLICATION priority (it already wins for `window`),
-    // so neutralize the theme's structural fills to transparent and paint only
-    // what we want: a light grouped canvas, white rounded section cards, and a
-    // dark text default (Pango markup foreground still overrides per-label).
+func installBaseCSS(windowBackground: String) {
     let css = """
-    window { background-color: #EFEFF4; }
+    window { background-color: \(windowBackground); }
     box, label, viewport, scrolledwindow, separator { background-color: transparent; }
     label { color: #1C1C1E; }
     .qcard { background-color: #FFFFFF; border-radius: 10px; }
     .qcell { background-color: transparent; padding: 11px 16px; }
     .qsep { background-color: rgba(60, 60, 67, 0.18); min-height: 1px; }
+    .qbubble { padding: 7px 13px; }
+    .qmsgpad { padding: 14px 16px; }
+    .qheader { background-color: #FFFFFF; padding: 10px 16px; border-bottom: 1px solid rgba(60,60,67,0.15); }
+    .qcomposer { background-color: #FFFFFF; padding: 10px 12px; border-top: 1px solid rgba(60,60,67,0.15); }
+    .qfield { background-color: #FFFFFF; border: 1px solid rgba(60,60,67,0.30); border-radius: 18px; padding: 8px 14px; }
     """
     let provider = gtk_css_provider_new()
     css.withCString { gtk_css_provider_load_from_string(provider, $0) }
@@ -104,8 +105,9 @@ func installSettingsCanvasCSS() {
 }
 
 @MainActor
-func renderRootViewController(_ vc: UIViewController, title: String, width: Int, height: Int) {
-    installSettingsCanvasCSS()
+func renderRootViewController(_ vc: UIViewController, title: String, width: Int, height: Int,
+                             windowBackground: String = "#EFEFF4") {
+    installBaseCSS(windowBackground: windowBackground)
 
     // Force the view to load + lay out.
     vc.loadViewIfNeeded()
@@ -139,12 +141,19 @@ guard gtk_init_check() != 0 else {
 
 // Top-level code is nonisolated; the VC + render path are @MainActor (UIKit +
 // GTK are main-thread-only). We're on the main thread here, so assume isolation.
-// SIGNAL_UI_RENDER_DEMO=firstlight renders the trivial demo; default renders
-// Signal's REAL OWSTableViewController2 (Settings).
+// SIGNAL_UI_RENDER_DEMO selects the screen:
+//   firstlight   → trivial pipeline proof
+//   conversation → a chat styled by Signal's REAL ConversationStyle
+//   (default)    → Signal's REAL OWSTableViewController2 (Settings)
 MainActor.assumeIsolated {
-    if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] == "firstlight" {
+    switch ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] {
+    case "firstlight":
         renderRootViewController(FirstLightViewController(), title: "Signal UI on Linux", width: 390, height: 600)
-    } else {
+    case "conversation":
+        renderRootViewController(SignalConversationDemo.makeConversationViewController(),
+                                 title: "Signal on Linux", width: 760, height: 720,
+                                 windowBackground: "#FFFFFF")
+    default:
         renderRootViewController(SignalSettingsDemo.makeSettingsViewController(),
                                  title: "Signal Settings on Linux", width: 390, height: 720)
     }
