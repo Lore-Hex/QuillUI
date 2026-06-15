@@ -141,9 +141,13 @@ quillui_build_backend_product() {
   # first-party Package.swift error, so it still fails.
   if [[ "$build_backend" == "qt" ]]; then
     local product_warnings
+    # `|| true` on both greps: under `set -euo pipefail` a no-match grep exits
+    # 1, and the clean case (no first-party warnings) leaves grep -v with
+    # nothing to emit — without this the success path would itself abort the
+    # script. Keep the filter robust to an empty result.
     product_warnings="$(
-      grep -E '\.swift:[0-9]+:[0-9]+: warning:|Invalid Exclude' <<<"$output" \
-        | grep -v 'third_party/'
+      { grep -E '\.swift:[0-9]+:[0-9]+: warning:|Invalid Exclude' <<<"$output" || true; } \
+        | { grep -v 'third_party/' || true; }
     )"
     if [[ -n "$product_warnings" ]]; then
       echo "Qt backend build for $product emitted first-party warnings; canonical Qt app products must stay warning-clean:" >&2
