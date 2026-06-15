@@ -42,9 +42,24 @@ done
   # the better part of an hour on a CI runner). Then run the suite with a TIGHT
   # timeout: separating the two means the timeout bounds only the (fast) test
   # *run*, not the (slow) build.
+  # `--filter` is a `swift test`-only option; `swift build --build-tests`
+  # rejects it ("Unknown option '--filter'", exit 64). Strip it (and its value)
+  # for the build phase — building the whole test bundle is fine; the filter
+  # still applies to the test run below.
+  BUILD_ARGS=()
+  skip_next=0
+  for a in ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"}; do
+    if [[ $skip_next -eq 1 ]]; then skip_next=0; continue; fi
+    case "$a" in
+      --filter) skip_next=1; continue ;;
+      --filter=*) continue ;;
+      *) BUILD_ARGS+=("$a") ;;
+    esac
+  done
+
   set +e
   "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift build --build-tests --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
+    swift build --build-tests --scratch-path "$SCRATCH_PATH" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test-build.log"
   build_status=${PIPESTATUS[0]}
   if [[ $build_status -ne 0 ]]; then
