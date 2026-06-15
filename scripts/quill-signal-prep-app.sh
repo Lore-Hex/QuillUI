@@ -52,6 +52,9 @@ for sub in \
     src/ViewControllers/Polls src/ViewControllers/Stories \
     src/ViewControllers/HomeView src/ViewControllers/ThreadSettings \
     src/ViewControllers/Registration src/ViewControllers/DonationViewControllers \
+    src/ViewControllers/AppSettings src/ViewControllers/NewGroupView \
+    "src/ViewControllers/Attachment Keyboard" src/ViewControllers/GroupViewControllers \
+    src/ViewControllers/ConversationSettings \
 ; do
     rm -rf "$APP/$sub"
 done
@@ -59,6 +62,10 @@ for f in \
     "src/views/MarqueeLabel.swift" \
     "src/views/MockConversationView.swift" \
     "src/ViewControllers/SafetyTipsViewController.swift" \
+    "src/ViewControllers/MessageDetailViewController.swift" \
+    "src/ViewControllers/ContactShareViewHelper.swift" \
+    "src/ViewControllers/MessageReactionPicker.swift" \
+    "src/ViewControllers/SendMediaNavigationController.swift" \
 ; do
     rm -f "$APP/$f"
 done

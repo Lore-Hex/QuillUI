@@ -1,32 +1,34 @@
-// QuillCascadeStubs.swift — AUTO-GENERATED empty stand-ins for app types whose
-// defining files were pruned to shrink SignalApp to the conversation-rendering
-// slice. Resolve cannot-find-type cascades; refine kind/members build-driven.
+// QuillCascadeStubs.swift — AUTO-GENERATED (cumulative) empty stand-ins for
+// app types whose defining files were pruned to shrink SignalApp to the
+// conversation slice.
 import Foundation
 import UIKit
 import SignalServiceKit
 import SignalUI
 
 struct ApplePayButton { }
-struct BackupRestoreProgressPhase { }
+struct AttachmentKeyboard { }
+protocol AttachmentKeyboardDelegate: AnyObject { }
 struct CVComponentGenericAttachment { }
+struct ContactShareViewHelper { }
+protocol ContactShareViewHelperDelegate: AnyObject { }
 struct ConversationSettingsPresentationMode { }
 protocol ConversationSettingsViewDelegate: AnyObject { }
+class DonationSettingsViewController: UIViewController { }
 struct Emoji { }
 struct EmojiPickerSheet { }
-struct EmojiWithSkinTones { }
-struct GroupAttributesEditorHelper { }
-protocol GroupAttributesEditorHelperDelegate: AnyObject { }
 class GroupDescriptionViewController: UIViewController { }
 protocol GroupDescriptionViewControllerDelegate: AnyObject { }
 struct GroupViewHelper { }
 protocol GroupViewHelperDelegate: AnyObject { }
 struct Media { }
-struct MediaGallery { }
-protocol MediaGalleryDelegate: AnyObject { }
-struct MediaGalleryItem { }
 struct MediaPresentationContext { }
 protocol MediaPresentationContextProvider: AnyObject { }
 struct MediaViewShape { }
+class MessageDetailViewController: UIViewController { }
+protocol MessageDetailViewDelegate: AnyObject { }
+struct MessageReactionPicker { }
+protocol MessageReactionPickerDelegate: AnyObject { }
 protocol MockConversationDelegate: AnyObject { }
 class MockConversationView: UIView { }
 struct MockIncomingMessage { }
@@ -34,11 +36,9 @@ struct MockOutgoingMessage { }
 protocol NameCollisionResolutionDelegate: AnyObject { }
 class NameCollisionResolutionViewController: UIViewController { }
 struct OsExpiry { }
-struct PhotoLibrary { }
-protocol PhotoLibraryDelegate: AnyObject { }
-struct PhotoPickerAssetItem { }
+struct PaymentsHistoryItem { }
+struct PaypalButton { }
 protocol PollSendDelegate: AnyObject { }
-struct RegistrationMode { }
 struct SafetyTipsType { }
 protocol SendMediaNavDataSource: AnyObject { }
 protocol SendMediaNavDelegate: AnyObject { }
