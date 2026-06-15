@@ -53,6 +53,42 @@ done
     exit $build_status
   fi
 
+  # Pre-build the isolated SwiftSyntax source-lowering tool ONCE, untimed, and
+  # pin QUILLUI_SOURCE_LOWER to the resulting binary. The QuillData lowering
+  # test otherwise cold-builds swift-syntax in a throwaway scratch INSIDE the
+  # timeout-bounded test run; on a constrained CI runner that took >900s and
+  # wedged the whole suite (it completes in ~49s on 2 local cores). Execing a
+  # prebuilt binary makes that test a fast no-op. run-quill-source-lower.sh
+  # short-circuits to $QUILLUI_SOURCE_LOWER before any build when it is set, so
+  # the test reuses this binary without touching its own scratch override.
+  # Skipped for --filter runs (e.g. the offscreen ImageRenderer smoke), which
+  # don't exercise the lowering test.
+  warm_lower=1
+  for arg in ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"}; do
+    case "$arg" in --filter|--filter=*) warm_lower=0 ;; esac
+  done
+  if [[ $warm_lower -eq 1 ]]; then
+    lower_pkg="$ROOT_DIR/.build/quill-source-lower-package"
+    lower_scratch="$ROOT_DIR/.build/quill-source-lower-tool"
+    warm_dir="$(mktemp -d)"
+    printf 'import Foundation\n' > "$warm_dir/Warm.swift"
+    # NOTE: leave "$warm_dir/out" uncreated — quill-source-lower refuses to run
+    # into an existing output directory (it guards against clobbering sources).
+    if QUILLUI_SOURCE_LOWER_PACKAGE_DIR="$lower_pkg" \
+       QUILLUI_SOURCE_LOWER_SCRATCH_PATH="$lower_scratch" \
+       "$ROOT_DIR/scripts/run-quill-source-lower.sh" "$warm_dir" "$warm_dir/out" \
+       > "$SCRATCH_PATH/quill-source-lower-warmup.log" 2>&1; then
+      lower_bin_dir="$(swift build --package-path "$lower_pkg" --scratch-path "$lower_scratch" --show-bin-path 2>/dev/null || true)"
+      if [[ -n "$lower_bin_dir" && -x "$lower_bin_dir/quill-source-lower" ]]; then
+        export QUILLUI_SOURCE_LOWER="$lower_bin_dir/quill-source-lower"
+        echo "=== Pinned QUILLUI_SOURCE_LOWER=$QUILLUI_SOURCE_LOWER (prebuilt; lowering test skips the cold swift-syntax build) ==="
+      fi
+    else
+      echo "=== source-lower tool warmup failed; the lowering test will build it itself (see $SCRATCH_PATH/quill-source-lower-warmup.log) ==="
+    fi
+    rm -rf "$warm_dir"
+  fi
+
   # `timeout`: the suite has been observed to finish reporting and then HANG —
   # a leaked subprocess (GTK/Xvfb) keeps the swift-test process alive, so the
   # step burns the whole job budget for nothing (a ~2h hang was seen, while the
