@@ -32,3 +32,39 @@ class ProvisioningManager {}
 class QuickRestoreManager {}
 struct DeviceProvisioningURL {}
 class BackupAttachmentDownloadTracker {}
+
+// MARK: - Push / debug / device-transfer / backups / quick-restore services
+// (defining files pruned: they import PushKit / CocoaLumberjack / Multipeer /
+//  BackgroundTasks, or live under the pruned Backups/DeviceTransfer/QuickRestore
+//  subsystems). Empty stand-ins; members grown build-driven where still referenced.
+
+class PushRegistrationManager {}
+class DebugLogDumper {}
+enum DebugLogs {}
+class BackupAttachmentUploadTracker {}
+class BackupSettingsViewController: UIViewController {}
+class BackupEnablingManager {}
+class BackupDisablingManager {}
+class DeviceTransferService {}
+protocol DeviceTransferServiceProtocol {}
+class DeviceTransferCoordinator {}
+class DeviceTransferStatusViewController: UIViewController {}
+class OutgoingDeviceRestorePresenter {}
+class BaseQuickRestoreQRCodeViewController: UIViewController {}
+class EnterAccountEntropyPoolViewController: UIViewController {}
+class CapturePreviewView: UIView {}
+class LocationPicker: UIViewController {}
+protocol LocationPickerDelegate: AnyObject {}
+struct Location {}
+
+// MARK: - Calling glue still referenced from kept code (Calls/ pruned)
+
+protocol CallServiceStateObserver: AnyObject {}
+class CallViewControllerWindowReference {}
+struct CallTarget {}
+class CallLinkProfileKeySharingManager {}
+
+// MARK: - Generated-asset + Foundation typealiases corelibs lacks
+
+public typealias NSInteger = Int
+struct ImageResource {}
