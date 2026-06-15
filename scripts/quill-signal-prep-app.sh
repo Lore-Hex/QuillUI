@@ -81,4 +81,26 @@ fi
 # (7) Swift/corelibs Foundation compatibility cleanup.
 "$ROOT/scripts/lower-objc-interop-for-linux.sh" "$APP"
 
+# (8) Prune separable call/donation glue extensions whose only purpose is to wire
+#     the pruned subsystems into otherwise-reachable view controllers.
+for glue in \
+    "ConversationView/ConversationViewController+Calls.swift" \
+    "ConversationView/LinkPreviewCallLink.swift" \
+; do
+    rm -f "$APP/$glue"
+done
+
+# (9) Link the same-module app ports (Linux stand-ins for pruned app types) into
+#     the disposable tree, the same way SignalUI's port files are linked.
+PORT_SRC="$ROOT/Sources/SignalAppPort"
+if [ -d "$PORT_SRC" ]; then
+    PORT_DIR="$APP/QuillPort"
+    mkdir -p "$PORT_DIR"
+    for f in "$PORT_SRC"/*.swift; do
+        [ -e "$f" ] || continue
+        ln -sf "../../../../Sources/SignalAppPort/$(basename "$f")" "$PORT_DIR/$(basename "$f")"
+    done
+    echo "quill-signal-prep-app: linked app port file(s) into $PORT_DIR"
+fi
+
 echo "quill-signal-prep-app: prepared $(find "$APP" -name '*.swift' | wc -l | tr -d ' ') app source file(s)"
