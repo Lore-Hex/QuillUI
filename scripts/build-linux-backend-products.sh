@@ -129,15 +129,27 @@ quillui_build_backend_product() {
 
   printf '%s\n' "$output"
 
-  # The package-manifest "found N file(s) which are unhandled" notice is benign
-  # config noise from the WireGuard conformance targets (broad .upstream path +
-  # an explicit `sources:` list, so SwiftPM flags the unlisted siblings). Those
-  # targets are test-only (consumed by QuillAppKitQtTests, never by a canonical
-  # product), so filter the notice out before the warning gate — real compiler
-  # warnings in the product itself still fail the build.
-  if [[ "$build_backend" == "qt" ]] && grep -v "which are unhandled" <<<"$output" | grep -Eq "warning:|prohibited flag|Invalid Exclude"; then
-    echo "Qt backend build for $product emitted warnings; canonical Qt app products must stay warning-clean." >&2
-    return 1
+  # Gate the canonical Qt app product on warnings IN ITS OWN first-party code.
+  # Scope to compiler diagnostics with a `<path>.swift:line:col: warning:`
+  # location, then drop `third_party/` — the vendored SwiftOpenUI backend
+  # carries inherent Swift-5-vs-6 (Sendable/same-type) and GTK-deprecation
+  # warnings that are not this product's to fix, and gating on them just wedges
+  # every canonical product. Package-manifest noise (unhandled-files notices,
+  # "ignoring duplicate product", unused-dependency, pkg-config prohibited
+  # flags) has no source location and is likewise excluded here — the dedicated
+  # SourceHygiene manifest tests guard those. `Invalid Exclude` IS a real
+  # first-party Package.swift error, so it still fails.
+  if [[ "$build_backend" == "qt" ]]; then
+    local product_warnings
+    product_warnings="$(
+      grep -E '\.swift:[0-9]+:[0-9]+: warning:|Invalid Exclude' <<<"$output" \
+        | grep -v 'third_party/'
+    )"
+    if [[ -n "$product_warnings" ]]; then
+      echo "Qt backend build for $product emitted first-party warnings; canonical Qt app products must stay warning-clean:" >&2
+      printf '%s\n' "$product_warnings" >&2
+      return 1
+    fi
   fi
 }
 
