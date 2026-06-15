@@ -1,4 +1,5 @@
 import CoreTransferable
+import QuillSwiftUICompatibility
 import SwiftOpenUI
 import UIKit
 
@@ -114,10 +115,8 @@ public extension DropDelegate {
 }
 
 public extension View {
-    @_disfavoredOverload
-    func keyboardType(_ type: UIKeyboardType) -> Self {
-        _ = type
-        return self
+    func keyboardType(_ type: UIKeyboardType) -> KeyboardTypeView<Self, UIKeyboardType> {
+        KeyboardTypeView(content: self, keyboardType: type)
     }
 
     func onDrag(_ data: @escaping () -> NSItemProvider) -> Self {

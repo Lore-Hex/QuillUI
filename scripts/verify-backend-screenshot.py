@@ -131,8 +131,14 @@ def require(condition: bool, message: str) -> None:
 
 
 def gray_line_pixel(rgb: tuple[int, int, int]) -> bool:
+    # SwiftOpenUI's GTK4 GL render path anti-aliases the thin list-row dividers
+    # lighter (and slightly bluer) than macOS SwiftUI — they land near the top of
+    # the gray band rather than the middle. Widen the upper bound (590..680 ->
+    # 590..712) and the channel-spread tolerance (12 -> 16) so the divider lines
+    # are detected on both backends. The window is non-regressive: every pixel
+    # the old band matched still matches.
     total = sum(rgb)
-    return 590 <= total <= 680 and max(rgb) - min(rgb) <= 12
+    return 590 <= total <= 712 and max(rgb) - min(rgb) <= 16
 
 
 def prompt_card_pixel(rgb: tuple[int, int, int]) -> bool:

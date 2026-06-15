@@ -1666,11 +1666,11 @@ public struct AutocorrectionDisabledView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct KeyboardTypeView<Content: View>: View {
+public struct KeyboardTypeView<Content: View, Keyboard>: View {
     public let content: Content
-    public let keyboardType: KeyboardType
+    public let keyboardType: Keyboard
 
-    public init(content: Content, keyboardType: KeyboardType) {
+    public init(content: Content, keyboardType: Keyboard) {
         self.content = content
         self.keyboardType = keyboardType
     }
@@ -1837,7 +1837,7 @@ public extension View {
         return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
-    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
+    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self, KeyboardType> {
         recordSwiftUICompatibilityFallback(
             "keyboardType",
             message: "keyboardType is preserved as text-input metadata on Linux."

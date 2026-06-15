@@ -528,15 +528,26 @@ let quillUIDependencies: [Target.Dependency] = [
 #endif
 
 #if os(Linux)
-let wrappingHStackDependencies: [Target.Dependency] = [
-    "SwiftUI",
-    "Observation",
-    .product(name: "BackendGTK4", package: "SwiftOpenUI"),
-    .product(name: "CGTK", package: "SwiftOpenUI"),
-    .product(name: "CGTKBridge", package: "SwiftOpenUI"),
-]
+let wrappingHStackDependencies: [Target.Dependency] =
+    quillUILinuxBuildBackend == .gtk
+    ? [
+        "SwiftUI",
+        "Observation",
+        .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+        .product(name: "CGTK", package: "SwiftOpenUI"),
+        .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+    ]
+    : ["SwiftUI", "Observation"]
+let wrappingHStackSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
+    ? quillUIGTKSwiftImporterSettings
+    : []
+let wrappingHStackLinkerSettings: [LinkerSetting] = quillUILinuxBuildBackend == .gtk
+    ? quillUIGTKLinkerSettings
+    : []
 #else
-let wrappingHStackDependencies: [Target.Dependency] = []
+let wrappingHStackDependencies: [Target.Dependency] = ["SwiftUI"]
+let wrappingHStackSwiftSettings: [SwiftSetting] = []
+let wrappingHStackLinkerSettings: [LinkerSetting] = []
 #endif
 
 #if os(Linux)
@@ -950,7 +961,6 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGdkPixbuf",
         path: "Sources/CGdkPixbuf",
-        pkgConfig: "gdk-pixbuf-2.0",
         providers: [
             .apt(["libgdk-pixbuf-2.0-dev"])
         ]
@@ -2730,8 +2740,8 @@ targets.append(contentsOf: [
         name: "WrappingHStack",
         dependencies: wrappingHStackDependencies,
         path: "Sources/WrappingHStack",
-        swiftSettings: quillUIGTKSwiftImporterSettings,
-        linkerSettings: quillUIGTKLinkerSettings
+        swiftSettings: wrappingHStackSwiftSettings,
+        linkerSettings: wrappingHStackLinkerSettings
     ),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),
@@ -2989,7 +2999,6 @@ if quillUILinuxBuildBackend == .qt {
         .systemLibrary(
             name: "CGdkPixbuf",
             path: "Sources/CGdkPixbuf",
-            pkgConfig: "gdk-pixbuf-2.0",
             providers: [
                 .apt(["libgdk-pixbuf-2.0-dev"])
             ]
