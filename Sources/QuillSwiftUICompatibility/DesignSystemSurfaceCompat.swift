@@ -1895,20 +1895,12 @@ public extension View {
         _ = mask()
         return self
     }
-
-    // Value-form `.mask(_:)` (SwiftUI's original signature) — vendored real
-    // source that only sees the SwiftUI shadow (which re-exports
-    // QuillSwiftUICompatibility but NOT QuillUI) passes a mask view directly,
-    // e.g. IceCubes DisplaySettingsView's `.mask(LinearGradient(...))`.
-    // Disfavored so that callers who ALSO see QuillUI (e.g. the compat-module
-    // tests) bind to QuillUI's richer value-form mask (-> ViewMaskView /
-    // ClipShapeView) instead of this Self-returning fallback.
-    @_disfavoredOverload
-    func mask<Mask: View>(alignment: Alignment = .center, _ mask: Mask) -> Self {
-        _ = alignment
-        _ = mask
-        return self
-    }
+    // NOTE: the value-form `.mask(_:)` lives in IceCubesShims (icecubes-only,
+    // force-imported), NOT here. Two disfavored value-form masks visible to a
+    // caller that also imports QuillUI (the compat-module tests, generated
+    // quill-chat) tie and produce "ambiguous use of 'mask'"; keeping only
+    // QuillUI's value-form mask visible to those callers — and exposing the
+    // IceCubes fallback solely through the force-imported shim — avoids the tie.
 }
 
 public extension Tab {

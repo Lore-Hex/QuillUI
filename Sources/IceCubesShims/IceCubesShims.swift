@@ -266,4 +266,21 @@ public final class RecentTag: PersistentModel, Equatable, Identifiable {
         lhs.id == rhs.id
     }
 }
+
+// Value-form `.mask(_:)` (SwiftUI's original signature), e.g. IceCubes
+// DisplaySettingsView's `.mask(LinearGradient(...))`. Lives HERE (icecubes-only,
+// force-imported via -import-module IceCubesShims) rather than in
+// DesignSystemSurfaceCompat: a second disfavored value-form mask in the shared
+// QuillSwiftUICompatibility module ties with QuillUI's value-form mask for
+// callers that import both (compat-module tests, generated quill-chat) and
+// yields "ambiguous use of 'mask'". IceCubes imports only the SwiftUI shim, so
+// it never sees QuillUI's — this is its sole value-form mask. Layout-neutral.
+public extension View {
+    @_disfavoredOverload
+    func mask<Mask: View>(alignment: Alignment = .center, _ mask: Mask) -> Self {
+        _ = alignment
+        _ = mask
+        return self
+    }
+}
 #endif

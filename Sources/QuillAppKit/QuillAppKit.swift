@@ -2020,12 +2020,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
     public func display() {}
 }
 
-// Intentionally NOT @MainActor: @MainActor on the protocol would infer
-// @MainActor on conforming classes, breaking upstream Telegram TGUIKit types
-// (TableView, ContextMenu) that conform from nonisolated code. Delegate call
-// sites bridge with MainActor.assumeIsolated instead. (Enforced by
-// SourceHygieneTests "Linux AppKit shims avoid Swift 6 warning traps".)
-public protocol NSApplicationDelegate: AnyObject {
+@preconcurrency @MainActor public protocol NSApplicationDelegate: AnyObject {
     func applicationDidFinishLaunching(_ notification: Notification)
     func applicationWillTerminate(_ notification: Notification)
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool
