@@ -405,6 +405,93 @@ void quill_qt_bridge_post_idle(
     void *user_data
 );
 
+// --- QuillPaint host: a QPainter-backed paintable QWidget --------------------
+//
+// This is the Qt keystone for QuillPaint. QuillPaint draws macOS-style control
+// chrome (filled/stroked rounded rects, lines, text) through its renderer-
+// agnostic `PaintContext` protocol. On GTK that lands on Cairo via a
+// GtkDrawingArea draw callback; here the analogue is a QWidget subclass whose
+// paintEvent constructs a QPainter and hands its address to a registered Swift
+// callback, which wraps it in a QtPaintContext and issues the draw primitives.
+//
+// The QPainter handle is an opaque `void *` (a `QPainter *`) valid ONLY for the
+// duration of the paint callback — exactly like Cairo's `cairo_t *` is only
+// valid inside the draw signal. Swift must not retain it past the callback.
+
+// Paint callback invoked from the paintable widget's paintEvent. `qpainter`
+// points at a live QPainter already begun on the widget; `width`/`height` are
+// the widget's current size in device-independent paint units; `user_data` is
+// the retained Swift box the host registered.
+typedef void (*quill_qt_bridge_paint_callback)(
+    void *qpainter,
+    double width,
+    double height,
+    void *user_data
+);
+
+// Create a paintable QWidget. It renders nothing on its own; every paintEvent
+// is delegated to `callback`. `destroy` is invoked when the widget is destroyed
+// so Swift can release `user_data` (mirrors the button closure lifetime / GTK's
+// GDestroyNotify). Pass a null callback for a widget that paints nothing.
+QuillQtWidgetHandle quill_qt_paint_widget_create(
+    quill_qt_bridge_paint_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Return non-zero when the handle is a paint widget created above.
+int quill_qt_widget_is_paint_widget(QuillQtWidgetHandle widget);
+
+// Request a repaint of a paint widget (QWidget::update()). The actual paint
+// callback fires later on the next main-loop turn, coalesced by Qt.
+void quill_qt_paint_widget_request_repaint(QuillQtWidgetHandle widget);
+
+// --- QPainter primitive shims (QuillPaint's 4 PaintContext primitives) -------
+//
+// Each takes the opaque `qpainter` handle from the paint callback plus geometry
+// / color / text in paint units. Colors are RGBA in [0, 1] (PaintColor's native
+// shape). These are thin: they configure a QPen/QBrush and issue one QPainter
+// call, leaving no persistent state on the painter (each save()s/restore()s).
+
+// Fill a rounded rectangle. `corner_radius` of 0 fills sharp corners.
+void quill_qt_painter_fill_rounded_rect(
+    void *qpainter,
+    double x, double y, double width, double height,
+    double corner_radius,
+    double red, double green, double blue, double alpha
+);
+
+// Stroke the outline of a rounded rectangle with `line_width`.
+void quill_qt_painter_stroke_rounded_rect(
+    void *qpainter,
+    double x, double y, double width, double height,
+    double corner_radius,
+    double red, double green, double blue, double alpha,
+    double line_width
+);
+
+// Stroke a single straight line segment with `line_width`.
+void quill_qt_painter_stroke_line(
+    void *qpainter,
+    double x1, double y1, double x2, double y2,
+    double red, double green, double blue, double alpha,
+    double line_width
+);
+
+// Draw a single text run. `x`/`y` is the TOP-LEFT typographic origin in paint
+// units (the shim drops to the baseline via font ascent, matching the Cairo
+// path). `font_family` is a UTF-8 family name; `weight` follows the CSS/
+// OpenType 100-900 scale; weights >= 600 render bold.
+void quill_qt_painter_draw_text(
+    void *qpainter,
+    const char *text,
+    double x, double y,
+    const char *font_family,
+    double font_size,
+    int weight,
+    double red, double green, double blue, double alpha
+);
+
 #ifdef __cplusplus
 }
 #endif
