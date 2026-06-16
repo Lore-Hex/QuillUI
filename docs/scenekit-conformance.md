@@ -122,7 +122,10 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
 6. **Pixel parity / controls / hit-testing** — IN PROGRESS. `SCNView.hitTest`
    now uses the same projected primitives as the software renderer and returns
    nearest-first `SCNHitTestResult`s, covering ShapeScript's geometry-selection
-   path. Full macOS pixel-reference parity and live camera-control gestures
+   path. Camera orientation is now respected by the software renderer, and
+   deterministic `SCNView` camera-control movement is smoke-gated by creating a
+   moved point-of-view camera for ShapeScript-style `cameraHasMoved` checks.
+   Full macOS pixel-reference parity and real event-driven gesture plumbing
    remain open.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
@@ -141,4 +144,4 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Rung 3: fixtures render (GTK screenshot gate)
 - [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
 - [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
-- [ ] Rung 6: pixel parity / live camera controls (hit-testing is implemented and smoke-gated)
+- [ ] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, and deterministic camera movement are smoke-gated)
