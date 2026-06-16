@@ -400,12 +400,13 @@ products += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
-    if signalUpstreamPresent && libsignalUpstreamPresent {
-        // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
-        // (and, wired up, SignalUI) UIViewController view trees to an on-screen
-        // GTK window. First-light demo proves the pipeline; Signal's own VCs follow.
-        products.append(.executable(name: "signal-ui-render", targets: ["SignalUIRender"]))
-    }
+}
+
+if quillUILinuxBuildBackend == .gtk && signalUpstreamPresent && libsignalUpstreamPresent {
+    // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
+    // (and, wired up, SignalUI) UIViewController view trees to an on-screen
+    // GTK window. First-light demo proves the pipeline; Signal's own VCs follow.
+    products.append(.executable(name: "signal-ui-render", targets: ["SignalUIRender"]))
 }
 
 products += [
@@ -980,7 +981,6 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGdkPixbuf",
         path: "Sources/CGdkPixbuf",
-        pkgConfig: "gdk-pixbuf-2.0",
         providers: [
             .apt(["libgdk-pixbuf-2.0-dev"])
         ]
@@ -3302,7 +3302,6 @@ if quillUILinuxBuildBackend == .qt {
         .systemLibrary(
             name: "CGdkPixbuf",
             path: "Sources/CGdkPixbuf",
-            pkgConfig: "gdk-pixbuf-2.0",
             providers: [
                 .apt(["libgdk-pixbuf-2.0-dev"])
             ]
@@ -3566,6 +3565,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "SceneKitTests",
             dependencies: ["SceneKit", "AppKit", "UIKit", "QuillFoundation"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "CoreGraphicsTests",
+            dependencies: ["CoreGraphics"],
             swiftSettings: appSwiftSettings
         ),
         .testTarget(

@@ -85,6 +85,11 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    `defaultMaterialLookup` needs. With these, **`Euclid`'s full SceneKit/
    AppKit/CoreGraphics interop compiles 727 → 0 errors** (verified on a
    branch that declared the interop deps).
+   The follow-up CoreGraphics quality pass now makes recorded `CGPath` data
+   transform-aware (`CGPath(rect:transform:)`, `copy(using:)`, and
+   `CGMutablePath.addPath(_:transform:)`) and records rounded rects/ellipses as
+   cubic curve elements instead of plain rectangles. `CoreGraphicsTests`
+   exercises this through a direct `import CoreGraphics` path.
 
    This surface is now enabled by rung 2c. The key build gotcha remains:
    `canImport` state can look poisoned in a shared scratch, so use clean
@@ -139,7 +144,7 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Inert RealityKit shim module (Euclid Example's RealityKitViewController)
 - [x] Rung 1: Euclid + ShapeScript lib/CLI green on Linux (CLI renders .shape → .stl)
 - [x] Rung 2 (fixtures): SceneKit scene-graph shim authored; QuillSolarSystem + QuillMoleculeViewer compile
-- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0
+- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0; CGPath transform/curve recording now directly tested
 - [x] Rung 2c (app-tier enablement): enable Euclid interop + fix ShapeScript interop + QuillEuclidExample + QuillShapeScriptViewer compile (all-at-once)
 - [x] Rung 3: fixtures render (GTK screenshot gate)
 - [x] Rung 4: QuillEuclidExample renders real Euclid mesh data

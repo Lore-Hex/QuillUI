@@ -391,9 +391,11 @@ public struct CGPathElement {
     }
 }
 
+fileprivate typealias CGPathStorageElement = (type: CGPathElementType, points: [CGPoint])
+
 public class CGPath: Hashable, @unchecked Sendable {
     /// Recorded path elements (type + its points), so the path is iterable.
-    fileprivate var elements: [(type: CGPathElementType, points: [CGPoint])] = []
+    fileprivate var elements: [CGPathStorageElement] = []
 
     public init() {}
 
@@ -407,14 +409,7 @@ public class CGPath: Hashable, @unchecked Sendable {
 
     public convenience init(rect: CGRect, transform: UnsafePointer<CGAffineTransform>?) {
         self.init()
-        _ = transform
-        elements = [
-            (.moveToPoint, [CGPoint(x: rect.minX, y: rect.minY)]),
-            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.minY)]),
-            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.maxY)]),
-            (.addLineToPoint, [CGPoint(x: rect.minX, y: rect.maxY)]),
-            (.closeSubpath, []),
-        ]
+        elements = Self.applying(transform?.pointee, to: Self.rectElements(rect))
     }
 
     public convenience init(
@@ -424,14 +419,10 @@ public class CGPath: Hashable, @unchecked Sendable {
         transform: UnsafePointer<CGAffineTransform>?
     ) {
         self.init()
-        _ = (cornerWidth, cornerHeight, transform)
-        elements = [
-            (.moveToPoint, [CGPoint(x: rect.minX, y: rect.minY)]),
-            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.minY)]),
-            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.maxY)]),
-            (.addLineToPoint, [CGPoint(x: rect.minX, y: rect.maxY)]),
-            (.closeSubpath, []),
-        ]
+        elements = Self.applying(
+            transform?.pointee,
+            to: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight)
+        )
     }
 
     public func copy() -> CGPath? {
@@ -440,8 +431,9 @@ public class CGPath: Hashable, @unchecked Sendable {
         return p
     }
     public func copy(using transform: UnsafePointer<CGAffineTransform>?) -> CGPath? {
-        _ = transform
-        return copy()
+        let p = CGPath()
+        p.elements = Self.applying(transform?.pointee, to: elements)
+        return p
     }
     public func contains(_ point: CGPoint) -> Bool {
         _ = point
@@ -460,6 +452,139 @@ public class CGPath: Hashable, @unchecked Sendable {
             }
         }
     }
+
+    fileprivate static func applying(
+        _ transform: CGAffineTransform?,
+        to elements: [CGPathStorageElement]
+    ) -> [CGPathStorageElement] {
+        guard let transform else { return elements }
+        return elements.map { element in
+            (element.type, element.points.map { $0.applying(transform) })
+        }
+    }
+
+    fileprivate static func rectElements(_ rect: CGRect) -> [CGPathStorageElement] {
+        [
+            (.moveToPoint, [CGPoint(x: rect.minX, y: rect.minY)]),
+            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.minY)]),
+            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.maxY)]),
+            (.addLineToPoint, [CGPoint(x: rect.minX, y: rect.maxY)]),
+            (.closeSubpath, []),
+        ]
+    }
+
+    fileprivate static func roundedRectElements(
+        _ rect: CGRect,
+        cornerWidth: CGFloat,
+        cornerHeight: CGFloat
+    ) -> [CGPathStorageElement] {
+        let radiusX = max(0, min(abs(cornerWidth), abs(rect.width) / 2))
+        let radiusY = max(0, min(abs(cornerHeight), abs(rect.height) / 2))
+        guard radiusX > 0, radiusY > 0 else {
+            return rectElements(rect)
+        }
+
+        let minX = rect.minX
+        let maxX = rect.maxX
+        let minY = rect.minY
+        let maxY = rect.maxY
+        let k = CGFloat(0.5522847498307936)
+        let cX = radiusX * k
+        let cY = radiusY * k
+
+        if radiusX == abs(rect.width) / 2, radiusY == abs(rect.height) / 2 {
+            return ellipseElements(in: rect)
+        }
+
+        return [
+            (.moveToPoint, [CGPoint(x: minX + radiusX, y: minY)]),
+            (.addLineToPoint, [CGPoint(x: maxX - radiusX, y: minY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: maxX - radiusX + cX, y: minY),
+                    CGPoint(x: maxX, y: minY + radiusY - cY),
+                    CGPoint(x: maxX, y: minY + radiusY),
+                ]
+            ),
+            (.addLineToPoint, [CGPoint(x: maxX, y: maxY - radiusY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: maxX, y: maxY - radiusY + cY),
+                    CGPoint(x: maxX - radiusX + cX, y: maxY),
+                    CGPoint(x: maxX - radiusX, y: maxY),
+                ]
+            ),
+            (.addLineToPoint, [CGPoint(x: minX + radiusX, y: maxY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: minX + radiusX - cX, y: maxY),
+                    CGPoint(x: minX, y: maxY - radiusY + cY),
+                    CGPoint(x: minX, y: maxY - radiusY),
+                ]
+            ),
+            (.addLineToPoint, [CGPoint(x: minX, y: minY + radiusY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: minX, y: minY + radiusY - cY),
+                    CGPoint(x: minX + radiusX - cX, y: minY),
+                    CGPoint(x: minX + radiusX, y: minY),
+                ]
+            ),
+            (.closeSubpath, []),
+        ]
+    }
+
+    fileprivate static func ellipseElements(in rect: CGRect) -> [CGPathStorageElement] {
+        let minX = rect.minX
+        let midX = rect.midX
+        let maxX = rect.maxX
+        let minY = rect.minY
+        let midY = rect.midY
+        let maxY = rect.maxY
+        let cX = abs(rect.width) / 2 * CGFloat(0.5522847498307936)
+        let cY = abs(rect.height) / 2 * CGFloat(0.5522847498307936)
+
+        return [
+            (.moveToPoint, [CGPoint(x: midX, y: minY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: midX + cX, y: minY),
+                    CGPoint(x: maxX, y: midY - cY),
+                    CGPoint(x: maxX, y: midY),
+                ]
+            ),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: maxX, y: midY + cY),
+                    CGPoint(x: midX + cX, y: maxY),
+                    CGPoint(x: midX, y: maxY),
+                ]
+            ),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: midX - cX, y: maxY),
+                    CGPoint(x: minX, y: midY + cY),
+                    CGPoint(x: minX, y: midY),
+                ]
+            ),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: minX, y: midY - cY),
+                    CGPoint(x: midX - cX, y: minY),
+                    CGPoint(x: midX, y: minY),
+                ]
+            ),
+            (.closeSubpath, []),
+        ]
+    }
 }
 public final class CGMutablePath: CGPath, @unchecked Sendable {
     public override init() { super.init() }
@@ -473,13 +598,27 @@ public final class CGMutablePath: CGPath, @unchecked Sendable {
         }
     }
     public func addRect(_ rect: CGRect) {
-        move(to: CGPoint(x: rect.minX, y: rect.minY))
-        addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        closeSubpath()
+        elements.append(contentsOf: Self.rectElements(rect))
     }
-    public func addEllipse(in rect: CGRect) { _ = rect }
+    public func addRect(_ rect: CGRect, transform: CGAffineTransform) {
+        elements.append(contentsOf: Self.applying(transform, to: Self.rectElements(rect)))
+    }
+    public func addRects(_ rects: [CGRect]) {
+        for rect in rects {
+            addRect(rect)
+        }
+    }
+    public func addRects(_ rects: [CGRect], transform: CGAffineTransform) {
+        for rect in rects {
+            addRect(rect, transform: transform)
+        }
+    }
+    public func addEllipse(in rect: CGRect) {
+        elements.append(contentsOf: Self.ellipseElements(in: rect))
+    }
+    public func addEllipse(in rect: CGRect, transform: CGAffineTransform) {
+        elements.append(contentsOf: Self.applying(transform, to: Self.ellipseElements(in: rect)))
+    }
     public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {
         elements.append((.addCurveToPoint, [control1, control2, end]))
     }
@@ -493,11 +632,12 @@ public final class CGMutablePath: CGPath, @unchecked Sendable {
         _ = (tangent1End, tangent2End, radius)
     }
     public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
-        _ = (cornerWidth, cornerHeight)
-        addRect(rect)
+        elements.append(contentsOf: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight))
     }
     public func addPath(_ path: CGPath) { elements.append(contentsOf: path.elements) }
-    public func addPath(_ path: CGPath, transform: CGAffineTransform) { _ = transform; addPath(path) }
+    public func addPath(_ path: CGPath, transform: CGAffineTransform) {
+        elements.append(contentsOf: Self.applying(transform, to: path.elements))
+    }
     public func closeSubpath() { elements.append((.closeSubpath, [])) }
 }
 
