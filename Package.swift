@@ -611,6 +611,20 @@ let appSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal"])
 ] + quillUIGTKSwiftImporterSettings
 
+#if compiler(>=6.2)
+let quillLegacyMainActorConcurrencySettings: [SwiftSetting] = [
+    .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])
+]
+#else
+let quillLegacyMainActorConcurrencySettings: [SwiftSetting] = [
+    .unsafeFlags(["-strict-concurrency=minimal"])
+]
+#endif
+
+let quillLegacyMainActorSwiftSettings: [SwiftSetting] = [
+    .swiftLanguageMode(.v5)
+] + quillLegacyMainActorConcurrencySettings
+
 #if os(Linux)
 let quillSwiftTestingAppleOverlaySwiftSettings: [SwiftSetting] = appSwiftSettings + [
     // Swift Testing declares platform cross-import overlays such as
@@ -1823,10 +1837,7 @@ if wireguardUpstreamPresent {
             // parsing, IPv4/v6 helpers, the public API surface) compiles
             // unmodified on Linux.
             exclude: wireGuardKitExcludes,
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])
-            ]
+            swiftSettings: quillLegacyMainActorSwiftSettings
         ),
         // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
         // / asWgQuickConfig()) lives in the App's Shared/Model, extending
@@ -2554,7 +2565,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "UIKitExtensions/UIStackView+SignalUITest.swift",
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
-            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
+            swiftSettings: quillLegacyMainActorSwiftSettings
         )
     ]
     // SignalApp: Signal-iOS's main *app* target (`Signal/`), home of the real
@@ -2583,7 +2594,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 exclude: [
                     "Signal-Prefix.pch",
                 ],
-                swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
+                swiftSettings: quillLegacyMainActorSwiftSettings
             )
         ]
     }
