@@ -246,6 +246,14 @@ extension NSView {
         let area = gtk_drawing_area_new()
         gtk_widget_set_hexpand(area, 1)
         gtk_widget_set_vexpand(area, 1)
+        let request = quillGtkCustomDrawSizeRequest()
+        if request.width > 0 || request.height > 0 {
+            gtk_widget_set_size_request(
+                area,
+                request.width > 0 ? gint(request.width) : -1,
+                request.height > 0 ? gint(request.height) : -1
+            )
+        }
 
         let box = _DrawingHostBox(view: self)
         let userData = Unmanaged.passRetained(box).toOpaque()
@@ -300,6 +308,28 @@ extension NSView {
             gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(live))
         }
         return areaPointer
+    }
+
+    private func quillGtkCustomDrawSizeRequest() -> (width: Int, height: Int) {
+        let intrinsic = intrinsicContentSize
+        let width = quillGtkPositivePixelCount(
+            intrinsic.width != NSView.noIntrinsicMetric ? intrinsic.width : 0,
+            bounds.width,
+            frame.width
+        )
+        let height = quillGtkPositivePixelCount(
+            intrinsic.height != NSView.noIntrinsicMetric ? intrinsic.height : 0,
+            bounds.height,
+            frame.height
+        )
+        return (width, height)
+    }
+
+    private func quillGtkPositivePixelCount(_ values: CGFloat...) -> Int {
+        for value in values where value > 0 {
+            return max(1, Int(value.rounded(.up)))
+        }
+        return 0
     }
 }
 

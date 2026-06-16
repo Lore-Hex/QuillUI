@@ -2631,7 +2631,7 @@ if solderScopeUpstreamPresent {
 targets += [
     .executableTarget(
         name: "QuillSceneKitRenderSmoke",
-        dependencies: ["SceneKit", "QuillFoundation", "QuillUI"],
+        dependencies: ["SceneKit", "AppKit", "QuillFoundation", "QuillUI"],
         path: "Sources/QuillSceneKitRenderSmoke",
         swiftSettings: appSwiftSettings
     ),
@@ -2702,7 +2702,9 @@ if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent
             dependencies: [],
             path: ".upstream/svgpath/Sources",
             // SVGPath's SwiftUI/CoreGraphics extensions are canImport-gated;
-            // with no such deps here they drop, leaving the pure parser.
+            // in this monorepo the shim modules are visible enough to wake
+            // those files, so exclude them explicitly and leave the pure parser.
+            exclude: ["Info.plist", "SVGPath+CoreGraphics.swift", "SVGPath+SwiftUI.swift"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         // The REAL nicklockwood/LRUCache. ShapeScript's GeometryCache needs
@@ -3558,7 +3560,7 @@ let packageTestTargets: [Target] = {
         ),
         .testTarget(
             name: "SceneKitTests",
-            dependencies: ["SceneKit", "QuillFoundation"],
+            dependencies: ["SceneKit", "AppKit", "UIKit", "QuillFoundation"],
             swiftSettings: appSwiftSettings
         ),
         .testTarget(

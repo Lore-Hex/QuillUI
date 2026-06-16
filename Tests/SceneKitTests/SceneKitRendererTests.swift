@@ -1,6 +1,8 @@
+import AppKit
 import Testing
-import SceneKit
+@testable import SceneKit
 import QuillFoundation
+import UIKit
 
 struct SceneKitRendererTests {
     @Test("Software renderer draws colored sphere pixels")
@@ -118,25 +120,8 @@ struct SceneKitRendererTests {
     @MainActor
     @Test("SCNView camera controls create a moved point-of-view camera")
     func scnViewCameraControlsCreateMovedCamera() {
-        let scene = SCNScene()
-        scene.background.contents = CGColor.black
-
-        let sphere = SCNSphere(radius: 1)
-        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
-        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
-
-        let cameraNode = SCNNode()
-        cameraNode.name = "resetCamera"
-        cameraNode.camera = SCNCamera()
-        cameraNode.position = SCNVector3(0, 0, 4)
-        scene.rootNode.addChildNode(cameraNode)
-
-        let view = SCNView()
-        view.bounds = CGRect(x: 0, y: 0, width: 160, height: 120)
-        view.scene = scene
-        view.pointOfView = cameraNode
-        view.defaultCameraController.target = SCNVector3(0, 0, 0)
-        view.allowsCameraControl = true
+        let (scene, cameraNode) = makeCameraControlScene()
+        let view = makeCameraControlView(scene: scene, cameraNode: cameraNode)
 
         view.quillOrbitCamera(deltaX: .pi / 4, deltaY: .pi / 12)
 
@@ -153,6 +138,76 @@ struct SceneKitRendererTests {
             #expect(stats.redDominantPixels > 400)
         }
     }
+
+    @MainActor
+    @Test("SCNView AppKit events drive camera control")
+    func scnViewAppKitEventsDriveCameraControl() {
+        let (scene, cameraNode) = makeCameraControlScene()
+        let view = makeCameraControlView(scene: scene, cameraNode: cameraNode)
+
+        let mouseDown = NSEvent()
+        mouseDown.locationInWindow = CGPoint(x: 40, y: 40)
+        let mouseDrag = NSEvent()
+        mouseDrag.locationInWindow = CGPoint(x: 120, y: 70)
+
+        view.mouseDown(with: mouseDown)
+        view.mouseDragged(with: mouseDrag)
+
+        let movedCamera = view.pointOfView
+        #expect(movedCamera !== cameraNode)
+        #expect(abs(movedCamera?.position.x ?? 0) > 0.25)
+
+        let distanceBeforeScroll = distanceFromOrigin(movedCamera?.position ?? SCNVector3(0, 0, 0))
+        let scroll = NSEvent()
+        scroll.scrollingDeltaY = 20
+        view.scrollWheel(with: scroll)
+        let distanceAfterScroll = distanceFromOrigin(view.pointOfView?.position ?? SCNVector3(0, 0, 0))
+        #expect(distanceAfterScroll < distanceBeforeScroll)
+    }
+
+    @MainActor
+    @Test("SCNView UIKit touch movement drives camera control")
+    func scnViewTouchEventsDriveCameraControl() {
+        let (scene, cameraNode) = makeCameraControlScene()
+        let view = makeCameraControlView(scene: scene, cameraNode: cameraNode)
+
+        let touch = UITouch()
+        touch.view = view
+        touch.quillPreviousLocation = CGPoint(x: 40, y: 40)
+        touch.quillLocation = CGPoint(x: 110, y: 70)
+
+        view.touchesMoved([touch], with: UIEvent())
+
+        let movedCamera = view.pointOfView
+        #expect(movedCamera !== cameraNode)
+        #expect(abs(movedCamera?.position.x ?? 0) > 0.25)
+    }
+
+    #if os(Linux)
+    @MainActor
+    @Test("SwiftUI SceneView backing view handles camera events")
+    func sceneViewBackingViewHandlesCameraEvents() {
+        let (scene, cameraNode) = makeCameraControlScene()
+        let view = SceneKitRenderView(frame: CGRect(x: 0, y: 0, width: 160, height: 120))
+        view.scene = scene
+        view.options = [.allowsCameraControl]
+        view.defaultCameraController.target = SCNVector3(0, 0, 0)
+
+        let mouseDown = NSEvent()
+        mouseDown.locationInWindow = CGPoint(x: 20, y: 20)
+        let mouseDrag = NSEvent()
+        mouseDrag.locationInWindow = CGPoint(x: 120, y: 60)
+
+        view.mouseDown(with: mouseDown)
+        view.mouseDragged(with: mouseDrag)
+
+        #expect(view.pointOfView !== cameraNode)
+        #expect(abs(view.pointOfView?.position.x ?? 0) > 0.25)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: view.pointOfView)
+        #expect(PixelStats(image).nonBlackPixels > 500)
+    }
+    #endif
 
     @Test("Software renderer hit testing returns nearest projected nodes")
     func hitTestsProjectedGeometryNearestFirst() {
@@ -192,6 +247,37 @@ struct SceneKitRendererTests {
             searchMode: .all
         )
         #expect(miss.isEmpty)
+    }
+
+    private func makeCameraControlScene() -> (scene: SCNScene, cameraNode: SCNNode) {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let cameraNode = SCNNode()
+        cameraNode.name = "resetCamera"
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+        return (scene, cameraNode)
+    }
+
+    @MainActor
+    private func makeCameraControlView(scene: SCNScene, cameraNode: SCNNode) -> SCNView {
+        let view = SCNView()
+        view.bounds = CGRect(x: 0, y: 0, width: 160, height: 120)
+        view.scene = scene
+        view.pointOfView = cameraNode
+        view.defaultCameraController.target = SCNVector3(0, 0, 0)
+        view.allowsCameraControl = true
+        return view
+    }
+
+    private func distanceFromOrigin(_ point: SCNVector3) -> CGFloat {
+        (point.x * point.x + point.y * point.y + point.z * point.z).squareRoot()
     }
 }
 

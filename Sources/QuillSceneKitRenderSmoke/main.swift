@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import SceneKit
 import QuillFoundation
 import SwiftUI
@@ -148,15 +149,34 @@ struct QuillSceneKitRenderSmoke {
         view.pointOfView = resetCamera
         view.defaultCameraController.target = SCNVector3(0, 0, 0)
         view.allowsCameraControl = true
-        view.quillOrbitCamera(deltaX: .pi / 4, deltaY: .pi / 12)
+
+        let mouseDown = NSEvent()
+        mouseDown.locationInWindow = CGPoint(x: 40, y: 40)
+        let mouseDrag = NSEvent()
+        mouseDrag.locationInWindow = CGPoint(x: 120, y: 70)
+        view.mouseDown(with: mouseDown)
+        view.mouseDragged(with: mouseDrag)
+
         try require(view.pointOfView !== resetCamera, "camera control did not create a moved point-of-view camera")
         try require(abs(view.pointOfView?.position.x ?? 0) > 0.5, "camera control did not orbit the camera")
+
+        let distanceBeforeScroll = distanceFromOrigin(view.pointOfView?.position ?? SCNVector3(0, 0, 0))
+        let scroll = NSEvent()
+        scroll.scrollingDeltaY = 20
+        view.scrollWheel(with: scroll)
+        let distanceAfterScroll = distanceFromOrigin(view.pointOfView?.position ?? SCNVector3(0, 0, 0))
+        try require(distanceAfterScroll < distanceBeforeScroll, "camera control did not dolly the camera")
+
         guard let image = view.quillRenderImage(width: 160, height: 120) else {
             throw SmokeFailure.assertion("camera-control render returned nil")
         }
         let stats = PixelStats(image)
         try require(stats.nonBlackPixels > 500, "camera-control render stayed mostly black: \(stats)")
         log("camera control smoke passed \(stats)")
+    }
+
+    private static func distanceFromOrigin(_ point: SCNVector3) -> CGFloat {
+        (point.x * point.x + point.y * point.y + point.z * point.z).squareRoot()
     }
 
     private static func runHitTestSmoke() throws {
@@ -204,15 +224,15 @@ struct QuillSceneKitRenderSmoke {
         log("GTK SceneView smoke starting")
         quillInstallGTKImageRendererBackend()
         log("GTK image renderer backend installed")
+        log("rendering black reference")
+        guard let black = quillRenderViewToImage(Color.black.frame(width: 180, height: 140), width: 180, height: 140) else {
+            throw SmokeFailure.assertion("GTK black reference render returned nil")
+        }
         let sceneView = SceneView(scene: makeSphereScene())
             .frame(width: 180, height: 140)
         log("rendering SceneView")
         guard let rendered = quillRenderViewToImage(sceneView, width: 180, height: 140) else {
             throw SmokeFailure.assertion("GTK SceneView render returned nil")
-        }
-        log("rendering black reference")
-        guard let black = quillRenderViewToImage(Color.black.frame(width: 180, height: 140), width: 180, height: 140) else {
-            throw SmokeFailure.assertion("GTK black reference render returned nil")
         }
         try require(rendered != black, "GTK SceneView render matched solid black reference")
         try require(rendered.count > black.count, "GTK SceneView render did not add structured PNG data: scene=\(rendered.count) black=\(black.count)")

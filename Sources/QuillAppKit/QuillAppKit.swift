@@ -603,6 +603,7 @@ open class NSResponder: NSObject, @preconcurrency QuillSelectorDispatching {
     open func rightMouseDown(with event: NSEvent) { nextResponder?.rightMouseDown(with: event) }
     open func rightMouseUp(with event: NSEvent) { nextResponder?.rightMouseUp(with: event) }
     open func mouseDragged(with event: NSEvent) { nextResponder?.mouseDragged(with: event) }
+    open func rightMouseDragged(with event: NSEvent) { nextResponder?.rightMouseDragged(with: event) }
     open func mouseMoved(with event: NSEvent) { nextResponder?.mouseMoved(with: event) }
     open func mouseEntered(with event: NSEvent) { nextResponder?.mouseEntered(with: event) }
     open func mouseExited(with event: NSEvent) { nextResponder?.mouseExited(with: event) }
@@ -2045,12 +2046,18 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         let responder = eventWindow?.firstResponder ?? eventWindow?.contentView ?? eventWindow ?? self
 
         switch event.type {
-        case .leftMouseDown, .rightMouseDown:
+        case .leftMouseDown:
             responder.mouseDown(with: event)
-        case .leftMouseUp, .rightMouseUp:
+        case .rightMouseDown:
+            responder.rightMouseDown(with: event)
+        case .leftMouseUp:
             responder.mouseUp(with: event)
-        case .leftMouseDragged, .rightMouseDragged:
+        case .rightMouseUp:
+            responder.rightMouseUp(with: event)
+        case .leftMouseDragged:
             responder.mouseDragged(with: event)
+        case .rightMouseDragged:
+            responder.rightMouseDragged(with: event)
         case .mouseMoved:
             responder.mouseMoved(with: event)
         case .keyDown:

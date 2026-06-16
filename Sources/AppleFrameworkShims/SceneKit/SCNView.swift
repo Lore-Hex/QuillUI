@@ -51,7 +51,7 @@ public extension SCNCameraControllerDelegate {
     public weak var delegate: (any SCNCameraControllerDelegate)?
     public private(set) weak var pointOfView: SCNNode?
 
-    fileprivate func attach(pointOfView: SCNNode?) {
+    func attach(pointOfView: SCNNode?) {
         self.pointOfView = pointOfView
     }
 
@@ -159,6 +159,8 @@ public extension SCNCameraControllerDelegate {
     public var antialiasingMode: SCNAntialiasingMode = .none
     public private(set) var appKitGestureRecognizers: [NSGestureRecognizer] = []
     private weak var controlledCameraNode: SCNNode?
+    private var orbitDragLocation: CGPoint?
+    private var panDragLocation: CGPoint?
 
     open func addGestureRecognizer(_ gestureRecognizer: NSGestureRecognizer) {
         appKitGestureRecognizers.append(gestureRecognizer)
@@ -180,6 +182,85 @@ public extension SCNCameraControllerDelegate {
         guard allowsCameraControl, ensureControlledCamera() != nil else { return }
         defaultCameraController.dolly(by: delta)
         setNeedsDisplay()
+    }
+
+    open func mouseDown(with event: NSEvent) {
+        orbitDragLocation = event.locationInWindow
+    }
+
+    open func mouseDragged(with event: NSEvent) {
+        handleOrbitDrag(to: event.locationInWindow)
+    }
+
+    open func mouseUp(with event: NSEvent) {
+        _ = event
+        orbitDragLocation = nil
+    }
+
+    open func rightMouseDown(with event: NSEvent) {
+        panDragLocation = event.locationInWindow
+    }
+
+    open func rightMouseDragged(with event: NSEvent) {
+        handlePanDrag(to: event.locationInWindow)
+    }
+
+    open func rightMouseUp(with event: NSEvent) {
+        _ = event
+        panDragLocation = nil
+    }
+
+    open func scrollWheel(with event: NSEvent) {
+        let scroll = quillSceneKitScrollDelta(from: event)
+        guard scroll != 0 else { return }
+        quillDollyCamera(delta: scroll * quillSceneKitCameraDistance(
+            pointOfView: activeCameraNode,
+            target: defaultCameraController.target
+        ) * quillSceneKitDollyDistanceScalePerPoint)
+    }
+
+    open func magnify(with event: NSEvent) {
+        guard event.magnification != 0 else { return }
+        quillDollyCamera(delta: event.magnification * quillSceneKitCameraDistance(
+            pointOfView: activeCameraNode,
+            target: defaultCameraController.target
+        ))
+    }
+
+    open override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        orbitDragLocation = touches.first?.location(in: self)
+        super.touchesBegan(touches, with: event)
+    }
+
+    open override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard allowsCameraControl, let touch = touches.first else {
+            super.touchesMoved(touches, with: event)
+            return
+        }
+
+        let location = touch.location(in: self)
+        let previous = touch.previousLocation(in: self)
+        if touches.count > 1 {
+            panCamera(from: previous, to: location)
+        } else {
+            orbitCamera(from: previous, to: location)
+        }
+        orbitDragLocation = location
+        super.touchesMoved(touches, with: event)
+    }
+
+    open override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        _ = touches
+        orbitDragLocation = nil
+        panDragLocation = nil
+        super.touchesEnded(touches, with: event)
+    }
+
+    open override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        _ = touches
+        orbitDragLocation = nil
+        panDragLocation = nil
+        super.touchesCancelled(touches, with: event)
     }
 
     public func quillRenderImage(width: Int? = nil, height: Int? = nil) -> CGImage? {
@@ -216,7 +297,7 @@ public extension SCNCameraControllerDelegate {
     }
 
     private func syncDefaultCameraController() {
-        defaultCameraController.attach(pointOfView: pointOfView ?? firstCameraNode(in: scene?.rootNode))
+        defaultCameraController.attach(pointOfView: activeCameraNode)
     }
 
     @discardableResult
@@ -226,50 +307,115 @@ public extension SCNCameraControllerDelegate {
             return controlledCameraNode
         }
 
-        let source = pointOfView ?? firstCameraNode(in: scene?.rootNode)
-        let cameraNode = cloneCameraNode(from: source)
+        let source = pointOfView ?? quillFirstSceneKitCameraNode(in: scene?.rootNode)
+        let cameraNode = quillCloneSceneKitCameraNode(from: source)
         scene?.rootNode.addChildNode(cameraNode)
         controlledCameraNode = cameraNode
         pointOfView = cameraNode
         return cameraNode
     }
 
-    private func firstCameraNode(in node: SCNNode?) -> SCNNode? {
-        guard let node else { return nil }
-        if node.camera != nil { return node }
-        for child in node.childNodes {
-            if let found = firstCameraNode(in: child) {
-                return found
-            }
+    private var activeCameraNode: SCNNode? {
+        pointOfView ?? quillFirstSceneKitCameraNode(in: scene?.rootNode)
+    }
+
+    private var panUnitsPerPoint: CGFloat {
+        quillSceneKitPanUnitsPerPoint(
+            boundsSize: bounds.size,
+            pointOfView: activeCameraNode,
+            target: defaultCameraController.target
+        )
+    }
+
+    private func handleOrbitDrag(to location: CGPoint) {
+        guard let previous = orbitDragLocation else {
+            orbitDragLocation = location
+            return
         }
-        return nil
+        orbitDragLocation = location
+        orbitCamera(from: previous, to: location)
     }
 
-    private func cloneCameraNode(from source: SCNNode?) -> SCNNode {
-        let node = SCNNode()
-        node.name = source?.name.map { "\($0).quillCameraControl" } ?? "quillCameraControl"
-        node.position = source?.position ?? SCNVector3(0, 0, 4)
-        node.eulerAngles = source?.eulerAngles ?? SCNVector3(0, 0, 0)
-        node.scale = source?.scale ?? SCNVector3(1, 1, 1)
-        node.orientation = source?.orientation ?? SCNQuaternion(0, 0, 0, 1)
-        node.transform = source?.transform ?? SCNMatrix4Identity
-        node.pivot = source?.pivot ?? SCNMatrix4Identity
-        node.camera = cloneCamera(source?.camera) ?? SCNCamera()
-        return node
+    private func handlePanDrag(to location: CGPoint) {
+        guard let previous = panDragLocation else {
+            panDragLocation = location
+            return
+        }
+        panDragLocation = location
+        panCamera(from: previous, to: location)
     }
 
-    private func cloneCamera(_ source: SCNCamera?) -> SCNCamera? {
-        guard let source else { return nil }
-        let camera = SCNCamera()
-        camera.name = source.name
-        camera.zNear = source.zNear
-        camera.zFar = source.zFar
-        camera.fieldOfView = source.fieldOfView
-        camera.usesOrthographicProjection = source.usesOrthographicProjection
-        camera.orthographicScale = source.orthographicScale
-        camera.automaticallyAdjustsZRange = source.automaticallyAdjustsZRange
-        return camera
+    private func orbitCamera(from previous: CGPoint, to location: CGPoint) {
+        quillOrbitCamera(
+            deltaX: (location.x - previous.x) * quillSceneKitOrbitRadiansPerPoint,
+            deltaY: (location.y - previous.y) * quillSceneKitOrbitRadiansPerPoint
+        )
     }
+
+    private func panCamera(from previous: CGPoint, to location: CGPoint) {
+        quillPanCamera(
+            deltaX: (location.x - previous.x) * panUnitsPerPoint,
+            deltaY: -(location.y - previous.y) * panUnitsPerPoint
+        )
+    }
+}
+
+let quillSceneKitOrbitRadiansPerPoint: CGFloat = 0.01
+let quillSceneKitDollyDistanceScalePerPoint: CGFloat = 0.01
+
+func quillFirstSceneKitCameraNode(in node: SCNNode?) -> SCNNode? {
+    guard let node else { return nil }
+    if node.camera != nil { return node }
+    for child in node.childNodes {
+        if let found = quillFirstSceneKitCameraNode(in: child) {
+            return found
+        }
+    }
+    return nil
+}
+
+func quillCloneSceneKitCameraNode(from source: SCNNode?) -> SCNNode {
+    let node = SCNNode()
+    node.name = source?.name.map { "\($0).quillCameraControl" } ?? "quillCameraControl"
+    node.position = source?.position ?? SCNVector3(0, 0, 4)
+    node.eulerAngles = source?.eulerAngles ?? SCNVector3(0, 0, 0)
+    node.scale = source?.scale ?? SCNVector3(1, 1, 1)
+    node.orientation = source?.orientation ?? SCNQuaternion(0, 0, 0, 1)
+    node.transform = source?.transform ?? SCNMatrix4Identity
+    node.pivot = source?.pivot ?? SCNMatrix4Identity
+    node.camera = quillCloneSceneKitCamera(source?.camera) ?? SCNCamera()
+    return node
+}
+
+func quillSceneKitCameraDistance(pointOfView: SCNNode?, target: SCNVector3) -> CGFloat {
+    guard let pointOfView else { return 4 }
+    let offset = Vector3(pointOfView.position) - Vector3(target)
+    return Swift.max(0.1, offset.length)
+}
+
+func quillSceneKitPanUnitsPerPoint(boundsSize: CGSize, pointOfView: SCNNode?, target: SCNVector3) -> CGFloat {
+    let maximumDimension = Swift.max(boundsSize.width, boundsSize.height)
+    guard maximumDimension > 0 else { return 0.01 }
+    return quillSceneKitCameraDistance(pointOfView: pointOfView, target: target) / maximumDimension
+}
+
+func quillSceneKitScrollDelta(from event: NSEvent) -> CGFloat {
+    if event.scrollingDeltaY != 0 { return event.scrollingDeltaY }
+    if event.deltaY != 0 { return event.deltaY }
+    return event.deltaZ
+}
+
+private func quillCloneSceneKitCamera(_ source: SCNCamera?) -> SCNCamera? {
+    guard let source else { return nil }
+    let camera = SCNCamera()
+    camera.name = source.name
+    camera.zNear = source.zNear
+    camera.zFar = source.zFar
+    camera.fieldOfView = source.fieldOfView
+    camera.usesOrthographicProjection = source.usesOrthographicProjection
+    camera.orthographicScale = source.orthographicScale
+    camera.automaticallyAdjustsZRange = source.automaticallyAdjustsZRange
+    return camera
 }
 
 private extension SCNVector3 {
