@@ -21,6 +21,15 @@ if [[ ! -d "$LOWERED_COPY" ]]; then
 fi
 
 "$TOOLING_DIR/install-profile-templates.sh" "$PROFILE_DIR/templates" "$LOWERED_COPY"
+
+# Enchanted / Quill Chat builds against the headless single-threaded GTK backend,
+# so it opts into actor-isolation stripping (`stripActorIsolation: true`). This is
+# the first-class replacement for the per-app Perl actor/await/nonisolated rewrite
+# rules under rewrite-rules/. It runs *before* apply-profile-rewrites so the
+# still-present .pl rules are idempotent no-ops on the already-lowered source
+# (belt-and-suspenders until the Perl removal clears an equivalence check).
+"$TOOLING_DIR/run-quill-actor-isolation-lower.sh" "$LOWERED_COPY"
+
 "$TOOLING_DIR/apply-profile-rewrites.sh" "$LOWERED_COPY" "$PROFILE_DIR/rewrite-rules"
 
 clipboard_file="$LOWERED_COPY/Services/Clipboard.swift"
