@@ -71,6 +71,12 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public static func systemFont(ofSize size: CGFloat, weight: Weight) -> UIFont {
         UIFont(pointSize: size, fontName: ".AppleSystemUIFont")
     }
+    public static func boldSystemFont(ofSize size: CGFloat) -> UIFont {
+        systemFont(ofSize: size, weight: .bold)
+    }
+    public static func monospacedSystemFont(ofSize size: CGFloat, weight: Weight) -> UIFont {
+        UIFont(pointSize: size, fontName: ".AppleSystemUIFontMonospaced")
+    }
     // UIFont(name:size:) — failable in UIKit; inert here (no font lookup on
     // Linux), so it never actually returns nil. SSK force-unwraps it
     // (AvatarBuilder's "Inter" text-avatar font).
@@ -117,6 +123,7 @@ extension UIFont {
 
 public final class UIFontDescriptor: @unchecked Sendable {
     public let name: String
+    public var pointSize: CGFloat = 17
     // Symbolic traits requested on this descriptor. Inert on Linux (no real
     // font substitution) but round-tripped so `withSymbolicTraits` composes
     // and UIFont's Equatable can distinguish bold/italic variants.
@@ -312,6 +319,19 @@ public extension UIWindow {
 
 public extension UIColor {
     static let placeholderText = RSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
+}
+
+extension UIImage: NSItemProviderReading {
+    public static var readableTypeIdentifiersForItemProvider: [String] {
+        [UTType.image.identifier, UTType.png.identifier, UTType.jpeg.identifier]
+    }
+
+    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
+        if let image = UIImage(data: data) as? Self {
+            return image
+        }
+        return UIImage() as! Self
+    }
 }
 
 public enum UIKeyboardType: Hashable, Sendable {
@@ -548,6 +568,11 @@ public class UINotificationFeedbackGenerator: NSObject {
     /// monitoring is a no-op. SignalServiceKit's ProximityMonitoringManager uses
     /// these. nonisolated static (Sendable) like the battery name.
     nonisolated public static let proximityStateDidChangeNotification = Notification.Name("UIDeviceProximityStateDidChangeNotification")
+    nonisolated public var isBatteryMonitoringEnabled: Bool {
+        get { false }
+        set { _ = newValue }
+    }
+    nonisolated public var batteryLevel: Float { -1 }
     nonisolated public var proximityState: Bool { false }
     nonisolated public var isProximityMonitoringEnabled: Bool {
         get { false }
@@ -629,6 +654,7 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
 public final class UIBezierPath {
     public let cgPath: CGPath
     public var lineWidth: CGFloat = 1
+    public var usesEvenOddFillRule = false
     public init() { self.cgPath = CGPath() }
     public init(ovalIn rect: CGRect) { self.cgPath = CGPath() }
     public init(rect: CGRect) { self.cgPath = CGPath() }

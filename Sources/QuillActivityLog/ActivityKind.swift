@@ -17,6 +17,9 @@ public enum ActivityKind: Sendable, Hashable {
 	case refreshArticleStatuses
 	case refreshFeedList
 	case refreshFeedContent(feedURL: String) // per-feed
+	case followFeedRedirect
+	case refreshArticles
+	case fetchArticleIDs
 	case refreshMissingArticles
 	case importOPML
 
@@ -38,6 +41,8 @@ public enum ActivityKind: Sendable, Hashable {
 	case cleanUpCloudKitRecords
 	case subscribeToCloudKitZone
 	case fetchCloudKitStats
+	case scanCloudKitStatusRecords
+	case scanCloudKitArticleRecords
 
 	// Maintenance and lifecycle
 
@@ -70,6 +75,12 @@ public enum ActivityKind: Sendable, Hashable {
 			return NSLocalizedString("Refreshing statuses", bundle: .module, comment: "Activity kind")
 		case .refreshFeedList:
 			return NSLocalizedString("Refreshing feed list", bundle: .module, comment: "Activity kind")
+		case .followFeedRedirect:
+			return NSLocalizedString("Feed redirect", bundle: .module, comment: "Activity kind")
+		case .refreshArticles:
+			return NSLocalizedString("Refreshing articles", bundle: .module, comment: "Activity kind")
+		case .fetchArticleIDs:
+			return NSLocalizedString("Fetching article IDs", bundle: .module, comment: "Activity kind")
 		case .refreshMissingArticles:
 			return NSLocalizedString("Refreshing missing articles", bundle: .module, comment: "Activity kind")
 		case .importOPML:
@@ -98,6 +109,10 @@ public enum ActivityKind: Sendable, Hashable {
 			return NSLocalizedString("Cleaning up iCloud records", bundle: .module, comment: "Activity kind")
 		case .fetchCloudKitStats:
 			return NSLocalizedString("Fetching iCloud stats", bundle: .module, comment: "Activity kind")
+		case .scanCloudKitStatusRecords:
+			return NSLocalizedString("Scanning iCloud status records", bundle: .module, comment: "Activity kind")
+		case .scanCloudKitArticleRecords:
+			return NSLocalizedString("Scanning iCloud article records", bundle: .module, comment: "Activity kind")
 		case .subscribeToCloudKitZone:
 			return NSLocalizedString("Subscribing to zone changes", bundle: .module, comment: "Activity kind")
 		case .vacuumDatabase:
@@ -108,6 +123,39 @@ public enum ActivityKind: Sendable, Hashable {
 			return NSLocalizedString("Exporting OPML", bundle: .module, comment: "Activity kind")
 		case .refreshFeedContent, .findFeed, .fetchFeedCandidate, .downloadFeedImage, .downloadFavicon, .downloadAvatar, .downloadHTMLMetadata:
 			return nil
+		}
+	}
+
+	/// Full localized display name for the activity. For kinds that show a feed name
+	/// or URL, `detail` provides the feed name, falling back to the URL.
+	public func displayName(detail: String?) -> String {
+		if let simpleDisplayName {
+			return simpleDisplayName
+		}
+		switch self {
+		case .refreshFeedContent(let feedURL):
+			let format = NSLocalizedString("Refreshing feed: %@", bundle: .module, comment: "Activity kind - refreshing a feed - %@ is the feed name or URL")
+			return String(format: format, detail ?? feedURL)
+		case .findFeed(let urlString):
+			let format = NSLocalizedString("Finding feed %@", bundle: .module, comment: "Activity kind - finding a feed at %@ URL")
+			return String(format: format, urlString)
+		case .fetchFeedCandidate(let urlString):
+			let format = NSLocalizedString("Fetching %@", bundle: .module, comment: "Activity kind - fetching a candidate URL during feed finding")
+			return String(format: format, urlString)
+		case .downloadFeedImage(let feedURL):
+			let format = NSLocalizedString("Downloading image %@", bundle: .module, comment: "Activity kind - downloading a feed image - %@ is the URL")
+			return String(format: format, feedURL)
+		case .downloadFavicon(let faviconURL):
+			let format = NSLocalizedString("Downloading favicon %@", bundle: .module, comment: "Activity kind - downloading a favicon - %@ is the URL")
+			return String(format: format, faviconURL)
+		case .downloadAvatar(let avatarURL):
+			let format = NSLocalizedString("Downloading avatar %@", bundle: .module, comment: "Activity kind - downloading an author avatar - %@ is the URL")
+			return String(format: format, avatarURL)
+		case .downloadHTMLMetadata(let urlString):
+			let format = NSLocalizedString("Downloading metadata %@", bundle: .module, comment: "Activity kind - downloading HTML metadata - %@ is the URL")
+			return String(format: format, urlString)
+		default:
+			return ""
 		}
 	}
 }

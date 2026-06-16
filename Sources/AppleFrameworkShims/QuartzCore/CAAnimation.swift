@@ -164,7 +164,7 @@ public extension CAAnimationDelegate {
 
 // MARK: - CAAnimation
 
-open class CAAnimation: NSObject, CAMediaTiming {
+open class CAAnimation: NSObject, CAMediaTiming, @unchecked Sendable {
 
     // MARK: CAMediaTiming
     // Stored faithfully. The engine uses duration/speed/repeatCount/
@@ -634,7 +634,7 @@ internal enum QuartzCoreAnimationEngine {
 
     // MARK: Cross-file contract (called by CALayer.swift)
 
-    static func didAdd(_ animation: CAAnimation, forKey key: String, to layer: CALayer) {
+    @MainActor static func didAdd(_ animation: CAAnimation, forKey key: String, to layer: CALayer) {
         // Replace any previous schedule for this same object (see NOTE on
         // `_pending`). The old schedule is cancelled without delegate
         // callbacks; its transaction bookkeeping is still settled, and the
@@ -700,14 +700,16 @@ internal enum QuartzCoreAnimationEngine {
             // gone and the removal path owns the callbacks.
             guard let entry = takeEntry(for: animation) else { return }
             let blocks = takeDueBlocks(entry.transactions)
-            // Drop the layer's bookkeeping entry BEFORE the delegate fires:
-            // didStop handlers routinely re-add an animation under the same
-            // key, and removal-after would silently strip the new one.
-            if animation.isRemovedOnCompletion {
-                layer?._animationDidComplete(key: key)
+            Task { @MainActor in
+                // Drop the layer's bookkeeping entry BEFORE the delegate fires:
+                // didStop handlers routinely re-add an animation under the same
+                // key, and removal-after would silently strip the new one.
+                if animation.isRemovedOnCompletion {
+                    layer?._animationDidComplete(key: key)
+                }
+                animation.delegate?.animationDidStop(animation, finished: true)
+                for block in blocks { block() } // already on main; after didStop
             }
-            animation.delegate?.animationDidStop(animation, finished: true)
-            for block in blocks { block() } // already on main; after didStop
         }
 
         _lock.lock()
@@ -718,7 +720,7 @@ internal enum QuartzCoreAnimationEngine {
         DispatchQueue.main.asyncAfter(deadline: .now() + total, execute: item)
     }
 
-    static func didRemove(_ animation: CAAnimation, forKey key: String, from layer: CALayer) {
+    @MainActor static func didRemove(_ animation: CAAnimation, forKey key: String, from layer: CALayer) {
         // No entry: the animation already completed (its callbacks fired) or
         // was never scheduled — nothing to do, and crucially no duplicate
         // animationDidStop.

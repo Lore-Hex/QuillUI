@@ -9,11 +9,31 @@
 //
 import Foundation
 import QuillFoundation  // UIImage (RSImage), which SDAnimatedImage subclasses
+import QuillUIKit
 
 /// `SDAnimatedImage: UIImage`. Adds no stored properties, so it inherits all of
 /// RSImage's initializers (including the failable `init?(data:)` SSK calls) --
 /// which yields a placeholder image on Linux (no frames are actually decoded).
 open class SDAnimatedImage: UIImage {
+}
+
+/// `SDAnimatedImageView: UIImageView`. Inert display wrapper for SignalUI's
+/// animated image views; frame decoding/rendering is deferred with
+/// `SDAnimatedImage`.
+@MainActor open class SDAnimatedImageView: UIImageView {
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+    }
+
+    public convenience init() {
+        self.init(frame: .zero)
+    }
+
+    // UIImageView declares `required init?(coder:)`; the own designated init
+    // above suppresses inheritance, so restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
 }
 
 /// The coder registry. INERT: registered coders are ignored on Linux (no real

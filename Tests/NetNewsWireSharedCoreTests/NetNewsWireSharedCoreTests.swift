@@ -1,4 +1,5 @@
 import Foundation
+import ActivityLog
 import Articles
 import Images
 import NetNewsWireContext
@@ -7,7 +8,7 @@ import Testing
 @testable import NetNewsWireSharedCore
 @testable import RSCore
 
-@Suite("Upstream NetNewsWire Shared core slice")
+@Suite("Upstream NetNewsWire Shared core slice", .serialized)
 struct NetNewsWireSharedCoreTests {
     @Test("Refresh intervals preserve upstream raw values and seconds")
     func refreshIntervals() {
@@ -429,6 +430,55 @@ struct NetNewsWireSharedCoreTests {
 
         #expect(formatter.dateString(today).contains(":"))
         #expect(!formatter.dateString(yesterday).isEmpty)
+    }
+
+    @Test("Activity log view model formats timestamp owner detail and account color")
+    @MainActor func activityLogViewModelSegments() throws {
+        let activity = Activity(
+            id: 42,
+            owner: .account(accountID: "local", displayName: "Local"),
+            kind: .refreshFeedContent(feedURL: "https://example.test/feed.xml"),
+            detail: "Example Feed"
+        )
+
+        let segments = ActivityLogViewModel.segments(for: activity)
+        let text = segments.map(\.text).joined()
+
+        #expect(text.hasPrefix("["))
+        #expect(text.contains("]"))
+        #expect(text.contains("Local: "))
+        #expect(text.contains("Refreshing feed: Example Feed"))
+        #expect(text.contains("https://example.test/feed.xml"))
+        #expect(segments.contains { segment in
+            if case .account(let accountID) = segment.color {
+                return accountID == "local"
+            }
+            return false
+        })
+    }
+
+    @Test("Current activity view model exposes upstream display text and symbols")
+    @MainActor func currentActivityViewModelDisplayTextAndSymbols() {
+        let feed = Activity(
+            id: 1,
+            owner: .account(accountID: "local", displayName: "Local"),
+            kind: .refreshFeedContent(feedURL: "https://example.test/feed.xml"),
+            detail: "Example Feed"
+        )
+        let feedText = CurrentActivityViewModel.displayText(for: feed)
+        #expect(feedText.title == "Example Feed")
+        #expect(feedText.detail == "https://example.test/feed.xml")
+
+        let finder = Activity(id: 2, owner: .feedFinder, kind: .findFeed(urlString: "https://example.test"))
+        let finderText = CurrentActivityViewModel.displayText(for: finder)
+        #expect(finderText.title == "Finding feed")
+        #expect(finderText.detail == "https://example.test")
+
+        #expect(CurrentActivityViewModel.symbolName(for: .pending) == "circle")
+        #expect(CurrentActivityViewModel.symbolName(for: .running) == "circle.fill")
+        #expect(CurrentActivityViewModel.symbolName(for: .completed) == "checkmark.circle.fill")
+        #expect(CurrentActivityViewModel.symbolName(for: .failed) == "xmark.circle.fill")
+        #expect(CurrentActivityViewModel.accessibilityLabel(for: .failed) == "Failed")
     }
 
     private func makeArticle(

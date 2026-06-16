@@ -17,6 +17,11 @@ import QuillFoundation
 // MARK: - Opaque source types
 
 public class CGImageSource {}
+public class CGImageMetadata {}
+public typealias CGMutableImageMetadata = CGImageMetadata
+
+public class CGImageMetadataTag {}
+
 public class CGDataProvider {
     public init() {}
     public init?(data: Data) {
@@ -71,6 +76,8 @@ public func CGImageSourceCreateWithURL(_ url: URL, _ options: Any?) -> CGImageSo
 
 public func CGImageSourceGetCount(_ isrc: CGImageSource) -> Int { 0 }
 
+public func CGImageSourceGetType(_ isrc: CGImageSource) -> String? { nil }
+
 public func CGImageSourceCreateImageAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: Any?) -> CGImage? { nil }
 
 public func CGImageSourceCreateThumbnailAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: Any?) -> CGImage? { nil }
@@ -80,6 +87,8 @@ public func CGImageSourceCreateThumbnailAtIndex(_ isrc: CGImageSource, _ index: 
 // swift-corelibs). Returns [String: Any]? (not CFDictionary?) so the callers'
 // `as? [String: Any]` / `as? [String: AnyObject]` resolve. Inert (nil) on Linux.
 public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: Any?) -> [String: Any]? { nil }
+
+public func CGImageSourceCopyMetadataAtIndex(_ isrc: CGImageSource, _ index: Int, _ options: Any?) -> CGImageMetadata? { nil }
 
 // MARK: - kCGImageSource* / kCGImageProperty* constants
 //
@@ -92,6 +101,7 @@ public func CGImageSourceCopyPropertiesAtIndex(_ isrc: CGImageSource, _ index: I
 public let kCGImageSourceShouldCache: String = "kCGImageSourceShouldCache"
 public let kCGImageSourceShouldAllowFloat: String = "kCGImageSourceShouldAllowFloat"
 public let kCGImageSourceCreateThumbnailFromImageAlways: String = "kCGImageSourceCreateThumbnailFromImageAlways"
+public let kCGImageSourceShouldCacheImmediately: String = "kCGImageSourceShouldCacheImmediately"
 public let kCGImageSourceCreateThumbnailWithTransform: String = "kCGImageSourceCreateThumbnailWithTransform"
 public let kCGImageSourceThumbnailMaxPixelSize: String = "kCGImageSourceThumbnailMaxPixelSize"
 
@@ -103,6 +113,61 @@ public let kCGImagePropertyDepth: String = "Depth"
 public let kCGImagePropertyColorModel: String = "ColorModel"
 public let kCGImagePropertyColorModelRGB: String = "RGB"
 public let kCGImagePropertyColorModelGray: String = "Gray"
+
+public let kCGImageMetadataPrefixTIFF: String = "tiff"
+public let kCGImagePropertyTIFFOrientation: String = "Orientation"
+public let kCGImageMetadataPrefixIPTCCore: String = "iptcCore"
+public let kCGImagePropertyIPTCImageOrientation: String = "ImageOrientation"
+public let kCGImageMetadataEnumerateRecursively: String = "kCGImageMetadataEnumerateRecursively"
+
+public let kCFNull: String = "kCFNull"
+
+// MARK: - CGImageMetadata
+
+public func CGImageMetadataCreateMutable() -> CGMutableImageMetadata {
+    CGImageMetadata()
+}
+
+@discardableResult
+public func CGImageMetadataEnumerateTagsUsingBlock(
+    _ metadata: CGImageMetadata,
+    _ rootPath: String?,
+    _ options: Any?,
+    _ block: (String, CGImageMetadataTag) -> Bool
+) -> Bool {
+    _ = (metadata, rootPath, options, block)
+    return true
+}
+
+public func CGImageMetadataTagCopyNamespace(_ tag: CGImageMetadataTag) -> String? {
+    _ = tag
+    return nil
+}
+
+public func CGImageMetadataTagCopyPrefix(_ tag: CGImageMetadataTag) -> String? {
+    _ = tag
+    return nil
+}
+
+public func CGImageMetadataRegisterNamespaceForPrefix(
+    _ metadata: CGMutableImageMetadata,
+    _ xmlns: String,
+    _ prefix: String,
+    _ error: Any?
+) -> Bool {
+    _ = (metadata, xmlns, prefix, error)
+    return true
+}
+
+public func CGImageMetadataSetValueWithPath(
+    _ metadata: CGMutableImageMetadata,
+    _ parent: String?,
+    _ path: String,
+    _ value: Any?
+) -> Bool {
+    _ = (metadata, parent, path, value)
+    return true
+}
 
 // MARK: - CGDataProvider direct-access surface
 //
@@ -197,6 +262,19 @@ public func CGImageDestinationAddImage(
 ) {}
 
 public let kCGImageDestinationLossyCompressionQuality: String = "kCGImageDestinationLossyCompressionQuality"
+public let kCGImageDestinationMergeMetadata: String = "kCGImageDestinationMergeMetadata"
+public let kCGImageDestinationMetadata: String = "kCGImageDestinationMetadata"
 
 @discardableResult
 public func CGImageDestinationFinalize(_ idst: CGImageDestination) -> Bool { false }
+
+@discardableResult
+public func CGImageDestinationCopyImageSource(
+    _ idst: CGImageDestination,
+    _ isrc: CGImageSource,
+    _ options: Any?,
+    _ error: Any?
+) -> Bool {
+    _ = (idst, isrc, options, error)
+    return false
+}

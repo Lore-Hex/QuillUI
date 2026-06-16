@@ -35,35 +35,10 @@ public func autoreleasepool<Result, Failure: Error>(invoking body: () throws(Fai
 
 // MARK: - UIColor RGB API
 //
-// On Linux UIColor == NSColor == RSColor (the QuillFoundation color shim), which
-// lacks UIColor's standard `init(red:green:blue:alpha:)` and `getRed(...)`. Signal's
-// Util/UIColor+SSK.swift (the `rgbHex` initializers) depends on both, so without
-// these the whole file fails and every `UIColor(rgbHex:)` call errors. Delegates
-// to the shim's `init(srgbRed:green:blue:alpha:)`; `getRed` is a stub (the shim
-// does not store channel values — colors are already placeholders on Linux).
-
-public extension UIColor {
-    convenience init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
-        // The cross-module color inits (white:/srgbRed:) are not all reachable from
-        // this module and the RSColor shim stores no channel values anyway, so
-        // delegate to the base initializer (color is a Linux placeholder).
-        self.init()
-    }
-
-    // `init(white:alpha:)` lives in QuillAppKit and is not reachable from the SSK
-    // module, so SSK's `UIColor(white:alpha:)` call sites fail. Define it here.
-    convenience init(white: CGFloat, alpha: CGFloat) {
-        self.init()
-    }
-
-    func getRed(_ red: UnsafeMutablePointer<CGFloat>?,
-                green: UnsafeMutablePointer<CGFloat>?,
-                blue: UnsafeMutablePointer<CGFloat>?,
-                alpha: UnsafeMutablePointer<CGFloat>?) -> Bool {
-        red?.pointee = 0
-        green?.pointee = 0
-        blue?.pointee = 0
-        alpha?.pointee = 1
-        return true
-    }
-}
+// No longer declared here. RSColor (QuillFoundation) gained real RGBA storage
+// in Phase B, and now owns `init(red:green:blue:alpha:)`, `init(white:alpha:)`,
+// and both `getRed(...)` overloads as class members. The extension copies this
+// file used to carry were (a) lossy — they delegated to `self.init()`, turning
+// every `UIColor(rgbHex:)` black — and (b) ambiguous with the QuillAppKit /
+// QuillFoundation declarations from any module importing both (SignalUI's
+// "ambiguous use of 'init(white:alpha:)'"). One name, one owner: the class.

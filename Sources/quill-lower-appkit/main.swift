@@ -53,9 +53,9 @@ struct QuillLowerAppKit {
           @objc / @objcMembers / @IB* / @NSManaged    attribute removal
           #selector(x)                                 -> Selector("x")
                                                           (leading type qualifier normalized)
-          each type with @objc actions                 -> a generated
-                                                          QuillActionDispatching conformance
-                                                          (quillPerform selector dispatch)
+          each class with @objc actions                -> an injected class-body
+                                                          quillPerform(_:with:) dispatch
+                                                          (QuillSelectorDispatching)
         """
         stream.write(Data((usage + "\n").utf8))
     }

@@ -59,17 +59,21 @@ public struct UTType: Hashable, Sendable {
     public static let image = UTType("public.image")!
     public static let png = UTType("public.png")!
     public static let jpeg = UTType("public.jpeg")!
+    public static let dng = UTType("com.adobe.raw-image")!
     public static let tiff = UTType("public.tiff")!
     public static let gif = UTType("com.compuserve.gif")!
     public static let heic = UTType("public.heic")!
     public static let heif = UTType("public.heif")!
     public static let webP = UTType("org.webmproject.webp")!
+    public static let jpegxl = UTType("public.jpeg-xl")!
+    public static let vCard = UTType("public.vcard")!
     public static let movie = UTType("public.movie")!
     public static let video = UTType("public.video")!
     public static let mpeg4Movie = UTType("public.mpeg-4")!
     public static let quickTimeMovie = UTType("com.apple.quicktime-movie")!
     public static let audio = UTType("public.audio")!
     public static let mp3 = UTType("public.mp3")!
+    public static let mpeg4Audio = UTType("public.mpeg-4-audio")!
     public static let pdf = UTType("com.adobe.pdf")!
 
     public var preferredFilenameExtension: String? {
@@ -125,6 +129,7 @@ public struct UTType: Hashable, Sendable {
         UTType.quickTimeMovie.identifier: [UTType.video.identifier],
         UTType.audio.identifier: [UTType.data.identifier],
         UTType.mp3.identifier: [UTType.audio.identifier],
+        UTType.mpeg4Audio.identifier: [UTType.audio.identifier],
         UTType.pdf.identifier: [UTType.data.identifier]
     ]
 
@@ -149,7 +154,8 @@ public struct UTType: Hashable, Sendable {
         "json": .json,
         "mp4": .mpeg4Movie,
         "mov": .quickTimeMovie,
-        "mp3": .mp3
+        "mp3": .mp3,
+        "m4a": .mpeg4Audio
     ]
 
     private static let preferredFilenameExtensionsByIdentifier: [String: String] = [

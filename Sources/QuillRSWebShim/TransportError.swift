@@ -25,3 +25,5 @@ public enum TransportError: LocalizedError, Equatable, Sendable {
         }
     }
 }
+
+public typealias WebserviceError = TransportError

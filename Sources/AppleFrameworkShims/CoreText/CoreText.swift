@@ -7,6 +7,10 @@ import CoreFoundation
 
 public typealias CFIndex = CoreFoundation.CFIndex
 public typealias CFRange = CoreFoundation.CFRange
+// `CFError` is owned by QuillKit (alongside CFString/CFURL). CoreText must not
+// also export it publicly: SUIEnvironment imports both modules and an exported
+// twin here made the name ambiguous. CoreText's only use (the CTFontManager
+// error out-pointer below) spells the underlying NSError directly.
 
 public final class CTFramesetter {}
 public final class CTFrame {}
@@ -15,6 +19,30 @@ public typealias CTFont = RSFont
 public let kCTFontAttributeName = "NSFont"
 public let kCTForegroundColorAttributeName = "CTForegroundColor"
 public let kCTForegroundColorFromContextAttributeName = "CTForegroundColorFromContext"
+
+public enum CTFontManagerScope: UInt32, Sendable {
+    case none = 0
+    case process = 1
+    case user = 2
+    case session = 3
+}
+
+@discardableResult
+public func CTFontManagerRegisterFontsForURL(
+    _ fontURL: NSURL,
+    _ scope: CTFontManagerScope,
+    _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?
+) -> Bool {
+    // SUIEnvironment calls this as `CTFontManagerRegisterFontsForURL(url, .process,
+    // &error)`. There `url` types as `NSURL` and `error: Unmanaged<CFError>?` where
+    // CFError resolves to corelibs CoreFoundation's (SUIEnvironment `import
+    // CoreFoundation`, no QuillKit import). This file also `import CoreFoundation`,
+    // so the bare `CFError`/`NSURL` here denote those same types — the call binds
+    // exactly. No font manager on Linux: nothing to register, report success.
+    _ = (fontURL, scope)
+    error?.pointee = nil
+    return true
+}
 public final class CTLine {
     fileprivate let length: Int
 
