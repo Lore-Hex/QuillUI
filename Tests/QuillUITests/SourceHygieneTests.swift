@@ -55,8 +55,10 @@ struct SourceHygieneTests {
         let root = try packageRoot()
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
 
+        #expect(manifest.contains("#if compiler(>=6.2)"))
         #expect(manifest.contains("let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = ["))
         #expect(manifest.contains(".unsafeFlags([\"-Xfrontend\", \"-default-isolation\", \"-Xfrontend\", \"MainActor\"])"))
+        #expect(manifest.contains("#else\nlet quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = []\n#endif"))
         #expect(manifest.contains("let quillMinimalConcurrencyMainActorSwiftSettings: [SwiftSetting] = ["))
         #expect(!manifest.contains("\"-default-isolation\", \"MainActor\""))
     }

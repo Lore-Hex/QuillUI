@@ -603,12 +603,15 @@ let standardSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal", "-Xfrontend", "-import-module", "-Xfrontend", "QuillShims"])
 ]
 
+#if compiler(>=6.2)
 let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = [
-    // Apple Swift 6.1 rejects `-default-isolation MainActor` when it is passed
-    // directly through SwiftPM; the frontend spelling works across the CI
-    // toolchains we support.
+    // `-default-isolation MainActor` landed with newer Swift 6 toolchains.
+    // Keep the flag out of Swift 6.1 Apple CI, where the frontend rejects it.
     .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])
 ]
+#else
+let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = []
+#endif
 
 let quillMinimalConcurrencyMainActorSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal"])
