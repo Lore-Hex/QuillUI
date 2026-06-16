@@ -417,6 +417,58 @@ public class NSItemProvider: NSObject {
     }
 
     @discardableResult
+    public func loadFileRepresentation(
+        forTypeIdentifier typeIdentifier: String,
+        completionHandler: @escaping (URL?, Error?) -> Void
+    ) -> Progress? {
+        let contentType = UTType(typeIdentifier)
+        if let fileURL {
+            if let contentType {
+                if UTType(filenameExtension: fileURL.pathExtension)?.conforms(to: contentType) == true {
+                    completionHandler(fileURL, nil)
+                    return nil
+                }
+            } else {
+                completionHandler(fileURL, nil)
+                return nil
+            }
+        }
+
+        if let dataRepresentation {
+            if let contentType, !dataRepresentation.type.conforms(to: contentType) {
+                completionHandler(nil, NSError(
+                    domain: "QuillUIKit.NSItemProvider",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "No file representation is available for \(typeIdentifier)."]
+                ))
+                return nil
+            }
+
+            do {
+                let fileExtension = dataRepresentation.type.preferredFilenameExtension ?? "data"
+                let directory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("QuillItemProviderFileRepresentations", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let fileURL = directory
+                    .appendingPathComponent(UUID().uuidString)
+                    .appendingPathExtension(fileExtension)
+                try dataRepresentation.data.write(to: fileURL)
+                completionHandler(fileURL, nil)
+            } catch {
+                completionHandler(nil, error)
+            }
+            return nil
+        }
+
+        completionHandler(nil, NSError(
+            domain: "QuillUIKit.NSItemProvider",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "No file representation is available for \(typeIdentifier)."]
+        ))
+        return nil
+    }
+
+    @discardableResult
     public func loadTransferable<T: Transferable>(
         type: T.Type,
         completionHandler: @escaping (Result<T?, Error>) -> Void

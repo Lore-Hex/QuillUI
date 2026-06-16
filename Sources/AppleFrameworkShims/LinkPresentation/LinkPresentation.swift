@@ -29,7 +29,7 @@ public final class LPLinkMetadata: NSObject {
     public var url: URL?
     public var originalURL: URL?
     public var title: String?
-    public var imageProvider: Any?
+    public var imageProvider: LPItemProvider?
 }
 
 public final class LPItemProvider: NSObject {
@@ -40,8 +40,10 @@ public final class LPItemProvider: NSObject {
         super.init()
     }
 
-    public func loadFileRepresentation(forTypeIdentifier typeIdentifier: String, completionHandler: @escaping (URL?, Error?) -> Void) {
+    @discardableResult
+    public func loadFileRepresentation(forTypeIdentifier typeIdentifier: String, completionHandler: @escaping (URL?, Error?) -> Void) -> Progress? {
         _ = typeIdentifier
         completionHandler(fileURL, nil)
+        return nil
     }
 }

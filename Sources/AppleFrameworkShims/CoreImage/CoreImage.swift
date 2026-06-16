@@ -37,7 +37,7 @@ open class CIColor {
         self.alpha = alpha
     }
 
-    public convenience init(color: RSColor) {
+    public convenience init?(color: RSColor) {
         self.init(red: color._red, green: color._green, blue: color._blue, alpha: color._alpha)
     }
 

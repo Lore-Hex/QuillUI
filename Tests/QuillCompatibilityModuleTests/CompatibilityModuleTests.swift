@@ -20,6 +20,10 @@ import Splash
 import OllamaKit
 import AsyncAlgorithms
 import Carbon
+import CoreImage
+#if os(Linux)
+import LinkPresentation
+#endif
 import CoreSpotlight
 // Scoped: the AppKit shadow supplies kUTTypeData (upstream Telegram pairs
 // `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
@@ -72,6 +76,40 @@ private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
 
 @Suite("Linux compatibility import modules", .serialized)
 struct CompatibilityModuleTests {
+    @Test("CIColor(color:) supports Telegram macOS-style failable initializer")
+    func ciColorFailableColorInitializerPreservesComponents() {
+        let source = RSColor(red: 0.125, green: 0.25, blue: 0.5, alpha: 0.75)
+        let color = CIColor(color: source)!
+
+        #expect(color.red == 0.125)
+        #expect(color.green == 0.25)
+        #expect(color.blue == 0.5)
+        #expect(color.alpha == 0.75)
+    }
+
+    #if os(Linux)
+    @Test("LPLinkMetadata imageProvider exposes file representation loading")
+    func linkMetadataImageProviderLoadsFileRepresentation() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillLinkPresentationTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appendingPathComponent("preview.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let metadata = LPLinkMetadata()
+        metadata.imageProvider = LPItemProvider(fileURL: fileURL)
+        let captured = QuillTestBox<(URL?, Error?)>((nil, nil))
+
+        metadata.imageProvider?.loadFileRepresentation(forTypeIdentifier: kUTTypeImage as String) { url, error in
+            captured.value = (url, error)
+        }
+
+        #expect(captured.value?.0 == fileURL)
+        #expect(captured.value?.1 == nil)
+    }
+    #endif
+
     private func pngDimensions(_ data: Data) -> (width: UInt32, height: UInt32)? {
         let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         guard data.count >= 24, Array(data.prefix(8)) == pngMagic else { return nil }
@@ -2187,6 +2225,21 @@ struct CompatibilityModuleTests {
         }
         #expect(fileCaptured.value?.0 == payload)
         #expect(fileCaptured.value?.1 == nil)
+
+        let fileURLCaptured = QuillTestBox<(URL?, Error?)>((nil, nil))
+        fileProvider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, error in
+            fileURLCaptured.value = (url, error)
+        }
+        #expect(fileURLCaptured.value?.0 == fileURL)
+        #expect(fileURLCaptured.value?.1 == nil)
+
+        let generatedFileCaptured = QuillTestBox<(URL?, Error?)>((nil, nil))
+        dataProvider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, error in
+            generatedFileCaptured.value = (url, error)
+        }
+        let generatedFileData = generatedFileCaptured.value?.0.flatMap { try? Data(contentsOf: $0) }
+        #expect(generatedFileData == payload)
+        #expect(generatedFileCaptured.value?.1 == nil)
 
         // Empty provider always errors.
         let empty = NSItemProvider()
