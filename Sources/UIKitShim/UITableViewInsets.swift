@@ -22,8 +22,8 @@ extension UITableView {
     /// The default inset applied to every row separator. Apple's documented
     /// default ({0, 15, 0, 0}) lives in the backing store.
     public var separatorInset: UIEdgeInsets {
-        get { UIEdgeInsets(quillTableSeparatorInset) }
-        set { quillTableSeparatorInset = newValue.quillEdgeInsets }
+        get { quillTableSeparatorInset }
+        set { quillTableSeparatorInset = newValue }
     }
 }
 
@@ -31,8 +31,8 @@ extension UITableViewCell {
 
     /// The per-cell separator inset override.
     public var separatorInset: UIEdgeInsets {
-        get { UIEdgeInsets(quillCellSeparatorInset) }
-        set { quillCellSeparatorInset = newValue.quillEdgeInsets }
+        get { quillCellSeparatorInset }
+        set { quillCellSeparatorInset = newValue }
     }
 }
 

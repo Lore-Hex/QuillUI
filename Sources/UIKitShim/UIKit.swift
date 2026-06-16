@@ -390,9 +390,9 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
 }
 
 public final class NSTextContainer {
+    public var lineFragmentPadding: CGFloat = 0
     public weak var layoutManager: NSLayoutManager?
     public var size: CGSize
-    public var lineFragmentPadding: CGFloat = 0
     public var maximumNumberOfLines: Int = 0
     public init(size: CGSize = .zero) {
         self.size = size
@@ -400,18 +400,18 @@ public final class NSTextContainer {
 }
 
 public class UITextRange: NSObject {
-    let quillStart: UITextPosition
-    let quillEnd: UITextPosition
+    public let start: UITextPosition
+    public let end: UITextPosition
 
-    public override init() {
-        self.quillStart = UITextPosition()
-        self.quillEnd = UITextPosition()
+    public init(start: UITextPosition, end: UITextPosition) {
+        self.start = start
+        self.end = end
         super.init()
     }
 
-    public init(start: UITextPosition, end: UITextPosition) {
-        self.quillStart = start
-        self.quillEnd = end
+    public override init() {
+        self.start = UITextPosition()
+        self.end = UITextPosition()
         super.init()
     }
 }
@@ -620,31 +620,10 @@ public enum UIUserInterfaceIdiom: Int, Sendable {
 
 // MARK: - UIEdgeInsets
 //
-// Layout-inset geometry (UIKit on iOS; NSEdgeInsets on macOS). SignalServiceKit
-// reaches it via `import UIKit`. Only the raw four-edge value-holder lives here;
-// SSK's own `UIEdgeInsets(margin:)` convenience init is an extension that builds
-// on this base.
-public struct UIEdgeInsets: Equatable, Sendable {
-    public var top: CGFloat
-    public var left: CGFloat
-    public var bottom: CGFloat
-    public var right: CGFloat
-    public init(top: CGFloat = 0, left: CGFloat = 0, bottom: CGFloat = 0, right: CGFloat = 0) {
-        self.top = top
-        self.left = left
-        self.bottom = bottom
-        self.right = right
-    }
-    public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-
-    public init(_ insets: QuillEdgeInsets) {
-        self.init(top: insets.top, left: insets.left, bottom: insets.bottom, right: insets.right)
-    }
-
-    public var quillEdgeInsets: QuillEdgeInsets {
-        QuillEdgeInsets(top: top, left: left, bottom: bottom, right: right)
-    }
-}
+// UIKit's four-edge geometry type. The concrete storage lives in QuillUIKit so
+// UIView/UIScrollView class-body members can be `open` and overrideable; this
+// shim re-exports it under Apple's spelling.
+public typealias UIEdgeInsets = QuillEdgeInsets
 
 // MARK: - NSDirectionalEdgeInsets
 //
@@ -769,8 +748,9 @@ public extension NSAttributedString {
     func boundingRect(with size: CGSize,
                       options: NSStringDrawingOptions = [],
                       context: NSStringDrawingContext? = nil) -> CGRect {
+        _ = (options, context)
         let attributes = length > 0 ? self.attributes(at: 0, effectiveRange: nil) : nil
-        return string.boundingRect(with: size, options: options, attributes: attributes, context: context)
+        return quillEstimatedTextRect(string, proposed: size, attributes: attributes)
     }
 }
 

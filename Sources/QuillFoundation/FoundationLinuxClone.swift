@@ -118,11 +118,110 @@ public extension NSDictionary {
 
 public extension FileManager {
     /// Clone of Apple's app-group container API, absent from
-    /// swift-corelibs-foundation. There are no app groups on Linux, so this
-    /// returns nil — callers degrade gracefully (e.g. WireGuard's
-    /// FileManager+Extension shared-folder / last-error URLs become nil).
+    /// swift-corelibs-foundation. Linux has no entitlement-backed app groups;
+    /// use a deterministic user data directory so cross-process helpers can
+    /// still share files by group identifier.
     func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL? {
-        nil
+        let trimmed = groupIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        let root: URL
+        if let override = ProcessInfo.processInfo.environment["QUILLUI_APP_GROUP_CONTAINER_ROOT"], !override.isEmpty {
+            root = URL(fileURLWithPath: override, isDirectory: true)
+        } else if let xdgDataHome = ProcessInfo.processInfo.environment["XDG_DATA_HOME"], !xdgDataHome.isEmpty {
+            root = URL(fileURLWithPath: xdgDataHome, isDirectory: true)
+                .appendingPathComponent("QuillUI", isDirectory: true)
+                .appendingPathComponent("AppGroups", isDirectory: true)
+        } else {
+            root = homeDirectoryForCurrentUser
+                .appendingPathComponent(".local", isDirectory: true)
+                .appendingPathComponent("share", isDirectory: true)
+                .appendingPathComponent("QuillUI", isDirectory: true)
+                .appendingPathComponent("AppGroups", isDirectory: true)
+        }
+
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
+        let safeIdentifier = trimmed.unicodeScalars.map { scalar -> Character in
+            allowed.contains(scalar) ? Character(scalar) : "_"
+        }.map(String.init).joined()
+        let url = root.appendingPathComponent(safeIdentifier, isDirectory: true)
+        try? createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+}
+
+public typealias NSErrorPointer = UnsafeMutablePointer<NSError?>?
+
+public protocol NSFilePresenter: AnyObject {
+    var presentedItemURL: URL? { get }
+    var presentedItemOperationQueue: OperationQueue { get }
+    func presentedItemDidChange()
+}
+
+public extension NSFilePresenter {
+    func presentedItemDidChange() {}
+}
+
+public final class NSFileCoordinator {
+    public struct WritingOptions: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+
+        public static let forDeleting = WritingOptions(rawValue: 1 << 0)
+        public static let forMoving = WritingOptions(rawValue: 1 << 1)
+        public static let forMerging = WritingOptions(rawValue: 1 << 4)
+        public static let forReplacing = WritingOptions(rawValue: 1 << 5)
+        public static let contentIndependentMetadataOnly = WritingOptions(rawValue: 1 << 4)
+    }
+
+    public struct ReadingOptions: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+
+        public static let withoutChanges = ReadingOptions(rawValue: 1 << 0)
+        public static let resolvesSymbolicLink = ReadingOptions(rawValue: 1 << 1)
+        public static let immediatelyAvailableMetadataOnly = ReadingOptions(rawValue: 1 << 2)
+    }
+
+    private static let presentersLock = NSLock()
+    nonisolated(unsafe) private static var presenters = [ObjectIdentifier: any NSFilePresenter]()
+
+    public init(filePresenter: (any NSFilePresenter)? = nil) {
+        if let filePresenter {
+            Self.addFilePresenter(filePresenter)
+        }
+    }
+
+    public static func addFilePresenter(_ filePresenter: any NSFilePresenter) {
+        presentersLock.lock()
+        presenters[ObjectIdentifier(filePresenter)] = filePresenter
+        presentersLock.unlock()
+    }
+
+    public static func removeFilePresenter(_ filePresenter: any NSFilePresenter) {
+        presentersLock.lock()
+        presenters.removeValue(forKey: ObjectIdentifier(filePresenter))
+        presentersLock.unlock()
+    }
+
+    public func coordinate(
+        writingItemAt url: URL,
+        options: WritingOptions = [],
+        error outError: NSErrorPointer = nil,
+        byAccessor accessor: (URL) -> Void
+    ) {
+        accessor(url)
+    }
+
+    public func coordinate(
+        readingItemAt url: URL,
+        options: ReadingOptions = [],
+        error outError: NSErrorPointer = nil,
+        byAccessor accessor: (URL) -> Void
+    ) {
+        accessor(url)
     }
 }
 

@@ -1,4 +1,5 @@
 import Foundation
+import Articles
 import NNWAccount  // NNW's Account target (bare "Account" is the IceCubes lane)
 import RSCore
 
@@ -141,5 +142,58 @@ public enum IconSize: Int, CaseIterable, Sendable {
 
     public func emptyCache() {
         cache.removeAll()
+    }
+}
+
+@MainActor public final class FeedIconDownloader {
+    public static let shared = FeedIconDownloader()
+
+    private var iconsByFeedID = [SidebarItemIdentifier: IconImage]()
+
+    public init() {}
+
+    public func icon(for feed: Feed) -> IconImage? {
+        cachedIcon(for: feed)
+    }
+
+    public func cachedIcon(for feed: Feed) -> IconImage? {
+        guard let sidebarItemID = feed.sidebarItemID else {
+            return nil
+        }
+        return iconsByFeedID[sidebarItemID]
+    }
+
+    public func cache(_ iconImage: IconImage, for feed: Feed) {
+        if let sidebarItemID = feed.sidebarItemID {
+            iconsByFeedID[sidebarItemID] = iconImage
+        }
+    }
+
+    public func emptyCache() {
+        iconsByFeedID.removeAll()
+    }
+}
+
+@MainActor public final class AuthorAvatarDownloader {
+    public static let shared = AuthorAvatarDownloader()
+
+    private var iconsByAuthor = [Author: IconImage]()
+
+    public init() {}
+
+    public func image(for author: Author) -> IconImage? {
+        cachedImage(for: author)
+    }
+
+    public func cachedImage(for author: Author) -> IconImage? {
+        iconsByAuthor[author]
+    }
+
+    public func cache(_ iconImage: IconImage, for author: Author) {
+        iconsByAuthor[author] = iconImage
+    }
+
+    public func emptyCache() {
+        iconsByAuthor.removeAll()
     }
 }
