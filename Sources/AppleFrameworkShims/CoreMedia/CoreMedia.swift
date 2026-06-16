@@ -209,6 +209,12 @@ public struct CMTimeRange: Sendable, Equatable {
         self.start = start
         self.duration = duration
     }
+
+    public init(start: CMTime, end: CMTime) {
+        let timescale = start.timescale != 0 ? start.timescale : max(end.timescale, 1)
+        let seconds = max(0, end.seconds - start.seconds)
+        self.init(start: start, duration: CMTime(seconds: seconds, preferredTimescale: timescale))
+    }
 }
 
 public func CMTimeRangeMake(start: CMTime, duration: CMTime) -> CMTimeRange {

@@ -24,6 +24,53 @@ public extension AnyPublisher where Failure == Never {
     }
 }
 
+// Combine's KVO publisher: `object.publisher(for: \.keyPath)`. On Apple
+// platforms this is `NSObject.KeyValueObservingPublisher`, backed by real KVO.
+// On Linux there is no Objective-C runtime, so this is inert in the same way as
+// QuillFoundation's `observe(_:)` clone: it emits the keyPath's *current* value
+// once (honoring Combine's default `.initial` semantics so a leading `.sink`
+// still sees a value) and then never fires again. SignalUI's
+// StackSheetViewController subscribes to `\.bounds` this way; the downstream
+// `.removeDuplicates().sink {}` pipeline type-checks and runs without crashing.
+//
+// The `options` parameter is a local OptionSet rather than Foundation's
+// `NSKeyValueObservingOptions` (defined in QuillFoundation, which the low-level
+// Combine shim deliberately does not depend on). It mirrors the option names so
+// call sites that pass `.initial` / `.new` keep compiling.
+public struct _KVOPublisherOptions: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let new = _KVOPublisherOptions(rawValue: 0x01)
+    public static let old = _KVOPublisherOptions(rawValue: 0x02)
+    public static let initial = _KVOPublisherOptions(rawValue: 0x04)
+    public static let prior = _KVOPublisherOptions(rawValue: 0x08)
+}
+
+// The KVO publisher must carry a keypath rooted in the *receiver's* type so a
+// bare `\.bounds` literal can infer its root from the call (`view.publisher(for:
+// \.bounds)`). A plain `NSObject` extension method generic over `Root` cannot do
+// this — Swift won't bind a free `Root` from a keypath literal, hence "cannot
+// infer key path type from context." A protocol extension, however, MAY use
+// `Self` in parameter position, which pins the keypath root to the concrete
+// receiver and makes inference succeed.
+public protocol _KVOPublishing: NSObject {}
+extension NSObject: _KVOPublishing {}
+
+public extension _KVOPublishing {
+    // `KeyPath<Self, Value>` pins the root to the receiver's static type, so the
+    // `\.bounds` literal infers its root. Inert on Linux (no KVO) beyond emitting
+    // the keypath's current value once when `.initial` is requested.
+    func publisher<Value>(
+        for keyPath: KeyPath<Self, Value>,
+        options: _KVOPublisherOptions = [.initial, .new]
+    ) -> AnyPublisher<Value, Never> {
+        if options.contains(.initial) {
+            return Just(self[keyPath: keyPath]).eraseToAnyPublisher()
+        }
+        return Empty<Value, Never>(completeImmediately: false).eraseToAnyPublisher()
+    }
+}
+
 public extension Publishers {
     struct Merge<UpstreamA: Publisher, UpstreamB: Publisher>: Publisher
         where UpstreamA.Output == UpstreamB.Output, UpstreamA.Failure == UpstreamB.Failure

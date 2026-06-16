@@ -39,6 +39,14 @@ public struct Animation: Equatable {
     public static func easeIn(duration: Double) -> Animation { Animation(curve: .easeIn, duration: duration) }
     public static func easeOut(duration: Double) -> Animation { Animation(curve: .easeOut, duration: duration) }
     public static func easeInOut(duration: Double) -> Animation { Animation(curve: .easeInOut, duration: duration) }
+    public static func spring(
+        response: Double,
+        dampingFraction: Double,
+        blendDuration: Double = 0
+    ) -> Animation {
+        _ = dampingFraction
+        return Animation(curve: .spring, duration: response, delay: blendDuration)
+    }
 }
 
 /// A view with an opacity applied.

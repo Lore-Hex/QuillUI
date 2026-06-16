@@ -333,6 +333,71 @@ public extension NotificationCenter {
         _ = (observer, selector)
         _ = addObserver(forName: name, object: object, queue: nil) { _ in }
     }
+
+    // swift-corelibs Foundation types the block-based `addObserver` closure as
+    // `@Sendable`, which makes it nonisolated; SignalUI's observers call
+    // @MainActor members (`self.updateContents(...)`) on `self` from inside. On
+    // Apple the UI thread invariant makes this safe; on Linux we model it by
+    // typing the closure `@MainActor` so the body may touch main-actor state.
+    // Distinct closure isolation = a separate overload that wins for these calls.
+    @discardableResult
+    func addObserver(
+        forName name: NSNotification.Name?,
+        object obj: Any?,
+        queue: OperationQueue?,
+        using block: @MainActor @escaping (Notification) -> Void
+    ) -> any NSObjectProtocol {
+        quillAddObserver(forName: name, object: obj, queue: queue, using: block)
+    }
+
+    /// DISTINCT-name @MainActor `addObserver`. A same-name `@MainActor` overload
+    /// does NOT win resolution against corelibs' `@Sendable` one (the @Sendable
+    /// closure is an equally-valid match), so SignalUI's observers still bound to
+    /// the nonisolated overload. `AppKitLowering` rewrites
+    /// `<nc>.addObserver(forName:object:queue:using:){…}` → `.quillAddObserver(…)`,
+    /// a unique symbol whose @MainActor block lets the closure call @MainActor
+    /// members. Inert hop on Linux (notifications post synchronously).
+    @discardableResult
+    func quillAddObserver(
+        forName name: NSNotification.Name?,
+        object obj: Any?,
+        queue: OperationQueue?,
+        using block: @MainActor @escaping (Notification) -> Void
+    ) -> any NSObjectProtocol {
+        addObserver(forName: name, object: obj, queue: queue) { notification in
+            // corelibs posts synchronously on the calling thread on Linux, so the
+            // value never actually crosses threads; `nonisolated(unsafe)` tells the
+            // Swift 6 sending-check what the runtime already guarantees here.
+            nonisolated(unsafe) let n = notification
+            MainActor.assumeIsolated {
+                block(n)
+            }
+        }
+    }
+}
+
+public extension Timer {
+    // Same @Sendable-vs-@MainActor mismatch as NotificationCenter above: corelibs
+    // types `scheduledTimer(withTimeInterval:repeats:block:)`'s block `@Sendable`,
+    // but SignalUI's timer fires call @MainActor methods on captured `self`. Type
+    // the block `@MainActor` and assume main-actor isolation when it runs (timers
+    // are scheduled on the main run loop at these call sites).
+    @discardableResult
+    class func scheduledTimer(
+        withTimeInterval interval: TimeInterval,
+        repeats: Bool,
+        block: @MainActor @escaping (Timer) -> Void
+    ) -> Timer {
+        scheduledTimer(withTimeInterval: interval, repeats: repeats) { timer in
+            // Timers fire on the run loop that scheduled them (the main loop at
+            // these call sites); the value never crosses threads, so the
+            // sending-check escape hatch is honest here.
+            nonisolated(unsafe) let t = timer
+            MainActor.assumeIsolated {
+                block(t)
+            }
+        }
+    }
 }
 
 #if canImport(Glibc)

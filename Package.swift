@@ -397,6 +397,10 @@ products += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
+    // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
+    // (and, wired up, SignalUI) UIViewController view trees to an on-screen
+    // GTK window. First-light demo proves the pipeline; Signal's own VCs follow.
+    products.append(.executable(name: "signal-ui-render", targets: ["SignalUIRender"]))
 }
 
 products += [
@@ -1969,7 +1973,8 @@ if wireguardUpstreamPresent {
                 // StatusMenu: the status-bar dropdown (NSMenu subclass) + TunnelMenuItem
                 // (NSMenuItem subclass observing tunnel name/status via KVO). Builds the
                 // per-tunnel menu, manage/import/about/quit items; @objc actions lowered to
-                // QuillActionDispatching. The biggest bootstrap file; dep of TunnelsTracker.
+                // an injected quillPerform (QuillSelectorDispatching). The biggest bootstrap
+                // file; dep of TunnelsTracker.
                 "Sources/WireGuardApp/UI/macOS/StatusMenu.swift",
                 // TunnelsTracker: observes each tunnel's status (KVO) + the TunnelsManager
                 // list/activation delegates, forwarding changes to StatusMenu / StatusItemController /
@@ -2023,7 +2028,7 @@ if wireguardUpstreamPresent {
                 "Sources/WireGuardApp/UI/macOS/View/KeyValueRow.swift",
                 // ButtonRow: the action-button cell dequeued by TunnelDetailTableViewController
                 // (NSButton momentaryPushIn/rounded + onButtonClicked). Conforms QuillReusableView
-                // (required init()) for generic dequeue; target-action lowered to QuillActionDispatching.
+                // (required init()) for generic dequeue; target-action lowered to QuillSelectorDispatching.
                 "Sources/WireGuardApp/UI/macOS/View/ButtonRow.swift",
                 // NSColor+Hex: NSColor(hex:) convenience init (chains to the shadow's
                 // new NSColor(red:green:blue:alpha:)). Foundation Scanner + AppKit only;
@@ -2063,13 +2068,13 @@ if wireguardUpstreamPresent {
                 // remaining). Dequeues KeyValueRow/KeyValueImageRow/ButtonRow (all QuillReusableView);
                 // presents TunnelEditViewController; PrivateDataConfirmation key-reveal gate;
                 // ActivateOnDemandViewModel + TunnelViewModel; KVO via Cocoa shim; @objc actions
-                // lowered to QuillActionDispatching. Imports WireGuardKit (TunnelConfiguration).
+                // lowered to QuillSelectorDispatching. Imports WireGuardKit (TunnelConfiguration).
                 "Sources/WireGuardApp/UI/macOS/ViewController/TunnelDetailTableViewController.swift",
                 // TunnelsListTableViewController: the main tunnels list (the OTHER table VC).
                 // NSPopUpButton add/action menus (popup.cell as? NSPopUpButtonCell — arrowPosition),
                 // NSButton remove action, dequeues TunnelListRow (QuillReusableView ✓), declares its
                 // own TunnelsListTableViewControllerDelegate, presents TunnelEditViewController for add;
-                // NSMenuItemValidation; @objc actions lowered to QuillActionDispatching. import Cocoa only.
+                // NSMenuItemValidation; @objc actions lowered to QuillSelectorDispatching. import Cocoa only.
                 "Sources/WireGuardApp/UI/macOS/ViewController/TunnelsListTableViewController.swift",
                 // ManageTunnelsRootViewController: the SPLIT-VIEW ROOT — the LAST VC of the
                 // WireGuard macOS UI. Hosts TunnelsListTableViewController (left) +
@@ -2278,8 +2283,12 @@ for shimName in signalAppleFrameworkShims {
     case "CoreImage":
         // CIImage(cvPixelBuffer:) — the camera frame pipeline (#516).
         dependencies = ["QuillFoundation", "CoreVideo"]
-    case "CoreVideo", "MetalKit", "MetalPerformanceShaders":
+    case "CoreVideo", "MetalPerformanceShaders":
         dependencies = ["QuillFoundation", "Metal"]
+    case "MetalKit":
+        dependencies = ["QuillFoundation", "Metal", "QuartzCore", "QuillUIKit"]
+    case "SDWebImage":
+        dependencies = ["QuillFoundation", "QuillUIKit"]
     case "VideoToolbox":
         dependencies = ["QuillFoundation", "CoreMedia", "CoreVideo"]
     case "QuartzCore":
@@ -2292,6 +2301,11 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "CoreVideo"]
     case "AppIntents":
         dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
+    case "Vision":
+        // VNImageRequestHandler's init overloads take ImageIO's
+        // CGImagePropertyOrientation and CoreVideo's CVPixelBuffer (face
+        // detection / QR scanning). No cycle: neither shim imports Vision.
+        dependencies = ["QuillFoundation", "ImageIO", "CoreVideo"]
     case "SceneKit":
         // SceneKit vends SwiftUI's `SceneView`; the scene-graph types use
         // QuillFoundation's CGFloat and Foundation's CGPoint (re-exported via
@@ -2451,6 +2465,30 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             path: "Sources/SignalChat",
             swiftSettings: appSwiftSettings
         ),
+        // signal-ui-render: UIKit→GTK4 renderer. First-light depends only on the
+        // UIKit shim + GTK (fast build, no SignalUI link); the registry + mappers
+        // turn a UIViewController's UIView tree into a GtkWidget window. SignalUI
+        // is added here once the real-VC (Settings) wiring lands.
+        .executableTarget(
+            name: "SignalUIRender",
+            dependencies: [
+                "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore",
+                "SignalUI", "SignalServiceKit",
+                .product(name: "CGTK", package: "SwiftOpenUI"),
+                .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+            ],
+            path: "Sources/SignalUIRender",
+            swiftSettings: appSwiftSettings + [.unsafeFlags(gtk4SwiftImporterFlags)],
+            // Link GTK4 + gdk-pixbuf (pulls glib/gobject/gio/pango/cairo) — needed
+            // for g_*/gtk_*/gdk_* symbols. `-use-ld=lld`: the default BFD linker
+            // OOM-kills on the huge SignalUI+SSK+libsignal+GRDB link (signal-smoke
+            // uses lld for the same reason).
+            linkerSettings: [
+                .unsafeFlags(["-use-ld=lld"]),
+                .unsafeFlags(gtk4LinkerFlags),
+                .unsafeFlags(gdkPixbufLinkerFlags),
+            ]
+        ),
         // SignalUI: Signal-iOS's OWN UI framework (270 Swift files, UIKit-based),
         // compiled UNMODIFIED against QuillUI's UIKit layer + the framework shims.
         // This is the real Track B UI goal -- Signal's actual UI code running on
@@ -2465,9 +2503,18 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "SwiftUI", "Photos", "ContactsUI", "MediaPlayer", "MetalKit", "Vision",
                 "NaturalLanguage", "CoreServices", "Logging", "MobileCoin",
                 "LibMobileCoin", "SDWebImage", "PureLayout", "Lottie", "BonMot",
+                // Full import closure of SignalUI's 270 files (census via
+                // grep of attributed+plain imports): AVKit (ConversationPicker
+                // video previews), WebKit (CaptchaView's WKWebView), CoreImage
+                // (image pipeline), SignalRingRTC (calling type-shim, same one
+                // SSK builds against).
+                "AVKit", "WebKit", "CoreImage", "SignalRingRTC",
                 .product(name: "GRDB", package: "GRDB.swift"),
             ],
             path: ".upstream/signal-ios/SignalUI",
+            // Same concurrency posture as the AppKit shadow + SSK: Signal's
+            // UIKit-era code predates strict concurrency; the shims' @MainActor
+            // annotations otherwise reject thousands of legal UIKit-style calls.
             exclude: [
                 "SignalUI.h",
                 "UIKitExtensions/UIButton+DeprecationWorkaround.h",
@@ -2482,9 +2529,40 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "UIKitExtensions/UIStackView+SignalUITest.swift",
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
         )
     ]
+    // SignalApp: Signal-iOS's main *app* target (`Signal/`), home of the real
+    // ConversationViewController + CVComponent message-cell pipeline. Brought to
+    // Linux as a conversation-rendering slice: `quill-signal-prep-app.sh` prunes
+    // the iOS-only subsystems (calling / device-transfer / backups) that need
+    // un-shimmed frameworks, then lowers the remainder exactly like SignalUI.
+    // Inert until the prep script has run against the disposable .upstream copy
+    // (gated on a pruned-tree marker so a pristine fetch doesn't try to build it).
+    if FileManager.default.fileExists(atPath: ".upstream/signal-ios/Signal/ConversationView")
+        && !FileManager.default.fileExists(atPath: ".upstream/signal-ios/Signal/Calls") {
+        targets += [
+            .target(
+                name: "SignalApp",
+                dependencies: [
+                    "SignalUI", "SignalServiceKit", "LibSignalClient",
+                    "UIKit", "AVFoundation", "Contacts", "SafariServices", "MessageUI",
+                    "UniformTypeIdentifiers", "Combine", "PhotosUI", "MobileCoreServices",
+                    "SwiftUI", "Photos", "ContactsUI", "MediaPlayer", "MetalKit", "Vision",
+                    "NaturalLanguage", "CoreServices", "Logging", "MobileCoin",
+                    "LibMobileCoin", "SDWebImage", "PureLayout", "Lottie", "BonMot",
+                    "AVKit", "WebKit", "CoreImage", "SignalRingRTC",
+                    "StoreKit", "AuthenticationServices", "QuickLook", "QuartzCore",
+                    .product(name: "GRDB", package: "GRDB.swift"),
+                ],
+                path: ".upstream/signal-ios/Signal",
+                exclude: [
+                    "Signal-Prefix.pch",
+                ],
+                swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
+            )
+        ]
+    }
 }
 #endif
 
@@ -2903,6 +2981,10 @@ targets.append(contentsOf: [
     .target(name: "Carbon", dependencies: [], path: "Sources/Carbon"),
     .target(name: "CoreGraphics", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/CoreGraphics"),
     .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
+    // CoreImage edge: Apple's AVFoundation re-exports CoreImage (SignalUI's
+    // ScanQRCodeViewController reaches CIQRCodeDescriptor through
+    // `import AVFoundation` alone); AVCaptureExtras.swift mirrors that with an
+    // @_exported import. CoreImage depends only on QuillFoundation — no cycle.
     .target(name: "CoreHaptics", dependencies: [], path: "Sources/AppleFrameworkShims/CoreHaptics"),
     .target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
     .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
@@ -2912,7 +2994,7 @@ targets.append(contentsOf: [
     // macros). The shim header self-gates on __linux__; the AVFoundation
     // capture/bridge code double-gates on canImport(CV4L2), so Apple-host
     // graphs never see it (the dependency is appended below, Linux-only).
-    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo"] + quillV4L2Dependencies, path: "Sources/AVFoundation"),
+    .target(name: "AVFoundation", dependencies: ["QuillKit", "QuillFoundation", "QuartzCore", "AudioToolbox", "CoreMedia", "CoreVideo", "CoreImage"] + quillV4L2Dependencies, path: "Sources/AVFoundation"),
     .target(name: "Speech", dependencies: ["QuillKit", "AVFoundation"], path: "Sources/Speech"),
     .target(name: "ApplicationServices", dependencies: ["QuillKit"], path: "Sources/ApplicationServices"),
     .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement"),
@@ -2937,11 +3019,19 @@ targets.append(contentsOf: [
     // MediaPlayer, MetalKit, Vision, ContactsUI, CoreServices, NaturalLanguage,
     // SDWebImage -- come from the signalAppleFrameworkShims loop above.)
     .target(name: "Logging", dependencies: [], path: "Sources/Logging"),
-    .target(name: "MobileCoin", dependencies: [], path: "Sources/MobileCoin"),
+    // MobileCoin's HttpRequester protocol signature uses LibMobileCoin's
+    // HTTPMethod/HTTPResponse (mirroring the real SDK's module split).
+    .target(name: "MobileCoin", dependencies: ["LibMobileCoin"], path: "Sources/MobileCoin"),
     .target(name: "LibMobileCoin", dependencies: [], path: "Sources/LibMobileCoin"),
-    .target(name: "PureLayout", dependencies: [], path: "Sources/PureLayout"),
-    .target(name: "Lottie", dependencies: [], path: "Sources/Lottie"),
-    .target(name: "BonMot", dependencies: [], path: "Sources/BonMot"),
+    // PureLayout extends QuillUIKit's UIView with constraints built from its
+    // anchor factories, and its insets-taking API uses the UIKit shim's
+    // UIEdgeInsets -- hence the dependency on the UIKit umbrella (which
+    // @_exported-re-exports QuillUIKit).
+    .target(name: "PureLayout", dependencies: ["UIKit"], path: "Sources/PureLayout"),
+    .target(name: "Lottie", dependencies: ["UIKit"], path: "Sources/Lottie"),
+    // BonMot's StringStyle stores UIFont/UIColor/NSTextAlignment -- hence the
+    // dependency on the UIKit umbrella (same pattern as PureLayout above).
+    .target(name: "BonMot", dependencies: ["UIKit"], path: "Sources/BonMot"),
     .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),
     .target(name: "Nuke", dependencies: [], path: "Sources/Nuke"),
     .target(name: "NukeUI", dependencies: ["SwiftUI", "Nuke"], path: "Sources/NukeUI"),

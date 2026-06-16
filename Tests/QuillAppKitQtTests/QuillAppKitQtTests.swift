@@ -313,10 +313,11 @@ struct QuillAppKitQtTests {
 
     @Test("Target-action dispatch: a control's fired action calls quillPerform on its target")
     func targetActionDispatch() {
-        // Mirrors exactly what AppKitLowering generates: the app class conforms
-        // to QuillActionDispatching with a switch over selector.name. No Qt
-        // widget needed — this exercises the pure Swift dispatch contract.
-        final class Recorder: QuillActionDispatching {
+        // Mirrors exactly what AppKitLowering injects: the app class carries a
+        // class-body quillPerform (QuillSelectorDispatching) switching over
+        // selector.name. No Qt widget needed — this exercises the pure Swift
+        // dispatch contract.
+        final class Recorder: QuillSelectorDispatching {
             var fired: [String] = []
             weak var lastSender: AnyObject?
             func quillPerform(_ selector: Selector, with sender: Any?) {

@@ -11,6 +11,12 @@ public final class GIFImageView: UIImageView {
         super.init(image: nil)
     }
 
+    // UIImageView declares `required init?(coder:)`; the own designated init
+    // above suppresses inheritance, so restate it.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
     public func prepareForAnimation(withGIFData data: Data) {
         _ = data
     }

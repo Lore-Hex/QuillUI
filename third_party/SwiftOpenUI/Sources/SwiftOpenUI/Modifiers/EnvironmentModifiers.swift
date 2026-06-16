@@ -33,6 +33,28 @@ public struct EnvironmentModifierView<Content: View, V>: View {
     public var body: Never { fatalError("EnvironmentModifierView is a primitive view") }
 }
 
+public protocol PreferenceKey {
+    associatedtype Value
+    static var defaultValue: Value { get }
+    static func reduce(value: inout Value, nextValue: () -> Value)
+}
+
+public extension PreferenceKey {
+    static func reduce(value: inout Value, nextValue: () -> Value) {
+        value = nextValue()
+    }
+}
+
+public struct OnPreferenceChangeModifierView<Content: View, Key: PreferenceKey>: View {
+    public typealias Body = Never
+
+    public let content: Content
+    public let key: Key.Type
+    public let action: (Key.Value) -> Void
+
+    public var body: Never { fatalError("OnPreferenceChangeModifierView is a primitive view") }
+}
+
 extension View {
     /// Inject an ObservableObject into the environment for descendant views.
     /// Descendants access it via `@EnvironmentObject var obj: T`.
@@ -52,5 +74,12 @@ extension View {
     /// for `@Observable` classes.
     public func environment<T: AnyObject>(_ object: T) -> EnvironmentObservableModifierView<Self, T> {
         EnvironmentObservableModifierView(content: self, object: object)
+    }
+
+    public func onPreferenceChange<Key: PreferenceKey>(
+        _ key: Key.Type,
+        perform action: @escaping (Key.Value) -> Void
+    ) -> OnPreferenceChangeModifierView<Self, Key> {
+        OnPreferenceChangeModifierView(content: self, key: key, action: action)
     }
 }

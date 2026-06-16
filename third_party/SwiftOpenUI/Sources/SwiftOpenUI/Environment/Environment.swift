@@ -6,6 +6,14 @@ public protocol EnvironmentKey {
     static var defaultValue: Value { get }
 }
 
+public protocol DynamicProperty {
+    mutating func update()
+}
+
+public extension DynamicProperty {
+    mutating func update() {}
+}
+
 /// A collection of environment values propagated down the view tree.
 public struct EnvironmentValues: @unchecked Sendable {
     private var storage: [ObjectIdentifier: Any] = [:]
@@ -334,6 +342,8 @@ public struct Environment<Value> {
     }
 }
 
+extension Environment: DynamicProperty {}
+
 /// `Environment<Value>` is an object-injection environment only when
 /// its reader was constructed via `init(_ type: Value.Type)`. Every
 /// instance conforms, but the runtime check on `isInjectedObject`
@@ -367,6 +377,7 @@ extension EnvironmentValues {
         set { self[ColorSchemeKey.self] = newValue }
     }
 }
+
 
 /// Environment key describing whether descendant controls are enabled.
 public struct IsEnabledKey: EnvironmentKey {

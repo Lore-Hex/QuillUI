@@ -121,7 +121,18 @@ public final class AVSpeechSynthesisVoice: @unchecked Sendable {
 
 public final class AVAudioSession: @unchecked Sendable {
     public enum Category: Int, Sendable { case ambient, soloAmbient, playback, record, playAndRecord, multiRoute }
-    public enum Mode: Int, Sendable { case videoChat, videoRecording, measurement, moviePlayback, spokenAudio }
+    public enum Mode: Int, Sendable {
+        case videoChat = 0
+        case videoRecording = 1
+        case measurement = 2
+        case moviePlayback = 3
+        case spokenAudio = 4
+        case `default` = 5
+        case voiceChat = 6
+    }
+    public enum RecordPermission: Int, Sendable { case undetermined, denied, granted }
+    public enum PortOverride: Int, Sendable { case none, speaker }
+    public enum ErrorCode: Int, Sendable { case isBusy = 560030580 }
     public struct CategoryOptions: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -129,6 +140,8 @@ public final class AVAudioSession: @unchecked Sendable {
         public static let duckOthers = CategoryOptions(rawValue: 1 << 1)
         public static let allowBluetooth = CategoryOptions(rawValue: 1 << 2)
         public static let defaultToSpeaker = CategoryOptions(rawValue: 1 << 3)
+        public static let allowBluetoothHFP = CategoryOptions(rawValue: 1 << 4)
+        public static let allowBluetoothA2DP = CategoryOptions(rawValue: 1 << 5)
     }
     public struct SetActiveOptions: OptionSet, Sendable {
         public let rawValue: UInt
@@ -165,6 +178,21 @@ public final class AVAudioSession: @unchecked Sendable {
         service.isActive
     }
 
+    public var recordPermission: RecordPermission { .granted }
+    public var outputVolume: Float { 1 }
+
+    public func requestRecordPermission(_ response: @escaping (Bool) -> Void) {
+        response(true)
+    }
+
+    public func setAllowHapticsAndSystemSoundsDuringRecording(_ allow: Bool) throws {
+        _ = allow
+    }
+
+    public func overrideOutputAudioPort(_ portOverride: PortOverride) throws {
+        _ = portOverride
+    }
+
     public func setCategory(_ category: Category) throws {
         try setCategory(category, mode: mode, options: categoryOptions)
     }
@@ -194,29 +222,80 @@ public final class AVAudioSession: @unchecked Sendable {
     }
 }
 
-public final class AVPlayer: @unchecked Sendable {
-    public var currentItem: AVPlayerItem?
-    public var audiovisualBackgroundPlaybackPolicy: AVPlayerAudiovisualBackgroundPlaybackPolicy = .automatic
-    public var preventsDisplaySleepDuringVideoPlayback: Bool = false
-    public var isMuted: Bool = false
+// @MainActor to match Apple (and the SignalUI build's `-default-isolation
+// MainActor`): the upstream `LoopingVideoPlayer: AVPlayer` (LoopingVideoView.swift)
+// overrides init(url:)/init(playerItem:)/play()/replaceCurrentItem(with:) under
+// default MainActor isolation; a nonisolated base produced "different actor
+// isolation from nonisolated overridden declaration" on each override.
+// @preconcurrency on the dispatch conformance lets nonisolated callers still
+// dispatch through the (nonisolated) protocol requirement, matching the pattern
+// used for UIResponder/UIBarButtonItem in QuillUIKit.
+@MainActor open class AVPlayer: NSObject, @unchecked Sendable, @preconcurrency QuillSelectorDispatching {
+    /// Linux target-action dispatch base (no ObjC runtime); roots the override
+    /// chain for `@objc`-action AVPlayer subclasses (LoopingVideoView). Class-
+    /// body, not an extension. See QuillSelectorDispatching (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {}
 
-    public init() {}
+    public enum Status: Int, Sendable { case unknown, readyToPlay, failed }
+
+    open var currentItem: AVPlayerItem?
+    open var audiovisualBackgroundPlaybackPolicy: AVPlayerAudiovisualBackgroundPlaybackPolicy = .automatic
+    open var preventsDisplaySleepDuringVideoPlayback: Bool = false
+    open var isMuted: Bool = false
+    // Inert on Linux (no external display pipeline); round-trips for the
+    // LoopingVideoPlayer that sets it during sharedInit().
+    open var allowsExternalPlayback: Bool = false
+    open var status: Status = .readyToPlay
+
+    public override init() {
+        super.init()
+    }
+
     public init(url: URL) {
+        super.init()
         self.currentItem = AVPlayerItem(url: url)
     }
 
-    public func play() {}
-    public func pause() {}
-    public func seek(to time: CMTime) {
+    // Designated init (class body, not the AVPlayerPlayback extension) so
+    // LoopingVideoPlayer can override `init(playerItem:)` and call
+    // `super.init(playerItem:)` -- an extension convenience init can do neither.
+    public init(playerItem item: AVPlayerItem?) {
+        super.init()
+        self.currentItem = item
+    }
+
+    open func play() {}
+    open func pause() {}
+    open func replaceCurrentItem(with item: AVPlayerItem?) {
+        currentItem = item
+    }
+    open func seek(to time: CMTime) {
         _ = time
     }
 }
 
-public final class AVPlayerItem: @unchecked Sendable {
+@MainActor open class AVPlayerItem: NSObject, @unchecked Sendable {
+    public enum Status: Int, Sendable { case unknown, readyToPlay, failed }
+
     public let url: URL?
+    open var status: Status = .readyToPlay
 
     public init(url: URL? = nil) {
         self.url = url
+        super.init()
+    }
+
+    // No seeks are ever pending on Linux (playback is inert); LoopingVideoPlayer
+    // cancels pending seeks on the outgoing item in replaceCurrentItem(with:).
+    open func cancelPendingSeeks() {}
+}
+
+@MainActor open class AVPlayerLayer: CALayer {
+    open var player: AVPlayer?
+    open var videoGravity: AVLayerVideoGravity = .resizeAspect
+
+    public override init() {
+        super.init()
     }
 }
 
@@ -267,6 +346,13 @@ public final class AVCaptureDevice: @unchecked Sendable {
 
     public func lockForConfiguration() throws {}
     public func unlockForConfiguration() {}
+
+    // Capture configuration recorded between lock/unlockForConfiguration
+    // (AVCaptureExtras.swift). Config-storing only -- there is no capture
+    // pipeline on Linux to consume it.
+    public var focusMode: FocusMode = .continuousAutoFocus
+    public var exposureMode: ExposureMode = .continuousAutoExposure
+    public var videoZoomFactor: CGFloat = 1.0
 
     public static func `default`(for mediaType: AVMediaType) -> AVCaptureDevice? {
         _ = mediaType
@@ -532,7 +618,7 @@ public protocol AVQueuedSampleBufferRendering: AnyObject {
     func stopRequestingMediaData()
 }
 
-open class AVSampleBufferDisplayLayer: CALayer, AVQueuedSampleBufferRendering {
+open class AVSampleBufferDisplayLayer: CALayer, @preconcurrency AVQueuedSampleBufferRendering {
     public var controlTimebase: CMTimebase?
     public var videoGravity: AVLayerVideoGravity = .resizeAspect
     public var preventsCapture: Bool = false
@@ -608,6 +694,12 @@ public class AVAsset: @unchecked Sendable {
     public convenience init(url: URL) { self.init() }
     public var isReadable: Bool { false }
     public var isPlayable: Bool { false }
+    /// Whether the asset can be exported (AVAssetExportSession-eligible).
+    /// Inert on Linux (no media pipeline); SignalUI's VideoEditorModel reads it
+    /// alongside isPlayable/isReadable when validating an asset.
+    public var isExportable: Bool { false }
+    /// Whether the asset contains DRM-protected content. Always false on Linux.
+    public var hasProtectedContent: Bool { false }
     public var duration: CMTime { .zero }
     public var tracks: [AVAssetTrack] { [] }
     public func tracks(withMediaType mediaType: AVMediaType) -> [AVAssetTrack] { [] }
@@ -686,13 +778,26 @@ public final class AVAssetExportSession: @unchecked Sendable {
     public enum Status: Int, Sendable { case unknown, waiting, exporting, completed, failed, cancelled }
     public var outputURL: URL?
     public var outputFileType: AVFileType?
+    public var timeRange: CMTimeRange = CMTimeRange(start: .zero, duration: .zero)
+    public var progress: Float = 0
     public var shouldOptimizeForNetworkUse: Bool = false
+    /// Recorded for shape fidelity; the Linux exporter never runs.
+    public var metadataItemFilter: AVMetadataItemFilter?
     public var error: Error?
     public var status: Status { .failed }
     public init?(asset: AVAsset, presetName: String) {}
     public func exportAsynchronously(completionHandler handler: @escaping () -> Void) { handler() }
     public func export(to url: URL, as fileType: AVFileType) async throws {
         throw AVMediaUnavailableOnLinux()
+    }
+
+    /// The no-argument modern async exporter: it relies on `outputURL` /
+    /// `outputFileType` being set on the session beforehand (as upstream does).
+    /// Upstream (SendableAttachment) calls `await exportSession.export()` WITHOUT
+    /// `try`, so this is non-throwing — Apple's deprecated `export()` reports via
+    /// `status`/`error`, not by throwing. No exporter exists on Linux: inert.
+    public func export() async {
+        // No-op: there is no media export pipeline on Linux.
     }
 }
 
@@ -890,9 +995,33 @@ public final class AVAudioPlayer: @unchecked Sendable {
     }
 }
 
+public final class AVAudioRecorder: @unchecked Sendable {
+    public let url: URL
+    public let settings: [String: Any]
+    public var isMeteringEnabled = false
+    public private(set) var currentTime: TimeInterval = 0
+
+    public init(url: URL, settings: [String: Any]) throws {
+        self.url = url
+        self.settings = settings
+    }
+
+    @discardableResult
+    public func prepareToRecord() -> Bool { true }
+
+    @discardableResult
+    public func record() -> Bool {
+        currentTime = 0
+        return true
+    }
+
+    public func stop() {}
+}
+
 // AVAudioRecorder/AVAssetReaderTrackOutput settings dictionary keys (String on
 // Apple). Values are placed into a `[String: Any]` so the concrete value types
 // (UInt32 / Int / Bool) don't matter.
+public let kAudioFormatMPEG4AAC: UInt32 = 0x61616320
 public let AVFormatIDKey = "AVFormatIDKey"
 public let AVSampleRateKey = "AVSampleRateKey"
 public let AVNumberOfChannelsKey = "AVNumberOfChannelsKey"

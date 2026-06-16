@@ -142,20 +142,31 @@ The runtime token is **`QuillFoundation.Selector` = `struct { let name: String }
 (defined `#if !canImport(ObjectiveC)`). It constructs, supports `==`, and exposes
 `.name` for the runtime dispatch layer.
 
-**Closing the loop — generate dispatch + a runtime to invoke it.** Lowering
+**Closing the loop — inject dispatch + a runtime to invoke it.** Lowering
 `#selector` to an opaque token only compiles; to *run*, the same pass also
-**generates the dispatch conformance**: for each type with `@objc` actions it
-appends `extension Type: QuillActionDispatching { func quillPerform(_ selector:
+**injects a class-body dispatch method**: for each *class* with `@objc` actions it
+adds, into the class body, `public [override] func quillPerform(_ selector:
 Selector, with sender: Any?) { switch selector.name { case "save": save(); case
-"foo(sender:)": foo(sender: sender as! AnyObject); … } } }` (collected from the
-`@objc` methods *before* the strip; 0- or 1-(sender)-arg, cast by declared type).
-The runtime side is a tiny protocol (`QuillActionDispatching`) plus
-`NSControl.sendAction` calling `(target as? QuillActionDispatching)?.quillPerform(
-sel, with: self)` and `NSButton.performClick` firing it. Net: `#selector`/`@objc`
-→ plain Swift that both compiles *and* dispatches, generated automatically from
-the app's own code. Protocol-based (not an `NSObject` method) so it works for any
-target — `NSResponder`, `NSViewController`, `AppDelegate` — with no `override` and
-no edits to Foundation's `NSObject`.
+"foo(sender:)": foo(sender: sender as! AnyObject); … default: super.quillPerform(
+selector, with: sender) } }` (collected from the `@objc` methods *before* the
+strip; 0- or 1-(sender)-arg, cast by declared type). A **class-body** method
+(rather than the earlier `extension Type: QuillActionDispatching { … }`) is
+overridable, so subclass chains resolve dynamically — extension methods are
+statically dispatched, which broke per-class overrides and forced one redundant
+conformance per class. The chain is rooted at a class-body witness on the Quill
+shim base classes that originate target-action (`UIResponder` for the whole
+UIView/UIViewController forest, plus the NSObject-direct `UIPresentationController`
+/ `UIBarButtonItem` / `UIGestureRecognizer` / `AVPlayer`); a class whose immediate
+superclass is `NSObject` is a chain root that newly conforms (no `override`,
+`default: break`), everything else `override`s and forwards unknown selectors to
+`super`. The runtime side is the `QuillSelectorDispatching` protocol (no-op
+existential default) plus `NSControl.sendAction` / `UIControl.sendActions` /
+`Timer` / `CADisplayLink` / `UndoManager` calling `(target as?
+QuillSelectorDispatching)?.quillPerform(sel, with: self)`. Net: `#selector`/`@objc`
+→ plain Swift that both compiles *and* dispatches, injected automatically from the
+app's own code. On Linux `NSObject` is swift-corelibs-Foundation's and cannot host
+an overridable member, so the base lives on the shim roots — exactly where
+target-action originates on Apple platforms.
 
 ### Lessons from building lowering passes
 
