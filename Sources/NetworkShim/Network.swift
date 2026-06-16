@@ -270,7 +270,7 @@ public class NWProtocolOptions: @unchecked Sendable {
 }
 
 public enum NWProtocolTCP {
-    public final class Options: NWProtocolOptions {
+    public final class Options: NWProtocolOptions, @unchecked Sendable {
         public var noDelay = false
         public var noPush = false
         public var noOptions = false
@@ -314,7 +314,7 @@ public enum NWProtocolTCP {
 }
 
 public enum NWProtocolUDP {
-    public final class Options: NWProtocolOptions {
+    public final class Options: NWProtocolOptions, @unchecked Sendable {
         public var preferNoChecksum = false
 
         public override init() {
@@ -330,7 +330,7 @@ public enum NWProtocolUDP {
 }
 
 public enum NWProtocolTLS {
-    public final class Options: NWProtocolOptions {
+    public final class Options: NWProtocolOptions, @unchecked Sendable {
         public override init() {
             super.init()
         }
@@ -342,7 +342,7 @@ public enum NWProtocolTLS {
 }
 
 public enum NWProtocolIP {
-    public final class Options: NWProtocolOptions {
+    public final class Options: NWProtocolOptions, @unchecked Sendable {
         public enum Version: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
             case any, v4, v6
 

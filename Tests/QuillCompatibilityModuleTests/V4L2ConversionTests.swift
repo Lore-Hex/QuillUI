@@ -128,6 +128,58 @@ struct V4L2ConversionTests {
                 ["/tmp/devsim/video7"])
     }
 
+    @Test func captureSizeSanitizerMakesYUYVLegalGeometry() {
+        #expect(quillV4L2SanitizedCaptureSize(width: 1, height: 0) ==
+                QuillV4L2FrameSize(width: 2, height: 1))
+        #expect(quillV4L2SanitizedCaptureSize(width: 3, height: 480) ==
+                QuillV4L2FrameSize(width: 4, height: 480))
+        #expect(quillV4L2SanitizedCaptureSize(width: 640, height: 480) ==
+                QuillV4L2FrameSize(width: 640, height: 480))
+    }
+
+    @Test func bestFrameSizePrefersExactThenClosestLarger() throws {
+        let sizes = [
+            QuillV4L2FrameSize(width: 320, height: 240),
+            QuillV4L2FrameSize(width: 1280, height: 720),
+            QuillV4L2FrameSize(width: 640, height: 480),
+            QuillV4L2FrameSize(width: 800, height: 600),
+        ]
+        #expect(quillV4L2BestFrameSize(sizes, requestedWidth: 640, requestedHeight: 480) ==
+                QuillV4L2FrameSize(width: 640, height: 480))
+        #expect(quillV4L2BestFrameSize(sizes, requestedWidth: 641, requestedHeight: 480) ==
+                QuillV4L2FrameSize(width: 800, height: 600))
+        #expect(quillV4L2BestFrameSize(sizes, requestedWidth: 1920, requestedHeight: 1080) ==
+                QuillV4L2FrameSize(width: 1280, height: 720))
+    }
+
+    @Test func preferredYUYVSizeRejectsUnsupportedFormatAndFallsBackWhenSizesAreOpaque() {
+        let mjpg: UInt32 = 0x4750_4A4D
+        #expect(quillV4L2PreferredYUYVCaptureSize(
+            formats: [QuillV4L2PixelFormat(fourCC: mjpg, name: "MJPG", frameSizes: [])],
+            requestedWidth: 640,
+            requestedHeight: 480
+        ) == nil)
+
+        #expect(quillV4L2PreferredYUYVCaptureSize(
+            formats: [QuillV4L2PixelFormat(fourCC: quillV4L2PixelFormatYUYV,
+                                           name: "YUYV", frameSizes: [])],
+            requestedWidth: 639,
+            requestedHeight: 480
+        ) == QuillV4L2FrameSize(width: 640, height: 480))
+
+        #expect(quillV4L2PreferredYUYVCaptureSize(
+            formats: [QuillV4L2PixelFormat(
+                fourCC: quillV4L2PixelFormatYUYV,
+                name: "YUYV",
+                frameSizes: [
+                    QuillV4L2FrameSize(width: 320, height: 240),
+                    QuillV4L2FrameSize(width: 1024, height: 768),
+                ])],
+            requestedWidth: 800,
+            requestedHeight: 600
+        ) == QuillV4L2FrameSize(width: 1024, height: 768))
+    }
+
     #if canImport(CV4L2)
     @Test func deviceEnumerationOnHostsWithCameras() {
         // CI has no /dev/video* nodes, so this only exercises QUERYCAP

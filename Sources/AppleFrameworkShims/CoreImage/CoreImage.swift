@@ -164,6 +164,7 @@ open class CIContext {
         guard let pixels = image.quillBGRAPixels, image.quillSize.width > 0 else { return nil }
         let srcWidth = Int(image.quillSize.width)
         let srcHeight = Int(image.quillSize.height)
+        guard srcHeight > 0 else { return nil }
         let srcStride = image.quillBytesPerRow > 0 ? image.quillBytesPerRow : srcWidth * 4
 
         let crop = fromRect.intersection(CGRect(origin: .zero, size: image.quillSize))
