@@ -272,8 +272,16 @@ public final class QuillMTLRenderPipelineState: MTLRenderPipelineState {
     public init() {}
 }
 
-public protocol MTLComputePipelineState: AnyObject {}
+public protocol MTLComputePipelineState: AnyObject {
+    var threadExecutionWidth: Int { get }
+    var maxTotalThreadsPerThreadgroup: Int { get }
+}
 public final class QuillMTLComputePipelineState: MTLComputePipelineState {
+    // MODEL HONESTY: there are no GPU threads on Linux. 1 keeps upstream
+    // threadgroup arithmetic (SpoilerParticleView divides and ceil()s by
+    // these) finite and division-by-zero free.
+    public let threadExecutionWidth = 1
+    public let maxTotalThreadsPerThreadgroup = 1
     public init() {}
 }
 
@@ -395,6 +403,7 @@ public protocol MTLComputeCommandEncoder: AnyObject {
     func setBuffer(_ buffer: MTLBuffer?, offset: Int, index: Int)
     func setBytes(_ bytes: UnsafeRawPointer, length: Int, index: Int)
     func dispatchThreadgroups(_ threadgroupsPerGrid: MTLSize, threadsPerThreadgroup: MTLSize)
+    func dispatchThreads(_ threadsPerGrid: MTLSize, threadsPerThreadgroup: MTLSize)
     func endEncoding()
 }
 
@@ -406,6 +415,7 @@ public final class QuillMTLComputeCommandEncoder: MTLComputeCommandEncoder {
     public func setBuffer(_ buffer: MTLBuffer?, offset: Int, index: Int) { _ = (buffer, offset, index) }
     public func setBytes(_ bytes: UnsafeRawPointer, length: Int, index: Int) { _ = (bytes, length, index) }
     public func dispatchThreadgroups(_ threadgroupsPerGrid: MTLSize, threadsPerThreadgroup: MTLSize) { _ = (threadgroupsPerGrid, threadsPerThreadgroup) }
+    public func dispatchThreads(_ threadsPerGrid: MTLSize, threadsPerThreadgroup: MTLSize) { _ = (threadsPerGrid, threadsPerThreadgroup) }
     public func endEncoding() {}
 }
 
@@ -436,6 +446,16 @@ public protocol MTLCommandBuffer: AnyObject {
     func commit()
     func waitUntilScheduled()
     func waitUntilCompleted()
+}
+
+public extension MTLCommandBuffer {
+    /// `present(_:afterMinimumDuration:)` schedules the drawable to appear after a
+    /// minimum on-screen interval (frame pacing). There is no display pipeline on
+    /// Linux, so the duration is recorded-intent and we present immediately.
+    func present(_ drawable: MTLDrawable, afterMinimumDuration duration: Double) {
+        _ = duration
+        present(drawable)
+    }
 }
 
 public final class QuillMTLCommandBuffer: MTLCommandBuffer {
@@ -488,7 +508,30 @@ public final class QuillMTLCommandQueue: MTLCommandQueue {
     }
 }
 
+// Apple shape: raw values from Metal/MTLDevice.h MTLGPUFamily.
+// SpoilerMetalConfiguration probes .common3/.apple3–8/.mac2/.metal3.
+public enum MTLGPUFamily: Int, Sendable {
+    case apple1 = 1001
+    case apple2 = 1002
+    case apple3 = 1003
+    case apple4 = 1004
+    case apple5 = 1005
+    case apple6 = 1006
+    case apple7 = 1007
+    case apple8 = 1008
+    case apple9 = 1009
+    case mac1 = 2001
+    case mac2 = 2002
+    case common1 = 3001
+    case common2 = 3002
+    case common3 = 3003
+    case macCatalyst1 = 4001
+    case macCatalyst2 = 4002
+    case metal3 = 5001
+}
+
 public protocol MTLDevice: AnyObject {
+    func supportsFamily(_ gpuFamily: MTLGPUFamily) -> Bool
     func makeTexture(descriptor: MTLTextureDescriptor) -> MTLTexture?
     func makeTexture(descriptor: MTLTextureDescriptor, iosurface: Any, plane: Int) -> MTLTexture?
     func makeBuffer(length: Int, options: MTLResourceOptions) -> MTLBuffer?
@@ -502,8 +545,33 @@ public protocol MTLDevice: AnyObject {
     func makeSamplerState(descriptor: MTLSamplerDescriptor) -> MTLSamplerState?
 }
 
+public extension MTLDevice {
+    /// Apple defaults `options:` to `[]` on the `makeBuffer` family, so call
+    /// sites routinely omit it. The protocol requirements can't carry default
+    /// arguments, so forward through these overloads.
+    func makeBuffer(length: Int) -> MTLBuffer? {
+        makeBuffer(length: length, options: [])
+    }
+
+    func makeBuffer(bytes: UnsafeRawPointer, length: Int) -> MTLBuffer? {
+        makeBuffer(bytes: bytes, length: length, options: [])
+    }
+
+    func makeBuffer<T>(bytes: [T], length: Int) -> MTLBuffer? {
+        makeBuffer(bytes: bytes, length: length, options: [])
+    }
+}
+
 public final class QuillMTLDevice: MTLDevice {
     public init() {}
+
+    public func supportsFamily(_ gpuFamily: MTLGPUFamily) -> Bool {
+        // MODEL HONESTY: no GPU exists on Linux; claiming membership in no
+        // family steers upstream (SpoilerMetalConfiguration) onto its
+        // conservative uniform-threadgroup / smallest-texture code paths.
+        _ = gpuFamily
+        return false
+    }
 
     public func makeTexture(descriptor: MTLTextureDescriptor) -> MTLTexture? {
         QuillMTLTexture(descriptor: descriptor)

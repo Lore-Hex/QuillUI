@@ -914,6 +914,7 @@ public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
     }
 }
 
+
 private func gtkApplyHookInternal(action: GTK4ExecutorAction,
                                    performMutation: Bool) -> GTK4HookResult {
     switch action.kind {

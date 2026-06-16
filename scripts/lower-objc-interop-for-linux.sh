@@ -92,10 +92,13 @@ def lower_foundation_bridge_casts(src: str) -> str:
         "] as [String: Any]",
         lowered,
     )
-    lowered = lowered.replace(" as [CFString: Any]", "")
-    lowered = lowered.replace(" as CFDictionary", "")
-    lowered = lowered.replace(" as CFString", "")
-    lowered = lowered.replace(" as CFURL", "")
+    lowered = lowered.replace("[CFString: Any]", "[String: Any]")
+    lowered = lowered.replace("[CFString]", "[String]")
+    lowered = lowered.replace("Set<CFString>", "Set<String>")
+    for cf_type in ("CFDictionary", "CFString", "CFURL", "CFData", "CFMutableData", "CFArray"):
+        lowered = re.sub(rf"\bnil\s+as\s+{cf_type}\?", "nil", lowered)
+        lowered = re.sub(rf"\s+as\s+{cf_type}\?", "", lowered)
+        lowered = lowered.replace(f" as {cf_type}", "")
     return lowered
 
 def lower_imageio_option_dictionaries(src: str) -> str:

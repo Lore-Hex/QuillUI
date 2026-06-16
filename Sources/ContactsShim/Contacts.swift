@@ -36,6 +36,7 @@ public let CNContactImageDataKey = "imageData"
 public let CNContactThumbnailImageDataKey = "thumbnailImageData"
 public let CNContactImageDataAvailableKey = "imageDataAvailable"
 public let CNContactIdentifierKey = "identifier"
+public let CNContactPropertyAttribute = "CNContactPropertyAttribute"
 
 // MARK: - Labels
 
@@ -120,6 +121,10 @@ public class CNContact: NSObject {
         _ = name
         return NSPredicate(value: false)
     }
+    public static func predicateForContacts(matching phoneNumber: CNPhoneNumber) -> NSPredicate {
+        _ = phoneNumber
+        return NSPredicate(value: false)
+    }
 }
 
 public final class CNMutableContact: CNContact {}
@@ -144,8 +149,33 @@ public class CNContactFormatter {
         return parts.joined(separator: " ")
     }
 
+    public static func attributedString(
+        from contact: CNContact,
+        style: CNContactFormatterStyle,
+        defaultAttributes attributes: [NSAttributedString.Key: Any]?
+    ) -> NSAttributedString? {
+        guard let value = string(from: contact, style: style) else { return nil }
+        return NSAttributedString(string: value, attributes: attributes)
+    }
+
     public static func descriptorForRequiredKeys(for style: CNContactFormatterStyle) -> CNKeyDescriptor {
         CNContactGivenNameKey
+    }
+}
+
+public class CNPostalAddressFormatter {
+    public enum Style: Sendable {
+        case mailingAddress
+    }
+
+    public var style: Style = .mailingAddress
+
+    public init() {}
+
+    public func string(from postalAddress: CNPostalAddress) -> String {
+        [postalAddress.street, postalAddress.city, postalAddress.state, postalAddress.postalCode, postalAddress.country]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
     }
 }
 
@@ -233,6 +263,36 @@ public class CNContactStore {
     public func unifiedContact(withIdentifier identifier: String,
                                keysToFetch keys: [CNKeyDescriptor]) throws -> CNContact {
         throw CNError(.dataAccessError)
+    }
+
+    /// Commits a batch of contact mutations. Inert on Linux (no system address
+    /// book): the request's queued add/update/delete operations are dropped and
+    /// the call succeeds. SignalUI: DeleteSystemContactViewController executes a
+    /// delete request here.
+    public func execute(_ saveRequest: CNSaveRequest) throws {
+        _ = saveRequest
+    }
+}
+
+// MARK: - CNSaveRequest
+//
+// Accumulates contact mutations to be committed by CNContactStore.execute(_:).
+// On Linux nothing is persisted (there is no system Contacts store), so the
+// queued operations are recorded but never applied; the type exists so the
+// upstream batch-edit code (DeleteSystemContactViewController) compiles.
+public class CNSaveRequest: NSObject {
+    public override init() { super.init() }
+
+    public func add(_ contact: CNMutableContact, toContainerWithIdentifier identifier: String?) {
+        _ = (contact, identifier)
+    }
+
+    public func update(_ contact: CNMutableContact) {
+        _ = contact
+    }
+
+    public func delete(_ contact: CNMutableContact) {
+        _ = contact
     }
 }
 

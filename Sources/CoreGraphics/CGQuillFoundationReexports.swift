@@ -39,6 +39,7 @@
 @_exported import enum QuillFoundation.CGPathElementType
 @_exported import struct QuillFoundation.CGPathElement
 @_exported import func QuillFoundation.CGColorSpaceCreateDeviceRGB
+@_exported import func QuillFoundation.CGColorSpaceCreateDeviceGray
 // CFTypeRef is canonical in QuillKit — re-export it (don't redeclare, or
 // files that already see QuillKit's via AppKit get an ambiguous lookup).
 @_exported import typealias QuillKit.CFTypeRef

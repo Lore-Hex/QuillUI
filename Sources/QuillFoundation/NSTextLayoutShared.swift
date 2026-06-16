@@ -100,6 +100,8 @@ public extension NSAttributedString.Key {
     static let underlineColor = NSAttributedString.Key(rawValue: "NSUnderlineColor")
     static let strikethroughStyle = NSAttributedString.Key(rawValue: "NSStrikethrough")
     static let strikethroughColor = NSAttributedString.Key(rawValue: "NSStrikethroughColor")
+    static let strokeColor = NSAttributedString.Key(rawValue: "NSStrokeColor")
+    static let strokeWidth = NSAttributedString.Key(rawValue: "NSStrokeWidth")
     static let link = NSAttributedString.Key(rawValue: "NSLink")
     static let attachment = NSAttributedString.Key(rawValue: "NSAttachment")
     static let kern = NSAttributedString.Key(rawValue: "NSKern")

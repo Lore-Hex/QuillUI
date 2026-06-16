@@ -22,7 +22,7 @@ public struct ItalicView<Content: View>: View, PrimitiveView {
 public struct FontWeightView<Content: View>: View, PrimitiveView {
     public typealias Body = Never
     public let content: Content
-    public let weight: FontWeight
+    public let weight: FontWeight?
     public var body: Never { fatalError() }
 }
 
@@ -76,7 +76,7 @@ extension View {
     }
 
     /// Sets the font weight.
-    public func fontWeight(_ weight: FontWeight) -> FontWeightView<Self> {
+    public func fontWeight(_ weight: FontWeight?) -> FontWeightView<Self> {
         FontWeightView(content: self, weight: weight)
     }
 

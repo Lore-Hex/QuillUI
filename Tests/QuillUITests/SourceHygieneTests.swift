@@ -135,6 +135,7 @@ struct SourceHygieneTests {
         let objcLowering = try packageSource("scripts/lower-objc-interop-for-linux.sh")
         let appKitLoweringCall = "\"$(dirname \"$0\")/run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""
         let objcLoweringCall = "\"$(dirname \"$0\")/lower-objc-interop-for-linux.sh\" \"$SOURCE_DIR\""
+        let signalUILowering = try packageSource("scripts/quill-signal-lower-ui.sh")
 
         // No keyboardType(.URL) rewrite. The shim exposes a single canonical
         // keyboardType(_ type: UIKeyboardType), so upstream `.keyboardType(.URL)`
@@ -147,8 +148,56 @@ struct SourceHygieneTests {
         #expect(lowering.contains(objcLoweringCall))
         #expect((lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: objcLoweringCall)?.lowerBound ?? lowering.startIndex))
         #expect(objcLowering.contains("lower_foundation_bridge_casts"))
-        #expect(objcLowering.contains("lowered = lowered.replace(\" as CFDictionary\", \"\")"))
-        #expect(objcLowering.contains("lowered = lowered.replace(\" as CFString\", \"\")"))
+        #expect(objcLowering.contains("for cf_type in (\"CFDictionary\", \"CFString\", \"CFURL\", \"CFData\", \"CFMutableData\", \"CFArray\")"))
+        #expect(objcLowering.contains("lowered = re.sub(rf\"\\bnil\\s+as\\s+{cf_type}\\?\", \"nil\", lowered)"))
+        #expect(objcLowering.contains("lowered = lowered.replace(f\" as {cf_type}\", \"\")"))
+        #expect(signalUILowering.contains("Sources/SignalUIObjCPort"))
+        #expect(signalUILowering.contains("QuillPort"))
+    }
+
+    @Test("Objective-C interop lowering removes CoreFoundation bridge casts without nil question marks")
+    func objectiveCInteropLoweringRemovesCoreFoundationBridgeCastsWithoutNilQuestionMarks() throws {
+        let root = try packageRoot()
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quillui-objc-lowering-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        let sourceURL = temporaryDirectory.appendingPathComponent("BridgeCasts.swift")
+        try """
+        import ImageIO
+
+        let optionalOptions = nil as CFDictionary?
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        let thumbnailOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: 200,
+        ] as [CFString: Any] as CFDictionary
+        let metadataKeys: [CFString] = ["tiff:Orientation" as CFString]
+        let source = CGImageSourceCreateWithData(Data() as CFData, nil)
+        let destination = CGImageDestinationCreateWithData(NSMutableData() as CFMutableData, "public.png" as CFString, 1, nil)
+        let urlSource = CGImageSourceCreateWithURL(URL(fileURLWithPath: "/tmp/a.png") as CFURL, nil)
+        let maybeName = "example" as CFString?
+        let maybeNilName = nil as CFString?
+        """.write(to: sourceURL, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["bash", root.appendingPathComponent("scripts/lower-objc-interop-for-linux.sh").path, temporaryDirectory.path]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let lowered = try String(contentsOf: sourceURL, encoding: .utf8)
+        #expect(lowered.contains("let optionalOptions = nil"))
+        #expect(lowered.contains("let options = [kCGImageSourceShouldCache: false]"))
+        #expect(lowered.contains("] as [String: Any]"))
+        #expect(lowered.contains("let metadataKeys: [String] = [\"tiff:Orientation\"]"))
+        #expect(lowered.contains("CGImageSourceCreateWithData(Data(), nil)"))
+        #expect(lowered.contains("CGImageDestinationCreateWithData(NSMutableData(), \"public.png\", 1, nil)"))
+        #expect(lowered.contains("CGImageSourceCreateWithURL(URL(fileURLWithPath: \"/tmp/a.png\"), nil)"))
+        #expect(lowered.contains("let maybeName = \"example\""))
+        #expect(lowered.contains("let maybeNilName = nil"))
+        #expect(!lowered.contains("nil?"))
     }
 
     @Test("GTK manifest filters pkg-config prohibited flag warnings")

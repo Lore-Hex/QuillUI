@@ -29,6 +29,52 @@ public final class PHPhotoLibrary: @unchecked Sendable {
         _ = accessLevel
         return .authorized
     }
+
+    public func performChanges(_ changeBlock: () -> Void) async throws {
+        changeBlock()
+    }
+}
+
+public final class PHObjectPlaceholder: Hashable, Sendable {
+    public let localIdentifier: String
+
+    public init(localIdentifier: String = UUID().uuidString) {
+        self.localIdentifier = localIdentifier
+    }
+
+    public static func == (lhs: PHObjectPlaceholder, rhs: PHObjectPlaceholder) -> Bool {
+        lhs.localIdentifier == rhs.localIdentifier
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(localIdentifier)
+    }
+}
+
+public final class PHAssetCreationRequest: @unchecked Sendable {
+    public let placeholderForCreatedAsset: PHObjectPlaceholder?
+
+    private init() {
+        placeholderForCreatedAsset = PHObjectPlaceholder()
+    }
+
+    @discardableResult
+    public static func creationRequestForAsset(from image: UIImage) -> PHAssetCreationRequest {
+        _ = image
+        return PHAssetCreationRequest()
+    }
+
+    @discardableResult
+    public static func creationRequestForAssetFromImage(atFileURL fileURL: URL) -> PHAssetCreationRequest? {
+        _ = fileURL
+        return PHAssetCreationRequest()
+    }
+
+    @discardableResult
+    public static func creationRequestForAssetFromVideo(atFileURL fileURL: URL) -> PHAssetCreationRequest? {
+        _ = fileURL
+        return PHAssetCreationRequest()
+    }
 }
 
 public enum PHAssetMediaType: Sendable {

@@ -1,5 +1,6 @@
 @_exported import Foundation
 @_exported import Dispatch
+@_exported import SwiftOpenUI
 @_exported import QuillSwiftUICompatibility
 @_exported import UIKit
 @_exported import CoreImage
