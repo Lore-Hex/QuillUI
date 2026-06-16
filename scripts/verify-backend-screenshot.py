@@ -1755,6 +1755,13 @@ def validate_quill_chat_mac_reference_completions_panel(
     )
 
 
+def validate_quill_chat_mac_reference_completions_panel_visible(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference_completions_panel(
+        image,
+        minimum_wordmark_pixels=350,
+    )
+
+
 def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -4330,6 +4337,8 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_settings_delete_confirmation(image))
     elif product == "quill-chat-linux-mac-reference-completions-panel":
         print(validate_quill_chat_mac_reference_completions_panel(image))
+    elif product == "quill-chat-linux-mac-reference-completions-panel-visible":
+        print(validate_quill_chat_mac_reference_completions_panel_visible(image))
     elif product == "quill-chat-linux-mac-reference-completions-new-sheet":
         print(validate_quill_chat_mac_reference_completions_new_sheet(image))
     elif product == "quill-chat-linux-mac-reference-completions-saved":

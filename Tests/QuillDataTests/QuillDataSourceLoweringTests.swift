@@ -684,6 +684,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_SETTLE_SLEEP:-0.2"))
         #expect(interactionScript.contains("for attempt in 1 2 3 4 5 6; do\n    open_quill_chat_completions_panel"))
         #expect(interactionScript.contains("if quill_chat_mac_reference_completions_panel_visible; then\n      return 0\n    fi"))
+        #expect(interactionScript.contains("quill-chat-linux-mac-reference-completions-panel-visible"))
         #expect(interactionScript.contains("Quill Chat completions panel did not open after reset/retry attempts"))
         #expect(interactionScript.contains("return 1"))
         #expect(interactionScript.contains("python3 \"$ROOT_DIR/scripts/verify-backend-screenshot.py\""))
