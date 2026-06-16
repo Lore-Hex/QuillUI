@@ -651,7 +651,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("xdotool key --clearmodifiers Escape"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP"))
         #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}\""))
-        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}\""))
+        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-969}\""))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
         // No capture==root gate on the child-window refresh (smoke sheets
         // present as separate toplevels); IM popups are filtered by the
