@@ -4,6 +4,7 @@ import Testing
 import QuillFoundation
 import UIKit
 
+@Suite("SceneKit renderer", .serialized)
 struct SceneKitRendererTests {
     @Test("Software renderer draws colored sphere pixels")
     func rendersSpherePixels() {
@@ -207,6 +208,56 @@ struct SceneKitRendererTests {
         let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: view.pointOfView)
         #expect(PixelStats(image).nonBlackPixels > 500)
     }
+
+    @MainActor
+    @Test("NSApplication dispatch drives SceneView camera controls")
+    func applicationDispatchDrivesSceneViewCameraControls() {
+        let (scene, cameraNode) = makeCameraControlScene()
+        let view = SceneKitRenderView(frame: CGRect(x: 0, y: 0, width: 160, height: 120))
+        view.scene = scene
+        view.options = [.allowsCameraControl]
+        view.pointOfView = cameraNode
+        view.defaultCameraController.target = SCNVector3(0, 0, 0)
+
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 160, height: 120),
+            styleMask: [],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = view
+        #expect(window.makeFirstResponder(view))
+
+        let app = NSApplication.shared
+        let previousWindows = app.windows
+        let previousKeyWindow = app.keyWindow
+        let previousMainWindow = app.mainWindow
+        let previousCurrentEvent = app.currentEvent
+        defer {
+            app.windows = previousWindows
+            app.keyWindow = previousKeyWindow
+            app.mainWindow = previousMainWindow
+            app.currentEvent = previousCurrentEvent
+        }
+        app.windows = [window]
+        app.keyWindow = window
+        app.mainWindow = window
+
+        app.sendEvent(makeEvent(.leftMouseDown, window: window, location: CGPoint(x: 20, y: 20)))
+        app.sendEvent(makeEvent(.leftMouseDragged, window: window, location: CGPoint(x: 120, y: 60)))
+
+        #expect(view.pointOfView !== cameraNode)
+        #expect(abs(view.pointOfView?.position.x ?? 0) > 0.25)
+
+        let distanceBeforeMagnify = distanceFromOrigin(view.pointOfView?.position ?? SCNVector3(0, 0, 0))
+        let magnify = makeEvent(.magnify, window: window, location: CGPoint(x: 80, y: 60))
+        magnify.magnification = 0.25
+        app.sendEvent(magnify)
+        let distanceAfterMagnify = distanceFromOrigin(view.pointOfView?.position ?? SCNVector3(0, 0, 0))
+
+        #expect(distanceAfterMagnify < distanceBeforeMagnify)
+        #expect(app.currentEvent === magnify)
+    }
     #endif
 
     @Test("Software renderer hit testing returns nearest projected nodes")
@@ -278,6 +329,14 @@ struct SceneKitRendererTests {
 
     private func distanceFromOrigin(_ point: SCNVector3) -> CGFloat {
         (point.x * point.x + point.y * point.y + point.z * point.z).squareRoot()
+    }
+
+    private func makeEvent(_ type: NSEvent.EventType, window: NSWindow, location: CGPoint) -> NSEvent {
+        let event = NSEvent()
+        event.type = type
+        event.window = window
+        event.locationInWindow = location
+        return event
     }
 }
 

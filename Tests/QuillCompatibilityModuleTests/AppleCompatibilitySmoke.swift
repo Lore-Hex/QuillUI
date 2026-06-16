@@ -255,7 +255,9 @@ enum AppleCompatibilitySmoke {
         var rejectedFirstResponderPreservesCurrent: Bool
         var clearingFirstResponderResignsCurrent: Bool
         var applicationSendEventDispatchesToFirstResponder: Bool
+        var applicationSendEventDispatchesMagnifyToFirstResponder: Bool
         var applicationCurrentEventTracksDispatch: Bool
+        var magnifyEventMasksAreAvailable: Bool
         var localEventMonitorCanRewriteEvent: Bool
         var localEventMonitorCanCancelEvent: Bool
         var globalEventMonitorObservesDispatchedEvent: Bool
@@ -1754,6 +1756,15 @@ enum AppleCompatibilitySmoke {
         let applicationSendEventDispatchesToFirstResponder =
             dispatchRecorder.events == ["keyDown"]
         let applicationCurrentEventTracksDispatch = app.currentEvent === dispatchedEvent
+        dispatchRecorder.events.removeAll()
+        app.sendEvent(makeDispatchEvent(type: .magnify))
+        let applicationSendEventDispatchesMagnifyToFirstResponder =
+            dispatchRecorder.events == ["magnify"]
+        let magnifyEventMasksAreAvailable =
+            NSEvent.EventTypeMask.magnify.contains(.magnify) &&
+            NSEvent.EventTypeMask.smartMagnify.contains(.smartMagnify) &&
+            NSEvent.EventTypeMask.any.contains(.magnify) &&
+            NSEvent.EventTypeMask.any.contains(.smartMagnify)
 
         var localEventMonitorCanRewriteEvent = false
         do {
@@ -1833,7 +1844,9 @@ enum AppleCompatibilitySmoke {
             rejectedFirstResponderPreservesCurrent: rejectedFirstResponderPreservesCurrent,
             clearingFirstResponderResignsCurrent: clearingFirstResponderResignsCurrent,
             applicationSendEventDispatchesToFirstResponder: applicationSendEventDispatchesToFirstResponder,
+            applicationSendEventDispatchesMagnifyToFirstResponder: applicationSendEventDispatchesMagnifyToFirstResponder,
             applicationCurrentEventTracksDispatch: applicationCurrentEventTracksDispatch,
+            magnifyEventMasksAreAvailable: magnifyEventMasksAreAvailable,
             localEventMonitorCanRewriteEvent: localEventMonitorCanRewriteEvent,
             localEventMonitorCanCancelEvent: localEventMonitorCanCancelEvent,
             globalEventMonitorObservesDispatchedEvent: globalEventMonitorObservesDispatchedEvent,
@@ -2676,6 +2689,10 @@ private final class EventRecorderResponder: NSResponder {
 
     override func scrollWheel(with event: NSEvent) {
         events.append("scrollWheel")
+    }
+
+    override func magnify(with event: NSEvent) {
+        events.append("magnify")
     }
 }
 

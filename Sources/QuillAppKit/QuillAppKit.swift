@@ -2070,8 +2070,17 @@ open class NSApplication: NSResponder, @unchecked Sendable {
             responder.flagsChanged(with: event)
         case .scrollWheel:
             responder.scrollWheel(with: event)
-        case .mouseEntered, .mouseExited, .appKitDefined, .systemDefined,
-             .applicationDefined, .periodic, .cursorUpdate, .magnify, .smartMagnify:
+        case .mouseEntered:
+            responder.mouseEntered(with: event)
+        case .mouseExited:
+            responder.mouseExited(with: event)
+        case .cursorUpdate:
+            responder.cursorUpdate(with: event)
+        case .magnify:
+            responder.magnify(with: event)
+        case .smartMagnify:
+            responder.smartMagnify(with: event)
+        case .appKitDefined, .systemDefined, .applicationDefined, .periodic:
             break
         }
     }
@@ -2170,6 +2179,8 @@ open class NSEvent: NSObject, @unchecked Sendable {
         public static let periodic = mask(.periodic)
         public static let cursorUpdate = mask(.cursorUpdate)
         public static let scrollWheel = mask(.scrollWheel)
+        public static let magnify = mask(.magnify)
+        public static let smartMagnify = mask(.smartMagnify)
         public static let any = EventTypeMask(rawValue: UInt64.max)
     }
     public var type: EventType = .keyDown
