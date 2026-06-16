@@ -1,14 +1,6 @@
 //
-// QuillUI Linux shim for Apple's `AuthenticationServices` (the ASWebAuthentication
-// subset SignalServiceKit's PayPal donation flow uses).
-//
-// ASWebAuthenticationSession drives an OAuth-style web flow in a system browser
-// sheet. There's no such sheet on Linux, so this is INERT: `start()` returns
-// false (the session never begins) and the completion handler never fires. PayPal
-// donations via the web-auth flow are therefore UNAVAILABLE on Linux. HONEST
-// STATUS: the web-auth session never starts.
-//
 import Foundation
+import QuillKit
 
 /// On Apple this is `UIWindow` / `NSWindow`; here an opaque anchor (SSK only
 /// references the providing protocol, it doesn't construct an anchor).
@@ -26,12 +18,130 @@ public final class ASWebAuthenticationSession: @unchecked Sendable {
     public weak var presentationContextProvider: ASWebAuthenticationPresentationContextProviding?
     public var prefersEphemeralWebBrowserSession: Bool = false
 
-    public init(url: URL, callbackURLScheme: String?, completionHandler: @escaping CompletionHandler) {}
+    private let url: URL
+    private let callbackURLScheme: String?
+    private let completionHandler: CompletionHandler
+    private let lock = NSLock()
+    private var active = false
+    private var completed = false
 
-    /// Inert: no system web-auth sheet on Linux -> the session never starts and
-    /// the completion handler is never invoked.
-    @discardableResult public func start() -> Bool { false }
-    public func cancel() {}
+    public init(url: URL, callbackURLScheme: String?, completionHandler: @escaping CompletionHandler) {
+        self.url = url
+        self.callbackURLScheme = callbackURLScheme?.lowercased()
+        self.completionHandler = completionHandler
+    }
+
+    /// Starts a Linux desktop OAuth flow by opening the authorization URL via
+    /// QuillKit's shared workspace opener. A desktop URL-scheme bridge can later
+    /// deliver the callback with `handleCallbackURL(_:)`; tests/headless smokes
+    /// may set `QUILLUI_WEB_AUTH_CALLBACK_URL` to inject that callback
+    /// deterministically.
+    @discardableResult public func start() -> Bool {
+        let shouldStart = lock.withLock { () -> Bool in
+            guard !completed, !active else {
+                return false
+            }
+            active = true
+            return true
+        }
+        guard shouldStart else {
+            return false
+        }
+
+        Self.register(self)
+
+        if let injected = Self.injectedCallbackURL(matching: callbackURLScheme) {
+            complete(callbackURL: injected, error: nil)
+            return true
+        }
+
+        if QuillWorkspace.open(url) {
+            return true
+        }
+
+        Self.unregister(self)
+        lock.withLock {
+            active = false
+        }
+        return false
+    }
+
+    public func cancel() {
+        complete(
+            callbackURL: nil,
+            error: ASWebAuthenticationSessionError(code: .canceledLogin)
+        )
+    }
+
+    @discardableResult
+    public static func handleCallbackURL(_ url: URL) -> Bool {
+        guard let session = registry.lock.withLock({
+            registry.sessions.reversed().first { $0.acceptsCallbackURL(url) }
+        }) else {
+            return false
+        }
+        return session.complete(callbackURL: url, error: nil)
+    }
+
+    private func acceptsCallbackURL(_ url: URL) -> Bool {
+        let isActive = lock.withLock { active }
+        guard let callbackURLScheme else {
+            return isActive
+        }
+        return isActive && url.scheme?.lowercased() == callbackURLScheme
+    }
+
+    @discardableResult
+    private func complete(callbackURL: URL?, error: (any Error)?) -> Bool {
+        let shouldComplete = lock.withLock { () -> Bool in
+            guard !completed else {
+                return false
+            }
+            completed = true
+            active = false
+            return true
+        }
+        guard shouldComplete else {
+            return false
+        }
+
+        Self.unregister(self)
+        completionHandler(callbackURL, error)
+        return true
+    }
+
+    private static func injectedCallbackURL(matching callbackURLScheme: String?) -> URL? {
+        guard
+            let raw = ProcessInfo.processInfo.environment["QUILLUI_WEB_AUTH_CALLBACK_URL"],
+            let url = URL(string: raw)
+        else {
+            return nil
+        }
+
+        guard let callbackURLScheme else {
+            return url
+        }
+        return url.scheme?.lowercased() == callbackURLScheme ? url : nil
+    }
+
+    private static func register(_ session: ASWebAuthenticationSession) {
+        registry.lock.withLock {
+            registry.sessions.append(session)
+        }
+    }
+
+    private static func unregister(_ session: ASWebAuthenticationSession) {
+        registry.lock.withLock {
+            registry.sessions.removeAll { $0 === session }
+        }
+    }
+
+    private final class Registry: @unchecked Sendable {
+        let lock = NSLock()
+        var sessions: [ASWebAuthenticationSession] = []
+    }
+
+    private static let registry = Registry()
 }
 
 public struct ASWebAuthenticationSessionError: Error {

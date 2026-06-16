@@ -60,8 +60,10 @@ estimates, not release claims.
 
 ## P1 Apple Service Shims
 
-- [ ] `AuthenticationServices` / web auth session: open browser, receive
-      callback, return URL.
+- [x] `AuthenticationServices` / web auth session: open browser through the
+      shared Linux URL opener, receive a delivered callback URL, and return it
+      through SwiftUI's async `webAuthenticationSession` action.
+- [ ] Desktop URL-scheme registration and secure OAuth/session storage.
 - [ ] `UserNotifications`: desktop notification delivery through a Linux
       notification backend instead of dropping requests.
 - [ ] `ImageIO` / `UIImage` / `UIGraphicsImageRenderer`: real decode,

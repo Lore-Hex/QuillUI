@@ -430,6 +430,7 @@ products += [
     .library(name: "QuickLook", targets: ["QuickLook"]),
     .library(name: "FoundationModels", targets: ["FoundationModels"]),
     .library(name: "Speech", targets: ["Speech"]),
+    .library(name: "AuthenticationServices", targets: ["AuthenticationServices"]),
     .library(name: "ApplicationServices", targets: ["ApplicationServices"]),
     .library(name: "ServiceManagement", targets: ["ServiceManagement"]),
     .library(name: "Alamofire", targets: ["Alamofire"]),
@@ -728,7 +729,8 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "ButtonKit", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
-    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "CloudKit", "KeychainSwift"
+    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "CloudKit", "KeychainSwift",
+    "AuthenticationServices"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
     // "SwiftUI" comes from quillLinuxShimTestDependencies; keep it in that
@@ -905,8 +907,8 @@ let swiftUIShadowMountSwiftSettings: [SwiftSetting] = {
 // the qt-generic path keeps QuillUI out of the shadow's closure.
 let swiftUIShadowCoreDependencies: [Target.Dependency] =
     quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled
-        ? ["QuillSwiftUICompatibility", "AppKit", "Combine"]
-        : ["QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine"]
+        ? ["QuillSwiftUICompatibility", "AppKit", "Combine", "AuthenticationServices"]
+        : ["QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine", "AuthenticationServices"]
 #endif
 
 let quillDataMacroTarget: Target = .macro(
@@ -2313,6 +2315,8 @@ for shimName in signalAppleFrameworkShims {
     switch shimName {
     case "AudioToolbox", "UserNotifications", "CloudKit":
         dependencies = ["QuillFoundation", "QuillKit"]
+    case "AuthenticationServices":
+        dependencies = ["QuillKit"]
     case "CoreMedia":
         dependencies = ["QuillFoundation", "CoreVideo", "AudioToolbox"]
     case "CoreImage":
@@ -2887,6 +2891,7 @@ targets.append(contentsOf: [
         // representables there until the Qt mount exists).
         dependencies: [
             "QuillSwiftUICompatibility", "AppKit", "UIKit", "CoreImage", "CoreTransferable", "Combine",
+            "AuthenticationServices",
         ] + swiftUIShadowMountDependencies,
         path: "Sources/SwiftUIShim",
         // v5 + minimal concurrency matches the house settings (the GTK mount

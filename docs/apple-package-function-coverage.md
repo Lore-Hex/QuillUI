@@ -302,16 +302,17 @@ The Linux `WebKit` product re-exports `QuillShims`; WebKit behavior is in
 
 ## AuthenticationServices
 
-The Linux `AuthenticationServices` product re-exports `QuillShims`; the usable
-subset lives in `QuillUIKit`.
+The Linux `AuthenticationServices` product provides the shared web-auth session
+surface used by SwiftUI's `webAuthenticationSession` environment action.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `ASWebAuthenticationSession.init(url:callbackURLScheme:completionHandler:)` | Compile-only | Stores shape only; callback is not driven by a browser flow. |
-| `ASWebAuthenticationSession.start()` | Fallback | Returns true without performing authentication. |
-| `ASWebAuthenticationSession.cancel()` | Compile-only | No-op. |
+| `ASWebAuthenticationSession.init(url:callbackURLScheme:completionHandler:)` | Partial-real | Stores the authorization URL, callback scheme, and completion handler. |
+| `ASWebAuthenticationSession.start()` | Partial-real | Opens the authorization URL through QuillKit's shared Linux URL opener and keeps the session active for callback delivery. |
+| `ASWebAuthenticationSession.cancel()` | Partial-real | Completes active sessions with `canceledLogin`. |
+| `ASWebAuthenticationSession.handleCallbackURL(_:)` | Partial-real | QuillUI Linux extension that lets desktop URL-scheme plumbing or tests deliver OAuth callback URLs to the active session. |
 | `ASWebAuthenticationPresentationContextProviding.presentationAnchor(for:)` | Compile-only | Protocol shape only. |
-| Real browser authentication, callback URL handling, secure session storage | Incomplete | Required for AuthenticationServices Parity. |
+| Desktop URL-scheme registration and secure session storage | Incomplete | Required for full AuthenticationServices parity. |
 
 ## UniformTypeIdentifiers
 

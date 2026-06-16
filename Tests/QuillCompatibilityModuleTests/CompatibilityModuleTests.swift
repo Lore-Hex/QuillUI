@@ -22,6 +22,7 @@ import AsyncAlgorithms
 import Carbon
 import CoreSpotlight
 import CloudKit
+import AuthenticationServices
 // Scoped: the AppKit shadow supplies kUTTypeData (upstream Telegram pairs
 // `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
 // `import AppKit` here would collide with the UIKit shim surface.
@@ -2323,6 +2324,82 @@ struct CompatibilityModuleTests {
         // Returning false from the handler propagates.
         let rejecting = OpenURLAction { _ in false }
         #expect(rejecting(URL(string: "https://example.com")!) == .discarded)
+    }
+
+    // MARK: - AuthenticationServices web auth
+
+    @Test("ASWebAuthenticationSession opens URL and accepts matching callback")
+    func webAuthenticationSessionStartsAndHandlesCallback() {
+        let opened = QuillTestBox<[URL]>([])
+        QuillWorkspace.installOpenBackend(.init(name: "test-open") { url in
+            opened.value?.append(url)
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        let authURL = URL(string: "https://mastodon.social/oauth/authorize?client_id=quill")!
+        let callbackURL = URL(string: "icecubesapp://oauth?code=abc123")!
+        let completed = QuillTestBox<(URL?, (any Error)?)>()
+
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "icecubesapp") { url, error in
+            completed.value = (url, error)
+        }
+
+        #expect(session.start())
+        #expect(opened.value == [authURL])
+        #expect(ASWebAuthenticationSession.handleCallbackURL(callbackURL))
+        #expect(completed.value?.0 == callbackURL)
+        #expect(completed.value?.1 == nil)
+        #expect(!ASWebAuthenticationSession.handleCallbackURL(callbackURL))
+    }
+
+    @Test("ASWebAuthenticationSession ignores wrong schemes and reports cancellation")
+    func webAuthenticationSessionCancelReportsCanceledLogin() {
+        QuillWorkspace.installOpenBackend(.init(name: "test-open") { _ in true })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        let authURL = URL(string: "https://mastodon.social/oauth/authorize")!
+        let wrongURL = URL(string: "otherapp://oauth?code=abc123")!
+        let completed = QuillTestBox<(URL?, (any Error)?)>()
+
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "icecubesapp") { url, error in
+            completed.value = (url, error)
+        }
+
+        #expect(session.start())
+        #expect(!ASWebAuthenticationSession.handleCallbackURL(wrongURL))
+        session.cancel()
+
+        let error = completed.value?.1 as? ASWebAuthenticationSessionError
+        #expect(completed.value?.0 == nil)
+        #expect(error?.code.rawValue == ASWebAuthenticationSessionError.Code.canceledLogin.rawValue)
+    }
+
+    @Test("SwiftUI webAuthenticationSession action awaits AS callback")
+    func webAuthenticationSessionActionReturnsCallback() async throws {
+        QuillWorkspace.installOpenBackend(.init(name: "test-open") { _ in true })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        let authURL = URL(string: "https://mastodon.social/oauth/authorize")!
+        let callbackURL = URL(string: "icecubesapp://oauth?code=async")!
+        let action = WebAuthenticationSessionAction()
+
+        let task = Task {
+            try await action.authenticate(using: authURL, callbackURLScheme: "icecubesapp")
+        }
+
+        var delivered = false
+        for _ in 0..<50 {
+            if ASWebAuthenticationSession.handleCallbackURL(callbackURL) {
+                delivered = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(delivered)
+        let result = try await task.value
+        #expect(result == callbackURL)
     }
 
     // MARK: - QuillMenuAction divider + disabled semantics

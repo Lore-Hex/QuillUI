@@ -138,12 +138,21 @@
             <td>8</td>
         </tr>
         <tr>
+            <td><a href="#cloudkit">CloudKit</a></td>
+            <td>6</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>2</td>
+            <td>3</td>
+        </tr>
+        <tr>
             <td><a href="#appkit">AppKit</a></td>
             <td>92</td>
             <td>0</td>
             <td>21</td>
-            <td>36</td>
-            <td>20</td>
+            <td>37</td>
+            <td>19</td>
             <td>15</td>
         </tr>
         <tr>
@@ -166,12 +175,12 @@
         </tr>
         <tr>
             <td><a href="#authenticationservices">AuthenticationServices</a></td>
-            <td>5</td>
+            <td>6</td>
+            <td>0</td>
             <td>0</td>
             <td>0</td>
             <td>0</td>
             <td>1</td>
-            <td>3</td>
         </tr>
         <tr>
             <td><a href="#uniformtypeidentifiers">UniformTypeIdentifiers</a></td>
@@ -375,8 +384,8 @@
             <td><a href="#third-party-and-app-support-package-clones">Third-Party and App-Support Package Clones</a></td>
             <td>111</td>
             <td>1</td>
-            <td>48</td>
-            <td>13</td>
+            <td>49</td>
+            <td>12</td>
             <td>10</td>
             <td>11</td>
         </tr>
@@ -451,6 +460,7 @@
 <tr><td><code>UniformTypeIdentifiers</code></td><td>App-facing known extension lookup, conforming known extension lookup, common static types, local conformance checks, and preferred extension/MIME metadata for known identifiers.</td><td>Identifier parsing remains partial; system registry lookup, dynamic/exported/imported types, tag classes, synthesized dynamic identifiers for unknown extensions, and the full conformance graph need parity work.</td></tr>
 <tr><td><code>Network</code></td><td><code>IPv4Address</code>, <code>IPv6Address</code>, <code>NWPathMonitor</code> initial <code>currentPath</code> and pre-start <code>cancel()</code>, <code>NWPath.Status</code>, <code>NWPath.UnsatisfiedReason</code>, <code>NWPath.supportsIPv4</code>, <code>NWPath.supportsIPv6</code>, <code>NWPath.supportsDNS</code>, <code>NWPath.usesInterfaceType(_:)</code>, <code>NWInterface.InterfaceType</code>, <code>NWInterface</code> values returned by scoped address/host parsing, <code>NWEndpoint.Port</code> parsing/known constants/properties/debug text/equality/hash behavior, scoped and unscoped <code>NWEndpoint.Host.init(_:)</code> classification/description/equality/hash behavior, common <code>NWEndpoint</code> host-port/service/Unix path value descriptions, equality, hashing, <code>NWError.posix(_:)</code>, <code>.dns(_:)</code>, <code>.tls(_:)</code>, equality, debug/describing/reflecting/localized text, <code>NWProtocolTCP.Options</code> constructor/default/getter/setter surface, <code>NWProtocolUDP.Options.preferNoChecksum</code>, <code>NWProtocolTLS.Options</code>, <code>NWProtocolOptions</code>, <code>NWParameters.defaultProtocolStack</code>, <code>NWParameters.ProtocolStack</code>, <code>NWProtocolIP.Options</code>, IP option enums, <code>NWParameters.tcp</code>, <code>.udp</code>, <code>.tls</code>, <code>.dtls</code>, <code>NWParameters.init(tls:tcp:)</code>, <code>init(dtls:udp:)</code>, <code>NWParameters.Attribution</code>, <code>ExpiredDNSBehavior</code>, <code>MultipathServiceType</code>, <code>ServiceClass</code>, parameter policy setters/defaults, and <code>NWParameters</code> debug/string text now have Apple-checked <code>Parity</code> rows for current tested contracts. <code>NWPathMonitor.start(queue:)</code> is <code>Usable</code> for a Linux one-shot current-interface snapshot. <code>NetworkPathInterfaceParityTests</code> pins the path monitor pre-start state, pre-start cancel state, path helper-query results, path/interface enum string, resolved scoped interface value, Linux start snapshot consistency, equality, and hash contracts. <code>NetworkIPAddressParityTests</code> captures the IPv4/IPv6 parser, legacy IPv4 single-component wrapping, dotted octal/hex IPv4 edge cases, data length, classifier-boundary, multicast-scope, IPv4 mapping, empty/unresolved IPv6 scope fallback, string, debug-output, address equality/hash, and <code>IPv6Address.Scope</code> raw-value edge matrix observed on Apple Network. <code>NetworkEndpointPortParityTests</code> now covers port parser, constant, equality, and hash semantics. <code>NetworkEndpointHostParityTests</code> now covers scoped parsed-to-direct host equality/hash, empty/unresolved/malformed scope fallback classification, scoped host-port endpoint equality/hash, and endpoint value text. <code>NetworkErrorParityTests</code> covers <code>NWError</code> Sendable/Equatable value surface, Darwin POSIX payload text for common network failures, DNS/TLS payload text, Apple localizedDescription formatting, and the intentionally non-Hashable protocol shape. <code>NetworkParametersParityTests</code> covers parameter and protocol option constructor/value text, TCP Bool/Int option defaults and setters, UDP checksum-preference defaults and setters, fresh reference identity, Sendable surface, protocol-stack/default-stack/IP option value surfaces, policy enum text, defaults, setter normalization, local endpoint debug formatting, and Apple-matched traffic/multipath/proxy/DNSSEC debug segments.</td><td>Continuous live path monitoring, exact Apple path/DNS policy flags, synthetic constructed interfaces, connections, listeners, DNS/TLS transport behavior, UDP/TCP socket behavior, IP packet/socket option effects, and NetworkExtension VPN behavior are incomplete or fallback-only.</td></tr>
 <tr><td><code>NetworkExtension</code></td><td>None yet beyond compile/fallback shapes.</td><td>Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete.</td></tr>
+<tr><td><code>CloudKit</code></td><td><code>import CloudKit</code>, <code>CKContainer.default()</code>, <code>CKContainer.accountStatus</code>, <code>CKDatabase.save</code>, <code>fetch</code>, <code>delete</code>, <code>perform</code>, <code>CKRecord</code>, record zones, queries, subscriptions, account status, and common error codes compile with explicit unavailable diagnostics.</td><td>No iCloud account integration, entitlements, CloudKit Web Services authentication, sync, server change tokens, push subscriptions, conflict resolution, or production OpenCloudKit adapter is wired yet.</td></tr>
 <tr><td><code>CoreGraphics</code></td><td>None yet beyond compile/fallback shapes.</td><td>Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete.</td></tr>
 <tr><td><code>Security</code></td><td><code>SecRandomCopyBytes</code>, process-local <code>SecKeyCreateWithData</code>, <code>SecKeyCreateRandomKey</code>, <code>SecKeyGeneratePair</code>, <code>SecKeyCopyPublicKey</code>, <code>SecKeyGetBlockSize</code>, <code>SecKeyCopyAttributes</code>, <code>SecKeyCopyExternalRepresentation</code>, metadata-gated <code>SecKeyIsAlgorithmSupported</code>, deterministic ECDSA message/digest <code>SecKeyCreateSignature</code> and <code>SecKeyVerifySignature</code> compatibility, deterministic symmetric ECDH <code>SecKeyCopyKeyExchangeResult</code> compatibility, key-exchange parameter constants, synthesized <code>SecKey</code> references, <code>SecItemAdd</code>, <code>SecItemCopyMatching</code>, <code>SecItemUpdate</code>, <code>SecItemDelete</code> generic-password, internet-password, and key-class rows, persistent-reference returns/lookups/deletes, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, <code>kSecAttrSynchronizableAny</code>, server/security-domain/protocol/authentication/port/path endpoint identity, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and current keychain constants.</td><td>Native secure keychain persistence/access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete.</td></tr>
 <tr><td><code>AVFoundation</code> / <code>AVKit</code></td><td>Speech synthesis lifecycle callback fallback.</td><td>Audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete.</td></tr>
@@ -527,6 +537,27 @@
 <tr><td><code>SortDescriptor.init(_:order:)</code></td><td>Partial</td><td>Stores key-path/order metadata for supported fetches.</td></tr>
 <tr><td>SQLite snapshot helpers</td><td>Compile-only</td><td>Present as zero/no-op stubs.</td></tr>
 <tr><td>Migrations, relationships, undo, CloudKit, rich schema constraints, full predicate lowering</td><td>Incomplete</td><td>Required for SwiftData Parity.</td></tr>
+</table>
+<br>
+<h2 id="cloudkit">CloudKit</h2>
+<br>
+<p>The Linux <code>CloudKit</code> product is a QuillUI shim that exposes common</p>
+<p>CloudKit-shaped types while every networked operation reports unavailable.</p>
+<p>OpenCloudKit (<code>https://github.com/cocologics/OpenCloudKit</code>) is the documented</p>
+<p>candidate backend because it is an MIT Swift wrapper around CloudKit Web</p>
+<p>Services with a Linux OpenSSL dependency path. QuillUI does not link it by</p>
+<p>default yet; the next implementation step is an adapter that maps</p>
+<p><code>CKContainer</code>/<code>CKDatabase</code> calls to OpenCloudKit after configuration and</p>
+<p>authentication are represented in QuillKit.</p>
+<br>
+<table>
+<tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>import CloudKit</code></td><td>Compile-only</td><td>Linux product resolves to <code>Sources/AppleFrameworkShims/CloudKit</code>.</td></tr>
+<tr><td><code>CKContainer.default()</code> / <code>CKContainer(identifier:)</code></td><td>Compile-only</td><td>Creates local container objects with public/private/shared database handles.</td></tr>
+<tr><td><code>CKContainer.accountStatus(completionHandler:)</code></td><td>Fallback</td><td>Returns <code>.couldNotDetermine</code> with <code>CKError(.serviceUnavailable)</code> and records an OpenCloudKit diagnostic.</td></tr>
+<tr><td><code>CKDatabase.save</code>, <code>fetch</code>, <code>delete</code>, <code>perform</code>, subscription save</td><td>Fallback</td><td>Completion handlers are called synchronously with <code>CKError(.serviceUnavailable)</code>.</td></tr>
+<tr><td><code>CKRecord</code>, <code>CKRecord.ID</code>, <code>CKRecordZone.ID</code>, <code>CKAsset</code>, <code>CKQuery</code>, subscriptions</td><td>Compile-only</td><td>Value surface for app source compatibility; no remote persistence yet.</td></tr>
+<tr><td>iCloud account, entitlements, CloudKit Web Services auth, sync, push, conflicts</td><td>Incomplete</td><td>Requires the OpenCloudKit adapter and app-configurable credentials.</td></tr>
 </table>
 <br>
 <h2 id="appkit">AppKit</h2>
@@ -690,16 +721,17 @@
 <br>
 <h2 id="authenticationservices">AuthenticationServices</h2>
 <br>
-<p>The Linux <code>AuthenticationServices</code> product re-exports <code>QuillShims</code>; the usable</p>
-<p>subset lives in <code>QuillUIKit</code>.</p>
+<p>The Linux <code>AuthenticationServices</code> product provides the shared web-auth session</p>
+<p>surface used by SwiftUI's <code>webAuthenticationSession</code> environment action.</p>
 <br>
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
-<tr><td><code>ASWebAuthenticationSession.init(url:callbackURLScheme:completionHandler:)</code></td><td>Compile-only</td><td>Stores shape only; callback is not driven by a browser flow.</td></tr>
-<tr><td><code>ASWebAuthenticationSession.start()</code></td><td>Fallback</td><td>Returns true without performing authentication.</td></tr>
-<tr><td><code>ASWebAuthenticationSession.cancel()</code></td><td>Compile-only</td><td>No-op.</td></tr>
+<tr><td><code>ASWebAuthenticationSession.init(url:callbackURLScheme:completionHandler:)</code></td><td>Partial-real</td><td>Stores the authorization URL, callback scheme, and completion handler.</td></tr>
+<tr><td><code>ASWebAuthenticationSession.start()</code></td><td>Partial-real</td><td>Opens the authorization URL through QuillKit's shared Linux URL opener and keeps the session active for callback delivery.</td></tr>
+<tr><td><code>ASWebAuthenticationSession.cancel()</code></td><td>Partial-real</td><td>Completes active sessions with <code>canceledLogin</code>.</td></tr>
+<tr><td><code>ASWebAuthenticationSession.handleCallbackURL(_:)</code></td><td>Partial-real</td><td>QuillUI Linux extension that lets desktop URL-scheme plumbing or tests deliver OAuth callback URLs to the active session.</td></tr>
 <tr><td><code>ASWebAuthenticationPresentationContextProviding.presentationAnchor(for:)</code></td><td>Compile-only</td><td>Protocol shape only.</td></tr>
-<tr><td>Real browser authentication, callback URL handling, secure session storage</td><td>Incomplete</td><td>Required for AuthenticationServices Parity.</td></tr>
+<tr><td>Desktop URL-scheme registration and secure session storage</td><td>Incomplete</td><td>Required for full AuthenticationServices parity.</td></tr>
 </table>
 <br>
 <h2 id="uniformtypeidentifiers">UniformTypeIdentifiers</h2>

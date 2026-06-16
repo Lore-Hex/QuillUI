@@ -1,3 +1,4 @@
+import AuthenticationServices
 import CoreTransferable
 import QuillSwiftUICompatibility
 import SwiftOpenUI
@@ -19,10 +20,29 @@ public struct WebAuthenticationSessionAction: Sendable {
     public init() {}
 
     public func authenticate(using url: URL, callbackURLScheme: String?) async throws -> URL {
-        _ = url
-        _ = callbackURLScheme
-        throw URLError(.userAuthenticationRequired)
+        try await withCheckedThrowingContinuation { continuation in
+            let holder = QuillWebAuthenticationSessionHolder()
+            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: callbackURLScheme) { callbackURL, error in
+                holder.session = nil
+                if let callbackURL {
+                    continuation.resume(returning: callbackURL)
+                } else {
+                    continuation.resume(throwing: error ?? URLError(.userAuthenticationRequired))
+                }
+            }
+            holder.session = session
+
+            guard session.start() else {
+                holder.session = nil
+                continuation.resume(throwing: URLError(.userAuthenticationRequired))
+                return
+            }
+        }
     }
+}
+
+private final class QuillWebAuthenticationSessionHolder: @unchecked Sendable {
+    var session: ASWebAuthenticationSession?
 }
 
 private struct WebAuthenticationSessionKey: EnvironmentKey {
