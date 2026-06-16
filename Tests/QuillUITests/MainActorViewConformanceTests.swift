@@ -85,10 +85,32 @@ struct MainActorViewConformanceTests {
     }
 
     private func isViewStructDeclaration(_ line: String) -> Bool {
-        line.contains(":")
-            && line.contains("View")
-            && !line.contains(": App")
-            && !line.contains("ViewModifier")
+        guard let conformanceClause = topLevelConformanceClause(in: line) else {
+            return false
+        }
+        let tokens = conformanceClause.split { character in
+            !(character.isLetter || character.isNumber || character == "_")
+        }
+        return tokens.contains("View")
+            && !tokens.contains("App")
+            && !tokens.contains("ViewModifier")
+    }
+
+    private func topLevelConformanceClause(in line: String) -> Substring? {
+        var genericDepth = 0
+        for index in line.indices {
+            switch line[index] {
+            case "<":
+                genericDepth += 1
+            case ">":
+                genericDepth = max(0, genericDepth - 1)
+            case ":" where genericDepth == 0:
+                return line[line.index(after: index)...]
+            default:
+                continue
+            }
+        }
+        return nil
     }
 
     private func findBodyWitness(after declarationIndex: Int, in lines: [String]) -> (index: Int, line: Int, text: String)? {

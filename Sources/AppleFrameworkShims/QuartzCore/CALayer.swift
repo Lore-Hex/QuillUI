@@ -63,7 +63,7 @@ public protocol CAMediaTiming {
 
 // MARK: - CAAction
 
-@MainActor public protocol CAAction {
+public protocol CAAction {
     func run(forKey event: String, object anObject: Any, arguments dict: [AnyHashable: Any]?)
 }
 
@@ -160,7 +160,7 @@ public struct CACornerMask: OptionSet, Sendable {
 
 // MARK: - CALayer
 
-@MainActor open class CALayer: NSObject, @preconcurrency CAMediaTiming {
+open class CALayer: NSObject, @preconcurrency CAMediaTiming {
 
     // MARK: Initializers
 

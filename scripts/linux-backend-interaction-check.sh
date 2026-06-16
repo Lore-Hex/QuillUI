@@ -557,37 +557,18 @@ open_quill_chat_completions_panel() {
   local reset_before_open="${1:-0}"
   local click_x
   local click_y
-  local reset_x
-  local reset_y
-  local reset_cancel_x
-  local reset_cancel_y
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    # Enchanted persists the selected sidebar utility across relaunches. In the
-    # CI mode sequence, completions-save can leave "Completions" selected but
-    # without the overlay open; clicking the already-selected row is then a no-op.
-    # Select Settings first so the following Completions click is never a no-op.
-    # A history-row reset does not clear the selected utility, and source-built
-    # CI can keep Completions selected across a new-chat toolbar click.
+    # Enchanted presents Completions from a sidebar toggle. Packaged GTK can
+    # sometimes keep the toggle logically true after the sheet has disappeared;
+    # the next click clears that stale true state and a later click opens the
+    # sheet. The caller verifies visibility and repeats, so keep this primitive
+    # scoped to the Completions button instead of routing through Settings.
     click_x="${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_completions_click_x)}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_completions_click_y)}"
     if [[ "$reset_before_open" == "1" ]]; then
-      reset_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-$(quill_chat_settings_click_x)}"
-      reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_settings_click_y)}"
-      click_at "$reset_x" "$reset_y"
+      click_at "$click_x" "$click_y"
       sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.6}"
-      # Settings opens as a sheet in the Mac-reference build. Dismiss it before
-      # the Completions click, otherwise the click lands behind the modal and
-      # follow-up edit/delete interactions exercise the wrong screen.
-      reset_cancel_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 610))}}"
-      reset_cancel_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 412))}}"
-      click_at "$reset_cancel_x" "$reset_cancel_y"
-      sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SETTLE_SLEEP:-0.2}"
-      # Packaged GTK has slightly different sheet text metrics from the
-      # source-built runner. Escape is harmless after a successful Cancel click
-      # and clears the modal when the coordinate path lands on the titlebar.
-      DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape
-      sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6}"
     fi
   else
     click_x="${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_completions_click_x)}"
@@ -618,17 +599,11 @@ ensure_quill_chat_completions_panel_open() {
   fi
 
   # Saving dismisses the overlay while Enchanted may keep the Completions
-  # utility selected. Re-clicking an already-selected utility is a no-op, so
-  # force a Settings->Cancel reset before reopening the panel. Packaged GTK can
-  # also leave the SwiftUI sheet binding logically true while the sheet is no
-  # longer visible; in that case the first Completions click only clears the
-  # stale toggle state, so verify and click again before the final screenshot.
-  for attempt in 1 2 3; do
-    if [[ "$attempt" == "1" ]]; then
-      open_quill_chat_completions_panel 1
-    else
-      open_quill_chat_completions_panel
-    fi
+  # utility binding logically selected. Repeated Completions clicks converge:
+  # false -> open, stale true -> false -> open. Verify between clicks so the
+  # already-open case exits without closing the panel.
+  for attempt in 1 2 3 4; do
+    open_quill_chat_completions_panel
     if quill_chat_mac_reference_completions_panel_visible; then
       return 0
     fi
@@ -720,7 +695,7 @@ edit_quill_chat_existing_completion() {
   local save_x
   local save_y
 
-  open_quill_chat_completions_panel 1
+  ensure_quill_chat_completions_panel_open
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + 1510))}"
     edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 536))}"
