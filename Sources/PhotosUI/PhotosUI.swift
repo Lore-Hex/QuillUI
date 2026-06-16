@@ -5,13 +5,21 @@ import CoreTransferable
 #if os(Linux)
 public struct PhotosPickerItem: Hashable, Sendable {
     public var itemIdentifier: String?
-    public init(itemIdentifier: String? = nil) {
+    private let fileURL: URL?
+
+    public init(itemIdentifier: String? = nil, fileURL: URL? = nil) {
         self.itemIdentifier = itemIdentifier
+        self.fileURL = fileURL
+    }
+
+    public init(fileURL: URL) {
+        self.itemIdentifier = fileURL.lastPathComponent
+        self.fileURL = fileURL
     }
 
     public func loadTransferable<T: Transferable>(type: T.Type) async throws -> T? {
-        _ = type
-        return nil
+        guard let fileURL else { return nil }
+        return try await NSItemProvider(fileURL: fileURL).loadTransferable(type: type)
     }
 }
 

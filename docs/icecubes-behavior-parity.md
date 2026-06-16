@@ -89,9 +89,13 @@ estimates, not release claims.
 - [x] `Photos`: local Linux photo-library fallback saves `UIImage` assets,
       fetches `PHAsset` rows, and loads image data/resized thumbnails back
       through `PHImageManager`.
-- [ ] `PhotosUI`: native picker UI, desktop file chooser integration,
-      Transferable-backed `PhotosPickerItem.loadTransferable`, video previews,
-      and real system photo-library integration.
+- [x] `PhotosUI` / `CoreTransferable`: file-backed
+      `PhotosPickerItem.loadTransferable` and `NSItemProvider.loadTransferable`
+      import IceCubes image/GIF/movie `FileRepresentation` values from local
+      URLs or compatible data blobs.
+- [ ] `PhotosUI`: native picker UI, desktop file chooser integration, native
+      picker item providers, video previews, and real system photo-library
+      integration.
 - [x] SwiftUI `.quickLookPreview(_:)` opens local preview URLs through a shared
       QuillKit QuickLook backend instead of dropping the binding.
 - [ ] `QuickLook`: full IceCubes media viewer/window behavior for

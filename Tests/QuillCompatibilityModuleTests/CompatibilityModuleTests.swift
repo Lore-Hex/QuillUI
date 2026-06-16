@@ -24,6 +24,7 @@ import CoreSpotlight
 import CloudKit
 import AuthenticationServices
 import Photos
+import PhotosUI
 // Scoped: the AppKit shadow supplies kUTTypeData (upstream Telegram pairs
 // `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
 // `import AppKit` here would collide with the UIKit shim surface.
@@ -40,6 +41,24 @@ import Magnet
 import Sparkle
 import ServiceManagement
 @_spi(QuillTesting) import QuillUI
+
+#if os(Linux)
+private struct QuillImportedFileTransferable: Transferable, Equatable, Sendable {
+    let url: URL
+    let isOriginalFile: Bool
+    let data: Data
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(importedContentType: .image) { receivedFile in
+            QuillImportedFileTransferable(
+                url: receivedFile.file,
+                isOriginalFile: receivedFile.isOriginalFile,
+                data: try Data(contentsOf: receivedFile.file)
+            )
+        }
+    }
+}
+#endif
 
 private final class PausingSpeechDelegate: AVSpeechSynthesizerDelegate {
     var events: [String] = []
@@ -2556,6 +2575,52 @@ struct CompatibilityModuleTests {
         }
         #expect(emptyCaptured.value?.0 == nil)
         #expect(emptyCaptured.value?.1 != nil)
+    }
+
+    @Test("NSItemProvider and PhotosPickerItem load file-backed Transferable imports")
+    func transferableFileRepresentationsLoadFromProviders() async throws {
+        #if os(Linux)
+        let payload = Data([0x89, 0x50, 0x4E, 0x47, 0x0D])
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillTransferableTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appendingPathComponent("payload.png")
+        try payload.write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let fileProvider = NSItemProvider(fileURL: fileURL)
+        let importedFile = try await fileProvider.loadTransferable(type: QuillImportedFileTransferable.self)
+        #expect(importedFile?.url == fileURL)
+        #expect(importedFile?.isOriginalFile == true)
+        #expect(importedFile?.data == payload)
+
+        let callbackImported = await withCheckedContinuation { continuation in
+            _ = fileProvider.loadTransferable(type: QuillImportedFileTransferable.self) { result in
+                switch result {
+                case .success(let value):
+                    continuation.resume(returning: value)
+                case .failure:
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+        #expect(callbackImported == importedFile)
+
+        let dataProvider = NSItemProvider(data: payload, type: .png)
+        let importedData = try await dataProvider.loadTransferable(type: QuillImportedFileTransferable.self)
+        defer {
+            if let url = importedData?.url {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        #expect(importedData?.url.pathExtension == "png")
+        #expect(importedData?.isOriginalFile == false)
+        #expect(importedData?.data == payload)
+
+        let pickerItem = PhotosPickerItem(fileURL: fileURL)
+        let pickerImported = try await pickerItem.loadTransferable(type: QuillImportedFileTransferable.self)
+        #expect(pickerImported == importedFile)
+        #endif
     }
 
     // MARK: - OpenURLAction custom handler
