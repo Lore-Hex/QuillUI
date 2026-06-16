@@ -129,20 +129,47 @@ public class SCNGeometry: @unchecked Sendable {
                   vertexSource.vectorCount > 0 else {
                 return (SCNVector3(0, 0, 0), SCNVector3(0, 0, 0))
             }
+            let vertices = vertexSource.quillVector3Values()
+            guard !vertices.isEmpty else {
+                return (SCNVector3(0, 0, 0), SCNVector3(0, 0, 0))
+            }
             var lo = SCNVector3(.greatestFiniteMagnitude, .greatestFiniteMagnitude, .greatestFiniteMagnitude)
             var hi = SCNVector3(-.greatestFiniteMagnitude, -.greatestFiniteMagnitude, -.greatestFiniteMagnitude)
-            let stride = vertexSource.dataStride
-            vertexSource.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for i in 0..<vertexSource.vectorCount {
-                    let base = vertexSource.dataOffset + i * stride
-                    let v = raw.loadUnaligned(fromByteOffset: base, as: SCNVector3.self)
-                    lo = SCNVector3(Swift.min(lo.x, v.x), Swift.min(lo.y, v.y), Swift.min(lo.z, v.z))
-                    hi = SCNVector3(Swift.max(hi.x, v.x), Swift.max(hi.y, v.y), Swift.max(hi.z, v.z))
-                }
+            for vertex in vertices {
+                lo = SCNVector3(Swift.min(lo.x, vertex.x), Swift.min(lo.y, vertex.y), Swift.min(lo.z, vertex.z))
+                hi = SCNVector3(Swift.max(hi.x, vertex.x), Swift.max(hi.y, vertex.y), Swift.max(hi.z, vertex.z))
             }
             return (lo, hi)
         }
         set { _ = newValue }
+    }
+}
+
+extension SCNGeometrySource {
+    func quillVector3Values() -> [SCNVector3] {
+        guard vectorCount > 0, componentsPerVector > 0, bytesPerComponent > 0 else { return [] }
+        let stride = dataStride > 0 ? dataStride : componentsPerVector * bytesPerComponent
+        return data.withUnsafeBytes { raw in
+            (0..<vectorCount).compactMap { i in
+                let base = dataOffset + i * stride
+                guard base + componentsPerVector * bytesPerComponent <= raw.count else { return nil }
+                guard let x = component(at: base, in: raw) else { return nil }
+                let y = componentsPerVector > 1 ? component(at: base + bytesPerComponent, in: raw) ?? 0 : 0
+                let z = componentsPerVector > 2 ? component(at: base + 2 * bytesPerComponent, in: raw) ?? 0 : 0
+                return SCNVector3(x, y, z)
+            }
+        }
+    }
+
+    private func component(at offset: Int, in raw: UnsafeRawBufferPointer) -> CGFloat? {
+        switch bytesPerComponent {
+        case MemoryLayout<Float>.size:
+            return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: Float.self))
+        case MemoryLayout<Double>.size:
+            return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: Double.self))
+        default:
+            return nil
+        }
     }
 }
 

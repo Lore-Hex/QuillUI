@@ -45,13 +45,11 @@ private struct SceneKitRenderRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> SceneKitRenderView {
         let view = SceneKitRenderView()
         view.scene = scene
-        view.options = options
         return view
     }
 
     func updateNSView(_ nsView: SceneKitRenderView, context: Context) {
         nsView.scene = scene
-        nsView.options = options
         nsView.setNeedsDisplay(nsView.bounds)
     }
 }
@@ -59,27 +57,17 @@ private struct SceneKitRenderRepresentable: NSViewRepresentable {
 @MainActor
 private final class SceneKitRenderView: NSView {
     var scene: SCNScene?
-    var options: SceneView.Options = []
 
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
-        let pixelWidth = max(1, Int(bounds.width.rounded()))
-        let pixelHeight = max(1, Int(bounds.height.rounded()))
+        let pixelWidth = QuillSceneKitRenderSupport.pixelCount(bounds.width)
+        let pixelHeight = QuillSceneKitRenderSupport.pixelCount(bounds.height)
         let image = scene?.quillRenderImage(width: pixelWidth, height: pixelHeight)
-            ?? blackImage(width: pixelWidth, height: pixelHeight)
+            ?? QuillSceneKitRenderSupport.solidImage(width: pixelWidth, height: pixelHeight, b: 0, g: 0, r: 0)
         context.interpolationQuality = .none
         context.draw(image, in: bounds)
-    }
-
-    private func blackImage(width: Int, height: Int) -> CGImage {
-        let image = CGImage()
-        image.width = width
-        image.height = height
-        image.quillBytesPerRow = width * 4
-        image.quillBGRAPixels = [UInt8](repeating: 0, count: width * height * 4)
-        return image
     }
 }
 #endif

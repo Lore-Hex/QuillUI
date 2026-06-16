@@ -7,6 +7,40 @@
 import Foundation
 import QuillFoundation
 
+enum QuillSceneKitRenderSupport {
+    static func pixelCount(_ value: Int) -> Int {
+        max(1, value)
+    }
+
+    static func pixelCount(_ value: CGFloat) -> Int {
+        max(1, Int(value.rounded(.toNearestOrAwayFromZero)))
+    }
+
+    static func image(width: Int, height: Int, bgraPixels: [UInt8]) -> CGImage {
+        let width = pixelCount(width)
+        let height = pixelCount(height)
+        let image = CGImage()
+        image.width = width
+        image.height = height
+        image.quillBytesPerRow = width * 4
+        image.quillBGRAPixels = bgraPixels
+        return image
+    }
+
+    static func solidImage(width: Int, height: Int, b: UInt8, g: UInt8, r: UInt8, a: UInt8 = 255) -> CGImage {
+        let width = pixelCount(width)
+        let height = pixelCount(height)
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for offset in stride(from: 0, to: pixels.count, by: 4) {
+            pixels[offset] = b
+            pixels[offset + 1] = g
+            pixels[offset + 2] = r
+            pixels[offset + 3] = a
+        }
+        return image(width: width, height: height, bgraPixels: pixels)
+    }
+}
+
 public extension SCNScene {
     /// Render the scene into a BGRA-backed CGImage using QuillOS' software
     /// SceneKit fallback. This is the rung-3/4 deterministic render surface:
@@ -48,19 +82,14 @@ public struct SCNSoftwareRenderer {
     }
 
     public func render(width: Int, height: Int) -> CGImage {
-        let width = max(1, width)
-        let height = max(1, height)
+        let width = QuillSceneKitRenderSupport.pixelCount(width)
+        let height = QuillSceneKitRenderSupport.pixelCount(height)
         var surface = PixelSurface(width: width, height: height, background: color(from: scene.background.contents) ?? .black)
         for primitive in projectedPrimitives(width: width, height: height).sorted(by: { $0.depth > $1.depth }) {
             primitive.draw(into: &surface)
         }
 
-        let image = CGImage()
-        image.width = width
-        image.height = height
-        image.quillBytesPerRow = width * 4
-        image.quillBGRAPixels = surface.pixels
-        return image
+        return QuillSceneKitRenderSupport.image(width: width, height: height, bgraPixels: surface.pixels)
     }
 
     #if canImport(UIKit)
@@ -91,8 +120,10 @@ public struct SCNSoftwareRenderer {
 
         let bounds = collector.bounds ?? Bounds(min: Vector3(-1, -1, -1), max: Vector3(1, 1, 1))
         let cameraNode = pointOfView ?? collector.cameraNode
+        let cameraWorld = pointOfView.map(Matrix4.worldTransform) ?? collector.cameraWorldTransform
         let camera = CameraProjection(
             cameraNode: cameraNode,
+            cameraWorld: cameraWorld,
             bounds: bounds,
             width: max(1, width),
             height: max(1, height)
@@ -108,12 +139,14 @@ private struct RenderCollector {
     var primitives: [WorldPrimitive] = []
     var bounds: Bounds?
     var cameraNode: SCNNode?
+    var cameraWorldTransform: Matrix4?
 
     mutating func collect(node: SCNNode, parent: Matrix4) {
         guard !node.isHidden, node.opacity > 0 else { return }
         let world = parent * Matrix4.localTransform(for: node)
         if node.camera != nil, cameraNode == nil {
             cameraNode = node
+            cameraWorldTransform = world
         }
         if let geometry = node.geometry {
             collect(geometry: geometry, node: node, world: world)
@@ -138,14 +171,16 @@ private struct RenderCollector {
 
         switch geometry {
         case let sphere as SCNSphere:
+            let owner = PrimitiveOwner(node: node, geometryIndex: 0)
             let center = world.transformPoint(.zero)
             let radius = max(0.001, world.approximateScale * sphere.radius)
             include(center - Vector3(radius, radius, radius))
             include(center + Vector3(radius, radius, radius))
-            primitives.append(.sphere(center: center, radius: radius, color: baseColor, node: node, geometryIndex: 0))
+            primitives.append(.sphere(center: center, radius: radius, color: baseColor, owner: owner))
             return
 
         case let cylinder as SCNCylinder:
+            let owner = PrimitiveOwner(node: node, geometryIndex: 0)
             let a = world.transformPoint(Vector3(0, -cylinder.height / 2, 0))
             let b = world.transformPoint(Vector3(0, cylinder.height / 2, 0))
             let radius = max(0.001, world.approximateScale * cylinder.radius)
@@ -153,10 +188,11 @@ private struct RenderCollector {
             include(a + Vector3(radius, radius, radius))
             include(b - Vector3(radius, radius, radius))
             include(b + Vector3(radius, radius, radius))
-            primitives.append(.line(a: a, b: b, radius: radius, color: baseColor, node: node, geometryIndex: 0))
+            primitives.append(.line(a: a, b: b, radius: radius, color: baseColor, owner: owner))
             return
 
         case let box as SCNBox:
+            let owner = PrimitiveOwner(node: node, geometryIndex: 0)
             let hx = box.width / 2
             let hy = box.height / 2
             let hz = box.length / 2
@@ -173,7 +209,7 @@ private struct RenderCollector {
                 (2, 6, 7), (2, 7, 3), (3, 7, 4), (3, 4, 0),
             ]
             for (i0, i1, i2) in faces {
-                primitives.append(.triangle(a: corners[i0], b: corners[i1], c: corners[i2], color: baseColor, node: node, geometryIndex: 0))
+                primitives.append(.triangle(a: corners[i0], b: corners[i1], c: corners[i2], color: baseColor, owner: owner))
             }
             return
 
@@ -186,58 +222,59 @@ private struct RenderCollector {
 
     private mutating func collectBufferedGeometry(_ geometry: SCNGeometry, node: SCNNode, world: Matrix4, opacity: CGFloat) {
         guard let vertexSource = geometry.sources.first(where: { $0.semantic == .vertex }) else { return }
-        let vertices = vertexSource.quillVector3Values()
+        let vertices = vertexSource.quillVector3Values().map(Vector3.init)
         guard !vertices.isEmpty else { return }
         let worldVertices = vertices.map(world.transformPoint)
         for vertex in worldVertices { include(vertex) }
 
         for (elementIndex, element) in geometry.elements.enumerated() {
+            let owner = PrimitiveOwner(node: node, geometryIndex: elementIndex)
             let primitiveColor = color(for: geometry, elementIndex: elementIndex).withAlphaMultiplier(opacity)
             let indices = element.quillIndices()
             switch element.primitiveType {
             case .triangles:
                 var i = 0
                 while i + 2 < indices.count {
-                    appendTriangle(indices[i], indices[i + 1], indices[i + 2], vertices: worldVertices, color: primitiveColor, node: node, geometryIndex: elementIndex)
+                    appendTriangle(indices[i], indices[i + 1], indices[i + 2], vertices: worldVertices, color: primitiveColor, owner: owner)
                     i += 3
                 }
             case .triangleStrip:
                 guard indices.count >= 3 else { continue }
                 for i in 0..<(indices.count - 2) {
                     if i.isMultiple(of: 2) {
-                        appendTriangle(indices[i], indices[i + 1], indices[i + 2], vertices: worldVertices, color: primitiveColor, node: node, geometryIndex: elementIndex)
+                        appendTriangle(indices[i], indices[i + 1], indices[i + 2], vertices: worldVertices, color: primitiveColor, owner: owner)
                     } else {
-                        appendTriangle(indices[i + 1], indices[i], indices[i + 2], vertices: worldVertices, color: primitiveColor, node: node, geometryIndex: elementIndex)
+                        appendTriangle(indices[i + 1], indices[i], indices[i + 2], vertices: worldVertices, color: primitiveColor, owner: owner)
                     }
                 }
             case .line:
                 var i = 0
                 while i + 1 < indices.count {
-                    appendLine(indices[i], indices[i + 1], vertices: worldVertices, color: primitiveColor, node: node, geometryIndex: elementIndex)
+                    appendLine(indices[i], indices[i + 1], vertices: worldVertices, color: primitiveColor, owner: owner)
                     i += 2
                 }
             case .point:
                 for index in indices where worldVertices.indices.contains(index) {
                     let p = worldVertices[index]
-                    primitives.append(.sphere(center: p, radius: 0.025 * world.approximateScale, color: primitiveColor, node: node, geometryIndex: elementIndex))
+                    primitives.append(.sphere(center: p, radius: 0.025 * world.approximateScale, color: primitiveColor, owner: owner))
                 }
             case .polygon:
-                appendPolygons(from: element, vertices: worldVertices, color: primitiveColor, node: node, geometryIndex: elementIndex)
+                appendPolygons(from: element, vertices: worldVertices, color: primitiveColor, owner: owner)
             }
         }
     }
 
-    private mutating func appendTriangle(_ i0: Int, _ i1: Int, _ i2: Int, vertices: [Vector3], color: RGBA, node: SCNNode, geometryIndex: Int) {
+    private mutating func appendTriangle(_ i0: Int, _ i1: Int, _ i2: Int, vertices: [Vector3], color: RGBA, owner: PrimitiveOwner) {
         guard vertices.indices.contains(i0), vertices.indices.contains(i1), vertices.indices.contains(i2) else { return }
-        primitives.append(.triangle(a: vertices[i0], b: vertices[i1], c: vertices[i2], color: color, node: node, geometryIndex: geometryIndex))
+        primitives.append(.triangle(a: vertices[i0], b: vertices[i1], c: vertices[i2], color: color, owner: owner))
     }
 
-    private mutating func appendLine(_ i0: Int, _ i1: Int, vertices: [Vector3], color: RGBA, node: SCNNode, geometryIndex: Int) {
+    private mutating func appendLine(_ i0: Int, _ i1: Int, vertices: [Vector3], color: RGBA, owner: PrimitiveOwner) {
         guard vertices.indices.contains(i0), vertices.indices.contains(i1) else { return }
-        primitives.append(.line(a: vertices[i0], b: vertices[i1], radius: 0.012, color: color, node: node, geometryIndex: geometryIndex))
+        primitives.append(.line(a: vertices[i0], b: vertices[i1], radius: 0.012, color: color, owner: owner))
     }
 
-    private mutating func appendPolygons(from element: SCNGeometryElement, vertices: [Vector3], color: RGBA, node: SCNNode, geometryIndex: Int) {
+    private mutating func appendPolygons(from element: SCNGeometryElement, vertices: [Vector3], color: RGBA, owner: PrimitiveOwner) {
         let raw = element.quillIndices()
         guard element.primitiveCount > 0, raw.count >= element.primitiveCount else { return }
         let counts = Array(raw.prefix(element.primitiveCount))
@@ -247,7 +284,7 @@ private struct RenderCollector {
             let polygon = Array(raw[offset..<(offset + count)])
             offset += count
             for i in 1..<(polygon.count - 1) {
-                appendTriangle(polygon[0], polygon[i], polygon[i + 1], vertices: vertices, color: color, node: node, geometryIndex: geometryIndex)
+                appendTriangle(polygon[0], polygon[i], polygon[i + 1], vertices: vertices, color: color, owner: owner)
             }
         }
     }
@@ -255,89 +292,91 @@ private struct RenderCollector {
 
 // MARK: - Projection and primitives
 
+private struct PrimitiveOwner {
+    let node: SCNNode
+    let geometryIndex: Int
+}
+
 private enum WorldPrimitive {
-    case sphere(center: Vector3, radius: CGFloat, color: RGBA, node: SCNNode, geometryIndex: Int)
-    case line(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, node: SCNNode, geometryIndex: Int)
-    case triangle(a: Vector3, b: Vector3, c: Vector3, color: RGBA, node: SCNNode, geometryIndex: Int)
+    case sphere(center: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner)
+    case line(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner)
+    case triangle(a: Vector3, b: Vector3, c: Vector3, color: RGBA, owner: PrimitiveOwner)
 
     func projected(using camera: CameraProjection) -> ProjectedPrimitive? {
         switch self {
-        case let .sphere(center, radius, color, node, geometryIndex):
+        case let .sphere(center, radius, color, owner):
             guard let projectedCenter = camera.project(center) else { return nil }
             let projectedRadius = max(1.5, camera.projectedLength(radius, atDepth: projectedCenter.depth))
-            return .sphere(center: projectedCenter.point, radius: projectedRadius, depth: projectedCenter.depth, color: color, node: node, geometryIndex: geometryIndex)
-        case let .line(a, b, radius, color, node, geometryIndex):
+            return .sphere(center: projectedCenter.point, radius: projectedRadius, depth: projectedCenter.depth, color: color, owner: owner)
+        case let .line(a, b, radius, color, owner):
             guard let pa = camera.project(a), let pb = camera.project(b) else { return nil }
             let depth = (pa.depth + pb.depth) / 2
             let projectedRadius = max(1, camera.projectedLength(radius, atDepth: depth))
-            return .line(a: pa.point, b: pb.point, radius: projectedRadius, depth: depth, color: color, node: node, geometryIndex: geometryIndex)
-        case let .triangle(a, b, c, color, node, geometryIndex):
+            return .line(a: pa.point, b: pb.point, radius: projectedRadius, depth: depth, color: color, owner: owner)
+        case let .triangle(a, b, c, color, owner):
             guard let pa = camera.project(a), let pb = camera.project(b), let pc = camera.project(c) else { return nil }
             let depth = (pa.depth + pb.depth + pc.depth) / 3
-            return .triangle(a: pa.point, b: pb.point, c: pc.point, depth: depth, color: color, node: node, geometryIndex: geometryIndex)
+            return .triangle(a: pa.point, b: pb.point, c: pc.point, depth: depth, color: color, owner: owner)
         }
     }
 }
 
 private enum ProjectedPrimitive {
-    case sphere(center: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA, node: SCNNode, geometryIndex: Int)
-    case line(a: CGPoint, b: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA, node: SCNNode, geometryIndex: Int)
-    case triangle(a: CGPoint, b: CGPoint, c: CGPoint, depth: CGFloat, color: RGBA, node: SCNNode, geometryIndex: Int)
+    case sphere(center: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA, owner: PrimitiveOwner)
+    case line(a: CGPoint, b: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA, owner: PrimitiveOwner)
+    case triangle(a: CGPoint, b: CGPoint, c: CGPoint, depth: CGFloat, color: RGBA, owner: PrimitiveOwner)
 
     var depth: CGFloat {
         switch self {
-        case let .sphere(_, _, depth, _, _, _), let .line(_, _, _, depth, _, _, _), let .triangle(_, _, _, depth, _, _, _):
+        case let .sphere(_, _, depth, _, _), let .line(_, _, _, depth, _, _), let .triangle(_, _, _, depth, _, _):
             return depth
         }
     }
 
-    var node: SCNNode {
+    private var owner: PrimitiveOwner {
         switch self {
-        case let .sphere(_, _, _, _, node, _), let .line(_, _, _, _, _, node, _), let .triangle(_, _, _, _, _, node, _):
-            return node
+        case let .sphere(_, _, _, _, owner), let .line(_, _, _, _, _, owner), let .triangle(_, _, _, _, _, owner):
+            return owner
         }
     }
 
+    var node: SCNNode { owner.node }
+
     var geometryIndex: Int {
-        switch self {
-        case let .sphere(_, _, _, _, _, geometryIndex), let .line(_, _, _, _, _, _, geometryIndex), let .triangle(_, _, _, _, _, _, geometryIndex):
-            return geometryIndex
-        }
+        owner.geometryIndex
     }
 
     func draw(into surface: inout PixelSurface) {
         switch self {
-        case let .sphere(center, radius, _, color, _, _):
+        case let .sphere(center, radius, _, color, _):
             surface.fillCircle(center: center, radius: radius, color: color)
-        case let .line(a, b, radius, _, color, _, _):
+        case let .line(a, b, radius, _, color, _):
             surface.strokeCapsule(from: a, to: b, radius: radius, color: color)
-        case let .triangle(a, b, c, _, color, _, _):
+        case let .triangle(a, b, c, _, color, _):
             surface.fillTriangle(a, b, c, color: color)
         }
     }
 
     func contains(_ point: CGPoint) -> Bool {
         switch self {
-        case let .sphere(center, radius, _, _, _, _):
+        case let .sphere(center, radius, _, _, _):
             let dx = point.x - center.x
             let dy = point.y - center.y
             let hitRadius = max(4, radius)
             return dx * dx + dy * dy <= hitRadius * hitRadius
 
-        case let .line(a, b, radius, _, _, _, _):
+        case let .line(a, b, radius, _, _, _):
             return squaredDistance(from: point, toSegmentFrom: a, to: b) <= pow(max(4, radius + 2), 2)
 
-        case let .triangle(a, b, c, _, _, _, _):
+        case let .triangle(a, b, c, _, _, _):
             let area = edge(a, b, c)
             guard abs(area) > 0.0001 else { return false }
             let w0 = edge(b, c, point)
             let w1 = edge(c, a, point)
             let w2 = edge(a, b, point)
-            let tolerance: CGFloat = -0.001
-            if area > 0 {
-                return w0 >= tolerance && w1 >= tolerance && w2 >= tolerance
-            }
-            return w0 <= -tolerance && w1 <= -tolerance && w2 <= -tolerance
+            return area > 0
+                ? w0 >= -0.001 && w1 >= -0.001 && w2 >= -0.001
+                : w0 <= 0.001 && w1 <= 0.001 && w2 <= 0.001
         }
     }
 
@@ -371,13 +410,12 @@ private struct CameraProjection {
     let focalLength: CGFloat
     let orthographicScale: CGFloat?
 
-    init(cameraNode: SCNNode?, bounds: Bounds, width: Int, height: Int) {
+    init(cameraNode: SCNNode?, cameraWorld: Matrix4?, bounds: Bounds, width: Int, height: Int) {
         self.width = width
         self.height = height
         let center = bounds.center
         let radius = max(1, bounds.radius)
 
-        let cameraWorld = cameraNode.map { Matrix4.localTransform(for: $0) }
         let cameraPosition = cameraWorld?.transformPoint(.zero) ?? Vector3(center.x, center.y, center.z + radius * 3)
         let forward = (center - cameraPosition).normalized(fallback: Vector3(0, 0, -1))
         let worldUp = abs(forward.y) > 0.95 ? Vector3(0, 0, 1) : Vector3(0, 1, 0)
@@ -541,29 +579,6 @@ private struct PixelSurface {
 
 // MARK: - Geometry decoding
 
-private extension SCNGeometrySource {
-    func quillVector3Values() -> [Vector3] {
-        guard vectorCount > 0 else { return [] }
-        let stride = dataStride > 0 ? dataStride : componentsPerVector * bytesPerComponent
-        return data.withUnsafeBytes { raw in
-            (0..<vectorCount).compactMap { i in
-                let base = dataOffset + i * stride
-                guard base + componentsPerVector * bytesPerComponent <= raw.count else { return nil }
-                if bytesPerComponent == MemoryLayout<Float>.size {
-                    let x = CGFloat(raw.loadUnaligned(fromByteOffset: base, as: Float.self))
-                    let y = componentsPerVector > 1 ? CGFloat(raw.loadUnaligned(fromByteOffset: base + bytesPerComponent, as: Float.self)) : 0
-                    let z = componentsPerVector > 2 ? CGFloat(raw.loadUnaligned(fromByteOffset: base + 2 * bytesPerComponent, as: Float.self)) : 0
-                    return Vector3(x, y, z)
-                }
-                let x = raw.loadUnaligned(fromByteOffset: base, as: CGFloat.self)
-                let y = componentsPerVector > 1 ? raw.loadUnaligned(fromByteOffset: base + bytesPerComponent, as: CGFloat.self) : 0
-                let z = componentsPerVector > 2 ? raw.loadUnaligned(fromByteOffset: base + 2 * bytesPerComponent, as: CGFloat.self) : 0
-                return Vector3(x, y, z)
-            }
-        }
-    }
-}
-
 private extension SCNGeometryElement {
     func quillIndices() -> [Int] {
         guard bytesPerIndex > 0, !data.isEmpty else { return [] }
@@ -675,6 +690,18 @@ private struct Matrix4 {
         let raw = matrix(node.transform)
         let local = t * r * q * s
         return SCNMatrix4IsIdentity(node.transform) ? local : raw * local
+    }
+
+    static func worldTransform(for node: SCNNode) -> Matrix4 {
+        var chain: [SCNNode] = []
+        var current: SCNNode? = node
+        while let node = current {
+            chain.append(node)
+            current = node.parent
+        }
+        return chain.reversed().reduce(.identity) { world, node in
+            world * localTransform(for: node)
+        }
     }
 
     var approximateScale: CGFloat {

@@ -24,8 +24,8 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     public private(set) weak var parent: SCNNode?
     public private(set) var childNodes: [SCNNode] = []
 
-    /// Actions started via `runAction`. The renderer (rung 3) advances these;
-    /// holding them keeps the scene graph self-describing in the meantime.
+    /// Actions started via `runAction`. They are retained as interpretable
+    /// data so a later animation pass can advance them deterministically.
     public private(set) var runningActions: [SCNAction] = []
 
     public init() {}

@@ -27,11 +27,16 @@ struct QuillSceneKitRenderSmoke {
         try require(triangleStats.nonBlackPixels > 1_500, "triangle render stayed mostly black: \(triangleStats)")
         try require(triangleStats.greenDominantPixels > 1_400, "triangle render did not produce green pixels: \(triangleStats)")
 
+        let nestedCameraStats = PixelStats(renderNestedCameraScene())
+        try require(nestedCameraStats.nonBlackPixels > 1_000, "nested-camera render stayed mostly black: \(nestedCameraStats)")
+        try require(nestedCameraStats.redDominantPixels > 900, "nested-camera render did not produce red pixels: \(nestedCameraStats)")
+
         try runHitTestSmoke()
 
         log("SceneKit render smoke passed")
         log("sphere: \(sphereStats)")
         log("triangle: \(triangleStats)")
+        log("nested camera: \(nestedCameraStats)")
 
         if ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_GTK_SMOKE"] == "1" {
             try runGTKSceneViewSmoke()
@@ -88,6 +93,17 @@ struct QuillSceneKitRenderSmoke {
         scene.rootNode.addChildNode(cameraNode)
 
         return scene.quillRenderImage(width: 180, height: 140)
+    }
+
+    private static func renderNestedCameraScene() -> CGImage {
+        let scene = makeSphereScene()
+        let cameraParent = SCNNode()
+        cameraParent.position = SCNVector3(0, 0, 4)
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraParent.addChildNode(cameraNode)
+        scene.rootNode.addChildNode(cameraParent)
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
     }
 
     private static func runHitTestSmoke() throws {

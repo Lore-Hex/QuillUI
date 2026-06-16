@@ -52,6 +52,28 @@ struct SceneKitRendererTests {
         #expect(stats.greenDominantPixels > 1_400)
     }
 
+    @Test("Software renderer resolves point-of-view camera transforms through parent nodes")
+    func rendersWithNestedPointOfViewCamera() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let cameraParent = SCNNode()
+        cameraParent.position = SCNVector3(0, 0, 4)
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraParent.addChildNode(cameraNode)
+        scene.rootNode.addChildNode(cameraParent)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(stats.redDominantPixels > 900)
+    }
+
     @Test("Software renderer hit testing returns nearest projected nodes")
     func hitTestsProjectedGeometryNearestFirst() {
         let scene = SCNScene()

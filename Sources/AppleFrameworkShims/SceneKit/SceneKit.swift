@@ -10,11 +10,11 @@
 //   • SCNNode.swift         — the scene-graph node
 //   • SCNAction.swift       — interpretable action tree
 //   • SCNScene.swift        — SCNScene, SCNSceneSource
-//   • SceneView.swift       — SwiftUI SceneView (inert until the rung-3 renderer)
+//   • SCNSoftwareRenderer.swift — deterministic software render + hit-test pass
+//   • SceneView.swift       — SwiftUI SceneView bridge to the software renderer
 //
-// Rendering is deliberately absent here: the types hold the scene graph
-// faithfully so the rung-3 software rasteriser (over the Cairo CGContext path)
-// can walk it. See docs/scenekit-conformance.md.
+// Rendering starts as a deterministic CPU path over QuillFoundation BGRA
+// CGImages. See docs/scenekit-conformance.md for the conformance ladder.
 //
 // Real SceneKit re-exports Foundation + CoreGraphics through its umbrella, so a
 // file with only `import SceneKit` (Euclid's interop) resolves URL / Data /

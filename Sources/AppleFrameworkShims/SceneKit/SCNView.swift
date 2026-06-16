@@ -56,16 +56,18 @@ public final class SCNCameraController: @unchecked Sendable {
 
     public func quillRenderImage(width: Int? = nil, height: Int? = nil) -> CGImage? {
         guard let scene else { return nil }
-        let resolvedWidth = width ?? max(1, Int(bounds.width.rounded()))
-        let resolvedHeight = height ?? max(1, Int(bounds.height.rounded()))
+        let resolvedWidth = width.map(QuillSceneKitRenderSupport.pixelCount)
+            ?? QuillSceneKitRenderSupport.pixelCount(bounds.width)
+        let resolvedHeight = height.map(QuillSceneKitRenderSupport.pixelCount)
+            ?? QuillSceneKitRenderSupport.pixelCount(bounds.height)
         return scene.quillRenderImage(width: resolvedWidth, height: resolvedHeight, pointOfView: pointOfView)
     }
 
     open override func draw(_ rect: CGRect) {
         guard let context = NSGraphicsContext.current?.cgContext,
               let image = quillRenderImage(
-                width: max(1, Int(rect.width.rounded())),
-                height: max(1, Int(rect.height.rounded()))
+                width: QuillSceneKitRenderSupport.pixelCount(rect.width),
+                height: QuillSceneKitRenderSupport.pixelCount(rect.height)
               ) else {
             return
         }
@@ -75,15 +77,29 @@ public final class SCNCameraController: @unchecked Sendable {
 
     public func hitTest(_ point: CGPoint, options: [SCNHitTestOption: Any]? = nil) -> [SCNHitTestResult] {
         guard let scene else { return [] }
-        let rawSearchMode = options?[.searchMode] as? Int
-        let searchMode = rawSearchMode.flatMap(SCNHitTestSearchMode.init(rawValue:)) ?? .closest
+        let searchMode = SCNHitTestSearchMode(optionValue: options?[.searchMode]) ?? .closest
         return scene.quillHitTest(
             point,
-            width: max(1, Int(bounds.width.rounded())),
-            height: max(1, Int(bounds.height.rounded())),
+            width: QuillSceneKitRenderSupport.pixelCount(bounds.width),
+            height: QuillSceneKitRenderSupport.pixelCount(bounds.height),
             pointOfView: pointOfView,
             searchMode: searchMode
         )
+    }
+}
+
+private extension SCNHitTestSearchMode {
+    init?(optionValue: Any?) {
+        switch optionValue {
+        case let value as SCNHitTestSearchMode:
+            self = value
+        case let value as Int:
+            self.init(rawValue: value)
+        case let value as NSNumber:
+            self.init(rawValue: value.intValue)
+        default:
+            return nil
+        }
     }
 }
 #endif
