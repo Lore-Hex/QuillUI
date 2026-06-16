@@ -3224,6 +3224,16 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/QuillFoundation"
         ),
         .target(
+            name: "UniformTypeIdentifiers",
+            dependencies: [],
+            path: "Sources/UniformTypeIdentifiersShim"
+        ),
+        .target(
+            name: "CoreTransferable",
+            dependencies: ["UniformTypeIdentifiers"],
+            path: "Sources/CoreTransferable"
+        ),
+        .target(
             name: "QuillEnchantedShared",
             dependencies: ["QuillEnchantedData", "QuillFoundation"],
             path: "Sources/QuillEnchantedShared"
@@ -3380,6 +3390,8 @@ if quillUILinuxBuildBackend == .qt {
         // dependency list is enough to pull in its GTK pkg-config warnings even
         // for a native Qt-only smoke app.
         products = quillCanonicalLinuxAppProducts + [
+            .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
+            .library(name: "CoreTransferable", targets: ["CoreTransferable"]),
             .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
             .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
         ]

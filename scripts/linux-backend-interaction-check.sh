@@ -638,16 +638,25 @@ settle_quill_chat_completion_capture_if_verified() {
 }
 
 ensure_quill_chat_completions_panel_open() {
-  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
-  if quill_chat_mac_reference_completions_panel_visible; then
-    settle_quill_chat_completion_capture_if_verified
-    return 0
-  fi
+  local attempt
+  local max_attempts="${QUILLUI_BACKEND_COMPLETIONS_OPEN_ATTEMPTS:-3}"
 
-  open_quill_chat_completions_panel 1
-  if quill_chat_mac_reference_completions_panel_visible; then
-    settle_quill_chat_completion_capture_if_verified
-  fi
+  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
+  for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do
+    if quill_chat_mac_reference_completions_panel_visible; then
+      settle_quill_chat_completion_capture_if_verified
+      return 0
+    fi
+
+    if [[ "$attempt" == "1" ]]; then
+      open_quill_chat_completions_panel 1
+    else
+      open_quill_chat_completions_panel 0
+    fi
+    sleep "${QUILLUI_BACKEND_COMPLETIONS_OPEN_RETRY_SLEEP:-0.8}"
+  done
+
+  quill_chat_mac_reference_completions_panel_visible && settle_quill_chat_completion_capture_if_verified
 }
 
 open_quill_chat_new_completion_sheet() {
