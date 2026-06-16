@@ -70,6 +70,38 @@ private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
     }
 }
 
+@MainActor
+private final class CollectionViewProbe: UICollectionViewDataSource, UICollectionViewDelegate {
+    var requestedCells: [IndexPath] = []
+    var displayedCells: [IndexPath] = []
+    var cellsByIndexPath: [IndexPath: UICollectionViewCell] = [:]
+
+    func numberOfSections(in collectionView: UICollectionView) -> Int {
+        _ = collectionView
+        return 2
+    }
+
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        _ = collectionView
+        return section + 1
+    }
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        requestedCells.append(indexPath)
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "compat-cell", for: indexPath)
+        let label = UILabel()
+        label.text = "S\(indexPath.section) I\(indexPath.item)"
+        cell.contentView.addSubview(label)
+        cellsByIndexPath[indexPath] = cell
+        return cell
+    }
+
+    func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+        _ = (collectionView, cell)
+        displayedCells.append(indexPath)
+    }
+}
+
 // `@MainActor`: many tests here construct MainActor-isolated SwiftUI views
 // (WrappingHStack, etc.) whose initializers run a Swift-6 isolation runtime
 // check that SIGTRAPs when evaluated off the main actor. Swift Testing runs
@@ -141,6 +173,34 @@ struct CompatibilityModuleTests {
         _ = Window("Compatibility", id: "compatibility") {
             Text("Compatibility")
         }
+    }
+
+    @Test("UICollectionView reload materializes data-source cells")
+    @MainActor
+    func uiCollectionViewReloadMaterializesDataSourceCells() {
+        let layout = UICollectionViewFlowLayout()
+        layout.itemSize = CGSize(width: 180, height: 32)
+        let collectionView = UICollectionView(
+            frame: CGRect(x: 0, y: 0, width: 240, height: 180),
+            collectionViewLayout: layout
+        )
+        let probe = CollectionViewProbe()
+        collectionView.dataSource = probe
+        collectionView.delegate = probe
+
+        collectionView.reloadData()
+
+        let first = IndexPath(item: 0, section: 0)
+        let last = IndexPath(item: 1, section: 1)
+
+        #expect(probe.requestedCells == [first, IndexPath(item: 0, section: 1), last])
+        #expect(probe.displayedCells == probe.requestedCells)
+        #expect(collectionView.visibleCells.count == 3)
+        #expect(collectionView.cellForItem(at: last) === probe.cellsByIndexPath[last])
+        #expect(collectionView.visibleCells.allSatisfy { $0.superview === collectionView })
+
+        collectionView.selectItem(at: last, animated: false, scrollPosition: [])
+        #expect(collectionView.indexPathsForSelectedItems == [last])
     }
 
     @Test("QuillUI fallback modifiers record diagnostics")

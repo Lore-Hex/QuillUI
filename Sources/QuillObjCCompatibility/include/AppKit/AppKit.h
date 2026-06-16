@@ -407,8 +407,12 @@ static inline NSSize NSMakeSize(CGFloat width, CGFloat height) {
 - (void)removeFromSuperview;
 - (void)drawRect:(NSRect)dirtyRect;
 - (void)mouseDown:(NSEvent *)event;
+- (void)mouseUp:(NSEvent *)event;
+- (void)mouseDragged:(NSEvent *)event;
 - (void)scrollWheel:(NSEvent *)event;
 - (void)rightMouseDown:(NSEvent *)event;
+- (void)rightMouseUp:(NSEvent *)event;
+- (void)rightMouseDragged:(NSEvent *)event;
 - (void)keyDown:(NSEvent *)event;
 - (NSMenu *)menuForEvent:(NSEvent *)event;
 @end

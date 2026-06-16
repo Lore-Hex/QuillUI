@@ -16,6 +16,7 @@ public final class SCNLight: @unchecked Sendable {
     public var type: LightType = .omni
     /// NSColor / CGColor, as on macOS.
     public var color: Any? = nil
+    public var shadowColor: Any? = nil
     public var intensity: CGFloat = 1000
     public var temperature: CGFloat = 6500
     public var castsShadow: Bool = false

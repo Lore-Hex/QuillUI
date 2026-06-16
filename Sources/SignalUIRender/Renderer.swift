@@ -51,6 +51,8 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
         UISwitchGtkMapper.self,
         UITableViewGtkMapper.self,
         UITableViewCellGtkMapper.self,
+        UICollectionViewGtkMapper.self,
+        UICollectionViewCellGtkMapper.self,
         UIStackViewGtkMapper.self,
         GenericViewGtkMapper.self,   // fallback — must be last
     ]

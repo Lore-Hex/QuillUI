@@ -449,6 +449,8 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         public static let flexibleTopMargin = AutoresizingMask(rawValue: 1 << 3)
         public static let flexibleHeight = AutoresizingMask(rawValue: 1 << 4)
         public static let flexibleBottomMargin = AutoresizingMask(rawValue: 1 << 5)
+        public static let width = flexibleWidth
+        public static let height = flexibleHeight
     }
 
     // Apple's UIView has NO designated init() — only init(frame:). The old
@@ -1750,8 +1752,13 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
-    public func cellForItem(at: IndexPath) -> UICollectionViewCell? { nil }
-    open func reloadData() {}
+    public func cellForItem(at indexPath: IndexPath) -> UICollectionViewCell? {
+        quillCellForItem(at: indexPath)
+    }
+
+    open func reloadData() {
+        quillReloadData()
+    }
 }
 
 @MainActor open class UICollectionViewCell: UIView {
@@ -2776,6 +2783,10 @@ public class UIApplicationShortcutItem: NSObject {
 // declaration here (the ambiguity that blocked the notifications presenter).
 
 @MainActor public protocol UIApplicationDelegate: AnyObject {}
+
+public extension UIApplicationDelegate {
+    static func main() {}
+}
 
 public typealias UIBackgroundTaskIdentifier = Int
 public extension UIBackgroundTaskIdentifier {

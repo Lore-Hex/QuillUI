@@ -23,19 +23,17 @@
 //      backgroundView) and the UIBackgroundConfiguration.clear() surface
 //
 //  Honest Linux semantics (MODEL-not-engine, same rules as UIScrollViewExtras):
-//    - There is no render/event engine, so nothing ever *drives* the data
-//      source: numberOfSections / numberOfItems(inSection:) consult the
-//      dataSource faithfully on demand, but cellForItemAt is only executed
-//      if upstream code calls it directly.
+//    - There is no virtualized render/event engine, so reloadData() realizes a
+//      synchronous snapshot: it consults the data source, creates cells, applies
+//      available layout attributes, and records visibleCells / cellForItem(at:).
+//      That is enough for static Linux rendering without claiming UIKit's
+//      incremental diffing or recycling behavior.
 //    - dequeueReusableCell / dequeueReusableSupplementaryView return fresh
-//      base-class instances. Constructing the *registered subclass* from its
-//      AnyClass metatype would need a `required` initializer, which cannot
-//      be imposed on UIView without breaking every upstream
-//      `override init(frame:)` (see QuillAppKit's QuillReusableView note —
-//      the same trade-off, resolved the same way). Upstream dequeue paths
-//      are only reachable from a layout/render pass that does not exist on
-//      Linux yet, so the dishonesty is dormant; the registration tables are
-//      still recorded faithfully for a future engine.
+//      instances. Constructing an arbitrary registered subclass from its AnyClass
+//      metatype would need a `required` initializer, which cannot be imposed on
+//      UIView without breaking every upstream `override init(frame:)`; concrete
+//      collection views can opt into typed cell construction through
+//      QuillUICollectionViewCellFactory.
 //    - scrollToItem(at:) resolves the item's frame through the layout object
 //      (real geometry if the layout has been prepared) and translates
 //      bounds.origin — the same "contentOffset IS bounds.origin" model as
@@ -217,6 +215,17 @@ import QuillFoundation
     open func prepareForReuse() {}
 }
 
+/// Escape hatch for app-specific collection views whose registered cell
+/// subclasses cannot be constructed from an erased metatype. QuillUIKit asks the
+/// concrete collection view first, then falls back to a base UICollectionViewCell.
+@MainActor public protocol QuillUICollectionViewCellFactory: AnyObject {
+    func quillCollectionView(
+        _ collectionView: UICollectionView,
+        makeCellWithReuseIdentifier identifier: String,
+        for indexPath: IndexPath
+    ) -> UICollectionViewCell?
+}
+
 // MARK: - Data source / delegate protocols
 
 /// Apple's optional requirements are modeled as protocol requirements with
@@ -344,6 +353,9 @@ private struct QuillCollectionViewState {
     var cellClasses: [String: AnyClass] = [:]
     /// element kind → (reuse identifier → registered class)
     var supplementaryClasses: [String: [String: AnyClass]] = [:]
+    var realizedCells: [IndexPath: UICollectionViewCell] = [:]
+    var realizedIndexPaths: [IndexPath] = []
+    var selectedIndexPaths: Set<IndexPath> = []
 }
 
 @MainActor private var quillCollectionViewStates: [ObjectIdentifier: QuillCollectionViewState] = [:]
@@ -482,9 +494,14 @@ extension UICollectionView {
     }
 
     /// Returns a fresh base-class cell (see the file header for why the
-    /// registered subclass cannot be constructed from its metatype). Only
-    /// reachable when upstream drives its own data-source methods.
+    /// registered subclass cannot always be constructed from its metatype).
+    /// Concrete collection-view subclasses can opt into construction through
+    /// QuillUICollectionViewCellFactory.
     public func dequeueReusableCell(withReuseIdentifier identifier: String, for indexPath: IndexPath) -> UICollectionViewCell {
+        if let factory = self as? QuillUICollectionViewCellFactory,
+           let cell = factory.quillCollectionView(self, makeCellWithReuseIdentifier: identifier, for: indexPath) {
+            return cell
+        }
         _ = (identifier, indexPath)
         return UICollectionViewCell(frame: .zero)
     }
@@ -534,7 +551,114 @@ extension UICollectionView {
     }
 
     public func selectItem(at indexPath: IndexPath?, animated: Bool, scrollPosition: ScrollPosition) {
-        _ = (indexPath, animated, scrollPosition)
+        _ = (animated, scrollPosition)
+        var state = quillCollectionState
+        guard let indexPath else {
+            state.selectedIndexPaths.removeAll()
+            quillCollectionState = state
+            return
+        }
+        if !allowsMultipleSelection {
+            state.selectedIndexPaths.removeAll()
+        }
+        state.selectedIndexPaths.insert(indexPath)
+        quillCollectionState = state
+    }
+
+    // MARK: Realized-cell snapshot
+
+    func quillReloadData() {
+        var state = quillCollectionState
+        let oldCells = Array(state.realizedCells.values)
+        state.realizedCells.removeAll()
+        state.realizedIndexPaths.removeAll()
+        quillCollectionState = state
+
+        for cell in oldCells where cell.superview === self {
+            cell.removeFromSuperview()
+        }
+
+        collectionViewLayout.prepare()
+
+        guard let dataSource else {
+            contentSize = collectionViewLayout.collectionViewContentSize
+            return
+        }
+
+        var realizedCells: [IndexPath: UICollectionViewCell] = [:]
+        var realizedIndexPaths: [IndexPath] = []
+        var fallbackY: CGFloat = 0
+        var contentUnion = CGRect.null
+
+        let sectionCount = max(0, dataSource.numberOfSections(in: self))
+        for section in 0..<sectionCount {
+            let itemCount = max(0, dataSource.collectionView(self, numberOfItemsInSection: section))
+            for item in 0..<itemCount {
+                let indexPath = IndexPath(item: item, section: section)
+                let cell = dataSource.collectionView(self, cellForItemAt: indexPath)
+
+                if let attributes = collectionViewLayout.layoutAttributesForItem(at: indexPath) {
+                    cell.apply(attributes)
+                } else if cell.frame.size == .zero {
+                    let fallbackSize = quillFallbackItemSize()
+                    cell.frame = CGRect(x: 0, y: fallbackY, width: fallbackSize.width, height: fallbackSize.height)
+                    fallbackY += fallbackSize.height
+                }
+
+                addSubview(cell)
+                (delegate as? UICollectionViewDelegate)?.collectionView(self, willDisplay: cell, forItemAt: indexPath)
+                realizedCells[indexPath] = cell
+                realizedIndexPaths.append(indexPath)
+                contentUnion = contentUnion.union(cell.frame)
+            }
+        }
+
+        state = quillCollectionState
+        state.realizedCells = realizedCells
+        state.realizedIndexPaths = realizedIndexPaths
+        quillCollectionState = state
+
+        let layoutContentSize = collectionViewLayout.collectionViewContentSize
+        if layoutContentSize.width > 0 || layoutContentSize.height > 0 {
+            contentSize = layoutContentSize
+        } else if !contentUnion.isNull {
+            contentSize = CGSize(width: max(contentUnion.maxX, bounds.width), height: max(contentUnion.maxY, bounds.height))
+        } else {
+            contentSize = .zero
+        }
+    }
+
+    func quillCellForItem(at indexPath: IndexPath) -> UICollectionViewCell? {
+        quillCollectionState.realizedCells[indexPath]
+    }
+
+    var quillVisibleCells: [UICollectionViewCell] {
+        let state = quillCollectionState
+        return state.realizedIndexPaths.compactMap { state.realizedCells[$0] }
+    }
+
+    var quillSelectedIndexPaths: [IndexPath]? {
+        let selected = quillCollectionState.selectedIndexPaths
+        return selected.isEmpty ? nil : selected.sorted { lhs, rhs in
+            for offset in 0..<max(lhs.count, rhs.count) {
+                let lhsValue = offset < lhs.count ? lhs[offset] : -1
+                let rhsValue = offset < rhs.count ? rhs[offset] : -1
+                if lhsValue != rhsValue {
+                    return lhsValue < rhsValue
+                }
+            }
+            return false
+        }
+    }
+
+    private func quillFallbackItemSize() -> CGSize {
+        if let flowLayout = collectionViewLayout as? UICollectionViewFlowLayout,
+           flowLayout.itemSize.width > 0,
+           flowLayout.itemSize.height > 0 {
+            return flowLayout.itemSize
+        }
+        let width = bounds.width > 0 ? bounds.width : max(frame.width, 44)
+        return CGSize(width: width, height: 44)
     }
 
     // MARK: Item geometry (resolved through the layout object)

@@ -49,6 +49,8 @@ struct QuillLowerFoundation {
         Currently lowers:
           NSSortDescriptor(key:..., ascending:...) -> NSSortDescriptor.quillKey(..., ascending:...)
           sortDescriptor.key                     -> sortDescriptor.quillKey
+          NSTextCheckingResult.CheckingType.link/date/address/phoneNumber/transitInformation
+                                                 -> NSTextCheckingResult.CheckingType(rawValue:...)
         """
         stream.write(Data((usage + "\n").utf8))
     }

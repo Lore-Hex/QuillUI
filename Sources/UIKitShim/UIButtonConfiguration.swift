@@ -507,7 +507,7 @@ public extension UIBackgroundConfiguration {
             return NSDirectionalEdgeInsets(top: stored.top, leading: stored.left, bottom: stored.bottom, trailing: stored.right)
         }
         set {
-            quillBackgroundInsets = UIEdgeInsets(top: newValue.top, left: newValue.leading, bottom: newValue.bottom, right: newValue.trailing)
+            quillBackgroundInsets = QuillEdgeInsets(top: newValue.top, left: newValue.leading, bottom: newValue.bottom, right: newValue.trailing)
         }
     }
 }

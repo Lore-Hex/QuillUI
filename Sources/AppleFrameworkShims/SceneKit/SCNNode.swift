@@ -2,7 +2,11 @@
 import Foundation
 import QuillFoundation
 
-public final class SCNNode: @unchecked Sendable {
+public final class SCNNode: Equatable, @unchecked Sendable {
+    public static func == (lhs: SCNNode, rhs: SCNNode) -> Bool {
+        lhs === rhs
+    }
+
     public var name: String?
     public var position = SCNVector3(0, 0, 0)
     public var eulerAngles = SCNVector3(0, 0, 0)
@@ -20,8 +24,8 @@ public final class SCNNode: @unchecked Sendable {
     public private(set) weak var parent: SCNNode?
     public private(set) var childNodes: [SCNNode] = []
 
-    /// Actions started via `runAction`. The renderer (rung 3) advances these;
-    /// holding them keeps the scene graph self-describing in the meantime.
+    /// Actions started via `runAction`. They are retained as interpretable
+    /// data so a later animation pass can advance them deterministically.
     public private(set) var runningActions: [SCNAction] = []
 
     public init() {}
@@ -34,6 +38,12 @@ public final class SCNNode: @unchecked Sendable {
         child.removeFromParentNode()
         child.parent = self
         childNodes.append(child)
+    }
+
+    public func insertChildNode(_ child: SCNNode, at index: Int) {
+        child.removeFromParentNode()
+        child.parent = self
+        childNodes.insert(child, at: Swift.max(0, Swift.min(index, childNodes.count)))
     }
 
     public func removeFromParentNode() {
@@ -64,16 +74,15 @@ public final class SCNNode: @unchecked Sendable {
         runningActions.removeAll()
     }
 
-    /// Orients the node so its local -Z axis points at `worldTarget`, +Y up —
-    /// the same contract as `SCNNode.look(at:)`. Encoded as Euler angles
-    /// (yaw about Y, pitch about X); refined when the renderer lands.
+    /// Orients the node so its local -Z axis points at `worldTarget`, +Y up.
     public func look(at worldTarget: SCNVector3) {
         let dx = worldTarget.x - position.x
         let dy = worldTarget.y - position.y
         let dz = worldTarget.z - position.z
         let horizontal = (dx * dx + dz * dz).squareRoot()
-        // -Z forward: yaw rotates the -Z axis toward (dx, dz).
-        let yaw = atan2(dx, dz)
+        // With this shim's row-major transform math, yaw 0 leaves local -Z
+        // aimed down world -Z.
+        let yaw = atan2(-dx, -dz)
         let pitch = atan2(dy, horizontal)
         eulerAngles = SCNVector3(pitch, yaw, 0)
     }

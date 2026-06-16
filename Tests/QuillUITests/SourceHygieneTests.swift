@@ -560,13 +560,17 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKit.swift"),
             encoding: .utf8
         )
+        let gestureSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUIKit/UIGestureRecognizers.swift"),
+            encoding: .utf8
+        )
 
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
         #expect(source.contains("public typealias UserInterfaceStyle = UIUserInterfaceStyle"))
         #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
         #expect(source.contains("usingSpringWithDamping: CGFloat"))
         #expect(source.contains("public struct State: OptionSet, Sendable"))
-        #expect(source.contains("public class UIGestureRecognizer: NSObject"))
+        #expect(gestureSource.contains("open class UIGestureRecognizer: NSObject"))
         #expect(source.contains("public enum ContentInsetAdjustmentBehavior: Int"))
         #expect(source.contains("public enum DisplayModeButtonVisibility: Int"))
         #expect(source.contains("public enum SplitBehavior: Int"))
@@ -661,7 +665,7 @@ struct SourceHygieneTests {
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
     }
 

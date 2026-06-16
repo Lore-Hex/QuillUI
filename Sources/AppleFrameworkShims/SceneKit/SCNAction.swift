@@ -1,7 +1,7 @@
 // SceneKit shim — actions.
 //
 // Actions are modeled as a small interpretable tree (`kind`) rather than
-// opaque blocks, so the rung-3 renderer can advance them (rotate a node,
+// opaque blocks, so a later animation step can advance them (rotate a node,
 // loop forever, run a sequence) without re-deriving intent.
 import Foundation
 import QuillFoundation
