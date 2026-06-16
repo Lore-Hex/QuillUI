@@ -102,18 +102,28 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    `QuillMoleculeViewer`, `QuillEuclidExample`, `ShapeScript`,
    `QuillShapeScriptCLI`, and `QuillShapeScriptViewer`. Rendering is still
    inert; rung 3 is the first raster output gate.
-3. **Fixtures render on GTK**: software-render the scene graph (project the
-   sphere/cylinder primitives via the existing Cairo CGContext path — flat
-   shading first, the fixtures' scenes are deliberately simple) behind
-   SwiftUI `SceneView`/AppKit `SCNView` hosts. Screenshot gates like
-   SolderScope's.
-4. **QuillEuclidExample renders**: real mesh data via SCNGeometry sources/
-   elements (Euclid's `canImport(SceneKit)` interop lights up here and
-   hands us triangle meshes directly).
-5. **QuillShapeScriptViewer launches**: NSDocument chrome via QuillAppKit +
-   SCNView viewport; ShapeScript's evaluator already supplies the meshes.
-6. **Pixel parity** vs macOS references (QuillPaint pipeline), camera
-   controls, hit-testing — driven by what the apps actually use.
+3. **Fixtures render on GTK** — ✅ DONE. `SceneView` and `SCNView` now route
+   the retained SceneKit graph through a deterministic software renderer,
+   drawing BGRA `CGImage`s through the existing AppKit/GTK custom-draw path.
+   The renderer covers the fixture surface (`SCNSphere`, `SCNCylinder`,
+   `SCNBox`, basic node transforms/camera projection, materials, and scene
+   background). Verified by `quill-scenekit-render-smoke` direct pixel checks
+   and an Xvfb GTK `SceneView` smoke that differs from a solid-black reference.
+4. **QuillEuclidExample renders** — ✅ DONE for the real mesh path. The
+   software renderer decodes `SCNGeometrySource`/`SCNGeometryElement` buffers
+   for triangles, strips, lines, points, and polygon fans, so Euclid's
+   `SCNGeometry(mesh)` interop renders actual mesh data. Verified by
+   `quill-euclid-render-smoke`, which builds a real `Euclid.Mesh`, converts it
+   through `SCNGeometry(mesh)`, renders it, and asserts colored pixels.
+5. **QuillShapeScriptViewer launches** — ✅ DONE. `QuillShapeScriptViewer` is
+   now exposed as a SwiftPM executable product, rebuilds against the rendered
+   `SCNView`, and launch-smokes under Xvfb by staying alive until timeout with
+   no early crash.
+6. **Pixel parity / controls / hit-testing** — IN PROGRESS. `SCNView.hitTest`
+   now uses the same projected primitives as the software renderer and returns
+   nearest-first `SCNHitTestResult`s, covering ShapeScript's geometry-selection
+   path. Full macOS pixel-reference parity and live camera-control gestures
+   remain open.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
 existing 2D paint layer. That is enough for these apps' scene scale; a GL/
@@ -128,7 +138,7 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Rung 2 (fixtures): SceneKit scene-graph shim authored; QuillSolarSystem + QuillMoleculeViewer compile
 - [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0
 - [x] Rung 2c (app-tier enablement): enable Euclid interop + fix ShapeScript interop + QuillEuclidExample + QuillShapeScriptViewer compile (all-at-once)
-- [ ] Rung 3: fixtures render (GTK screenshot gate)
-- [ ] Rung 4: QuillEuclidExample renders
-- [ ] Rung 5: QuillShapeScriptViewer launches
-- [ ] Rung 6: pixel parity
+- [x] Rung 3: fixtures render (GTK screenshot gate)
+- [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
+- [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
+- [ ] Rung 6: pixel parity / live camera controls (hit-testing is implemented and smoke-gated)

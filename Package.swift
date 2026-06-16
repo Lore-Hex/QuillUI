@@ -2618,6 +2618,16 @@ if solderScopeUpstreamPresent {
 // of any SCN surface) → fixtures → Euclid Example → ShapeScript core/CLI →
 // ShapeScript Viewer (real shipped macOS app, NSDocument-based AppKit).
 #if os(Linux)
+targets += [
+    .executableTarget(
+        name: "QuillSceneKitRenderSmoke",
+        dependencies: ["SceneKit", "QuillFoundation", "QuillUI"],
+        path: "Sources/QuillSceneKitRenderSmoke",
+        swiftSettings: appSwiftSettings
+    ),
+]
+products.append(.executable(name: "quill-scenekit-render-smoke", targets: ["QuillSceneKitRenderSmoke"]))
+
 if euclidUpstreamPresent {
     // Euclid's Apple-framework interop files (Euclid+SceneKit/RealityKit/
     // AppKit/UIKit/CoreGraphics/CoreText/SIMD) are `#if canImport(...)`
@@ -2660,8 +2670,15 @@ if euclidUpstreamPresent {
             ],
             swiftSettings: appSwiftSettings
         ),
+        .executableTarget(
+            name: "QuillEuclidRenderSmoke",
+            dependencies: ["Euclid", "SceneKit", "UIKit", "QuillFoundation"],
+            path: "Sources/QuillEuclidRenderSmoke",
+            swiftSettings: appSwiftSettings
+        ),
     ]
     products.append(.library(name: "Euclid", targets: ["Euclid"]))
+    products.append(.executable(name: "quill-euclid-render-smoke", targets: ["QuillEuclidRenderSmoke"]))
 }
 if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent {
     // NOTE: ShapeScript's "LRUCache" dependency resolves to the existing
@@ -2741,6 +2758,7 @@ if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent
         ),
     ]
     products.append(.executable(name: "QuillShapeScriptCLI", targets: ["QuillShapeScriptCLI"]))
+    products.append(.executable(name: "QuillShapeScriptViewer", targets: ["QuillShapeScriptViewer"]))
 }
 if quillUISceneKitFixturesEnabled {
     // Authored in-repo fixture apps (NOT upstream source): a solar-system
@@ -3526,6 +3544,11 @@ let packageTestTargets: [Target] = {
         .testTarget(
             name: "QuillSourceLoweringTests",
             dependencies: ["QuillSourceLowering"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "SceneKitTests",
+            dependencies: ["SceneKit", "QuillFoundation"],
             swiftSettings: appSwiftSettings
         ),
         .testTarget(

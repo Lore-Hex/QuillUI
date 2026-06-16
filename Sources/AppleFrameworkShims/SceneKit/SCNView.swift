@@ -54,9 +54,36 @@ public final class SCNCameraController: @unchecked Sendable {
         appKitGestureRecognizers.append(gestureRecognizer)
     }
 
+    public func quillRenderImage(width: Int? = nil, height: Int? = nil) -> CGImage? {
+        guard let scene else { return nil }
+        let resolvedWidth = width ?? max(1, Int(bounds.width.rounded()))
+        let resolvedHeight = height ?? max(1, Int(bounds.height.rounded()))
+        return scene.quillRenderImage(width: resolvedWidth, height: resolvedHeight, pointOfView: pointOfView)
+    }
+
+    open override func draw(_ rect: CGRect) {
+        guard let context = NSGraphicsContext.current?.cgContext,
+              let image = quillRenderImage(
+                width: max(1, Int(rect.width.rounded())),
+                height: max(1, Int(rect.height.rounded()))
+              ) else {
+            return
+        }
+        context.interpolationQuality = .none
+        context.draw(image, in: rect)
+    }
+
     public func hitTest(_ point: CGPoint, options: [SCNHitTestOption: Any]? = nil) -> [SCNHitTestResult] {
-        _ = (point, options)
-        return []
+        guard let scene else { return [] }
+        let rawSearchMode = options?[.searchMode] as? Int
+        let searchMode = rawSearchMode.flatMap(SCNHitTestSearchMode.init(rawValue:)) ?? .closest
+        return scene.quillHitTest(
+            point,
+            width: max(1, Int(bounds.width.rounded())),
+            height: max(1, Int(bounds.height.rounded())),
+            pointOfView: pointOfView,
+            searchMode: searchMode
+        )
     }
 }
 #endif

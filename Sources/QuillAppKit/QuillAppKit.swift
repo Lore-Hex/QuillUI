@@ -335,7 +335,7 @@ public extension NSColor {
 }
 
 open class NSGraphicsContext: NSObject, @unchecked Sendable {
-    public static var current: NSGraphicsContext? = NSGraphicsContext(cgContext: CGContext(), flipped: false)
+    @MainActor public static var current: NSGraphicsContext? = NSGraphicsContext(cgContext: CGContext(), flipped: false)
     public let cgContext: CGContext
     public let isFlipped: Bool
 

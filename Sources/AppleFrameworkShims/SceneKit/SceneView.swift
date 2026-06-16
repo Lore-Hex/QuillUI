@@ -1,10 +1,9 @@
 // SceneKit shim — SwiftUI `SceneView`.
 //
-// Rung 2 provides the type + API so SwiftUI+SceneKit apps compile; the body
-// is an inert placeholder. Rung 3 replaces the body with a software rasteriser
-// that walks `scene.rootNode` and projects the primitives through the Cairo
-// CGContext path.
+// Rung 3 routes the retained SceneKit graph through the software renderer and
+// the existing NSViewRepresentable/AppKit custom-draw GTK bridge.
 import Foundation
+import AppKit
 import QuillFoundation
 import SwiftUI
 
@@ -29,7 +28,58 @@ public struct SceneView: View {
     }
 
     public var body: some View {
-        // Inert until rung 3. Black mirrors SceneKit's default backdrop.
+        #if os(Linux)
+        SceneKitRenderRepresentable(scene: scene, options: options)
+        #else
         Color.black
+        #endif
     }
 }
+
+#if os(Linux)
+@MainActor
+private struct SceneKitRenderRepresentable: NSViewRepresentable {
+    let scene: SCNScene?
+    let options: SceneView.Options
+
+    func makeNSView(context: Context) -> SceneKitRenderView {
+        let view = SceneKitRenderView()
+        view.scene = scene
+        view.options = options
+        return view
+    }
+
+    func updateNSView(_ nsView: SceneKitRenderView, context: Context) {
+        nsView.scene = scene
+        nsView.options = options
+        nsView.setNeedsDisplay(nsView.bounds)
+    }
+}
+
+@MainActor
+private final class SceneKitRenderView: NSView {
+    var scene: SCNScene?
+    var options: SceneView.Options = []
+
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let pixelWidth = max(1, Int(bounds.width.rounded()))
+        let pixelHeight = max(1, Int(bounds.height.rounded()))
+        let image = scene?.quillRenderImage(width: pixelWidth, height: pixelHeight)
+            ?? blackImage(width: pixelWidth, height: pixelHeight)
+        context.interpolationQuality = .none
+        context.draw(image, in: bounds)
+    }
+
+    private func blackImage(width: Int, height: Int) -> CGImage {
+        let image = CGImage()
+        image.width = width
+        image.height = height
+        image.quillBytesPerRow = width * 4
+        image.quillBGRAPixels = [UInt8](repeating: 0, count: width * height * 4)
+        return image
+    }
+}
+#endif
