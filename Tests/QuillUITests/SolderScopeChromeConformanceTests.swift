@@ -25,6 +25,7 @@
 import Glibc
 import Testing
 import SwiftUI
+import SwiftOpenUI
 
 // MARK: - Helpers
 
@@ -39,7 +40,9 @@ private func builds<T>(_ value: T) -> Bool {
 /// Mirrors ContentView.swift's `ToolbarButtonStyle`: a custom `ButtonStyle`
 /// conformer spelled with the protocol's bare `Configuration` typealias and
 /// the `label` / `isPressed` configuration members.
-private struct PressOpacityButtonStyle: ButtonStyle {
+private struct PressOpacityButtonStyle: SwiftOpenUI.ButtonStyle {
+    typealias Configuration = SwiftOpenUI.ButtonStyleConfiguration
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.opacity(configuration.isPressed ? 0.5 : 1)
     }
