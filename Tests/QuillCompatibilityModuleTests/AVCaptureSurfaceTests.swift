@@ -5,17 +5,38 @@ import AVFoundation
 import CoreImage
 import CoreVideo
 import CoreMedia
+import Glibc
 
 // Conformance tests for the capture/writer surface (#506) and the CoreImage
 // frame pipeline (#516) — Apple-style call sites compiled and exercised the
 // way SolderScope's CaptureManager/FrameProcessor/RecordingManager use them.
 
 private final class RecordingDelegate: AVCaptureVideoDataOutputSampleBufferDelegate {
-    var frames = 0
+    private let lock = NSLock()
+    private var storedFrames = 0
+    private var storedLastImageSize: CGSize?
+
+    var frames: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedFrames
+    }
+
+    var lastImageSize: CGSize? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedLastImageSize
+    }
+
     func captureOutput(_ output: AVCaptureOutput,
                        didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
-        frames += 1
+        lock.lock()
+        defer { lock.unlock() }
+        storedFrames += 1
+        if let imageBuffer = sampleBuffer.imageBuffer {
+            storedLastImageSize = CGSize(width: imageBuffer.width, height: imageBuffer.height)
+        }
     }
     // didDrop intentionally NOT implemented — the protocol default covers it
     // (Apple's optional-method semantics).
@@ -67,6 +88,46 @@ struct AVCaptureSurfaceTests {
         let discovery = AVCaptureDevice.DiscoverySession(
             deviceTypes: [.builtInWideAngleCamera, .external], mediaType: .video, position: .unspecified)
         #expect(discovery.devices.isEmpty) // until #515 enumerates /dev/video*
+    }
+
+    @Test func syntheticCameraDiscoveryIsOptIn() {
+        withSyntheticCameraEnvironment(width: 640, height: 480, fps: 15) {
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.external], mediaType: .video, position: .unspecified)
+            let synthetic = discovery.devices.first { $0.uniqueID == "quill-synthetic://camera" }
+            #expect(synthetic?.localizedName == "Quill Synthetic Microscope")
+            #expect(synthetic?.deviceType == .external)
+            #expect(synthetic?.formats.first?.formatDescription.dimensions.width == 640)
+            #expect(synthetic?.formats.first?.formatDescription.dimensions.height == 480)
+            #expect(synthetic?.formats.first?.videoSupportedFrameRateRanges.first?.maxFrameRate == 15)
+        }
+    }
+
+    @Test func syntheticCaptureSessionDeliversFrames() async throws {
+        let delegate = RecordingDelegate()
+        try await withSyntheticCameraEnvironment(width: 96, height: 64, fps: 20) {
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.external], mediaType: .video, position: .unspecified)
+            let device = try #require(discovery.devices.first { $0.uniqueID == "quill-synthetic://camera" })
+
+            let session = AVCaptureSession()
+            let input = try AVCaptureDeviceInput(device: device)
+            let output = AVCaptureVideoDataOutput()
+            output.setSampleBufferDelegate(delegate, queue: DispatchQueue(label: "synthetic-capture-test"))
+
+            session.beginConfiguration()
+            session.addInput(input)
+            session.addOutput(output)
+            session.commitConfiguration()
+            session.startRunning()
+            defer { session.stopRunning() }
+
+            for _ in 0..<40 where delegate.frames < 2 {
+                try await Task.sleep(nanoseconds: 25_000_000)
+            }
+        }
+        #expect(delegate.frames >= 2)
+        #expect(delegate.lastImageSize == CGSize(width: 96, height: 64))
     }
 
     @Test func assetWriterLifecycle() async throws {
@@ -143,5 +204,58 @@ struct AVCaptureSurfaceTests {
         // Placeholder CIImages keep the historical "no frame" nil.
         #expect(context.createCGImage(CIImage(), from: .zero) == nil)
     }
+}
+
+private func withSyntheticCameraEnvironment<R>(
+    width: Int,
+    height: Int,
+    fps: Int,
+    _ body: () throws -> R
+) rethrows -> R {
+    let previous = syntheticCameraEnvironmentSnapshot()
+    setenv("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA", "1", 1)
+    setenv("QUILL_AVFOUNDATION_SYNTHETIC_WIDTH", "\(width)", 1)
+    setenv("QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT", "\(height)", 1)
+    setenv("QUILL_AVFOUNDATION_SYNTHETIC_FPS", "\(fps)", 1)
+    defer { restoreSyntheticCameraEnvironment(previous) }
+    return try body()
+}
+
+private func withSyntheticCameraEnvironment<R>(
+    width: Int,
+    height: Int,
+    fps: Int,
+    _ body: () async throws -> R
+) async rethrows -> R {
+    let previous = syntheticCameraEnvironmentSnapshot()
+    setenv("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA", "1", 1)
+    setenv("QUILL_AVFOUNDATION_SYNTHETIC_WIDTH", "\(width)", 1)
+    setenv("QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT", "\(height)", 1)
+    setenv("QUILL_AVFOUNDATION_SYNTHETIC_FPS", "\(fps)", 1)
+    defer { restoreSyntheticCameraEnvironment(previous) }
+    return try await body()
+}
+
+private func syntheticCameraEnvironmentSnapshot() -> [String: String?] {
+    [
+        "QUILL_AVFOUNDATION_SYNTHETIC_CAMERA": getenvString("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA"),
+        "QUILL_AVFOUNDATION_SYNTHETIC_WIDTH": getenvString("QUILL_AVFOUNDATION_SYNTHETIC_WIDTH"),
+        "QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT": getenvString("QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT"),
+        "QUILL_AVFOUNDATION_SYNTHETIC_FPS": getenvString("QUILL_AVFOUNDATION_SYNTHETIC_FPS"),
+    ]
+}
+
+private func restoreSyntheticCameraEnvironment(_ snapshot: [String: String?]) {
+    for (key, value) in snapshot {
+        if let value {
+            setenv(key, value, 1)
+        } else {
+            unsetenv(key)
+        }
+    }
+}
+
+private func getenvString(_ key: String) -> String? {
+    getenv(key).map { String(cString: $0) }
 }
 #endif

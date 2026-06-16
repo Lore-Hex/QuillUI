@@ -691,6 +691,18 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVFoundation.swift"),
             encoding: .utf8
         )
+        let captureSurface = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureSurface.swift"),
+            encoding: .utf8
+        )
+        let syntheticCapture = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/SyntheticCapture.swift"),
+            encoding: .utf8
+        )
+        let captureTests = try String(
+            contentsOf: root.appendingPathComponent("Tests/QuillCompatibilityModuleTests/AVCaptureSurfaceTests.swift"),
+            encoding: .utf8
+        )
         let osShim = try String(
             contentsOf: root.appendingPathComponent("Sources/osShim/os.swift"),
             encoding: .utf8
@@ -701,6 +713,18 @@ struct SourceHygieneTests {
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
         #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
+        #expect(avFoundation.contains("self.devices = AVCaptureDevice.quillDiscoveredCaptureDevices()"))
+        #expect(captureSurface.contains("var quillSyntheticBridge: AnyObject?"))
+        #expect(captureSurface.contains("quillSyntheticStartIfAvailable()"))
+        #expect(captureSurface.contains("quillSyntheticStopIfAvailable()"))
+        #expect(syntheticCapture.contains("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA"))
+        #expect(syntheticCapture.contains("static func quillDiscoveredCaptureDevices() -> [AVCaptureDevice]"))
+        #expect(syntheticCapture.contains("static func deviceConfiguration(_ device: AVCaptureDevice)"))
+        #expect(syntheticCapture.contains("let configuration = QuillSyntheticCaptureConfiguration.deviceConfiguration(syntheticDevice)"))
+        #expect(syntheticCapture.contains("QuillSyntheticFrameFactory.makeFrame"))
+        #expect(syntheticCapture.contains("captureOutput(box.output, didOutput: box.sampleBuffer, from: box.connection)"))
+        #expect(captureTests.contains("syntheticCameraDiscoveryIsOptIn"))
+        #expect(captureTests.contains("syntheticCaptureSessionDeliversFrames"))
         #expect(!osShim.contains("import os"))
     }
 
@@ -1939,6 +1963,7 @@ struct SourceHygieneTests {
         let backendProducts = try packageSource("scripts/quillui-backend-products.sh")
         let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
         let interactionModeRunner = try packageSource("scripts/run-linux-backend-interaction-modes.sh")
+        let solderScopeSmoke = try packageSource("scripts/linux-solderscope-smoke-check.sh")
         let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
         let legacyScreenshotVerifier = try packageSource("scripts/verify-gtk-screenshot.py")
         let legacyGtkScript = try packageSource("scripts/linux-gtk-interaction-check.sh")
@@ -2481,10 +2506,13 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("Mac-reference wordmark lost its blue-to-red color range"))
         #expect(screenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
         #expect(screenshotVerifier.contains("validate_quill_solderscope_launch"))
+        #expect(screenshotVerifier.contains("validate_quill_solderscope_interaction"))
         #expect(screenshotVerifier.contains("\"quill-solderscope-launch\""))
         #expect(screenshotVerifier.contains("quill-solderscope-interaction"))
         #expect(screenshotVerifier.contains("SolderScope dark toolbar pixels were not detected near the top"))
         #expect(screenshotVerifier.contains("canvas_dark_pixels >= 25_000"))
+        #expect(screenshotVerifier.contains("frame_pixels >= 20_000"))
+        #expect(screenshotVerifier.contains("SolderScope synthetic camera frame was not detected"))
         #expect(screenshotVerifier.contains("minimum_mean = 250 if solderscope_launch_product else 1000"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
@@ -2610,6 +2638,11 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
+        #expect(solderScopeSmoke.contains("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=\"${QUILL_AVFOUNDATION_SYNTHETIC_CAMERA:-1}\""))
+        #expect(solderScopeSmoke.contains("QUILL_AVFOUNDATION_SYNTHETIC_WIDTH=\"${QUILL_AVFOUNDATION_SYNTHETIC_WIDTH:-640}\""))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool click 4"))
+        #expect(solderScopeSmoke.contains("xdotool mousedown 1 mousemove --sync \"$drag_end_x\" \"$drag_end_y\" mouseup 1"))
+        #expect(solderScopeSmoke.contains("click --repeat 2 --delay 80 1"))
         #expect(solderScopeWorkflow.contains("name: SolderScope Linux CI"))
         #expect(solderScopeWorkflow.contains("SolderScope API and fixture tests"))
         #expect(solderScopeWorkflow.contains("SolderScope GTK launch and interaction"))

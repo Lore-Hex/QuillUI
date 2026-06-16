@@ -389,7 +389,7 @@ public final class AVCaptureDevice: @unchecked Sendable {
         public let devices: [AVCaptureDevice]
         public init(deviceTypes: [DeviceType], mediaType: AVMediaType?, position: Position) {
             _ = (deviceTypes, mediaType, position)
-            self.devices = AVCaptureDevice.quillV4L2DiscoveredDevices()
+            self.devices = AVCaptureDevice.quillDiscoveredCaptureDevices()
         }
     }
 }
