@@ -63,9 +63,11 @@ public extension UIApplication {
     /// Objective-C dynamic-dispatch probe. Without an Objective-C runtime on
     /// Linux we cannot answer truthfully, so we report `false`, matching the
     /// conservative "selector not implemented" answer.
+    #if os(Linux)
     func responds(to selector: Selector?) -> Bool {
         false
     }
+    #endif
 }
 
 // MARK: - UICollectionView
