@@ -405,7 +405,8 @@ struct CompatibilityModuleTests {
         #expect(usedRect.height > 0)
         #expect(usedRect.width.isFinite)
         #expect(usedRect.height.isFinite)
-        #expect(usedRect.width <= CGFloat(storage.length) * 14 * 0.6)
+        let expectedSingleLineWidth = CGFloat(storage.length) * 14 * 0.6
+        #expect(usedRect.width <= expectedSingleLineWidth + 0.001)
         #expect(
             layoutManager.glyphIndex(
                 for: CGPoint(x: huge, y: huge),

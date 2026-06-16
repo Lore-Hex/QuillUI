@@ -515,7 +515,7 @@ quill_chat_settings_click_x() {
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 80))}"
     else
-      printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}"
+      printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
     fi
   else
     printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -527,7 +527,7 @@ quill_chat_settings_click_y() {
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 60))}"
     else
-      printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}"
+      printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 60))}"
     fi
   else
     printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
