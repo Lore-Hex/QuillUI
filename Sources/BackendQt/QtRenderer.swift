@@ -722,7 +722,16 @@ extension Toggle: QtRenderable {
         }
 
         quill_qt_check_box_connect_toggled(qtHandle(checkBox), toggled, box, destroy)
-        return checkBox
+
+        // QuillPaint chrome: paint the Mac switch or checkbox over the indicator
+        // for the painted styles, mirroring the GTK backend's toggle paint hook.
+        // .switch paints a switch pill; .automatic / .checkbox paint a checkbox.
+        switch getCurrentEnvironment().toggleStyle {
+        case .switch:
+            return quillPaintQtToggle(checkBox: checkBox, isSwitch: true)
+        case .automatic, .checkbox:
+            return quillPaintQtToggle(checkBox: checkBox, isSwitch: false)
+        }
     }
 }
 
