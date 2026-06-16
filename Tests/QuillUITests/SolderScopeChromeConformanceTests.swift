@@ -201,6 +201,37 @@ struct SolderScopeChromeConformanceTests {
         #expect(KeyEquivalent.space.character == " ")
     }
 
+    @Test func onExitCommandPreservesCancelHandler() {
+        // ContentView: `.onExitCommand { ... }` should be real Escape/cancel
+        // command metadata, not a source-only no-op.
+        var fired = 0
+        let view = Text("exit").onExitCommand {
+            fired += 1
+        }
+        #expect(builds(view))
+        view.action?()
+        #expect(fired == 1)
+
+        let disabled = Text("exit").onExitCommand(perform: nil)
+        #expect(disabled.action == nil)
+    }
+
+    @Test func cancelShortcutDispatchesWithinWindowScope() {
+        // GTK backs onExitCommand with KeyboardShortcut.cancelAction, scoped
+        // to the active window so one app window cannot steal another's Escape.
+        let windowID = 93_501
+        var fired = 0
+        let id = KeyboardShortcutRegistry.shared.register(.cancelAction, windowID: windowID) {
+            fired += 1
+        }
+        defer { KeyboardShortcutRegistry.shared.unregister(id: id) }
+
+        #expect(KeyboardShortcutRegistry.shared.dispatch(.cancelAction, windowID: windowID))
+        #expect(fired == 1)
+        #expect(!KeyboardShortcutRegistry.shared.dispatch(.cancelAction, windowID: windowID + 1))
+        #expect(fired == 1)
+    }
+
     // MARK: NSCursor
 
     @Test func nsCursorPushAndStaticPop() {

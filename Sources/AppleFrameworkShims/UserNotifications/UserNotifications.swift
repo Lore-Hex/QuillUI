@@ -182,6 +182,7 @@ public final class UNNotificationCategory: NSObject, @unchecked Sendable {
     public let identifier: String
     public let actions: [UNNotificationAction]
     public let intentIdentifiers: [String]
+    public let hiddenPreviewsBodyPlaceholder: String
     public let categoryOptions: UNNotificationCategoryOptions
     public init(
         identifier: String,
@@ -192,6 +193,22 @@ public final class UNNotificationCategory: NSObject, @unchecked Sendable {
         self.identifier = identifier
         self.actions = actions
         self.intentIdentifiers = intentIdentifiers
+        self.hiddenPreviewsBodyPlaceholder = ""
+        self.categoryOptions = options
+        super.init()
+    }
+
+    public init(
+        identifier: String,
+        actions: [UNNotificationAction],
+        intentIdentifiers: [String],
+        hiddenPreviewsBodyPlaceholder: String,
+        options: UNNotificationCategoryOptions = []
+    ) {
+        self.identifier = identifier
+        self.actions = actions
+        self.intentIdentifiers = intentIdentifiers
+        self.hiddenPreviewsBodyPlaceholder = hiddenPreviewsBodyPlaceholder
         self.categoryOptions = options
         super.init()
     }

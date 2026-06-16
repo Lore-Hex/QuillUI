@@ -1,26 +1,13 @@
-// AVCapture* extra surface — Linux shim additions for SignalUI's camera flows:
-//   • ScanQRCodeViewController.swift (QRCodeScanner / QRCodeScanOutput /
-//     QRCodeScanPreviewView / QRCodeSampleBufferScanner): device
-//     configuration helpers, AVCaptureVideoPreviewLayer,
-//     AVCaptureVideoOrientation, and the session notifications/userInfo keys.
-//   • UIViewController+Permissions.swift: AVCaptureDevice.authorizationStatus /
-//     requestAccess (AVAuthorizationStatus).
-//   • Attachments/PreviewableAttachment.swift: AVMetadataItemFilter.forSharing()
-//     + AVAssetExportPreset640x480 (exportAsync is upstream's own extension over
-//     the inert export surface in AVFoundation.swift).
+// AVCapture extras that sit on top of the canonical capture graph in
+// AVCaptureSurface.swift. Keep that file as the single owner of session/input/
+// output/connection types so V4L2-backed capture and inert fallback behavior
+// share one ABI surface.
 //
-// Capture graph ownership lives in AVCaptureSurface.swift, including the V4L2
-// bridge. This file layers only non-overlapping source-compatibility extras.
-//
-// Apple re-exports CoreImage through AVFoundation (ScanQRCodeViewController
-// casts Vision's barcodeDescriptor to CIQRCodeDescriptor with only
-// `import AVFoundation` in scope); mirror that so the upstream file resolves.
+// Apple re-exports CoreImage through AVFoundation. Mirror that so upstream code
+// that only imports AVFoundation can still resolve CIQRCodeDescriptor.
 
 import Foundation
-import QuillFoundation
 import QuartzCore
-import CoreMedia
-import CoreVideo
 @_exported import CoreImage
 
 #if os(Linux)
@@ -53,16 +40,14 @@ extension AVCaptureDevice {
         case custom = 3
     }
 
-    // DiscoverySession (with init(deviceTypes:mediaType:position:)) is declared
-    // in AVFoundation.swift — one owner. A duplicate here caused "invalid
-    // redeclaration of 'DiscoverySession'".
-
     public func isFocusModeSupported(_ focusMode: FocusMode) -> Bool { false }
     public func isExposureModeSupported(_ exposureMode: ExposureMode) -> Bool { false }
 
     /// Virtual multi-camera zoom switch-over points — none on Linux.
     public var virtualDeviceSwitchOverVideoZoomFactors: [NSNumber] { [] }
 
+    // DiscoverySession, device identity/configuration storage, and authorization
+    // are declared in AVFoundation.swift.
 }
 
 extension AVCaptureDevice.DeviceType {

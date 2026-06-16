@@ -627,10 +627,9 @@ public enum UIUserInterfaceIdiom: Int, Sendable {
 
 // MARK: - UIEdgeInsets
 //
-// Layout-inset geometry. The storage type lives in QuillUIKit so scroll-view
-// subclasses can override inset properties in that lower layer. Re-export it
-// here under UIKit's public name so `import UIKit` callers see one canonical
-// type instead of a bridge-only wrapper.
+// UIKit's four-edge geometry type. The concrete storage lives in QuillUIKit so
+// UIView/UIScrollView class-body members can be `open` and overrideable; this
+// shim re-exports it under Apple's spelling.
 public typealias UIEdgeInsets = QuillEdgeInsets
 
 // MARK: - NSDirectionalEdgeInsets
@@ -749,6 +748,16 @@ public extension String {
     }
     func draw(in rect: CGRect, withAttributes attributes: [NSAttributedString.Key: Any]? = nil) {
         _ = (rect, attributes)
+    }
+}
+
+public extension NSAttributedString {
+    func boundingRect(with size: CGSize,
+                      options: NSStringDrawingOptions = [],
+                      context: NSStringDrawingContext? = nil) -> CGRect {
+        _ = (options, context)
+        let attributes = length > 0 ? self.attributes(at: 0, effectiveRange: nil) : nil
+        return quillEstimatedTextRect(string, proposed: size, attributes: attributes)
     }
 }
 

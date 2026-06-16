@@ -1989,6 +1989,132 @@ print("patched ArticleStringFormatter selector observer lowering")
 PY
     fi
 
+    local default_feeds_importer="$shared_dir/Importers/DefaultFeedsImporter.swift"
+    if [[ -f "$default_feeds_importer" ]] && grep -q 'Bundle.main.url(forResource: "DefaultFeeds"' "$default_feeds_importer"; then
+        echo "==> lowering netnewswire Shared DefaultFeedsImporter resource lookup"
+        python3 - "$default_feeds_importer" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    'let defaultFeedsURL = Bundle.main.url(forResource: "DefaultFeeds", withExtension: "opml")!',
+    '''#if os(Linux)
+\t\tguard let defaultFeedsURL = Bundle.module.url(forResource: "DefaultFeeds", withExtension: "opml") else {
+\t\t\treturn
+\t\t}
+#else
+\t\tlet defaultFeedsURL = Bundle.main.url(forResource: "DefaultFeeds", withExtension: "opml")!
+#endif''',
+    1,
+)
+path.write_text(src)
+print("patched DefaultFeedsImporter Bundle.module lookup")
+PY
+    fi
+
+    local extension_containers_file="$shared_dir/ShareExtension/ExtensionContainersFile.swift"
+    if [[ -f "$extension_containers_file" ]] && grep -q '#selector(markAsDirty' "$extension_containers_file" && grep -q 'as! String' "$extension_containers_file"; then
+        echo "==> lowering netnewswire Shared ExtensionContainersFile selectors and app-group lookup"
+        python3 - "$extension_containers_file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_file_path = '''	private static var filePath: String = {
+		let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as! String
+		let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
+		return containerURL!.appendingPathComponent("extension_containers.plist").path
+	}()
+'''
+new_file_path = '''	private static var filePath: String = {
+		let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as? String ?? "group.com.ranchero.NetNewsWire"
+		let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
+		return containerURL!.appendingPathComponent("extension_containers.plist").path
+	}()
+'''
+if old_file_path not in src:
+    raise SystemExit("ExtensionContainersFile filePath pattern not found")
+src = src.replace(old_file_path, new_file_path, 1)
+
+old_observers = '''		NotificationCenter.default.addObserver(self, selector: #selector(markAsDirty), name: .UserDidAddAccount, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(markAsDirty), name: .UserDidDeleteAccount, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(markAsDirty), name: .AccountStateDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(markAsDirty), name: .ChildrenDidChange, object: nil)
+'''
+new_observers = '''#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		for name in [Notification.Name.UserDidAddAccount, .UserDidDeleteAccount, .AccountStateDidChange, .ChildrenDidChange] {
+			_ = NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+				Task { @MainActor in
+					self?.markAsDirty()
+				}
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(markAsDirty), name: .UserDidAddAccount, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(markAsDirty), name: .UserDidDeleteAccount, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(markAsDirty), name: .AccountStateDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(markAsDirty), name: .ChildrenDidChange, object: nil)
+#endif
+'''
+if old_observers not in src:
+    raise SystemExit("ExtensionContainersFile observer pattern not found")
+src = src.replace(old_observers, new_observers, 1)
+
+src = src.replace(
+    "\t@objc func markAsDirty() {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc markAsDirty() {",
+    1,
+)
+src = src.replace(
+    "\t\tsaveQueue.add(self, #selector(saveToDiskIfNeeded))",
+    "#if os(Linux)\n\t\tsaveQueue.add { [weak self] in\n\t\t\tself?.saveToDiskIfNeeded()\n\t\t}\n#else\n\t\tsaveQueue.add(self, #selector(saveToDiskIfNeeded))\n#endif",
+    1,
+)
+src = src.replace(
+    "\t@objc func saveToDiskIfNeeded() {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc saveToDiskIfNeeded() {",
+    1,
+)
+
+path.write_text(src)
+print("patched ExtensionContainersFile selector/app-group lowering")
+PY
+    fi
+
+    local extension_feed_add_request_file="$shared_dir/ShareExtension/ExtensionFeedAddRequestFile.swift"
+    if [[ -f "$extension_feed_add_request_file" ]] && grep -q 'as! String' "$extension_feed_add_request_file"; then
+        echo "==> lowering netnewswire Shared ExtensionFeedAddRequestFile app-group lookup"
+        python3 - "$extension_feed_add_request_file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+old_file_path = '''	private static let filePath: String = {
+		let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as! String
+		let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
+		return containerURL!.appendingPathComponent("extension_feed_add_request.plist").path
+	}()
+'''
+new_file_path = '''	private static let filePath: String = {
+		let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as? String ?? "group.com.ranchero.NetNewsWire"
+		let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
+		return containerURL!.appendingPathComponent("extension_feed_add_request.plist").path
+	}()
+'''
+if old_file_path not in src:
+    raise SystemExit("ExtensionFeedAddRequestFile filePath pattern not found")
+src = src.replace(old_file_path, new_file_path, 1)
+path.write_text(src)
+print("patched ExtensionFeedAddRequestFile app-group lowering")
+PY
+    fi
+
     local smart_feed="$shared_dir/SmartFeeds/SmartFeed.swift"
     if [[ -f "$smart_feed" ]] && grep -q '#selector(unreadCountDidChange' "$smart_feed"; then
         echo "==> lowering netnewswire Shared SmartFeed selector observers"
@@ -2090,28 +2216,88 @@ print("patched UnreadFeed selector observer lowering")
 PY
     fi
 
-    local article_utilities="$shared_dir/Extensions/ArticleUtilities.swift"
-    if [[ -f "$article_utilities" ]] && grep -qE '^import Images|func iconImage\(' "$article_utilities"; then
-        echo "==> lowering netnewswire Shared ArticleUtilities image-cache island"
-        python3 - "$article_utilities" <<'PY'
-import re
+    local smart_feed_pasteboard_writer="$shared_dir/SmartFeeds/SmartFeedPasteboardWriter.swift"
+    if [[ -f "$smart_feed_pasteboard_writer" ]] && grep -q '@MainActor @objc final class SmartFeedPasteboardWriter' "$smart_feed_pasteboard_writer"; then
+        echo "==> lowering netnewswire Shared SmartFeedPasteboardWriter ObjC attribute"
+        python3 - "$smart_feed_pasteboard_writer" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
 src = path.read_text()
-src = src.replace("import Images\n", "")
-src, removed_count = re.subn(
-    r"\n\tfunc iconImage\(\) -> IconImage\? \{.*?\n\t\}\n\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{.*?\n\t\}\n(?=\n\tvar isAvailableToMarkUnread)",
-    "\n",
-    src,
-    flags=re.S,
-    count=1,
+src = src.replace(
+    "@MainActor @objc final class SmartFeedPasteboardWriter",
+    "@MainActor final class SmartFeedPasteboardWriter",
+    1,
 )
-if removed_count != 1:
-    raise SystemExit("ArticleUtilities icon image cache island pattern not found")
 path.write_text(src)
-print("patched ArticleUtilities without Images/IconImageCache dependency")
+print("patched SmartFeedPasteboardWriter ObjC lowering")
+PY
+    fi
+
+    local icon_image_cache="$shared_dir/IconImageCache.swift"
+    if [[ -f "$icon_image_cache" ]] && grep -q '#selector(handleLowMemory' "$icon_image_cache"; then
+        echo "==> lowering netnewswire Shared IconImageCache selector observer"
+        python3 - "$icon_image_cache" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init() {
+		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+	}
+'''
+new_init = '''	init() {
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .lowMemory, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.handleLowMemory(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+#endif
+	}
+'''
+if old_init not in src:
+    raise SystemExit("IconImageCache observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+src = src.replace(
+    "\t@objc func handleLowMemory(_ notification: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc handleLowMemory(_ notification: Notification) {",
+    1,
+)
+
+path.write_text(src)
+print("patched IconImageCache selector observer lowering")
+PY
+    fi
+
+    local rsimage_extensions="$shared_dir/Extensions/RSImage+Extensions.swift"
+    if [[ -f "$rsimage_extensions" ]] && ! grep -q '#else[[:space:]]*$' "$rsimage_extensions"; then
+        echo "==> lowering netnewswire Shared RSImage app icon fallback"
+        python3 - "$rsimage_extensions" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+needle = '''		return nil
+		#endif
+'''
+replacement = '''		return nil
+		#else
+		return nil
+		#endif
+'''
+if needle not in src:
+    raise SystemExit("RSImage app icon fallback pattern not found")
+src = src.replace(needle, replacement, 1)
+path.write_text(src)
+print("patched RSImage Linux app icon fallback")
 PY
     fi
 
@@ -2202,6 +2388,164 @@ src = src.replace(
 
 path.write_text(src)
 print("patched CurrentActivityViewModel selector/timer lowering")
+PY
+    fi
+
+    local account_refresh_timer="$shared_dir/Timer/AccountRefreshTimer.swift"
+    if [[ -f "$account_refresh_timer" ]] && grep -q '#selector(timedRefresh' "$account_refresh_timer" && ! grep -q 'Foundation.Timer?' "$account_refresh_timer"; then
+        echo "==> lowering netnewswire Shared AccountRefreshTimer selector timer"
+        python3 - "$account_refresh_timer" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_timer = '''		let timer = Timer(fireAt: nextRefreshTime, interval: 0, target: self, selector: #selector(timedRefresh(_:)), userInfo: nil, repeats: false)
+		RunLoop.main.add(timer, forMode: .common)
+		internalTimer = timer
+'''
+new_timer = '''#if os(Linux)
+		let timer = Timer(fire: nextRefreshTime, interval: 0, repeats: false) { [weak self] timer in
+			Task { @MainActor in
+				self?.timedRefresh(timer)
+			}
+		}
+#else
+		let timer = Timer(fireAt: nextRefreshTime, interval: 0, target: self, selector: #selector(timedRefresh(_:)), userInfo: nil, repeats: false)
+#endif
+		RunLoop.main.add(timer, forMode: .common)
+		internalTimer = timer
+'''
+if old_timer not in src:
+    raise SystemExit("AccountRefreshTimer selector timer pattern not found")
+src = src.replace(old_timer, new_timer, 1)
+src = src.replace("private var internalTimer: Timer?", "private var internalTimer: Foundation.Timer?", 1)
+src = src.replace("Timer(fire:", "Foundation.Timer(fire:")
+src = src.replace(
+    "\t@objc func timedRefresh(_ sender: Timer?) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc timedRefresh(_ sender: Foundation.Timer?) {",
+    1,
+)
+
+path.write_text(src)
+print("patched AccountRefreshTimer selector timer lowering")
+PY
+    fi
+
+    local article_status_sync_timer="$shared_dir/Timer/ArticleStatusSyncTimer.swift"
+    if [[ -f "$article_status_sync_timer" ]] && grep -q '#selector' "$article_status_sync_timer" && ! grep -q 'Foundation.Timer?' "$article_status_sync_timer"; then
+        echo "==> lowering netnewswire Shared ArticleStatusSyncTimer selectors"
+        python3 - "$article_status_sync_timer" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init() {
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAccountDidQueueArticleStatuses(_:)), name: .AccountDidQueueArticleStatuses, object: nil)
+	}
+'''
+new_init = '''	init() {
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .AccountDidQueueArticleStatuses, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.handleAccountDidQueueArticleStatuses(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAccountDidQueueArticleStatuses(_:)), name: .AccountDidQueueArticleStatuses, object: nil)
+#endif
+	}
+'''
+if old_init not in src:
+    raise SystemExit("ArticleStatusSyncTimer observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+
+old_timer = '''		let timer = Timer(fireAt: nextRefreshTime, interval: 0, target: self, selector: #selector(timedRefresh(_:)), userInfo: nil, repeats: false)
+		RunLoop.main.add(timer, forMode: .common)
+		internalTimer = timer
+'''
+new_timer = '''#if os(Linux)
+		let timer = Timer(fire: nextRefreshTime, interval: 0, repeats: false) { [weak self] timer in
+			Task { @MainActor in
+				self?.timedRefresh(timer)
+			}
+		}
+#else
+		let timer = Timer(fireAt: nextRefreshTime, interval: 0, target: self, selector: #selector(timedRefresh(_:)), userInfo: nil, repeats: false)
+#endif
+		RunLoop.main.add(timer, forMode: .common)
+		internalTimer = timer
+'''
+if old_timer not in src:
+    raise SystemExit("ArticleStatusSyncTimer selector timer pattern not found")
+src = src.replace(old_timer, new_timer, 1)
+src = src.replace("private var internalTimer: Timer?", "private var internalTimer: Foundation.Timer?", 1)
+src = src.replace("Timer(fire:", "Foundation.Timer(fire:")
+src = src.replace(
+    "\t@objc func timedRefresh(_ sender: Timer?) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc timedRefresh(_ sender: Foundation.Timer?) {",
+    1,
+)
+src = src.replace(
+    "\t@objc func handleAccountDidQueueArticleStatuses(_ notification: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc handleAccountDidQueueArticleStatuses(_ notification: Notification) {",
+    1,
+)
+
+path.write_text(src)
+print("patched ArticleStatusSyncTimer selector/timer lowering")
+PY
+    fi
+
+    local user_notification_manager="$shared_dir/UserNotifications/UserNotificationManager.swift"
+    if [[ -f "$user_notification_manager" ]] && grep -q '#selector(accountDidDownloadArticles' "$user_notification_manager"; then
+        echo "==> lowering netnewswire Shared UserNotificationManager selectors"
+        python3 - "$user_notification_manager" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_observers = '''		NotificationCenter.default.addObserver(self, selector: #selector(accountDidDownloadArticles(_:)), name: .AccountDidDownloadArticles, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(statusesDidChange(_:)), name: .StatusesDidChange, object: nil)
+'''
+new_observers = '''#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .AccountDidDownloadArticles, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.accountDidDownloadArticles(notification)
+			}
+		}
+		_ = NotificationCenter.default.addObserver(forName: .StatusesDidChange, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.statusesDidChange(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(accountDidDownloadArticles(_:)), name: .AccountDidDownloadArticles, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(statusesDidChange(_:)), name: .StatusesDidChange, object: nil)
+#endif
+'''
+if old_observers not in src:
+    raise SystemExit("UserNotificationManager observer pattern not found")
+src = src.replace(old_observers, new_observers, 1)
+src = src.replace(
+    "\t@objc func accountDidDownloadArticles(_ note: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc accountDidDownloadArticles(_ note: Notification) {",
+    1,
+)
+src = src.replace(
+    "\t@objc func statusesDidChange(_ note: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc statusesDidChange(_ note: Notification) {",
+    1,
+)
+path.write_text(src)
+print("patched UserNotificationManager selector lowering")
 PY
     fi
 
