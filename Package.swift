@@ -213,6 +213,24 @@ let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/
 // macOS SwiftUI USB-microscope viewer (MIT) compiled UNMODIFIED on Linux
 // against the SwiftUI/AppKit/AVFoundation/CoreImage shim surface.
 let solderScopeUpstreamPresent: Bool = upstreamPresent(".upstream/solderscope/SolderScope")
+// SceneKit conformance lane (docs/scenekit-conformance.md) — all MIT:
+// nicklockwood/Euclid (pure-Swift 3D geometry/CSG lib + a UIKit/SceneKit
+// Example app) and nicklockwood/ShapeScript (real shipped macOS app whose
+// entire viewport is SceneKit) plus its two pure-Swift deps. ShapeScript
+// pins Euclid 0.8.x via SwiftPM URL deps upstream; we compile it against
+// .upstream/euclid (HEAD == 0.8.14 today) as path-based targets instead so
+// every source stays unmodified and locally inspectable. Fetch via
+// `scripts/fetch-upstream.sh scenekit`.
+let euclidUpstreamPresent: Bool = upstreamPresent(".upstream/euclid/Sources")
+let svgPathUpstreamPresent: Bool = upstreamPresent(".upstream/svgpath/Sources")
+let shapeScriptUpstreamPresent: Bool = upstreamPresent(".upstream/shapescript/ShapeScript")
+// In-repo SceneKit fixture apps (Sources/QuillSceneKitFixtures): authored
+// solar-system + molecule viewers exercising a small, known SCN surface
+// (SCNScene/SCNNode/SCNSphere/SCNCylinder, materials, lights, camera,
+// actions, SceneView) ahead of the real apps. RED until the SceneKit shim
+// grows that surface, so they are opt-in:
+let quillUISceneKitFixturesEnabled: Bool =
+    ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_FIXTURES"] == "1"
 // Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
 // The upstream iOS platform pin is a manifest constraint, not a source one —
 // the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
@@ -459,6 +477,7 @@ products += [
     .library(name: "CoreMediaIO", targets: ["CoreMediaIO"]),
     .library(name: "MapKit", targets: ["MapKit"]),
     .library(name: "SceneKit", targets: ["SceneKit"]),
+    .library(name: "RealityKit", targets: ["RealityKit"]),
     .library(name: "Firebase", targets: ["Firebase"]),
     .library(name: "FirebaseCrashlytics", targets: ["FirebaseCrashlytics"]),
     .library(name: "Lottie", targets: ["Lottie"]),
@@ -2232,7 +2251,7 @@ let signalAppleFrameworkShims = [
     "Quartz", "QuickLook", "OSLog", "AppIntents", "CoreMediaIO",
     // NOTE: "Lottie" is NOT here — Sources/Lottie (Signal's LibMobileCoin dep)
     // already declares it explicitly.
-    "MapKit", "SceneKit", "Firebase", "FirebaseCrashlytics", "TdBinding",
+    "MapKit", "SceneKit", "RealityKit", "Firebase", "FirebaseCrashlytics", "TdBinding",
     // NOTE: "zlib" is intentionally NOT here — it's a real systemLibrary
     // (cZlibTarget, links libz) rather than an inert Swift shim, so it's added to
     // SignalServiceKit's dependencies explicitly below.
@@ -2270,6 +2289,16 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "CoreVideo"]
     case "AppIntents":
         dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
+    case "SceneKit":
+        // SceneKit vends SwiftUI's `SceneView`; the scene-graph types use
+        // QuillFoundation's CGFloat and Foundation's CGPoint (re-exported via
+        // the umbrella). SwiftUI does not import SceneKit, so the edge is
+        // acyclic. (CoreGraphics is intentionally NOT a dep: it would get
+        // built ahead of the CI-inert Euclid target in a shared scratch and
+        // leak canImport(CoreGraphics) into pure Euclid. The CGImage/CGColor
+        // re-export only matters once Euclid's interop is enabled — a rung-2
+        // app-tier concern — and is wired then.)
+        dependencies = ["QuillFoundation", "SwiftUI"]
     default:
         dependencies = ["QuillFoundation"]
     }
@@ -2496,6 +2525,171 @@ if solderScopeUpstreamPresent {
             swiftSettings: appSwiftSettings + [
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "Combine"])
             ]
+        ),
+    ]
+}
+#endif
+
+// SceneKit conformance lane (docs/scenekit-conformance.md). Targets are
+// inert on CI until fetch-upstream.sh populates the checkouts (use the
+// `scenekit` meta-arm). Ladder: Euclid lib (pure Swift, can go green ahead
+// of any SCN surface) → fixtures → Euclid Example → ShapeScript core/CLI →
+// ShapeScript Viewer (real shipped macOS app, NSDocument-based AppKit).
+#if os(Linux)
+if euclidUpstreamPresent {
+    // Euclid's Apple-framework interop files (Euclid+SceneKit/RealityKit/
+    // AppKit/UIKit/CoreGraphics/CoreText/SIMD) are `#if canImport(...)`
+    // gated upstream. With NO Apple deps declared here those gates are
+    // correctly FALSE, so the interop files drop out and Euclid compiles as
+    // its pure-Swift geometry/CSG core — the rung-1 target. (The canImport
+    // leak only bites when the module is actually pulled into the dep
+    // graph; keeping Euclid dep-free avoids it.) The SceneKit interop comes
+    // online at rung 2, when the SceneKit shim exists and is added as a dep.
+    // `.swiftLanguageMode(.v5)`: Euclid is Swift-5-mode code; the default
+    // Swift 6 mode flags its global statics / @Sendable closures as
+    // concurrency errors (Transform.identity, Polygon.codableClasses,
+    // Utilities' permutation helpers). v5 mode downgrades them to warnings,
+    // exactly as the other vendored upstreams (IceCubes, NNW) do.
+    targets += [
+        .target(
+            name: "Euclid",
+            // Stays PURE (rung 1). Adding the SceneKit/AppKit/CoreGraphics
+            // interop deps here lights up Euclid's interop AND — because
+            // ShapeScript depends on Euclid — leaks SceneKit/UIKit into
+            // ShapeScript's graph, waking its own dormant interop
+            // (Material+SceneKit / Scene+SceneKit, a deep UIKit/CoreText/ObjC
+            // surface). So the interop enablement is an all-at-once rung-2
+            // app-tier campaign (Euclid + ShapeScript + the viewer apps),
+            // tracked in docs/scenekit-conformance.md. The SceneKit/
+            // CoreGraphics shim surface those need is already in place and
+            // verified to compile Euclid's interop at 0 errors (727 -> 0).
+            dependencies: [],
+            path: ".upstream/euclid/Sources",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // Real UIKit + SceneKit demo app (one RealityKit screen, one
+        // visionOS volumetric view) — the warm-up SCN conformance driver.
+        // Red members here ARE the campaign work-list.
+        .executableTarget(
+            name: "QuillEuclidExample",
+            dependencies: [
+                "Euclid", "QuillUI", "SwiftUI", "UIKit", "SceneKit",
+                "RealityKit", "Combine", "QuillFoundation",
+            ],
+            path: ".upstream/euclid/Example",
+            exclude: [
+                "Assets.xcassets",
+                "Info.plist",
+            ],
+            swiftSettings: appSwiftSettings
+        ),
+    ]
+    products.append(.library(name: "Euclid", targets: ["Euclid"]))
+}
+if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent {
+    // NOTE: ShapeScript's "LRUCache" dependency resolves to the existing
+    // in-repo stub target (Sources/LRUCache, a never-hitting no-op cache —
+    // functionally correct, just uncached). Rung 1 may repoint that target
+    // at .upstream/lrucache/Sources (fetch arm already exists) if real
+    // caching matters; it is API-identical.
+    targets += [
+        .target(
+            name: "SVGPath",
+            dependencies: [],
+            path: ".upstream/svgpath/Sources",
+            // SVGPath's SwiftUI/CoreGraphics extensions are canImport-gated;
+            // with no such deps here they drop, leaving the pure parser.
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // The REAL nicklockwood/LRUCache. ShapeScript's GeometryCache needs
+        // its full API (setValue/removeValue/count/init(totalCostLimit:)),
+        // which the repo's in-repo `LRUCache` stub (a no-op cache kept for
+        // other consumers) lacks. Compiled under a distinct target name to
+        // avoid the duplicate, then surfaced to ShapeScript's unmodified
+        // `import LRUCache` via `-module-alias` (same pattern as NNWAccount).
+        .target(
+            name: "ShapeScriptLRUCache",
+            dependencies: [],
+            path: ".upstream/lrucache/Sources",
+            exclude: ["Info.plist"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // The ShapeScript language core + CLI support Linux upstream (mesh
+        // generation via Euclid, no UI). Its SceneKit/AppKit/UIKit interop
+        // (Material+SceneKit, Scene+SceneKit, EvaluationContext's importer)
+        // is `#if canImport(SceneKit)` gated, so with no SceneKit dep here
+        // those files drop and the language core compiles against Euclid +
+        // LRUCache + SVGPath alone — rung 1. v5 mode matches upstream.
+        .target(
+            name: "ShapeScript",
+            dependencies: ["Euclid", "ShapeScriptLRUCache", "SVGPath"],
+            path: ".upstream/shapescript/ShapeScript",
+            exclude: ["ShapeScript.xctestplan"],
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-module-alias", "LRUCache=ShapeScriptLRUCache"]),
+            ]
+        ),
+        // `shapescript <file.shape> <out.obj/.stl>` renders 3D models on
+        // Linux with zero rendering surface — the rung-1 demo.
+        .executableTarget(
+            name: "QuillShapeScriptCLI",
+            dependencies: ["ShapeScript"],
+            path: ".upstream/shapescript/Viewer/CLI",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // The Viewer: a real shipped, NSDocument-based AppKit app whose
+        // entire viewport is an SCNView — the flagship SceneKit target,
+        // and an AppKit-reimplementation conformance driver in the same
+        // breath. Mac + Shared sources only (iOS/ lives beside them).
+        .executableTarget(
+            name: "QuillShapeScriptViewer",
+            dependencies: [
+                "ShapeScript", "Euclid", "SVGPath", "QuillUI", "AppKit",
+                "SceneKit", "Combine", "os", "UniformTypeIdentifiers",
+                "QuillFoundation",
+            ],
+            path: ".upstream/shapescript/Viewer",
+            exclude: [
+                "Mac/Base.lproj",
+                "Mac/Info.plist",
+                "Mac/Viewer.entitlements",
+                "Mac/Welcome.rtf",
+                "Mac/WhatsNew.rtf",
+                "Shared/AppIcon.icon",
+                "Shared/Assets.xcassets",
+                "Shared/Licenses.rtf",
+                "Shared/Untitled.shape",
+            ],
+            sources: ["Mac", "Shared"],
+            swiftSettings: appSwiftSettings
+        ),
+    ]
+    products.append(.executable(name: "QuillShapeScriptCLI", targets: ["QuillShapeScriptCLI"]))
+}
+if quillUISceneKitFixturesEnabled {
+    // Authored in-repo fixture apps (NOT upstream source): a solar-system
+    // viewer and a ball-and-stick molecule viewer, written as faithful
+    // macOS SwiftUI+SceneKit apps. They pin down the exact SCN surface the
+    // real apps need, in a scene we fully control for pixel comparison.
+    targets += [
+        .executableTarget(
+            name: "QuillSolarSystem",
+            dependencies: [
+                "QuillUI", "SwiftUI", "AppKit", "SceneKit", "Combine",
+                "QuillFoundation",
+            ],
+            path: "Sources/QuillSceneKitFixtures/SolarSystem",
+            swiftSettings: appSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillMoleculeViewer",
+            dependencies: [
+                "QuillUI", "SwiftUI", "AppKit", "SceneKit", "Combine",
+                "QuillFoundation",
+            ],
+            path: "Sources/QuillSceneKitFixtures/MoleculeViewer",
+            swiftSettings: appSwiftSettings
         ),
     ]
 }
