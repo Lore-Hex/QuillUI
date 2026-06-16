@@ -10,7 +10,7 @@ parallelized to the swarm via the issues below.
 | Rung | State | Work |
 |---|---|---|
 | 1. Compiles unmodified | ~80% (152 → ~124 unique errors) | #506 AVFoundation surface, #507 AppKit members, #508 SwiftUI chrome, #512 @MainActor AppKit tree, #513 @MainActor View.body |
-| 2. Launches + renders | **mount PROVEN** (visual smoke: crosshair+circle PNG via Xvfb, Tests/QuillUITests/RepresentableRenderSmokeTests.swift) | remaining: app chrome renders once rung 1 completes; #510 CALayer painting |
+| 2. Launches + renders + input | **GTK launch/input proven** (Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, and Tests/QuillUITests/SolderScopeChromeConformanceTests.swift) | remaining: mac-reference visual delta closure, full toolbar/menu interaction parity, and broader real-device gesture coverage |
 | 3. Live camera | spec'd | #515 V4L2 AVCaptureSession backend |
 | 4. Recording/snapshots | queued | AVAssetWriter→encoder; NSBitmapImageRep→PNG (part of #507 acceptance) |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once 2–4 are real |
@@ -20,6 +20,13 @@ Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderSc
 --target QuillSolderScope`.
 
 ## Decisions log
+
+- **2026-06-16 — Hosted AppKit NSView input is backend-local, not app-local**:
+  QuillAppKitGTK's custom `NSView` drawing host now installs GTK motion,
+  primary-click, and scroll controllers. Those synthesize AppKit mouse,
+  drag, scroll, and cursor-rect behavior for hosted views, which covers
+  SolderScope's microscope zoom/pan/double-click-reset path without changing
+  SolderScope source. Focused conformance: 25/25 SolderScope chrome tests.
 
 - **2026-06-11 — Apple-faithful re-export topology** (PR #511): SwiftUI⊃AppKit
   (macOS SwiftUI does), UIKit⊃QuartzCore (iOS UIKit does), CoreGraphics⊃QuillFoundation

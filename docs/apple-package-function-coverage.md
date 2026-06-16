@@ -152,7 +152,7 @@ platform fallbacks.
 | `NSView.layoutSubtreeIfNeeded()` / display invalidation calls | Fallback | Marks simple flags; no native layout/render pass. |
 | `NSView.convert(_:from:)` / `convert(_:to:)` | Partial | Basic coordinate conversion only. |
 | `NSView.hitTest(_:)` | Partial | In-memory bounds/subview hit testing. |
-| `NSView.addTrackingArea(_:)` / `removeTrackingArea(_:)` | Partial | Tracks registered areas without native event delivery. |
+| `NSView.addTrackingArea(_:)` / `removeTrackingArea(_:)` | Partial | Tracks registered areas; GTK custom NSView hosts now synthesize pointer motion, cursor rect updates, primary click/drag, and scroll-wheel delivery for hosted AppKit views. |
 | `NSViewController.loadView()` / lifecycle hooks | Fallback | Hook shape exists; no platform lifecycle. |
 | `NSViewController.addChild(_:)` / `removeFromParent()` | Usable | Maintains child relationships. |
 | `NSViewController.presentAsSheet(_:)` / `presentAsModalWindow(_:)` / `dismiss(_:)` | Fallback | Presentation state only. |
@@ -170,7 +170,7 @@ platform fallbacks.
 | `NSApplication.shared` | Usable | Singleton app object. |
 | `NSApplication.setActivationPolicy(_:)` / `activate(...)` / `deactivate()` | Fallback | Records state only. |
 | `NSApplication.run()` / `stop(_:)` | Fallback | Hook/no-op loop, not a native event loop. |
-| `NSApplication.sendEvent(_:)` / `nextEvent(...)` | Compile-only | Event dispatch is incomplete. |
+| `NSApplication.sendEvent(_:)` / `nextEvent(...)` | Partial | Common synthetic AppKit events can be dispatched through compatibility surfaces; no native AppKit event queue parity. |
 | `NSApplication.beginModalSession(...)`, `runModal(...)`, sheet helpers | Fallback | Modal state only. |
 | `NSApplication.sendAction(...)` | Partial | Basic target/action bridge only. |
 | `NSDockTile.display()` | Compile-only | No-op. |

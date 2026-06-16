@@ -558,7 +558,7 @@
 <tr><td><code>NSView.layoutSubtreeIfNeeded()</code> / display invalidation calls</td><td>Fallback</td><td>Marks simple flags; no native layout/render pass.</td></tr>
 <tr><td><code>NSView.convert(_:from:)</code> / <code>convert(_:to:)</code></td><td>Partial</td><td>Basic coordinate conversion only.</td></tr>
 <tr><td><code>NSView.hitTest(_:)</code></td><td>Partial</td><td>In-memory bounds/subview hit testing.</td></tr>
-<tr><td><code>NSView.addTrackingArea(_:)</code> / <code>removeTrackingArea(_:)</code></td><td>Partial</td><td>Tracks registered areas without native event delivery.</td></tr>
+<tr><td><code>NSView.addTrackingArea(_:)</code> / <code>removeTrackingArea(_:)</code></td><td>Partial</td><td>Tracks registered areas; GTK custom NSView hosts now synthesize pointer motion, cursor rect updates, primary click/drag, and scroll-wheel delivery for hosted AppKit views.</td></tr>
 <tr><td><code>NSViewController.loadView()</code> / lifecycle hooks</td><td>Fallback</td><td>Hook shape exists; no platform lifecycle.</td></tr>
 <tr><td><code>NSViewController.addChild(_:)</code> / <code>removeFromParent()</code></td><td>Usable</td><td>Maintains child relationships.</td></tr>
 <tr><td><code>NSViewController.presentAsSheet(_:)</code> / <code>presentAsModalWindow(_:)</code> / <code>dismiss(_:)</code></td><td>Fallback</td><td>Presentation state only.</td></tr>
@@ -576,7 +576,7 @@
 <tr><td><code>NSApplication.shared</code></td><td>Usable</td><td>Singleton app object.</td></tr>
 <tr><td><code>NSApplication.setActivationPolicy(_:)</code> / <code>activate(...)</code> / <code>deactivate()</code></td><td>Fallback</td><td>Records state only.</td></tr>
 <tr><td><code>NSApplication.run()</code> / <code>stop(_:)</code></td><td>Fallback</td><td>Hook/no-op loop, not a native event loop.</td></tr>
-<tr><td><code>NSApplication.sendEvent(_:)</code> / <code>nextEvent(...)</code></td><td>Compile-only</td><td>Event dispatch is incomplete.</td></tr>
+<tr><td><code>NSApplication.sendEvent(_:)</code> / <code>nextEvent(...)</code></td><td>Partial</td><td>Common synthetic AppKit events can be dispatched through compatibility surfaces; no native AppKit event queue parity.</td></tr>
 <tr><td><code>NSApplication.beginModalSession(...)</code>, <code>runModal(...)</code>, sheet helpers</td><td>Fallback</td><td>Modal state only.</td></tr>
 <tr><td><code>NSApplication.sendAction(...)</code></td><td>Partial</td><td>Basic target/action bridge only.</td></tr>
 <tr><td><code>NSDockTile.display()</code></td><td>Compile-only</td><td>No-op.</td></tr>
