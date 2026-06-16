@@ -309,6 +309,9 @@ public struct QuillChatComposer: View {
                 .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                 .clipped()
                 .textFieldStyle(.plain)
+                .onSubmit {
+                    submitIfPossible()
+                }
             composerActions
         }
         .transition(.slide)
@@ -337,9 +340,15 @@ public struct QuillChatComposer: View {
             if isLoading {
                 composerIconButton("square.fill", action: onStop)
             } else if canSend {
-                composerIconButton("paperplane.fill", action: onSend)
+                composerIconButton("paperplane.fill", action: submitIfPossible)
+                    .keyboardShortcut(.return, modifiers: [])
             }
         }
+    }
+
+    private func submitIfPossible() {
+        guard canSend else { return }
+        onSend()
     }
 
     private func selectedImagePreview(_ image: Image) -> some View {

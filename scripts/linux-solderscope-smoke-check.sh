@@ -133,6 +133,12 @@ quillui_drive_solderscope_interaction() {
   for _ in 1 2 3 4 5 6; do
     DISPLAY="$DISPLAY_ID" xdotool click 4
   done
+  DISPLAY="$DISPLAY_ID" xdotool key i
+  DISPLAY="$DISPLAY_ID" xdotool key h
+  DISPLAY="$DISPLAY_ID" xdotool key v
+  DISPLAY="$DISPLAY_ID" xdotool key bracketright
+  DISPLAY="$DISPLAY_ID" xdotool key 0
+  DISPLAY="$DISPLAY_ID" xdotool key b
   DISPLAY="$DISPLAY_ID" xdotool key space
   DISPLAY="$DISPLAY_ID" xdotool key Escape
   sleep 1

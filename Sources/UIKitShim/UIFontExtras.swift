@@ -191,7 +191,11 @@ extension UILabel {
     /// falls back to UIKit's default label font, the 17pt system font).
     public var font: UIFont! {
         get { (quillFontStorage as? UIFont) ?? UIFont.systemFont(ofSize: 17) }
-        set { quillFontStorage = newValue }
+        set {
+            quillFontStorage = newValue
+            quillFontPointSize = newValue?.pointSize ?? 17
+            invalidateIntrinsicContentSize()
+        }
     }
 }
 

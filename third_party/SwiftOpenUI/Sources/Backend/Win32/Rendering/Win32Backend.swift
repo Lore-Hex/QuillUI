@@ -433,6 +433,7 @@ final class Win32MenuBarHost {
     let windowID: Int
     private var hMenu: HMENU?
     private var renderedCommands: [RenderedMenuCommand] = []
+    private var menuStructureSignature: [String] = []
     private var focusedValuesObserverID: FocusedValuesObserverID?
 
     struct RenderedMenuCommand {
@@ -485,17 +486,15 @@ final class Win32MenuBarHost {
 
     /// Update the native menu bar from evaluated command groups.
     private func updateMenu(_ groups: [CommandGroupPlacement: [CommandMenuItem]]) {
-        // Flatten all items (for now, single "File" menu containing all items)
-        let allItems = groups.sorted(by: { $0.key.hashValue < $1.key.hashValue })
-            .flatMap { $0.value }
+        let sections = commandMenuSections(from: groups)
+        let allItems = sections.flatMap { $0.items }
+        let newStructureSignature = menuStructureSignature(for: sections)
 
         if hMenu == nil {
             // First build — create the menu bar
-            buildMenu(allItems)
+            buildMenu(sections, structureSignature: newStructureSignature)
         } else {
-            // Incremental update — check for structural changes
-            if allItems.count == renderedCommands.count &&
-               zip(allItems, renderedCommands).allSatisfy({ $0.label == $1.label }) {
+            if menuStructureSignature == newStructureSignature {
                 // Same structure — update in place
                 updateInPlace(allItems)
             } else {
@@ -505,62 +504,67 @@ final class Win32MenuBarHost {
                     DestroyMenu(oldMenu)
                 }
                 renderedCommands.removeAll()
-                buildMenu(allItems)
+                menuStructureSignature.removeAll()
+                buildMenu(sections, structureSignature: newStructureSignature)
             }
         }
     }
 
     /// Build the HMENU from scratch.
-    private func buildMenu(_ items: [CommandMenuItem]) {
+    private func buildMenu(_ sections: [CommandMenuSection], structureSignature: [String]) {
         let menuBar = CreateMenu()!
-        let fileMenu = CreatePopupMenu()!
 
-        for item in items {
-            let controlID = nextControlID()
-            var labelText = item.label
+        for section in sections {
+            let submenu = CreatePopupMenu()!
 
-            // Append shortcut text to label
-            if let shortcut = item.shortcut {
-                labelText += "\t" + shortcutDisplayText(shortcut)
+            for item in section.items {
+                let controlID = nextControlID()
+                var labelText = item.label
+
+                // Append shortcut text to label
+                if let shortcut = item.shortcut {
+                    labelText += "\t" + shortcutDisplayText(shortcut)
+                }
+
+                let flags: UINT = item.isDisabled
+                    ? UINT(MF_STRING | MF_GRAYED)
+                    : UINT(MF_STRING)
+                let labelWide: [WCHAR] = Array(labelText.utf16) + [0]
+                _ = labelWide.withUnsafeBufferPointer { ptr in
+                    AppendMenuW(submenu, flags, UINT_PTR(controlID), ptr.baseAddress!)
+                }
+
+                // Register command handler
+                let action = item.action
+                registerCommandHandler(controlID: controlID, action: action)
+
+                // Register keyboard shortcut
+                var shortcutRegID: ShortcutRegistrationID?
+                if let shortcut = item.shortcut, !item.isDisabled {
+                    shortcutRegID = KeyboardShortcutRegistry.shared.register(
+                        shortcut, windowID: windowID, action: action
+                    )
+                }
+
+                renderedCommands.append(RenderedMenuCommand(
+                    controlID: controlID,
+                    label: item.label,
+                    isDisabled: item.isDisabled,
+                    action: action,
+                    shortcutRegID: shortcutRegID
+                ))
             }
 
-            let flags: UINT = item.isDisabled
-                ? UINT(MF_STRING | MF_GRAYED)
-                : UINT(MF_STRING)
-            let labelWide: [WCHAR] = Array(labelText.utf16) + [0]
-            _ = labelWide.withUnsafeBufferPointer { ptr in
-                AppendMenuW(fileMenu, flags, UINT_PTR(controlID), ptr.baseAddress!)
+            let sectionLabel: [WCHAR] = Array(section.title.utf16) + [0]
+            _ = sectionLabel.withUnsafeBufferPointer { ptr in
+                AppendMenuW(menuBar, UINT(MF_POPUP), UINT_PTR(Int(bitPattern: submenu)), ptr.baseAddress!)
             }
-
-            // Register command handler
-            let action = item.action
-            registerCommandHandler(controlID: controlID, action: action)
-
-            // Register keyboard shortcut
-            var shortcutRegID: ShortcutRegistrationID?
-            if let shortcut = item.shortcut, !item.isDisabled {
-                shortcutRegID = KeyboardShortcutRegistry.shared.register(
-                    shortcut, windowID: windowID, action: action
-                )
-            }
-
-            renderedCommands.append(RenderedMenuCommand(
-                controlID: controlID,
-                label: item.label,
-                isDisabled: item.isDisabled,
-                action: action,
-                shortcutRegID: shortcutRegID
-            ))
-        }
-
-        let fileLabel: [WCHAR] = Array("File".utf16) + [0]
-        _ = fileLabel.withUnsafeBufferPointer { ptr in
-            AppendMenuW(menuBar, UINT(MF_POPUP), UINT_PTR(Int(bitPattern: fileMenu)), ptr.baseAddress!)
         }
 
         hMenu = menuBar
         SetMenu(hwnd, menuBar)
         DrawMenuBar(hwnd)
+        menuStructureSignature = structureSignature
     }
 
     /// Update enabled/disabled state and actions in place.
@@ -609,6 +613,17 @@ final class Win32MenuBarHost {
         DrawMenuBar(hwnd)
     }
 
+    private func menuStructureSignature(for sections: [CommandMenuSection]) -> [String] {
+        var signature: [String] = []
+        for section in sections {
+            signature.append("section:\(section.title)")
+            for item in section.items {
+                signature.append("item:\(item.label)")
+            }
+        }
+        return signature
+    }
+
     /// Unregister all shortcuts owned by this menu.
     private func teardownShortcuts() {
         for cmd in renderedCommands {
@@ -630,6 +645,7 @@ final class Win32MenuBarHost {
             DestroyMenu(menu)
         }
         renderedCommands.removeAll()
+        menuStructureSignature.removeAll()
     }
 
     /// Format a shortcut for display in a menu item label.
