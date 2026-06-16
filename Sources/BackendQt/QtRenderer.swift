@@ -684,7 +684,15 @@ extension TextField: QtRenderable {
         }
 
         quill_qt_line_edit_connect_text_changed(qtHandle(lineEdit), textChanged, box, destroy)
-        return lineEdit
+
+        // QuillPaint chrome for the bezeled styles, mirroring the GTK backend
+        // (.automatic / .roundedBorder paint; .plain keeps the bare field).
+        switch getCurrentEnvironment().textFieldStyle {
+        case .automatic, .roundedBorder:
+            return quillPaintQtTextField(lineEdit: lineEdit)
+        case .plain:
+            return lineEdit
+        }
     }
 }
 
