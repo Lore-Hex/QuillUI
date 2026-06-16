@@ -603,10 +603,11 @@ private func quillInstallGtkDrawHostMotionController(
     on widget: UnsafeMutablePointer<GtkWidget>,
     host: _DrawingHostBox
 ) {
-    let controller = gtk_swift_motion_capture_controller()!
+    let controller = gtk_event_controller_motion_new()!
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)
 
     g_signal_connect_data(
-        controller,
+        gpointer(controller),
         "enter",
         unsafeBitCast({ (_: gpointer?, x: gdouble, y: gdouble, userData: gpointer?) in
             guard let context = quillGtkDrawHostContext(from: userData) else { return }
@@ -620,7 +621,7 @@ private func quillInstallGtkDrawHostMotionController(
     )
 
     g_signal_connect_data(
-        controller,
+        gpointer(controller),
         "motion",
         unsafeBitCast({ (_: gpointer?, x: gdouble, y: gdouble, userData: gpointer?) in
             guard let context = quillGtkDrawHostContext(from: userData) else { return }
@@ -634,7 +635,7 @@ private func quillInstallGtkDrawHostMotionController(
     )
 
     g_signal_connect_data(
-        controller,
+        gpointer(controller),
         "leave",
         unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
             guard let context = quillGtkDrawHostContext(from: userData) else { return }
@@ -647,17 +648,18 @@ private func quillInstallGtkDrawHostMotionController(
         GConnectFlags(rawValue: 0)
     )
 
-    gtk_swift_add_event_controller(widget, controller)
+    gtk_widget_add_controller(widget, controller)
 }
 
 private func quillInstallGtkDrawHostScrollController(
     on widget: UnsafeMutablePointer<GtkWidget>,
     host: _DrawingHostBox
 ) {
-    let controller = gtk_swift_scroll_capture_controller()!
+    let controller = gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES)!
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)
 
     g_signal_connect_data(
-        controller,
+        gpointer(controller),
         "scroll",
         unsafeBitCast({ (_: gpointer?, deltaX: gdouble, deltaY: gdouble, userData: gpointer?) -> gboolean in
             guard let context = quillGtkDrawHostContext(from: userData) else { return 0 }
@@ -670,7 +672,7 @@ private func quillInstallGtkDrawHostScrollController(
         GConnectFlags(rawValue: 0)
     )
 
-    gtk_swift_add_event_controller(widget, controller)
+    gtk_widget_add_controller(widget, controller)
 }
 
 private let _quillGTKCursorNames: [(cursor: NSCursor, name: String)] = [
