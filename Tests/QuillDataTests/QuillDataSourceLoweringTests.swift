@@ -669,6 +669,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("delete_quill_chat_completion()"))
         #expect(interactionScript.contains("quill_chat_mac_reference_completions_panel_visible()"))
         #expect(interactionScript.contains("ensure_quill_chat_completions_panel_open()"))
+        #expect(interactionScript.contains("ensure_quill_chat_completions_panel_open() {\n  quillui_is_quill_chat_mac_reference_product \"$PRODUCT\" || return 0"))
+        #expect(interactionScript.contains("# force a Settings->Cancel reset before reopening the panel.\n  open_quill_chat_completions_panel 1"))
         #expect(interactionScript.contains("python3 \"$ROOT_DIR/scripts/verify-backend-screenshot.py\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_NAME_TEXT"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_TEXT"))

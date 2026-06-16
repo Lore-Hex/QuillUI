@@ -610,7 +610,10 @@ ensure_quill_chat_completions_panel_open() {
     return 0
   fi
 
-  open_quill_chat_completions_panel
+  # Saving dismisses the overlay while Enchanted may keep the Completions
+  # utility selected. Re-clicking an already-selected utility is a no-op, so
+  # force a Settings->Cancel reset before reopening the panel.
+  open_quill_chat_completions_panel 1
 }
 
 open_quill_chat_new_completion_sheet() {

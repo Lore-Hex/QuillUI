@@ -348,6 +348,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("third-party UI packages compile to visible SwiftUI-shaped views")
+    @MainActor
     func thirdPartyUIShimsCompile() {
         _ = ActivityIndicatorView(isVisible: .constant(true), type: .rotatingDots(count: 5))
         _ = ActivityIndicatorView(isVisible: .constant(true), type: .growingCircle)
