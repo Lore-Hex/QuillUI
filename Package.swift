@@ -3216,6 +3216,7 @@ if quillUILinuxBuildBackend == .qt {
         // The AppKit shadow + its Qt runtime backing + Auto Layout, pulled into
         // the qt graph so unmodified `import AppKit` code can be recompiled and
         // rendered through Qt6. All GTK-free.
+        .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
         .target(
             name: "QuillUIKit",
             dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics", "UniformTypeIdentifiers"],

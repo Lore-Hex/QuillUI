@@ -239,6 +239,7 @@ capture_window="root"
 # screenshot itself (e.g. the WireGuard invalid-import settle); the final capture
 # below then skips re-grabbing a possibly-mid-repaint frame over it.
 settled_capture_taken=0
+quill_chat_completions_probe_sequence=0
 window_x=0
 window_y=0
 window_width="$screen_width"
@@ -567,6 +568,7 @@ open_quill_chat_completions_panel() {
     click_x="${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_completions_click_x)}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_completions_click_y)}"
     if [[ "$reset_before_open" == "1" ]]; then
+      echo "interaction-check: click Quill Chat Completions toggle reset at $click_x,$click_y" >&2
       click_at "$click_x" "$click_y"
       sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.6}"
     fi
@@ -574,6 +576,7 @@ open_quill_chat_completions_panel() {
     click_x="${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_completions_click_x)}"
     click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_completions_click_y)}"
   fi
+  echo "interaction-check: click Quill Chat Completions toggle at $click_x,$click_y" >&2
   click_at "$click_x" "$click_y"
   sleep "$post_click_sleep"
 }
@@ -585,6 +588,7 @@ reset_quill_chat_completions_panel_selection() {
   DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape || true
   sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SETTLE_SLEEP:-0.2}"
   refocus_capture_window
+  echo "interaction-check: reset Quill Chat Completions selection via $reset_x,$reset_y" >&2
   click_at "$reset_x" "$reset_y"
   sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.6}"
 }
@@ -593,8 +597,10 @@ quill_chat_mac_reference_completions_panel_visible() {
   local probe_path
 
   quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 1
-  probe_path="$OUTPUT_DIR/quill-chat-completions-panel-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}.png"
+  quill_chat_completions_probe_sequence=$((quill_chat_completions_probe_sequence + 1))
+  probe_path="$OUTPUT_DIR/quill-chat-completions-panel-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}-${quill_chat_completions_probe_sequence}.png"
   DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" >/dev/null 2>&1 || return 1
+  echo "interaction-check: probing Quill Chat Completions panel with $probe_path" >&2
   python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
     "$probe_path" \
     quill-chat-linux-mac-reference-completions-panel-visible \
@@ -615,7 +621,12 @@ ensure_quill_chat_completions_panel_open() {
   # sheet/focus target, reset through Escape + a history row before retrying.
   # Verify between clicks so the already-open case exits without closing it.
   for attempt in 1 2 3 4 5 6; do
-    open_quill_chat_completions_panel
+    echo "interaction-check: Quill Chat Completions open attempt $attempt for mode '$INTERACTION_MODE'" >&2
+    if (( attempt == 1 )); then
+      open_quill_chat_completions_panel
+    else
+      open_quill_chat_completions_panel 1
+    fi
     if quill_chat_mac_reference_completions_panel_visible; then
       return 0
     fi
