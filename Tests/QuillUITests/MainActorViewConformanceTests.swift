@@ -61,6 +61,10 @@ struct MainActorViewConformanceTests {
                 continue
             }
 
+            if isRepresentableWithDefaultBodyDeclaration(line) {
+                continue
+            }
+
             if line.contains(": @MainActor View") {
                 violations.append("\(relativePath):\(mainActorLine): isolated View conformance: \(line)")
             }
@@ -89,6 +93,15 @@ struct MainActorViewConformanceTests {
             && line.contains("View")
             && !line.contains(": App")
             && !line.contains("ViewModifier")
+    }
+
+    private func isRepresentableWithDefaultBodyDeclaration(_ line: String) -> Bool {
+        [
+            "NSViewRepresentable",
+            "NSViewControllerRepresentable",
+            "UIViewRepresentable",
+            "UIViewControllerRepresentable",
+        ].contains { line.contains($0) }
     }
 
     private func findBodyWitness(after declarationIndex: Int, in lines: [String]) -> (index: Int, line: Int, text: String)? {

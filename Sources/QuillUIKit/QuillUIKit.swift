@@ -474,6 +474,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public init(frame: CGRect) {
         super.init()
         self.frame = frame
+        self.bounds = CGRect(origin: bounds.origin, size: frame.size)
     }
 
     // Apple's UIView declares `public required init?(coder:)`. It must live on
@@ -498,6 +499,9 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     // cross-module.
     open var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
         didSet {
+            if bounds.size != frame.size {
+                bounds.size = frame.size
+            }
             #if os(Linux)
             _layer?.frame = frame
             #endif

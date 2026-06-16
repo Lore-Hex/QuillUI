@@ -417,7 +417,7 @@ struct QuillDataSourceLoweringTests {
         // registers notifications through QuillWorkspace + QuillNotificationService.
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
-        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreText\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
         #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\n    \"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\",\n]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))

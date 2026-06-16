@@ -885,9 +885,18 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/Components/InputFields_macOS.swift.pl"),
             encoding: .utf8
         )
+        let inputFieldsTemplate = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/macOS/Chat/Components/InputFields_macOS.swift"),
+            encoding: .utf8
+        )
 
         #expect(inputFieldsRule.contains("\\n$1.frame(maxWidth: .infinity)\\n$1.overlay("))
         #expect(inputFieldsRule.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
+        #expect(inputFieldsTemplate.contains("private var composerField: some View"))
+        #expect(inputFieldsTemplate.contains("private var actionButtons: some View"))
+        #expect(!inputFieldsTemplate.contains(".fileImporter("))
+        #expect(!inputFieldsTemplate.contains(".onDrop("))
+        #expect(!inputFieldsTemplate.contains(".addCustomHotkeys("))
     }
 
     @Test("Apple service aliases live in reusable compatibility modules")

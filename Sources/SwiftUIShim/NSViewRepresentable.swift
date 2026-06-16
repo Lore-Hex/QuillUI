@@ -66,7 +66,7 @@ extension NSViewRepresentable {
     /// instead walks `body` until it reaches a backend renderable, so the host IS
     /// the interception point. Conformers never declare `body`, exactly as on
     /// Apple, so source compatibility is unchanged.)
-    public var body: QuillNSViewRepresentableHostView<Self> {
+    public nonisolated var body: QuillNSViewRepresentableHostView<Self> {
         QuillNSViewRepresentableHostView(self)
     }
 }
@@ -262,7 +262,7 @@ extension NSViewControllerRepresentable where Coordinator == Void {
 extension NSViewControllerRepresentable {
     public static func dismantleNSViewController(_ nsViewController: NSViewControllerType, coordinator: Coordinator) {}
 
-    public var body: Never {
+    public nonisolated var body: Never {
         fatalError("""
         NSViewControllerRepresentable (\(Self.self)) was mounted but Linux \
         rendering for representables is not wired yet.
