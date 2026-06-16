@@ -313,16 +313,28 @@ struct SolderScopeChromeConformanceTests {
 
     @Test func nsCursorPushAndStaticPop() {
         // MicroscopeNSView mouse handlers: NSCursor.closedHand.push() / NSCursor.pop()
+        NSCursor.arrow.set()
         NSCursor.openHand.push()
+        #expect(NSCursor.current === NSCursor.openHand)
+        NSCursor.closedHand.push()
+        #expect(NSCursor.current === NSCursor.closedHand)
         NSCursor.pop()
-        #expect(NSCursor.openHand === NSCursor.openHand)
+        #expect(NSCursor.current === NSCursor.openHand)
+        NSCursor.pop()
+        #expect(NSCursor.current === NSCursor.arrow)
     }
 
     @Test func addCursorRectInsideResetCursorRects() {
         // CalibrationCanvasNSView/MicroscopeNSView: addCursorRect(bounds, cursor:)
-        let view = CrosshairCursorView(frame: .zero)
+        let view = CrosshairCursorView(frame: NSRect(x: 0, y: 0, width: 100, height: 80))
         view.resetCursorRects()
         #expect(builds(view))
+        #expect(view.quillCursorRects.count == 1)
+        #expect(view.quillCursor(at: NSPoint(x: 50, y: 40)) === NSCursor.crosshair)
+        #expect(view.quillCursor(at: NSPoint(x: 120, y: 40)) == nil)
+        view.discardCursorRects()
+        #expect(view.quillCursorRects.isEmpty)
+        #expect(view.quillCursor(at: NSPoint(x: 50, y: 40)) == nil)
     }
 
     // MARK: NSBitmapImageRep / NSImage

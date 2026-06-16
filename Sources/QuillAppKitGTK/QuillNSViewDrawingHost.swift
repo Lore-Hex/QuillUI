@@ -233,7 +233,99 @@ private final class _DrawingHostBox {
     /// Cleared by the GTK destroy notify so the invalidation handler can
     /// never queue_draw a dangling widget (re-renders replace the area).
     var area: OpaquePointer?
+    private var cursorRectBounds: NSRect?
+    private weak var currentCursor: NSCursor?
     init(view: NSView) { self.view = view }
+
+    @MainActor
+    func syncViewSize(width: Int32, height: Int32) {
+        let bounds = NSRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+        view.frame = bounds
+        view.bounds = bounds
+        if cursorRectBounds != bounds {
+            view.discardCursorRects()
+            view.resetCursorRects()
+            cursorRectBounds = bounds
+        }
+    }
+
+    @MainActor
+    func updateCursor(x: Double, y: Double) {
+        guard let area else { return }
+        let widget = UnsafeMutablePointer<GtkWidget>(area)
+        syncViewSize(width: gtk_widget_get_width(widget), height: gtk_widget_get_height(widget))
+
+        let viewPoint = NSPoint(
+            x: CGFloat(x),
+            y: view.isFlipped ? CGFloat(y) : max(0, boundsHeight - CGFloat(y))
+        )
+        applyCursor(view.quillCursor(at: viewPoint))
+    }
+
+    @MainActor
+    func clearCursor() {
+        applyCursor(nil)
+    }
+
+    private var boundsHeight: CGFloat {
+        view.bounds.size.height
+    }
+
+    @MainActor
+    private func applyCursor(_ cursor: NSCursor?) {
+        if currentCursor === cursor {
+            return
+        }
+        currentCursor = cursor
+
+        guard let area else { return }
+        let widget = UnsafeMutableRawPointer(area)
+        guard let cursor else {
+            NSCursor.arrow.set()
+            quill_widget_clear_cursor(widget)
+            return
+        }
+        cursor.set()
+        if let name = quillGTKCursorName(for: cursor) {
+            name.withCString { quill_widget_set_cursor_name(widget, $0) }
+        } else {
+            quill_widget_clear_cursor(widget)
+        }
+    }
+}
+
+private let _quillNSViewCursorMotionTrampoline:
+    @convention(c) (UnsafeMutableRawPointer?, Double, Double, UnsafeMutableRawPointer?) -> Void = { _, x, y, userData in
+        guard let userData else { return }
+        let box = Unmanaged<_DrawingHostBox>.fromOpaque(userData).takeUnretainedValue()
+        MainActor.assumeIsolated {
+            box.updateCursor(x: x, y: y)
+        }
+    }
+
+private let _quillNSViewCursorLeaveTrampoline:
+    @convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer?) -> Void = { _, userData in
+        guard let userData else { return }
+        let box = Unmanaged<_DrawingHostBox>.fromOpaque(userData).takeUnretainedValue()
+        MainActor.assumeIsolated {
+            box.clearCursor()
+        }
+    }
+
+private func quillGTKCursorName(for cursor: NSCursor) -> String? {
+    if cursor === NSCursor.arrow { return "default" }
+    if cursor === NSCursor.crosshair { return "crosshair" }
+    if cursor === NSCursor.openHand { return "grab" }
+    if cursor === NSCursor.closedHand { return "grabbing" }
+    if cursor === NSCursor.pointingHand { return "pointer" }
+    if cursor === NSCursor.iBeam || cursor === NSCursor.iBeamCursorForVerticalLayout { return "text" }
+    if cursor === NSCursor.resizeLeft || cursor === NSCursor.resizeRight || cursor === NSCursor.resizeLeftRight { return "ew-resize" }
+    if cursor === NSCursor.resizeUp || cursor === NSCursor.resizeDown || cursor === NSCursor.resizeUpDown { return "ns-resize" }
+    if cursor === NSCursor.operationNotAllowed { return "not-allowed" }
+    if cursor === NSCursor.dragCopy { return "copy" }
+    if cursor === NSCursor.dragLink { return "alias" }
+    if cursor === NSCursor.contextualMenu { return "context-menu" }
+    return nil
 }
 
 extension NSView {
@@ -243,7 +335,7 @@ extension NSView {
     public func ensureGtkCustomDrawWidget() -> OpaquePointer? {
         guard QuillGTK.ensureInitialized() else { return nil }
 
-        let area = gtk_drawing_area_new()
+        guard let area = gtk_drawing_area_new() else { return nil }
         gtk_widget_set_hexpand(area, 1)
         gtk_widget_set_vexpand(area, 1)
 
@@ -262,10 +354,8 @@ extension NSView {
                 // @MainActor via NSResponder, so assume the isolation that is
                 // true by construction.
                 MainActor.assumeIsolated {
-                    let bounds = NSRect(x: 0, y: 0,
-                                        width: CGFloat(width), height: CGFloat(height))
-                    view.frame = bounds
-                    view.bounds = bounds
+                    box.syncViewSize(width: width, height: height)
+                    let bounds = view.bounds
 
                     let backend = CairoCGContextBackend(cr: cr)
                     // AppKit's default coordinate space is bottom-left; flipped
@@ -293,6 +383,7 @@ extension NSView {
 
         let areaPointer = OpaquePointer(area)
         box.area = areaPointer
+        quillInstallNSViewCursorController(on: area, userData: userData)
         // The handler holds the box strongly (it outlives GTK's user-data ref);
         // after widget destruction box.area is nil and this becomes a no-op.
         quillDisplayInvalidationHandler = {
@@ -301,6 +392,49 @@ extension NSView {
         }
         return areaPointer
     }
+}
+
+private func quillInstallNSViewCursorController(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    userData: UnsafeMutableRawPointer
+) {
+    let controller = gtk_event_controller_motion_new()
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)
+
+    "enter".withCString { signalName in
+        _ = g_signal_connect_data(
+            gpointer(controller),
+            signalName,
+            unsafeBitCast(_quillNSViewCursorMotionTrampoline, to: GCallback.self),
+            userData,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+    }
+
+    "motion".withCString { signalName in
+        _ = g_signal_connect_data(
+            gpointer(controller),
+            signalName,
+            unsafeBitCast(_quillNSViewCursorMotionTrampoline, to: GCallback.self),
+            userData,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+    }
+
+    "leave".withCString { signalName in
+        _ = g_signal_connect_data(
+            gpointer(controller),
+            signalName,
+            unsafeBitCast(_quillNSViewCursorLeaveTrampoline, to: GCallback.self),
+            userData,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+    }
+
+    gtk_widget_add_controller(widget, controller)
 }
 
 
