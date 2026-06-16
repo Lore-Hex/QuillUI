@@ -3,17 +3,13 @@ import Testing
 @testable import QuillUI
 
 #if os(Linux)
-// @MainActor: these tests construct views and read `ForEach.children`, which
-// maps the stored `@MainActor @ViewBuilder` content closure over the data
-// (View/ViewBuilder are `@MainActor @preconcurrency`, Apple's exact shape). On
-// Linux the Swift 6.2 runtime hard-checks executor isolation: invoking that
-// content off the main actor trips `swift_task_isCurrentExecutorWithFlags` ->
-// `_dispatch_assert_queue_fail` (SIGILL). Swift Testing otherwise runs suites
-// on the global concurrent executor. Pinning the suite to the main actor mirrors
-// production (views are only ever built on the main actor) and matches the other
-// view-building suites here (e.g. MainActorViewConformanceTests).
-@MainActor
+// `@MainActor`: ForEach.children invokes the MainActor-isolated content
+// closure, so accessing it off-main trips the Swift-6 isolation runtime
+// check (dispatch_assert_queue → SIGTRAP). Swift Testing runs @Test cases
+// on a background pool by default; pin the suite to the main actor so the
+// children getter evaluates where its isolation expects.
 @Suite("ForEach binding compatibility")
+@MainActor
 struct ForEachBindingCompatibilityTests {
     @Test("Binding collection editActions initializer renders current rows")
     func bindingCollectionEditActionsRendersRows() {

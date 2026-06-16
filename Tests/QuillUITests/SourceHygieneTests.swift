@@ -559,15 +559,14 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
-        // NSApplicationDelegate is @preconcurrency @MainActor — exactly what
-        // Apple's AppKit ships. @MainActor matches real macOS (the app delegate
-        // and NSApp run on the main actor); @preconcurrency downgrades the
-        // isolation to a WARNING for not-yet-migrated conformers/callers (e.g.
-        // generated quill-chat's PanelManager reading the @MainActor `NSApp`),
-        // so both strict-concurrency and legacy code compile — Apple's own
-        // migration mechanism. (It is NOT plain-nonisolated; only the
-        // menu/table/outline delegates below are.)
+        // SolderScope's @preconcurrency pivot (#548) made NSApplicationDelegate
+        // @MainActor (its delegate methods are main-thread). `@preconcurrency`
+        // downgrades the isolation check to Swift-5 mode, so a nonisolated
+        // Telegram conformance is a warning rather than the hard error a bare
+        // `@MainActor` protocol would cause — the protocol must carry BOTH
+        // annotations and never appear as a bare (line-leading) `@MainActor`.
         #expect(appKit.contains("@preconcurrency @MainActor public protocol NSApplicationDelegate"))
+        #expect(!appKit.contains("\n@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,
@@ -4182,11 +4181,41 @@ struct SourceHygieneTests {
         process.standardOutput = pipe
         process.standardError = pipe
 
+        // Drain the pipe CONCURRENTLY. Reading only after waitUntilExit()
+        // deadlocks once the child's output exceeds the ~64 KB pipe buffer: the
+        // child blocks on write while we block waiting for it to exit. On a full
+        // CI checkout `git ls-files` emits far more than 64 KB, which wedged the
+        // entire Linux test run until the 900 s timeout. (It never deadlocked
+        // locally only because an unmounted .git made git fail fast with a tiny
+        // error — the "git-128" artifact that masked this.) A readabilityHandler
+        // keeps the buffer drained so the child runs to completion.
+        let collector = QuillProcessOutputCollector()
+        let readHandle = pipe.fileHandleForReading
+        readHandle.readabilityHandler = { handle in
+            collector.append(handle.availableData)
+        }
+
         try process.run()
         process.waitUntilExit()
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+        readHandle.readabilityHandler = nil
+        collector.append(readHandle.readDataToEndOfFile())
+        return (process.terminationStatus, collector.string())
+    }
+}
+
+/// Thread-safe accumulator for a subprocess's piped output, fed from the pipe's
+/// readabilityHandler queue so a chatty child never blocks on a full pipe.
+private final class QuillProcessOutputCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock(); data.append(chunk); lock.unlock()
+    }
+    func string() -> String {
+        lock.lock(); defer { lock.unlock() }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 }
 

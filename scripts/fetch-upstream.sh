@@ -2282,6 +2282,44 @@ for name in "${want[@]}"; do
             fetch_repo solderscope https://github.com/rjwalters/SolderScope.git
             patch_solderscope
             ;;
+        euclid)
+            # nicklockwood/Euclid (MIT): pure-Swift 3D geometry/CSG library.
+            # The library core is platform-independent (SceneKit/RealityKit/
+            # AppKit interop files are all canImport-gated upstream), so the
+            # `Euclid` target can go green on Linux ahead of any SCN surface.
+            # Example/ is a real UIKit + SceneKit (+ one RealityKit screen)
+            # demo app — the warm-up SceneKit conformance driver.
+            fetch_repo euclid https://github.com/nicklockwood/Euclid.git
+            ;;
+        lrucache)
+            # nicklockwood/LRUCache (MIT): single-file pure-Swift dependency
+            # of ShapeScript.
+            fetch_repo lrucache https://github.com/nicklockwood/LRUCache.git
+            ;;
+        svgpath)
+            # nicklockwood/SVGPath (MIT): SVG path parser dependency of
+            # ShapeScript (CoreGraphics/SwiftUI extensions canImport-gated).
+            fetch_repo svgpath https://github.com/nicklockwood/SVGPath.git
+            ;;
+        shapescript)
+            # nicklockwood/ShapeScript (MIT): real shipped macOS app whose
+            # entire viewport is SceneKit — the flagship SceneKit conformance
+            # target. Core language lib + CLI already support Linux upstream;
+            # Viewer/Mac is an NSDocument-based AppKit app (also feeds the
+            # AppKit-reimplementation conformance ladder). Upstream pins
+            # Euclid 0.8.x via SwiftPM; we build it against .upstream/euclid
+            # instead (HEAD == 0.8.14 today), so fetch euclid/lrucache/svgpath
+            # alongside — or just use the `scenekit` meta-arm.
+            fetch_repo shapescript https://github.com/nicklockwood/ShapeScript.git
+            ;;
+        scenekit)
+            # Meta-arm: everything the SceneKit conformance campaign needs.
+            # See docs/scenekit-conformance.md.
+            fetch_repo euclid https://github.com/nicklockwood/Euclid.git
+            fetch_repo lrucache https://github.com/nicklockwood/LRUCache.git
+            fetch_repo svgpath https://github.com/nicklockwood/SVGPath.git
+            fetch_repo shapescript https://github.com/nicklockwood/ShapeScript.git
+            ;;
         *)
             echo "unknown upstream: $name" >&2
             exit 64

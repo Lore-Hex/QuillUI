@@ -14,10 +14,10 @@ import QuillFoundation
 // (SymbolEffect — with `.pulse` etc. — is declared in DesignSystemSurfaceCompat.)
 
 public extension View {
-    /// Pointer-hover callback (iPadOS/macOS). Inert headless. Disfavored so
-    /// QuillUI's own `onHover` wins for callers that see both modules (e.g.
-    /// QuillUI/Controls.swift, generated quill-chat); shadow-only vendored
-    /// source (DesignSystem) uses this inert fallback.
+    /// Pointer-hover callback (iPadOS/macOS). Inert headless. Disfavored:
+    /// QuillUI declares a functional `onHover` returning `OnHoverView`;
+    /// callers that see both (e.g. QuillUI/Controls.swift) must bind to that
+    /// one, while shadow-only vendored DesignSystem source uses this fallback.
     @_disfavoredOverload
     func onHover(perform action: @escaping (Bool) -> Void) -> Self {
         _ = action
@@ -34,7 +34,9 @@ public extension View {
         return self
     }
 
-    /// Whether the view's text is user-selectable. Inert headless.
+    /// Whether the view's text is user-selectable. Inert headless. Disfavored
+    /// so a functional overload (where one exists) wins for callers that see
+    /// both; shadow-only vendored source keeps this fallback.
     @_disfavoredOverload
     func textSelection(_ selectability: TextSelectability) -> Self {
         _ = selectability
@@ -56,6 +58,8 @@ public extension View {
     }
 
     /// List-row separator visibility (and which edges). Inert headless.
+    /// Disfavored: QuillUI declares a functional `listRowSeparator` returning
+    /// `ListRowSeparatorView`; callers that see both must bind to that one.
     @_disfavoredOverload
     func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
         _ = visibility
@@ -64,6 +68,8 @@ public extension View {
     }
 
     /// Whether the view participates in hit-testing. Inert headless.
+    /// Disfavored so QuillUI's functional `allowsHitTesting` wins for callers
+    /// that see both.
     @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
