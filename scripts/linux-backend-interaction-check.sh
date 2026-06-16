@@ -605,6 +605,8 @@ quill_chat_mac_reference_completions_panel_visible() {
 }
 
 ensure_quill_chat_completions_panel_open() {
+  local attempt
+
   quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
   if quill_chat_mac_reference_completions_panel_visible; then
     return 0
@@ -612,8 +614,20 @@ ensure_quill_chat_completions_panel_open() {
 
   # Saving dismisses the overlay while Enchanted may keep the Completions
   # utility selected. Re-clicking an already-selected utility is a no-op, so
-  # force a Settings->Cancel reset before reopening the panel.
-  open_quill_chat_completions_panel 1
+  # force a Settings->Cancel reset before reopening the panel. Packaged GTK can
+  # also leave the SwiftUI sheet binding logically true while the sheet is no
+  # longer visible; in that case the first Completions click only clears the
+  # stale toggle state, so verify and click again before the final screenshot.
+  for attempt in 1 2 3; do
+    if [[ "$attempt" == "1" ]]; then
+      open_quill_chat_completions_panel 1
+    else
+      open_quill_chat_completions_panel
+    fi
+    if quill_chat_mac_reference_completions_panel_visible; then
+      return 0
+    fi
+  done
 }
 
 open_quill_chat_new_completion_sheet() {
