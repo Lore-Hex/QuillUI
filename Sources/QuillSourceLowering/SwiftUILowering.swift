@@ -116,10 +116,10 @@ private final class SwiftUIRewriter: SyntaxRewriter {
     /// per-decl-type boilerplate.
     override func visit(_ node: AttributeListSyntax) -> AttributeListSyntax {
         let recursed = super.visit(node)
-        let filtered = AttributeListSyntax(recursed.filter { element in
+        let filtered: AttributeListSyntax = recursed.filter { element in
             guard case .attribute(let attr) = element else { return true }
             return !Self.strippedAttributeNames.contains(attr.attributeName.trimmedDescription)
-        })
+        }
         guard filtered.count != recursed.count else { return recursed }
         return filtered
     }

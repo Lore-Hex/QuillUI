@@ -111,8 +111,6 @@ public func quillV4L2VideoDevicePaths(
         .map(\.path)
 }
 
-#if canImport(CV4L2)
-
 // MARK: - Device + format descriptions
 
 /// Identity snapshot of one /dev/video* capture node (from VIDIOC_QUERYCAP).
@@ -120,6 +118,11 @@ public struct QuillV4L2DeviceInfo: Sendable {
     public let path: String
     public let driver: String
     public let card: String
+    public init(path: String, driver: String, card: String) {
+        self.path = path
+        self.driver = driver
+        self.card = card
+    }
 }
 
 public struct QuillV4L2FrameSize: Hashable, Sendable {
@@ -138,12 +141,71 @@ public struct QuillV4L2PixelFormat: Sendable {
     public let fourCC: UInt32
     public let name: String
     public let frameSizes: [QuillV4L2FrameSize]
+    public init(fourCC: UInt32, name: String, frameSizes: [QuillV4L2FrameSize]) {
+        self.fourCC = fourCC
+        self.name = name
+        self.frameSizes = frameSizes
+    }
 }
 
 /// Packed-YUYV fourcc ('Y','U','Y','V' little-endian). The kernel's
 /// V4L2_PIX_FMT_YUYV is a function-like macro Swift cannot import, so the
 /// value is spelled out.
 public let quillV4L2PixelFormatYUYV: UInt32 = 0x5659_5559
+
+/// Legalizes a requested YUYV capture size before it is sent to a V4L2
+/// driver. YUYV is two pixels per macropixel, so odd widths are rounded up.
+public func quillV4L2SanitizedCaptureSize(width: Int, height: Int) -> QuillV4L2FrameSize {
+    let minimumWidth = max(2, width)
+    let evenWidth = minimumWidth.isMultiple(of: 2) ? minimumWidth : minimumWidth + 1
+    return QuillV4L2FrameSize(width: evenWidth, height: max(1, height))
+}
+
+/// Chooses the supported frame size nearest to the requested one. Exact
+/// matches win, then larger-or-equal sizes, then the closest smaller size.
+public func quillV4L2BestFrameSize(
+    _ sizes: [QuillV4L2FrameSize],
+    requestedWidth: Int,
+    requestedHeight: Int
+) -> QuillV4L2FrameSize? {
+    let requested = quillV4L2SanitizedCaptureSize(width: requestedWidth, height: requestedHeight)
+    return Array(Set(sizes)).sorted { lhs, rhs in
+        quillV4L2FrameSizeScore(lhs, requested: requested)
+            < quillV4L2FrameSizeScore(rhs, requested: requested)
+    }.first
+}
+
+/// From an advertised format list, chooses the best YUYV capture size. Returns
+/// nil when the camera does not advertise YUYV, because the live converter only
+/// handles that pixel format today.
+public func quillV4L2PreferredYUYVCaptureSize(
+    formats: [QuillV4L2PixelFormat],
+    requestedWidth: Int,
+    requestedHeight: Int
+) -> QuillV4L2FrameSize? {
+    let yuyvFormats = formats.filter { $0.fourCC == quillV4L2PixelFormatYUYV }
+    guard !yuyvFormats.isEmpty else { return nil }
+
+    let sizes = yuyvFormats.flatMap(\.frameSizes)
+    return quillV4L2BestFrameSize(sizes, requestedWidth: requestedWidth, requestedHeight: requestedHeight)
+        ?? quillV4L2SanitizedCaptureSize(width: requestedWidth, height: requestedHeight)
+}
+
+private func quillV4L2FrameSizeScore(
+    _ size: QuillV4L2FrameSize,
+    requested: QuillV4L2FrameSize
+) -> (Int, Int64, Int64, Int, Int) {
+    let exactPenalty = size == requested ? 0 : 1
+    let smallerPenalty = (size.width < requested.width || size.height < requested.height) ? 1 : 0
+    let lhsArea = Int64(size.width) * Int64(size.height)
+    let requestedArea = Int64(requested.width) * Int64(requested.height)
+    let areaDelta = abs(lhsArea - requestedArea)
+    let aspectDelta = abs(Int64(size.width) * Int64(requested.height)
+        - Int64(requested.width) * Int64(size.height))
+    return (exactPenalty, Int64(smallerPenalty), areaDelta + aspectDelta, size.width, size.height)
+}
+
+#if canImport(CV4L2)
 
 // Capability bits (plain #defines in videodev2.h; declared locally so the
 // Swift side does not depend on macro importability or signedness).
@@ -285,10 +347,25 @@ public final class QuillV4L2Camera: @unchecked Sendable {
     @discardableResult
     public func configure(width requestedWidth: Int, height requestedHeight: Int,
                           frameRate: Double = 30) -> Bool {
+        let advertisedFormats = supportedFormats()
+        let requestedSize: QuillV4L2FrameSize
+        if advertisedFormats.isEmpty {
+            requestedSize = quillV4L2SanitizedCaptureSize(
+                width: requestedWidth,
+                height: requestedHeight)
+        } else {
+            guard let preferred = quillV4L2PreferredYUYVCaptureSize(
+                formats: advertisedFormats,
+                requestedWidth: requestedWidth,
+                requestedHeight: requestedHeight)
+            else { return false }
+            requestedSize = preferred
+        }
+
         var format = v4l2_format()
         format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE.rawValue
-        format.fmt.pix.width = UInt32(max(2, requestedWidth))
-        format.fmt.pix.height = UInt32(max(1, requestedHeight))
+        format.fmt.pix.width = UInt32(requestedSize.width)
+        format.fmt.pix.height = UInt32(requestedSize.height)
         format.fmt.pix.pixelformat = quillV4L2PixelFormatYUYV
         format.fmt.pix.field = V4L2_FIELD_NONE.rawValue
         guard quill_v4l2_s_fmt(fd, &format) == 0 else { return false }

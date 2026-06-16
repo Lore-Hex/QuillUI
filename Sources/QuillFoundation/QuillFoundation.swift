@@ -749,14 +749,14 @@ public typealias CGWindowID = UInt32
 public struct CGWindowListOption: OptionSet, Sendable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }
-    public static let optionAll = CGWindowListOption(rawValue: 0)
+    public static let optionAll: CGWindowListOption = []
     public static let optionIncludingWindow = CGWindowListOption(rawValue: 1 << 0)
 }
 
 public struct CGWindowImageOption: OptionSet, Sendable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }
-    public static let `default` = CGWindowImageOption(rawValue: 0)
+    public static let `default`: CGWindowImageOption = []
     public static let boundsIgnoreFraming = CGWindowImageOption(rawValue: 1 << 0)
 }
 

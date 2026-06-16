@@ -70,7 +70,9 @@ struct AVCaptureSurfaceTests {
     }
 
     @Test func assetWriterLifecycle() async throws {
-        let url = URL(fileURLWithPath: "/tmp/quill-avwriter-test.mov")
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-avwriter-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: url) }
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         #expect(writer.outputURL == url)
 
@@ -111,6 +113,9 @@ struct AVCaptureSurfaceTests {
         // thread, so await the async overload rather than racing a flag.
         await writer.finishWriting()
         #expect(writer.status == .completed)
+        let movie = try #require(FileManager.default.contents(atPath: url.path))
+        #expect(movie.count > 500)
+        #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
     }
 
     @Test func ciImagePixelPipelineRoundTrips() {

@@ -56,10 +56,10 @@ import AppKit
     /// BodyRangesTextView can `override` it and call `super.forwardingTarget(for:)`.
     /// The lowering adds the `override` keyword to such upstream declarations.
     /// MODEL HONESTY: no ObjC runtime on Linux, so nothing forwards — returns nil.
-    #if os(macOS)
-    open override func forwardingTarget(for aSelector: Selector!) -> Any? { nil }
-    #else
+    #if os(Linux)
     open func forwardingTarget(for aSelector: Selector!) -> Any? { nil }
+    #else
+    open override func forwardingTarget(for aSelector: Selector!) -> Any? { nil }
     #endif
 
     open var next: UIResponder? { nil }

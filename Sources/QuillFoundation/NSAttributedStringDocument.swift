@@ -1,6 +1,5 @@
-import Foundation
-
 #if os(Linux)
+import Foundation
 
 // NSAttributedString document-conversion surface (HTML / RTF import).
 // ====================================================================
@@ -87,5 +86,4 @@ public extension NSAttributedString {
         self.init(string: text)
     }
 }
-
 #endif

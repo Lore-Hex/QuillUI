@@ -1552,6 +1552,7 @@ public extension SearchFieldPlacement {
 }
 
 public extension TabBuilder {
+    @MainActor
     static func buildExpression<V: View>(_ view: V) -> [AnyTab] {
         let tabs = quillCollectTabs(from: view)
         if !tabs.isEmpty {
@@ -1569,10 +1570,12 @@ fileprivate protocol QuillTabCollectible {
     var quillCollectedTabs: [AnyTab] { get }
 }
 
+@MainActor
 fileprivate func quillCollectTabs<V: View>(from view: V) -> [AnyTab] {
     quillCollectTabs(fromAny: view)
 }
 
+@MainActor
 fileprivate func quillCollectTabs(fromAny view: any View) -> [AnyTab] {
     if let tabSource = view as? any QuillTabCollectible {
         // Witnesses are isolated (View whole-protocol); collection runs on
