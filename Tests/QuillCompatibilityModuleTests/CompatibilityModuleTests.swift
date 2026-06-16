@@ -2419,6 +2419,25 @@ struct CompatibilityModuleTests {
         #expect(rejecting(URL(string: "https://example.com")!) == .discarded)
     }
 
+    @Test("OpenURLAction default handler uses QuillWorkspace")
+    @MainActor
+    func openURLActionDefaultHandlerUsesQuillWorkspace() {
+        let opened = QuillTestBox<[URL]>([])
+        let url = URL(string: "https://mastodon.social/oauth/authorize")!
+
+        QuillWorkspace.installOpenBackend(.init(name: "openurl-default-test") { openedURL in
+            opened.value?.append(openedURL)
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        #expect(OpenURLAction()(url) == .handled)
+        #expect(opened.value == [url])
+
+        QuillWorkspace.installOpenBackend(.init(name: "openurl-default-reject") { _ in false })
+        #expect(OpenURLAction()(url) == .discarded)
+    }
+
     // MARK: - AuthenticationServices web auth
 
     @Test("ASWebAuthenticationSession opens URL and accepts matching callback")

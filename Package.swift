@@ -3432,6 +3432,7 @@ if quillUILinuxBuildBackend == .qt {
                 name: "QuillSwiftUICompatibility",
                 dependencies: [
                     "QuillFoundation",
+                    "QuillKit",
                     "QuillDataMacros",
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
                 ],

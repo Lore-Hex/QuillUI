@@ -63,6 +63,9 @@ estimates, not release claims.
 - [x] `AuthenticationServices` / web auth session: open browser through the
       shared Linux URL opener, receive a delivered callback URL, and return it
       through SwiftUI's async `webAuthenticationSession` action.
+- [x] SwiftUI `openURL` default handling uses the same shared Linux URL opener,
+      so regular IceCubes links and OAuth browser launches share diagnostics,
+      headless rejection, and injectable desktop/test backends.
 - [x] OAuth/account storage survives app restarts through the `KeychainSwift`
       compatibility store. This is persistent Linux behavior for IceCubes'
       `AppAccount.save()` / `retrieveAll()` flow, not native secure storage.
@@ -148,3 +151,9 @@ estimates, not release claims.
   honest: persistence works now, native Secret Service encryption remains a
   follow-up. Verification: `KeychainSwiftTests` (8 tests) and
   `QuillIceCubesCoreTests` (34 tests) passed locally.
+- 2026-06-16: Routed SwiftUI `OpenURLAction`'s default handler through
+  `QuillWorkspace.open` instead of spawning `xdg-open` directly. This makes
+  regular IceCubes links testable and keeps URL behavior aligned with
+  `ASWebAuthenticationSession`, `UIApplication.open`, and `NSWorkspace.open`.
+  Verification: `SourceHygieneTests` (52 tests) passed locally; the new
+  Linux-only compatibility test runs in the PR Linux graph.
