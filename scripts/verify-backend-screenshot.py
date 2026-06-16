@@ -1758,6 +1758,7 @@ def validate_quill_chat_mac_reference_completions_panel(
 def validate_quill_chat_mac_reference_completions_panel_visible(image: Screenshot) -> str:
     return validate_quill_chat_mac_reference_completions_panel(
         image,
+        minimum_row_dividers=2,
         minimum_wordmark_pixels=350,
     )
 
@@ -2081,6 +2082,7 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
 def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
+        minimum_row_dividers=2,
         minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
