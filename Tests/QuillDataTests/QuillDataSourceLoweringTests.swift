@@ -324,18 +324,18 @@ struct QuillDataSourceLoweringTests {
 
         let passing = try runScript(script, arguments: [
             "--max-shell-lines", "50",
-            "--max-rewrite-lines", "149"
+            "--max-rewrite-lines", "137"
         ])
         #expect(passing.status == 0, Comment(rawValue: passing.output))
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
         #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
-        #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has 149 lines (max 149)"))
+        #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has 137 lines (max 137)"))
 
         let workflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140 --max-rewrite-lines 149"))
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140 --max-rewrite-lines 137"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
@@ -1231,9 +1231,8 @@ struct QuillDataSourceLoweringTests {
         #expect(conversationStoreRule.contains("pendingMessages.append(assistantMessage)"))
         #expect(conversationStoreRule.contains("self.messages = pendingMessages.sorted"))
         #expect(conversationStoreRule.contains("self.selectedConversation = conversation"))
-        #expect(conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
-        #expect(conversationStoreRule.contains("!messageHistory.contains(where: { \\$0.role == .user && \\$0.content == userPrompt })"))
-        #expect(conversationStoreRule.contains("messageHistory.append(currentUserRequestMessage)"))
+        #expect(!conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
+        #expect(!conversationStoreRule.contains("messageHistory.append(currentUserRequestMessage)"))
         #expect(conversationStoreRule.contains("Task { try? await self.loadConversations() }"))
         #expect(!conversationStoreRule.contains("conversation.messages + [userMessage]"))
 

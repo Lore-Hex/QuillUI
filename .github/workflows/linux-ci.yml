@@ -95,7 +95,7 @@ jobs:
         run: scripts/quillui-backend-products.sh validate-integrity
 
       - name: Profile budget audit
-        run: scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140 --max-rewrite-lines 149
+        run: scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140 --max-rewrite-lines 137
 
       - name: Fetch upstream sources
         run: scripts/fetch-upstream.sh
