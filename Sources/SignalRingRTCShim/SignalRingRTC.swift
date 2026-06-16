@@ -251,12 +251,38 @@ public struct PeekResponse: Sendable {
     }
 }
 
+// MARK: - SFUResult  (RingRTC SFUClient.swift)
+//
+// RingRTC's generic result type returned by SFU operations: `.success(Value)`
+// or `.failure(errorCode)` where the code is the HTTP-ish status the SFU
+// returned. SignalUI's CallLinkFetcher pattern-matches `.success`/`.failure`
+// in its `unwrap()` extension (CallLinkFetcher.swift) and reads the failure
+// code (e.g. `error.rawValue == 404`). The generic parameter is named `Value`
+// so that the upstream extension's `-> Value` return type resolves.
+public enum SFUResult<Value> {
+    case success(Value)
+    case failure(UInt16)
+}
+
 public final class SFUClient: @unchecked Sendable {
     public init(httpClient: HTTPClient) {}
     /// Inert: there is no SFU on Linux, so every peek reports an empty call (no
     /// error, no members) -- callers see "no active group call".
     public func peek(request: PeekRequest) async -> PeekResponse {
         PeekResponse(errorStatusCode: nil, peekInfo: PeekInfo())
+    }
+
+    /// Reads call-link metadata from the SFU. Inert on Linux (no SFU): reports a
+    /// "not found" failure (404) so SignalUI's CallLinkFetcher maps it to its
+    /// `CallLinkNotFoundError` rather than fabricating fake link state. Faithful
+    /// signature so `LinkPreview/LinkPreviewFetcher.swift` +
+    /// `Calls/CallLinkFetcher.swift` compile.
+    public func readCallLink(
+        sfuUrl: String,
+        authCredentialPresentation: [UInt8],
+        linkRootKey: CallLinkRootKey
+    ) async -> SFUResult<CallLinkState> {
+        .failure(404)
     }
 }
 

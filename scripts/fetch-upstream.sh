@@ -128,15 +128,15 @@ PY
 
 patch_wireguard_apple() {
     # Lower the macOS UI's AppKit target-action for Linux (strip @objc,
-    # #selector(x) -> Selector("x"), generate the QuillActionDispatching
+    # #selector(x) -> Selector("x"), inject the class-body quillPerform
     # dispatch) so the QuillWireGuardConformanceUI target compiles against the
     # QuillAppKit shadow, which has no Objective-C runtime. Self-guarded +
     # idempotent: only runs while un-lowered source is present, so it's safe
     # regardless of the WireGuardKitC.h early-return below and of cached
     # .upstream trees.
     # Linux-only: on macOS the real AppKit handles #selector/@objc, and the
-    # generated QuillActionDispatching extension references a Linux-only shadow
-    # type — so leave the source pristine for any macOS consumer.
+    # injected quillPerform (QuillSelectorDispatching) references a Linux-only
+    # shadow type — so leave the source pristine for any macOS consumer.
     # Lower the WHOLE app (WireGuardApp: UI/macOS + Tunnel/ + …) AND its Shared/
     # helpers (Logging/Logger.swift = wg_log, etc.), not just UI/macOS, so model
     # files also compile in the Linux conformance targets — toward the
@@ -701,8 +701,8 @@ PY
 
     # ButtonRow is dequeued by TunnelDetailTableViewController → conform to
     # QuillReusableView (required init()). It already carries a lowered
-    # `extension ButtonRow: QuillActionDispatching`, so guard on the class-line
-    # conformance specifically (not a bare QuillReusableView grep).
+    # class-body quillPerform (QuillSelectorDispatching), so guard on the
+    # class-line conformance specifically (not a bare QuillReusableView grep).
     local btnrow="$UPSTREAM_DIR/wireguard-apple/Sources/WireGuardApp/UI/macOS/View/ButtonRow.swift"
     if [[ -f "$btnrow" ]] && ! grep -q 'class ButtonRow: NSView, QuillReusableView' "$btnrow"; then
         echo "==> patching ButtonRow.swift for QuillReusableView (required init)"
@@ -1824,6 +1824,7 @@ public enum CloudKitStatsError: LocalizedError {
 }
 
 @MainActor final class CloudKitAccountDelegate: AccountDelegate {
+    weak var account: Account?
     let behaviors: AccountBehaviors = []
     let isOPMLImportInProgress = false
     var progressInfo = ProgressInfo()
@@ -1833,29 +1834,29 @@ public enum CloudKitStatsError: LocalizedError {
 
     init(dataFolder: String) {}
 
-    func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable: Any]) async {}
-    func refreshAll(for account: Account) async throws { throw AccountError.invalidParameter }
-    func syncArticleStatus(for account: Account) async throws -> Bool { false }
-    func sendArticleStatus(for account: Account) async throws { throw AccountError.invalidParameter }
-    func refreshArticleStatus(for account: Account) async throws { throw AccountError.invalidParameter }
-    func importOPML(for account: Account, opmlFile: URL) async throws { throw AccountError.invalidParameter }
-    func createFolder(for account: Account, name: String) async throws -> Folder { throw AccountError.invalidParameter }
-    func renameFolder(for account: Account, with folder: Folder, to name: String) async throws { throw AccountError.invalidParameter }
-    func removeFolder(for account: Account, with folder: Folder) async throws { throw AccountError.invalidParameter }
-    func createFeed(for account: Account, url: String, name: String?, container: Container, validateFeed: Bool) async throws -> Feed { throw AccountError.invalidParameter }
-    func renameFeed(for account: Account, with feed: Feed, to name: String) async throws { throw AccountError.invalidParameter }
-    func addFeed(account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
-    func removeFeed(account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
-    func moveFeed(account: Account, feed: Feed, sourceContainer: Container, destinationContainer: Container) async throws { throw AccountError.invalidParameter }
-    func restoreFeed(for account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
-    func restoreFolder(for account: Account, folder: Folder) async throws { throw AccountError.invalidParameter }
-    func markArticles(for account: Account, articles: Set<Article>, statusKey: ArticleStatus.Key, flag: Bool) async throws { throw AccountError.invalidParameter }
-    func accountDidInitialize(_ account: Account) {}
-    func accountWillBeDeleted(_ account: Account) {}
-    static func validateCredentials(transport: Transport, credentials: Credentials, endpoint: URL?) async throws -> Credentials? { nil }
-    func vacuumDatabases(for account: Account) async {}
+    func receiveRemoteNotification(userInfo: [AnyHashable: Any]) async {}
+    func refreshAll() async throws { throw AccountError.invalidParameter }
+    func syncArticleStatus() async throws -> Bool { false }
+    func sendArticleStatus() async throws { throw AccountError.invalidParameter }
+    func refreshArticleStatus() async throws { throw AccountError.invalidParameter }
+    func importOPML(opmlFile: URL) async throws { throw AccountError.invalidParameter }
+    func createFolder(name: String) async throws -> Folder { throw AccountError.invalidParameter }
+    func renameFolder(with folder: Folder, to name: String) async throws { throw AccountError.invalidParameter }
+    func removeFolder(with folder: Folder) async throws { throw AccountError.invalidParameter }
+    func createFeed(url: String, name: String?, container: Container, validateFeed: Bool) async throws -> Feed { throw AccountError.invalidParameter }
+    func renameFeed(with feed: Feed, to name: String) async throws { throw AccountError.invalidParameter }
+    func addFeed(feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func removeFeed(feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func moveFeed(feed: Feed, sourceContainer: Container, destinationContainer: Container) async throws { throw AccountError.invalidParameter }
+    func restoreFeed(feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func restoreFolder(folder: Folder) async throws { throw AccountError.invalidParameter }
+    func markArticles(articles: Set<Article>, statusKey: ArticleStatus.Key, flag: Bool) async throws { throw AccountError.invalidParameter }
+    func accountDidInitialize() {}
+    func accountWillBeDeleted() {}
+    static func validateCredentials(credentials: Credentials, endpoint: URL?) async throws -> Credentials? { nil }
+    func vacuumDatabases() async {}
     func suspendNetwork() {}
-    func resume(account: Account) {}
+    func resume() {}
 
     func fetchCloudKitStats(progress: @escaping CloudKitStatsProgressHandler) async throws -> CloudKitStats {
         throw AccountError.invalidParameter
@@ -2100,12 +2101,15 @@ from pathlib import Path
 path = Path(sys.argv[1])
 src = path.read_text()
 src = src.replace("import Images\n", "")
-src = re.sub(
-    r"\n\tfunc iconImage\(\) -> IconImage\? \{\n\t\treturn IconImageCache\.shared\.imageForArticle\(self\)\n\t\}\n\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{\n\t\tif let image = iconImage\(\) \{\n\t\t\tlet fm = FileManager\.default\n\t\t\tvar path = fm\.urls\(for: \.cachesDirectory, in: \.userDomainMask\)\[0\]\n\t\t\tlet feedID = feed\.feedID\.replacingOccurrences\(of: \"/\", with: \"_\"\)\n\t\t\tpath\.appendPathComponent\(feedID \+ \"_smallIcon\.png\"\)\n\t\t\tfm\.createFile\(atPath: path\.path, contents: image\.image\.dataRepresentation\(\)!, attributes: nil\)\n\t\t\treturn path\n\t\t\} else \{\n\t\t\treturn nil\n\t\t\}\n\t\}\n",
+src, removed_count = re.subn(
+    r"\n\tfunc iconImage\(\) -> IconImage\? \{.*?\n\t\}\n\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{.*?\n\t\}\n(?=\n\tvar isAvailableToMarkUnread)",
     "\n",
     src,
+    flags=re.S,
     count=1,
 )
+if removed_count != 1:
+    raise SystemExit("ArticleUtilities icon image cache island pattern not found")
 path.write_text(src)
 print("patched ArticleUtilities without Images/IconImageCache dependency")
 PY
@@ -2123,6 +2127,81 @@ src = path.read_text()
 src = src.replace("@Observable\n@MainActor final class DinosaursViewModel", "@MainActor final class DinosaursViewModel", 1)
 path.write_text(src)
 print("patched DinosaursViewModel @Observable lowering")
+PY
+    fi
+
+    local current_activity_view_model="$shared_dir/CurrentActivity/CurrentActivityViewModel.swift"
+    if [[ -f "$current_activity_view_model" ]] && grep -q '#selector(handleActivityDidChange' "$current_activity_view_model"; then
+        echo "==> lowering netnewswire Shared CurrentActivityViewModel selector timers"
+        python3 - "$current_activity_view_model" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_start = '''	func start() {
+		if !isObserving {
+			NotificationCenter.default.addObserver(self, selector: #selector(handleActivityDidChange(_:)), name: .activityDidChange, object: nil)
+			isObserving = true
+		}
+		scheduleUpdate()
+	}
+'''
+new_start = '''	func start() {
+		if !isObserving {
+#if os(Linux)
+			// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+			_ = NotificationCenter.default.addObserver(forName: .activityDidChange, object: nil, queue: nil) { [weak self] notification in
+				Task { @MainActor in
+					self?.handleActivityDidChange(notification)
+				}
+			}
+#else
+			NotificationCenter.default.addObserver(self, selector: #selector(handleActivityDidChange(_:)), name: .activityDidChange, object: nil)
+#endif
+			isObserving = true
+		}
+		scheduleUpdate()
+	}
+'''
+if old_start not in src:
+    raise SystemExit("CurrentActivityViewModel start observer pattern not found")
+src = src.replace(old_start, new_start, 1)
+
+old_schedule = '''		updateTimer = Timer.scheduledTimer(timeInterval: Self.updateInterval, target: self, selector: #selector(update), userInfo: nil, repeats: true)
+		update()
+'''
+new_schedule = '''#if os(Linux)
+		updateTimer = Timer.scheduledTimer(withTimeInterval: Self.updateInterval, repeats: true) { [weak self] _ in
+			Task { @MainActor in
+				self?.update()
+			}
+		}
+#else
+		updateTimer = Timer.scheduledTimer(timeInterval: Self.updateInterval, target: self, selector: #selector(update), userInfo: nil, repeats: true)
+#endif
+		update()
+'''
+if old_schedule not in src:
+    raise SystemExit("CurrentActivityViewModel timer selector pattern not found")
+src = src.replace(old_schedule, new_schedule, 1)
+src = src.replace("private var updateTimer: Timer?", "private var updateTimer: Foundation.Timer?", 1)
+src = src.replace("Timer.scheduledTimer", "Foundation.Timer.scheduledTimer")
+
+src = src.replace(
+    "\t@objc func handleActivityDidChange(_ notification: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc handleActivityDidChange(_ notification: Notification) {",
+    1,
+)
+src = src.replace(
+    "\t@objc func update() {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc update() {",
+    1,
+)
+
+path.write_text(src)
+print("patched CurrentActivityViewModel selector/timer lowering")
 PY
     fi
 

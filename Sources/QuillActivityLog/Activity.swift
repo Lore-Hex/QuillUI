@@ -57,6 +57,30 @@ import Foundation
 		endDate = Date()
 		self.error = error
 	}
+
+	/// The elapsed time from start to end, formatted for display - for example
+	/// "0.45s", "12.3s", or "2m 15s". Nil when the duration isn't significant or
+	/// the activity hasn't both started and ended.
+	public var formattedDuration: String? {
+		guard durationIsSignificant, let startDate, let endDate else {
+			return nil
+		}
+		return Self.formattedDuration(endDate.timeIntervalSince(startDate))
+	}
+
+	static let posixLocale = Locale(identifier: "en_US_POSIX")
+
+	static func formattedDuration(_ duration: TimeInterval) -> String {
+		if duration < 10.0 {
+			return String(format: "%.2fs", locale: posixLocale, duration)
+		} else if duration < 60.0 {
+			return String(format: "%.1fs", locale: posixLocale, duration)
+		} else {
+			let minutes = Int(duration) / 60
+			let seconds = Int(duration) % 60
+			return "\(minutes)m \(seconds)s"
+		}
+	}
 }
 
 extension Activity: Hashable {

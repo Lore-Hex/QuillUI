@@ -29,7 +29,53 @@ public struct Selector: Hashable, Sendable {
 }
 #endif
 
+// QuillSelectorDispatching
+// ========================
+// The single canonical target-action dispatch contract on Linux (there is no
+// Objective-C runtime to `perform` a `Selector` dynamically). The AppKit/UIKit
+// source-lowering (QuillSourceLowering.AppKitLowering) rewrites `#selector(x)`
+// -> `Selector("x")` and injects a `quillPerform(_:with:)` into the class body
+// of every class that declared `@objc` action methods. Dispatch sites
+// (UIControl.sendActions, NSControl.sendAction, UIGestureRecognizer, Timer,
+// CADisplayLink, UndoManager) call
+// `(target as? QuillSelectorDispatching)?.quillPerform(selector, with: sender)`.
+//
+// DISPATCH MUST BE DYNAMIC. The injected `quillPerform` is a real **class-body**
+// method (NOT an extension method): extension methods are statically dispatched,
+// so a subclass override declared in an extension can never be reached through a
+// superclass-typed reference — the very bug this protocol's prior shape caused.
+// The override chain is rooted at a class-body witness on the Apple-framework
+// base classes that originate target-action: `UIResponder` (the whole
+// UIView/UIViewController forest), plus the NSObject-direct UIKit/AVFoundation
+// roots (`UIPresentationController`, `UIBarButtonItem`, `UIGestureRecognizer`,
+// `AVPlayer`). On Linux `NSObject` is swift-corelibs-Foundation's and cannot be
+// given an overridable member (a non-`@objc` method added in an extension of a
+// foreign-module class is not overridable, and there is no @objc dynamism on
+// Linux), so the base lives on the Quill shim roots instead — which is exactly
+// where target-action originates on Apple platforms too.
+//
+// The lowering therefore emits, per class:
+//   * super IS `NSObject` (a chain root): `: QuillSelectorDispatching` plus a
+//     class-body witness with NO `override` — it newly conforms.
+//   * super is anything else (a shim base, or another lowered class, possibly
+//     through transparent intermediates): an `override func quillPerform` with
+//     NO conformance clause, whose `default:` calls `super.quillPerform(...)`.
+// This makes the per-class redundant-conformance and cannot-override-from-
+// extension diagnostics structurally impossible: a subclass never restates the
+// conformance, and the witness it overrides is a real (inherited) class member.
+//
+// On Apple platforms this is dormant — real target-action goes through the ObjC
+// runtime — but compiles unmodified, keeping macOS `swift build`/`swift test`
+// green.
 public protocol QuillSelectorDispatching: AnyObject {
+    /// Invoke the action identified by `selector`, passing the firing control as
+    /// `sender`. The lowering injects a class-body witness that switches on
+    /// `selector.name`; the no-op default below is the existential fail-safe so
+    /// `(x as? QuillSelectorDispatching)?.quillPerform(...)` on a type with no
+    /// matching case (or that reaches the base) does nothing rather than trapping.
+    ///
+    /// Witnesses are emitted `public`: a witness must be at least as accessible
+    /// as its conformance, and lowered SignalUI has public/open conformers.
     func quillPerform(_ selector: Selector, with sender: Any?)
 }
 
@@ -174,7 +220,8 @@ public class CGImage: Hashable, @unchecked Sendable {
         self.init()
         self.width = width
         self.height = height
-        _ = (bitsPerComponent, bitsPerPixel, bytesPerRow, space, bitmapInfo, provider, decode, shouldInterpolate, intent)
+        self.quillBytesPerRow = bytesPerRow
+        _ = (bitsPerComponent, bitsPerPixel, space, bitmapInfo, provider, decode, shouldInterpolate, intent)
     }
 
     // Pixel dimensions + cropping (BadgeAssets spritesheets, image utilities).
@@ -182,6 +229,7 @@ public class CGImage: Hashable, @unchecked Sendable {
     // until a real decoder (libpng/Cairo) lands.
     public var width: Int = 0
     public var height: Int = 0
+    public var bytesPerRow: Int { quillBytesPerRow }
     public func cropping(to rect: CGRect) -> CGImage? {
         _ = rect
         return CGImage()
@@ -979,13 +1027,24 @@ public enum QuillImageCompositingOperation: Sendable {
     case sourceOver
 }
 
-open class RSImage: NSObject, @unchecked Sendable {
+open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
+    public static var supportsSecureCoding: Bool { true }
+
     public enum ResizingMode: Int, Sendable {
         case tile
         case stretch
     }
 
     public override init() {}
+    public required init?(coder: NSCoder) {
+        super.init()
+        self.data = coder.decodeObject(forKey: "data") as? Data
+    }
+
+    public func encode(with coder: NSCoder) {
+        coder.encode(data, forKey: "data")
+    }
+
     public init?(data: Data) {
         super.init()
         self.data = data
@@ -1007,6 +1066,11 @@ open class RSImage: NSObject, @unchecked Sendable {
             )
         }
     }
+
+    public convenience init(imageLiteralResourceName name: String) {
+        self.init(named: name)!
+    }
+
     public init?(systemName: String, withConfiguration: Any? = nil) {
         super.init()
         self.size = CGSize(width: 32, height: 32)
@@ -1116,6 +1180,12 @@ open class RSImage: NSObject, @unchecked Sendable {
     }
     public var imageOrientation: Orientation { .up }
 
+    /// `UIImage.withHorizontallyFlippedOrientation()` source-compat. On Apple this
+    /// returns a copy whose `imageOrientation` is mirrored horizontally. The Linux
+    /// image is opaque (no raster, orientation always reports `.up`), so this is
+    /// inert and returns self. SignalUI: VideoTimelineView flips the left trim handle.
+    public func withHorizontallyFlippedOrientation() -> RSImage { self }
+
     public func withTintColor(_ color: Any) -> RSImage { self }
     // Typed overload so a leading-dot color literal (e.g. `.white`) resolves its
     // contextual base. SSK: AvatarBuilder.releaseNotesIcon does
@@ -1142,6 +1212,7 @@ public typealias UIImage = RSImage
 public struct RSCGColor: Equatable, Sendable {
     public var components: [CGFloat]?
     public var numberOfComponents: Int { components?.count ?? 0 }
+    public var alpha: CGFloat { components?.last ?? 1 }
     public static var typeID: UInt { 0 }
 
     public init(components: [CGFloat]?) {
@@ -1202,6 +1273,16 @@ public class RSColor: NSObject, @unchecked Sendable {
         self.init(red: r, green: g, blue: b, alpha: alpha)
     }
 
+    /// Apple's UIColor(white:alpha:) / NSColor(white:alpha:) grayscale
+    /// convenience initializer. Declared on the class — the ONE owner — so every
+    /// module that can see UIColor/RSColor resolves the same initializer. (It
+    /// used to be declared twice, as extensions in QuillAppKit and in
+    /// SignalServiceKitObjCPort; any module importing both, e.g. SignalUI, hit
+    /// "ambiguous use of 'init(white:alpha:)'" on every call.)
+    public convenience init(white: CGFloat, alpha: CGFloat) {
+        self.init(red: white, green: white, blue: white, alpha: alpha)
+    }
+
     /// UIColor.setFill() sets this color as the fill color in the current UIKit
     /// graphics context. There is no graphics context on Linux (UIGraphicsImageRenderer
     /// is inert), so this is a no-op — UIImage+OWS's solid-color image render degrades
@@ -1218,6 +1299,10 @@ public class RSColor: NSObject, @unchecked Sendable {
     public static let tertiaryLabel = RSColor(red: 0.56, green: 0.56, blue: 0.58, alpha: 1)
     public static let systemBackground = RSColor(red: 0.98, green: 0.98, blue: 0.99, alpha: 1)
     public static let secondarySystemBackground = RSColor(red: 0.94, green: 0.94, blue: 0.96, alpha: 1)
+    // Apple's light-mode grouped backgrounds are both #F2F2F7 (the dark
+    // variants differ, but RSColor stores a single light value).
+    public static let systemGroupedBackground = RSColor(red: 0.949, green: 0.949, blue: 0.969, alpha: 1)
+    public static let tertiarySystemGroupedBackground = RSColor(red: 0.949, green: 0.949, blue: 0.969, alpha: 1)
     public static let systemGray = RSColor(red: 0.56, green: 0.56, blue: 0.58, alpha: 1)
     public static let systemGray2 = RSColor(red: 0.68, green: 0.68, blue: 0.70, alpha: 1)
     public static let systemBlue = RSColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1)
@@ -1398,6 +1483,18 @@ public final class UIFontDescriptor: @unchecked Sendable {
 
 public extension CGSize {
     func equalTo(_ other: CGSize) -> Bool { self == other }
+
+    func applying(_ transform: CGAffineTransform) -> CGSize {
+        CGSize(
+            width: width * transform.a + height * transform.c,
+            height: width * transform.b + height * transform.d
+        )
+    }
+
+    // NOTE: `static func max(_:_:)` is NOT declared here. SignalServiceKit owns
+    // the canonical `CGSize.max(_:_:)` (Util/OWSMath.swift, alongside ceil /
+    // floor / round / add / scale). A twin here made every `CGSize.max($0, $1)`
+    // in SignalUI ambiguous (64 errors) — one name, one owner.
 }
 
 public extension CGPoint {
@@ -1405,12 +1502,32 @@ public extension CGPoint {
 }
 
 public extension CGRect {
+    func equalTo(_ other: CGRect) -> Bool { self == other }
+
     func applying(_ transform: CGAffineTransform) -> CGRect {
         offsetBy(dx: transform.tx, dy: transform.ty)
     }
 
     func fill() {}
 }
+
+#if os(Linux)
+public final class ListFormatter: Formatter {
+    public var locale: Locale?
+
+    public override init() {
+        super.init()
+    }
+
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    public func string(from items: [Any]) -> String? {
+        items.map { "\($0)" }.joined(separator: ", ")
+    }
+}
+#endif
 
 public class RSScreen: NSObject, @unchecked Sendable {
     public static let main = RSScreen()
@@ -1435,10 +1552,13 @@ public class RSScreen: NSObject, @unchecked Sendable {
     }
     /// `UIScreen.scale` source-compat (SSK avatar/thumbnail pixel math).
     public var scale: CGFloat { backingScaleFactor }
-    /// Pixel-space bounds (points * scale); SSK reads .nativeBounds.height for
-    /// device-class heuristics.
+    /// Pixel-space bounds. SSK's UIDevice+FeatureSupport switches on the EXACT
+    /// `.nativeBounds.height` against known iPhone pixel heights and traps
+    /// (owsFailDebug "unknown device format") on anything else. Report a real
+    /// device profile (iPhone 16: 1179×2556) so those heuristics resolve; the GTK
+    /// window's own size is independent (driven by view frames, not this).
     public var nativeBounds: CGRect {
-        CGRect(x: 0, y: 0, width: bounds.width * scale, height: bounds.height * scale)
+        CGRect(x: 0, y: 0, width: 1179, height: 2556)
     }
     public var nativeScale: CGFloat { scale }
     public var visibleFrame: CGRect { bounds }

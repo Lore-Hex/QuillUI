@@ -105,8 +105,12 @@ public enum SceneEvents {
     public var environment = ARViewEnvironment()
     public var scene = Scene()
 
-    public override init() {
-        super.init()
+    public convenience init() {
+        self.init(frame: .zero)
+    }
+
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
     }
 
     public init(
@@ -117,5 +121,9 @@ public enum SceneEvents {
         _ = cameraMode
         _ = automaticallyConfigureSession
         super.init(frame: frame)
+    }
+
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
     }
 }

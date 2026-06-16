@@ -63,7 +63,7 @@ public protocol CAMediaTiming {
 
 // MARK: - CAAction
 
-public protocol CAAction {
+@MainActor public protocol CAAction {
     func run(forKey event: String, object anObject: Any, arguments dict: [AnyHashable: Any]?)
 }
 
@@ -160,13 +160,11 @@ public struct CACornerMask: OptionSet, Sendable {
 
 // MARK: - CALayer
 
-open class CALayer: NSObject, CAMediaTiming {
+@MainActor open class CALayer: NSObject, @preconcurrency CAMediaTiming {
 
     // MARK: Initializers
 
-    /// `required` so metatype instantiation works: QuillUIKit's UIView does
-    /// `(Self.layerClass as? CALayer.Type)?.init()`.
-    public required override init() {
+    public override init() {
         super.init()
     }
 
@@ -621,7 +619,7 @@ open class CALayer: NSObject, CAMediaTiming {
     // DispatchQueue.main and calls back into _animationDidComplete(key:) for
     // animations with isRemovedOnCompletion.
 
-    private var animationEntries: [(key: String, animation: CAAnimation)] = []
+    nonisolated(unsafe) private var animationEntries: [(key: String, animation: CAAnimation)] = []
     private var animationKeyCounter: Int = 0
 
     open func add(_ anim: CAAnimation, forKey key: String?) {
@@ -718,17 +716,44 @@ open class CALayer: NSObject, CAMediaTiming {
 
     // MARK: Actions
 
-    /// Resolution order: delegate → actions dictionary → nil. An NSNull at
-    /// either step means "explicitly no action" (Apple contract). NOTE:
-    /// implicit actions are not auto-dispatched on property mutation yet;
-    /// this lookup serves explicit action(forKey:) callers.
+    /// Resolution order: delegate, actions dictionary, style actions, class
+    /// default. An NSNull at any step means "explicitly no action" (Apple
+    /// contract). NOTE: implicit actions are not auto-dispatched on property
+    /// mutation yet; this lookup serves explicit action(forKey:) callers.
     open func action(forKey event: String) -> CAAction? {
         if let delegateAction = delegate?.action(for: self, forKey: event) {
             return delegateAction is NSNull ? nil : delegateAction
         }
         if let entry = actions?[event] {
             if entry is NSNull { return nil }
-            return entry as? CAAction
+            return entry
+        }
+        if let entry = styleAction(forKey: event) {
+            if entry is NSNull { return nil }
+            return entry
+        }
+        if let defaultAction = type(of: self).defaultAction(forKey: event) {
+            return defaultAction is NSNull ? nil : defaultAction
+        }
+        return nil
+    }
+
+    open class func defaultAction(forKey event: String) -> CAAction? {
+        return nil
+    }
+
+    private func styleAction(forKey event: String) -> CAAction? {
+        guard let styleActions = style?["actions"] else {
+            return nil
+        }
+        if let actions = styleActions as? [String: CAAction] {
+            return actions[event]
+        }
+        if let actions = styleActions as? [AnyHashable: Any] {
+            return actions[event] as? CAAction
+        }
+        if let actions = styleActions as? NSDictionary {
+            return actions[event] as? CAAction
         }
         return nil
     }
@@ -779,7 +804,7 @@ open class CALayer: NSObject, CAMediaTiming {
 // travel as their Swift structs. Unknown keys return nil / no-op (no
 // NSUnknownKeyException machinery, and probing optional keys is common).
 
-extension CALayer: QuillKeyValueCoding {
+extension CALayer: @preconcurrency QuillKeyValueCoding {
 
     public func quillValue(forKey key: String) -> Any? {
         switch key {

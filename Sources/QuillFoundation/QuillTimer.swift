@@ -36,6 +36,19 @@ public enum QuillTimer {
             box.value(timer)
         })
     }
+
+    /// `Timer.scheduledTimer(withTimeInterval:repeats:block:)` counterpart — same
+    /// non-`@Sendable` block trick, but schedules on the current run loop (`.main`
+    /// at SignalUI's call sites). `AppKitLowering` rewrites
+    /// `Timer.scheduledTimer(withTimeInterval:repeats:){…}` → `QuillTimer.scheduledTimer(…)`.
+    @discardableResult
+    public static func scheduledTimer(withTimeInterval interval: TimeInterval, repeats: Bool,
+                                      block: @escaping (Timer) -> Void) -> Timer {
+        let box = QuillTimerBlockBox(block)
+        return Timer.scheduledTimer(withTimeInterval: interval, repeats: repeats, block: { timer in
+            box.value(timer)
+        })
+    }
 }
 
 /// Carries the non-Sendable user block across corelibs' `@Sendable` `Timer.init`

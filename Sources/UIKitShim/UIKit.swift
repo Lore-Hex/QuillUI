@@ -72,6 +72,12 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public static func systemFont(ofSize size: CGFloat, weight: Weight) -> UIFont {
         UIFont(pointSize: size, fontName: ".AppleSystemUIFont")
     }
+    public static func boldSystemFont(ofSize size: CGFloat) -> UIFont {
+        systemFont(ofSize: size, weight: .bold)
+    }
+    public static func monospacedSystemFont(ofSize size: CGFloat, weight: Weight) -> UIFont {
+        UIFont(pointSize: size, fontName: ".AppleSystemUIFontMonospaced")
+    }
     // UIFont(name:size:) — failable in UIKit; inert here (no font lookup on
     // Linux), so it never actually returns nil. SSK force-unwraps it
     // (AvatarBuilder's "Inter" text-avatar font).
@@ -118,6 +124,7 @@ extension UIFont {
 
 public final class UIFontDescriptor: @unchecked Sendable {
     public let name: String
+    public var pointSize: CGFloat = 17
     // Symbolic traits requested on this descriptor. Inert on Linux (no real
     // font substitution) but round-tripped so `withSymbolicTraits` composes
     // and UIFont's Equatable can distinguish bold/italic variants.
@@ -267,16 +274,8 @@ public class UISceneConfiguration: NSObject {
     }
 }
 
-@MainActor public protocol UIWindowSceneDelegate: AnyObject {}
-
-@MainActor public class UIWindowScene: UIScene {
-    public var windows: [UIWindow] = []
-    public var keyWindow: UIWindow? { windows.first }
-}
-
 public extension UIWindow {
     var isKeyWindow: Bool { false }
-    var safeAreaInsets: UIEdgeInsets { .zero }
     @MainActor var windowScene: UIWindowScene? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -305,14 +304,32 @@ public extension UIWindow {
 @MainActor open class UIFontPickerViewController: UIViewController {
     public weak var delegate: UIFontPickerViewControllerDelegate?
     public var selectedFontDescriptor: UIFontDescriptor?
-    public override init() {
+    public init() {
         self.selectedFontDescriptor = UIFontDescriptor()
-        super.init()
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    public required init?(coder: NSCoder) {
+        self.selectedFontDescriptor = UIFontDescriptor()
+        super.init(coder: coder)
     }
 }
 
 public extension UIColor {
     static let placeholderText = RSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
+}
+
+extension UIImage: NSItemProviderReading {
+    public static var readableTypeIdentifiersForItemProvider: [String] {
+        [UTType.image.identifier, UTType.png.identifier, UTType.jpeg.identifier]
+    }
+
+    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
+        if let image = UIImage(data: data) as? Self {
+            return image
+        }
+        return UIImage() as! Self
+    }
 }
 
 public enum UIKeyboardType: Hashable, Sendable {
@@ -373,11 +390,31 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
 }
 
 public final class NSTextContainer {
+    public weak var layoutManager: NSLayoutManager?
+    public var size: CGSize
     public var lineFragmentPadding: CGFloat = 0
-    public init() {}
+    public var maximumNumberOfLines: Int = 0
+    public init(size: CGSize = .zero) {
+        self.size = size
+    }
 }
 
-public class UITextRange: NSObject {}
+public class UITextRange: NSObject {
+    let quillStart: UITextPosition
+    let quillEnd: UITextPosition
+
+    public override init() {
+        self.quillStart = UITextPosition()
+        self.quillEnd = UITextPosition()
+        super.init()
+    }
+
+    public init(start: UITextPosition, end: UITextPosition) {
+        self.quillStart = start
+        self.quillEnd = end
+        super.init()
+    }
+}
 
 @MainActor public protocol UITextViewDelegate: AnyObject {
     func textViewDidBeginEditing(_ textView: UITextView)
@@ -431,7 +468,7 @@ public final class UITextPasteItem {
     public var keyboardType: UIKeyboardType = .default
     public var textColor: UIColor?
 
-    open func sizeThatFits(_ size: CGSize) -> CGSize {
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)
         let lineHeight = font?.pointSize ?? 17
         let lines = max(1, ceil(Double(attributedText.string.count) * 8.5 / width))
@@ -549,6 +586,11 @@ public class UINotificationFeedbackGenerator: NSObject {
     /// monitoring is a no-op. SignalServiceKit's ProximityMonitoringManager uses
     /// these. nonisolated static (Sendable) like the battery name.
     nonisolated public static let proximityStateDidChangeNotification = Notification.Name("UIDeviceProximityStateDidChangeNotification")
+    nonisolated public var isBatteryMonitoringEnabled: Bool {
+        get { false }
+        set { _ = newValue }
+    }
+    nonisolated public var batteryLevel: Float { -1 }
     nonisolated public var proximityState: Bool { false }
     nonisolated public var isProximityMonitoringEnabled: Bool {
         get { false }
@@ -594,6 +636,14 @@ public struct UIEdgeInsets: Equatable, Sendable {
         self.right = right
     }
     public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+
+    public init(_ insets: QuillEdgeInsets) {
+        self.init(top: insets.top, left: insets.left, bottom: insets.bottom, right: insets.right)
+    }
+
+    public var quillEdgeInsets: QuillEdgeInsets {
+        QuillEdgeInsets(top: top, left: left, bottom: bottom, right: right)
+    }
 }
 
 // MARK: - NSDirectionalEdgeInsets
@@ -630,6 +680,7 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
 public final class UIBezierPath {
     public let cgPath: CGPath
     public var lineWidth: CGFloat = 1
+    public var usesEvenOddFillRule = false
     public init() { self.cgPath = CGPath() }
     public init(ovalIn rect: CGRect) { self.cgPath = CGPath() }
     public init(rect: CGRect) { self.cgPath = CGPath() }
@@ -711,6 +762,15 @@ public extension String {
     }
     func draw(in rect: CGRect, withAttributes attributes: [NSAttributedString.Key: Any]? = nil) {
         _ = (rect, attributes)
+    }
+}
+
+public extension NSAttributedString {
+    func boundingRect(with size: CGSize,
+                      options: NSStringDrawingOptions = [],
+                      context: NSStringDrawingContext? = nil) -> CGRect {
+        let attributes = length > 0 ? self.attributes(at: 0, effectiveRange: nil) : nil
+        return string.boundingRect(with: size, options: options, attributes: attributes, context: context)
     }
 }
 

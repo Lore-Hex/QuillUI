@@ -260,4 +260,19 @@ import Foundation
 		#expect(activityLog.nextTaskNumberString() == "#2")
 		#expect(activityLog.nextTaskNumberString() == "#3")
 	}
+
+	@Test func upstreamActivityKindsExposeDisplayNames() {
+		#expect(ActivityKind.followFeedRedirect.simpleDisplayName == "Feed redirect")
+		#expect(ActivityKind.refreshArticles.simpleDisplayName == "Refreshing articles")
+		#expect(ActivityKind.fetchArticleIDs.simpleDisplayName == "Fetching article IDs")
+		#expect(ActivityKind.scanCloudKitStatusRecords.simpleDisplayName == "Scanning iCloud status records")
+		#expect(ActivityKind.scanCloudKitArticleRecords.simpleDisplayName == "Scanning iCloud article records")
+		#expect(ActivityKind.refreshFeedContent(feedURL: "https://example.com/feed.xml").displayName(detail: "Example") == "Refreshing feed: Example")
+	}
+
+	@Test func formattedDurationMatchesUpstreamBuckets() {
+		#expect(Activity.formattedDuration(0.346) == "0.35s")
+		#expect(Activity.formattedDuration(12.34) == "12.3s")
+		#expect(Activity.formattedDuration(135.0) == "2m 15s")
+	}
 }
