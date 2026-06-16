@@ -61,6 +61,19 @@ struct SourceHygieneTests {
         #expect(!manifest.contains("\"-default-isolation\", \"MainActor\""))
     }
 
+    @Test("WireGuard upstream fetch normalizes default isolation flags")
+    func wireGuardUpstreamFetchNormalizesDefaultIsolationFlags() throws {
+        let root = try packageRoot()
+        let script = try String(
+            contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
+            encoding: .utf8
+        )
+
+        #expect(script.contains("patching wireguard-apple Package.swift default-isolation flags"))
+        #expect(script.contains("[\"-Xfrontend\", \"-default-isolation\", \"-Xfrontend\", \"MainActor\"]"))
+        #expect(script.contains(#"r'\[\s*"-default-isolation"\s*,\s*"MainActor"\s*\]'"#))
+    }
+
     @Test("Qt manifest avoids pkg-config prohibited flag warnings")
     func qtManifestAvoidsPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()
