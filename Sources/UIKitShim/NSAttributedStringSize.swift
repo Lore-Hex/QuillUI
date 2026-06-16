@@ -9,6 +9,15 @@ import QuillFoundation
 #if os(Linux)
 
 public extension NSAttributedString {
+    /// UIKit/AppKit's attributed-string drawing measurement. Mirrors the
+    /// String estimator in UIKit.swift, reading the first run's attributes.
+    func boundingRect(with size: CGSize,
+                      options: NSStringDrawingOptions = [],
+                      context: NSStringDrawingContext? = nil) -> CGRect {
+        let attrs = length > 0 ? attributes(at: 0, effectiveRange: nil) : nil
+        return string.boundingRect(with: size, options: options, attributes: attrs, context: context)
+    }
+
     /// UIKit's `size()`: the bounding size of the string drawn in a single
     /// line (no wrapping).
     ///
@@ -21,8 +30,8 @@ public extension NSAttributedString {
     /// approximate, not glyph-accurate; embedded newlines are not given
     /// extra lines (matching the estimator's single-block model).
     func size() -> CGSize {
-        boundingRect(with: CGSize(width: CGFloat.greatestFiniteMagnitude,
-                                  height: CGFloat.greatestFiniteMagnitude)).size
+        self.boundingRect(with: CGSize(width: CGFloat.greatestFiniteMagnitude,
+                                       height: CGFloat.greatestFiniteMagnitude)).size
     }
 }
 

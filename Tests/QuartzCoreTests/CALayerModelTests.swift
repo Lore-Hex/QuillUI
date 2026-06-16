@@ -110,6 +110,7 @@ private func assertAction(
 
 // MARK: - CALayer model tests
 
+@MainActor
 final class CALayerModelTests: XCTestCase {
 
     // MARK: Geometry: frame is DERIVED from position/bounds/anchorPoint

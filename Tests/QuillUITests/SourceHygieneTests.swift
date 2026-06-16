@@ -569,6 +569,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/UIGestureRecognizers.swift"),
             encoding: .utf8
         )
+        let uiKitShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/UIKitShim/UIKit.swift"),
+            encoding: .utf8
+        )
+        let attributedStringSize = try String(
+            contentsOf: root.appendingPathComponent("Sources/UIKitShim/NSAttributedStringSize.swift"),
+            encoding: .utf8
+        )
         let manifest = try String(
             contentsOf: root.appendingPathComponent("Package.swift"),
             encoding: .utf8
@@ -577,6 +585,12 @@ struct SourceHygieneTests {
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
         #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\"]"))
         #expect(pasteboardAdditions.contains("import CoreGraphics"))
+        #expect(uiKitShim.contains("public typealias UIEdgeInsets = QuillEdgeInsets"))
+        #expect(uiKitShim.contains("public weak var layoutManager: NSLayoutManager?"))
+        #expect(uiKitShim.contains("public init(start: UITextPosition, end: UITextPosition)"))
+        #expect(!uiKitShim.contains("var safeAreaInsets: UIEdgeInsets { .zero }\n    @MainActor var windowScene"))
+        #expect(uiKitShim.contains("open override func sizeThatFits(_ size: CGSize) -> CGSize"))
+        #expect(attributedStringSize.contains("func boundingRect(with size: CGSize,"))
         #expect(source.contains("public typealias UserInterfaceStyle = UIUserInterfaceStyle"))
         #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
         #expect(source.contains("usingSpringWithDamping: CGFloat"))
@@ -591,6 +605,15 @@ struct SourceHygieneTests {
         #expect(source.contains("case inspector"))
         #expect(source.contains("#if os(Linux)\n    open func forwardingTarget(for aSelector: Selector!) -> Any? { nil }\n    #else\n    open override func forwardingTarget(for aSelector: Selector!) -> Any? { nil }\n    #endif"))
         #expect(pasteboardAdditions.contains("#if os(Linux)\n    func responds(to selector: Selector?) -> Bool {\n        false\n    }\n    #endif"))
+    }
+
+    @Test("QuartzCore layer tests match CALayer main-actor isolation")
+    func quartzCoreLayerTestsMatchCALayerMainActorIsolation() throws {
+        let modelTests = try packageSource("Tests/QuartzCoreTests/CALayerModelTests.swift")
+        let timingTests = try packageSource("Tests/QuartzCoreTests/CAAnimationTimingTests.swift")
+
+        #expect(modelTests.contains("@MainActor\nfinal class CALayerModelTests: XCTestCase"))
+        #expect(timingTests.contains("@MainActor\nfinal class CAAnimationTimingTests: XCTestCase"))
     }
 
     @Test("Semantic colors have a single platform-color owner")
