@@ -402,6 +402,8 @@ if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
 }
 
+products.append(.executable(name: "quill-imageio-smoke", targets: ["QuillImageIOSmoke"]))
+
 if quillUILinuxBuildBackend == .gtk && signalUpstreamPresent && libsignalUpstreamPresent {
     // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
     // (and, wired up, SignalUI) UIViewController view trees to an on-screen
@@ -730,7 +732,7 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "ButtonKit", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
-    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "CloudKit", "KeychainSwift",
+    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "ImageIO", "Vision", "CloudKit", "KeychainSwift",
     "AuthenticationServices"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
@@ -2312,39 +2314,73 @@ for shimName in signalAppleFrameworkShims {
     // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
     // edge is inert for shims that do not import QuillFoundation.
     let dependencies: [Target.Dependency]
+    let swiftSettings: [SwiftSetting]
+    let linkerSettings: [LinkerSetting]
     switch shimName {
     case "AudioToolbox", "UserNotifications", "CloudKit":
         dependencies = ["QuillFoundation", "QuillKit"]
+        swiftSettings = []
+        linkerSettings = []
     case "AuthenticationServices":
         dependencies = ["QuillKit"]
+        swiftSettings = []
+        linkerSettings = []
     case "CoreMedia":
         dependencies = ["QuillFoundation", "CoreVideo", "AudioToolbox"]
+        swiftSettings = []
+        linkerSettings = []
     case "CoreImage":
         // CIImage(cvPixelBuffer:) — the camera frame pipeline (#516).
         dependencies = ["QuillFoundation", "CoreVideo"]
+        swiftSettings = []
+        linkerSettings = []
     case "CoreVideo", "MetalPerformanceShaders":
         dependencies = ["QuillFoundation", "Metal"]
+        swiftSettings = []
+        linkerSettings = []
     case "MetalKit":
         dependencies = ["QuillFoundation", "Metal", "QuartzCore", "QuillUIKit"]
+        swiftSettings = []
+        linkerSettings = []
     case "SDWebImage":
         dependencies = ["QuillFoundation", "QuillUIKit"]
+        swiftSettings = []
+        linkerSettings = []
     case "VideoToolbox":
         dependencies = ["QuillFoundation", "CoreMedia", "CoreVideo"]
+        swiftSettings = []
+        linkerSettings = []
     case "QuartzCore":
         dependencies = ["QuillFoundation", "Metal"]
+        swiftSettings = []
+        linkerSettings = []
     case "Quartz":
         dependencies = ["QuillFoundation", "QuartzCore"]
+        swiftSettings = []
+        linkerSettings = []
     case "OSLog":
         dependencies = ["os"]
+        swiftSettings = []
+        linkerSettings = []
     case "IOSurface":
         dependencies = ["QuillFoundation", "CoreVideo"]
+        swiftSettings = []
+        linkerSettings = []
     case "AppIntents":
         dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
+        swiftSettings = []
+        linkerSettings = []
+    case "ImageIO":
+        dependencies = ["QuillFoundation", "CGdkPixbuf"]
+        swiftSettings = [.unsafeFlags(gdkPixbufSwiftImporterFlags)]
+        linkerSettings = [.unsafeFlags(gdkPixbufLinkerFlags)]
     case "Vision":
         // VNImageRequestHandler's init overloads take ImageIO's
         // CGImagePropertyOrientation and CoreVideo's CVPixelBuffer (face
         // detection / QR scanning). No cycle: neither shim imports Vision.
         dependencies = ["QuillFoundation", "ImageIO", "CoreVideo"]
+        swiftSettings = []
+        linkerSettings = []
     case "SceneKit":
         // SceneKit vends SwiftUI's `SceneView`; the scene-graph types use
         // QuillFoundation's CGFloat and Foundation's CGPoint. Rung 2c also
@@ -2352,12 +2388,24 @@ for shimName in signalAppleFrameworkShims {
         // and ShapeScript's SceneKit interop files compile without source edits.
         // SwiftUI does not import SceneKit, so the SwiftUI edge remains acyclic.
         dependencies = ["QuillFoundation", "SwiftUI", "UIKit", "AppKit", "CoreGraphics"]
+        swiftSettings = []
+        linkerSettings = []
     case "RealityKit":
         dependencies = ["QuillFoundation", "UIKit", "Combine"]
+        swiftSettings = []
+        linkerSettings = []
     default:
         dependencies = ["QuillFoundation"]
+        swiftSettings = []
+        linkerSettings = []
     }
-    targets.append(.target(name: shimName, dependencies: dependencies, path: "Sources/AppleFrameworkShims/\(shimName)"))
+    targets.append(.target(
+        name: shimName,
+        dependencies: dependencies,
+        path: "Sources/AppleFrameworkShims/\(shimName)",
+        swiftSettings: swiftSettings,
+        linkerSettings: linkerSettings
+    ))
 }
 #endif
 
@@ -2614,6 +2662,12 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
 // no linkerSettings needed (ioctl/mmap live in libc).
 #if os(Linux)
 targets += [
+    .executableTarget(
+        name: "QuillImageIOSmoke",
+        dependencies: ["ImageIO", "QuillFoundation"],
+        path: "Sources/QuillImageIOSmoke",
+        swiftSettings: appSwiftSettings
+    ),
     .systemLibrary(name: "CV4L2", path: "Sources/CV4L2"),
 ]
 #endif
@@ -3273,7 +3327,13 @@ if quillUILinuxBuildBackend == .qt {
         .target(name: "Metal", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/Metal"),
         .target(name: "QuartzCore", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/QuartzCore"),
         .target(name: "CoreVideo", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/CoreVideo"),
-        .target(name: "ImageIO", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/ImageIO"),
+        .target(
+            name: "ImageIO",
+            dependencies: ["QuillFoundation", "CGdkPixbuf"],
+            path: "Sources/AppleFrameworkShims/ImageIO",
+            swiftSettings: [.unsafeFlags(gdkPixbufSwiftImporterFlags)],
+            linkerSettings: [.unsafeFlags(gdkPixbufLinkerFlags)]
+        ),
         .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
         .target(name: "CoreImage", dependencies: ["QuillFoundation", "CoreVideo"], path: "Sources/AppleFrameworkShims/CoreImage"),
         .target(name: "CoreServices", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreServices"),
@@ -4047,6 +4107,7 @@ if iceCubesLinuxGraphEnabled {
                 "Nuke",
                 "NukeUI",
                 "Observation",
+                "QuillFoundation",
                 "RevenueCat",
                 "SafariServices",
                 "SFSafeSymbols",
@@ -4065,15 +4126,10 @@ if iceCubesLinuxGraphEnabled {
                 "IceCubesApp/App/IceCubesApp-release.entitlements",
                 "IceCubesApp/App/IceCubesApp.entitlements",
                 "IceCubesAppIntents/ListEntity.swift",
-                // Siri/AppIntents image-downsample intent uses ImageIO's CF
-                // toll-free bridging (CFString/CFURL/CFDictionary), which
-                // corelibs Foundation does not provide; and AppShortcuts is
-                // its only referrer (an OS-discovered AppShortcutsProvider, not
-                // referenced in code). Both are Siri-only and Linux-irrelevant —
-                // excluded like ListEntity.swift above. The rest of the app +
-                // AppIntents compile. Re-include once the ImageIO CF surface
-                // lands in the CoreGraphics/ImageIO shadow.
-                "IceCubesAppIntents/InlinePostImageIntent.swift",
+                // AppShortcuts is an OS-discovered AppShortcutsProvider, not
+                // referenced by the Linux app path. The individual intents,
+                // including InlinePostImageIntent's ImageIO downsample path,
+                // stay in source coverage.
                 "IceCubesAppIntents/AppShortcuts.swift",
             ],
             sources: [
@@ -4084,7 +4140,10 @@ if iceCubesLinuxGraphEnabled {
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"]),
                 .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
-                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+                .unsafeFlags([
+                    "-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims",
+                    "-Xfrontend", "-import-module", "-Xfrontend", "QuillFoundation"
+                ])
             ]
         ),
         // Real Dimillian/IceCubesApp StatusKit. This is the first high-traffic

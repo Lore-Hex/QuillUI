@@ -27,6 +27,7 @@ import AuthenticationServices
 // `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
 // `import AppKit` here would collide with the UIKit shim surface.
 import let AppKit.kUTTypeData
+import ImageIO
 import Vision
 import IOKit
 import IOKit.pwr_mgt
@@ -3447,6 +3448,84 @@ struct CompatibilityModuleTests {
         let isLittle = prefix == [0x49, 0x49, 0x2A, 0x00]
         let isBig = prefix == [0x4D, 0x4D, 0x00, 0x2A]
         #expect(isLittle || isBig, "Bridge output must have TIFF magic; got \(prefix)")
+    }
+
+    @Test("ImageIO decodes dimensions, creates thumbnails, and writes JPEG data")
+    func imageIODownsampleAndDestinationContract() throws {
+        guard let png = quillRenderSolidColorImage(
+            red: 0.1,
+            green: 0.3,
+            blue: 0.9,
+            alpha: 1,
+            width: 8,
+            height: 4,
+            format: .png
+        ) else {
+            Issue.record("Expected valid PNG fixture")
+            return
+        }
+
+        guard let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]) else {
+            Issue.record("CGImageSourceCreateWithData should decode valid PNG bytes")
+            return
+        }
+        #expect(CGImageSourceGetCount(source) == 1)
+        #expect(CGImageSourceGetType(source) == "public.png")
+
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+        #expect(properties?[kCGImagePropertyPixelWidth] as? Int == 8)
+        #expect(properties?[kCGImagePropertyPixelHeight] as? Int == 4)
+        #expect(properties?[kCGImagePropertyColorModel] as? String == kCGImagePropertyColorModelRGB)
+
+        guard let fullImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            Issue.record("CGImageSourceCreateImageAtIndex should return a CGImage")
+            return
+        }
+        #expect(fullImage.width == 8)
+        #expect(fullImage.height == 4)
+        #expect(fullImage.utType == "public.png")
+        #expect(fullImage.quillBGRAPixels?.isEmpty == false)
+
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 2,
+            ]
+        ) else {
+            Issue.record("CGImageSourceCreateThumbnailAtIndex should downsample valid PNG bytes")
+            return
+        }
+        #expect(thumbnail.width == 2)
+        #expect(thumbnail.height == 1)
+        #expect(thumbnail.utType == "public.png")
+
+        let jpegOutput = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(jpegOutput, "public.jpeg", 1, nil) else {
+            Issue.record("CGImageDestinationCreateWithData should accept public.jpeg")
+            return
+        }
+        CGImageDestinationAddImage(destination, thumbnail, [
+            kCGImageDestinationLossyCompressionQuality: 0.8
+        ])
+        #expect(CGImageDestinationFinalize(destination))
+
+        let jpeg = jpegOutput as Data
+        #expect(Array(jpeg.prefix(3)) == [0xFF, 0xD8, 0xFF])
+        #expect(CGImageSourceGetType(CGImageSourceCreateWithData(jpeg, nil)!) == "public.jpeg")
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-imageio-\(UUID().uuidString)")
+            .appendingPathExtension("png")
+        try png.write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        guard let urlSource = CGImageSourceCreateWithURL(tempURL, nil) else {
+            Issue.record("CGImageSourceCreateWithURL should decode valid image files")
+            return
+        }
+        #expect(CGImageSourceCopyPropertiesAtIndex(urlSource, 0, nil)?[kCGImagePropertyPixelWidth] as? Int == 8)
     }
 
     @Test("QuillCompatibilityEvent equality covers all fields")

@@ -181,6 +181,7 @@ public class CGImage: Hashable, @unchecked Sendable {
     /// populate it; the Cairo CGContext backend draws it.
     public var quillBGRAPixels: [UInt8]?
     public var quillBytesPerRow: Int = 0
+    public var quillUTType: String?
 
     public init() {}
 
@@ -231,8 +232,45 @@ public class CGImage: Hashable, @unchecked Sendable {
     public var height: Int = 0
     public var bytesPerRow: Int { quillBytesPerRow }
     public func cropping(to rect: CGRect) -> CGImage? {
-        _ = rect
-        return CGImage()
+        let crop = rect.integral
+        guard
+            width > 0,
+            height > 0,
+            crop.width > 0,
+            crop.height > 0,
+            let source = quillBGRAPixels,
+            quillBytesPerRow > 0
+        else {
+            return CGImage()
+        }
+
+        let minX = max(0, Int(crop.minX))
+        let minY = max(0, Int(crop.minY))
+        let maxX = min(width, Int(crop.maxX))
+        let maxY = min(height, Int(crop.maxY))
+        guard minX < maxX, minY < maxY else { return nil }
+
+        let cropWidth = maxX - minX
+        let cropHeight = maxY - minY
+        let destinationRowBytes = cropWidth * 4
+        var destination = [UInt8](repeating: 0, count: cropHeight * destinationRowBytes)
+        for y in 0..<cropHeight {
+            let sourceStart = (minY + y) * quillBytesPerRow + minX * 4
+            let destinationStart = y * destinationRowBytes
+            guard sourceStart + destinationRowBytes <= source.count else { return nil }
+            destination.replaceSubrange(
+                destinationStart..<(destinationStart + destinationRowBytes),
+                with: source[sourceStart..<(sourceStart + destinationRowBytes)]
+            )
+        }
+
+        let image = CGImage()
+        image.width = cropWidth
+        image.height = cropHeight
+        image.quillBytesPerRow = destinationRowBytes
+        image.quillBGRAPixels = destination
+        image.quillUTType = quillUTType
+        return image
     }
 
     public static func == (lhs: CGImage, rhs: CGImage) -> Bool {

@@ -76,8 +76,12 @@ estimates, not release claims.
       default when a desktop session is available.
 - [ ] `UserNotifications`: scheduled timer delivery and APNs-equivalent remote
       push behavior.
-- [ ] `ImageIO` / `UIImage` / `UIGraphicsImageRenderer`: real decode,
-      downsample, thumbnail, metadata, and drawing output.
+- [x] `ImageIO`: local file/data decode, dimensions metadata, thumbnail
+      downsample, crop-preserving `CGImage` pixels, and JPEG/PNG/TIFF output
+      through gdk-pixbuf.
+- [ ] `UIImage` / `UIGraphicsImageRenderer`: full drawing output,
+      orientation/EXIF metadata, animated images, HEIC/video thumbnails, and
+      true text/image compositing.
 - [x] SwiftUI `.quickLookPreview(_:)` opens local preview URLs through a shared
       QuillKit QuickLook backend instead of dropping the binding.
 - [ ] `QuickLook`: full IceCubes media viewer/window behavior for
@@ -174,3 +178,10 @@ estimates, not release claims.
   media toolbar quick-look button; the larger selected-attachment media viewer
   still needs native window/sheet parity. Verification: targeted QuillKit and
   Linux-only compatibility tests were added.
+- 2026-06-16: Replaced the inert Linux `ImageIO` shim with a gdk-pixbuf-backed
+  `CGImageSource`/`CGImageDestination` subset: data/provider/URL decode,
+  image type, dimensions metadata, full image pixels, thumbnails, crop
+  preservation, and JPEG/PNG/TIFF output now work. This unblocks IceCubes'
+  media upload/downsample path and the `InlinePostImageIntent` image pipeline
+  shape. Verification: `quill-imageio-smoke` passed in Docker/GTK; the
+  Linux-only compatibility test covers the same contract in the broader suite.
