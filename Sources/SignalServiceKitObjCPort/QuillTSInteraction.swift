@@ -40,6 +40,24 @@ public enum OWSInteractionType: Int {
     case collapseSet = 12
 }
 
+public func NSStringFromOWSInteractionType(_ type: OWSInteractionType) -> String {
+    switch type {
+    case .unknown: return "OWSInteractionTypeUnknown"
+    case .incomingMessage: return "OWSInteractionTypeIncomingMessage"
+    case .outgoingMessage: return "OWSInteractionTypeOutgoingMessage"
+    case .error: return "OWSInteractionTypeError"
+    case .call: return "OWSInteractionTypeCall"
+    case .info: return "OWSInteractionTypeInfo"
+    case .typingIndicator: return "OWSInteractionTypeTypingIndicator"
+    case .threadDetails: return "OWSInteractionTypeThreadDetails"
+    case .unreadIndicator: return "OWSInteractionTypeUnreadIndicator"
+    case .dateHeader: return "OWSInteractionTypeDateHeader"
+    case .unknownThreadWarning: return "OWSInteractionTypeUnknownThreadWarning"
+    case .defaultDisappearingMessageTimer: return "OWSInteractionTypeDefaultDisappearingMessageTimer"
+    case .collapseSet: return "OWSInteractionTypeCollapseSet"
+    }
+}
+
 // MARK: - OWSPreviewText  (declared in TSInteraction.h)
 
 public protocol OWSPreviewText: NSObjectProtocol {

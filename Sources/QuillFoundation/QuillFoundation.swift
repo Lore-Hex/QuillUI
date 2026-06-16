@@ -991,6 +991,14 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         return self
     }
 
+    open override func copy() -> Any {
+        let image = data.flatMap { RSImage(data: $0) } ?? RSImage()
+        image.size = size
+        image.capInsets = capInsets
+        image.resizingMode = resizingMode
+        return image
+    }
+
     public func lockFocus() {
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillFoundation",

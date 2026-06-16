@@ -45,6 +45,7 @@ public final class DateComponentsFormatter {
     public var allowedUnits: NSCalendar.Unit = []
     public var zeroFormattingBehavior: ZeroFormattingBehavior = []
     public var maximumUnitCount: Int = 0
+    public var includesApproximationPhrase: Bool = false
     public var includesTimeRemainingPhrase: Bool = false
 
     public init() {}

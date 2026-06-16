@@ -53,6 +53,34 @@ fi
 # (3) Swift/corelibs compatibility cleanup for disposable generated source.
 "$ROOT/scripts/lower-objc-interop-for-linux.sh" "$SUI"
 
+# (3b) `UITextView` inherits `UIScrollView`, whose Swift-visible `delegate` is
+# typed as `UIScrollViewDelegate?`; Apple's ObjC bridge lets `UITextView`
+# narrow that property, but pure Swift cannot model the covariance without
+# breaking scroll-view assignment. BodyRangesTextView's override only asserts
+# `delegate === self`, so drop that assertion wrapper and use the inherited
+# delegate storage.
+python3 - "$SUI/Views/BodyRanges/BodyRangesTextView.swift" <<'PY'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+if not path.exists():
+    raise SystemExit(0)
+
+text = path.read_text(errors="replace")
+old = """    override public var delegate: UITextViewDelegate? {
+        didSet {
+            if let delegate {
+                owsAssertDebug(delegate === self)
+            }
+        }
+    }
+
+"""
+new = ""
+if old in text:
+    path.write_text(text.replace(old, new, 1))
+PY
+
 # (4) Same-module Swift ports for small ObjC categories that SignalUI excludes
 # on Linux. Keep these as symlinks into the disposable upstream tree so the
 # canonical Signal source remains untouched and the extension members are

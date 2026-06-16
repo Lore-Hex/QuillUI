@@ -151,6 +151,7 @@ public final class AVAudioSession: @unchecked Sendable {
 
     private static let shared = AVAudioSession()
     private let service: QuillAudioSessionService
+    public static let interruptionNotification = Notification.Name("AVAudioSessionInterruptionNotification")
 
     public init() {
         service = .shared
@@ -1000,6 +1001,7 @@ public final class AVAudioRecorder: @unchecked Sendable {
     public let settings: [String: Any]
     public var isMeteringEnabled = false
     public private(set) var currentTime: TimeInterval = 0
+    public private(set) var isRecording = false
 
     public init(url: URL, settings: [String: Any]) throws {
         self.url = url
@@ -1012,10 +1014,13 @@ public final class AVAudioRecorder: @unchecked Sendable {
     @discardableResult
     public func record() -> Bool {
         currentTime = 0
+        isRecording = true
         return true
     }
 
-    public func stop() {}
+    public func stop() {
+        isRecording = false
+    }
 }
 
 // AVAudioRecorder/AVAssetReaderTrackOutput settings dictionary keys (String on

@@ -293,8 +293,16 @@ public struct UIButtonConfiguration {
         UIButtonConfiguration(quillStyle: "glass")
     }
 
+    public static func clearGlass() -> UIButtonConfiguration {
+        UIButtonConfiguration(quillStyle: "clearGlass")
+    }
+
     public static func prominentGlass() -> UIButtonConfiguration {
         UIButtonConfiguration(quillStyle: "prominentGlass")
+    }
+
+    public static func prominentClearGlass() -> UIButtonConfiguration {
+        UIButtonConfiguration(quillStyle: "prominentClearGlass")
     }
 
     /// State-resolved copy. MODEL HONESTY: no appearance engine resolves
@@ -501,6 +509,16 @@ public extension UIBackgroundConfiguration {
         set {
             quillBackgroundInsets = UIEdgeInsets(top: newValue.top, left: newValue.leading, bottom: newValue.bottom, right: newValue.trailing)
         }
+    }
+}
+
+nonisolated(unsafe) private var quillBackgroundColorTransformers:
+    [ObjectIdentifier: UIConfigurationColorTransformer] = [:]
+
+public extension UIBackgroundConfiguration {
+    var backgroundColorTransformer: UIConfigurationColorTransformer? {
+        get { quillBackgroundColorTransformers[ObjectIdentifier(self)] }
+        set { quillBackgroundColorTransformers[ObjectIdentifier(self)] = newValue }
     }
 }
 

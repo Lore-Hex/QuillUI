@@ -122,6 +122,32 @@ extension UIPasteboard {
         return nil
     }
 
+    /// Types for each item in the requested item set. Mirrors UIKit's
+    /// `types(forItemSet:)` shape; nil itemSet means every item.
+    @MainActor public func types(forItemSet itemSet: IndexSet?) -> [[String]]? {
+        let sourceItems = items
+        let indexes = itemSet ?? IndexSet(sourceItems.indices)
+        let result = indexes.compactMap { index -> [String]? in
+            guard sourceItems.indices.contains(index) else { return nil }
+            return Array(sourceItems[index].keys)
+        }
+        return result.isEmpty ? nil : result
+    }
+
+    /// Data values for a pasteboard type in the requested item set.
+    @MainActor public func data(forPasteboardType pasteboardType: String, inItemSet itemSet: IndexSet?) -> [Data]? {
+        let sourceItems = items
+        let indexes = itemSet ?? IndexSet(sourceItems.indices)
+        let result = indexes.compactMap { index -> Data? in
+            guard sourceItems.indices.contains(index),
+                  let value = sourceItems[index][pasteboardType] else { return nil }
+            if let data = value as? Data { return data }
+            if let string = value as? String { return Data(string.utf8) }
+            return nil
+        }
+        return result.isEmpty ? nil : result
+    }
+
     /// Every item's plain-text representation, or nil if the board holds
     /// none (Apple returns nil rather than an empty array). Falls back to
     /// the legacy stored `string` property for boards populated by direct

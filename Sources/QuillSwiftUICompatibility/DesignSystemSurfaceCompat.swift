@@ -1076,7 +1076,7 @@ public struct ButtonStyleConfiguration {
     public let label: AnyView
     public let isPressed: Bool
 
-    public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
+    public init(label: AnyView, isPressed: Bool = false) {
         self.label = label
         self.isPressed = isPressed
     }

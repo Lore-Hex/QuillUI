@@ -19,10 +19,12 @@
 // import in sight). Mirror that topology here: on Linux this resolves to the
 // in-tree QuartzCore shim (a declared target dependency); on Apple platforms
 // it resolves to the real framework, exactly like Apple's UIKit.
-@_exported import QuartzCore
+@preconcurrency @_exported import QuartzCore
 import QuillKit
 
 #if !os(iOS)
+
+public let MAXFLOAT: Float = Float.greatestFiniteMagnitude
 
 private func recordUIKitFallback(operation: String, api: String) {
     QuillCompatibilityDiagnostics.shared.record(
@@ -161,6 +163,10 @@ public final class UIFontDescriptor: @unchecked Sendable {
 public final class UIFontMetrics: @unchecked Sendable {
     public static let `default` = UIFontMetrics()
     public func scaledValue(for value: CGFloat) -> CGFloat { value }
+    public func scaledValue(for value: CGFloat, compatibleWith traitCollection: UITraitCollection?) -> CGFloat {
+        _ = traitCollection
+        return scaledValue(for: value)
+    }
 }
 #endif
 
@@ -213,6 +219,36 @@ public extension UIImage {
     func withRenderingMode(_ renderingMode: RenderingMode) -> UIImage {
         return self
     }
+
+    convenience init?(data: Data, scale: CGFloat) {
+        _ = scale
+        self.init(data: data)
+    }
+
+    func withTintColor(_ color: UIColor, renderingMode: RenderingMode) -> UIImage {
+        _ = (color, renderingMode)
+        return self
+    }
+
+    static var genericAttachment: UIImage { UIImage() }
+    static var viewOnceDash: UIImage { UIImage() }
+    static var timer: UIImage { UIImage() }
+    static var arrowRightCircle: UIImage { UIImage() }
+    static var copy: UIImage { UIImage() }
+    static var copyLight: UIImage { UIImage() }
+    static var saveLight: UIImage { UIImage() }
+    static var trashLight: UIImage { UIImage() }
+}
+
+public extension Optional where Wrapped == UIImage {
+    static var genericAttachment: UIImage? { UIImage.genericAttachment }
+    static var viewOnceDash: UIImage? { UIImage.viewOnceDash }
+    static var timer: UIImage? { UIImage.timer }
+    static var arrowRightCircle: UIImage? { UIImage.arrowRightCircle }
+    static var copy: UIImage? { UIImage.copy }
+    static var copyLight: UIImage? { UIImage.copyLight }
+    static var saveLight: UIImage? { UIImage.saveLight }
+    static var trashLight: UIImage? { UIImage.trashLight }
 }
 
 // Standard attributed-string attribute keys (UIKit/AppKit additions; not in
@@ -273,25 +309,12 @@ public class UISceneConfiguration: NSObject {
     }
 }
 
-@MainActor public protocol UIWindowSceneDelegate: AnyObject {}
-
-@MainActor public class UIWindowScene: UIScene {
-    public var windows: [UIWindow] = []
-    public var keyWindow: UIWindow? { windows.first }
-}
-
 public extension UIWindow {
     var isKeyWindow: Bool { false }
-    var safeAreaInsets: UIEdgeInsets { .zero }
     @MainActor var windowScene: UIWindowScene? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { scene in scene.windows.contains { $0 === self } }
-    }
-
-    convenience init(windowScene: UIWindowScene) {
-        self.init()
-        windowScene.windows.append(self)
     }
 
     var rootViewController: UIViewController? {
@@ -311,9 +334,14 @@ public extension UIWindow {
 @MainActor open class UIFontPickerViewController: UIViewController {
     public weak var delegate: UIFontPickerViewControllerDelegate?
     public var selectedFontDescriptor: UIFontDescriptor?
-    public override init() {
+    public init() {
         self.selectedFontDescriptor = UIFontDescriptor()
-        super.init()
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    public required init?(coder: NSCoder) {
+        self.selectedFontDescriptor = UIFontDescriptor()
+        super.init(coder: coder)
     }
 }
 
@@ -393,21 +421,59 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
 
 public final class NSTextContainer {
     public var lineFragmentPadding: CGFloat = 0
+    public var size: CGSize = .zero
+    public var maximumNumberOfLines: Int = 0
+    public var lineBreakMode: NSLineBreakMode = .byWordWrapping
+    public weak var layoutManager: NSLayoutManager?
     public init() {}
+    public init(size: CGSize) { self.size = size }
+    public func replaceLayoutManager(_ newLayoutManager: NSLayoutManager) {
+        layoutManager = newLayoutManager
+        if !newLayoutManager.textContainers.contains(where: { $0 === self }) {
+            newLayoutManager.addTextContainer(self)
+        }
+    }
 }
 
-public class UITextRange: NSObject {}
+public class UITextRange: NSObject {
+    public let start: UITextPosition
+    public let end: UITextPosition
 
-@MainActor public protocol UITextViewDelegate: AnyObject {
+    public override init() {
+        self.start = UITextPosition()
+        self.end = UITextPosition()
+        super.init()
+    }
+
+    public init(start: UITextPosition, end: UITextPosition) {
+        self.start = start
+        self.end = end
+        super.init()
+    }
+}
+
+@MainActor public protocol UITextViewDelegate: UIScrollViewDelegate {
+    func textViewShouldBeginEditing(_ textView: UITextView) -> Bool
     func textViewDidBeginEditing(_ textView: UITextView)
+    func textViewShouldEndEditing(_ textView: UITextView) -> Bool
+    func textViewDidEndEditing(_ textView: UITextView)
     func textViewDidChange(_ textView: UITextView)
+    func textViewDidChangeSelection(_ textView: UITextView)
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool
+    func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool
+    func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool
 }
 
 public extension UITextViewDelegate {
+    @MainActor func textViewShouldBeginEditing(_ textView: UITextView) -> Bool { true }
     @MainActor func textViewDidBeginEditing(_ textView: UITextView) {}
+    @MainActor func textViewShouldEndEditing(_ textView: UITextView) -> Bool { true }
+    @MainActor func textViewDidEndEditing(_ textView: UITextView) {}
     @MainActor func textViewDidChange(_ textView: UITextView) {}
+    @MainActor func textViewDidChangeSelection(_ textView: UITextView) {}
     @MainActor func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool { true }
+    @MainActor func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
+    @MainActor func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
 }
 
 @MainActor public protocol UITextPasteConfigurationSupporting: AnyObject {}
@@ -428,33 +494,125 @@ public final class UITextPasteItem {
     public func setDefaultResult() {}
 }
 
-@MainActor open class UITextView: UIView, UITextPasteConfigurationSupporting {
-    public weak var delegate: UITextViewDelegate?
-    public weak var pasteDelegate: UITextPasteDelegate?
-    public var attributedText: NSAttributedString = NSAttributedString(string: "")
-    public var selectedRange: NSRange = NSRange(location: 0, length: 0)
-    public var markedTextRange: UITextRange?
-    public var textContainer = NSTextContainer()
-    public var textContainerInset: UIEdgeInsets = .zero
-    public var font: UIFont?
-    public var adjustsFontForContentSizeCategory = false
-    public var autocapitalizationType: UITextAutocapitalizationType = .sentences
-    public var autocorrectionType: UITextAutocorrectionType = .default
-    public var isEditable = true
-    public var isSelectable = true
-    public var isScrollEnabled = true
-    public var dataDetectorTypes: UIDataDetectorTypes = []
-    public var allowsEditingTextAttributes = false
-    public var returnKeyType: UIReturnKeyType = .default
-    public var inlinePredictionType: UITextInlinePredictionType = .default
-    public var keyboardType: UIKeyboardType = .default
-    public var textColor: UIColor?
+@MainActor open class UITextView: UIScrollView, UITextPasteConfigurationSupporting {
+    private let quillDefaultLayoutManager = NSLayoutManager()
+    private let quillTextStorage = NSTextStorage(string: "")
+    private var quillInputAccessoryView: UIView?
 
-    open func sizeThatFits(_ size: CGSize) -> CGSize {
+    public weak var pasteDelegate: UITextPasteDelegate?
+    public weak var inputDelegate: UITextInputDelegate?
+
+    open var text: String! {
+        get { attributedText?.string ?? "" }
+        set { attributedText = NSAttributedString(string: newValue ?? "") }
+    }
+
+    open var attributedText: NSAttributedString! {
+        get { NSAttributedString(attributedString: textStorage) }
+        set { textStorage.setAttributedString(newValue ?? NSAttributedString(string: "")) }
+    }
+    open var selectedRange: NSRange = NSRange(location: 0, length: 0)
+    open var selectedTextRange: UITextRange?
+    open var markedTextRange: UITextRange?
+    open var textContainer: NSTextContainer
+    open var layoutManager: NSLayoutManager {
+        textContainer.layoutManager ?? quillDefaultLayoutManager
+    }
+    open var textStorage: NSTextStorage {
+        textContainer.layoutManager?.textStorage ?? quillTextStorage
+    }
+    open var textContainerInset: UIEdgeInsets = .zero
+    open var font: UIFont?
+    open var textColor: UIColor?
+    open var textAlignment: NSTextAlignment = .natural
+    open var linkTextAttributes: [NSAttributedString.Key: Any] = [:]
+    open var typingAttributes: [NSAttributedString.Key: Any] = [:]
+    open var adjustsFontForContentSizeCategory = false
+    open var autocapitalizationType: UITextAutocapitalizationType = .sentences
+    open var autocorrectionType: UITextAutocorrectionType = .default
+    open var spellCheckingType: UITextSpellCheckingType = .default
+    open var keyboardAppearance: UIKeyboardAppearance = .default
+    open var isEditable = true
+    open var isSelectable = true
+    open var isSecureTextEntry = false
+    open var dataDetectorTypes: UIDataDetectorTypes = []
+    open var supportsAdaptiveImageGlyph = true
+    open var allowsEditingTextAttributes = false
+    open var returnKeyType: UIReturnKeyType = .default
+    open var enablesReturnKeyAutomatically = false
+    open var inlinePredictionType: UITextInlinePredictionType = .default
+    open var keyboardType: UIKeyboardType = .default
+    open var textContentType: UITextContentType!
+    open var writingToolsBehavior: UIWritingToolsBehavior = .default
+    open override var inputAccessoryView: UIView? {
+        get { quillInputAccessoryView }
+        set { quillInputAccessoryView = newValue }
+    }
+
+    public convenience init() {
+        self.init(frame: .zero, textContainer: nil)
+    }
+
+    public init(frame: CGRect, textContainer: NSTextContainer?) {
+        let container = textContainer ?? NSTextContainer()
+        self.textContainer = container
+        super.init(frame: frame)
+        if container.layoutManager == nil {
+            quillTextStorage.addLayoutManager(quillDefaultLayoutManager)
+            quillDefaultLayoutManager.addTextContainer(container)
+        } else if container.layoutManager?.textStorage == nil {
+            quillTextStorage.addLayoutManager(container.layoutManager!)
+        }
+    }
+
+    public required init?(coder: NSCoder) {
+        let container = NSTextContainer()
+        self.textContainer = container
+        super.init(coder: coder)
+        quillTextStorage.addLayoutManager(quillDefaultLayoutManager)
+        quillDefaultLayoutManager.addTextContainer(container)
+    }
+
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)
         let lineHeight = font?.pointSize ?? 17
-        let lines = max(1, ceil(Double(attributedText.string.count) * 8.5 / width))
+        let lines = max(1, ceil(Double((attributedText?.string ?? text ?? "").count) * 8.5 / width))
         return CGSize(width: width, height: CGFloat(lines) * lineHeight * 1.35)
+    }
+
+    open func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        _ = gestureRecognizer
+        return true
+    }
+
+    open func caretRect(for position: UITextPosition) -> CGRect {
+        _ = position
+        let lineHeight = font?.pointSize ?? 17
+        return CGRect(x: 0, y: 0, width: 1, height: lineHeight * 1.35)
+    }
+
+    open func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
+        _ = range
+        return [UITextSelectionRect(rect: caretRect(for: range.start))]
+    }
+
+    open func scrollRangeToVisible(_ range: NSRange) {
+        _ = range
+    }
+
+    open func replace(_ textRange: UITextRange, withText replacementText: String) {
+        _ = textRange
+        text = (text ?? "") + replacementText
+        selectedRange = NSRange(location: text.count, length: 0)
+    }
+
+    open func unmarkText() {
+        markedTextRange = nil
+    }
+
+    open func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+        _ = textRange
+        return UIMenu(children: suggestedActions)
     }
 
     public func select(_ sender: Any?) {
@@ -462,7 +620,13 @@ public final class UITextPasteItem {
     }
 }
 
-@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
+@MainActor open class UITextSelectionRect: NSObject {
+    open var rect: CGRect
+    public init(rect: CGRect = .zero) {
+        self.rect = rect
+        super.init()
+    }
+}
 
 @MainActor public protocol UIImagePickerControllerDelegate: AnyObject {
     func imagePickerController(
@@ -478,11 +642,16 @@ public extension UIImagePickerControllerDelegate {
     ) {}
 }
 
-@MainActor public final class UIImagePickerController: UIViewController {
+@MainActor open class UIImagePickerController: UIViewController {
     public struct InfoKey: Hashable, RawRepresentable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
         public static let originalImage = InfoKey(rawValue: "UIImagePickerControllerOriginalImage")
+        public static let editedImage = InfoKey(rawValue: "UIImagePickerControllerEditedImage")
+        public static let mediaType = InfoKey(rawValue: "UIImagePickerControllerMediaType")
+        public static let mediaURL = InfoKey(rawValue: "UIImagePickerControllerMediaURL")
+        public static let referenceURL = InfoKey(rawValue: "UIImagePickerControllerReferenceURL")
+        public static let cropRect = InfoKey(rawValue: "UIImagePickerControllerCropRect")
     }
 
     public enum SourceType: Sendable {
@@ -492,7 +661,19 @@ public extension UIImagePickerControllerDelegate {
     }
 
     public var sourceType: SourceType = .photoLibrary
+    public var allowsEditing: Bool = false
+    public var mediaTypes: [String] = []
     public weak var delegate: (any UINavigationControllerDelegate & UIImagePickerControllerDelegate)?
+
+    public static func isSourceTypeAvailable(_ sourceType: SourceType) -> Bool {
+        _ = sourceType
+        return false
+    }
+
+    public static func availableMediaTypes(for sourceType: SourceType) -> [String]? {
+        _ = sourceType
+        return []
+    }
 }
 
 // MARK: - Haptic feedback (no-op on non-iOS)
@@ -554,6 +735,7 @@ public class UINotificationFeedbackGenerator: NSObject {
     /// off-main-actor callers can read them (Strings are Sendable).
     nonisolated public var systemVersion: String { "1.0" }
     nonisolated public var model: String { "QuillOS" }
+    nonisolated public var orientation: UIDeviceOrientation { .portrait }
 
     #if os(Linux)
     /// Battery monitoring is unavailable on QuillOS; this notification name
@@ -594,31 +776,42 @@ public extension Notification.Name {
     /// matches Apple's. Linux-gated because macOS Foundation already defines it.
     static let NSProcessInfoPowerStateDidChange = Notification.Name("NSProcessInfoPowerStateDidChangeNotification")
 }
-#endif
 
-public enum UIUserInterfaceIdiom: Int, Sendable {
-    case unspecified = -1, phone = 0, pad = 1, tv = 2, carPlay = 3, mac = 5, vision = 6
+public extension ProcessInfo {
+    var isLowPowerModeEnabled: Bool { false }
 }
+
+public extension UIScreen {
+    var brightness: CGFloat {
+        get { 1 }
+        set { _ = newValue }
+    }
+}
+
+public extension Progress {
+    var estimatedTimeRemaining: TimeInterval? { nil }
+}
+#endif
 
 // MARK: - UIEdgeInsets
 //
-// Layout-inset geometry (UIKit on iOS; NSEdgeInsets on macOS). SignalServiceKit
-// reaches it via `import UIKit`. Only the raw four-edge value-holder lives here;
-// SSK's own `UIEdgeInsets(margin:)` convenience init is an extension that builds
-// on this base.
-public struct UIEdgeInsets: Equatable, Sendable {
-    public var top: CGFloat
-    public var left: CGFloat
-    public var bottom: CGFloat
-    public var right: CGFloat
-    public init(top: CGFloat = 0, left: CGFloat = 0, bottom: CGFloat = 0, right: CGFloat = 0) {
-        self.top = top
-        self.left = left
-        self.bottom = bottom
-        self.right = right
+// Layout-inset geometry. The storage type lives in QuillUIKit so class-body
+// UIKit implementations can use it without depending on this umbrella module.
+public typealias UIEdgeInsets = QuillEdgeInsets
+
+#if os(Linux)
+public extension NSEdgeInsets {
+    init(_ insets: UIEdgeInsets) {
+        self.init(top: insets.top, left: insets.left, bottom: insets.bottom, right: insets.right)
     }
-    public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 }
+
+public extension UIImage {
+    func resizableImage(withCapInsets capInsets: UIEdgeInsets, resizingMode: ResizingMode = .tile) -> UIImage {
+        resizableImage(withCapInsets: NSEdgeInsets(capInsets), resizingMode: resizingMode)
+    }
+}
+#endif
 
 // MARK: - NSDirectionalEdgeInsets
 //
@@ -639,7 +832,7 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
     public static let zero = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
 }
 
-// MARK: - UISwitch + UIInterfaceOrientationMask
+// MARK: - UISwitch + UIBezierPath
 
 /// `UISwitch: UIControl`. SSK only references it as a callback parameter type
 /// (`switchDidChange(_ sender: UISwitch)` reading `.isOn`); never instantiated here.
@@ -648,26 +841,88 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
     public func setOn(_ on: Bool, animated: Bool) { isOn = on }
 }
 
+@MainActor open class UIInputView: UIView {
+    public enum Style: Int, Sendable {
+        case `default`
+        case keyboard
+    }
+
+    public let inputViewStyle: Style
+    open var allowsSelfSizing = false
+
+    public init(frame: CGRect, inputViewStyle: Style) {
+        self.inputViewStyle = inputViewStyle
+        super.init(frame: frame)
+    }
+
+    public required init?(coder: NSCoder) {
+        self.inputViewStyle = .default
+        super.init(coder: coder)
+    }
+}
+
 /// UIBezierPath. Inert on Linux (no real geometry recorded): `.cgPath` is an
 /// opaque handle that the inert CGContext drawing shim accepts as `Any`. SSK uses
 /// `UIBezierPath(ovalIn:)` + `.cgPath` for avatar clipping.
-public final class UIBezierPath {
+public final class UIBezierPath: NSObject, NSCopying {
     public let cgPath: CGPath
     public var lineWidth: CGFloat = 1
     public var usesEvenOddFillRule = false
-    public init() { self.cgPath = CGPath() }
-    public init(ovalIn rect: CGRect) { self.cgPath = CGPath() }
-    public init(rect: CGRect) { self.cgPath = CGPath() }
-    public init(roundedRect rect: CGRect, cornerRadius: CGFloat) { self.cgPath = CGPath() }
-    public init(cgPath: CGPath) { self.cgPath = cgPath }
+    public override init() {
+        self.cgPath = CGPath()
+        super.init()
+    }
+    public init(ovalIn rect: CGRect) {
+        _ = rect
+        self.cgPath = CGPath()
+        super.init()
+    }
+    public init(rect: CGRect) {
+        _ = rect
+        self.cgPath = CGPath()
+        super.init()
+    }
+    public init(roundedRect rect: CGRect, cornerRadius: CGFloat) {
+        _ = (rect, cornerRadius)
+        self.cgPath = CGPath()
+        super.init()
+    }
+    public init(roundedRect rect: CGRect, byRoundingCorners corners: UIRectCorner, cornerRadii: CGSize) {
+        _ = (rect, corners, cornerRadii)
+        self.cgPath = CGPath()
+        super.init()
+    }
+    public init(
+        arcCenter center: CGPoint,
+        radius: CGFloat,
+        startAngle: CGFloat,
+        endAngle: CGFloat,
+        clockwise: Bool
+    ) {
+        _ = (center, radius, startAngle, endAngle, clockwise)
+        self.cgPath = CGPath()
+        super.init()
+    }
+    public init(cgPath: CGPath) {
+        self.cgPath = cgPath
+        super.init()
+    }
     public func move(to point: CGPoint) {}
     public func addLine(to point: CGPoint) {}
     public func addArc(withCenter center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {}
+    public func addCurve(to endPoint: CGPoint, controlPoint1: CGPoint, controlPoint2: CGPoint) {}
     public func close() {}
     public func append(_ bezierPath: UIBezierPath) {}
+    public func reversing() -> UIBezierPath { UIBezierPath(cgPath: cgPath) }
+    public func apply(_ transform: CGAffineTransform) { _ = transform }
+    public func copy(with zone: NSZone? = nil) -> Any { UIBezierPath(cgPath: cgPath) }
     public func addClip() {}
     public func fill() {}
     public func stroke() {}
+}
+
+public func UIRectFill(_ rect: CGRect) {
+    _ = rect
 }
 
 public enum UIDeviceOrientation: Int, Sendable {
@@ -676,18 +931,6 @@ public enum UIDeviceOrientation: Int, Sendable {
     public var isLandscape: Bool { self == .landscapeLeft || self == .landscapeRight }
     public var isFlat: Bool { self == .faceUp || self == .faceDown }
     public var isValidInterfaceOrientation: Bool { isPortrait || isLandscape }
-}
-
-public struct UIInterfaceOrientationMask: OptionSet, Sendable {
-    public let rawValue: UInt
-    public init(rawValue: UInt) { self.rawValue = rawValue }
-    public static let portrait = UIInterfaceOrientationMask(rawValue: 1 << 1)
-    public static let portraitUpsideDown = UIInterfaceOrientationMask(rawValue: 1 << 2)
-    public static let landscapeRight = UIInterfaceOrientationMask(rawValue: 1 << 3)
-    public static let landscapeLeft = UIInterfaceOrientationMask(rawValue: 1 << 4)
-    public static let landscape: UIInterfaceOrientationMask = [.landscapeLeft, .landscapeRight]
-    public static let all: UIInterfaceOrientationMask = [.portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight]
-    public static let allButUpsideDown: UIInterfaceOrientationMask = [.portrait, .landscapeLeft, .landscapeRight]
 }
 
 // MARK: - UIGraphicsImageRenderer (Linux: placeholder images)
@@ -841,6 +1084,21 @@ open class NSTextStorage: NSMutableAttributedString {
     public typealias EditActions = NSTextStorageEditActions
 
     public weak var delegate: AnyObject?
+    public private(set) var layoutManagers: [NSLayoutManager] = []
+
+    public func addLayoutManager(_ layoutManager: NSLayoutManager) {
+        if !layoutManagers.contains(where: { $0 === layoutManager }) {
+            layoutManagers.append(layoutManager)
+        }
+        layoutManager.textStorage = self
+    }
+
+    public func removeLayoutManager(_ layoutManager: NSLayoutManager) {
+        layoutManagers.removeAll { $0 === layoutManager }
+        if layoutManager.textStorage === self {
+            layoutManager.textStorage = nil
+        }
+    }
 
     open func processEditing() {}
 
