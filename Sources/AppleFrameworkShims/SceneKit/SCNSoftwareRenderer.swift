@@ -417,10 +417,21 @@ private struct CameraProjection {
         let radius = max(1, bounds.radius)
 
         let cameraPosition = cameraWorld?.transformPoint(.zero) ?? Vector3(center.x, center.y, center.z + radius * 3)
-        let forward = (center - cameraPosition).normalized(fallback: Vector3(0, 0, -1))
-        let worldUp = abs(forward.y) > 0.95 ? Vector3(0, 0, 1) : Vector3(0, 1, 0)
-        let right = forward.cross(worldUp).normalized(fallback: Vector3(1, 0, 0))
-        let up = right.cross(forward).normalized(fallback: Vector3(0, 1, 0))
+        let fallbackForward = (center - cameraPosition).normalized(fallback: Vector3(0, 0, -1))
+        let worldUp = abs(fallbackForward.y) > 0.95 ? Vector3(0, 0, 1) : Vector3(0, 1, 0)
+        let forward: Vector3
+        let right: Vector3
+        let up: Vector3
+        if let cameraWorld {
+            forward = cameraWorld.transformDirection(Vector3(0, 0, -1)).normalized(fallback: fallbackForward)
+            let rawUp = cameraWorld.transformDirection(Vector3(0, 1, 0)).normalized(fallback: worldUp)
+            right = forward.cross(rawUp).normalized(fallback: forward.cross(worldUp).normalized(fallback: Vector3(1, 0, 0)))
+            up = right.cross(forward).normalized(fallback: rawUp)
+        } else {
+            forward = fallbackForward
+            right = forward.cross(worldUp).normalized(fallback: Vector3(1, 0, 0))
+            up = right.cross(forward).normalized(fallback: Vector3(0, 1, 0))
+        }
 
         let camera = cameraNode?.camera
         let fov = max(5, min(120, camera?.fieldOfView ?? 60))
@@ -618,7 +629,7 @@ private struct Bounds {
     }
 }
 
-private struct Vector3: Equatable {
+struct Vector3: Equatable {
     var x: CGFloat
     var y: CGFloat
     var z: CGFloat
@@ -668,7 +679,7 @@ private struct Vector3: Equatable {
     }
 }
 
-private struct Matrix4 {
+struct Matrix4 {
     var m: [CGFloat]
 
     static let identity = Matrix4([
@@ -716,6 +727,14 @@ private struct Matrix4 {
             m[0] * v.x + m[1] * v.y + m[2] * v.z + m[3],
             m[4] * v.x + m[5] * v.y + m[6] * v.z + m[7],
             m[8] * v.x + m[9] * v.y + m[10] * v.z + m[11]
+        )
+    }
+
+    func transformDirection(_ v: Vector3) -> Vector3 {
+        Vector3(
+            m[0] * v.x + m[1] * v.y + m[2] * v.z,
+            m[4] * v.x + m[5] * v.y + m[6] * v.z,
+            m[8] * v.x + m[9] * v.y + m[10] * v.z
         )
     }
 

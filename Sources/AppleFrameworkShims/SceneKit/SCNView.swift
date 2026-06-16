@@ -31,14 +31,119 @@ public final class SCNHitTestResult: @unchecked Sendable {
     }
 }
 
-public final class SCNCameraController: @unchecked Sendable {
+@MainActor public protocol SCNCameraControllerDelegate: AnyObject {
+    func cameraInertiaWillStart(for cameraController: SCNCameraController)
+    func cameraInertiaDidEnd(for cameraController: SCNCameraController)
+}
+
+public extension SCNCameraControllerDelegate {
+    func cameraInertiaWillStart(for cameraController: SCNCameraController) {
+        _ = cameraController
+    }
+
+    func cameraInertiaDidEnd(for cameraController: SCNCameraController) {
+        _ = cameraController
+    }
+}
+
+@MainActor public final class SCNCameraController: @unchecked Sendable {
     public var target = SCNVector3(0, 0, 0)
+    public weak var delegate: (any SCNCameraControllerDelegate)?
+    public private(set) weak var pointOfView: SCNNode?
+
+    fileprivate func attach(pointOfView: SCNNode?) {
+        self.pointOfView = pointOfView
+    }
+
+    public func rotateBy(x deltaX: CGFloat, y deltaY: CGFloat) {
+        guard let pointOfView else { return }
+        performInteraction {
+            let center = Vector3(target)
+            let current = Vector3(pointOfView.position)
+            var offset = current - center
+            if offset.length <= 0.0001 {
+                offset = Vector3(0, 0, 1)
+            }
+
+            let distance = max(0.001, offset.length)
+            var yaw = atan2(offset.x, offset.z)
+            var pitch = asin(max(-0.999, min(0.999, offset.y / distance)))
+            yaw += deltaX
+            pitch = max(-(.pi / 2) + 0.001, min((.pi / 2) - 0.001, pitch + deltaY))
+
+            let horizontal = cos(pitch) * distance
+            let next = center + Vector3(
+                sin(yaw) * horizontal,
+                sin(pitch) * distance,
+                cos(yaw) * horizontal
+            )
+            pointOfView.position = SCNVector3(next)
+            pointOfView.look(at: target)
+        }
+    }
+
+    public func translateInCameraSpaceBy(x deltaX: CGFloat, y deltaY: CGFloat, z deltaZ: CGFloat) {
+        guard let pointOfView else { return }
+        performInteraction {
+            let cameraWorld = Matrix4.worldTransform(for: pointOfView)
+            let right = cameraWorld.transformDirection(Vector3(1, 0, 0)).normalized(fallback: Vector3(1, 0, 0))
+            let up = cameraWorld.transformDirection(Vector3(0, 1, 0)).normalized(fallback: Vector3(0, 1, 0))
+            let forward = cameraWorld.transformDirection(Vector3(0, 0, -1)).normalized(fallback: Vector3(0, 0, -1))
+            let delta = right * deltaX + up * deltaY + forward * deltaZ
+            pointOfView.position = SCNVector3(Vector3(pointOfView.position) + delta)
+            target = SCNVector3(Vector3(target) + delta)
+        }
+    }
+
+    public func dolly(by delta: CGFloat) {
+        guard let pointOfView else { return }
+        performInteraction {
+            let position = Vector3(pointOfView.position)
+            let center = Vector3(target)
+            let toTarget = center - position
+            let distance = max(0.001, toTarget.length)
+            let fallback = Matrix4.worldTransform(for: pointOfView)
+                .transformDirection(Vector3(0, 0, -1))
+                .normalized(fallback: Vector3(0, 0, -1))
+            let direction = toTarget.normalized(fallback: fallback)
+            let clampedDelta = max(-distance * 4, min(distance - 0.001, delta))
+            pointOfView.position = SCNVector3(position + direction * clampedDelta)
+            pointOfView.look(at: target)
+        }
+    }
+
+    private func performInteraction(_ update: () -> Void) {
+        delegate?.cameraInertiaWillStart(for: self)
+        update()
+        delegate?.cameraInertiaDidEnd(for: self)
+    }
 }
 
 @MainActor open class SCNView: UIView {
-    public var scene: SCNScene?
-    public var pointOfView: SCNNode?
-    public var allowsCameraControl: Bool = false
+    public var scene: SCNScene? {
+        didSet {
+            controlledCameraNode = nil
+            syncDefaultCameraController()
+            setNeedsDisplay()
+        }
+    }
+
+    public var pointOfView: SCNNode? {
+        didSet {
+            if pointOfView !== controlledCameraNode {
+                controlledCameraNode = nil
+            }
+            syncDefaultCameraController()
+            setNeedsDisplay()
+        }
+    }
+
+    public var allowsCameraControl: Bool = false {
+        didSet {
+            syncDefaultCameraController()
+        }
+    }
+
     public var autoenablesDefaultLighting: Bool = false
     public var rendersContinuously: Bool = false
     public var preferredFramesPerSecond: Int = 60
@@ -46,12 +151,35 @@ public final class SCNCameraController: @unchecked Sendable {
     public var showsStatistics: Bool = false
     public var wantsLayer: Bool = false
     public var contentScaleFactor: CGFloat = 1
-    public var defaultCameraController = SCNCameraController()
+    public var defaultCameraController = SCNCameraController() {
+        didSet {
+            syncDefaultCameraController()
+        }
+    }
     public var antialiasingMode: SCNAntialiasingMode = .none
     public private(set) var appKitGestureRecognizers: [NSGestureRecognizer] = []
+    private weak var controlledCameraNode: SCNNode?
 
     open func addGestureRecognizer(_ gestureRecognizer: NSGestureRecognizer) {
         appKitGestureRecognizers.append(gestureRecognizer)
+    }
+
+    public func quillOrbitCamera(deltaX: CGFloat, deltaY: CGFloat) {
+        guard allowsCameraControl, ensureControlledCamera() != nil else { return }
+        defaultCameraController.rotateBy(x: deltaX, y: deltaY)
+        setNeedsDisplay()
+    }
+
+    public func quillPanCamera(deltaX: CGFloat, deltaY: CGFloat) {
+        guard allowsCameraControl, ensureControlledCamera() != nil else { return }
+        defaultCameraController.translateInCameraSpaceBy(x: deltaX, y: deltaY, z: 0)
+        setNeedsDisplay()
+    }
+
+    public func quillDollyCamera(delta: CGFloat) {
+        guard allowsCameraControl, ensureControlledCamera() != nil else { return }
+        defaultCameraController.dolly(by: delta)
+        setNeedsDisplay()
     }
 
     public func quillRenderImage(width: Int? = nil, height: Int? = nil) -> CGImage? {
@@ -85,6 +213,68 @@ public final class SCNCameraController: @unchecked Sendable {
             pointOfView: pointOfView,
             searchMode: searchMode
         )
+    }
+
+    private func syncDefaultCameraController() {
+        defaultCameraController.attach(pointOfView: pointOfView ?? firstCameraNode(in: scene?.rootNode))
+    }
+
+    @discardableResult
+    private func ensureControlledCamera() -> SCNNode? {
+        if let controlledCameraNode {
+            pointOfView = controlledCameraNode
+            return controlledCameraNode
+        }
+
+        let source = pointOfView ?? firstCameraNode(in: scene?.rootNode)
+        let cameraNode = cloneCameraNode(from: source)
+        scene?.rootNode.addChildNode(cameraNode)
+        controlledCameraNode = cameraNode
+        pointOfView = cameraNode
+        return cameraNode
+    }
+
+    private func firstCameraNode(in node: SCNNode?) -> SCNNode? {
+        guard let node else { return nil }
+        if node.camera != nil { return node }
+        for child in node.childNodes {
+            if let found = firstCameraNode(in: child) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    private func cloneCameraNode(from source: SCNNode?) -> SCNNode {
+        let node = SCNNode()
+        node.name = source?.name.map { "\($0).quillCameraControl" } ?? "quillCameraControl"
+        node.position = source?.position ?? SCNVector3(0, 0, 4)
+        node.eulerAngles = source?.eulerAngles ?? SCNVector3(0, 0, 0)
+        node.scale = source?.scale ?? SCNVector3(1, 1, 1)
+        node.orientation = source?.orientation ?? SCNQuaternion(0, 0, 0, 1)
+        node.transform = source?.transform ?? SCNMatrix4Identity
+        node.pivot = source?.pivot ?? SCNMatrix4Identity
+        node.camera = cloneCamera(source?.camera) ?? SCNCamera()
+        return node
+    }
+
+    private func cloneCamera(_ source: SCNCamera?) -> SCNCamera? {
+        guard let source else { return nil }
+        let camera = SCNCamera()
+        camera.name = source.name
+        camera.zNear = source.zNear
+        camera.zFar = source.zFar
+        camera.fieldOfView = source.fieldOfView
+        camera.usesOrthographicProjection = source.usesOrthographicProjection
+        camera.orthographicScale = source.orthographicScale
+        camera.automaticallyAdjustsZRange = source.automaticallyAdjustsZRange
+        return camera
+    }
+}
+
+private extension SCNVector3 {
+    init(_ vector: Vector3) {
+        self.init(vector.x, vector.y, vector.z)
     }
 }
 

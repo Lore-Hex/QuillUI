@@ -74,16 +74,15 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         runningActions.removeAll()
     }
 
-    /// Orients the node so its local -Z axis points at `worldTarget`, +Y up —
-    /// the same contract as `SCNNode.look(at:)`. Encoded as Euler angles
-    /// (yaw about Y, pitch about X); refined when the renderer lands.
+    /// Orients the node so its local -Z axis points at `worldTarget`, +Y up.
     public func look(at worldTarget: SCNVector3) {
         let dx = worldTarget.x - position.x
         let dy = worldTarget.y - position.y
         let dz = worldTarget.z - position.z
         let horizontal = (dx * dx + dz * dz).squareRoot()
-        // -Z forward: yaw rotates the -Z axis toward (dx, dz).
-        let yaw = atan2(dx, dz)
+        // With this shim's row-major transform math, yaw 0 leaves local -Z
+        // aimed down world -Z.
+        let yaw = atan2(-dx, -dz)
         let pitch = atan2(dy, horizontal)
         eulerAngles = SCNVector3(pitch, yaw, 0)
     }

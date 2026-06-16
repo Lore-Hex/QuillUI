@@ -74,6 +74,86 @@ struct SceneKitRendererTests {
         #expect(stats.redDominantPixels > 900)
     }
 
+    @Test("Software renderer respects camera orientation from look(at:)")
+    func rendersWithSideCameraLookingAtTarget() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(4, 0, 0)
+        cameraNode.look(at: SCNVector3(0, 0, 0))
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(stats.redDominantPixels > 900)
+    }
+
+    @Test("Software renderer culls geometry behind the camera orientation")
+    func cameraLookingAwayDoesNotRenderTarget() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        cameraNode.eulerAngles = SCNVector3(0, .pi, 0)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels == 0)
+    }
+
+    @MainActor
+    @Test("SCNView camera controls create a moved point-of-view camera")
+    func scnViewCameraControlsCreateMovedCamera() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let cameraNode = SCNNode()
+        cameraNode.name = "resetCamera"
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let view = SCNView()
+        view.bounds = CGRect(x: 0, y: 0, width: 160, height: 120)
+        view.scene = scene
+        view.pointOfView = cameraNode
+        view.defaultCameraController.target = SCNVector3(0, 0, 0)
+        view.allowsCameraControl = true
+
+        view.quillOrbitCamera(deltaX: .pi / 4, deltaY: .pi / 12)
+
+        let movedCamera = view.pointOfView
+        #expect(movedCamera !== cameraNode)
+        #expect(abs(movedCamera?.position.x ?? 0) > 0.5)
+        #expect(movedCamera?.camera !== cameraNode.camera)
+
+        let image = view.quillRenderImage(width: 160, height: 120)
+        #expect(image != nil)
+        if let image {
+            let stats = PixelStats(image)
+            #expect(stats.nonBlackPixels > 500)
+            #expect(stats.redDominantPixels > 400)
+        }
+    }
+
     @Test("Software renderer hit testing returns nearest projected nodes")
     func hitTestsProjectedGeometryNearestFirst() {
         let scene = SCNScene()

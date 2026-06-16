@@ -31,12 +31,22 @@ struct QuillSceneKitRenderSmoke {
         try require(nestedCameraStats.nonBlackPixels > 1_000, "nested-camera render stayed mostly black: \(nestedCameraStats)")
         try require(nestedCameraStats.redDominantPixels > 900, "nested-camera render did not produce red pixels: \(nestedCameraStats)")
 
+        let sideCameraStats = PixelStats(renderSideCameraScene())
+        try require(sideCameraStats.nonBlackPixels > 1_000, "side-camera render stayed mostly black: \(sideCameraStats)")
+        try require(sideCameraStats.redDominantPixels > 900, "side-camera render did not produce red pixels: \(sideCameraStats)")
+
+        let awayCameraStats = PixelStats(renderAwayCameraScene())
+        try require(awayCameraStats.nonBlackPixels == 0, "away-camera render unexpectedly produced pixels: \(awayCameraStats)")
+
+        try runCameraControlSmoke()
         try runHitTestSmoke()
 
         log("SceneKit render smoke passed")
         log("sphere: \(sphereStats)")
         log("triangle: \(triangleStats)")
         log("nested camera: \(nestedCameraStats)")
+        log("side camera: \(sideCameraStats)")
+        log("away camera: \(awayCameraStats)")
 
         if ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_GTK_SMOKE"] == "1" {
             try runGTKSceneViewSmoke()
@@ -104,6 +114,49 @@ struct QuillSceneKitRenderSmoke {
         cameraParent.addChildNode(cameraNode)
         scene.rootNode.addChildNode(cameraParent)
         return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func renderSideCameraScene() -> CGImage {
+        let scene = makeSphereScene()
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(4, 0, 0)
+        cameraNode.look(at: SCNVector3(0, 0, 0))
+        scene.rootNode.addChildNode(cameraNode)
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func renderAwayCameraScene() -> CGImage {
+        let scene = makeSphereScene()
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        cameraNode.eulerAngles = SCNVector3(0, .pi, 0)
+        scene.rootNode.addChildNode(cameraNode)
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    @MainActor
+    private static func runCameraControlSmoke() throws {
+        let scene = makeSphereScene()
+        guard let resetCamera = scene.rootNode.childNodes.first(where: { $0.camera != nil }) else {
+            throw SmokeFailure.assertion("camera-control scene had no camera")
+        }
+        let view = SCNView()
+        view.bounds = CGRect(x: 0, y: 0, width: 160, height: 120)
+        view.scene = scene
+        view.pointOfView = resetCamera
+        view.defaultCameraController.target = SCNVector3(0, 0, 0)
+        view.allowsCameraControl = true
+        view.quillOrbitCamera(deltaX: .pi / 4, deltaY: .pi / 12)
+        try require(view.pointOfView !== resetCamera, "camera control did not create a moved point-of-view camera")
+        try require(abs(view.pointOfView?.position.x ?? 0) > 0.5, "camera control did not orbit the camera")
+        guard let image = view.quillRenderImage(width: 160, height: 120) else {
+            throw SmokeFailure.assertion("camera-control render returned nil")
+        }
+        let stats = PixelStats(image)
+        try require(stats.nonBlackPixels > 500, "camera-control render stayed mostly black: \(stats)")
+        log("camera control smoke passed \(stats)")
     }
 
     private static func runHitTestSmoke() throws {
