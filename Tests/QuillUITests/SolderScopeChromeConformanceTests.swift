@@ -68,6 +68,69 @@ private final class CrosshairCursorView: NSView {
     }
 }
 
+/// Mirrors the mouse/scroll handling shape in Renderer/MicroscopeView.swift
+/// without importing the upstream app target into this small conformance suite.
+private final class MicroscopeInteractionProbeView: NSView {
+    var zooms: [(factor: CGFloat, point: CGPoint)] = []
+    var pans: [CGPoint] = []
+    var resetCount = 0
+    private var isDragging = false
+    private var lastDragPoint: CGPoint = .zero
+
+    override var isFlipped: Bool { true }
+
+    override func scrollWheel(with event: NSEvent) {
+        let zoomFactor: CGFloat
+        if event.hasPreciseScrollingDeltas {
+            zoomFactor = 1.0 + event.scrollingDeltaY * 0.01
+        } else {
+            zoomFactor = event.scrollingDeltaY > 0 ? 1.1 : 0.9
+        }
+        zooms.append((zoomFactor, convert(event.locationInWindow, from: nil)))
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            resetCount += 1
+        } else {
+            isDragging = true
+            lastDragPoint = convert(event.locationInWindow, from: nil)
+            NSCursor.closedHand.push()
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isDragging else { return }
+        let currentPoint = convert(event.locationInWindow, from: nil)
+        pans.append(CGPoint(
+            x: currentPoint.x - lastDragPoint.x,
+            y: currentPoint.y - lastDragPoint.y
+        ))
+        lastDragPoint = currentPoint
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        _ = event
+        if isDragging {
+            isDragging = false
+            NSCursor.pop()
+        }
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        _ = event
+        if isDragging {
+            NSCursor.closedHand.set()
+        } else {
+            NSCursor.openHand.set()
+        }
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .openHand)
+    }
+}
+
 // MARK: - Tests
 
 @Suite("SolderScope chrome conformance", .serialized)
@@ -335,6 +398,57 @@ struct SolderScopeChromeConformanceTests {
         view.discardCursorRects()
         #expect(view.quillCursorRects.isEmpty)
         #expect(view.quillCursor(at: NSPoint(x: 50, y: 40)) == nil)
+    }
+
+    @Test func microscopeMouseAndScrollEventsMatchAppHandlers() {
+        // MicroscopeNSView.scrollWheel/mouseDown/mouseDragged/mouseUp:
+        // GTK hosts synthesize these AppKit events so zoom-around-cursor and
+        // drag-pan work without changing the upstream app.
+        let view = MicroscopeInteractionProbeView(frame: NSRect(x: 0, y: 0, width: 200, height: 120))
+        view.resetCursorRects()
+        NSCursor.openHand.set()
+
+        let preciseScroll = NSEvent()
+        preciseScroll.type = .scrollWheel
+        preciseScroll.locationInWindow = CGPoint(x: 80, y: 40)
+        preciseScroll.hasPreciseScrollingDeltas = true
+        preciseScroll.scrollingDeltaY = 8
+        view.scrollWheel(with: preciseScroll)
+        #expect(view.zooms.count == 1)
+        #expect(view.zooms[0].factor == 1.08)
+        #expect(view.zooms[0].point == CGPoint(x: 80, y: 40))
+
+        let wheelScroll = NSEvent()
+        wheelScroll.type = .scrollWheel
+        wheelScroll.locationInWindow = CGPoint(x: 90, y: 45)
+        wheelScroll.scrollingDeltaY = -1
+        view.scrollWheel(with: wheelScroll)
+        #expect(view.zooms[1].factor == 0.9)
+
+        let mouseDown = NSEvent()
+        mouseDown.type = .leftMouseDown
+        mouseDown.locationInWindow = CGPoint(x: 10, y: 10)
+        view.mouseDown(with: mouseDown)
+        #expect(NSCursor.current === NSCursor.closedHand)
+
+        let mouseDrag = NSEvent()
+        mouseDrag.type = .leftMouseDragged
+        mouseDrag.locationInWindow = CGPoint(x: 25, y: 30)
+        view.mouseDragged(with: mouseDrag)
+        #expect(view.pans == [CGPoint(x: 15, y: 20)])
+
+        let mouseUp = NSEvent()
+        mouseUp.type = .leftMouseUp
+        mouseUp.locationInWindow = CGPoint(x: 25, y: 30)
+        view.mouseUp(with: mouseUp)
+        #expect(NSCursor.current === NSCursor.openHand)
+
+        let doubleClick = NSEvent()
+        doubleClick.type = .leftMouseDown
+        doubleClick.clickCount = 2
+        doubleClick.locationInWindow = CGPoint(x: 50, y: 60)
+        view.mouseDown(with: doubleClick)
+        #expect(view.resetCount == 1)
     }
 
     // MARK: NSBitmapImageRep / NSImage

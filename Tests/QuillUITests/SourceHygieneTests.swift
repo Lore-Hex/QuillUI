@@ -721,6 +721,41 @@ struct SourceHygieneTests {
         #expect(!gtk.contains("let ctx = g_main_context_default()"))
     }
 
+    @Test("GTK NSView drawing host forwards native input as AppKit events")
+    func gtkNSViewDrawingHostForwardsNativeInputAsAppKitEvents() throws {
+        let root = try packageRoot()
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let host = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillNSViewDrawingHost.swift"),
+            encoding: .utf8
+        )
+        let shim = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains("dependencies: [\"AppKit\", \"CGtk4\", .product(name: \"CGTK\", package: \"SwiftOpenUI\")]"))
+        #expect(host.contains("quillInstallGtkDrawHostInputControllers(on: area, host: box)"))
+        #expect(host.contains("gtk_gesture_drag_new()"))
+        #expect(host.contains("gtk_gesture_click_new()"))
+        #expect(host.contains("gtk_swift_gesture_single_set_button(gesture, button.gtkButton)"))
+        #expect(host.contains("gtk_swift_motion_capture_controller()"))
+        #expect(host.contains("gtk_swift_scroll_capture_controller()"))
+        #expect(host.contains("dispatch(type: button.draggedEventType"))
+        #expect(host.contains("clickCount: 2"))
+        #expect(host.contains("lastPointerLocation ?? CGPoint(x: view.bounds.midX, y: view.bounds.midY)"))
+        #expect(host.contains("updateCursor(at: location)"))
+        #expect(host.contains("quillGTKCursorName(for: cursor)"))
+        #expect(!host.contains("quillInstallNSViewCursorController"))
+        #expect(host.contains("NSApplication.shared.sendEvent(event)"))
+        #expect(host.contains("view.scrollWheel(with: event)"))
+        #expect(shim.contains("gtk_swift_motion_capture_controller(void)"))
+        #expect(shim.contains("gtk_swift_scroll_capture_controller(void)"))
+    }
+
     @Test("Linux Apple compatibility shims avoid generated app warnings")
     func linuxAppleCompatibilityShimsAvoidGeneratedAppWarnings() throws {
         let root = try packageRoot()
