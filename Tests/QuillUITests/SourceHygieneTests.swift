@@ -662,8 +662,12 @@ struct SourceHygieneTests {
         #expect(host.contains("gtk_gesture_drag_new()"))
         #expect(host.contains("gtk_gesture_click_new()"))
         #expect(host.contains("gtk_swift_gesture_single_set_button(gesture, button.gtkButton)"))
-        #expect(host.contains("gtk_swift_motion_capture_controller()"))
-        #expect(host.contains("gtk_swift_scroll_capture_controller()"))
+        #expect(host.contains("gtk_event_controller_motion_new()"))
+        #expect(host.contains("gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES)"))
+        #expect(host.contains("gtk_gesture_zoom_new()"))
+        #expect(host.contains("gtk_swift_add_capture_multitouch_gesture(widget, gesture)"))
+        #expect(host.contains("event.magnification = magnification"))
+        #expect(host.contains("context.host.beginMagnifyGesture()"))
         #expect(host.contains("dispatch(type: button.draggedEventType"))
         #expect(host.contains("clickCount: 2"))
         #expect(host.contains("lastPointerLocation ?? CGPoint(x: view.bounds.midX, y: view.bounds.midY)"))
@@ -674,6 +678,7 @@ struct SourceHygieneTests {
         #expect(host.contains("view.scrollWheel(with: event)"))
         #expect(shim.contains("gtk_swift_motion_capture_controller(void)"))
         #expect(shim.contains("gtk_swift_scroll_capture_controller(void)"))
+        #expect(shim.contains("gtk_swift_add_capture_multitouch_gesture(GtkWidget *widget, GtkGesture *gesture)"))
     }
 
     @Test("Linux Apple compatibility shims avoid generated app warnings")
