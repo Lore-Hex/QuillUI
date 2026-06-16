@@ -63,7 +63,11 @@ estimates, not release claims.
 - [x] `AuthenticationServices` / web auth session: open browser through the
       shared Linux URL opener, receive a delivered callback URL, and return it
       through SwiftUI's async `webAuthenticationSession` action.
-- [ ] Desktop URL-scheme registration and secure OAuth/session storage.
+- [x] OAuth/account storage survives app restarts through the `KeychainSwift`
+      compatibility store. This is persistent Linux behavior for IceCubes'
+      `AppAccount.save()` / `retrieveAll()` flow, not native secure storage.
+- [ ] Desktop URL-scheme registration and native Secret Service-backed OAuth
+      token security.
 - [ ] `UserNotifications`: desktop notification delivery through a Linux
       notification backend instead of dropping requests.
 - [ ] `ImageIO` / `UIImage` / `UIGraphicsImageRenderer`: real decode,
@@ -138,3 +142,9 @@ estimates, not release claims.
   re-enter instance info because the live `instances.social` suggestions API
   returned empty/loading in-app and headless keyboard input did not focus the GTK
   text field; this remains an automation/app-flow gap, not a compile failure.
+- 2026-06-16: Replaced the process-local `KeychainSwift` compatibility store
+  with a JSON-backed persistent store so IceCubes account JSON and OAuth tokens
+  can be retrieved across Linux app restarts. This keeps the security capability
+  honest: persistence works now, native Secret Service encryption remains a
+  follow-up. Verification: `KeychainSwiftTests` (8 tests) and
+  `QuillIceCubesCoreTests` (34 tests) passed locally.

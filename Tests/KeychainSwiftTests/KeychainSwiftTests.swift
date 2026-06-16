@@ -1,5 +1,5 @@
 import Foundation
-import KeychainSwift
+@testable import KeychainSwift
 import Testing
 
 private let keychainSuccessStatus: Int32 = 0
@@ -8,141 +8,194 @@ private let keychainInvalidEncodingStatus: Int32 = -67853
 
 @Suite("KeychainSwift compatibility store", .serialized)
 struct KeychainSwiftTests {
+    private func withTemporaryKeychainStore<T>(_ body: () throws -> T) throws -> T {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-keychainswift-\(UUID().uuidString)", isDirectory: true)
+        let storeURL = directory.appendingPathComponent("store.json")
+        KeychainSwift.quillUsePersistentStoreForTesting(storeURL)
+        defer {
+            KeychainSwift.quillUsePersistentStoreForTesting(nil)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        return try body()
+    }
+
     @Test("stores strings, data, and bools by key")
-    func storesSupportedValueTypes() {
-        let keychain = KeychainSwift(keyPrefix: "types-\(UUID().uuidString)-")
-        defer { keychain.clear() }
+    func storesSupportedValueTypes() throws {
+        try withTemporaryKeychainStore {
+            let keychain = KeychainSwift(keyPrefix: "types-\(UUID().uuidString)-")
+            defer { keychain.clear() }
 
-        #expect(keychain.set("token", forKey: "string"))
-        #expect(keychain.set(Data([0, 1, 2, 3]), forKey: "data"))
-        #expect(keychain.set(true, forKey: "bool"))
+            #expect(keychain.set("token", forKey: "string"))
+            #expect(keychain.set(Data([0, 1, 2, 3]), forKey: "data"))
+            #expect(keychain.set(true, forKey: "bool"))
 
-        #expect(keychain.get("string") == "token")
-        #expect(keychain.getData("string") == Data("token".utf8))
-        #expect(keychain.getData("data") == Data([0, 1, 2, 3]))
-        #expect(keychain.getData("bool") == Data([1]))
-        #expect(keychain.getBool("bool") == true)
+            #expect(keychain.get("string") == "token")
+            #expect(keychain.getData("string") == Data("token".utf8))
+            #expect(keychain.getData("data") == Data([0, 1, 2, 3]))
+            #expect(keychain.getData("bool") == Data([1]))
+            #expect(keychain.getBool("bool") == true)
+        }
     }
 
     @Test("key prefixes isolate reads while clear matches the upstream namespace behavior")
-    func keyPrefixesIsolateReadsAndClearNamespace() {
-        let suffix = UUID().uuidString
-        let first = KeychainSwift(keyPrefix: "first-\(suffix)-")
-        let second = KeychainSwift(keyPrefix: "second-\(suffix)-")
-        defer {
-            first.clear()
-            second.clear()
+    func keyPrefixesIsolateReadsAndClearNamespace() throws {
+        try withTemporaryKeychainStore {
+            let suffix = UUID().uuidString
+            let first = KeychainSwift(keyPrefix: "first-\(suffix)-")
+            let second = KeychainSwift(keyPrefix: "second-\(suffix)-")
+            defer {
+                first.clear()
+                second.clear()
+            }
+
+            #expect(first.set("one", forKey: "token"))
+            #expect(second.set("two", forKey: "token"))
+
+            #expect(first.get("token") == "one")
+            #expect(second.get("token") == "two")
+            #expect(first.allKeys.filter { $0.hasSuffix("-\(suffix)-token") } == [
+                "first-\(suffix)-token",
+                "second-\(suffix)-token"
+            ])
+
+            #expect(first.delete("token"))
+            #expect(first.get("token") == nil)
+            #expect(second.get("token") == "two")
+
+            #expect(first.set("one", forKey: "token"))
+            #expect(first.clear())
+            #expect(first.get("token") == nil)
+            #expect(second.get("token") == nil)
         }
-
-        #expect(first.set("one", forKey: "token"))
-        #expect(second.set("two", forKey: "token"))
-
-        #expect(first.get("token") == "one")
-        #expect(second.get("token") == "two")
-        #expect(first.allKeys.filter { $0.hasSuffix("-\(suffix)-token") } == [
-            "first-\(suffix)-token",
-            "second-\(suffix)-token"
-        ])
-
-        #expect(first.delete("token"))
-        #expect(first.get("token") == nil)
-        #expect(second.get("token") == "two")
-
-        #expect(first.set("one", forKey: "token"))
-        #expect(first.clear())
-        #expect(first.get("token") == nil)
-        #expect(second.get("token") == nil)
     }
 
     @Test("delete removes one key without disturbing siblings")
-    func deleteRemovesOneKey() {
-        let keychain = KeychainSwift(keyPrefix: "delete-\(UUID().uuidString)-")
-        defer { keychain.clear() }
+    func deleteRemovesOneKey() throws {
+        try withTemporaryKeychainStore {
+            let keychain = KeychainSwift(keyPrefix: "delete-\(UUID().uuidString)-")
+            defer { keychain.clear() }
 
-        #expect(keychain.set("one", forKey: "first"))
-        #expect(keychain.set("two", forKey: "second"))
-        #expect(keychain.delete("first"))
+            #expect(keychain.set("one", forKey: "first"))
+            #expect(keychain.set("two", forKey: "second"))
+            #expect(keychain.delete("first"))
 
-        #expect(keychain.get("first") == nil)
-        #expect(keychain.get("second") == "two")
+            #expect(keychain.get("first") == nil)
+            #expect(keychain.get("second") == "two")
+        }
     }
 
     @Test("bool reads follow upstream first-byte behavior")
-    func boolReadsFollowFirstByteBehavior() {
-        let keychain = KeychainSwift(keyPrefix: "bool-\(UUID().uuidString)-")
-        defer { keychain.clear() }
+    func boolReadsFollowFirstByteBehavior() throws {
+        try withTemporaryKeychainStore {
+            let keychain = KeychainSwift(keyPrefix: "bool-\(UUID().uuidString)-")
+            defer { keychain.clear() }
 
-        #expect(keychain.set("not-bool", forKey: "string"))
-        #expect(keychain.set(Data(), forKey: "empty"))
+            #expect(keychain.set("not-bool", forKey: "string"))
+            #expect(keychain.set(Data(), forKey: "empty"))
 
-        #expect(keychain.getBool("string") == false)
-        #expect(keychain.getBool("empty") == nil)
+            #expect(keychain.getBool("string") == false)
+            #expect(keychain.getBool("empty") == nil)
+        }
     }
 
     @Test("data references return a stable handle instead of value bytes")
-    func dataReferencesReturnStableHandles() {
-        let keychain = KeychainSwift(keyPrefix: "reference-\(UUID().uuidString)-")
-        defer { keychain.clear() }
+    func dataReferencesReturnStableHandles() throws {
+        try withTemporaryKeychainStore {
+            let keychain = KeychainSwift(keyPrefix: "reference-\(UUID().uuidString)-")
+            defer { keychain.clear() }
 
-        let payload = Data("payload".utf8)
-        #expect(keychain.set(payload, forKey: "data"))
+            let payload = Data("payload".utf8)
+            #expect(keychain.set(payload, forKey: "data"))
 
-        let firstReference = keychain.getData("data", asReference: true)
-        let secondReference = keychain.getData("data", asReference: true)
-        #expect(keychain.getData("data") == payload)
-        #expect(firstReference != nil)
-        #expect(firstReference == secondReference)
-        #expect(firstReference != payload)
+            let firstReference = keychain.getData("data", asReference: true)
+            let secondReference = keychain.getData("data", asReference: true)
+            #expect(keychain.getData("data") == payload)
+            #expect(firstReference != nil)
+            #expect(firstReference == secondReference)
+            #expect(firstReference != payload)
+        }
     }
 
     @Test("access groups and synchronizable mode isolate namespaces")
-    func accessGroupsAndSynchronizableModeIsolateNamespaces() {
-        let prefix = "namespaces-\(UUID().uuidString)-"
-        let local = KeychainSwift(keyPrefix: prefix)
-        let grouped = KeychainSwift(keyPrefix: prefix, accessGroup: "group.org.signal")
-        let synchronized = KeychainSwift(keyPrefix: prefix, synchronizable: true)
-        defer {
-            local.clear()
-            grouped.clear()
-            synchronized.clear()
+    func accessGroupsAndSynchronizableModeIsolateNamespaces() throws {
+        try withTemporaryKeychainStore {
+            let prefix = "namespaces-\(UUID().uuidString)-"
+            let local = KeychainSwift(keyPrefix: prefix)
+            let grouped = KeychainSwift(keyPrefix: prefix, accessGroup: "group.org.signal")
+            let synchronized = KeychainSwift(keyPrefix: prefix, synchronizable: true)
+            defer {
+                local.clear()
+                grouped.clear()
+                synchronized.clear()
+            }
+
+            #expect(local.set("local", forKey: "token"))
+            #expect(grouped.set("group", forKey: "token"))
+            #expect(synchronized.set("sync", forKey: "token"))
+
+            #expect(local.get("token") == "local")
+            #expect(grouped.get("token") == "group")
+            #expect(synchronized.get("token") == "sync")
+
+            #expect(grouped.clear())
+            #expect(grouped.get("token") == nil)
+            #expect(local.get("token") == "local")
+            #expect(synchronized.get("token") == "sync")
         }
-
-        #expect(local.set("local", forKey: "token"))
-        #expect(grouped.set("group", forKey: "token"))
-        #expect(synchronized.set("sync", forKey: "token"))
-
-        #expect(local.get("token") == "local")
-        #expect(grouped.get("token") == "group")
-        #expect(synchronized.get("token") == "sync")
-
-        #expect(grouped.clear())
-        #expect(grouped.get("token") == nil)
-        #expect(local.get("token") == "local")
-        #expect(synchronized.get("token") == "sync")
     }
 
     @Test("tracks result codes and accepts accessibility options")
-    func tracksResultCodesAndAcceptsAccessOptions() {
-        let keychain = KeychainSwift(keyPrefix: "result-\(UUID().uuidString)-")
-        defer { keychain.clear() }
+    func tracksResultCodesAndAcceptsAccessOptions() throws {
+        try withTemporaryKeychainStore {
+            let keychain = KeychainSwift(keyPrefix: "result-\(UUID().uuidString)-")
+            defer { keychain.clear() }
 
-        #expect(keychain.set(
-            "token",
-            forKey: "token",
-            withAccess: KeychainSwiftAccessOptions.accessibleAfterFirstUnlockThisDeviceOnly
-        ))
-        #expect(keychain.lastResultCode == keychainSuccessStatus)
-        #expect(keychain.get("token") == "token")
-        #expect(keychain.lastResultCode == keychainSuccessStatus)
+            #expect(keychain.set(
+                "token",
+                forKey: "token",
+                withAccess: KeychainSwiftAccessOptions.accessibleAfterFirstUnlockThisDeviceOnly
+            ))
+            #expect(keychain.lastResultCode == keychainSuccessStatus)
+            #expect(keychain.get("token") == "token")
+            #expect(keychain.lastResultCode == keychainSuccessStatus)
 
-        #expect(keychain.get("missing") == nil)
-        #expect(keychain.lastResultCode == keychainItemNotFoundStatus)
+            #expect(keychain.get("missing") == nil)
+            #expect(keychain.lastResultCode == keychainItemNotFoundStatus)
 
-        #expect(!keychain.delete("missing"))
-        #expect(keychain.lastResultCode == keychainItemNotFoundStatus)
+            #expect(!keychain.delete("missing"))
+            #expect(keychain.lastResultCode == keychainItemNotFoundStatus)
 
-        #expect(keychain.set(Data([0xff]), forKey: "invalid-string"))
-        #expect(keychain.get("invalid-string") == nil)
-        #expect(keychain.lastResultCode == keychainInvalidEncodingStatus)
+            #expect(keychain.set(Data([0xff]), forKey: "invalid-string"))
+            #expect(keychain.get("invalid-string") == nil)
+            #expect(keychain.lastResultCode == keychainInvalidEncodingStatus)
+        }
+    }
+
+    @Test("persists values through a store reload for app restart flows")
+    func persistsValuesThroughStoreReloadForAppRestartFlows() throws {
+        try withTemporaryKeychainStore {
+            let prefix = "persist-\(UUID().uuidString)-"
+            let payload = Data("encoded-app-account".utf8)
+            let firstLaunch = KeychainSwift(keyPrefix: prefix)
+
+            #expect(firstLaunch.set(
+                payload,
+                forKey: "account",
+                withAccess: KeychainSwiftAccessOptions.accessibleAfterFirstUnlock
+            ))
+
+            KeychainSwift.quillReloadPersistentStoreForTesting()
+            let secondLaunch = KeychainSwift(keyPrefix: prefix)
+            #expect(secondLaunch.getData("account") == payload)
+            #expect(secondLaunch.getData("account", asReference: true) != payload)
+            #expect(secondLaunch.allKeys == ["\(prefix)account"])
+
+            #expect(secondLaunch.delete("account"))
+            KeychainSwift.quillReloadPersistentStoreForTesting()
+            let thirdLaunch = KeychainSwift(keyPrefix: prefix)
+            #expect(thirdLaunch.getData("account") == nil)
+            #expect(thirdLaunch.allKeys == [])
+        }
     }
 }
