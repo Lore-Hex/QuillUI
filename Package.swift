@@ -525,9 +525,9 @@ let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
 ]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation"]
-let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "CoreTransferable"]
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit"]
 let uiKitShimDependencies: [Target.Dependency] =
-    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "CoreTransferable"]
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"]
 let quillV4L2Dependencies: [Target.Dependency] = []
 #endif
 

@@ -589,6 +589,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     // the documented moments.
     open func didAddSubview(_ subview: UIView) { _ = subview }
     open func willRemoveSubview(_ subview: UIView) { _ = subview }
+    #if os(Linux)
     open func observeValue(
         forKeyPath keyPath: String?,
         of object: Any?,
@@ -597,6 +598,16 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     ) {
         _ = (keyPath, object, change, context)
     }
+    #else
+    open override func observeValue(
+        forKeyPath keyPath: String?,
+        of object: Any?,
+        change: [NSKeyValueChangeKey: Any]?,
+        context: UnsafeMutableRawPointer?
+    ) {
+        _ = (keyPath, object, change, context)
+    }
+    #endif
 
     /// Inserts a subview at an explicit z-position (index 0 is backmost).
     /// Same installation sequence as addSubview. APPROXIMATION: Apple raises
