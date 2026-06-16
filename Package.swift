@@ -2963,7 +2963,7 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: ["QuillFoundation", "QuillKit", "QuillDataMacros", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: ["QuillFoundation", "QuillKit", "QuillDataMacros", "CoreTransferable", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
         path: "Sources/QuillSwiftUICompatibility"
     ),
     .target(
@@ -3514,6 +3514,7 @@ if quillUILinuxBuildBackend == .qt {
                     "QuillFoundation",
                     "QuillKit",
                     "QuillDataMacros",
+                    "CoreTransferable",
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
                 ],
                 path: "Sources/QuillSwiftUICompatibility"

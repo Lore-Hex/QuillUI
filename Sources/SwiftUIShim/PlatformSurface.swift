@@ -150,17 +150,5 @@ public extension View {
         return self
     }
 
-    func fileImporter(
-        isPresented: Binding<Bool>,
-        allowedContentTypes: [UTType],
-        allowsMultipleSelection: Bool = false,
-        onCompletion: @escaping (Result<[URL], Error>) -> Void
-    ) -> Self {
-        _ = isPresented
-        _ = allowedContentTypes
-        _ = allowsMultipleSelection
-        _ = onCompletion
-        return self
-    }
 }
 #endif

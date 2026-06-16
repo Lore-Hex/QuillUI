@@ -89,13 +89,17 @@ estimates, not release claims.
 - [x] `Photos`: local Linux photo-library fallback saves `UIImage` assets,
       fetches `PHAsset` rows, and loads image data/resized thumbnails back
       through `PHImageManager`.
+- [x] SwiftUI `.fileImporter`: shared Linux URL selection supports test,
+      environment, and desktop command backends with content-type validation
+      and single/multiple-selection behavior.
 - [x] `PhotosUI` / `CoreTransferable`: file-backed
       `PhotosPickerItem.loadTransferable` and `NSItemProvider.loadTransferable`
       import IceCubes image/GIF/movie `FileRepresentation` values from local
-      URLs or compatible data blobs.
-- [ ] `PhotosUI`: native picker UI, desktop file chooser integration, native
-      picker item providers, video previews, and real system photo-library
-      integration.
+      URLs or compatible data blobs; `.photosPicker` modifiers consume the
+      same shared Linux file selections and write file-backed picker items.
+- [ ] `PhotosUI`: native photo-library picker UI, native GTK/Qt dialog
+      integration beyond command-dialog fallback, native picker item providers,
+      video previews, and real system photo-library integration.
 - [x] SwiftUI `.quickLookPreview(_:)` opens local preview URLs through a shared
       QuillKit QuickLook backend instead of dropping the binding.
 - [ ] `QuickLook`: full IceCubes media viewer/window behavior for
@@ -213,3 +217,9 @@ estimates, not release claims.
   media viewer save button and recent-photos strip. Verification: Docker/GTK
   `quill-photos-smoke`, Docker/GTK `IceCubesLinuxApp`, and
   `SourceHygieneTests` passed locally.
+- 2026-06-16: Moved Linux file selection into the canonical
+  `QuillSwiftUICompatibility` SwiftUI surface, added multi-selection support,
+  and wired SwiftUI `.fileImporter` plus PhotosUI `.photosPicker` modifiers to
+  the same test/environment/desktop-command URL picker. Verification:
+  Docker/GTK `fileImporterAndPhotosPickerUseSharedFileSelection` passed, and
+  the same source compiles on macOS.

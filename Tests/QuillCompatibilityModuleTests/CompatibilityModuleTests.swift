@@ -2476,6 +2476,81 @@ struct CompatibilityModuleTests {
         }
     }
 
+    @Test("SwiftUI file importer and Photos picker use shared Linux file selections")
+    func fileImporterAndPhotosPickerUseSharedFileSelection() throws {
+        #if os(Linux)
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillPickerSelectionTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let pngURL = directory.appendingPathComponent("one.png")
+        let jpegURL = directory.appendingPathComponent("two.jpg")
+        let textURL = directory.appendingPathComponent("notes.txt")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: pngURL)
+        try Data([0xFF, 0xD8, 0xFF]).write(to: jpegURL)
+        try Data("hello".utf8).write(to: textURL)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            QuillFileImporter.setTestSelections([])
+        }
+
+        QuillFileImporter.setTestSelections([pngURL, jpegURL])
+
+        switch QuillFileImporter.selectURLs(allowedContentTypes: [.image], allowsMultipleSelection: true) {
+        case .success(let urls):
+            #expect(urls == [pngURL, jpegURL])
+        case .failure(let error):
+            Issue.record("Expected image selections, got \(error)")
+        }
+
+        switch QuillFileImporter.selectURLs(allowedContentTypes: [.image], allowsMultipleSelection: false) {
+        case .success(let urls):
+            #expect(urls == [pngURL])
+        case .failure(let error):
+            Issue.record("Expected first image selection, got \(error)")
+        }
+
+        var importerPresented = true
+        var importedURLs: Result<[URL], Error>?
+        let importerView = Text("Import").fileImporter(
+            isPresented: Binding(get: { importerPresented }, set: { importerPresented = $0 }),
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: true
+        ) { result in
+            importedURLs = result
+        }
+        #expect(importerView.value)
+        importerView.action(true)
+        #expect(importerPresented == false)
+        switch importedURLs {
+        case .success(let urls):
+            #expect(urls == [pngURL, jpegURL])
+        default:
+            Issue.record("Expected fileImporter to deliver selected image URLs")
+        }
+
+        var pickerPresented = true
+        var pickerItems: [PhotosPickerItem] = []
+        let pickerView = Text("Photos").photosPicker(
+            isPresented: Binding(get: { pickerPresented }, set: { pickerPresented = $0 }),
+            selection: Binding(get: { pickerItems }, set: { pickerItems = $0 }),
+            maxSelectionCount: 1,
+            matching: .images
+        )
+        #expect(pickerView.value)
+        pickerView.action(true)
+        #expect(pickerPresented == false)
+        #expect(pickerItems == [PhotosPickerItem(fileURL: pngURL)])
+
+        QuillFileImporter.setTestSelection(textURL)
+        switch QuillFileImporter.selectURL(allowedContentTypes: [.image]) {
+        case .success:
+            Issue.record("Expected image-only selection to reject a text file")
+        case .failure(let error):
+            #expect((error as? QuillCompatibilityError) == .unsupportedFileSelection(textURL, [.image]))
+        }
+        #endif
+    }
+
     // MARK: - UTType behavior
 
     @Test("UTType infers types from file extensions and reports conformance")
