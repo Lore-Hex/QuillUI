@@ -66,6 +66,11 @@ public extension CIImage {
         _ = image
         self.init()
     }
+
+    func applyingFilter(_ filterName: String, parameters: [String: Any] = [:]) -> CIImage {
+        _ = (filterName, parameters)
+        return self
+    }
 }
 
 // MARK: - Barcode descriptors

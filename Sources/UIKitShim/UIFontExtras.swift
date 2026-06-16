@@ -135,8 +135,10 @@ extension UIFontDescriptor {
     /// The descriptor behind UIFont.preferredFont(forTextStyle:) — the system
     /// font descriptor; the style's point size is applied when a UIFont is made.
     public static func preferredFontDescriptor(withTextStyle style: UIFont.TextStyle) -> UIFontDescriptor {
-        _ = style
-        return UIFontDescriptor()
+        let font = UIFont.preferredFont(forTextStyle: style)
+        let descriptor = UIFontDescriptor()
+        descriptor.pointSize = font.pointSize
+        return descriptor
     }
 }
 

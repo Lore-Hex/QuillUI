@@ -35,6 +35,11 @@ public typealias ASPresentationAnchor = NSObject
 
 // MARK: - UIResponder / UIView / UIViewController stubs
 
+@MainActor open class UITextInputAssistantItem: NSObject {
+    open var leadingBarButtonGroups: [UIBarButtonItemGroup] = []
+    open var trailingBarButtonGroups: [UIBarButtonItemGroup] = []
+}
+
 @MainActor open class UIResponder: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime). The source lowering
     /// (AppKitLowering) injects an `override` of this into every UIResponder
@@ -64,6 +69,20 @@ public typealias ASPresentationAnchor = NSObject
     /// Apple's default: no accessory view (ContactShareViewController
     /// overrides this with a super call).
     open var inputAccessoryView: UIView? { nil }
+
+    /// The shortcut bar model exposed above the keyboard. Linux has no system
+    /// keyboard UI yet; this records the same mutable groups upstream code
+    /// saves/restores around text input mode changes.
+    open var inputAssistantItem = UITextInputAssistantItem()
+
+    /// Apple's responder-level undo manager. QuillFoundation supplies the
+    /// Linux clone of Foundation.UndoManager, so text views can clear/register
+    /// undo actions without depending on AppKit.
+    open var undoManager: UndoManager? = UndoManager()
+
+    /// Invalidates input views on Apple. There is no input-view host on Linux
+    /// yet, so the call is a faithful no-op.
+    open func reloadInputViews() {}
 
     open var keyCommands: [UIKeyCommand]? { nil }
 
@@ -361,6 +380,18 @@ public enum UIAccessibilityContrast: Int {
 }
 
 #if !os(macOS)
+public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
+    public var rawValue: CGFloat
+    public init(rawValue: CGFloat) { self.rawValue = rawValue }
+
+    public static let normal = UIWindowLevel(rawValue: 0)
+    public static let _background = UIWindowLevel(rawValue: -1)
+
+    public static func < (lhs: UIWindowLevel, rhs: UIWindowLevel) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 // Linux-only: UIWindow shadow (macOS already has NSWindow typealiased
 // to UIWindow in QuillFoundation).
 @MainActor open class UIWindow: UIView {
@@ -384,6 +415,9 @@ public enum UIAccessibilityContrast: Int {
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
+
+    open var screen: UIScreen = .main
+    open var windowLevel: UIWindowLevel = .normal
 }
 #endif
 
@@ -1011,6 +1045,7 @@ public enum UIAccessibilityContrast: Int {
     open var accessibilityValue: String?
     open var accessibilityHint: String?
     open var accessibilityTraits: UIAccessibilityTraits = .none
+    open var accessibilityCustomActions: [UIAccessibilityCustomAction]?
     /// Apple derives this from on-screen geometry (screen coordinates);
     /// the shim stores it (default .zero) and lets overrides compute their
     /// own (AttachmentApproval does, via UIAccessibility.convertToScreenCoordinates).
@@ -1147,6 +1182,8 @@ public enum UIAccessibilityContrast: Int {
     open func viewDidLayoutSubviews() {}
     open func viewSafeAreaInsetsDidChange() {}
     open func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {}
+    open var hidesBottomBarWhenPushed: Bool = false
+    open var shouldAutorotate: Bool { true }
 
     // MARK: Status-bar appearance
     //
@@ -1157,6 +1194,7 @@ public enum UIAccessibilityContrast: Int {
     // setNeedsStatusBarAppearanceUpdate() and the UIStatusBarStyle enum.
     open var preferredStatusBarStyle: UIStatusBarStyle { .default }
     open var prefersStatusBarHidden: Bool { false }
+    open var modalPresentationCapturesStatusBarAppearance: Bool = false
     open var childForStatusBarStyle: UIViewController? { nil }
     open var childForStatusBarHidden: UIViewController? { nil }
 
@@ -1369,6 +1407,8 @@ public enum UIAccessibilityContrast: Int {
     public static func appearance() -> UINavigationBar {
         appearanceProxy
     }
+
+    open func sizeToFit() {}
 }
 
 @MainActor public class UINavigationItem: NSObject {
@@ -1400,6 +1440,7 @@ public enum UIAccessibilityContrast: Int {
         case plain = 0
         case bordered = 1
         case done = 2
+        case prominent = 3
     }
 
     /// Apple's raw values, kept exactly so compared/persisted values stay
@@ -1933,6 +1974,11 @@ public class SLComposeSheetConfigurationItem: NSObject {
         _ = numberOfLines
         return bounds
     }
+
+    /// UIKit exposes `sizeToFit` on UIView; Quill keeps it on the concrete
+    /// classes that need override points. UILabel callers use it to ask for an
+    /// intrinsic-content-size pass, which is inert until a text renderer lands.
+    open func sizeToFit() {}
 }
 
 // UIVisualEffectView lives in UIEffects.swift with the UIVisualEffect family.
@@ -2625,6 +2671,14 @@ public class UIBackgroundConfiguration: NSObject {
     public static func listGroupedCell() -> UIBackgroundConfiguration { UIBackgroundConfiguration() }
     public static func listSidebarCell() -> UIBackgroundConfiguration { UIBackgroundConfiguration() }
     public var visualEffect: UIVisualEffect?
+    public var shadowProperties = UIShadowProperties()
+}
+
+public class UIShadowProperties: NSObject {
+    public var offset: CGSize = .zero
+    public var color: UIColor?
+    public var radius: CGFloat = 0
+    public var opacity: CGFloat = 0
 }
 
 public class UIStoryboard: NSObject {

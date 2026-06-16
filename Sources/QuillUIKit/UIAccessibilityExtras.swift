@@ -71,6 +71,7 @@ public enum UIAccessibility {
     public static var isReduceTransparencyEnabled: Bool { false }
     public static var isBoldTextEnabled: Bool { false }
     public static var isDarkerSystemColorsEnabled: Bool { false }
+    public static var isSpeakSelectionEnabled: Bool { false }
 
     /// UIAccessibilityNotifications (uint32_t in the ObjC headers), Apple's
     /// raw values.

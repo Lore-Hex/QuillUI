@@ -26,4 +26,10 @@ public extension NSAttributedString {
     }
 }
 
+public extension String {
+    func size(withAttributes attrs: [NSAttributedString.Key: Any]? = nil) -> CGSize {
+        NSAttributedString(string: self, attributes: attrs).size()
+    }
+}
+
 #endif

@@ -8,21 +8,29 @@ import QuillFoundation
 open class UISheetPresentationController: NSObject {
 
     public struct Detent: Equatable, Sendable {
-        public let identifier: String
+        public struct Identifier: RawRepresentable, Equatable, Hashable, Sendable {
+            public let rawValue: String
+            public init(rawValue: String) { self.rawValue = rawValue }
 
-        public init(identifier: String) {
+            public static let medium = Identifier(rawValue: "com.apple.UIKit.medium")
+            public static let large = Identifier(rawValue: "com.apple.UIKit.large")
+        }
+
+        public let identifier: Identifier
+
+        public init(identifier: Identifier) {
             self.identifier = identifier
         }
 
-        public static let medium = Detent(identifier: "com.apple.UIKit.medium")
-        public static let large = Detent(identifier: "com.apple.UIKit.large")
+        public static func medium() -> Detent { Detent(identifier: .medium) }
+        public static func large() -> Detent { Detent(identifier: .large) }
     }
 
-    open var detents: [Detent] = [.large]
-    open var selectedDetentIdentifier: Detent?
+    open var detents: [Detent] = [.large()]
+    open var selectedDetentIdentifier: Detent.Identifier?
     open var prefersGrabberVisible: Bool = false
     open var preferredCornerRadius: CGFloat?
-    open var largestUndimmedDetentIdentifier: Detent?
+    open var largestUndimmedDetentIdentifier: Detent.Identifier?
     open weak var delegate: (any UISheetPresentationControllerDelegate)?
 
     public override init() {

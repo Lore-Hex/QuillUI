@@ -68,3 +68,9 @@ public final class ColorValueProvider: AnyValueProvider {
     /// The provided color, type-erased.
     public var typeErasedStorage: Any { color }
 }
+
+public extension UIColor {
+    /// lottie-ios accepts its own color value type; this shim stores UIColor
+    /// directly, so the bridge is identity state.
+    var lottieColorValue: UIColor { self }
+}

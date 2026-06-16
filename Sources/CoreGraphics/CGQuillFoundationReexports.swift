@@ -27,4 +27,6 @@
 @_exported import enum QuillFoundation.CGImageAlphaInfo
 @_exported import struct QuillFoundation.CGGradientDrawingOptions
 @_exported import enum QuillFoundation.CGColorRenderingIntent
+@_exported import func QuillFoundation.CGColorSpaceCreateDeviceRGB
+@_exported import func QuillFoundation.CGColorSpaceCreateDeviceGray
 #endif

@@ -940,9 +940,33 @@ public final class AVAudioPlayer: @unchecked Sendable {
     }
 }
 
+public final class AVAudioRecorder: @unchecked Sendable {
+    public let url: URL
+    public let settings: [String: Any]
+    public var isMeteringEnabled = false
+    public private(set) var currentTime: TimeInterval = 0
+
+    public init(url: URL, settings: [String: Any]) throws {
+        self.url = url
+        self.settings = settings
+    }
+
+    @discardableResult
+    public func prepareToRecord() -> Bool { true }
+
+    @discardableResult
+    public func record() -> Bool {
+        currentTime = 0
+        return true
+    }
+
+    public func stop() {}
+}
+
 // AVAudioRecorder/AVAssetReaderTrackOutput settings dictionary keys (String on
 // Apple). Values are placed into a `[String: Any]` so the concrete value types
 // (UInt32 / Int / Bool) don't matter.
+public let kAudioFormatMPEG4AAC: UInt32 = 0x61616320
 public let AVFormatIDKey = "AVFormatIDKey"
 public let AVSampleRateKey = "AVSampleRateKey"
 public let AVNumberOfChannelsKey = "AVNumberOfChannelsKey"

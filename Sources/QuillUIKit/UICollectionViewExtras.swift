@@ -115,6 +115,7 @@ import QuillFoundation
     public override init() { super.init() }
     open var invalidateEverything: Bool { true }
     open var invalidateDataSourceCounts: Bool { true }
+    open var contentOffsetAdjustment: CGPoint = .zero
 }
 
 // MARK: - UICollectionViewLayout
@@ -154,6 +155,18 @@ import QuillFoundation
         return false
     }
 
+    open func targetContentOffset(
+        forProposedContentOffset proposedContentOffset: CGPoint,
+        withScrollingVelocity velocity: CGPoint
+    ) -> CGPoint {
+        _ = velocity
+        return proposedContentOffset
+    }
+
+    open func targetContentOffset(forProposedContentOffset proposedContentOffset: CGPoint) -> CGPoint {
+        proposedContentOffset
+    }
+
     /// RTL mirroring opt-in. UIKit default false; RTLEnabledCollectionViewFlowLayout
     /// and LinearHorizontalLayout override to true.
     open var flipsHorizontallyInOppositeLayoutDirection: Bool { false }
@@ -173,6 +186,7 @@ import QuillFoundation
     public var minimumLineSpacing: CGFloat = 10
     /// Apple's default intra-line spacing (10).
     public var minimumInteritemSpacing: CGFloat = 10
+    public var estimatedItemSize: CGSize = .zero
 }
 
 // MARK: - UICollectionReusableView
@@ -312,6 +326,8 @@ private struct QuillCollectionViewState {
     weak var dataSource: (any UICollectionViewDataSource)?
     var layout: UICollectionViewLayout?
     var backgroundView: UIView?
+    var allowsMultipleSelection = false
+    var isPrefetchingEnabled = true
 
     /// Registration tables: reuse identifier → registered class. Recorded
     /// faithfully even though dequeue cannot construct arbitrary subclasses
@@ -420,6 +436,16 @@ extension UICollectionView {
         set { quillCollectionState.backgroundView = newValue }
     }
 
+    public var allowsMultipleSelection: Bool {
+        get { quillCollectionState.allowsMultipleSelection }
+        set { quillCollectionState.allowsMultipleSelection = newValue }
+    }
+
+    public var isPrefetchingEnabled: Bool {
+        get { quillCollectionState.isPrefetchingEnabled }
+        set { quillCollectionState.isPrefetchingEnabled = newValue }
+    }
+
     // MARK: Counts (live dataSource queries, as on Apple post-reload)
 
     public var numberOfSections: Int {
@@ -484,6 +510,14 @@ extension UICollectionView {
     /// no render pass caching cells, there is no stale state to refresh.
     public func reloadItems(at indexPaths: [IndexPath]) {
         _ = indexPaths
+    }
+
+    public func deleteItems(at indexPaths: [IndexPath]) {
+        _ = indexPaths
+    }
+
+    public func selectItem(at indexPath: IndexPath?, animated: Bool, scrollPosition: ScrollPosition) {
+        _ = (indexPath, animated, scrollPosition)
     }
 
     // MARK: Item geometry (resolved through the layout object)
@@ -551,6 +585,7 @@ private struct QuillCollectionCellState {
     weak var owner: UICollectionViewCell?
     var configurationUpdateHandler: UICollectionViewCell.ConfigurationUpdateHandler?
     var backgroundView: UIView?
+    var selectedBackgroundView: UIView?
 }
 
 @MainActor private var quillCollectionCellStates: [ObjectIdentifier: QuillCollectionCellState] = [:]
@@ -587,6 +622,11 @@ extension UICollectionViewCell {
     public var backgroundView: UIView? {
         get { quillCellState.backgroundView }
         set { quillCellState.backgroundView = newValue }
+    }
+
+    public var selectedBackgroundView: UIView? {
+        get { quillCellState.selectedBackgroundView }
+        set { quillCellState.selectedBackgroundView = newValue }
     }
 }
 

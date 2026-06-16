@@ -361,9 +361,14 @@ extension UIBarButtonItem {
     public var barTintColor: UIColor?
     open weak var delegate: (any UIToolbarDelegate)?
     open var quillBackgroundImages: [String: UIImage] = [:]
+    open var quillShadowImages: [String: UIImage] = [:]
 
     public func setBackgroundImage(_ image: UIImage?, forToolbarPosition position: UIBarPosition, barMetrics: UIBarMetrics) {
         quillBackgroundImages["\(position.rawValue):\(barMetrics.rawValue)"] = image
+    }
+
+    public func setShadowImage(_ image: UIImage?, forToolbarPosition position: UIBarPosition, barMetrics: UIBarMetrics) {
+        quillShadowImages["\(position.rawValue):\(barMetrics.rawValue)"] = image
     }
 
     /// A toolbar sits at the bottom, as on Apple.

@@ -113,9 +113,6 @@ public extension UITextField {
     /// Honestly `true`: the field never holds an input source it could not
     /// release on Linux.
     var canResignFirstResponder: Bool { true }
-
-    /// No-op: there is no input-view machinery to rebuild on Linux.
-    func reloadInputViews() {}
 }
 
 // MARK: - UIScrollView stored-property side table

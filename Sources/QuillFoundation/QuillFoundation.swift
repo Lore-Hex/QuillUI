@@ -220,7 +220,8 @@ public class CGImage: Equatable, @unchecked Sendable {
         self.init()
         self.width = width
         self.height = height
-        _ = (bitsPerComponent, bitsPerPixel, bytesPerRow, space, bitmapInfo, provider, decode, shouldInterpolate, intent)
+        self.quillBytesPerRow = bytesPerRow
+        _ = (bitsPerComponent, bitsPerPixel, space, bitmapInfo, provider, decode, shouldInterpolate, intent)
     }
 
     // Pixel dimensions + cropping (BadgeAssets spritesheets, image utilities).
@@ -228,6 +229,7 @@ public class CGImage: Equatable, @unchecked Sendable {
     // until a real decoder (libpng/Cairo) lands.
     public var width: Int = 0
     public var height: Int = 0
+    public var bytesPerRow: Int { quillBytesPerRow }
     public func cropping(to rect: CGRect) -> CGImage? {
         _ = rect
         return CGImage()

@@ -73,6 +73,7 @@ public struct UTType: Hashable, Sendable {
     public static let quickTimeMovie = UTType("com.apple.quicktime-movie")!
     public static let audio = UTType("public.audio")!
     public static let mp3 = UTType("public.mp3")!
+    public static let mpeg4Audio = UTType("public.mpeg-4-audio")!
     public static let pdf = UTType("com.adobe.pdf")!
 
     public var preferredFilenameExtension: String? {
@@ -128,6 +129,7 @@ public struct UTType: Hashable, Sendable {
         UTType.quickTimeMovie.identifier: [UTType.video.identifier],
         UTType.audio.identifier: [UTType.data.identifier],
         UTType.mp3.identifier: [UTType.audio.identifier],
+        UTType.mpeg4Audio.identifier: [UTType.audio.identifier],
         UTType.pdf.identifier: [UTType.data.identifier]
     ]
 
@@ -152,7 +154,8 @@ public struct UTType: Hashable, Sendable {
         "json": .json,
         "mp4": .mpeg4Movie,
         "mov": .quickTimeMovie,
-        "mp3": .mp3
+        "mp3": .mp3,
+        "m4a": .mpeg4Audio
     ]
 
     private static let preferredFilenameExtensionsByIdentifier: [String: String] = [

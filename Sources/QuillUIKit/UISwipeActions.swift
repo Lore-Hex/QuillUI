@@ -42,6 +42,7 @@ open class UIContextualAction {
     ///
     /// UIKit always provides a non-nil default, so this is implicitly unwrapped.
     public var backgroundColor: UIColor! = UIColor(white: 0.5, alpha: 1.0)
+    public var accessibilityLabel: String?
 
     /// Creates a new contextual action with the specified title and behavior.
     public init(style: Style, title: String?, handler: @escaping Handler) {

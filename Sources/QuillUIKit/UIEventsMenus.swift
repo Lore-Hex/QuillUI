@@ -141,8 +141,17 @@ import QuillFoundation
         case remoteControlEndSeekingForward = 109
     }
 
+    public struct ButtonMask: OptionSet, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+
+        public static let primary = ButtonMask(rawValue: 1 << 0)
+        public static let secondary = ButtonMask(rawValue: 1 << 1)
+    }
+
     open var type: UIEvent.EventType = .touches
     open var subtype: UIEvent.EventSubtype = .none
+    open var buttonMask: UIEvent.ButtonMask = []
 
     /// Seconds since system startup when the event occurred.
     open var timestamp: TimeInterval = 0

@@ -105,6 +105,7 @@ public enum UIModalPresentationStyle: Int, Sendable {
     /// presentation controller's own controller refs are weak — the cache
     /// never keeps the owning controller alive.
     var presentationController: UIPresentationController?
+    var sheetPresentationController: UISheetPresentationController?
     /// Apple's default: inherit the ancestor/system style.
     var overrideUserInterfaceStyle: UIUserInterfaceStyle = .unspecified
     /// The controller's contribution to a navigation toolbar (which lives in
@@ -158,6 +159,14 @@ extension UIViewController {
             forPresented: self, presenting: presentingViewController, source: self)
             ?? UIPresentationController(presentedViewController: self, presenting: presentingViewController)
         state.presentationController = created
+        return created
+    }
+
+    public var sheetPresentationController: UISheetPresentationController? {
+        let state = ensureSurfaceState()
+        if let existing = state.sheetPresentationController { return existing }
+        let created = UISheetPresentationController()
+        state.sheetPresentationController = created
         return created
     }
 
