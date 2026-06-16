@@ -263,6 +263,110 @@ public struct QuillPromptList: View {
     }
 }
 
+public struct QuillChatComposer: View {
+    @Binding public var message: String
+    public var isLoading: Bool
+    public var supportsImages: Bool
+    public var showsRecording: Bool
+    public var selectedImage: Image?
+    private var onSelectImage: () -> Void
+    private var onClearImage: () -> Void
+    private var onRecord: () -> Void
+    private var onStop: () -> Void
+    private var onSend: () -> Void
+
+    public init(
+        message: Binding<String>,
+        isLoading: Bool = false,
+        supportsImages: Bool = false,
+        showsRecording: Bool = true,
+        selectedImage: Image? = nil,
+        onSelectImage: @escaping () -> Void = {},
+        onClearImage: @escaping () -> Void = {},
+        onRecord: @escaping () -> Void = {},
+        onStop: @escaping () -> Void = {},
+        onSend: @escaping () -> Void
+    ) {
+        self._message = message
+        self.isLoading = isLoading
+        self.supportsImages = supportsImages
+        self.showsRecording = showsRecording
+        self.selectedImage = selectedImage
+        self.onSelectImage = onSelectImage
+        self.onClearImage = onClearImage
+        self.onRecord = onRecord
+        self.onStop = onStop
+        self.onSend = onSend
+    }
+
+    public var body: some View {
+        HStack(spacing: 12) {
+            if let selectedImage {
+                selectedImagePreview(selectedImage)
+            }
+            TextField("Message", text: $message, axis: .vertical)
+                .font(.system(size: 14))
+                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                .clipped()
+                .textFieldStyle(.plain)
+            composerActions
+        }
+        .transition(.slide)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .overlay(
+            RoundedRectangle(cornerRadius: 28)
+                .strokeBorder(Color.gray.opacity(0.45), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+    }
+
+    private var canSend: Bool {
+        !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var composerActions: some View {
+        HStack(spacing: 8) {
+            if showsRecording {
+                composerIconButton("waveform", action: onRecord)
+            }
+            if supportsImages {
+                composerIconButton("photo.fill", action: onSelectImage)
+            }
+            if isLoading {
+                composerIconButton("square.fill", action: onStop)
+            } else if canSend {
+                composerIconButton("paperplane.fill", action: onSend)
+            }
+        }
+    }
+
+    private func selectedImagePreview(_ image: Image) -> some View {
+        ZStack(alignment: .topTrailing) {
+            image
+                .resizable()
+                .scaledToFit()
+                .frame(width: 70, height: 70)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            composerIconButton("xmark.circle.fill", action: onClearImage)
+        }
+        .padding(5)
+    }
+
+    private func composerIconButton(_ systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
+                .renderingMode(Image.TemplateRenderingMode.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(.primary)
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 public struct QuillPromptGrid: View {
     public var prompts: [QuillPrompt]
     public var columns: Int
