@@ -324,18 +324,18 @@ struct QuillDataSourceLoweringTests {
 
         let passing = try runScript(script, arguments: [
             "--max-shell-lines", "50",
-            "--max-rewrite-lines", "150"
+            "--max-rewrite-lines", "149"
         ])
         #expect(passing.status == 0, Comment(rawValue: passing.output))
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
         #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
-        #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has 150 lines (max 150)"))
+        #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has 149 lines (max 149)"))
 
         let workflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140 --max-rewrite-lines 150"))
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140 --max-rewrite-lines 149"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
@@ -1049,6 +1049,8 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(applicationEntryPointRule.contains("WindowGroup(\"Quill Chat\")"))
+        #expect(!applicationEntryPointRule.contains("@State var panelManager"))
+        #expect(!applicationEntryPointRule.contains("@NSApplicationDelegateAdaptor"))
 
         let chatViewRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/ChatView_macOS.swift.pl"),
