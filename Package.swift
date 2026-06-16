@@ -625,7 +625,8 @@ let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
     // "SwiftUI" comes from quillLinuxShimTestDependencies; keep it in that
     // shared list so SwiftPM passes the C module search paths for the
     // GTK-backed NSViewRepresentable mount everywhere the shadow is imported.
-    "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os"
+    "QuillUI", "QuillKit", "QuillFoundation", "SwiftData", "AppKit", "UIKit", "os",
+    "LinkPresentation"
 ] + quillLinuxShimTestDependencies
 let quillLinuxCompatibilityModuleTestSwiftSettings: [SwiftSetting] = quillSwiftTestingAppleOverlaySwiftSettings
 #endif

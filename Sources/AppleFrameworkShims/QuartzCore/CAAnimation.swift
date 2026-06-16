@@ -34,10 +34,9 @@
 //   * No frame-by-frame value interpolation and no presentation-layer
 //     sampling — this engine models the *lifecycle* of an animation, not
 //     per-frame output.
-//   * Animations are NOT copied when added to a layer (Apple copies). The
-//     object you add is the object whose delegate fires; re-adding the same
-//     object (or adding it to a second layer) reschedules it rather than
-//     running two independent copies.
+//   * CALayer copies animations when they are added, matching Apple. The
+//     copied animation is the object stored in animation(forKey:) and the
+//     object delivered to CAAnimationDelegate callbacks.
 //   * CATransaction keeps ONE global lock-guarded stack rather than Apple's
 //     per-thread stacks; QuillUI drives Core Animation from the main thread.
 //   * `speed <= 0` simply never completes here (Apple pauses the animation
@@ -199,6 +198,32 @@ open class CAAnimation: NSObject, CAMediaTiming {
         super.init()
     }
 
+    open override func copy() -> Any {
+        let copy = CAAnimation()
+        copyBaseAnimationState(to: copy)
+        return copy
+    }
+
+    fileprivate func copyBaseAnimationState(to copy: CAAnimation) {
+        copy.beginTime = beginTime
+        copy.duration = duration
+        copy.speed = speed
+        copy.timeOffset = timeOffset
+        copy.repeatCount = repeatCount
+        copy.repeatDuration = repeatDuration
+        copy.autoreverses = autoreverses
+        copy.fillMode = fillMode
+        copy.delegate = delegate
+        copy.timingFunction = timingFunction
+        copy.isRemovedOnCompletion = isRemovedOnCompletion
+        _kvLock.lock()
+        let kv = _kvStorage
+        _kvLock.unlock()
+        copy._kvLock.lock()
+        copy._kvStorage = kv
+        copy._kvLock.unlock()
+    }
+
     // MARK: Mini key-value coding
     //
     // corelibs NSObject has no KVC, but tagging animations is a standard
@@ -256,6 +281,19 @@ open class CAPropertyAnimation: CAAnimation {
         self.init()
         self.keyPath = path
     }
+
+    open override func copy() -> Any {
+        let copy = CAPropertyAnimation()
+        copyPropertyAnimationState(to: copy)
+        return copy
+    }
+
+    fileprivate func copyPropertyAnimationState(to copy: CAPropertyAnimation) {
+        copyBaseAnimationState(to: copy)
+        copy.keyPath = keyPath
+        copy.isAdditive = isAdditive
+        copy.isCumulative = isCumulative
+    }
 }
 
 // MARK: - CABasicAnimation
@@ -264,6 +302,19 @@ open class CABasicAnimation: CAPropertyAnimation {
     open var fromValue: Any?
     open var toValue: Any?
     open var byValue: Any?
+
+    open override func copy() -> Any {
+        let copy = CABasicAnimation()
+        copyBasicAnimationState(to: copy)
+        return copy
+    }
+
+    fileprivate func copyBasicAnimationState(to copy: CABasicAnimation) {
+        copyPropertyAnimationState(to: copy)
+        copy.fromValue = fromValue
+        copy.toValue = toValue
+        copy.byValue = byValue
+    }
 }
 
 // MARK: - CASpringAnimation
@@ -298,6 +349,16 @@ open class CASpringAnimation: CABasicAnimation {
         guard decay > 1e-9 else { return .greatestFiniteMagnitude }
         return logThreshold / decay
     }
+
+    open override func copy() -> Any {
+        let copy = CASpringAnimation()
+        copyBasicAnimationState(to: copy)
+        copy.mass = mass
+        copy.stiffness = stiffness
+        copy.damping = damping
+        copy.initialVelocity = initialVelocity
+        return copy
+    }
 }
 
 // MARK: - CAKeyframeAnimation
@@ -323,6 +384,21 @@ open class CAKeyframeAnimation: CAPropertyAnimation {
     open var tensionValues: [NSNumber]?
     open var continuityValues: [NSNumber]?
     open var biasValues: [NSNumber]?
+
+    open override func copy() -> Any {
+        let copy = CAKeyframeAnimation()
+        copyPropertyAnimationState(to: copy)
+        copy.values = values
+        copy.keyTimes = keyTimes
+        copy.timingFunctions = timingFunctions
+        copy.calculationMode = calculationMode
+        copy.path = path
+        copy.rotationMode = rotationMode
+        copy.tensionValues = tensionValues
+        copy.continuityValues = continuityValues
+        copy.biasValues = biasValues
+        return copy
+    }
 }
 
 // MARK: - CAAnimationGroup
@@ -333,6 +409,13 @@ open class CAAnimationGroup: CAAnimation {
     /// like any other CAAnimation, which is what delegate-chained group
     /// patterns observe.
     open var animations: [CAAnimation]?
+
+    open override func copy() -> Any {
+        let copy = CAAnimationGroup()
+        copyBaseAnimationState(to: copy)
+        copy.animations = animations?.compactMap { $0.copy() as? CAAnimation }
+        return copy
+    }
 }
 
 // MARK: - CATransition
@@ -343,6 +426,16 @@ open class CATransition: CAAnimation {
     open var startProgress: Float = 0
     open var endProgress: Float = 1
     // timingFunction is inherited from CAAnimation, matching Apple.
+
+    open override func copy() -> Any {
+        let copy = CATransition()
+        copyBaseAnimationState(to: copy)
+        copy.type = type
+        copy.subtype = subtype
+        copy.startProgress = startProgress
+        copy.endProgress = endProgress
+        return copy
+    }
 }
 
 // MARK: - Main-queue hop helper
@@ -625,23 +718,17 @@ internal enum QuartzCoreAnimationEngine {
     }
 
     private static let _lock = NSLock()
-    /// Keyed by animation object identity (per the module contract). NOTE
-    /// (divergence): Apple copies animations on add; this shim does not, so
-    /// one animation object has at most one in-flight schedule. Re-adding it
-    /// — including to a different layer — silently cancels and replaces the
-    /// previous schedule.
+    /// Keyed by the copied animation object identity. CALayer.add(_:forKey:)
+    /// copies before scheduling, matching Apple, so reusing the same source
+    /// animation creates independent schedules.
     nonisolated(unsafe) private static var _pending: [ObjectIdentifier: PendingEntry] = [:]
 
     // MARK: Cross-file contract (called by CALayer.swift)
 
     static func didAdd(_ animation: CAAnimation, forKey key: String, to layer: CALayer) {
-        // Replace any previous schedule for this same object (see NOTE on
-        // `_pending`). The old schedule is cancelled without delegate
-        // callbacks; its transaction bookkeeping is still settled, and the
-        // PREVIOUS owner's (key, animation) bookkeeping pair is dropped so
-        // its animationKeys() stops reporting a schedule it no longer owns
-        // and its deinit cannot cancel the new owner's schedule. Skipped for
-        // a same-layer same-key re-add, where the fresh pair must survive.
+        // Defensive path for a copied animation object being scheduled
+        // twice. Normal CALayer.add callers pass a fresh copy every time;
+        // this keeps internal misuse from leaking transaction bookkeeping.
         if let stale = takeEntry(for: animation) {
             stale.workItem?.cancel()
             settle(stale.transactions)

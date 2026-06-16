@@ -456,10 +456,10 @@ final class CAAnimationTimingTests: XCTestCase {
         XCTAssertEqual(paused.recordedFinishedFlags, [false])
     }
 
-    // 14. Re-adding one animation OBJECT to a second layer transfers the
-    // schedule: the first layer's bookkeeping drops the pair immediately,
-    // and the first layer dying must NOT cancel the second layer's run.
-    func testReaddToSecondLayerSurvivesFirstLayerDeinit() {
+    // 14. Re-adding one source animation object to a second layer creates a
+    // separate copied schedule on each layer, matching Apple. The first
+    // layer dying must not cancel the second layer's copy.
+    func testReusingSourceAnimationCreatesIndependentLayerCopies() {
         let stopped = expectation(description: "didStop on second layer")
         let recorder = AnimationDelegateRecorder(didStop: stopped)
 
@@ -472,14 +472,18 @@ final class CAAnimationTimingTests: XCTestCase {
         dying?.add(anim, forKey: "shared")
         keeper.add(anim, forKey: "shared")
 
-        XCTAssertNil(dying?.animation(forKey: "shared"),
-                     "displaced layer must stop reporting the rescheduled animation")
-        XCTAssertNotNil(keeper.animation(forKey: "shared"))
+        let dyingCopy = dying?.animation(forKey: "shared") as? CABasicAnimation
+        let keeperCopy = keeper.animation(forKey: "shared") as? CABasicAnimation
+        XCTAssertNotNil(dyingCopy)
+        XCTAssertNotNil(keeperCopy)
+        XCTAssertFalse(dyingCopy === anim)
+        XCTAssertFalse(keeperCopy === anim)
+        XCTAssertFalse(dyingCopy === keeperCopy)
 
-        dying = nil // former owner dies mid-flight; must not cancel keeper's run
+        dying = nil // former owner dies mid-flight; must not cancel keeper's copied run
         wait(for: [stopped], timeout: 5.0)
         XCTAssertEqual(recorder.recordedFinishedFlags.last, true,
-                       "the new owner's schedule must complete normally")
+                       "the surviving layer's copied schedule must complete normally")
     }
 
     // 15. A scheduled display link stays alive without any external strong

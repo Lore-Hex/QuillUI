@@ -11,7 +11,7 @@
 //      hierarchy, coordinate conversion, hit testing, display/layout
 //      bookkeeping, a mini key-value-coding table for animation key paths,
 //      and animation bookkeeping wired to QuartzCoreAnimationEngine
-//      (CAAnimation.swift).
+//      (CAAnimation.swift). Animations are copied on add, matching Apple.
 //    - CALayerDelegate (+ no-op default implementations)
 //    - CAAction protocol (+ NSNull conformance)
 //    - CALayerContentsGravity, CALayerCornerCurve, CALayerContentsFilter,
@@ -621,12 +621,15 @@ open class CALayer: NSObject, CAMediaTiming {
     // order). Timing and completion are owned by QuartzCoreAnimationEngine
     // (CAAnimation.swift), which fires delegate callbacks asynchronously on
     // DispatchQueue.main and calls back into _animationDidComplete(key:) for
-    // animations with isRemovedOnCompletion.
+    // animations with isRemovedOnCompletion. Apple copies animations on add;
+    // the stored/scheduled copy is what animation(forKey:) and delegate
+    // callbacks observe.
 
     private var animationEntries: [(key: String, animation: CAAnimation)] = []
     private var animationKeyCounter: Int = 0
 
     open func add(_ anim: CAAnimation, forKey key: String?) {
+        let scheduledAnimation = (anim.copy() as? CAAnimation) ?? anim
         let usedKey: String
         if let key = key {
             usedKey = key
@@ -640,8 +643,8 @@ open class CALayer: NSObject, CAMediaTiming {
             animationKeyCounter += 1
             usedKey = "quill.animation.\(animationKeyCounter)"
         }
-        animationEntries.append((key: usedKey, animation: anim))
-        QuartzCoreAnimationEngine.didAdd(anim, forKey: usedKey, to: self)
+        animationEntries.append((key: usedKey, animation: scheduledAnimation))
+        QuartzCoreAnimationEngine.didAdd(scheduledAnimation, forKey: usedKey, to: self)
     }
 
     /// Non-Apple convenience kept for existing QuillUI call sites.

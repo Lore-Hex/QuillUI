@@ -377,6 +377,83 @@ final class CALayerModelTests: XCTestCase {
         XCTAssertTrue((layer.animationKeys() ?? []).isEmpty)
         XCTAssertNil(layer.animation(forKey: "move"))
     }
+
+    func testAnimationsAreCopiedWhenAddedToLayer() {
+        final class Recorder: CAAnimationDelegate {}
+
+        let delegate = Recorder()
+        let layer = CALayer()
+        let original = CABasicAnimation(keyPath: "opacity")
+        original.fromValue = 1.0
+        original.toValue = 0.0
+        original.duration = 60
+        original.fillMode = .forwards
+        original.isRemovedOnCompletion = false
+        original.delegate = delegate
+        original.setValue("telegram-copy-token", forKey: "animationID")
+
+        layer.add(original, forKey: "fade")
+        original.toValue = 0.5
+        original.duration = 1
+
+        let stored = layer.animation(forKey: "fade") as? CABasicAnimation
+        XCTAssertNotNil(stored)
+        XCTAssertFalse(stored === original, "CALayer.add must store Apple's copied animation object")
+        XCTAssertEqual(stored?.keyPath, "opacity")
+        XCTAssertEqual(stored?.fromValue as? Double, 1.0)
+        XCTAssertEqual(stored?.toValue as? Double, 0.0, "mutating source after add must not affect stored copy")
+        XCTAssertEqual(stored?.duration, 60)
+        XCTAssertEqual(stored?.fillMode, .forwards)
+        XCTAssertFalse(stored?.isRemovedOnCompletion ?? true)
+        XCTAssertTrue(stored?.delegate === delegate)
+        XCTAssertEqual(stored?.value(forKey: "animationID") as? String, "telegram-copy-token")
+    }
+
+    func testAnimationCopyPreservesConcreteSubclassState() {
+        let keyframes = CAKeyframeAnimation(keyPath: "position")
+        keyframes.values = [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 2)]
+        keyframes.keyTimes = [0, 1]
+        keyframes.calculationMode = .cubic
+        keyframes.rotationMode = .rotateAuto
+        keyframes.tensionValues = [0.1, 0.2]
+        keyframes.setValue("kf", forKey: "tag")
+
+        let keyframeCopy = keyframes.copy() as? CAKeyframeAnimation
+        XCTAssertNotNil(keyframeCopy)
+        XCTAssertFalse(keyframeCopy === keyframes)
+        XCTAssertEqual(keyframeCopy?.keyPath, "position")
+        XCTAssertEqual(keyframeCopy?.keyTimes, [0, 1])
+        XCTAssertEqual(keyframeCopy?.calculationMode, .cubic)
+        XCTAssertEqual(keyframeCopy?.rotationMode, .rotateAuto)
+        XCTAssertEqual(keyframeCopy?.tensionValues, [0.1, 0.2])
+        XCTAssertEqual(keyframeCopy?.value(forKey: "tag") as? String, "kf")
+
+        let transition = CATransition()
+        transition.type = .push
+        transition.subtype = .fromLeft
+        transition.startProgress = 0.25
+        transition.endProgress = 0.75
+        transition.duration = 3
+
+        let transitionCopy = transition.copy() as? CATransition
+        XCTAssertEqual(transitionCopy?.type, .push)
+        XCTAssertEqual(transitionCopy?.subtype, .fromLeft)
+        XCTAssertEqual(transitionCopy?.startProgress, 0.25)
+        XCTAssertEqual(transitionCopy?.endProgress, 0.75)
+        XCTAssertEqual(transitionCopy?.duration, 3)
+
+        let group = CAAnimationGroup()
+        let child = CABasicAnimation(keyPath: "opacity")
+        child.toValue = 0.25
+        group.animations = [child]
+
+        let groupCopy = group.copy() as? CAAnimationGroup
+        let childCopy = groupCopy?.animations?.first as? CABasicAnimation
+        XCTAssertNotNil(childCopy)
+        XCTAssertFalse(childCopy === child, "CAAnimationGroup.copy must deep-copy child animations")
+        XCTAssertEqual(childCopy?.keyPath, "opacity")
+        XCTAssertEqual(childCopy?.toValue as? Double, 0.25)
+    }
 }
 
 // MARK: - CATransform3D math tests
