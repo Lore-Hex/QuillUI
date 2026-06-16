@@ -1,12 +1,10 @@
-// Signal-facing AVCapture extras layered on top of the reusable capture surface
-// in AVCaptureSurface.swift. Keep this file extension-only so AVFoundation has a
-// single owner for session/input/output/connection classes.
+// AVCapture extras that sit on top of the canonical capture graph in
+// AVCaptureSurface.swift. Keep that file as the single owner of session/input/
+// output/connection types so V4L2-backed capture and inert fallback behavior
+// share one ABI surface.
 
 import Foundation
-import QuillFoundation
 import QuartzCore
-import CoreMedia
-import CoreVideo
 @_exported import CoreImage
 
 #if os(Linux)
@@ -22,32 +20,30 @@ public enum AVCaptureVideoOrientation: Int, Sendable {
     case landscapeLeft = 4
 }
 
+// MARK: - AVCaptureDevice capture configuration
+
 public extension AVCaptureDevice {
-    enum FocusMode: Int, Sendable {
+    public enum FocusMode: Int, Sendable {
         case locked = 0
         case autoFocus = 1
         case continuousAutoFocus = 2
     }
 
-    enum ExposureMode: Int, Sendable {
+    public enum ExposureMode: Int, Sendable {
         case locked = 0
         case autoExpose = 1
         case continuousAutoExposure = 2
         case custom = 3
     }
 
-    func isFocusModeSupported(_ focusMode: FocusMode) -> Bool {
-        _ = focusMode
-        return false
-    }
+    public func isFocusModeSupported(_ focusMode: FocusMode) -> Bool { false }
+    public func isExposureModeSupported(_ exposureMode: ExposureMode) -> Bool { false }
 
-    func isExposureModeSupported(_ exposureMode: ExposureMode) -> Bool {
-        _ = exposureMode
-        return false
-    }
+    /// Virtual multi-camera zoom switch-over points — none on Linux.
+    public var virtualDeviceSwitchOverVideoZoomFactors: [NSNumber] { [] }
 
-    /// Virtual multi-camera zoom switch-over points - none on Linux.
-    var virtualDeviceSwitchOverVideoZoomFactors: [NSNumber] { [] }
+    // DiscoverySession, device identity/configuration storage, and authorization
+    // are declared in AVFoundation.swift.
 }
 
 public extension AVCaptureDevice.DeviceType {
@@ -56,31 +52,6 @@ public extension AVCaptureDevice.DeviceType {
     static let builtInDualCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInDualCamera")
     static let builtInUltraWideCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInUltraWideCamera")
     static let builtInTelephotoCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInTelephotoCamera")
-}
-
-// MARK: - Session extras
-
-public extension AVCaptureSession.Preset {
-    static let inputPriority = AVCaptureSession.Preset(rawValue: "AVCaptureSessionPresetInputPriority")
-}
-
-public extension AVCaptureSession {
-    /// .AVCaptureSessionWasInterrupted userInfo reason codes (Apple raw values).
-    enum InterruptionReason: Int, Sendable {
-        case videoDeviceNotAvailableInBackground = 1
-        case audioDeviceInUseByAnotherClient = 2
-        case videoDeviceInUseByAnotherClient = 3
-        case videoDeviceNotAvailableWithMultipleForegroundApps = 4
-        case videoDeviceNotAvailableDueToSystemPressure = 5
-    }
-
-    /// iOS multitasking camera access is not supported on Linux. The setter is
-    /// accepted so upstream configuration code compiles unchanged.
-    var isMultitaskingCameraAccessSupported: Bool { false }
-    var isMultitaskingCameraAccessEnabled: Bool {
-        get { false }
-        set { _ = newValue }
-    }
 }
 
 // MARK: - Connections + preview layer
@@ -92,23 +63,6 @@ public enum AVCaptureVideoStabilizationMode: Int, Sendable {
     case cinematicExtended = 3
     case previewOptimized = 4
     case auto = -1
-}
-
-public extension AVCaptureConnection {
-    /// Stored for API shape only; no Linux capture backend currently consumes it.
-    var videoOrientation: AVCaptureVideoOrientation {
-        get { .portrait }
-        set { _ = newValue }
-    }
-
-    var isVideoOrientationSupported: Bool { false }
-
-    var preferredVideoStabilizationMode: AVCaptureVideoStabilizationMode {
-        get { .off }
-        set { _ = newValue }
-    }
-
-    var isVideoStabilizationSupported: Bool { false }
 }
 
 open class AVCaptureVideoPreviewLayer: CALayer {

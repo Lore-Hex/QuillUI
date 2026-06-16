@@ -421,10 +421,10 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
 
 public final class NSTextContainer {
     public var lineFragmentPadding: CGFloat = 0
+    public weak var layoutManager: NSLayoutManager?
     public var size: CGSize = .zero
     public var maximumNumberOfLines: Int = 0
     public var lineBreakMode: NSLineBreakMode = .byWordWrapping
-    public weak var layoutManager: NSLayoutManager?
     public init() {}
     public init(size: CGSize) { self.size = size }
     public func replaceLayoutManager(_ newLayoutManager: NSLayoutManager) {
@@ -795,8 +795,9 @@ public extension Progress {
 
 // MARK: - UIEdgeInsets
 //
-// Layout-inset geometry. The storage type lives in QuillUIKit so class-body
-// UIKit implementations can use it without depending on this umbrella module.
+// UIKit's four-edge geometry type. The concrete storage lives in QuillUIKit so
+// UIView/UIScrollView class-body members can be `open` and overrideable; this
+// shim re-exports it under Apple's spelling.
 public typealias UIEdgeInsets = QuillEdgeInsets
 
 #if os(Linux)
@@ -979,6 +980,16 @@ public extension String {
     }
     func draw(in rect: CGRect, withAttributes attributes: [NSAttributedString.Key: Any]? = nil) {
         _ = (rect, attributes)
+    }
+}
+
+public extension NSAttributedString {
+    func boundingRect(with size: CGSize,
+                      options: NSStringDrawingOptions = [],
+                      context: NSStringDrawingContext? = nil) -> CGRect {
+        _ = (options, context)
+        let attributes = length > 0 ? self.attributes(at: 0, effectiveRange: nil) : nil
+        return quillEstimatedTextRect(string, proposed: size, attributes: attributes)
     }
 }
 

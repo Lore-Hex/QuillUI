@@ -525,15 +525,4 @@ extension View {
     }
 }
 
-// MARK: - onExitCommand
-
-extension View {
-    /// SwiftUI's `onExitCommand(perform:)`. Compile-surface: returns `self`
-    /// unchanged — the Escape/cancel command path is not yet wired through
-    /// the GTK key controller, so the handler is accepted and never invoked.
-    public func onExitCommand(perform action: (() -> Void)?) -> some View {
-        self
-    }
-}
-
 #endif

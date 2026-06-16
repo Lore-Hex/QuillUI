@@ -244,7 +244,7 @@ extension CAAnimation: CAAction {
 
 // MARK: - CAPropertyAnimation
 
-open class CAPropertyAnimation: CAAnimation {
+open class CAPropertyAnimation: CAAnimation, @unchecked Sendable {
 
     /// Key path of the animated property on the layer. Model-only: there is
     /// no per-frame interpolation of the named property on Linux yet.
@@ -260,7 +260,7 @@ open class CAPropertyAnimation: CAAnimation {
 
 // MARK: - CABasicAnimation
 
-open class CABasicAnimation: CAPropertyAnimation {
+open class CABasicAnimation: CAPropertyAnimation, @unchecked Sendable {
     open var fromValue: Any?
     open var toValue: Any?
     open var byValue: Any?
@@ -268,7 +268,7 @@ open class CABasicAnimation: CAPropertyAnimation {
 
 // MARK: - CASpringAnimation
 
-open class CASpringAnimation: CABasicAnimation {
+open class CASpringAnimation: CABasicAnimation, @unchecked Sendable {
 
     open var mass: CGFloat = 1
     open var stiffness: CGFloat = 100
@@ -310,7 +310,7 @@ public struct CAAnimationRotationMode: RawRepresentable, Hashable, Sendable, Exp
     public static let rotateAutoReverse = CAAnimationRotationMode(rawValue: "autoReverse")
 }
 
-open class CAKeyframeAnimation: CAPropertyAnimation {
+open class CAKeyframeAnimation: CAPropertyAnimation, @unchecked Sendable {
     open var values: [Any]?
     open var keyTimes: [NSNumber]?
     open var timingFunctions: [CAMediaTimingFunction]?
@@ -327,7 +327,7 @@ open class CAKeyframeAnimation: CAPropertyAnimation {
 
 // MARK: - CAAnimationGroup
 
-open class CAAnimationGroup: CAAnimation {
+open class CAAnimationGroup: CAAnimation, @unchecked Sendable {
     /// Child animations. Their individual timing is not independently
     /// modeled; the group itself starts and completes per its own timing
     /// like any other CAAnimation, which is what delegate-chained group
@@ -337,7 +337,7 @@ open class CAAnimationGroup: CAAnimation {
 
 // MARK: - CATransition
 
-open class CATransition: CAAnimation {
+open class CATransition: CAAnimation, @unchecked Sendable {
     open var type: CATransitionType = .fade
     open var subtype: CATransitionSubtype?
     open var startProgress: Float = 0
@@ -634,7 +634,7 @@ internal enum QuartzCoreAnimationEngine {
 
     // MARK: Cross-file contract (called by CALayer.swift)
 
-    @MainActor static func didAdd(_ animation: CAAnimation, forKey key: String, to layer: CALayer) {
+    static func didAdd(_ animation: CAAnimation, forKey key: String, to layer: CALayer) {
         // Replace any previous schedule for this same object (see NOTE on
         // `_pending`). The old schedule is cancelled without delegate
         // callbacks; its transaction bookkeeping is still settled, and the
@@ -700,16 +700,14 @@ internal enum QuartzCoreAnimationEngine {
             // gone and the removal path owns the callbacks.
             guard let entry = takeEntry(for: animation) else { return }
             let blocks = takeDueBlocks(entry.transactions)
-            Task { @MainActor in
-                // Drop the layer's bookkeeping entry BEFORE the delegate fires:
-                // didStop handlers routinely re-add an animation under the same
-                // key, and removal-after would silently strip the new one.
-                if animation.isRemovedOnCompletion {
-                    layer?._animationDidComplete(key: key)
-                }
-                animation.delegate?.animationDidStop(animation, finished: true)
-                for block in blocks { block() } // already on main; after didStop
+            // Drop the layer's bookkeeping entry BEFORE the delegate fires:
+            // didStop handlers routinely re-add an animation under the same
+            // key, and removal-after would silently strip the new one.
+            if animation.isRemovedOnCompletion {
+                layer?._animationDidComplete(key: key)
             }
+            animation.delegate?.animationDidStop(animation, finished: true)
+            for block in blocks { block() } // already on main; after didStop
         }
 
         _lock.lock()
@@ -720,7 +718,7 @@ internal enum QuartzCoreAnimationEngine {
         DispatchQueue.main.asyncAfter(deadline: .now() + total, execute: item)
     }
 
-    @MainActor static func didRemove(_ animation: CAAnimation, forKey key: String, from layer: CALayer) {
+    static func didRemove(_ animation: CAAnimation, forKey key: String, from layer: CALayer) {
         // No entry: the animation already completed (its callbacks fired) or
         // was never scheduled — nothing to do, and crucially no duplicate
         // animationDidStop.

@@ -81,6 +81,33 @@ if old in text:
     path.write_text(text.replace(old, new, 1))
 PY
 
+# (3c) SignalUI has a few private CALayer subclasses whose overrides must match
+# Quill's nonisolated QuartzCore surface under Linux default-actor-isolation
+# builds. Mark the generated subclasses nonisolated rather than weakening the
+# base layer API.
+python3 - \
+    "$SUI/ImageEditor/ImageEditorCanvasView.swift" \
+    "$SUI/Stickers/EditorSticker.swift" <<'PY'
+import pathlib, sys
+
+replacements = {
+    "class EditorTextLayer: CATextLayer {": "nonisolated class EditorTextLayer: CATextLayer {",
+    "private class TextFrameLayer: CAShapeLayer {": "private nonisolated class TextFrameLayer: CAShapeLayer {",
+    "private class AnalogClockLayer: CALayer {": "private nonisolated class AnalogClockLayer: CALayer {",
+}
+
+for filename in sys.argv[1:]:
+    path = pathlib.Path(filename)
+    if not path.exists():
+        continue
+    text = path.read_text(errors="replace")
+    updated = text
+    for old, new in replacements.items():
+        updated = updated.replace(old, new)
+    if updated != text:
+        path.write_text(updated)
+PY
+
 # (4) Same-module Swift ports for small ObjC categories that SignalUI excludes
 # on Linux. Keep these as symlinks into the disposable upstream tree so the
 # canonical Signal source remains untouched and the extension members are

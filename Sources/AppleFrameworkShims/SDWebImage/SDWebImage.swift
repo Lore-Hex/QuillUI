@@ -14,7 +14,7 @@ import QuillUIKit
 /// `SDAnimatedImage: UIImage`. Adds no stored properties, so it inherits all of
 /// RSImage's initializers (including the failable `init?(data:)` SSK calls) --
 /// which yields a placeholder image on Linux (no frames are actually decoded).
-open class SDAnimatedImage: UIImage {
+open class SDAnimatedImage: UIImage, @unchecked Sendable {
     public var animatedImageFrameCount: UInt { 0 }
 
     public func animatedImageDuration(at index: UInt) -> TimeInterval {

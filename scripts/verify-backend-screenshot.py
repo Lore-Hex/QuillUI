@@ -4202,6 +4202,14 @@ def validate_quill_solderscope_launch(image: Screenshot) -> str:
         toolbar_height,
         lambda rgb: sum(rgb) >= 24,
     )
+    canvas_dark_pixels = pixel_count(
+        image,
+        image.width // 4,
+        max(toolbar_height, image.height // 4),
+        (image.width * 3) // 4,
+        (image.height * 3) // 4,
+        lambda rgb: sum(rgb) <= 96,
+    )
     require(
         toolbar_pixels >= 1_500,
         f"SolderScope dark toolbar pixels were not detected near the top: pixels={toolbar_pixels}",
@@ -4210,11 +4218,16 @@ def validate_quill_solderscope_launch(image: Screenshot) -> str:
         top_nonblack_pixels >= 5_000,
         f"SolderScope top chrome appears black/empty: nonblack_pixels={top_nonblack_pixels}",
     )
+    require(
+        canvas_dark_pixels >= 25_000,
+        f"SolderScope microscope canvas was not detected: dark_pixels={canvas_dark_pixels}",
+    )
 
     return (
         "Quill SolderScope launch: "
         f"toolbar_pixels={toolbar_pixels}, "
-        f"top_nonblack_pixels={top_nonblack_pixels}"
+        f"top_nonblack_pixels={top_nonblack_pixels}, "
+        f"canvas_dark_pixels={canvas_dark_pixels}"
     )
 
 
@@ -4245,7 +4258,11 @@ def main() -> int:
     compact_quill_chat_dialog_product = product in {
         "quill-chat-linux-mac-reference-settings-delete-confirmation",
     }
-    solderscope_launch_product = product == "quill-solderscope-launch"
+    solderscope_launch_product = product in {
+        "quill-solderscope-launch",
+        "quill-solderscope-visual",
+        "quill-solderscope-interaction",
+    }
     if compact_quill_chat_dialog_product:
         minimum_width = 260
         minimum_height = 140
@@ -4258,7 +4275,11 @@ def main() -> int:
     else:
         minimum_width = 900
         minimum_height = 600
-    minimum_mean = 500 if solderscope_launch_product else 1000
+    # SolderScope's valid no-camera state is intentionally mostly black: the
+    # microscope canvas fills the window while only toolbar controls and status
+    # text are bright. Use the product-specific toolbar/canvas predicates below
+    # for real blank-screen detection instead of a light-app global mean floor.
+    minimum_mean = 250 if solderscope_launch_product else 1000
     minimum_stddev = 1000 if solderscope_launch_product else 250
     require(
         image.width >= minimum_width and image.height >= minimum_height,
@@ -4407,7 +4428,7 @@ def main() -> int:
         print(validate_quill_wireguard_gtk_import(image))
     elif product in {"quill-wireguard-import-invalid-paste", "quill-wireguard-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="gtk"))
-    elif product == "quill-solderscope-launch":
+    elif product in {"quill-solderscope-launch", "quill-solderscope-visual", "quill-solderscope-interaction"}:
         print(validate_quill_solderscope_launch(image))
     elif product in {
         "quill-gtk-interaction-smoke-open",

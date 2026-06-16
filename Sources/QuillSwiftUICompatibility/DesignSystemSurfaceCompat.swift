@@ -794,13 +794,6 @@ public enum NavigationBarTitleDisplayMode: Sendable {
 
 public typealias ScrollContentBackgroundVisibility = Visibility
 
-public extension View {
-    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
-        _ = visibility
-        return self
-    }
-}
-
 public enum ScrollBounceBehavior: Sendable {
     case automatic
     case always
@@ -919,6 +912,7 @@ public extension EnvironmentValues {
 }
 
 public extension Shape where Self == Circle {
+    @MainActor
     static var circle: Circle { Circle() }
 }
 
@@ -1584,6 +1578,7 @@ public extension SearchFieldPlacement {
 }
 
 public extension TabBuilder {
+    @MainActor
     static func buildExpression<V: View>(_ view: V) -> [AnyTab] {
         let tabs = quillCollectTabs(from: view)
         if !tabs.isEmpty {
@@ -1601,15 +1596,18 @@ fileprivate protocol QuillTabCollectible {
     var quillCollectedTabs: [AnyTab] { get }
 }
 
+@MainActor
 fileprivate func quillCollectTabs<V: View>(from view: V) -> [AnyTab] {
     quillCollectTabs(fromAny: view)
 }
 
+@MainActor
 fileprivate func quillCollectTabs(fromAny view: any View) -> [AnyTab] {
     if let tabSource = view as? any QuillTabCollectible {
         // Witnesses are isolated (View whole-protocol); collection runs on
         // the backend main loop == main thread.
-        return MainActor.assumeIsolated { tabSource.quillCollectedTabs }
+        let box = QuillIsolationHopBox(value: tabSource)
+        return MainActor.assumeIsolated { box.value.quillCollectedTabs }
     }
     if let multi = view as? any MultiChildView {
         return multi.children.flatMap(quillCollectTabs(fromAny:))
@@ -1785,7 +1783,7 @@ public enum TableColumnBuilder<RowValue> {
         columns.flatMap { $0 }
     }
 
-    public static func buildExpression<Content: View>(
+    @MainActor public static func buildExpression<Content: View>(
         _ column: TableColumn<RowValue, Content>
     ) -> [AnyTableColumn<RowValue>] {
         [AnyTableColumn(column)]

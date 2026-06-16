@@ -188,14 +188,14 @@ public final class ImageRenderer<Content: View>: ObservableObject {
         bridge(renderer.cgImage)
     }
 
-    private func bridge(_ image: SwiftOpenUI.PlatformImage?) -> PlatformImage? {
+    private func bridge(_ image: SwiftOpenUI.OpenUIPlatformImage?) -> PlatformImage? {
         guard let image else { return nil }
         return PlatformImage(platformImage: image)
     }
 }
 
 public extension RSImage {
-    convenience init?(platformImage: SwiftOpenUI.PlatformImage) {
+    convenience init?(platformImage: SwiftOpenUI.OpenUIPlatformImage) {
         guard let data = platformImage.data else { return nil }
         self.init(data: data)
     }

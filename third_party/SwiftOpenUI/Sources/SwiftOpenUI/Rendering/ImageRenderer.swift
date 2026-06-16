@@ -6,7 +6,7 @@ import Foundation
 /// (`NSImage`, `UIImage`, and `CGImage`). SwiftOpenUI keeps the Linux surface
 /// intentionally byte-oriented: successful renderers return PNG bytes in
 /// `data`, and AppKit/UIKit shims can wrap the same value as needed.
-public struct PlatformImage: Sendable {
+public struct OpenUIPlatformImage: Sendable {
     public var data: Data?
 
     public init(data: Data? = nil) {
@@ -27,7 +27,7 @@ public struct PlatformImage: Sendable {
 /// The value is the same byte-backed image container returned by `.nsImage`
 /// and `.uiImage`. This gives source that only needs non-empty rendered image
 /// bytes a single concrete representation on Linux.
-public typealias CGImage = PlatformImage
+public typealias CGImage = OpenUIPlatformImage
 
 public struct ImageRendererConfiguration: Sendable {
     public var width: Int
@@ -86,15 +86,15 @@ public final class OpenUIImageRenderer<Content: View> {
         self.content = content
     }
 
-    public var platformImage: PlatformImage? {
+    public var platformImage: OpenUIPlatformImage? {
         renderToPlatformImage()
     }
 
-    public var nsImage: PlatformImage? {
+    public var nsImage: OpenUIPlatformImage? {
         renderToPlatformImage()
     }
 
-    public var uiImage: PlatformImage? {
+    public var uiImage: OpenUIPlatformImage? {
         renderToPlatformImage()
     }
 
@@ -102,7 +102,7 @@ public final class OpenUIImageRenderer<Content: View> {
         renderToPlatformImage()
     }
 
-    private func renderToPlatformImage() -> PlatformImage? {
+    private func renderToPlatformImage() -> OpenUIPlatformImage? {
         let width = max(1, Int((proposedSize?.width ?? 256).rounded()))
         let height = max(1, Int((proposedSize?.height ?? 256).rounded()))
 
@@ -115,14 +115,14 @@ public final class OpenUIImageRenderer<Content: View> {
             width: width,
             height: height
            ) {
-            return PlatformImage(data: png)
+            return OpenUIPlatformImage(data: png)
         }
 
         let configuration = ImageRendererConfiguration(width: width, height: height, scale: scale)
         guard let data = ImageRendererBackend.render(content, configuration: configuration) else {
             return nil
         }
-        return PlatformImage(data: data)
+        return OpenUIPlatformImage(data: data)
     }
 }
 
