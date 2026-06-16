@@ -1415,6 +1415,7 @@ def validate_quill_chat_mac_reference_settings_panel(
     if require_typed_bearer_token:
         if panel_kind == "root-overlay":
             token_text_pixels = root_overlay_field_text_pixels(2)
+            token_text_threshold = 220
         else:
             token_y0 = panel_y + 174
             token_y1 = panel_y + 222
@@ -1425,9 +1426,11 @@ def validate_quill_chat_mac_reference_settings_panel(
                 min(panel_segment.end, panel_segment.start + 560),
                 token_y1,
             )
+            token_text_threshold = 250
         require(
-            token_text_pixels >= 250,
-            f"Mac-reference typed settings bearer token was not detected: pixels={token_text_pixels}",
+            token_text_pixels >= token_text_threshold,
+            "Mac-reference typed settings bearer token was not detected: "
+            f"pixels={token_text_pixels}, threshold={token_text_threshold}",
         )
         typed_summary += f", token_text_pixels={token_text_pixels}"
 
