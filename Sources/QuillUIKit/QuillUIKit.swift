@@ -1750,8 +1750,13 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
-    public func cellForItem(at: IndexPath) -> UICollectionViewCell? { nil }
-    open func reloadData() {}
+    public func cellForItem(at indexPath: IndexPath) -> UICollectionViewCell? {
+        quillCellForItem(at: indexPath)
+    }
+
+    open func reloadData() {
+        quillReloadData()
+    }
 }
 
 @MainActor open class UICollectionViewCell: UIView {
