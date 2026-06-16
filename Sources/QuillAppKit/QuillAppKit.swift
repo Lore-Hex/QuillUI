@@ -746,6 +746,7 @@ open class NSView: NSResponder {
     public var subviews: [NSView] = []
     public private(set) var constraints: [NSLayoutConstraint] = []
     private var nextToolTipTag: ToolTipTag = 1
+    private var quillCursorRectStorage: [QuillCursorRect] = []
     public weak var superview: NSView?
     public weak var window: NSWindow?
     open var isHidden: Bool = false
@@ -797,6 +798,16 @@ open class NSView: NSResponder {
         public static let maxXMargin = AutoresizingMask(rawValue: 1 << 2)
         public static let minYMargin = AutoresizingMask(rawValue: 1 << 3)
         public static let maxYMargin = AutoresizingMask(rawValue: 1 << 5)
+    }
+
+    public struct QuillCursorRect {
+        public let rect: NSRect
+        public let cursor: NSCursor
+
+        public init(rect: NSRect, cursor: NSCursor) {
+            self.rect = rect
+            self.cursor = cursor
+        }
     }
 
     // Convenience (not designated) so NSView matches real AppKit, where the
@@ -1099,6 +1110,24 @@ open class NSView: NSResponder {
     open func viewDidUnhide() {}
     open func updateTrackingAreas() {}
     open func resetCursorRects() {}
+    public func addCursorRect(_ rect: NSRect, cursor: NSCursor) {
+        guard rect.size.width > 0, rect.size.height > 0 else { return }
+        quillCursorRectStorage.append(QuillCursorRect(rect: rect, cursor: cursor))
+    }
+    public func discardCursorRects() {
+        quillCursorRectStorage.removeAll()
+    }
+    public var quillCursorRects: [QuillCursorRect] {
+        quillCursorRectStorage
+    }
+    public func quillCursor(at point: NSPoint) -> NSCursor? {
+        for entry in quillCursorRectStorage.reversed() {
+            if isMousePoint(point, in: entry.rect) {
+                return entry.cursor
+            }
+        }
+        return nil
+    }
     open func didAddSubview(_ subview: NSView) { _ = subview }
     open func willRemoveSubview(_ subview: NSView) { _ = subview }
 
@@ -3233,14 +3262,25 @@ open class NSCursor: NSObject {
     public static let dragCopy = NSCursor()
     public static let contextualMenu = NSCursor()
     public static let disappearingItem = NSCursor()
-    public static var current: NSCursor { arrow }
+    private static var quillCurrentCursor: NSCursor?
+    private static var quillCursorStack: [NSCursor] = []
+    public static var current: NSCursor { quillCurrentCursor ?? arrow }
 
     public override init() {}
     public init(image: NSImage, hotSpot: NSPoint) {}
-    public func push() {}
-    public func pop() {}
-    public func set() {}
-    public static func pop() {}
+    public func push() {
+        NSCursor.quillCursorStack.append(NSCursor.current)
+        set()
+    }
+    public func pop() {
+        NSCursor.pop()
+    }
+    public func set() {
+        NSCursor.quillCurrentCursor = self
+    }
+    public static func pop() {
+        quillCurrentCursor = quillCursorStack.popLast() ?? arrow
+    }
     public static func hide() {}
     public static func unhide() {}
     public static func setHiddenUntilMouseMoves(_ flag: Bool) {}

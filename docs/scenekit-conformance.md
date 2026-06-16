@@ -133,8 +133,12 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    The AppKit event pump now forwards pointer, scroll, magnify, cursor, and
    enter/exit events through `NSApplication.sendEvent`, with a SceneView backing
    view smoke proving application-dispatched orbit and magnify controls reach
-   the camera. Native GTK event-controller synthesis for hosted `NSView`s and
-   full macOS pixel-reference parity remain open.
+   the camera. Hosted GTK `NSView` drawing areas now synthesize AppKit pointer
+   enter/move/exit, cursor rect, left/right drag, and scroll-wheel events from
+   native GTK controllers before routing them through `NSApplication` when a
+   window/first-responder path exists, or directly to the hosted view when the
+   SwiftUI representable has no synthetic `NSWindow`. Remaining rung-6 gaps are
+   native GTK magnify/pinch parity and full macOS pixel-reference parity.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
 existing 2D paint layer. That is enough for these apps' scene scale; a GL/
@@ -152,4 +156,4 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Rung 3: fixtures render (GTK screenshot gate)
 - [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
 - [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
-- [ ] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, deterministic camera movement, and AppKit-pump-dispatched camera movement are smoke-gated; native GTK event synthesis and macOS golden images remain open)
+- [ ] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, deterministic camera movement, AppKit-pump-dispatched camera movement, and GTK pointer/drag/scroll delivery are smoke/source-gated; native GTK magnify/pinch parity and macOS golden images remain open)

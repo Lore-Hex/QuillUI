@@ -102,6 +102,43 @@ private final class CollectionViewProbe: UICollectionViewDataSource, UICollectio
     }
 }
 
+@MainActor
+private final class MutableCollectionViewProbe: UICollectionViewDataSource, UICollectionViewDelegate {
+    var items: [[String]]
+    var requestedCells: [IndexPath] = []
+    var displayedCells: [IndexPath] = []
+    var cellsByIndexPath: [IndexPath: UICollectionViewCell] = [:]
+
+    init(items: [[String]]) {
+        self.items = items
+    }
+
+    func numberOfSections(in collectionView: UICollectionView) -> Int {
+        _ = collectionView
+        return items.count
+    }
+
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        _ = collectionView
+        return items[section].count
+    }
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        requestedCells.append(indexPath)
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "mutable-cell", for: indexPath)
+        let label = UILabel()
+        label.text = items[indexPath.section][indexPath.item]
+        cell.contentView.addSubview(label)
+        cellsByIndexPath[indexPath] = cell
+        return cell
+    }
+
+    func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+        _ = (collectionView, cell)
+        displayedCells.append(indexPath)
+    }
+}
+
 // `@MainActor`: many tests here construct MainActor-isolated SwiftUI views
 // (WrappingHStack, etc.) whose initializers run a Swift-6 isolation runtime
 // check that SIGTRAPs when evaluated off the main actor. Swift Testing runs
@@ -201,6 +238,60 @@ struct CompatibilityModuleTests {
 
         collectionView.selectItem(at: last, animated: false, scrollPosition: [])
         #expect(collectionView.indexPathsForSelectedItems == [last])
+    }
+
+    @Test("UICollectionView batch mutations refresh realized cells and visible geometry")
+    @MainActor
+    func uiCollectionViewBatchMutationsRefreshSnapshotAndGeometry() {
+        let layout = UICollectionViewFlowLayout()
+        layout.itemSize = CGSize(width: 120, height: 30)
+        let collectionView = UICollectionView(
+            frame: CGRect(x: 0, y: 0, width: 120, height: 59),
+            collectionViewLayout: layout
+        )
+        let probe = MutableCollectionViewProbe(items: [["A", "B", "C"]])
+        collectionView.dataSource = probe
+        collectionView.delegate = probe
+
+        collectionView.reloadData()
+
+        let first = IndexPath(item: 0, section: 0)
+        let second = IndexPath(item: 1, section: 0)
+        let third = IndexPath(item: 2, section: 0)
+        #expect(collectionView.indexPathsForVisibleItems == [first, second])
+        #expect(collectionView.visibleCells.count == 2)
+        #expect(collectionView.indexPathForItem(at: CGPoint(x: 10, y: 65)) == third)
+
+        collectionView.selectItem(at: second, animated: false, scrollPosition: [])
+        collectionView.deselectItem(at: second, animated: false)
+        #expect(collectionView.indexPathsForSelectedItems == nil)
+
+        let oldFirstCell = collectionView.cellForItem(at: first)
+        probe.items[0][0] = "A*"
+        collectionView.reloadItems(at: [first])
+        #expect(collectionView.cellForItem(at: first) !== oldFirstCell)
+
+        var batchFinished = false
+        let fourth = IndexPath(item: 3, section: 0)
+        probe.items[0].append("D")
+        collectionView.performBatchUpdates({
+            collectionView.insertItems(at: [fourth])
+        }, completion: { finished in
+            batchFinished = finished
+        })
+
+        #expect(batchFinished)
+        #expect(collectionView.cellForItem(at: fourth) != nil)
+
+        collectionView.scrollToItem(at: fourth, at: .bottom, animated: false)
+        #expect(collectionView.contentOffset.y > 0)
+        #expect(collectionView.indexPathsForVisibleItems.contains(fourth))
+
+        probe.items[0].remove(at: 1)
+        collectionView.performBatchUpdates({
+            collectionView.deleteItems(at: [second])
+        }, completion: nil)
+        #expect(collectionView.cellForItem(at: IndexPath(item: 2, section: 0)) != nil)
     }
 
     @Test("QuillUI fallback modifiers record diagnostics")

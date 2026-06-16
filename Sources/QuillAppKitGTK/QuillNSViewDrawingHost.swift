@@ -234,42 +234,65 @@ private final class _DrawingHostBox {
     /// Cleared by the GTK destroy notify so the invalidation handler can
     /// never queue_draw a dangling widget (re-renders replace the area).
     var area: OpaquePointer?
-    private var leftDragStart: CGPoint?
-    private var rightDragStart: CGPoint?
+    private var dragStarts: [_DrawingHostButton: CGPoint] = [:]
+    private var cursorRectBounds: NSRect?
+    private weak var currentCursor: NSCursor?
 
     init(view: NSView) { self.view = view }
 
-    func beginDrag(button: Int, at location: CGPoint) {
-        setDragStart(location, for: button)
-        dispatch(type: button == 3 ? .rightMouseDown : .leftMouseDown, location: location)
+    @MainActor
+    func syncViewSize(width: Int32, height: Int32) {
+        let bounds = NSRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+        view.frame = bounds
+        view.bounds = bounds
+        if cursorRectBounds != bounds {
+            view.discardCursorRects()
+            view.resetCursorRects()
+            cursorRectBounds = bounds
+        }
     }
 
-    func updateDrag(button: Int, offsetX: CGFloat, offsetY: CGFloat) {
-        guard let start = dragStart(for: button) else { return }
+    @MainActor
+    func beginDrag(button: _DrawingHostButton, at location: CGPoint) {
+        dragStarts[button] = location
+        dispatch(type: button.downEventType, location: location)
+    }
+
+    @MainActor
+    func updateDrag(button: _DrawingHostButton, offsetX: CGFloat, offsetY: CGFloat) {
+        guard let start = dragStarts[button] else { return }
         let location = CGPoint(x: start.x + offsetX, y: start.y + offsetY)
-        dispatch(type: button == 3 ? .rightMouseDragged : .leftMouseDragged, location: location)
+        dispatch(type: button.draggedEventType, location: location)
     }
 
-    func endDrag(button: Int, offsetX: CGFloat, offsetY: CGFloat) {
-        guard let start = dragStart(for: button) else { return }
+    @MainActor
+    func endDrag(button: _DrawingHostButton, offsetX: CGFloat, offsetY: CGFloat) {
+        defer { dragStarts[button] = nil }
+        guard let start = dragStarts[button] else { return }
         let location = CGPoint(x: start.x + offsetX, y: start.y + offsetY)
-        setDragStart(nil, for: button)
-        dispatch(type: button == 3 ? .rightMouseUp : .leftMouseUp, location: location)
+        dispatch(type: button.upEventType, location: location)
     }
 
+    @MainActor
     func enter(at location: CGPoint) {
+        updateCursor(at: location)
         dispatch(type: .mouseEntered, location: location)
     }
 
+    @MainActor
     func move(to location: CGPoint) {
+        updateCursor(at: location)
         dispatch(type: .mouseMoved, location: location)
         dispatch(type: .cursorUpdate, location: location)
     }
 
+    @MainActor
     func leave() {
+        clearCursor()
         dispatch(type: .mouseExited, location: .zero)
     }
 
+    @MainActor
     @discardableResult
     func scroll(deltaX: CGFloat, deltaY: CGFloat, at location: CGPoint) -> Bool {
         let event = event(type: .scrollWheel, location: location)
@@ -284,22 +307,56 @@ private final class _DrawingHostBox {
         return true
     }
 
-    private func dragStart(for button: Int) -> CGPoint? {
-        button == 3 ? rightDragStart : leftDragStart
+    @MainActor
+    private func updateCursor(at gtkLocation: CGPoint) {
+        guard let area else { return }
+        let widget = UnsafeMutablePointer<GtkWidget>(area)
+        syncViewSize(width: gtk_widget_get_width(widget), height: gtk_widget_get_height(widget))
+
+        let viewPoint = NSPoint(
+            x: gtkLocation.x,
+            y: view.isFlipped ? gtkLocation.y : max(0, boundsHeight - gtkLocation.y)
+        )
+        applyCursor(view.quillCursor(at: viewPoint))
     }
 
-    private func setDragStart(_ location: CGPoint?, for button: Int) {
-        if button == 3 {
-            rightDragStart = location
+    @MainActor
+    func clearCursor() {
+        applyCursor(nil)
+    }
+
+    private var boundsHeight: CGFloat {
+        view.bounds.size.height
+    }
+
+    @MainActor
+    private func applyCursor(_ cursor: NSCursor?) {
+        if currentCursor === cursor {
+            return
+        }
+        currentCursor = cursor
+
+        guard let area else { return }
+        let widget = UnsafeMutableRawPointer(area)
+        guard let cursor else {
+            NSCursor.arrow.set()
+            quill_widget_clear_cursor(widget)
+            return
+        }
+        cursor.set()
+        if let name = quillGTKCursorName(for: cursor) {
+            name.withCString { quill_widget_set_cursor_name(widget, $0) }
         } else {
-            leftDragStart = location
+            quill_widget_clear_cursor(widget)
         }
     }
 
+    @MainActor
     private func dispatch(type: NSEvent.EventType, location: CGPoint) {
         dispatch(event(type: type, location: location))
     }
 
+    @MainActor
     private func event(type: NSEvent.EventType, location: CGPoint) -> NSEvent {
         let event = NSEvent()
         event.type = type
@@ -308,8 +365,10 @@ private final class _DrawingHostBox {
         return event
     }
 
+    @MainActor
     private func dispatch(_ event: NSEvent) {
-        if let window = view.window, window.firstResponder === view || window.makeFirstResponder(view) {
+        if let window = view.window,
+           window.firstResponder === view || window.makeFirstResponder(view) {
             event.window = window
             NSApplication.shared.sendEvent(event)
         } else {
@@ -317,6 +376,7 @@ private final class _DrawingHostBox {
         }
     }
 
+    @MainActor
     private func dispatchDirectly(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown:
@@ -346,7 +406,7 @@ private final class _DrawingHostBox {
         case .smartMagnify:
             view.smartMagnify(with: event)
         case .keyDown:
-            MainActor.assumeIsolated { view.keyDown(with: event) }
+            view.keyDown(with: event)
         case .keyUp:
             view.keyUp(with: event)
         case .flagsChanged:
@@ -357,26 +417,56 @@ private final class _DrawingHostBox {
     }
 }
 
-private final class _DrawingHostDragContext {
-    let host: _DrawingHostBox
-    let button: Int
+private enum _DrawingHostButton: Int, Hashable {
+    case left = 1
+    case right = 3
 
-    init(host: _DrawingHostBox, button: Int) {
-        self.host = host
-        self.button = button
+    var downEventType: NSEvent.EventType {
+        switch self {
+        case .left: .leftMouseDown
+        case .right: .rightMouseDown
+        }
+    }
+
+    var draggedEventType: NSEvent.EventType {
+        switch self {
+        case .left: .leftMouseDragged
+        case .right: .rightMouseDragged
+        }
+    }
+
+    var upEventType: NSEvent.EventType {
+        switch self {
+        case .left: .leftMouseUp
+        case .right: .rightMouseUp
+        }
+    }
+
+    var gtkButton: guint {
+        guint(rawValue)
     }
 }
 
 private final class _DrawingHostContext {
     let host: _DrawingHostBox
+    let button: _DrawingHostButton?
 
-    init(host: _DrawingHostBox) {
+    init(host: _DrawingHostBox, button: _DrawingHostButton? = nil) {
         self.host = host
+        self.button = button
     }
 }
 
-private func quillRetainedGtkDrawHostContext(_ host: _DrawingHostBox) -> gpointer {
-    Unmanaged.passRetained(_DrawingHostContext(host: host)).toOpaque()
+private func quillGtkDrawHostContext(from userData: gpointer?) -> _DrawingHostContext? {
+    guard let userData else { return nil }
+    return Unmanaged<_DrawingHostContext>.fromOpaque(userData).takeUnretainedValue()
+}
+
+private func quillRetainedGtkDrawHostContext(
+    _ host: _DrawingHostBox,
+    button: _DrawingHostButton? = nil
+) -> gpointer {
+    Unmanaged.passRetained(_DrawingHostContext(host: host, button: button)).toOpaque()
 }
 
 private func quillReleaseGtkDrawHostContext(_ userData: gpointer?) {
@@ -384,21 +474,12 @@ private func quillReleaseGtkDrawHostContext(_ userData: gpointer?) {
     Unmanaged<_DrawingHostContext>.fromOpaque(userData).release()
 }
 
-private func quillRetainedGtkDrawHostDragContext(_ host: _DrawingHostBox, button: Int) -> gpointer {
-    Unmanaged.passRetained(_DrawingHostDragContext(host: host, button: button)).toOpaque()
-}
-
-private func quillReleaseGtkDrawHostDragContext(_ userData: gpointer?) {
-    guard let userData else { return }
-    Unmanaged<_DrawingHostDragContext>.fromOpaque(userData).release()
-}
-
 private func quillInstallGtkDrawHostInputControllers(
     on widget: UnsafeMutablePointer<GtkWidget>,
     host: _DrawingHostBox
 ) {
-    quillInstallGtkDrawHostDragController(on: widget, host: host, button: 1)
-    quillInstallGtkDrawHostDragController(on: widget, host: host, button: 3)
+    quillInstallGtkDrawHostDragController(on: widget, host: host, button: .left)
+    quillInstallGtkDrawHostDragController(on: widget, host: host, button: .right)
     quillInstallGtkDrawHostMotionController(on: widget, host: host)
     quillInstallGtkDrawHostScrollController(on: widget, host: host)
 }
@@ -406,23 +487,22 @@ private func quillInstallGtkDrawHostInputControllers(
 private func quillInstallGtkDrawHostDragController(
     on widget: UnsafeMutablePointer<GtkWidget>,
     host: _DrawingHostBox,
-    button: Int
+    button: _DrawingHostButton
 ) {
     let gesture = gtk_gesture_drag_new()!
-    gtk_swift_gesture_single_set_button(gesture, guint(button))
+    gtk_swift_gesture_single_set_button(gesture, button.gtkButton)
 
     g_signal_connect_data(
         gpointer(gesture),
         "drag-begin",
         unsafeBitCast({ (_: gpointer?, x: gdouble, y: gdouble, userData: gpointer?) in
-            guard let userData else { return }
-            let context = Unmanaged<_DrawingHostDragContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let context = quillGtkDrawHostContext(from: userData), let button = context.button else { return }
             MainActor.assumeIsolated {
-                context.host.beginDrag(button: context.button, at: CGPoint(x: CGFloat(x), y: CGFloat(y)))
+                context.host.beginDrag(button: button, at: CGPoint(x: CGFloat(x), y: CGFloat(y)))
             }
         } as @convention(c) (gpointer?, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
-        quillRetainedGtkDrawHostDragContext(host, button: button),
-        { userData, _ in quillReleaseGtkDrawHostDragContext(userData) },
+        quillRetainedGtkDrawHostContext(host, button: button),
+        { userData, _ in quillReleaseGtkDrawHostContext(userData) },
         GConnectFlags(rawValue: 0)
     )
 
@@ -430,14 +510,13 @@ private func quillInstallGtkDrawHostDragController(
         gpointer(gesture),
         "drag-update",
         unsafeBitCast({ (_: gpointer?, offsetX: gdouble, offsetY: gdouble, userData: gpointer?) in
-            guard let userData else { return }
-            let context = Unmanaged<_DrawingHostDragContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let context = quillGtkDrawHostContext(from: userData), let button = context.button else { return }
             MainActor.assumeIsolated {
-                context.host.updateDrag(button: context.button, offsetX: CGFloat(offsetX), offsetY: CGFloat(offsetY))
+                context.host.updateDrag(button: button, offsetX: CGFloat(offsetX), offsetY: CGFloat(offsetY))
             }
         } as @convention(c) (gpointer?, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
-        quillRetainedGtkDrawHostDragContext(host, button: button),
-        { userData, _ in quillReleaseGtkDrawHostDragContext(userData) },
+        quillRetainedGtkDrawHostContext(host, button: button),
+        { userData, _ in quillReleaseGtkDrawHostContext(userData) },
         GConnectFlags(rawValue: 0)
     )
 
@@ -445,14 +524,13 @@ private func quillInstallGtkDrawHostDragController(
         gpointer(gesture),
         "drag-end",
         unsafeBitCast({ (_: gpointer?, offsetX: gdouble, offsetY: gdouble, userData: gpointer?) in
-            guard let userData else { return }
-            let context = Unmanaged<_DrawingHostDragContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let context = quillGtkDrawHostContext(from: userData), let button = context.button else { return }
             MainActor.assumeIsolated {
-                context.host.endDrag(button: context.button, offsetX: CGFloat(offsetX), offsetY: CGFloat(offsetY))
+                context.host.endDrag(button: button, offsetX: CGFloat(offsetX), offsetY: CGFloat(offsetY))
             }
         } as @convention(c) (gpointer?, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
-        quillRetainedGtkDrawHostDragContext(host, button: button),
-        { userData, _ in quillReleaseGtkDrawHostDragContext(userData) },
+        quillRetainedGtkDrawHostContext(host, button: button),
+        { userData, _ in quillReleaseGtkDrawHostContext(userData) },
         GConnectFlags(rawValue: 0)
     )
 
@@ -469,8 +547,7 @@ private func quillInstallGtkDrawHostMotionController(
         controller,
         "enter",
         unsafeBitCast({ (_: gpointer?, x: gdouble, y: gdouble, userData: gpointer?) in
-            guard let userData else { return }
-            let context = Unmanaged<_DrawingHostContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let context = quillGtkDrawHostContext(from: userData) else { return }
             MainActor.assumeIsolated {
                 context.host.enter(at: CGPoint(x: CGFloat(x), y: CGFloat(y)))
             }
@@ -484,8 +561,7 @@ private func quillInstallGtkDrawHostMotionController(
         controller,
         "motion",
         unsafeBitCast({ (_: gpointer?, x: gdouble, y: gdouble, userData: gpointer?) in
-            guard let userData else { return }
-            let context = Unmanaged<_DrawingHostContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let context = quillGtkDrawHostContext(from: userData) else { return }
             MainActor.assumeIsolated {
                 context.host.move(to: CGPoint(x: CGFloat(x), y: CGFloat(y)))
             }
@@ -499,8 +575,7 @@ private func quillInstallGtkDrawHostMotionController(
         controller,
         "leave",
         unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-            guard let userData else { return }
-            let context = Unmanaged<_DrawingHostContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let context = quillGtkDrawHostContext(from: userData) else { return }
             MainActor.assumeIsolated {
                 context.host.leave()
             }
@@ -523,8 +598,7 @@ private func quillInstallGtkDrawHostScrollController(
         controller,
         "scroll",
         unsafeBitCast({ (_: gpointer?, deltaX: gdouble, deltaY: gdouble, userData: gpointer?) -> gboolean in
-            guard let userData else { return 0 }
-            let context = Unmanaged<_DrawingHostContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let context = quillGtkDrawHostContext(from: userData) else { return 0 }
             return MainActor.assumeIsolated {
                 context.host.scroll(deltaX: CGFloat(deltaX), deltaY: CGFloat(deltaY), at: .zero) ? 1 : 0
             }
@@ -535,6 +609,30 @@ private func quillInstallGtkDrawHostScrollController(
     )
 
     gtk_swift_add_event_controller(widget, controller)
+}
+
+private let _quillGTKCursorNames: [(cursor: NSCursor, name: String)] = [
+    (.arrow, "default"),
+    (.crosshair, "crosshair"),
+    (.openHand, "grab"),
+    (.closedHand, "grabbing"),
+    (.pointingHand, "pointer"),
+    (.iBeam, "text"),
+    (.iBeamCursorForVerticalLayout, "text"),
+    (.resizeLeft, "ew-resize"),
+    (.resizeRight, "ew-resize"),
+    (.resizeLeftRight, "ew-resize"),
+    (.resizeUp, "ns-resize"),
+    (.resizeDown, "ns-resize"),
+    (.resizeUpDown, "ns-resize"),
+    (.operationNotAllowed, "not-allowed"),
+    (.dragCopy, "copy"),
+    (.dragLink, "alias"),
+    (.contextualMenu, "context-menu"),
+]
+
+private func quillGTKCursorName(for cursor: NSCursor) -> String? {
+    _quillGTKCursorNames.first { $0.cursor === cursor }?.name
 }
 
 extension NSView {
@@ -573,10 +671,8 @@ extension NSView {
                 // @MainActor via NSResponder, so assume the isolation that is
                 // true by construction.
                 MainActor.assumeIsolated {
-                    let bounds = NSRect(x: 0, y: 0,
-                                        width: CGFloat(width), height: CGFloat(height))
-                    view.frame = bounds
-                    view.bounds = bounds
+                    box.syncViewSize(width: width, height: height)
+                    let bounds = view.bounds
 
                     let backend = CairoCGContextBackend(cr: cr)
                     // AppKit's default coordinate space is bottom-left; flipped
@@ -636,7 +732,6 @@ extension NSView {
         return 0
     }
 }
-
 
 // MARK: - Widget lifetime helpers for the SwiftUI representable mount
 
