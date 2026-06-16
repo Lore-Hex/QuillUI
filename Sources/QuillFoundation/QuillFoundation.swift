@@ -174,7 +174,7 @@ public enum CGColorRenderingIntent: Int32, Sendable {
     case saturation = 4
 }
 
-public class CGImage: Equatable, @unchecked Sendable {
+public class CGImage: Hashable, @unchecked Sendable {
     /// Raw premultiplied-BGRA pixel backing (Cairo ARGB32 byte order on
     /// little-endian). Optional: a nil value keeps the historical "blank
     /// image" semantics. The V4L2 capture path and CIContext.createCGImage
@@ -238,6 +238,104 @@ public class CGImage: Equatable, @unchecked Sendable {
     public static func == (lhs: CGImage, rhs: CGImage) -> Bool {
         lhs === rhs
     }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(self))
+    }
+}
+
+public typealias CFURL = URL
+
+public final class CGDataProvider: @unchecked Sendable {
+    public let data: Data?
+    public let url: URL?
+
+    public init() {
+        self.data = nil
+        self.url = nil
+    }
+
+    public init?(data: Data) {
+        self.data = data
+        self.url = nil
+    }
+
+    public init?(url: CFURL) {
+        self.data = nil
+        self.url = url
+    }
+
+    public init?(
+        dataInfo info: UnsafeMutableRawPointer?,
+        data: UnsafeRawPointer,
+        size: Int,
+        releaseData: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer, Int) -> Void)?
+    ) {
+        self.data = Data(bytes: data, count: size)
+        self.url = nil
+        _ = (info, releaseData)
+    }
+}
+
+public struct CGDataProviderDirectCallbacks {
+    public var version: UInt32
+    public var getBytePointer: (@convention(c) (UnsafeMutableRawPointer?) -> UnsafeRawPointer?)?
+    public var releaseBytePointer: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer) -> Void)?
+    public var getBytesAtPosition: (@convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer, UInt64, Int) -> Int)?
+    public var releaseInfo: (@convention(c) (UnsafeMutableRawPointer?) -> Void)?
+
+    public init(
+        version: UInt32,
+        getBytePointer: (@convention(c) (UnsafeMutableRawPointer?) -> UnsafeRawPointer?)?,
+        releaseBytePointer: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer) -> Void)?,
+        getBytesAtPosition: (@convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer, UInt64, Int) -> Int)?,
+        releaseInfo: (@convention(c) (UnsafeMutableRawPointer?) -> Void)?
+    ) {
+        self.version = version
+        self.getBytePointer = getBytePointer
+        self.releaseBytePointer = releaseBytePointer
+        self.getBytesAtPosition = getBytesAtPosition
+        self.releaseInfo = releaseInfo
+    }
+}
+
+public extension CGDataProvider {
+    convenience init?(
+        directInfo info: UnsafeMutableRawPointer?,
+        size: Int64,
+        callbacks: UnsafePointer<CGDataProviderDirectCallbacks>?
+    ) {
+        // Inert: no CoreGraphics consumer pulls bytes on Linux. The provider's
+        // releaseInfo normally balances the caller's passRetained wrapper.
+        if let info, let release = callbacks?.pointee.releaseInfo {
+            release(info)
+        }
+        self.init()
+        _ = size
+    }
+}
+
+public final class CGFont: @unchecked Sendable {
+    public let postScriptName: CFString?
+    public let fullName: CFString?
+
+    public init?(_ name: CFString) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        self.postScriptName = trimmed
+        self.fullName = trimmed
+    }
+
+    public init?(_ dataProvider: CGDataProvider) {
+        if let url = dataProvider.url {
+            let name = url.deletingPathExtension().lastPathComponent
+            self.postScriptName = name.isEmpty ? url.lastPathComponent : name
+            self.fullName = self.postScriptName
+        } else {
+            self.postScriptName = "Imported Font"
+            self.fullName = "Imported Font"
+        }
+    }
 }
 
 // NSHashTable (weak/strong object collection; Linux shim). swift-corelibs has no
@@ -293,11 +391,26 @@ public struct CGPathElement {
     }
 }
 
-public class CGPath {
+fileprivate typealias CGPathStorageElement = (type: CGPathElementType, points: [CGPoint])
+
+public class CGPath: Hashable, @unchecked Sendable {
     /// Recorded path elements (type + its points), so the path is iterable.
-    fileprivate var elements: [(type: CGPathElementType, points: [CGPoint])] = []
+    fileprivate var elements: [CGPathStorageElement] = []
 
     public init() {}
+
+    public static func == (lhs: CGPath, rhs: CGPath) -> Bool {
+        lhs === rhs
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(self))
+    }
+
+    public convenience init(rect: CGRect, transform: UnsafePointer<CGAffineTransform>?) {
+        self.init()
+        elements = Self.applying(transform?.pointee, to: Self.rectElements(rect))
+    }
 
     public convenience init(
         roundedRect rect: CGRect,
@@ -306,14 +419,10 @@ public class CGPath {
         transform: UnsafePointer<CGAffineTransform>?
     ) {
         self.init()
-        _ = (cornerWidth, cornerHeight, transform)
-        elements = [
-            (.moveToPoint, [CGPoint(x: rect.minX, y: rect.minY)]),
-            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.minY)]),
-            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.maxY)]),
-            (.addLineToPoint, [CGPoint(x: rect.minX, y: rect.maxY)]),
-            (.closeSubpath, []),
-        ]
+        elements = Self.applying(
+            transform?.pointee,
+            to: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight)
+        )
     }
 
     public func copy() -> CGPath? {
@@ -322,8 +431,9 @@ public class CGPath {
         return p
     }
     public func copy(using transform: UnsafePointer<CGAffineTransform>?) -> CGPath? {
-        _ = transform
-        return copy()
+        let p = CGPath()
+        p.elements = Self.applying(transform?.pointee, to: elements)
+        return p
     }
     public func contains(_ point: CGPoint) -> Bool {
         _ = point
@@ -342,8 +452,141 @@ public class CGPath {
             }
         }
     }
+
+    fileprivate static func applying(
+        _ transform: CGAffineTransform?,
+        to elements: [CGPathStorageElement]
+    ) -> [CGPathStorageElement] {
+        guard let transform else { return elements }
+        return elements.map { element in
+            (element.type, element.points.map { $0.applying(transform) })
+        }
+    }
+
+    fileprivate static func rectElements(_ rect: CGRect) -> [CGPathStorageElement] {
+        [
+            (.moveToPoint, [CGPoint(x: rect.minX, y: rect.minY)]),
+            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.minY)]),
+            (.addLineToPoint, [CGPoint(x: rect.maxX, y: rect.maxY)]),
+            (.addLineToPoint, [CGPoint(x: rect.minX, y: rect.maxY)]),
+            (.closeSubpath, []),
+        ]
+    }
+
+    fileprivate static func roundedRectElements(
+        _ rect: CGRect,
+        cornerWidth: CGFloat,
+        cornerHeight: CGFloat
+    ) -> [CGPathStorageElement] {
+        let radiusX = max(0, min(abs(cornerWidth), abs(rect.width) / 2))
+        let radiusY = max(0, min(abs(cornerHeight), abs(rect.height) / 2))
+        guard radiusX > 0, radiusY > 0 else {
+            return rectElements(rect)
+        }
+
+        let minX = rect.minX
+        let maxX = rect.maxX
+        let minY = rect.minY
+        let maxY = rect.maxY
+        let k = CGFloat(0.5522847498307936)
+        let cX = radiusX * k
+        let cY = radiusY * k
+
+        if radiusX == abs(rect.width) / 2, radiusY == abs(rect.height) / 2 {
+            return ellipseElements(in: rect)
+        }
+
+        return [
+            (.moveToPoint, [CGPoint(x: minX + radiusX, y: minY)]),
+            (.addLineToPoint, [CGPoint(x: maxX - radiusX, y: minY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: maxX - radiusX + cX, y: minY),
+                    CGPoint(x: maxX, y: minY + radiusY - cY),
+                    CGPoint(x: maxX, y: minY + radiusY),
+                ]
+            ),
+            (.addLineToPoint, [CGPoint(x: maxX, y: maxY - radiusY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: maxX, y: maxY - radiusY + cY),
+                    CGPoint(x: maxX - radiusX + cX, y: maxY),
+                    CGPoint(x: maxX - radiusX, y: maxY),
+                ]
+            ),
+            (.addLineToPoint, [CGPoint(x: minX + radiusX, y: maxY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: minX + radiusX - cX, y: maxY),
+                    CGPoint(x: minX, y: maxY - radiusY + cY),
+                    CGPoint(x: minX, y: maxY - radiusY),
+                ]
+            ),
+            (.addLineToPoint, [CGPoint(x: minX, y: minY + radiusY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: minX, y: minY + radiusY - cY),
+                    CGPoint(x: minX + radiusX - cX, y: minY),
+                    CGPoint(x: minX + radiusX, y: minY),
+                ]
+            ),
+            (.closeSubpath, []),
+        ]
+    }
+
+    fileprivate static func ellipseElements(in rect: CGRect) -> [CGPathStorageElement] {
+        let minX = rect.minX
+        let midX = rect.midX
+        let maxX = rect.maxX
+        let minY = rect.minY
+        let midY = rect.midY
+        let maxY = rect.maxY
+        let cX = abs(rect.width) / 2 * CGFloat(0.5522847498307936)
+        let cY = abs(rect.height) / 2 * CGFloat(0.5522847498307936)
+
+        return [
+            (.moveToPoint, [CGPoint(x: midX, y: minY)]),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: midX + cX, y: minY),
+                    CGPoint(x: maxX, y: midY - cY),
+                    CGPoint(x: maxX, y: midY),
+                ]
+            ),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: maxX, y: midY + cY),
+                    CGPoint(x: midX + cX, y: maxY),
+                    CGPoint(x: midX, y: maxY),
+                ]
+            ),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: midX - cX, y: maxY),
+                    CGPoint(x: minX, y: midY + cY),
+                    CGPoint(x: minX, y: midY),
+                ]
+            ),
+            (
+                .addCurveToPoint,
+                [
+                    CGPoint(x: minX, y: midY - cY),
+                    CGPoint(x: midX - cX, y: minY),
+                    CGPoint(x: midX, y: minY),
+                ]
+            ),
+            (.closeSubpath, []),
+        ]
+    }
 }
-public final class CGMutablePath: CGPath {
+public final class CGMutablePath: CGPath, @unchecked Sendable {
     public override init() { super.init() }
     public func move(to point: CGPoint) { elements.append((.moveToPoint, [point])) }
     public func addLine(to point: CGPoint) { elements.append((.addLineToPoint, [point])) }
@@ -355,13 +598,27 @@ public final class CGMutablePath: CGPath {
         }
     }
     public func addRect(_ rect: CGRect) {
-        move(to: CGPoint(x: rect.minX, y: rect.minY))
-        addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        closeSubpath()
+        elements.append(contentsOf: Self.rectElements(rect))
     }
-    public func addEllipse(in rect: CGRect) { _ = rect }
+    public func addRect(_ rect: CGRect, transform: CGAffineTransform) {
+        elements.append(contentsOf: Self.applying(transform, to: Self.rectElements(rect)))
+    }
+    public func addRects(_ rects: [CGRect]) {
+        for rect in rects {
+            addRect(rect)
+        }
+    }
+    public func addRects(_ rects: [CGRect], transform: CGAffineTransform) {
+        for rect in rects {
+            addRect(rect, transform: transform)
+        }
+    }
+    public func addEllipse(in rect: CGRect) {
+        elements.append(contentsOf: Self.ellipseElements(in: rect))
+    }
+    public func addEllipse(in rect: CGRect, transform: CGAffineTransform) {
+        elements.append(contentsOf: Self.applying(transform, to: Self.ellipseElements(in: rect)))
+    }
     public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {
         elements.append((.addCurveToPoint, [control1, control2, end]))
     }
@@ -375,11 +632,12 @@ public final class CGMutablePath: CGPath {
         _ = (tangent1End, tangent2End, radius)
     }
     public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
-        _ = (cornerWidth, cornerHeight)
-        addRect(rect)
+        elements.append(contentsOf: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight))
     }
     public func addPath(_ path: CGPath) { elements.append(contentsOf: path.elements) }
-    public func addPath(_ path: CGPath, transform: CGAffineTransform) { _ = transform; addPath(path) }
+    public func addPath(_ path: CGPath, transform: CGAffineTransform) {
+        elements.append(contentsOf: Self.applying(transform, to: path.elements))
+    }
     public func closeSubpath() { elements.append((.closeSubpath, [])) }
 }
 
@@ -611,13 +869,13 @@ public final class CGContext {
     public var colorSpace: CGColorSpace?
     public var textMatrix: CGAffineTransform = .identity
     public var textPosition: CGPoint = .zero
+    private var quillBitmapBytes: [UInt8]?
 
     public init() {}
 
-    /// Bitmap-context initializer. Inert on Linux: no pixel buffer is allocated
-    /// and nothing is drawn (the draw/fill methods are no-ops), so makeImage()
-    /// returns nil. Exists so the upstream raster paths (BlurHash) compile. The
-    /// init itself never returns nil.
+    /// Bitmap-context initializer. Drawing is still inert without a backend, but
+    /// the supplied pixels are retained so `makeImage()` can return a CGImage
+    /// instead of trapping callers that force-unwrap it.
     public convenience init?(
         data: UnsafeMutableRawPointer?,
         width: Int,
@@ -635,6 +893,10 @@ public final class CGContext {
         self.bytesPerRow = bytesPerRow
         self.colorSpace = space
         self.bitmapInfo = CGBitmapInfo(rawValue: bitmapInfo)
+        if let data, height > 0, bytesPerRow > 0 {
+            let count = height * bytesPerRow
+            quillBitmapBytes = Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self), count: count))
+        }
     }
 
     public convenience init?(
@@ -660,8 +922,14 @@ public final class CGContext {
         _ = (releaseCallback, releaseInfo)
     }
 
-    /// Inert: there is no backing bitmap on Linux, so no image is produced.
-    public func makeImage() -> CGImage? { nil }
+    public func makeImage() -> CGImage? {
+        let image = CGImage()
+        image.width = width
+        image.height = height
+        image.quillBytesPerRow = bytesPerRow
+        image.quillBGRAPixels = quillBitmapBytes
+        return image
+    }
 
     public var interpolationQuality: CGInterpolationQuality = .default
 
@@ -1041,6 +1309,12 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         self.init()
         self.size = CGSize(width: 32, height: 32)
     }
+    @_disfavoredOverload
+    public convenience init?<T>(_ source: T) {
+        self.init()
+        self.size = CGSize(width: 32, height: 32)
+        _ = source
+    }
     public func jpegData(compressionQuality: CGFloat) -> Data? { data }
     public var cgImage: CGImage? { nil }
     public func cgImage(forProposedRect rect: UnsafeMutablePointer<CGRect>?, context: Any?, hints: [AnyHashable: Any]?) -> CGImage? {
@@ -1166,6 +1440,7 @@ public class RSColor: NSObject, @unchecked Sendable {
     public static let clear = RSColor(red: 0, green: 0, blue: 0, alpha: 0)
     public static let white = RSColor(red: 1, green: 1, blue: 1, alpha: 1)
     public static let black = RSColor(red: 0, green: 0, blue: 0, alpha: 1)
+    public static let red = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
     public static let orange = RSColor(red: 1.0, green: 0.5, blue: 0.0, alpha: 1)
     public static let label = RSColor(red: 0.12, green: 0.12, blue: 0.13, alpha: 1)
     public static let secondaryLabel = RSColor(red: 0.38, green: 0.38, blue: 0.40, alpha: 1)
@@ -1268,8 +1543,15 @@ public typealias UIColor = RSColor
 
 public class RSFont: NSObject, @unchecked Sendable {
     public let pointSize: CGFloat
-    public init(pointSize: CGFloat) { self.pointSize = pointSize }
-    public override init() { self.pointSize = 13 }
+    public let fontName: String
+    public init(pointSize: CGFloat, fontName: String = ".AppleSystemUIFont") {
+        self.pointSize = pointSize
+        self.fontName = fontName
+    }
+    public override init() {
+        self.pointSize = 13
+        self.fontName = ".AppleSystemUIFont"
+    }
     public static func systemFont(ofSize size: CGFloat) -> RSFont { RSFont(pointSize: size) }
     public enum Weight { case ultraLight, light, regular, medium, semibold, bold, heavy, black }
 
@@ -1284,8 +1566,7 @@ public class RSFont: NSObject, @unchecked Sendable {
     // requested size (callers fall back / force-unwrap; keeping it failable lets
     // `UIFont(name:size:)!` type-check).
     public convenience init?(name: String, size: CGFloat) {
-        self.init(pointSize: size)
-        _ = name
+        self.init(pointSize: size, fontName: name)
     }
 
     public func withSize(_ size: CGFloat) -> RSFont { RSFont(pointSize: size) }

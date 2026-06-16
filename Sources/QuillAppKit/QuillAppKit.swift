@@ -20,6 +20,8 @@
 @_exported import QuartzCore
 @_exported import CoreVideo
 @_exported import ImageIO
+@_exported import CoreText
+@_exported import CoreServices
 import QuillKit
 import Glibc
 
@@ -333,7 +335,7 @@ public extension NSColor {
 }
 
 open class NSGraphicsContext: NSObject, @unchecked Sendable {
-    public static var current: NSGraphicsContext? = NSGraphicsContext(cgContext: CGContext(), flipped: false)
+    @MainActor public static var current: NSGraphicsContext? = NSGraphicsContext(cgContext: CGContext(), flipped: false)
     public let cgContext: CGContext
     public let isFlipped: Bool
 
@@ -467,6 +469,8 @@ open class NSFontManager: NSObject, @unchecked Sendable {
 }
 
 open class NSAppearance: NSObject, @unchecked Sendable {
+    nonisolated(unsafe) public static var current: NSAppearance?
+
     public struct Name: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -599,6 +603,7 @@ open class NSResponder: NSObject, @preconcurrency QuillSelectorDispatching {
     open func rightMouseDown(with event: NSEvent) { nextResponder?.rightMouseDown(with: event) }
     open func rightMouseUp(with event: NSEvent) { nextResponder?.rightMouseUp(with: event) }
     open func mouseDragged(with event: NSEvent) { nextResponder?.mouseDragged(with: event) }
+    open func rightMouseDragged(with event: NSEvent) { nextResponder?.rightMouseDragged(with: event) }
     open func mouseMoved(with event: NSEvent) { nextResponder?.mouseMoved(with: event) }
     open func mouseEntered(with event: NSEvent) { nextResponder?.mouseEntered(with: event) }
     open func mouseExited(with event: NSEvent) { nextResponder?.mouseExited(with: event) }
@@ -741,6 +746,7 @@ open class NSView: NSResponder {
     public var subviews: [NSView] = []
     public private(set) var constraints: [NSLayoutConstraint] = []
     private var nextToolTipTag: ToolTipTag = 1
+    private var quillCursorRectStorage: [QuillCursorRect] = []
     public weak var superview: NSView?
     public weak var window: NSWindow?
     open var isHidden: Bool = false
@@ -792,6 +798,16 @@ open class NSView: NSResponder {
         public static let maxXMargin = AutoresizingMask(rawValue: 1 << 2)
         public static let minYMargin = AutoresizingMask(rawValue: 1 << 3)
         public static let maxYMargin = AutoresizingMask(rawValue: 1 << 5)
+    }
+
+    public struct QuillCursorRect {
+        public let rect: NSRect
+        public let cursor: NSCursor
+
+        public init(rect: NSRect, cursor: NSCursor) {
+            self.rect = rect
+            self.cursor = cursor
+        }
     }
 
     // Convenience (not designated) so NSView matches real AppKit, where the
@@ -1094,6 +1110,24 @@ open class NSView: NSResponder {
     open func viewDidUnhide() {}
     open func updateTrackingAreas() {}
     open func resetCursorRects() {}
+    public func addCursorRect(_ rect: NSRect, cursor: NSCursor) {
+        guard rect.size.width > 0, rect.size.height > 0 else { return }
+        quillCursorRectStorage.append(QuillCursorRect(rect: rect, cursor: cursor))
+    }
+    public func discardCursorRects() {
+        quillCursorRectStorage.removeAll()
+    }
+    public var quillCursorRects: [QuillCursorRect] {
+        quillCursorRectStorage
+    }
+    public func quillCursor(at point: NSPoint) -> NSCursor? {
+        for entry in quillCursorRectStorage.reversed() {
+            if isMousePoint(point, in: entry.rect) {
+                return entry.cursor
+            }
+        }
+        return nil
+    }
     open func didAddSubview(_ subview: NSView) { _ = subview }
     open func willRemoveSubview(_ subview: NSView) { _ = subview }
 
@@ -1369,6 +1403,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     open func viewDidAppear() {}
     open func viewWillDisappear() {}
     open func viewDidDisappear() {}
+    open func viewWillLayout() {}
     open func loadView() {}
     public func addChild(_ c: NSViewController) {
         guard !children.contains(where: { $0 === c }) else { return }
@@ -1385,6 +1420,20 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public func presentAsSheet(_ vc: NSViewController) {}
     public func presentAsModalWindow(_ vc: NSViewController) {}
     public func dismiss(_ sender: Any?) {}
+    @discardableResult
+    open func presentError(_ error: any Error) -> Bool {
+        _ = error
+        return false
+    }
+    open func presentError(
+        _ error: any Error,
+        modalFor window: NSWindow,
+        delegate: Any?,
+        didPresent: Selector?,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        _ = (error, window, delegate, didPresent, contextInfo)
+    }
 }
 
 open class NSWindowController: NSResponder {
@@ -1400,8 +1449,12 @@ open class NSWindowController: NSResponder {
         self.window = window
         quillUpdateWindowControllerLink(from: nil)
     }
+    public override convenience init() {
+        self.init(window: nil)
+    }
     public func showWindow(_ sender: Any?) { window?.makeKeyAndOrderFront(sender) }
     public func close() { window?.close() }
+    open func newWindowForTab(_ sender: Any?) { _ = sender }
     public var shouldCascadeWindows: Bool = true
     public var windowFrameAutosaveName: String = ""
 
@@ -1416,6 +1469,26 @@ open class NSWindowController: NSResponder {
             }
             window.windowController = self
         }
+    }
+}
+
+open class NSStoryboard: NSObject, @unchecked Sendable {
+    public typealias Name = String
+    public typealias SceneIdentifier = String
+
+    public let name: Name
+    public let bundle: Bundle?
+
+    public init(name: Name, bundle: Bundle?) {
+        self.name = name
+        self.bundle = bundle
+        super.init()
+    }
+
+    open func instantiateController(withIdentifier identifier: SceneIdentifier) -> Any {
+        let window = NSWindow()
+        window.title = identifier
+        return NSWindowController(window: window)
     }
 }
 
@@ -1442,6 +1515,8 @@ public extension NSWindowDelegate {
 }
 
 open class NSWindow: NSResponder {
+    public static let didBecomeMainNotification = Notification.Name("NSWindowDidBecomeMainNotification")
+
     /// `NSWindow.FrameAutosaveName` (= String) — the type passed to
     /// `setFrameAutosaveName(_:)`. WireGuard's LogViewController builds one
     /// (`NSWindow.FrameAutosaveName("LogWindow")`) to persist window geometry.
@@ -1890,6 +1965,9 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     public var dockTile: NSDockTile = NSDockTile()
     public var presentationOptions: PresentationOptions = []
     public var currentEvent: NSEvent?
+    public var effectiveAppearance: NSAppearance {
+        NSAppearance.current ?? NSAppearance()
+    }
 
     public enum ActivationPolicy: Int, Sendable {
         case regular, accessory, prohibited
@@ -1997,12 +2075,18 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         let responder = eventWindow?.firstResponder ?? eventWindow?.contentView ?? eventWindow ?? self
 
         switch event.type {
-        case .leftMouseDown, .rightMouseDown:
+        case .leftMouseDown:
             responder.mouseDown(with: event)
-        case .leftMouseUp, .rightMouseUp:
+        case .rightMouseDown:
+            responder.rightMouseDown(with: event)
+        case .leftMouseUp:
             responder.mouseUp(with: event)
-        case .leftMouseDragged, .rightMouseDragged:
+        case .rightMouseUp:
+            responder.rightMouseUp(with: event)
+        case .leftMouseDragged:
             responder.mouseDragged(with: event)
+        case .rightMouseDragged:
+            responder.rightMouseDragged(with: event)
         case .mouseMoved:
             responder.mouseMoved(with: event)
         case .keyDown:
@@ -2015,8 +2099,17 @@ open class NSApplication: NSResponder, @unchecked Sendable {
             responder.flagsChanged(with: event)
         case .scrollWheel:
             responder.scrollWheel(with: event)
-        case .mouseEntered, .mouseExited, .appKitDefined, .systemDefined,
-             .applicationDefined, .periodic, .cursorUpdate, .magnify, .smartMagnify:
+        case .mouseEntered:
+            responder.mouseEntered(with: event)
+        case .mouseExited:
+            responder.mouseExited(with: event)
+        case .cursorUpdate:
+            responder.cursorUpdate(with: event)
+        case .magnify:
+            responder.magnify(with: event)
+        case .smartMagnify:
+            responder.smartMagnify(with: event)
+        case .appKitDefined, .systemDefined, .applicationDefined, .periodic:
             break
         }
     }
@@ -2043,6 +2136,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
 }
 
 public extension NSApplicationDelegate {
+    static func main() {}
     func applicationDidFinishLaunching(_ notification: Notification) {}
     func applicationWillTerminate(_ notification: Notification) {}
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -2114,6 +2208,8 @@ open class NSEvent: NSObject, @unchecked Sendable {
         public static let periodic = mask(.periodic)
         public static let cursorUpdate = mask(.cursorUpdate)
         public static let scrollWheel = mask(.scrollWheel)
+        public static let magnify = mask(.magnify)
+        public static let smartMagnify = mask(.smartMagnify)
         public static let any = EventTypeMask(rawValue: UInt64.max)
     }
     public var type: EventType = .keyDown
@@ -2267,6 +2363,11 @@ open class NSGestureRecognizer: NSObject {
 
     public override init() {
         super.init()
+    }
+
+    public func location(in view: AnyObject?) -> NSPoint {
+        _ = view
+        return .zero
     }
 }
 
@@ -2851,8 +2952,23 @@ public protocol NSPasteboardReading {}
 open class NSWorkspace: NSObject, @unchecked Sendable {
     public static let shared = NSWorkspace()
     public var notificationCenter = NotificationCenter()
+    public var isVoiceOverEnabled: Bool = false
     public var runningApplications: [NSRunningApplication] {
         NSRunningApplication.runningApplications()
+    }
+
+    public struct LaunchOptions: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let `default` = LaunchOptions([])
+        public static let async = LaunchOptions(rawValue: 1 << 0)
+        public static let withoutActivation = LaunchOptions(rawValue: 1 << 1)
+    }
+
+    public struct LaunchConfigurationKey: Hashable, RawRepresentable, Sendable, ExpressibleByStringLiteral {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
     }
 
     @discardableResult
@@ -2868,6 +2984,18 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
     public func openApplication(at url: URL, configuration: OpenConfiguration, completionHandler: ((Any?, Error?) -> Void)? = nil) {
         let ok = _xdgOpen(url.path, operation: "NSWorkspace.openApplication(at:configuration:completionHandler:)")
         completionHandler?(ok ? nil : nil, ok ? nil : NSError(domain: "QuillNSWorkspace", code: 1))
+    }
+
+    public func open(
+        _ urls: [URL],
+        withApplicationAt applicationURL: URL,
+        options: LaunchOptions = [],
+        configuration: [LaunchConfigurationKey: Any] = [:]
+    ) throws {
+        _ = (applicationURL, options, configuration)
+        for url in urls {
+            _ = _xdgOpen(url.path, operation: "NSWorkspace.open(_:withApplicationAt:options:configuration:)")
+        }
     }
 
     @discardableResult
@@ -3134,14 +3262,25 @@ open class NSCursor: NSObject {
     public static let dragCopy = NSCursor()
     public static let contextualMenu = NSCursor()
     public static let disappearingItem = NSCursor()
-    public static var current: NSCursor { arrow }
+    private static var quillCurrentCursor: NSCursor?
+    private static var quillCursorStack: [NSCursor] = []
+    public static var current: NSCursor { quillCurrentCursor ?? arrow }
 
     public override init() {}
     public init(image: NSImage, hotSpot: NSPoint) {}
-    public func push() {}
-    public func pop() {}
-    public func set() {}
-    public static func pop() {}
+    public func push() {
+        NSCursor.quillCursorStack.append(NSCursor.current)
+        set()
+    }
+    public func pop() {
+        NSCursor.pop()
+    }
+    public func set() {
+        NSCursor.quillCurrentCursor = self
+    }
+    public static func pop() {
+        quillCurrentCursor = quillCursorStack.popLast() ?? arrow
+    }
     public static func hide() {}
     public static func unhide() {}
     public static func setHiddenUntilMouseMoves(_ flag: Bool) {}
@@ -3212,6 +3351,11 @@ open class NSTextAttachment: NSObject {
 }
 
 public extension NSAttributedString {
+    convenience init?(rtf data: Data, documentAttributes dict: UnsafeMutablePointer<NSDictionary?>?) {
+        _ = dict
+        self.init(string: String(data: data, encoding: .utf8) ?? "")
+    }
+
     convenience init(attachment: NSTextAttachment) {
         self.init(string: "\u{FFFC}", attributes: [.attachment: attachment])
     }
@@ -3371,6 +3515,16 @@ open class NSMenu: NSObject, @preconcurrency QuillSelectorDispatching {
     public func insertItem(_ i: NSMenuItem, at idx: Int) {
         i.menu = self
         items.insert(i, at: idx)
+    }
+    public func insertItem(
+        withTitle title: String,
+        action: Selector?,
+        keyEquivalent: String,
+        at index: Int
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        insertItem(item, at: index)
+        return item
     }
     public func removeItem(_ i: NSMenuItem) {
         items.removeAll { $0 === i }
@@ -3655,6 +3809,11 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
     public static var _runModalHook: ((NSAlert) -> NSApplication.ModalResponse?)?
 
     public override init() { super.init() }
+    public convenience init(error: any Error) {
+        self.init()
+        self.alertStyle = .critical
+        self.messageText = (error as NSError).localizedDescription
+    }
     public func addButton(withTitle title: String) -> NSButton {
         let b = NSButton()
         b.title = title
@@ -4161,6 +4320,9 @@ open class NSTextView: NSText {
     open func hasMarkedText() -> Bool { false }
     open var textContainerOrigin: NSPoint { .zero }
     public var attributedString: NSAttributedString { NSAttributedString(string: string) }
+    public func scrollToEndOfDocument(_ sender: Any?) {
+        _ = sender
+    }
     /// NSTextView's designated init is `init(frame:textContainer:)` (Apple-faithful;
     /// WireGuard's ConfTextView calls it). Declaring it means NSTextView stops
     /// inheriting NSView's inits, so re-declare them to keep NSTextView() /
@@ -4904,6 +5066,18 @@ open class NSPopUpButton: NSButton {
         self.cell = NSPopUpButtonCell()
     }
     public convenience init() { self.init(frame: .zero, pullsDown: false) }
+    public override convenience init(title: String, target: Any?, action: Selector?) {
+        self.init(frame: .zero, pullsDown: false)
+        self.title = title
+        self.target = target as AnyObject?
+        self.action = action
+    }
+    public func select(_ item: NSMenuItem?) {
+        guard let item, let items = menu?.items, let index = items.firstIndex(where: { $0 === item }) else {
+            return
+        }
+        selectItem(item, at: index)
+    }
 
     private func ensureMenu() -> NSMenu {
         if let menu { return menu }
@@ -5005,6 +5179,9 @@ open class NSSplitView: NSView {
         } else {
             addSubview(v)
         }
+    }
+    public func insertArrangedSubview(_ v: AnyObject, at idx: Int) {
+        _ = (v, idx)
     }
     public func removeArrangedSubview(_ v: NSView) {
         arrangedSubviews.removeAll { $0 === v }
@@ -5993,7 +6170,7 @@ public extension NSOutlineViewDataSource {
 // Apple parity (#512): NSDocument is @MainActor in the macOS SDK.
 @preconcurrency @MainActor
 open class NSDocument: NSObject {
-    public var fileURL: URL?
+    open var fileURL: URL?
     public var fileType: String?
     public var fileModificationDate: Date?
     private var explicitDisplayName: String?
@@ -6004,6 +6181,7 @@ open class NSDocument: NSObject {
     public var isDocumentEdited: Bool = false
     public var hasUnautosavedChanges: Bool = false
     public var windowControllers: [NSWindowController] = []
+    open var windowForSheet: NSWindow? { windowControllers.first?.window }
     public weak var undoManager: UndoManager?
     private var changeCountDepth: Int = 0
 
@@ -6037,6 +6215,9 @@ open class NSDocument: NSObject {
             windowController.close()
         }
     }
+    open func read(from url: URL, ofType typeName: String) throws {
+        _ = (url, typeName)
+    }
     open func read(from data: Data, ofType: String) throws {}
     open func data(ofType: String) throws -> Data { Data() }
     open func write(to url: URL, ofType: String) throws {}
@@ -6055,6 +6236,15 @@ open class NSDocument: NSObject {
         }
         isDocumentEdited = changeCountDepth > 0
         hasUnautosavedChanges = isDocumentEdited
+    }
+    @discardableResult
+    open func presentError(_ error: any Error) -> Bool {
+        _ = error
+        return false
+    }
+    open func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        _ = item
+        return true
     }
     public enum ChangeType: UInt, Sendable { case changeDone, changeUndone, changeRedone, changeCleared, changeReadOtherContents, changeAutosaved, changeDiscardable }
 }
@@ -6102,6 +6292,11 @@ open class NSDocumentController: NSObject {
     }
     public func newDocument(_ sender: Any?) {}
     public func openDocument(_ sender: Any?) {}
+    @discardableResult
+    public func presentError(_ error: any Error) -> Bool {
+        _ = error
+        return false
+    }
 }
 
 // MARK: - NSHostingView / NSHostingController / NSViewRepresentable bridges
@@ -6300,7 +6495,14 @@ public enum NSHapticFeedbackPerformanceTime: Int, Sendable { case `default`, now
 // MARK: - NSSharingService / NSSound / NSItemProvider helpers / NSDraggingInfo
 
 open class NSSharingService: NSObject, @unchecked Sendable {
+    public var recipients: [String] = []
+    public var subject: String = ""
+
     public init?(named: NSSharingService.Name) {}
+    public func canPerform(withItems items: [Any]) -> Bool {
+        _ = items
+        return false
+    }
     public func perform(withItems: [Any]) {}
     public struct Name: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
@@ -6310,6 +6512,20 @@ open class NSSharingService: NSObject, @unchecked Sendable {
         public static let composeEmail = Name(rawValue: "")
     }
     public static func sharingServices(forItems: [Any]) -> [NSSharingService] { [] }
+}
+
+open class NSSpeechSynthesizer: NSObject, @unchecked Sendable {
+    public init?(voice: String?) {
+        _ = voice
+        super.init()
+    }
+
+    public func startSpeaking(_ string: String) -> Bool {
+        _ = string
+        return false
+    }
+
+    public func stopSpeaking() {}
 }
 
 open class NSSound: NSObject, @unchecked Sendable {

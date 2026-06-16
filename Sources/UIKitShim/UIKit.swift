@@ -13,6 +13,7 @@
 // now that QuillUIKit's stub was removed in favor of the dedicated shim.
 @_exported import UserNotifications
 @_exported import CoreTransferable
+@_exported import CoreText
 // On iOS, Apple's UIKit re-exports QuartzCore — `import UIKit` alone exposes
 // CALayer/CAShapeLayer/CATransaction. Signal-iOS's SignalUI relies on this
 // (~4.8k of its conformance-build errors were CA* names with no QuartzCore
@@ -423,13 +424,12 @@ public final class NSTextContainer {
     public var lineFragmentPadding: CGFloat = 0
     public weak var layoutManager: NSLayoutManager?
     public var size: CGSize
-    public var maximumNumberOfLines: Int
-    public var lineBreakMode: NSLineBreakMode
+    public var maximumNumberOfLines: Int = 0
+    public var lineBreakMode: NSLineBreakMode = .byWordWrapping
     public init(size: CGSize = .zero) {
         self.size = size
-        self.maximumNumberOfLines = 0
-        self.lineBreakMode = .byWordWrapping
     }
+
     public func replaceLayoutManager(_ newLayoutManager: NSLayoutManager) {
         layoutManager = newLayoutManager
         if !newLayoutManager.textContainers.contains(where: { $0 === self }) {

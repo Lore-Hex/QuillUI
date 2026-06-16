@@ -70,10 +70,8 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    the graph is held faithfully for the rung-3 rasteriser. The SceneKit shim
    gains a `SwiftUI` dep (for `SceneView`) — acyclic, and the
    `Color(nsColor:)`/`Color(uiColor:)` bridges real source uses were added
-   to the shared shim. STILL TODO at this rung: census + compile
-   `QuillEuclidExample` and `QuillShapeScriptViewer` (they need Euclid's
-   `canImport(SceneKit)` interop + the `SCNGeometrySource` data marshalling
-   to light up — a deeper surface than the fixtures).
+   to the shared shim. The real app-tier compile moved to rung 2c because it
+   wakes Euclid and ShapeScript interop beyond the fixture surface.
 2b. **App-tier interop surface authored; Euclid interop verified** — the
    Mesh⇄SCNGeometry marshalling that Euclid's `Euclid+SceneKit` needs is now
    in the shim: `SCNGeometrySource(vertices:/normals:/textureCoordinates:)`,
@@ -87,32 +85,56 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    `defaultMaterialLookup` needs. With these, **`Euclid`'s full SceneKit/
    AppKit/CoreGraphics interop compiles 727 → 0 errors** (verified on a
    branch that declared the interop deps).
+   The follow-up CoreGraphics quality pass now makes recorded `CGPath` data
+   transform-aware (`CGPath(rect:transform:)`, `copy(using:)`, and
+   `CGMutablePath.addPath(_:transform:)`) and records rounded rects/ellipses as
+   cubic curve elements instead of plain rectangles. `CoreGraphicsTests`
+   exercises this through a direct `import CoreGraphics` path.
 
-   ⚠️ ENABLEMENT IS DEFERRED and is an all-at-once campaign, not a quick step:
-   `ShapeScript` depends on `Euclid`, so giving `Euclid` a `SceneKit` dep
-   leaks `canImport(SceneKit)` (and `UIKit`) into `ShapeScript`'s graph,
-   waking *its* dormant interop (`Material+SceneKit`/`Scene+SceneKit` — a deep
-   UIKit + CoreText-font + ObjC-associated-object + URL-content-type surface,
-   ~50 distinct errors), which would regress the green rung-1 CLI. And the
-   `canImport(CoreGraphics)` build-order leak makes even a *pure* Euclid go
-   red in a poisoned shared scratch. So rung-2 app-tier = enable Euclid
-   interop **and** fix ShapeScript interop **and** the two viewer apps
-   (`QuillEuclidExample` ≈135 errors: UIKit gesture recognisers + RealityKit
-   `ModelEntity` + `#selector`; `QuillShapeScriptViewer` ≈103: AppKit
-   NSDocument) together. Euclid stays pure until then; the shim surface above
-   is committed and ready.
-3. **Fixtures render on GTK**: software-render the scene graph (project the
-   sphere/cylinder primitives via the existing Cairo CGContext path — flat
-   shading first, the fixtures' scenes are deliberately simple) behind
-   SwiftUI `SceneView`/AppKit `SCNView` hosts. Screenshot gates like
-   SolderScope's.
-4. **QuillEuclidExample renders**: real mesh data via SCNGeometry sources/
-   elements (Euclid's `canImport(SceneKit)` interop lights up here and
-   hands us triangle meshes directly).
-5. **QuillShapeScriptViewer launches**: NSDocument chrome via QuillAppKit +
-   SCNView viewport; ShapeScript's evaluator already supplies the meshes.
-6. **Pixel parity** vs macOS references (QuillPaint pipeline), camera
-   controls, hit-testing — driven by what the apps actually use.
+   This surface is now enabled by rung 2c. The key build gotcha remains:
+   `canImport` state can look poisoned in a shared scratch, so use clean
+   isolated volumes per concern when validating SceneKit/ShapeScript changes.
+2c. **App-tier compile enablement** — ✅ DONE. Euclid now builds with
+   `SceneKit`/`UIKit`/`AppKit`/`CoreGraphics` deps so its real
+   `Euclid+SceneKit` and `Euclid+CoreGraphics` interop compiles. The Euclid
+   example compiles after Linux-only fetch-time source lowering handles the
+   selector/init glue and the inert RealityKit shim supplies its small
+   RealityKit screen. ShapeScript's woken `Material+SceneKit`/
+   `Scene+SceneKit`/CoreText importer surface compiles, and the shipped
+   AppKit `QuillShapeScriptViewer` compiles against `SCNView`, `Cocoa`, and
+   `CoreServices`. Verified on Linux Docker:
+   `QuillFoundation`, `QuillUIKit`, `SceneKit`, `QuillSolarSystem`,
+   `QuillMoleculeViewer`, `QuillEuclidExample`, `ShapeScript`,
+   `QuillShapeScriptCLI`, and `QuillShapeScriptViewer`. Rendering is still
+   inert; rung 3 is the first raster output gate.
+3. **Fixtures render on GTK** — ✅ DONE. `SceneView` and `SCNView` now route
+   the retained SceneKit graph through a deterministic software renderer,
+   drawing BGRA `CGImage`s through the existing AppKit/GTK custom-draw path.
+   The renderer covers the fixture surface (`SCNSphere`, `SCNCylinder`,
+   `SCNBox`, basic node transforms/camera projection, materials, and scene
+   background). Verified by `quill-scenekit-render-smoke` direct pixel checks
+   and an Xvfb GTK `SceneView` smoke that differs from a solid-black reference.
+4. **QuillEuclidExample renders** — ✅ DONE for the real mesh path. The
+   software renderer decodes `SCNGeometrySource`/`SCNGeometryElement` buffers
+   for triangles, strips, lines, points, and polygon fans, so Euclid's
+   `SCNGeometry(mesh)` interop renders actual mesh data. Verified by
+   `quill-euclid-render-smoke`, which builds a real `Euclid.Mesh`, converts it
+   through `SCNGeometry(mesh)`, renders it, and asserts colored pixels.
+5. **QuillShapeScriptViewer launches** — ✅ DONE. `QuillShapeScriptViewer` is
+   now exposed as a SwiftPM executable product, rebuilds against the rendered
+   `SCNView`, and launch-smokes under Xvfb by staying alive until timeout with
+   no early crash.
+6. **Pixel parity / controls / hit-testing** — IN PROGRESS. `SCNView.hitTest`
+   now uses the same projected primitives as the software renderer and returns
+   nearest-first `SCNHitTestResult`s, covering ShapeScript's geometry-selection
+   path. Camera orientation is now respected by the software renderer, and
+   deterministic `SCNView` camera-control movement is smoke-gated by creating a
+   moved point-of-view camera for ShapeScript-style `cameraHasMoved` checks.
+   The AppKit event pump now forwards pointer, scroll, magnify, cursor, and
+   enter/exit events through `NSApplication.sendEvent`, with a SceneView backing
+   view smoke proving application-dispatched orbit and magnify controls reach
+   the camera. Native GTK event-controller synthesis for hosted `NSView`s and
+   full macOS pixel-reference parity remain open.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
 existing 2D paint layer. That is enough for these apps' scene scale; a GL/
@@ -125,9 +147,9 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Inert RealityKit shim module (Euclid Example's RealityKitViewController)
 - [x] Rung 1: Euclid + ShapeScript lib/CLI green on Linux (CLI renders .shape → .stl)
 - [x] Rung 2 (fixtures): SceneKit scene-graph shim authored; QuillSolarSystem + QuillMoleculeViewer compile
-- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0 (enablement deferred — see ladder note)
-- [ ] Rung 2c (app-tier enablement): enable Euclid interop + fix ShapeScript interop + QuillEuclidExample + QuillShapeScriptViewer compile (all-at-once)
-- [ ] Rung 3: fixtures render (GTK screenshot gate)
-- [ ] Rung 4: QuillEuclidExample renders
-- [ ] Rung 5: QuillShapeScriptViewer launches
-- [ ] Rung 6: pixel parity
+- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0; CGPath transform/curve recording now directly tested
+- [x] Rung 2c (app-tier enablement): enable Euclid interop + fix ShapeScript interop + QuillEuclidExample + QuillShapeScriptViewer compile (all-at-once)
+- [x] Rung 3: fixtures render (GTK screenshot gate)
+- [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
+- [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
+- [ ] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, deterministic camera movement, and AppKit-pump-dispatched camera movement are smoke-gated; native GTK event synthesis and macOS golden images remain open)
