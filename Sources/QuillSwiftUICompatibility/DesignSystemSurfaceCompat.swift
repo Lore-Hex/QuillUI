@@ -919,7 +919,7 @@ public extension EnvironmentValues {
 }
 
 public extension Shape where Self == Circle {
-    static var circle: Circle { Circle() }
+    @MainActor static var circle: Circle { Circle() }
 }
 
 public struct ToolbarSpacer: ToolbarContent, ToolbarContentItemsProvider {
@@ -1076,6 +1076,7 @@ public struct ButtonStyleConfiguration {
     public let label: AnyView
     public let isPressed: Bool
 
+    @MainActor
     public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
         self.label = label
         self.isPressed = isPressed
@@ -1770,6 +1771,7 @@ public struct TableColumn<RowValue, Content: View>: View {
 public struct AnyTableColumn<RowValue>: View {
     public var title: String
 
+    @MainActor
     public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
         self.title = column.title
     }
@@ -1785,7 +1787,7 @@ public enum TableColumnBuilder<RowValue> {
         columns.flatMap { $0 }
     }
 
-    public static func buildExpression<Content: View>(
+    @MainActor public static func buildExpression<Content: View>(
         _ column: TableColumn<RowValue, Content>
     ) -> [AnyTableColumn<RowValue>] {
         [AnyTableColumn(column)]
