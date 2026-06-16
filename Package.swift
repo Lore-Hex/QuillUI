@@ -1642,7 +1642,7 @@ if nnwUpstreamEnabled {
             // "Account" belongs to the IceCubes lane); this in-repo shim
             // imports it directly (no module-alias, so it uses the real
             // target name rather than NNW's aliased `import Account`).
-            dependencies: ["NNWAccount", "RSCore"],
+            dependencies: ["NNWAccount", "Articles", "RSCore"],
             path: "Sources/ImagesShimModule",
             swiftSettings: appSwiftSettings
         )
@@ -1651,7 +1651,7 @@ if nnwUpstreamEnabled {
     targets += [
         .target(
             name: "NetNewsWireSharedCore",
-            dependencies: ["NNWAccount", "ActivityLog", "AppKit", "Articles", "ArticlesDatabase", "Images", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
+            dependencies: ["NNWAccount", "ActivityLog", "AppKit", "Articles", "ArticlesDatabase", "Images", "QuillShims", "RSCore", "RSParser", "RSTree", "SwiftUI", "UIKit"],
             path: ".upstream/netnewswire/Shared",
             exclude: [
                 "Activity/ActivityManager.swift",
@@ -1670,26 +1670,13 @@ if nnwUpstreamEnabled {
                 "ArticleStyles/ArticleThemesManager.swift",
                 "Commands/DeleteCommand.swift",
                 "ExtensionPoints",
-                "Extensions/AddFeedDefaultContainer.swift",
-                "Extensions/CacheCleaner.swift",
                 "Extensions/IconImageView.swift",
                 "Extensions/NSAttributedString+Extensions.swift",
-                "Extensions/Node+Extensions.swift",
-                "Extensions/RSImage+Extensions.swift",
-                "IconImageCache.swift",
-                "Importers",
                 "Resources",
-                "ShareExtension/ExtensionContainersFile.swift",
-                "ShareExtension/ExtensionFeedAddRequestFile.swift",
                 "ShareExtension/SafariExt.js",
-                "ShareExtension/ShareDefaultContainer.swift",
-                "SmartFeeds/SmartFeedPasteboardWriter.swift",
                 "Timeline/FetchRequestOperation.swift",
                 "Timeline/FetchRequestQueue.swift",
-                "Timer/AccountRefreshTimer.swift",
-                "Timer/ArticleStatusSyncTimer.swift",
                 "Tree",
-                "UserNotifications",
                 "Widget/WidgetDataDecoder.swift",
                 "Widget/WidgetDataEncoder.swift",
             ],
@@ -1712,29 +1699,43 @@ if nnwUpstreamEnabled {
                 "Dinosaurs/DinosaursViewModel.swift",
                 "Extensions/ArticleStringFormatter.swift",
                 "Extensions/ArticleUtilities.swift",
+                "Extensions/AddFeedDefaultContainer.swift",
+                "Extensions/CacheCleaner.swift",
+                "Extensions/Node+Extensions.swift",
+                "Extensions/RSImage+Extensions.swift",
                 "Extensions/SmallIconProvider.swift",
                 "Exporters/OPMLExporter.swift",
                 "HelpURL.swift",
+                "IconImageCache.swift",
+                "Importers/DefaultFeedsImporter.swift",
                 "Settings/AddCloudKitAccount.swift",
                 "ShareExtension/ExtensionContainers.swift",
+                "ShareExtension/ExtensionContainersFile.swift",
                 "ShareExtension/ExtensionFeedAddRequest.swift",
+                "ShareExtension/ExtensionFeedAddRequestFile.swift",
+                "ShareExtension/ShareDefaultContainer.swift",
                 "SmartFeeds/PseudoFeed.swift",
                 "SmartFeeds/SearchFeedDelegate.swift",
                 "SmartFeeds/SearchTimelineFeedDelegate.swift",
                 "SmartFeeds/SmartFeed.swift",
                 "SmartFeeds/SmartFeedDelegate.swift",
+                "SmartFeeds/SmartFeedPasteboardWriter.swift",
                 "SmartFeeds/SmartFeedsController.swift",
                 "SmartFeeds/StarredFeedDelegate.swift",
                 "SmartFeeds/TodayFeedDelegate.swift",
                 "SmartFeeds/UnreadFeed.swift",
                 "Timeline/ArticleArray.swift",
                 "Timeline/ArticleSorter.swift",
+                "Timer/AccountRefreshTimer.swift",
+                "Timer/ArticleStatusSyncTimer.swift",
                 "Timer/RefreshInterval.swift",
                 "UserInfoKey.swift",
+                "UserNotifications/UserNotificationManager.swift",
                 "Widget/WidgetData.swift",
                 "Widget/WidgetDataDecoder.swift",
                 "Widget/WidgetDeepLinks.swift",
             ],
+            resources: [.process("Importers/DefaultFeeds.opml")],
             swiftSettings: nnwSwiftSettings
         )
     ]
@@ -3655,7 +3656,7 @@ let packageTestTargets: [Target] = {
         // through the local QuillNetNewsWireCore reader replacement.
         tests.append(.testTarget(
             name: "NetNewsWireSharedCoreTests",
-            dependencies: ["NNWAccount", "ActivityLog", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore"],
+            dependencies: ["NNWAccount", "ActivityLog", "AppKit", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore", "RSTree", "UserNotifications"],
             swiftSettings: nnwSwiftSettings
         ))
     }
