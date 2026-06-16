@@ -516,7 +516,7 @@ let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
 // targets don't exist, so the dependencies must vanish entirely (a
 // `.when(platforms:)` condition would still dangle: SwiftPM validates named
 // targets even when the condition is off).
-let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore", "CoreGraphics"]
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore", "CoreGraphics", "UniformTypeIdentifiers"]
 let uiKitShimDependencies: [Target.Dependency] =
     ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore", "CoreTransferable"]
 // V4L2 capture backend (#515): Linux-only system library; Apple graphs
@@ -3233,7 +3233,7 @@ if quillUILinuxBuildBackend == .qt {
         // rendered through Qt6. All GTK-free.
         .target(
             name: "QuillUIKit",
-            dependencies: ["QuillFoundation", "QuillKit"],
+            dependencies: ["QuillFoundation", "QuillKit", "UniformTypeIdentifiers"],
             path: "Sources/QuillUIKit"
         ),
         // Inert GTK-free Apple-framework shims the AppKit shadow
@@ -4265,7 +4265,8 @@ targets += [
     .testTarget(
         name: "QuartzCoreTests",
         dependencies: ["QuartzCore"],
-        path: "Tests/QuartzCoreTests"
+        path: "Tests/QuartzCoreTests",
+        swiftSettings: [.swiftLanguageMode(.v5)]
     ),
 ]
 #endif

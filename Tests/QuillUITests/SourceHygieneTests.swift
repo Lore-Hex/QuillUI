@@ -301,6 +301,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/linux-swift-test.sh"),
             encoding: .utf8
         )
+        let gtkPatchScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/patch-swiftopenui-gtk-css.sh"),
+            encoding: .utf8
+        )
         let backendBuildScript = try String(
             contentsOf: root.appendingPathComponent("scripts/build-linux-backend-products.sh"),
             encoding: .utf8
@@ -326,6 +330,10 @@ struct SourceHygieneTests {
         #expect(linuxSwiftTest.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(linuxSwiftTest.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(!linuxSwiftTest.contains("patch-swiftopenui-gtk-css.sh"))
+        #expect(gtkPatchScript.contains("GRDB_SOURCE_DIR=\"$SCRATCH_PATH/checkouts/GRDB.swift/GRDB\""))
+        #expect(gtkPatchScript.contains("new = disable_can_import(text, \"Combine\")"))
+        #expect(gtkPatchScript.contains("QUILLUI_GRDB_SKIP_CGFLOAT_ON_LINUX"))
+        #expect(gtkPatchScript.contains("missing required module 'COpenCombineHelpers'"))
         #expect(backendBuildScript.contains("quillui_prepare_backend_once()"))
         #expect(backendBuildScript.contains("PREPARED_BACKENDS=$'\\n'"))
         #expect(backendBuildScript.contains("scripts/prepare-linux-build-backend.sh"))
@@ -583,7 +591,7 @@ struct SourceHygieneTests {
         )
 
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\"]"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\", \"UniformTypeIdentifiers\"]"))
         #expect(pasteboardAdditions.contains("import CoreGraphics"))
         #expect(uiKitShim.contains("public typealias UIEdgeInsets = QuillEdgeInsets"))
         #expect(uiKitShim.contains("public weak var layoutManager: NSLayoutManager?"))
@@ -609,11 +617,15 @@ struct SourceHygieneTests {
 
     @Test("QuartzCore layer tests match CALayer main-actor isolation")
     func quartzCoreLayerTestsMatchCALayerMainActorIsolation() throws {
+        let manifest = try packageSource("Package.swift")
         let modelTests = try packageSource("Tests/QuartzCoreTests/CALayerModelTests.swift")
         let timingTests = try packageSource("Tests/QuartzCoreTests/CAAnimationTimingTests.swift")
 
-        #expect(modelTests.contains("@MainActor\nfinal class CALayerModelTests: XCTestCase"))
-        #expect(timingTests.contains("@MainActor\nfinal class CAAnimationTimingTests: XCTestCase"))
+        #expect(manifest.contains("name: \"QuartzCoreTests\",\n        dependencies: [\"QuartzCore\"],\n        path: \"Tests/QuartzCoreTests\",\n        swiftSettings: [.swiftLanguageMode(.v5)]"))
+        #expect(!modelTests.contains("@MainActor\nfinal class CALayerModelTests: XCTestCase"))
+        #expect(!timingTests.contains("@MainActor\nfinal class CAAnimationTimingTests: XCTestCase"))
+        #expect(modelTests.contains("@preconcurrency import QuartzCore"))
+        #expect(timingTests.contains("@preconcurrency import QuartzCore"))
     }
 
     @Test("Semantic colors have a single platform-color owner")
@@ -692,6 +704,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVFoundation.swift"),
             encoding: .utf8
         )
+        let avCaptureSurface = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureSurface.swift"),
+            encoding: .utf8
+        )
+        let avCaptureExtras = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureExtras.swift"),
+            encoding: .utf8
+        )
         let osShim = try String(
             contentsOf: root.appendingPathComponent("Sources/osShim/os.swift"),
             encoding: .utf8
@@ -703,6 +723,21 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
+        #expect(avCaptureSurface.contains("var quillV4L2Bridge: AnyObject?"))
+        #expect(avCaptureSurface.contains("public static let inputPriority = Preset(rawValue: \"AVCaptureSessionPresetInputPriority\")"))
+        #expect(avCaptureSurface.contains("public enum AVCaptureVideoStabilizationMode"))
+        #expect(avCaptureSurface.contains("public var preferredVideoStabilizationMode: AVCaptureVideoStabilizationMode = .off"))
+        #expect(!avCaptureExtras.contains("public final class AVCaptureSession"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureInput"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureOutput"))
+        #expect(!avCaptureExtras.contains("public final class AVCaptureDeviceInput"))
+        #expect(!avCaptureExtras.contains("public final class AVCaptureVideoDataOutput"))
+        #expect(!avCaptureExtras.contains("public protocol AVCaptureVideoDataOutputSampleBufferDelegate"))
+        #expect(!avCaptureExtras.contains("public final class AVCaptureConnection"))
+        #expect(!avCaptureExtras.contains("public enum AVAuthorizationStatus"))
+        #expect(!avCaptureExtras.contains("public var deviceType: DeviceType"))
+        #expect(!avCaptureExtras.contains("public func lockForConfiguration()"))
+        #expect(avCaptureExtras.contains("open class AVCaptureVideoPreviewLayer"))
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
         #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
@@ -787,7 +822,7 @@ struct SourceHygieneTests {
         #expect(rendererSource.contains("ImageRendererBackend.installViewRenderer"))
         #expect(compatibilitySource.contains("let renderer = SwiftOpenUI.OpenUIImageRenderer(content: self)"))
         #expect(compatibilitySource.contains("if let data = renderer.platformImage?.data"))
-        #expect(compatibilitySource.contains("let image = PlatformImage(data: data)"))
+        #expect(compatibilitySource.contains("let image = QuillPlatformImage(data: data)"))
         #expect(!compatibilitySource.contains("if let image = renderer.platformImage {\n            return image"))
         #expect(gtkSource.contains("gtk_widget_snapshot_child"))
         #expect(gtkSource.contains("cairo_surface_write_to_png_stream"))
