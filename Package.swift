@@ -2559,6 +2559,11 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
             swiftSettings: [.swiftLanguageMode(.v5)] + quillMinimalConcurrencyMainActorSwiftSettings
+        ),
+        .testTarget(
+            name: "SignalServiceKitObjCPortTests",
+            dependencies: ["SignalServiceKit"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
     // SignalApp: Signal-iOS's main *app* target (`Signal/`), home of the real

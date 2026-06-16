@@ -53,6 +53,7 @@ public struct QuillFloatingIconButton: View {
     }
 }
 
+#if os(macOS) || os(iOS) || os(visionOS)
 public struct QuillGrowingButtonStyle: ButtonStyle {
     public init() {}
 
@@ -62,6 +63,17 @@ public struct QuillGrowingButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
     }
 }
+#else
+public struct QuillGrowingButtonStyle: SwiftOpenUI.ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: SwiftOpenUI.ButtonStyleConfiguration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 1.12 : 1)
+            .animation(SwiftOpenUI.Animation.easeOut(duration: 0.2), value: configuration.isPressed)
+    }
+}
+#endif
 
 public struct QuillPrompt: Identifiable, Hashable, Sendable {
     public var id: String
