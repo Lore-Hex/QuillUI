@@ -4275,7 +4275,11 @@ def main() -> int:
     else:
         minimum_width = 900
         minimum_height = 600
-    minimum_mean = 500 if solderscope_launch_product else 1000
+    # SolderScope's valid no-camera state is intentionally mostly black: the
+    # microscope canvas fills the window while only toolbar controls and status
+    # text are bright. Use the product-specific toolbar/canvas predicates below
+    # for real blank-screen detection instead of a light-app global mean floor.
+    minimum_mean = 250 if solderscope_launch_product else 1000
     minimum_stddev = 1000 if solderscope_launch_product else 250
     require(
         image.width >= minimum_width and image.height >= minimum_height,
