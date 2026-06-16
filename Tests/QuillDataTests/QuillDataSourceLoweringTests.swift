@@ -1304,7 +1304,11 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("private var cachedTitle = \"\""))
         #expect(lowered.contains("static var sharedTitle = \"Shared\""))
         #expect(lowered.contains("struct DesktopRoot: View {"))
-        #expect(lowered.contains(".keyboardType(KeyboardType.URL)"))
+        // `.keyboardType(.URL)` passes through unrequalified: the single canonical
+        // keyboardType(_ type: UIKeyboardType) resolves `.URL` to UIKeyboardType.URL
+        // by inference (the removed DSSC `KeyboardType` struct is no longer a rival).
+        #expect(lowered.contains(".keyboardType(.URL)"))
+        #expect(!lowered.contains(".keyboardType(KeyboardType.URL)"))
         #expect(lowered.contains(".textContentType(TextContentType.URL)"))
         #expect(!lowered.contains("@main"))
         #expect(!lowered.contains("@Observable"))

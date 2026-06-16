@@ -136,7 +136,12 @@ struct SourceHygieneTests {
         let appKitLoweringCall = "\"$(dirname \"$0\")/run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""
         let objcLoweringCall = "\"$(dirname \"$0\")/lower-objc-interop-for-linux.sh\" \"$SOURCE_DIR\""
 
-        #expect(lowering.contains("s/\\.keyboardType\\([ \\t]*\\.URL[ \\t]*\\)/.keyboardType(KeyboardType.URL)/g;"))
+        // No keyboardType(.URL) rewrite. The shim exposes a single canonical
+        // keyboardType(_ type: UIKeyboardType), so upstream `.keyboardType(.URL)`
+        // resolves to UIKeyboardType.URL by inference — the lowering must NOT
+        // requalify it to the removed DSSC `KeyboardType.URL`. (textContentType,
+        // whose TextContentType type still exists, is still rewritten below.)
+        #expect(!lowering.contains(".keyboardType(KeyboardType.URL)"))
         #expect(lowering.contains("s/\\.textContentType\\([ \\t]*\\.URL[ \\t]*\\)/.textContentType(TextContentType.URL)/g;"))
         #expect(lowering.contains(appKitLoweringCall))
         #expect(lowering.contains(objcLoweringCall))
