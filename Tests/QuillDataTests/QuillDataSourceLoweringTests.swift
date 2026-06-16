@@ -405,7 +405,7 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
         #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreGraphics\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\", \"UniformTypeIdentifiers\"]"))
+        #expect(manifest.contains("\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\","))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))

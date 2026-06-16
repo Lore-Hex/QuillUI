@@ -327,11 +327,7 @@ extension UITableView {
 
     // MARK: Creation & fixed configuration
 
-    /// Apple's designated table initializer. (The class body — another
-    /// owner — declares no designated inits of its own, so this convenience
-    /// init delegates to the inherited `init(frame:)`.)
-    public convenience init(frame: CGRect, style: Style) {
-        self.init(frame: frame)
+    func quillSetTableStyle(_ style: Style) {
         quillTableState.style = style
     }
 

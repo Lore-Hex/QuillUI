@@ -148,8 +148,29 @@ struct SolderScopeChromeConformanceTests {
         // Button("Delete", role: .destructive) { … }
         let cancel = Button("Cancel", role: .cancel) {}
         #expect(builds(cancel))
+        #expect(cancel.role == .cancel)
         let destructive = Button("Delete", role: .destructive) {}
         #expect(builds(destructive))
+        #expect(destructive.role == .destructive)
+    }
+
+    @Test func alertActionBuilderPreservesButtonRoles() {
+        // ScaleBarView's SwiftUI-style alert builder must preserve role
+        // metadata through the compatibility lowering so GTK can style
+        // destructive actions and keep cancel semantics.
+        let view = Text("scope").alert("Delete scale?", isPresented: .constant(true)) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {}
+        } message: {
+            Text("This cannot be undone.")
+        }
+
+        #expect(view.buttons.count == 2)
+        #expect(view.buttons[0].label == "Cancel")
+        #expect(view.buttons[0].role == .cancel)
+        #expect(view.buttons[1].label == "Delete")
+        #expect(view.buttons[1].role == .destructive)
+        #expect(view.message == "This cannot be undone.")
     }
 
     // MARK: Scenes

@@ -321,7 +321,7 @@ open class TSOutgoingMessage: TSMessage {
     // / TSOutgoingMessage.swift) for the same override-in-extension reason. anyUpdate
     // is itself an extension method on the TSInteraction base (callable, just not
     // overridable), so this class-body wrapper resolves the subclass overrides.
-    func anyUpdateOutgoingMessage(transaction: DBWriteTransaction, block: (TSOutgoingMessage) -> Void) {
+    public func anyUpdateOutgoingMessage(transaction: DBWriteTransaction, block: (TSOutgoingMessage) -> Void) {
         anyUpdate(transaction: transaction) { object in
             guard let instance = object as? TSOutgoingMessage else {
                 owsFailDebug("Object has unexpected type: \(type(of: object))")

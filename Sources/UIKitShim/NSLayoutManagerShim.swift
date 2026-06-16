@@ -56,6 +56,18 @@ open class NSLayoutManager: NSObject, @unchecked Sendable {
         if removed.layoutManager === self { removed.layoutManager = nil }
     }
 
+    open func invalidateLayout(forCharacterRange range: NSRange, actualCharacterRange: NSRangePointer?) {
+        actualCharacterRange?.pointee = clampedRange(range)
+    }
+
+    open func invalidateDisplay(forCharacterRange range: NSRange) {
+        _ = range
+    }
+
+    open func invalidateDisplay(forGlyphRange range: NSRange) {
+        _ = range
+    }
+
     public var numberOfGlyphs: Int { textStorage?.length ?? 0 }
 
     // MARK: Glyph <-> character mapping (identity under the 1:1 model)

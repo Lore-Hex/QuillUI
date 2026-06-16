@@ -9,7 +9,7 @@
 //
 import Foundation
 
-extension Progress {
+public extension Progress {
     @discardableResult
     func performAsCurrent<ReturnType>(
         withPendingUnitCount unitCount: Int64,

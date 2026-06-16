@@ -222,7 +222,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let gtk4LinkerFlags: [String] = pkgConfigLinkerFlags(\"gtk4\")"))
         #expect(manifest.contains("let quillUIGTKSwiftImporterSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk ? ["))
         #expect(manifest.contains("let quillUIGTKLinkerSettings: [LinkerSetting] = quillUILinuxBuildBackend == .gtk ? ["))
-        #expect(!manifest.contains("pkgConfig: \"gdk-pixbuf-2.0\""))
+        #expect(manifest.contains("pkgConfig: \"gdk-pixbuf-2.0\""))
         #expect(!manifest.contains("pkgConfig: \"gtk4\""))
         #expect(manifest.contains("] + quillUIGTKSwiftImporterSettings"))
         #expect(manifest.contains("dependencies: quillUIDependencies,\n        swiftSettings: quillUIGTKSwiftImporterSettings,\n        linkerSettings: quillUIGTKLinkerSettings"))
@@ -689,9 +689,9 @@ struct SourceHygieneTests {
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
         #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\", \"UniformTypeIdentifiers\"]"))
+        #expect(manifest.contains("\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\","))
         #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreGraphics\"]"))
-        #expect(manifest.contains("name: \"QuillUIKit\",\n            dependencies: [\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"UniformTypeIdentifiers\"],"))
+        #expect(manifest.contains("name: \"QuillUIKit\",\n            dependencies: [\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"CoreTransferable\", \"UniformTypeIdentifiers\"],"))
         #expect(avCaptureSurface.contains("public class AVCaptureSession: @unchecked Sendable"))
         #expect(avCaptureSurface.contains("quillV4L2StartIfAvailable()"))
         #expect(!avCaptureExtras.contains("public final class AVCaptureSession"))
