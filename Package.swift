@@ -407,7 +407,9 @@ if quillUILinuxBuildBackend == .gtk {
     // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
     // (and, wired up, SignalUI) UIViewController view trees to an on-screen
     // GTK window. First-light demo proves the pipeline; Signal's own VCs follow.
-    products.append(.executable(name: "signal-ui-render", targets: ["SignalUIRender"]))
+    if signalUpstreamPresent && libsignalUpstreamPresent {
+        products.append(.executable(name: "signal-ui-render", targets: ["SignalUIRender"]))
+    }
 }
 
 products += [
@@ -513,7 +515,7 @@ let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
 // the real QuartzCore via AppKit/UIKit — and the shim target doesn't exist, so
 // the dependency must vanish entirely (a `.when(platforms:)` condition would
 // still dangle: SwiftPM validates named targets even when the condition is off).
-let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore"]
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "CoreGraphics", "QuartzCore", "UniformTypeIdentifiers"]
 let uiKitShimDependencies: [Target.Dependency] =
     ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore", "CoreTransferable"]
 // V4L2 capture backend (#515): Linux-only system library; Apple graphs
@@ -3230,7 +3232,7 @@ if quillUILinuxBuildBackend == .qt {
         // rendered through Qt6. All GTK-free.
         .target(
             name: "QuillUIKit",
-            dependencies: ["QuillFoundation", "QuillKit"],
+            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics", "QuartzCore", "UniformTypeIdentifiers"],
             path: "Sources/QuillUIKit"
         ),
         // Inert GTK-free Apple-framework shims the AppKit shadow

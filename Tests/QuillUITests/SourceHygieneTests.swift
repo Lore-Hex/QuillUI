@@ -74,7 +74,8 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsCxxFlags)"))
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsLinkerFlags)"))
         #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
-        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))\n}"))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))"))
+        #expect(manifest.contains("if signalUpstreamPresent && libsignalUpstreamPresent {\n        products.append(.executable(name: \"signal-ui-render\", targets: [\"SignalUIRender\"]))\n    }"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("enum QuillCanonicalLinuxAppQtRuntime"))
         #expect(manifest.contains("struct QuillCanonicalLinuxAppSpec"))
@@ -556,17 +557,19 @@ struct SourceHygieneTests {
     @Test("Linux UIKit shim covers dependency conformance symbols")
     func linuxUIKitShimCoversDependencyConformanceSymbols() throws {
         let root = try packageRoot()
-        let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKit.swift"),
-            encoding: .utf8
-        )
+        let source = try [
+            "Sources/QuillUIKit/QuillUIKit.swift",
+            "Sources/QuillUIKit/UIGestureRecognizers.swift",
+        ].map {
+            try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8)
+        }.joined(separator: "\n")
 
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
         #expect(source.contains("public typealias UserInterfaceStyle = UIUserInterfaceStyle"))
         #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
         #expect(source.contains("usingSpringWithDamping: CGFloat"))
         #expect(source.contains("public struct State: OptionSet, Sendable"))
-        #expect(source.contains("public class UIGestureRecognizer: NSObject"))
+        #expect(source.contains("open class UIGestureRecognizer: NSObject"))
         #expect(source.contains("public enum ContentInsetAdjustmentBehavior: Int"))
         #expect(source.contains("public enum DisplayModeButtonVisibility: Int"))
         #expect(source.contains("public enum SplitBehavior: Int"))
@@ -652,6 +655,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVFoundation.swift"),
             encoding: .utf8
         )
+        let avCaptureExtras = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureExtras.swift"),
+            encoding: .utf8
+        )
+        let nsAttributedStringDocument = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillFoundation/NSAttributedStringDocument.swift"),
+            encoding: .utf8
+        )
         let osShim = try String(
             contentsOf: root.appendingPathComponent("Sources/osShim/os.swift"),
             encoding: .utf8
@@ -661,7 +672,15 @@ struct SourceHygieneTests {
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
+        #expect(avCaptureExtras.contains("extension AVCaptureSession.Preset"))
+        #expect(avCaptureExtras.contains("extension AVCaptureConnection"))
+        #expect(!avCaptureExtras.contains("public enum AVAuthorizationStatus"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureInput"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureOutput"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureSession"))
+        #expect(nsAttributedStringDocument.contains("#if os(Linux)"))
+        #expect(nsAttributedStringDocument.contains("#endif"))
         #expect(!osShim.contains("import os"))
     }
 

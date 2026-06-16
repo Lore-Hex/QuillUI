@@ -618,7 +618,7 @@ public protocol AVQueuedSampleBufferRendering: AnyObject {
     func stopRequestingMediaData()
 }
 
-open class AVSampleBufferDisplayLayer: CALayer, @preconcurrency AVQueuedSampleBufferRendering {
+open class AVSampleBufferDisplayLayer: CALayer, AVQueuedSampleBufferRendering {
     public var controlTimebase: CMTimebase?
     public var videoGravity: AVLayerVideoGravity = .resizeAspect
     public var preventsCapture: Bool = false
