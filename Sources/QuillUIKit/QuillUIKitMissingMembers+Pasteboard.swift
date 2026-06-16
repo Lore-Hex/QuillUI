@@ -82,7 +82,7 @@ public extension UICollectionView {
     /// Index paths of the currently selected items. Returns nil (UIKit returns
     /// nil when nothing is selected).
     var indexPathsForSelectedItems: [IndexPath]? {
-        nil
+        quillSelectedIndexPaths
     }
 
     /// Animates a group of insert/delete/move/reload operations together.
@@ -92,8 +92,8 @@ public extension UICollectionView {
         completion?(true)
     }
 
-    /// Currently visible cells. Returns [] (no live layout/visibility tracking).
+    /// Currently visible cells from the last synchronous reload snapshot.
     var visibleCells: [UICollectionViewCell] {
-        []
+        quillVisibleCells
     }
 }

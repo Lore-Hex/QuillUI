@@ -30,6 +30,11 @@ if [ ! -d "$APP" ]; then
     exit 0
 fi
 
+# Remove stale same-module port symlinks from previous runs before running
+# source-lowering tools. Otherwise generic lowerers can write through symlinks
+# and dirty checked-in Quill port sources.
+rm -rf "$APP/QuillPort"
+
 # (0) Drop test files (XCTest / Testing) — not part of the app module.
 "$ROOT/scripts/quill-signal-strip-tests.sh" "$APP"
 
@@ -130,6 +135,14 @@ fi
 
 # (7) Swift/corelibs Foundation compatibility cleanup.
 "$ROOT/scripts/lower-objc-interop-for-linux.sh" "$APP"
+FOUNDATION_TOOL="$SCRATCH/debug/quill-lower-foundation"
+swift build --scratch-path "$SCRATCH" --disable-index-store \
+    --product quill-lower-foundation >/dev/null 2>&1 || true
+if [ -x "$FOUNDATION_TOOL" ]; then
+    "$FOUNDATION_TOOL" "$APP"
+else
+    echo "quill-signal-prep-app: quill-lower-foundation not built; Foundation lowering skipped" >&2
+fi
 
 # (8) Prune separable call/donation glue extensions whose only purpose is to wire
 #     the pruned subsystems into otherwise-reachable view controllers.
@@ -148,6 +161,26 @@ done
 "$ROOT/scripts/quill-signal-fix-app-generated-perform.sh" "$APP"
 "$ROOT/scripts/quill-signal-lower-app-declaration-access.sh" "$APP"
 "$ROOT/scripts/quill-signal-fix-app-generated-inits.sh"
+
+# Swift 6 requires extension methods satisfying public protocol requirements to
+# be public even in the app target after @objc lowering removes Objective-C
+# dispatch. Keep this deterministic instead of depending on a previous build log.
+python3 - "$APP/Usernames/Links/UsernameLinkScanQRCodeSheet.swift" <<'PY'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+if not path.exists():
+    raise SystemExit(0)
+
+text = path.read_text(errors="replace")
+text = text.replace(
+    "extension BaseMemberViewController: @retroactive MemberViewUsernameQRCodeScannerPresenter {\n"
+    "    func presentUsernameQRCodeScannerFromMemberView() {",
+    "extension BaseMemberViewController: @retroactive MemberViewUsernameQRCodeScannerPresenter {\n"
+    "    public func presentUsernameQRCodeScannerFromMemberView() {",
+)
+path.write_text(text)
+PY
 
 # (8c) Replay safe log-driven source lowerings from the latest SignalApp build
 #      log when one is available. Each pass validates that the diagnostic path
