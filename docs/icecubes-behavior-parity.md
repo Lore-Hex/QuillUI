@@ -79,9 +79,13 @@ estimates, not release claims.
 - [x] `ImageIO`: local file/data decode, dimensions metadata, thumbnail
       downsample, crop-preserving `CGImage` pixels, and JPEG/PNG/TIFF output
       through gdk-pixbuf.
-- [ ] `UIImage` / `UIGraphicsImageRenderer`: full drawing output,
-      orientation/EXIF metadata, animated images, HEIC/video thumbnails, and
-      true text/image compositing.
+- [x] `UIImage` / `UIGraphicsImageRenderer`: PNG/JPEG decode into `UIImage`,
+      `UIImage(cgImage:)`, `jpegData`, `pngData`, bitmap renderer output,
+      image draw/resize, `UIColor.setFill`, and `UIRectFill` produce real
+      pixels for IceCubes' upload/downsample/fill paths.
+- [ ] `UIImage` / `UIGraphicsImageRenderer`: text drawing, gradients, masks,
+      complex paths/transforms/blend modes, orientation/EXIF metadata,
+      animated images, HEIC/video thumbnails, and full compositing parity.
 - [x] SwiftUI `.quickLookPreview(_:)` opens local preview URLs through a shared
       QuillKit QuickLook backend instead of dropping the binding.
 - [ ] `QuickLook`: full IceCubes media viewer/window behavior for
@@ -185,3 +189,10 @@ estimates, not release claims.
   media upload/downsample path and the `InlinePostImageIntent` image pipeline
   shape. Verification: `quill-imageio-smoke` passed in Docker/GTK; the
   Linux-only compatibility test covers the same contract in the broader suite.
+- 2026-06-16: Added a QuillFoundation bitmap image codec and a real
+  `UIImage`/`UIGraphicsImageRenderer` pixel path for Linux. `UIImage(data:)`,
+  `UIImage(cgImage:)`, `jpegData`, `pngData`, renderer output, image
+  draw/resize, `UIColor.setFill`, and `UIRectFill` now exercise real bitmap
+  pixels instead of inert placeholders. Verification: `QuillFoundationTests`,
+  `SourceHygieneTests`, Docker/GTK `quill-imageio-smoke`, Docker/GTK
+  `IceCubesLinuxApp`, and Docker/Qt `ImageIO` builds passed locally.

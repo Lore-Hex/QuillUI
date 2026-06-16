@@ -932,7 +932,7 @@ public final class UIBezierPath: NSObject, NSCopying {
 }
 
 public func UIRectFill(_ rect: CGRect) {
-    _ = rect
+    UIGraphicsGetCurrentContext()?.fill(rect)
 }
 
 public enum UIDeviceOrientation: Int, Sendable {
@@ -943,13 +943,12 @@ public enum UIDeviceOrientation: Int, Sendable {
     public var isValidInterfaceOrientation: Bool { isPortrait || isLandscape }
 }
 
-// MARK: - UIGraphicsImageRenderer (Linux: placeholder images)
+// MARK: - UIGraphicsImageRenderer (Linux bitmap renderer)
 //
-// SignalServiceKit renders avatars/thumbnails into a renderer context. On Linux
-// nothing is rasterized: the context's CGContext is the inert no-op from
-// QuillFoundation and `.image{}` returns a blank placeholder UIImage of the
-// requested size. Faithful image generation needs a real raster backend
-// (Cairo/Skia) -- deferred. HONEST STATUS: produced images are blank.
+// SignalServiceKit and IceCubes render avatars, resized upload images, and share
+// previews into a renderer context. Linux routes the context through
+// QuillFoundation's in-memory bitmap backend for basic fills and image drawing.
+// Text, gradients, masks, and complex paths remain partial.
 //
 // Gated to Linux: macOS has no UIGraphicsImageRenderer and a real CGContext
 // (no `init()`), so this block must not compile there -- keeps the package green
@@ -1018,11 +1017,17 @@ public final class UIGraphicsImageRendererContext {
         self.cgContext = cgContext
         self.format = format
     }
-    public func fill(_ rect: CGRect) {}
-    public func fill(_ rect: CGRect, blendMode: CGBlendMode) {}
-    public func stroke(_ rect: CGRect) {}
-    public func stroke(_ rect: CGRect, blendMode: CGBlendMode) {}
-    public func clip(to rect: CGRect) {}
+    public func fill(_ rect: CGRect) { cgContext.fill(rect) }
+    public func fill(_ rect: CGRect, blendMode: CGBlendMode) {
+        _ = blendMode
+        cgContext.fill(rect)
+    }
+    public func stroke(_ rect: CGRect) { cgContext.stroke(rect) }
+    public func stroke(_ rect: CGRect, blendMode: CGBlendMode) {
+        _ = blendMode
+        cgContext.stroke(rect)
+    }
+    public func clip(to rect: CGRect) { cgContext.clip(to: rect) }
 }
 
 public final class UIGraphicsImageRenderer {
@@ -1037,51 +1042,51 @@ public final class UIGraphicsImageRenderer {
         self.init(size: bounds.size, format: format)
     }
 
-    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) {
-        actions(UIGraphicsImageRendererContext(cgContext: CGContext(), format: format))
+    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) -> CGContext {
+        let context = CGContext(quillBitmapSize: size, scale: format.scale, opaque: format.opaque)
+        QuillGraphicsContextStack.push(context)
+        defer { QuillGraphicsContextStack.pop() }
+        actions(UIGraphicsImageRendererContext(cgContext: context, format: format))
+        return context
     }
 
-    /// Returns a blank placeholder image of `size` (nothing is rasterized).
     public func image(_ actions: (UIGraphicsImageRendererContext) -> Void) -> UIImage {
-        runActions(actions)
+        let context = runActions(actions)
+        if let image = context.makeImage() {
+            return UIImage(cgImage: image, scale: format.scale, orientation: .up)
+        }
         return UIImage(size: size)
     }
     public func pngData(_ actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
-        runActions(actions)
-        return Data()
+        image(actions).pngData() ?? Data()
     }
     public func jpegData(withCompressionQuality quality: CGFloat, actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
-        runActions(actions)
-        return Data()
+        image(actions).jpegData(compressionQuality: quality) ?? Data()
     }
 }
 
 // MARK: - Imperative UIGraphics* C-API (the pre-UIGraphicsImageRenderer style)
 //
-// AvatarBuilder still uses the old Begin/GetCurrentContext/GetImage/End flow. A
-// minimal current-context stack backs it: the inert CGContext records nothing and
-// the produced image is a blank placeholder of the begun size. Inert -- gated to
-// Linux (these don't exist on macOS, and CGContext() is Linux-only).
-nonisolated(unsafe) private var _uiGraphicsContextStack: [(context: CGContext, size: CGSize)] = []
-
+// AvatarBuilder still uses the old Begin/GetCurrentContext/GetImage/End flow.
+// Route it through the same bitmap CGContext stack as UIGraphicsImageRenderer.
 public func UIGraphicsBeginImageContextWithOptions(_ size: CGSize, _ opaque: Bool, _ scale: CGFloat) {
-    _uiGraphicsContextStack.append((CGContext(), size))
+    QuillGraphicsContextStack.push(CGContext(quillBitmapSize: size, scale: scale == 0 ? 1 : scale, opaque: opaque))
 }
 public func UIGraphicsBeginImageContext(_ size: CGSize) {
-    _uiGraphicsContextStack.append((CGContext(), size))
+    UIGraphicsBeginImageContextWithOptions(size, false, 1)
 }
 public func UIGraphicsGetCurrentContext() -> CGContext? {
-    _uiGraphicsContextStack.last?.context
+    QuillGraphicsContextStack.current
 }
 public func UIGraphicsGetImageFromCurrentImageContext() -> UIImage? {
-    guard let top = _uiGraphicsContextStack.last else { return nil }
-    return UIImage(size: top.size)
+    guard let image = QuillGraphicsContextStack.current?.makeImage() else { return nil }
+    return UIImage(cgImage: image)
 }
 public func UIGraphicsEndImageContext() {
-    if !_uiGraphicsContextStack.isEmpty { _uiGraphicsContextStack.removeLast() }
+    QuillGraphicsContextStack.pop()
 }
-public func UIGraphicsPushContext(_ context: CGContext) {}
-public func UIGraphicsPopContext() {}
+public func UIGraphicsPushContext(_ context: CGContext) { QuillGraphicsContextStack.push(context) }
+public func UIGraphicsPopContext() { QuillGraphicsContextStack.pop() }
 #endif
 
 // MARK: - NSTextStorage (TextKit)

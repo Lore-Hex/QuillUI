@@ -163,6 +163,15 @@ let quillUIGTKSwiftImporterSettings: [SwiftSetting] = []
 let quillUIGTKLinkerSettings: [LinkerSetting] = []
 #endif
 #if os(Linux)
+let quillFoundationDependencies: [Target.Dependency] = ["QuillKit", "CGdkPixbuf"]
+let quillFoundationSwiftSettings: [SwiftSetting] = [.unsafeFlags(gdkPixbufSwiftImporterFlags)]
+let quillFoundationLinkerSettings: [LinkerSetting] = [.unsafeFlags(gdkPixbufLinkerFlags)]
+#else
+let quillFoundationDependencies: [Target.Dependency] = ["QuillKit"]
+let quillFoundationSwiftSettings: [SwiftSetting] = []
+let quillFoundationLinkerSettings: [LinkerSetting] = []
+#endif
+#if os(Linux)
 let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
 #else
 // The .upstream NetNewsWire full-source tree is a Linux-only port: it pulls
@@ -1114,8 +1123,10 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillFoundation",
-        dependencies: ["QuillKit"],
-        path: "Sources/QuillFoundation"
+        dependencies: quillFoundationDependencies,
+        path: "Sources/QuillFoundation",
+        swiftSettings: quillFoundationSwiftSettings,
+        linkerSettings: quillFoundationLinkerSettings
     ),
     .target(
         name: "QuillWebKit",
@@ -2664,7 +2675,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
 targets += [
     .executableTarget(
         name: "QuillImageIOSmoke",
-        dependencies: ["ImageIO", "QuillFoundation"],
+        dependencies: ["ImageIO", "QuillFoundation", "UIKit"],
         path: "Sources/QuillImageIOSmoke",
         swiftSettings: appSwiftSettings
     ),
@@ -3275,8 +3286,10 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillFoundation",
-            dependencies: ["QuillKit"],
-            path: "Sources/QuillFoundation"
+            dependencies: quillFoundationDependencies,
+            path: "Sources/QuillFoundation",
+            swiftSettings: quillFoundationSwiftSettings,
+            linkerSettings: quillFoundationLinkerSettings
         ),
         .target(
             name: "QuillEnchantedShared",

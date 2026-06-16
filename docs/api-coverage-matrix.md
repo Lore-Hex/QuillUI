@@ -12,6 +12,13 @@ Apple and Linux, with shared contract, golden, and seeded fuzz tests proving
 equivalent user-facing outputs except for explicitly documented platform
 differences.
 
+IceCubes checkpoint, 2026-06-16: the Linux UIKit image path is now
+partial-real for the common composer/upload workflow. `UIImage(data:)`,
+`UIImage(cgImage:)`, `jpegData`, `pngData`, `UIGraphicsImageRenderer`,
+`UIColor.setFill`, and `UIRectFill` produce real bitmap pixels through
+QuillFoundation/gdk-pixbuf. Advanced UIKit drawing and media metadata remain
+outside parity and are tracked in `docs/icecubes-behavior-parity.md`.
+
 | Surface | Compile | Behavior | Native | Tested | Current Evidence | Next Fix |
 | --- | --- | --- | --- | --- | --- | --- |
 | SwiftUI facade | yes | partial-real | partial-real | yes | `SwiftUI` re-exports QuillUI on Linux; `FocusState`, `Image(nsImage:)`, `Window`, core modifiers, generated Enchanted shared chat components, and `ImageRenderer` compile; `ImageRenderer` rasterizes solid `Color` content to real PNG bytes through gdk-pixbuf by default, `PlatformImage` scales valid bitmap bytes by requested height and recompresses to JPEG, and the opt-in GTK/Xvfb offscreen snapshot pipeline can rasterize arbitrary SwiftUI-shaped view trees. | Broaden offscreen snapshot coverage across composed Enchanted views and reduce the opt-in risk before enabling by default. |

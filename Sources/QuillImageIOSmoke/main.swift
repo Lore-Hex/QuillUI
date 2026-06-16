@@ -1,6 +1,7 @@
 import Foundation
 import ImageIO
 import QuillFoundation
+import UIKit
 
 private func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data("quill-imageio-smoke: \(message)\n".utf8))
@@ -106,5 +107,33 @@ guard let urlSource = CGImageSourceCreateWithURL(tempURL, nil) else {
     fail("could not create image source from URL")
 }
 require(CGImageSourceGetType(urlSource) == "public.jpeg", "URL source type mismatch")
+
+guard let uiImage = UIImage(data: pngData as Data) else {
+    fail("UIImage(data:) could not decode PNG bytes")
+}
+require(uiImage.size == CGSize(width: 8, height: 4), "UIImage decoded size mismatch")
+require(uiImage.cgImage?.quillBGRAPixels?.isEmpty == false, "UIImage decoded pixels missing")
+
+let resizedImage = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 2)).image { _ in
+    uiImage.draw(in: CGRect(x: 0, y: 0, width: 4, height: 2))
+}
+require(resizedImage.size == CGSize(width: 4, height: 2), "renderer UIImage size mismatch")
+require(resizedImage.cgImage?.quillBGRAPixels?.count == 4 * 2 * 4, "renderer pixels missing")
+guard let resizedJPEG = resizedImage.jpegData(compressionQuality: 0.7) else {
+    fail("resized UIImage could not encode JPEG")
+}
+require(Array(resizedJPEG.prefix(3)) == [0xFF, 0xD8, 0xFF], "resized UIImage JPEG magic mismatch")
+
+let filledImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { _ in
+    UIColor.red.setFill()
+    UIRectFill(CGRect(x: 0, y: 0, width: 2, height: 2))
+}
+guard let filledPixels = filledImage.cgImage?.quillBGRAPixels else {
+    fail("filled renderer produced no pixels")
+}
+require(filledPixels[0] == 0, "filled blue channel mismatch")
+require(filledPixels[1] == 0, "filled green channel mismatch")
+require(filledPixels[2] > 240, "filled red channel mismatch")
+require(filledPixels[3] == 255, "filled alpha mismatch")
 
 print("quill-imageio-smoke: passed")

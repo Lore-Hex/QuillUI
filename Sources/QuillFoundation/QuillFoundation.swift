@@ -758,14 +758,11 @@ public extension CGPoint {
 
 // MARK: - CoreGraphics drawing shim (Linux)
 //
-// SignalServiceKit's avatar/thumbnail rendering (AvatarBuilder, UIImage+OWS)
-// draws into a CGContext obtained from a UIGraphicsImageRenderer. CoreGraphics
-// rasterization is unavailable on Linux, so this is an INERT no-op context:
-// nothing is drawn, and the renderer returns a blank placeholder image of the
-// requested size. Color / gradient / path / image arguments are typed `Any?`
-// to avoid coupling drawing to a concrete raster backend and the optional
-// CGGradient/CGPath value-holders. A real raster backend (Cairo/Skia) is a
-// later milestone. HONEST STATUS: avatars render blank on Linux.
+// SignalServiceKit and IceCubes render thumbnails, share images, and upload
+// previews into CGContext values obtained from UIGraphicsImageRenderer. Linux
+// now has a small in-memory bitmap backend for fills and image compositing; the
+// broader path/gradient/text surface remains partial and delegates to toolkit
+// backends where available.
 
 public enum CGInterpolationQuality: Int32, Sendable {
     case `default` = 0, none = 1, low = 2, high = 3, medium = 4
@@ -898,6 +895,22 @@ public final class CGContext {
         self.quillBackend = quillBackend
     }
 
+#if os(Linux)
+    public convenience init(quillBitmapSize size: CGSize, scale: CGFloat = 1, opaque: Bool = false) {
+        self.init()
+        let width = max(1, Int((size.width * scale).rounded(.up)))
+        let height = max(1, Int((size.height * scale).rounded(.up)))
+        self.width = width
+        self.height = height
+        self.bitsPerComponent = 8
+        self.bitsPerPixel = 32
+        self.bytesPerRow = width * 4
+        self.bitmapInfo = [.byteOrder32Little, CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)]
+        self.colorSpace = CGColorSpaceCreateDeviceRGB()
+        self.quillBackend = QuillBitmapCGContextBackend(width: width, height: height, opaque: opaque)
+    }
+#endif
+
     public var width: Int = 0
     public var height: Int = 0
     public var bitsPerComponent: Int = 8
@@ -961,6 +974,11 @@ public final class CGContext {
     }
 
     public func makeImage() -> CGImage? {
+        #if os(Linux)
+        if let image = (quillBackend as? QuillCGImageProducingBackend)?.quillMakeImage() {
+            return image
+        }
+        #endif
         let image = CGImage()
         image.width = width
         image.height = height
@@ -1049,6 +1067,24 @@ public final class CGContext {
     public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}
     public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
 }
+
+#if os(Linux)
+public enum QuillGraphicsContextStack {
+    nonisolated(unsafe) private static var stack: [CGContext] = []
+
+    public static var current: CGContext? { stack.last }
+
+    public static func push(_ context: CGContext) {
+        stack.append(context)
+    }
+
+    public static func pop() {
+        if !stack.isEmpty {
+            stack.removeLast()
+        }
+    }
+}
+#endif
 
 public typealias CGWindowID = UInt32
 
@@ -1217,6 +1253,9 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     public required init?(coder: NSCoder) {
         super.init()
         self.data = coder.decodeObject(forKey: "data") as? Data
+        if let data {
+            quillAdoptDecodedImage(from: data)
+        }
     }
 
     public func encode(with coder: NSCoder) {
@@ -1225,7 +1264,7 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
 
     public init?(data: Data) {
         super.init()
-        self.data = data
+        quillAdopt(data: data)
     }
     public init?(named name: String) {
         super.init()
@@ -1233,7 +1272,7 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
             forResource: name,
             candidateExtensions: QuillResourceLookup.commonImageExtensions
         ) {
-            self.data = data
+            quillAdopt(data: data)
         } else {
             self.size = CGSize(width: 32, height: 32)
             QuillCompatibilityDiagnostics.shared.record(
@@ -1273,10 +1312,18 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     /// compatibility shape — readers reach back to the original
     /// bytes for re-encoding (e.g. `tiffRepresentation`).
     public var data: Data?
+    public var quillCGImage: CGImage?
+    public var quillScale: CGFloat = 1
+    public var quillOrientation: Orientation = .up
     public var capInsets: NSEdgeInsets = NSEdgeInsets()
     public var resizingMode: ResizingMode = .tile
-    public func pngData() -> Data? { data }
-    public func dataRepresentation() -> Data? { data }
+    public func pngData() -> Data? {
+        if let quillCGImage, let encoded = QuillBitmapImageCodec.encode(quillCGImage, type: "public.png") {
+            return encoded
+        }
+        return data
+    }
+    public func dataRepresentation() -> Data? { pngData() ?? data }
     /// Disfavored so QuillUI's gdk-pixbuf-backed `RSImage.tiffRepresentation`
     /// extension wins wherever both modules are visible; Telegram package
     /// islands that only see QuillFoundation get this passthrough.
@@ -1300,6 +1347,9 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     open override func copy() -> Any {
         let image = data.flatMap { RSImage(data: $0) } ?? RSImage()
         image.size = size
+        image.quillCGImage = quillCGImage
+        image.quillScale = quillScale
+        image.quillOrientation = quillOrientation
         image.capInsets = capInsets
         image.resizingMode = resizingMode
         return image
@@ -1342,10 +1392,14 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         )
     }
 
-    // MARK: UIImage source-compat surface (Linux placeholders)
+    // MARK: UIImage source-compat surface
     public convenience init?(contentsOfFile path: String) {
-        self.init()
-        self.size = CGSize(width: 32, height: 32)
+        if let data = FileManager.default.contents(atPath: path) {
+            self.init(data: data)
+        } else {
+            self.init()
+            self.size = CGSize(width: 32, height: 32)
+        }
     }
     @_disfavoredOverload
     public convenience init?<T>(_ source: T) {
@@ -1353,18 +1407,28 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         self.size = CGSize(width: 32, height: 32)
         _ = source
     }
-    public func jpegData(compressionQuality: CGFloat) -> Data? { data }
-    public var cgImage: CGImage? { nil }
+    public func jpegData(compressionQuality: CGFloat) -> Data? {
+        if let quillCGImage,
+           let encoded = QuillBitmapImageCodec.encode(
+               quillCGImage,
+               type: "public.jpeg",
+               compressionQuality: compressionQuality
+           ) {
+            return encoded
+        }
+        return data
+    }
+    public var cgImage: CGImage? { quillCGImage }
     public func cgImage(forProposedRect rect: UnsafeMutablePointer<CGRect>?, context: Any?, hints: [AnyHashable: Any]?) -> CGImage? {
         _ = (rect, context, hints)
         return cgImage
     }
-    public var scale: CGFloat { 1 }
+    public var scale: CGFloat { quillScale }
 
     public enum Orientation: Int, Sendable {
         case up, down, left, right, upMirrored, downMirrored, leftMirrored, rightMirrored
     }
-    public var imageOrientation: Orientation { .up }
+    public var imageOrientation: Orientation { quillOrientation }
 
     /// `UIImage.withHorizontallyFlippedOrientation()` source-compat. On Apple this
     /// returns a copy whose `imageOrientation` is mirrored horizontally. The Linux
@@ -1377,20 +1441,52 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     // contextual base. SSK: AvatarBuilder.releaseNotesIcon does
     // `UIImage(named:)!.withTintColor(.white)`. Inert (returns self).
     public func withTintColor(_ color: RSColor) -> RSImage { self }
-    public func draw(in rect: CGRect) {}
-    public func draw(at point: CGPoint) {}
+    public func draw(in rect: CGRect) {
+        #if os(Linux)
+        if let quillCGImage {
+            QuillGraphicsContextStack.current?.draw(quillCGImage, in: rect)
+        }
+        #else
+        _ = rect
+        #endif
+    }
+    public func draw(at point: CGPoint) {
+        draw(in: CGRect(origin: point, size: size))
+    }
 
     /// `UIImage(cgImage:scale:orientation:)` source-compat. On Linux the backing
     /// CGImage is opaque (no raster), so this records the requested scale but
     /// holds a placeholder size; callers that re-encode get an empty image.
     public convenience init(cgImage: CGImage, scale: CGFloat = 1, orientation: Orientation = .up) {
         self.init()
-        self.size = CGSize(width: 0, height: 0)
+        quillAdopt(cgImage: cgImage, scale: scale, orientation: orientation)
     }
 
     public convenience init(cgImage: CGImage, size: CGSize) {
         self.init()
+        quillAdopt(cgImage: cgImage, scale: 1, orientation: .up)
         self.size = size
+    }
+
+    private func quillAdopt(data: Data) {
+        self.data = data
+        quillAdoptDecodedImage(from: data)
+    }
+
+    private func quillAdoptDecodedImage(from data: Data) {
+        if let image = QuillBitmapImageCodec.decode(data) {
+            quillAdopt(cgImage: image, scale: 1, orientation: .up)
+        }
+    }
+
+    private func quillAdopt(cgImage: CGImage, scale: CGFloat, orientation: Orientation) {
+        self.quillCGImage = cgImage
+        self.quillScale = scale == 0 ? 1 : scale
+        self.quillOrientation = orientation
+        self.size = CGSize(
+            width: CGFloat(cgImage.width) / self.quillScale,
+            height: CGFloat(cgImage.height) / self.quillScale
+        )
     }
 }
 public typealias UIImage = RSImage
@@ -1470,10 +1566,13 @@ public class RSColor: NSObject, @unchecked Sendable {
     }
 
     /// UIColor.setFill() sets this color as the fill color in the current UIKit
-    /// graphics context. There is no graphics context on Linux (UIGraphicsImageRenderer
-    /// is inert), so this is a no-op — UIImage+OWS's solid-color image render degrades
-    /// to a blank image. HONEST STATUS: no rasterized fills on Linux.
-    public func setFill() {}
+    /// graphics context. On Linux, UIGraphicsImageRenderer and the imperative
+    /// UIGraphics context APIs push a Quill bitmap CGContext here.
+    public func setFill() {
+        #if os(Linux)
+        QuillGraphicsContextStack.current?.setFillColor(cgColor)
+        #endif
+    }
 
     public static let clear = RSColor(red: 0, green: 0, blue: 0, alpha: 0)
     public static let white = RSColor(red: 1, green: 1, blue: 1, alpha: 1)
@@ -1497,7 +1596,12 @@ public class RSColor: NSObject, @unchecked Sendable {
 
     /// Returns a 4-tuple [R, G, B, A]. Matches the CGColor.components shape.
     public var cgColor: RSCGColor { RSCGColor(components: [_red, _green, _blue, _alpha]) }
-    public func set() {}
+    public func set() {
+        #if os(Linux)
+        QuillGraphicsContextStack.current?.setFillColor(cgColor)
+        QuillGraphicsContextStack.current?.setStrokeColor(cgColor)
+        #endif
+    }
     public var components: [CGFloat]? { [_red, _green, _blue, _alpha] }
     public var numberOfComponents: Int { 4 }
 

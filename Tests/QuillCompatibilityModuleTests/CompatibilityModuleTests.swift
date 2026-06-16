@@ -3528,6 +3528,63 @@ struct CompatibilityModuleTests {
         #expect(CGImageSourceCopyPropertiesAtIndex(urlSource, 0, nil)?[kCGImagePropertyPixelWidth] as? Int == 8)
     }
 
+    @Test("UIImage data decode and UIGraphicsImageRenderer produce encodable pixels")
+    func uiImageRendererResizesDecodedImages() throws {
+        guard let png = quillRenderSolidColorImage(
+            red: 0.85,
+            green: 0.2,
+            blue: 0.1,
+            alpha: 1,
+            width: 6,
+            height: 4,
+            format: .png
+        ) else {
+            Issue.record("Expected valid PNG fixture")
+            return
+        }
+
+        guard let source = UIImage(data: png) else {
+            Issue.record("UIImage(data:) should decode valid PNG bytes on Linux")
+            return
+        }
+        #expect(source.size == CGSize(width: 6, height: 4))
+        #expect(source.cgImage?.width == 6)
+        #expect(source.cgImage?.height == 4)
+        #expect(source.cgImage?.quillBGRAPixels?.isEmpty == false)
+
+        let resized = UIGraphicsImageRenderer(size: CGSize(width: 3, height: 2)).image { _ in
+            source.draw(in: CGRect(x: 0, y: 0, width: 3, height: 2))
+        }
+        #expect(resized.size == CGSize(width: 3, height: 2))
+        #expect(resized.cgImage?.width == 3)
+        #expect(resized.cgImage?.height == 2)
+        #expect(resized.cgImage?.quillBGRAPixels?.count == 3 * 2 * 4)
+
+        guard let jpeg = resized.jpegData(compressionQuality: 0.7) else {
+            Issue.record("Resized UIImage should encode to JPEG")
+            return
+        }
+        #expect(Array(jpeg.prefix(3)) == [UInt8(0xFF), 0xD8, 0xFF])
+        guard let encodedPNG = resized.pngData() else {
+            Issue.record("Resized UIImage should encode to PNG")
+            return
+        }
+        #expect(Array(encodedPNG.prefix(8)) == [UInt8(0x89), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
+        let filled = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { _ in
+            UIColor.red.setFill()
+            UIRectFill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        guard let filledPixels = filled.cgImage?.quillBGRAPixels else {
+            Issue.record("Filled renderer output should retain pixels")
+            return
+        }
+        #expect(filledPixels[0] == 0)
+        #expect(filledPixels[1] == 0)
+        #expect(filledPixels[2] > 240)
+        #expect(filledPixels[3] == 255)
+    }
+
     @Test("QuillCompatibilityEvent equality covers all fields")
     func quillCompatibilityEventEquatable() {
         let a = QuillCompatibilityEvent(
