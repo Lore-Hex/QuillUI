@@ -1072,33 +1072,6 @@ public extension EnvironmentValues {
     }
 }
 
-public struct ButtonStyleConfiguration {
-    public let label: AnyView
-    public let isPressed: Bool
-
-    @MainActor
-    public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
-        self.label = label
-        self.isPressed = isPressed
-    }
-}
-
-public protocol ButtonStyle {
-    associatedtype Body: View
-    typealias Configuration = ButtonStyleConfiguration
-
-    @ViewBuilder
-    func makeBody(configuration: Configuration) -> Body
-}
-
-public struct PlainButtonStyle: ButtonStyle {
-    public init() {}
-
-    public func makeBody(configuration: Configuration) -> AnyView {
-        configuration.label
-    }
-}
-
 public struct RoundedBorderTextFieldStyle: Sendable {
     public init() {}
 }
