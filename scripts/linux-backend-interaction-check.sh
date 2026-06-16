@@ -578,6 +578,17 @@ open_quill_chat_completions_panel() {
   sleep "$post_click_sleep"
 }
 
+reset_quill_chat_completions_panel_selection() {
+  local reset_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_X:-$((window_x + 190))}"
+  local reset_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
+
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape || true
+  sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SETTLE_SLEEP:-0.2}"
+  refocus_capture_window
+  click_at "$reset_x" "$reset_y"
+  sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_SLEEP:-0.6}"
+}
+
 quill_chat_mac_reference_completions_panel_visible() {
   local probe_path
 
@@ -600,14 +611,24 @@ ensure_quill_chat_completions_panel_open() {
 
   # Saving dismisses the overlay while Enchanted may keep the Completions
   # utility binding logically selected. Repeated Completions clicks converge:
-  # false -> open, stale true -> false -> open. Verify between clicks so the
-  # already-open case exits without closing the panel.
-  for attempt in 1 2 3 4; do
+  # false -> open, stale true -> false -> open. If GTK has an invisible stale
+  # sheet/focus target, reset through Escape + a history row before retrying.
+  # Verify between clicks so the already-open case exits without closing it.
+  for attempt in 1 2 3 4 5 6; do
     open_quill_chat_completions_panel
     if quill_chat_mac_reference_completions_panel_visible; then
       return 0
     fi
+    if (( attempt % 2 == 0 )); then
+      reset_quill_chat_completions_panel_selection
+      if quill_chat_mac_reference_completions_panel_visible; then
+        return 0
+      fi
+    fi
   done
+
+  echo "Quill Chat completions panel did not open after reset/retry attempts for mode '$INTERACTION_MODE'." >&2
+  return 1
 }
 
 open_quill_chat_new_completion_sheet() {
