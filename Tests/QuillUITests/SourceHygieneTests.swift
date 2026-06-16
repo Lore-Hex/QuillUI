@@ -74,7 +74,8 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsCxxFlags)"))
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsLinkerFlags)"))
         #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
-        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))\n}"))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))"))
+        #expect(manifest.contains("if signalUpstreamPresent && libsignalUpstreamPresent {\n        products.append(.executable(name: \"signal-ui-render\", targets: [\"SignalUIRender\"]))\n    }"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("enum QuillCanonicalLinuxAppQtRuntime"))
         #expect(manifest.contains("struct QuillCanonicalLinuxAppSpec"))
@@ -560,13 +561,21 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKit.swift"),
             encoding: .utf8
         )
+        let pasteboardAdditions = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKitMissingMembers+Pasteboard.swift"),
+            encoding: .utf8
+        )
+        let gestureRecognizers = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUIKit/UIGestureRecognizers.swift"),
+            encoding: .utf8
+        )
 
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
         #expect(source.contains("public typealias UserInterfaceStyle = UIUserInterfaceStyle"))
         #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
         #expect(source.contains("usingSpringWithDamping: CGFloat"))
         #expect(source.contains("public struct State: OptionSet, Sendable"))
-        #expect(source.contains("public class UIGestureRecognizer: NSObject"))
+        #expect(gestureRecognizers.contains("@MainActor open class UIGestureRecognizer: NSObject"))
         #expect(source.contains("public enum ContentInsetAdjustmentBehavior: Int"))
         #expect(source.contains("public enum DisplayModeButtonVisibility: Int"))
         #expect(source.contains("public enum SplitBehavior: Int"))
@@ -574,6 +583,8 @@ struct SourceHygieneTests {
         #expect(source.contains("public enum LayoutEnvironment: Int"))
         #expect(source.contains("case twoDisplaceSecondary"))
         #expect(source.contains("case inspector"))
+        #expect(source.contains("#if os(Linux)\n    open func forwardingTarget(for aSelector: Selector!) -> Any? { nil }\n    #else\n    open override func forwardingTarget(for aSelector: Selector!) -> Any? { nil }\n    #endif"))
+        #expect(pasteboardAdditions.contains("#if os(Linux)\n    func responds(to selector: Selector?) -> Bool {\n        false\n    }\n    #endif"))
     }
 
     @Test("Semantic colors have a single platform-color owner")
@@ -656,13 +667,19 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/osShim/os.swift"),
             encoding: .utf8
         )
+        let attributedStringDocument = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillFoundation/NSAttributedStringDocument.swift"),
+            encoding: .utf8
+        )
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
+        #expect(attributedStringDocument.contains("#if os(Linux)\n// NSAttributedString document-conversion surface"))
+        #expect(attributedStringDocument.hasSuffix("#endif\n"))
     }
 
     @Test("Linux SwiftUI compatibility extensions have one canonical module")

@@ -407,7 +407,9 @@ if quillUILinuxBuildBackend == .gtk {
     // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
     // (and, wired up, SignalUI) UIViewController view trees to an on-screen
     // GTK window. First-light demo proves the pipeline; Signal's own VCs follow.
-    products.append(.executable(name: "signal-ui-render", targets: ["SignalUIRender"]))
+    if signalUpstreamPresent && libsignalUpstreamPresent {
+        products.append(.executable(name: "signal-ui-render", targets: ["SignalUIRender"]))
+    }
 }
 
 products += [
