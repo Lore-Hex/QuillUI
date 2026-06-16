@@ -135,10 +135,22 @@ def gray_line_pixel(rgb: tuple[int, int, int]) -> bool:
     # lighter (and slightly bluer) than macOS SwiftUI — they land near the top of
     # the gray band rather than the middle. Widen the upper bound (590..680 ->
     # 590..712) and the channel-spread tolerance (12 -> 16) so the divider lines
-    # are detected on both backends. The window is non-regressive: every pixel
-    # the old band matched still matches.
-    total = sum(rgb)
-    return 590 <= total <= 712 and max(rgb) - min(rgb) <= 16
+    # are detected on both backends.
+    #
+    # But require the pixel be a NEUTRAL gray — green must not be the dominant
+    # channel. The widened 712 ceiling otherwise sweeps in Enchanted's light
+    # green-tinted sidebar FILL (e.g. (232,237,226): total=695, spread=11) which
+    # is low-spread enough to pass but is structurally a panel background, not a
+    # divider line. A genuine divider is neutral/warm-gray ((216,212,208):
+    # green_bias=-4); the sidebar tint is green-dominant (green_bias=+5). Without
+    # this guard the green fill scores full-height in line_column_score, ties the
+    # true sidebar divider in the divider argmax, and the lower-x spurious column
+    # wins — placing the detected divider at ratio 0.246 instead of the true
+    # 0.285 and failing the Mac-reference sidebar check. Excluding green-dominant
+    # pixels never drops a real divider line (they are neutral by construction).
+    r, g, b = rgb
+    total = r + g + b
+    return 590 <= total <= 712 and max(rgb) - min(rgb) <= 16 and g <= max(r, b)
 
 
 def prompt_card_pixel(rgb: tuple[int, int, int]) -> bool:
