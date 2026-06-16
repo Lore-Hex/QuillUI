@@ -7,6 +7,7 @@ import SwiftOpenUI
 import BackendQt
 #elseif canImport(BackendGTK4)
 @_implementationOnly import BackendGTK4
+@_implementationOnly import QuillAppKitGTK
 #endif
 
 #if os(Linux)
@@ -15,6 +16,7 @@ public extension App {
         #if canImport(BackendQt)
         QtBackend().run(Self.self)
         #elseif canImport(BackendGTK4)
+        _ = QuillAppKitGTKAutoInstall.didInstall
         GTK4Backend().run(Self.self)
         #endif
     }

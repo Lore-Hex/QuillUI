@@ -210,7 +210,7 @@ platform fallbacks.
 | `NSMenu.popUp(...)`, `update()`, `cancelTracking()` | Fallback | No native menu display. |
 | `NSMenuItem.init(...)` / `separator()` | Usable | Stores title/action/key equivalent metadata. |
 | `NSToolbar.insertItem(withItemIdentifier:at:)` / `removeItem(at:)` / `validateVisibleItems()` | Partial | In-memory toolbar item list only. |
-| `NSAlert.addButton(withTitle:)`, `runModal()`, `beginSheetModal(...)` | Fallback | Deterministic modal response, no native dialog. |
+| `NSAlert.addButton(withTitle:)`, `runModal()`, `beginSheetModal(...)` | Partial | Deterministic headless response plus GTK-backed modal presenter with button responses and accessory text-field capture. |
 | `NSSavePanel.runModal()` / `begin(...)` / `beginSheetModal(...)` | Fallback | Returns `.OK` and completes synchronously; real file dialog is incomplete. |
 | `NSOpenPanel` configuration / `runModal()` / `begin(...)` / `beginSheetModal(...)` | Fallback | Stores picker configuration and deterministically returns `.cancel`; no native dialog or user selection yet. |
 | `NSScrollView` document-view helpers and `flashScrollers()` | Partial | Stores document view; no native scrolling. |

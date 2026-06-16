@@ -25,6 +25,7 @@
 import Glibc
 import Testing
 import SwiftUI
+import SwiftOpenUI
 
 // MARK: - Helpers
 
@@ -39,7 +40,9 @@ private func builds<T>(_ value: T) -> Bool {
 /// Mirrors ContentView.swift's `ToolbarButtonStyle`: a custom `ButtonStyle`
 /// conformer spelled with the protocol's bare `Configuration` typealias and
 /// the `label` / `isPressed` configuration members.
-private struct PressOpacityButtonStyle: ButtonStyle {
+private struct PressOpacityButtonStyle: SwiftOpenUI.ButtonStyle {
+    typealias Configuration = SwiftOpenUI.ButtonStyleConfiguration
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.opacity(configuration.isPressed ? 0.5 : 1)
     }
@@ -67,7 +70,7 @@ private final class CrosshairCursorView: NSView {
 
 // MARK: - Tests
 
-@Suite("SolderScope chrome conformance")
+@Suite("SolderScope chrome conformance", .serialized)
 @MainActor
 struct SolderScopeChromeConformanceTests {
 
@@ -198,6 +201,32 @@ struct SolderScopeChromeConformanceTests {
 
         #expect(alert.runModal() == .alertSecondButtonReturn)
         #expect(textField.stringValue == "2.54 mm")
+    }
+
+    @Test func nsAlertBackendHookCanDriveAccessoryTextInput() {
+        // Runtime backends such as QuillAppKitGTK install a modal presenter
+        // through NSAlert._runModalHook. The hook must be able to update the
+        // accessory field and return the exact AppKit response for the chosen
+        // button without app-source changes.
+        let previousHook = NSAlert._runModalHook
+        NSAlert._runModalHook = { alert in
+            alert.quillFirstAccessoryTextField()?.stringValue = "1.5 cm"
+            return alert.quillResponse(forButtonAtOneBasedIndex: 2)
+        }
+        defer {
+            NSAlert._runModalHook = previousHook
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Enter Known Length"
+        _ = alert.addButton(withTitle: "Apply")
+        _ = alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        alert.accessoryView = textField
+
+        #expect(alert.runModal() == .alertSecondButtonReturn)
+        #expect(textField.stringValue == "1.5 cm")
     }
 
     // MARK: Scenes
