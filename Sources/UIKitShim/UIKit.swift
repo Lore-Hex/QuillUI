@@ -390,9 +390,9 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
 
 public final class NSTextContainer {
     public var lineFragmentPadding: CGFloat = 0
+    public weak var layoutManager: NSLayoutManager?
     public var size: CGSize = .zero
     public var maximumNumberOfLines: Int = 0
-    public weak var layoutManager: NSLayoutManager?
     public init() {}
 }
 
@@ -400,15 +400,15 @@ public class UITextRange: NSObject {
     public let start: UITextPosition
     public let end: UITextPosition
 
-    public override init() {
-        self.start = UITextPosition()
-        self.end = UITextPosition()
-        super.init()
-    }
-
     public init(start: UITextPosition, end: UITextPosition) {
         self.start = start
         self.end = end
+        super.init()
+    }
+
+    public override init() {
+        self.start = UITextPosition()
+        self.end = UITextPosition()
         super.init()
     }
 }
@@ -615,9 +615,9 @@ public enum UIUserInterfaceIdiom: Int, Sendable {
 
 // MARK: - UIEdgeInsets
 //
-// Layout-inset geometry (UIKit on iOS; NSEdgeInsets on macOS). The public UIKit
-// spelling aliases QuillUIKit's backing value so class-body members in
-// QuillUIKit and UIKit-typed extension accessors share one type.
+// UIKit's four-edge geometry type. The concrete storage lives in QuillUIKit so
+// UIView/UIScrollView class-body members can be `open` and overrideable; this
+// shim re-exports it under Apple's spelling.
 public typealias UIEdgeInsets = QuillEdgeInsets
 
 // MARK: - NSDirectionalEdgeInsets

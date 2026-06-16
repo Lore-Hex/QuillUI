@@ -36,7 +36,7 @@ public class AVCaptureSession: @unchecked Sendable {
 
     public var sessionPreset: Preset = .high
     public var isMultitaskingCameraAccessSupported: Bool { false }
-    public var isMultitaskingCameraAccessEnabled = false
+    public var isMultitaskingCameraAccessEnabled: Bool = false
 
     /// V4L2 hook (#515): while running with a /dev/video* device input, holds
     /// the QuillV4L2SessionBridge feeding real frames to this session's video

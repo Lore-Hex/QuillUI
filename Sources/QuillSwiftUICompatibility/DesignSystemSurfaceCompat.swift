@@ -912,6 +912,7 @@ public extension EnvironmentValues {
 }
 
 public extension Shape where Self == Circle {
+    @MainActor
     static var circle: Circle { Circle() }
 }
 
@@ -1576,7 +1577,8 @@ fileprivate func quillCollectTabs(fromAny view: any View) -> [AnyTab] {
     if let tabSource = view as? any QuillTabCollectible {
         // Witnesses are isolated (View whole-protocol); collection runs on
         // the backend main loop == main thread.
-        return MainActor.assumeIsolated { tabSource.quillCollectedTabs }
+        let box = QuillIsolationHopBox(value: tabSource)
+        return MainActor.assumeIsolated { box.value.quillCollectedTabs }
     }
     if let multi = view as? any MultiChildView {
         return multi.children.flatMap(quillCollectTabs(fromAny:))
@@ -1754,7 +1756,7 @@ public enum TableColumnBuilder<RowValue> {
         columns.flatMap { $0 }
     }
 
-    public static func buildExpression<Content: View>(
+    @MainActor public static func buildExpression<Content: View>(
         _ column: TableColumn<RowValue, Content>
     ) -> [AnyTableColumn<RowValue>] {
         [AnyTableColumn(column)]

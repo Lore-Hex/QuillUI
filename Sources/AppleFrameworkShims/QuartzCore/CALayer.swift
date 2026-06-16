@@ -804,7 +804,7 @@ open class CALayer: NSObject, @preconcurrency CAMediaTiming {
 // travel as their Swift structs. Unknown keys return nil / no-op (no
 // NSUnknownKeyException machinery, and probing optional keys is common).
 
-extension CALayer: @preconcurrency QuillKeyValueCoding {
+extension CALayer: QuillKeyValueCoding {
 
     public func quillValue(forKey key: String) -> Any? {
         switch key {

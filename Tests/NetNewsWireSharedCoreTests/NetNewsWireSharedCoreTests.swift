@@ -1,12 +1,15 @@
 import Foundation
+import AppKit
 import ActivityLog
 import Articles
 import Images
 import NetNewsWireContext
 import Testing
+import UserNotifications
 @testable import Account
 @testable import NetNewsWireSharedCore
 @testable import RSCore
+@testable import RSTree
 
 @Suite("Upstream NetNewsWire Shared core slice", .serialized)
 struct NetNewsWireSharedCoreTests {
@@ -182,6 +185,122 @@ struct NetNewsWireSharedCoreTests {
         #expect(decodedAgain.flattened.map(\.name) == ["Local", "Swift"])
     }
 
+    @Test("Share default container follows saved AppDefaults")
+    @MainActor func shareDefaultContainerUsesSavedDefaults() throws {
+        let containers = try JSONDecoder().decode(ExtensionContainers.self, from: Data("""
+        {
+          "accounts": [
+            {
+              "name": "Local",
+              "accountID": "local",
+              "type": 1,
+              "disallowFeedInRootFolder": true,
+              "containerID": { "type": "account", "accountID": "local" },
+              "folders": [
+                {
+                  "accountName": "Local",
+                  "accountID": "local",
+                  "name": "Swift",
+                  "containerID": {
+                    "type": "folder",
+                    "accountID": "local",
+                    "folderName": "Swift"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Other",
+              "accountID": "other",
+              "type": 1,
+              "disallowFeedInRootFolder": false,
+              "containerID": { "type": "account", "accountID": "other" },
+              "folders": []
+            }
+          ]
+        }
+        """.utf8))
+        let defaults = AppDefaults.shared
+
+        defaults.addFeedAccountID = nil
+        defaults.addFeedFolderName = nil
+        let firstDefault = try #require(ShareDefaultContainer.defaultContainer(containers: containers))
+        #expect(firstDefault.name == "Swift")
+        #expect(firstDefault.containerID == .folder("local", "Swift"))
+
+        defaults.addFeedAccountID = "other"
+        defaults.addFeedFolderName = nil
+        let savedAccount = try #require(ShareDefaultContainer.defaultContainer(containers: containers))
+        #expect(savedAccount.name == "Other")
+        #expect(savedAccount.containerID == .account("other"))
+
+        let folder = try #require(containers.accounts.first?.folders.first)
+        ShareDefaultContainer.saveDefaultContainer(folder)
+        #expect(defaults.addFeedAccountID == "local")
+        #expect(defaults.addFeedFolderName == "Swift")
+    }
+
+    @Test("Share extension files read and append app-group property lists")
+    @MainActor func shareExtensionFilesRoundTripThroughAppGroupContainer() throws {
+        let fileManager = FileManager.default
+        let appGroupURL = try #require(
+            fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.com.ranchero.NetNewsWire")
+        )
+        let containersURL = appGroupURL.appendingPathComponent("extension_containers.plist")
+        let feedRequestsURL = appGroupURL.appendingPathComponent("extension_feed_add_request.plist")
+        try? fileManager.removeItem(at: containersURL)
+        try? fileManager.removeItem(at: feedRequestsURL)
+        defer {
+            try? fileManager.removeItem(at: containersURL)
+            try? fileManager.removeItem(at: feedRequestsURL)
+        }
+
+        let containers = try JSONDecoder().decode(ExtensionContainers.self, from: Data("""
+        {
+          "accounts": [
+            {
+              "name": "Local",
+              "accountID": "local",
+              "type": 1,
+              "disallowFeedInRootFolder": false,
+              "containerID": { "type": "account", "accountID": "local" },
+              "folders": []
+            }
+          ]
+        }
+        """.utf8))
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .binary
+        try encoder.encode(containers).write(to: containersURL)
+
+        let readContainers = try #require(ExtensionContainersFile.read())
+        #expect(readContainers.accounts.map(\.accountID) == ["local"])
+
+        let first = ExtensionFeedAddRequest(
+            name: "One",
+            feedURL: URL(string: "https://example.test/one.xml")!,
+            destinationContainerID: .account("local")
+        )
+        let second = ExtensionFeedAddRequest(
+            name: "Two",
+            feedURL: URL(string: "https://example.test/two.xml")!,
+            destinationContainerID: .account("local")
+        )
+
+        ExtensionFeedAddRequestFile.save(first)
+        ExtensionFeedAddRequestFile.save(second)
+
+        let saved = try PropertyListDecoder().decode(
+            [ExtensionFeedAddRequest].self,
+            from: Data(contentsOf: feedRequestsURL)
+        )
+        #expect(saved.map(\.name) == ["One", "Two"])
+        #expect(saved.map(\.feedURL.absoluteString) == [
+            "https://example.test/one.xml",
+            "https://example.test/two.xml",
+        ])
+    }
+
     @Test("OPML exporter compiles and XML escaping preserves upstream behavior")
     func opmlExporterCompileSliceAndEscaping() {
         _ = OPMLExporter.self
@@ -220,6 +339,38 @@ struct NetNewsWireSharedCoreTests {
         #expect(downloader.favicon(with: "ftp://example.test/favicon.ico", homePageURL: nil) == nil)
         downloader.emptyCache()
         #expect(downloader.favicon(with: "https://example.test/favicon.ico", homePageURL: nil) == nil)
+    }
+
+    @Test("Icon image cache resolves author downloader images and low-memory cleanup")
+    @MainActor func iconImageCacheResolvesAuthorImagesAndLowMemoryCleanup() async throws {
+        let cache = IconImageCache()
+        AuthorAvatarDownloader.shared.emptyCache()
+        defer {
+            AuthorAvatarDownloader.shared.emptyCache()
+        }
+
+        let author = try #require(Author(
+            authorID: nil,
+            name: "Reporter",
+            url: nil,
+            avatarURL: "https://example.test/avatar.png",
+            emailAddress: nil
+        ))
+        let authorIcon = IconImage(RSImage())
+        let article = makeArticle(uniqueID: "author", title: "Byline", authors: [author])
+
+        AuthorAvatarDownloader.shared.cache(authorIcon, for: author)
+        #expect(cache.imageForArticle(article) === authorIcon)
+
+        AuthorAvatarDownloader.shared.emptyCache()
+        #expect(cache.imageForArticle(article) === authorIcon)
+
+        NotificationCenter.default.post(name: .lowMemory, object: nil)
+        await Task.yield()
+
+        let replacementIcon = IconImage(RSImage())
+        AuthorAvatarDownloader.shared.cache(replacementIcon, for: author)
+        #expect(cache.imageForArticle(article) === replacementIcon)
     }
 
     @Test("Mark status command filters articles before mutation")
@@ -276,6 +427,39 @@ struct NetNewsWireSharedCoreTests {
         #expect(starred.defaultReadFilterType == .none)
         #expect(starred.smallIcon?.isSymbol == true)
         #expect(controller.find(by: .feed("local", "feed")) == nil)
+    }
+
+    @Test("Smart feed pasteboard writer exposes display name")
+    @MainActor func smartFeedPasteboardWriter() throws {
+        let smartFeed = SmartFeed(delegate: SearchFeedDelegate(searchString: "swift"))
+        let writer = SmartFeedPasteboardWriter(smartFeed: smartFeed)
+        let pasteboard = NSPasteboard(name: .init(rawValue: "nnw-smart-feed-\(UUID().uuidString)"))
+
+        #expect(writer.writableTypes(for: pasteboard) == [.string])
+        #expect(writer.pasteboardPropertyList(forType: .string) as? String == "Search: swift")
+        #expect(writer.pasteboardPropertyList(forType: .fileURL) == nil)
+    }
+
+    @Test("Node sorting extensions preserve display ordering")
+    @MainActor func nodeSortingExtensions() {
+        let alpha = Node(representedObject: NamedDisplayObject("Alpha"), parent: nil)
+        let beta = Node(representedObject: NamedDisplayObject("Beta"), parent: nil)
+        let folder = Node(representedObject: NamedDisplayObject("Folder"), parent: nil)
+        folder.canHaveChildNodes = true
+
+        #expect([beta, alpha].sortedAlphabetically() == [alpha, beta])
+        #expect([folder, alpha, beta].sortedAlphabeticallyWithFoldersAtEnd() == [alpha, beta, folder])
+    }
+
+    @Test("Cache cleaner initializes image cache flush date")
+    @MainActor func cacheCleanerInitializesFlushDate() {
+        let defaults = AppDefaults.shared
+        defaults.lastImageCacheFlushDate = nil
+        UserDefaults.standard.set(true, forKey: "didPurgeImageCachesForResizing-2026-03-30")
+
+        CacheCleaner.purgeIfNecessary()
+
+        #expect(defaults.lastImageCacheFlushDate != nil)
     }
 
     @Test("Unread smart feed follows Linux notification lowering")
@@ -481,12 +665,59 @@ struct NetNewsWireSharedCoreTests {
         #expect(CurrentActivityViewModel.accessibilityLabel(for: .failed) == "Failed")
     }
 
+    @Test("Account refresh timer schedules, suspends, resumes, and invalidates")
+    @MainActor func accountRefreshTimerLifecycle() {
+        let defaults = AppDefaults.shared
+        defaults.refreshInterval = .every30Minutes
+
+        let timer = AccountRefreshTimer()
+        timer.update()
+        timer.suspend()
+        timer.resume()
+        timer.invalidate()
+
+        defaults.refreshInterval = .manually
+        timer.update()
+        timer.fireOldTimer()
+        timer.invalidate()
+    }
+
+    @Test("Article status sync timer handles queue notification and lifecycle")
+    @MainActor func articleStatusSyncTimerLifecycle() async {
+        let timer = ArticleStatusSyncTimer.shared
+
+        timer.start()
+        timer.update()
+        NotificationCenter.default.post(name: .AccountDidQueueArticleStatuses, object: nil)
+        await Task.yield()
+        timer.fireOldTimer()
+        timer.stop()
+    }
+
+    @Test("User notification manager registers article actions through shim")
+    @MainActor func userNotificationManagerRegistersArticleActions() async throws {
+        let center = UNUserNotificationCenter.current()
+        center.setNotificationCategories([])
+
+        UserNotificationManager.shared.start()
+        let categories = await center.notificationCategories()
+        let category = try #require(categories.first { $0.identifier == "NEW_ARTICLE_NOTIFICATION_CATEGORY" })
+
+        #expect(category.hiddenPreviewsBodyPlaceholder == "")
+        #expect(category.actions.map(\.identifier) == [
+            UserNotificationManager.ActionIdentifier.openArticle,
+            UserNotificationManager.ActionIdentifier.markAsRead,
+            UserNotificationManager.ActionIdentifier.markAsStarred,
+        ])
+    }
+
     private func makeArticle(
         uniqueID: String,
         title: String?,
         read: Bool = false,
         starred: Bool = false,
-        body: String? = nil
+        body: String? = nil,
+        authors: Set<Author>? = nil
     ) -> Article {
         Article(
             accountID: "account",
@@ -503,8 +734,17 @@ struct NetNewsWireSharedCoreTests {
             imageURL: nil,
             datePublished: nil,
             dateModified: nil,
-            authors: nil,
+            authors: authors,
             status: ArticleStatus(articleID: "article-\(uniqueID)", read: read, starred: starred, dateArrived: Date(timeIntervalSince1970: 0))
         )
+    }
+}
+
+@MainActor private final class NamedDisplayObject: NSObject, DisplayNameProvider {
+    let nameForDisplay: String
+
+    init(_ nameForDisplay: String) {
+        self.nameForDisplay = nameForDisplay
+        super.init()
     }
 }
