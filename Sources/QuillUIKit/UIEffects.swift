@@ -180,6 +180,11 @@ public enum UIVibrancyEffectStyle: Int, Sendable {
         super.init(coder: coder)
         addSubview(_contentView)
     }
+
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        _contentView.frame = bounds
+    }
 }
 
 #endif // !os(iOS)
