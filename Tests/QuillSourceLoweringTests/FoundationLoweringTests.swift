@@ -38,11 +38,47 @@ struct FoundationLoweringTests {
         #expect(!lowered.contains("quillKey"))
     }
 
+    @Test("NSTextCheckingResult CheckingType static members lower to raw values")
+    func textCheckingResultStaticMembersLower() {
+        let source = """
+        let detector = try NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let transit = NSTextCheckingResult.CheckingType.transitInformation
+        """
+
+        let lowered = FoundationLowering().lower(source)
+        #expect(lowered.contains("NSDataDetector(types: NSTextCheckingResult.CheckingType(rawValue: 32).rawValue)"))
+        #expect(lowered.contains("let transit = NSTextCheckingResult.CheckingType(rawValue: 4096)"))
+        #expect(!lowered.contains("CheckingType.link"))
+        #expect(!lowered.contains("CheckingType.transitInformation"))
+    }
+
+    @Test("NSTextCheckingResult CheckingType inferred inserts lower only for checking-type variables")
+    func textCheckingResultInferredInsertsLowerConservatively() {
+        let source = """
+        var checkingTypes = NSTextCheckingResult.CheckingType()
+        checkingTypes.insert(.link)
+        checkingTypes.insert(.address)
+        checkingTypes.insert(.phoneNumber)
+        checkingTypes.insert(.date)
+        unrelated.insert(.link)
+        """
+
+        let lowered = FoundationLowering().lower(source)
+        #expect(lowered.contains("checkingTypes.insert(NSTextCheckingResult.CheckingType(rawValue: 32))"))
+        #expect(lowered.contains("checkingTypes.insert(NSTextCheckingResult.CheckingType(rawValue: 16))"))
+        #expect(lowered.contains("checkingTypes.insert(NSTextCheckingResult.CheckingType(rawValue: 2048))"))
+        #expect(lowered.contains("checkingTypes.insert(NSTextCheckingResult.CheckingType(rawValue: 8))"))
+        #expect(lowered.contains("unrelated.insert(.link)"))
+    }
+
     @Test("Foundation lowering is idempotent")
     func idempotent() {
         let source = """
         let descriptor = NSSortDescriptor(key: "name", ascending: true)
         let selectedKey = sortDescriptor?.key ?? "name"
+        let detector = try NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        var checkingTypes = NSTextCheckingResult.CheckingType()
+        checkingTypes.insert(.phoneNumber)
         """
 
         let first = FoundationLowering().lower(source)
@@ -50,5 +86,7 @@ struct FoundationLoweringTests {
         #expect(first == second)
         #expect(first.contains("NSSortDescriptor.quillKey(\"name\", ascending: true)"))
         #expect(first.contains("sortDescriptor?.quillKey ?? \"name\""))
+        #expect(first.contains("NSTextCheckingResult.CheckingType(rawValue: 32).rawValue"))
+        #expect(first.contains("checkingTypes.insert(NSTextCheckingResult.CheckingType(rawValue: 2048))"))
     }
 }

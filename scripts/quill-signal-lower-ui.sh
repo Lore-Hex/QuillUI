@@ -3,7 +3,7 @@
 # Reproducible build-prep: lower Signal-iOS's SignalUI source so it compiles on
 # QuillOS/Linux against QuillUI's UIKit layer. Edits IN PLACE in the disposable
 # `.upstream` copy (produced by the upstream-fetch pipeline) -- never a pristine
-# checkout you keep. Two app-agnostic transforms:
+# checkout you keep. App-agnostic transforms:
 #
 #   1) `import UIKit.UIGestureRecognizerSubclass` -> `import UIKit`. That Clang
 #      submodule has no Linux equivalent; the Swift UIKit shim provides the
@@ -20,6 +20,8 @@
 #      removes Swift/CoreFoundation bridge casts that swift-corelibs Foundation
 #      does not support and that Quill's shims accept as native Swift values.
 #
+#   4) Foundation/corelibs source lowering via `quill-lower-foundation`.
+#
 # Usage: scripts/quill-signal-lower-ui.sh [SCRATCH_PATH]
 #   SCRATCH_PATH defaults to .build (where quill-lower-appkit is built if absent).
 #
@@ -34,6 +36,11 @@ if [ ! -d "$SUI" ]; then
     echo "quill-signal-lower-ui: no SignalUI upstream at $SUI; skipping"
     exit 0
 fi
+
+# Remove stale same-module port symlinks from previous runs before running
+# source-lowering tools. Otherwise generic lowerers can write through symlinks
+# and dirty checked-in Quill port sources.
+rm -rf "$SUI/QuillPort"
 
 # (1) UIKit Clang-submodule import -> base UIKit module.
 sed -i 's/^import UIKit\.UIGestureRecognizerSubclass/import UIKit/' \
@@ -52,6 +59,14 @@ fi
 
 # (3) Swift/corelibs compatibility cleanup for disposable generated source.
 "$ROOT/scripts/lower-objc-interop-for-linux.sh" "$SUI"
+FOUNDATION_TOOL="$SCRATCH/debug/quill-lower-foundation"
+swift build --scratch-path "$SCRATCH" --disable-index-store \
+    --product quill-lower-foundation >/dev/null 2>&1 || true
+if [ -x "$FOUNDATION_TOOL" ]; then
+    "$FOUNDATION_TOOL" "$SUI"
+else
+    echo "quill-signal-lower-ui: quill-lower-foundation not built; Foundation lowering skipped" >&2
+fi
 
 # (3b) `UITextView` inherits `UIScrollView`, whose Swift-visible `delegate` is
 # typed as `UIScrollViewDelegate?`; Apple's ObjC bridge lets `UITextView`
@@ -104,6 +119,8 @@ for filename in sys.argv[1:]:
     updated = text
     for old, new in replacements.items():
         updated = updated.replace(old, new)
+    while "nonisolated nonisolated" in updated:
+        updated = updated.replace("nonisolated nonisolated", "nonisolated")
     if updated != text:
         path.write_text(updated)
 PY
