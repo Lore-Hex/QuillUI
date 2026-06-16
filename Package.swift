@@ -492,7 +492,7 @@ products += [
 #if os(Linux)
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
-    "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage",
+    "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage", "CoreServices",
     // NSBitmapImageRep's real raster encode (rung 4) goes through gdk-pixbuf.
     "CGdkPixbuf",
 ]
@@ -504,7 +504,7 @@ let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
 // still dangle: SwiftPM validates named targets even when the condition is off).
 let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore"]
 let uiKitShimDependencies: [Target.Dependency] =
-    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore", "CoreTransferable"]
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore", "CoreTransferable", "CoreText"]
 // V4L2 capture backend (#515): Linux-only system library; Apple graphs
 // keep the pure compile-surface AVFoundation.
 let quillV4L2Dependencies: [Target.Dependency] = ["CV4L2"]
@@ -2291,14 +2291,13 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
     case "SceneKit":
         // SceneKit vends SwiftUI's `SceneView`; the scene-graph types use
-        // QuillFoundation's CGFloat and Foundation's CGPoint (re-exported via
-        // the umbrella). SwiftUI does not import SceneKit, so the edge is
-        // acyclic. (CoreGraphics is intentionally NOT a dep: it would get
-        // built ahead of the CI-inert Euclid target in a shared scratch and
-        // leak canImport(CoreGraphics) into pure Euclid. The CGImage/CGColor
-        // re-export only matters once Euclid's interop is enabled — a rung-2
-        // app-tier concern — and is wired then.)
-        dependencies = ["QuillFoundation", "SwiftUI"]
+        // QuillFoundation's CGFloat and Foundation's CGPoint. Rung 2c also
+        // mirrors Apple's umbrella reach for UIKit/AppKit/CoreGraphics so Euclid
+        // and ShapeScript's SceneKit interop files compile without source edits.
+        // SwiftUI does not import SceneKit, so the SwiftUI edge remains acyclic.
+        dependencies = ["QuillFoundation", "SwiftUI", "UIKit", "AppKit", "CoreGraphics"]
+    case "RealityKit":
+        dependencies = ["QuillFoundation", "UIKit", "Combine"]
     default:
         dependencies = ["QuillFoundation"]
     }
@@ -2539,12 +2538,10 @@ if solderScopeUpstreamPresent {
 if euclidUpstreamPresent {
     // Euclid's Apple-framework interop files (Euclid+SceneKit/RealityKit/
     // AppKit/UIKit/CoreGraphics/CoreText/SIMD) are `#if canImport(...)`
-    // gated upstream. With NO Apple deps declared here those gates are
-    // correctly FALSE, so the interop files drop out and Euclid compiles as
-    // its pure-Swift geometry/CSG core — the rung-1 target. (The canImport
-    // leak only bites when the module is actually pulled into the dep
-    // graph; keeping Euclid dep-free avoids it.) The SceneKit interop comes
-    // online at rung 2, when the SceneKit shim exists and is added as a dep.
+    // gated upstream. Rung 2c intentionally pulls the SceneKit/AppKit/UIKit/
+    // CoreGraphics surface into the dep graph, so Euclid's real SceneKit and
+    // CoreGraphics mesh interop compiles for the example app. RealityKit
+    // interop stays excluded until that deeper texture/material API is needed.
     // `.swiftLanguageMode(.v5)`: Euclid is Swift-5-mode code; the default
     // Swift 6 mode flags its global statics / @Sendable closures as
     // concurrency errors (Transform.identity, Polygon.codableClasses,
@@ -2553,18 +2550,15 @@ if euclidUpstreamPresent {
     targets += [
         .target(
             name: "Euclid",
-            // Stays PURE (rung 1). Adding the SceneKit/AppKit/CoreGraphics
-            // interop deps here lights up Euclid's interop AND — because
-            // ShapeScript depends on Euclid — leaks SceneKit/UIKit into
-            // ShapeScript's graph, waking its own dormant interop
-            // (Material+SceneKit / Scene+SceneKit, a deep UIKit/CoreText/ObjC
-            // surface). So the interop enablement is an all-at-once rung-2
-            // app-tier campaign (Euclid + ShapeScript + the viewer apps),
-            // tracked in docs/scenekit-conformance.md. The SceneKit/
-            // CoreGraphics shim surface those need is already in place and
-            // verified to compile Euclid's interop at 0 errors (727 -> 0).
-            dependencies: [],
+            // Rung 2c enables Euclid's SceneKit/UIKit/AppKit/CoreGraphics
+            // interop. ShapeScript depends on Euclid, so this intentionally
+            // wakes ShapeScript's SceneKit/CoreText importer surface too. Keep
+            // RealityKit excluded for now; the Euclid example uses a small
+            // RealityKit screen, but Euclid's own RealityKit mesh interop is a
+            // deeper texture/material API and is not needed for this rung.
+            dependencies: ["SceneKit", "UIKit", "AppKit", "CoreGraphics"],
             path: ".upstream/euclid/Sources",
+            exclude: ["Euclid+RealityKit.swift"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         // Real UIKit + SceneKit demo app (one RealityKit screen, one
@@ -2615,11 +2609,9 @@ if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         // The ShapeScript language core + CLI support Linux upstream (mesh
-        // generation via Euclid, no UI). Its SceneKit/AppKit/UIKit interop
-        // (Material+SceneKit, Scene+SceneKit, EvaluationContext's importer)
-        // is `#if canImport(SceneKit)` gated, so with no SceneKit dep here
-        // those files drop and the language core compiles against Euclid +
-        // LRUCache + SVGPath alone — rung 1. v5 mode matches upstream.
+        // generation via Euclid). With Euclid's rung-2c SceneKit deps enabled,
+        // ShapeScript's own SceneKit/CoreText importer files also wake and
+        // compile against the authored shim surface. v5 mode matches upstream.
         .target(
             name: "ShapeScript",
             dependencies: ["Euclid", "ShapeScriptLRUCache", "SVGPath"],
@@ -2645,9 +2637,9 @@ if shapeScriptUpstreamPresent && euclidUpstreamPresent && svgPathUpstreamPresent
         .executableTarget(
             name: "QuillShapeScriptViewer",
             dependencies: [
-                "ShapeScript", "Euclid", "SVGPath", "QuillUI", "AppKit",
+                "ShapeScript", "Euclid", "SVGPath", "QuillUI", "AppKit", "Cocoa",
                 "SceneKit", "Combine", "os", "UniformTypeIdentifiers",
-                "QuillFoundation",
+                "CoreServices", "QuillFoundation",
             ],
             path: ".upstream/shapescript/Viewer",
             exclude: [
@@ -2889,7 +2881,7 @@ targets.append(contentsOf: [
     // common AppKit-adjacent Apple modules, so source that relies on Cocoa as
     // an umbrella import recompiles unchanged.
     // so unmodified macOS app source that `import Cocoa` recompiles unchanged.
-    .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"], path: "Sources/CocoaShim"),
+    .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore", "CoreServices"], path: "Sources/CocoaShim"),
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
     .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
@@ -3125,6 +3117,7 @@ if quillUILinuxBuildBackend == .qt {
         .target(name: "ImageIO", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/ImageIO"),
         .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
         .target(name: "CoreImage", dependencies: ["QuillFoundation", "CoreVideo"], path: "Sources/AppleFrameworkShims/CoreImage"),
+        .target(name: "CoreServices", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreServices"),
         .target(
             name: "AppKit",
             dependencies: appKitShadowDependencies,
@@ -3139,7 +3132,7 @@ if quillUILinuxBuildBackend == .qt {
         // recompiles in the qt graph — needed for the literal WireGuard VC
         // render conformance below.
         // Mirrors the default/GTK-graph Cocoa target.
-        .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"], path: "Sources/CocoaShim"),
+        .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore", "CoreServices"], path: "Sources/CocoaShim"),
         .target(
             name: "CKiwi",
             path: "Sources/CKiwi",

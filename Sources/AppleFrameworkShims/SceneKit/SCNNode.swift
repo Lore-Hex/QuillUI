@@ -2,7 +2,11 @@
 import Foundation
 import QuillFoundation
 
-public final class SCNNode: @unchecked Sendable {
+public final class SCNNode: Equatable, @unchecked Sendable {
+    public static func == (lhs: SCNNode, rhs: SCNNode) -> Bool {
+        lhs === rhs
+    }
+
     public var name: String?
     public var position = SCNVector3(0, 0, 0)
     public var eulerAngles = SCNVector3(0, 0, 0)
@@ -34,6 +38,12 @@ public final class SCNNode: @unchecked Sendable {
         child.removeFromParentNode()
         child.parent = self
         childNodes.append(child)
+    }
+
+    public func insertChildNode(_ child: SCNNode, at index: Int) {
+        child.removeFromParentNode()
+        child.parent = self
+        childNodes.insert(child, at: Swift.max(0, Swift.min(index, childNodes.count)))
     }
 
     public func removeFromParentNode() {

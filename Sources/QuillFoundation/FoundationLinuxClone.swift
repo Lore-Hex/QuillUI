@@ -26,6 +26,79 @@ public extension NSMutableString {
     }
 }
 
+public extension NSString {
+    struct EncodingDetectionOptionsKey: Hashable, RawRepresentable, Sendable, ExpressibleByStringLiteral {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
+
+        public static let suggestedEncodingsKey = EncodingDetectionOptionsKey(rawValue: "NSSuggestedEncodingsKey")
+        public static let likelyLanguageKey = EncodingDetectionOptionsKey(rawValue: "NSLikelyLanguageKey")
+    }
+
+    static func stringEncoding(
+        for data: Data,
+        encodingOptions: [EncodingDetectionOptionsKey: Any]? = nil,
+        convertedString: UnsafeMutablePointer<NSString?>?,
+        usedLossyConversion: UnsafeMutablePointer<ObjCBool>?
+    ) -> UInt {
+        _ = encodingOptions
+        let string = String(data: data, encoding: .utf8)
+            ?? String(data: data, encoding: .isoLatin1)
+            ?? String(decoding: data, as: UTF8.self)
+        convertedString?.pointee = string as NSString
+        usedLossyConversion?.pointee = false
+        return String.Encoding.utf8.rawValue
+    }
+}
+
+public extension URL {
+    struct BookmarkCreationOptions: OptionSet, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let minimalBookmark = BookmarkCreationOptions(rawValue: 1 << 0)
+        public static let suitableForBookmarkFile = BookmarkCreationOptions(rawValue: 1 << 1)
+        public static let withSecurityScope = BookmarkCreationOptions(rawValue: 1 << 2)
+        public static let securityScopeAllowOnlyReadAccess = BookmarkCreationOptions(rawValue: 1 << 3)
+    }
+
+    struct BookmarkResolutionOptions: OptionSet, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let withoutUI = BookmarkResolutionOptions(rawValue: 1 << 0)
+        public static let withoutMounting = BookmarkResolutionOptions(rawValue: 1 << 1)
+        public static let withSecurityScope = BookmarkResolutionOptions(rawValue: 1 << 2)
+    }
+
+    func bookmarkData(
+        options: BookmarkCreationOptions = [],
+        includingResourceValuesForKeys keys: Set<URLResourceKey>? = nil,
+        relativeTo url: URL? = nil
+    ) throws -> Data {
+        _ = (options, keys, url)
+        return Data(absoluteString.utf8)
+    }
+
+    init(
+        resolvingBookmarkData data: Data,
+        options: BookmarkResolutionOptions = [],
+        relativeTo url: URL? = nil,
+        bookmarkDataIsStale isStale: inout Bool
+    ) throws {
+        _ = options
+        isStale = false
+        let string = String(data: data, encoding: .utf8) ?? ""
+        if let resolved = URL(string: string, relativeTo: url) {
+            self = resolved
+        } else {
+            self = URL(fileURLWithPath: string)
+        }
+    }
+
+    func startAccessingSecurityScopedResource() -> Bool { true }
+    func stopAccessingSecurityScopedResource() {}
+}
+
 public extension NSDictionary {
     func fileSize() -> UInt64 {
         for key in [FileAttributeKey.size, "NSFileSize", "size"] as [Any] {
@@ -433,6 +506,38 @@ public func removexattr(_ path: String, _ name: String) -> Int32 {
 public func getxattr(_ path: String, _ name: String, _ value: UnsafeMutableRawPointer?, _ size: Int) -> Int {
     _ = (path, name, value, size)
     return -1
+}
+
+public func setxattr(
+    _ path: UnsafePointer<CChar>?,
+    _ name: String,
+    _ value: UnsafeRawPointer?,
+    _ size: Int,
+    _ position: UInt32,
+    _ options: Int32
+) -> Int32 {
+    let stringPath = path.map(String.init(cString:)) ?? ""
+    _ = position
+    return setxattr(stringPath, name, value, size, options)
+}
+
+public func removexattr(_ path: UnsafePointer<CChar>?, _ name: String, _ options: Int32) -> Int32 {
+    let stringPath = path.map(String.init(cString:)) ?? ""
+    _ = options
+    return removexattr(stringPath, name)
+}
+
+public func getxattr(
+    _ path: UnsafePointer<CChar>?,
+    _ name: String,
+    _ value: UnsafeMutableRawPointer?,
+    _ size: Int,
+    _ position: UInt32,
+    _ options: Int32
+) -> Int {
+    let stringPath = path.map(String.init(cString:)) ?? ""
+    _ = (position, options)
+    return getxattr(stringPath, name, value, size)
 }
 
 public final class QuillMeasurementFormatter {

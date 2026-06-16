@@ -233,6 +233,8 @@ public class UIWindow: UIView {}
         public static let flexibleTopMargin = AutoresizingMask(rawValue: 1 << 3)
         public static let flexibleHeight = AutoresizingMask(rawValue: 1 << 4)
         public static let flexibleBottomMargin = AutoresizingMask(rawValue: 1 << 5)
+        public static let width = flexibleWidth
+        public static let height = flexibleHeight
     }
 
     public override init() { super.init() }
@@ -312,6 +314,7 @@ public class UIWindow: UIView {}
     public var isUserInteractionEnabled: Bool = true
     public var alpha: CGFloat = 1.0
     public var tintColor: UIColor?
+    public private(set) var gestureRecognizers: [UIGestureRecognizer] = []
 
     public var safeAreaLayoutGuide = UILayoutGuide()
     public var topAnchor = NSLayoutYAxisAnchor()
@@ -324,6 +327,16 @@ public class UIWindow: UIView {}
     public func setNeedsLayout() {}
     public func setNeedsDisplay() {}
     public func layoutIfNeeded() {}
+    open func addGestureRecognizer(_ gestureRecognizer: UIGestureRecognizer) {
+        gestureRecognizer.view = self
+        gestureRecognizers.append(gestureRecognizer)
+    }
+    open func removeGestureRecognizer(_ gestureRecognizer: UIGestureRecognizer) {
+        gestureRecognizers.removeAll { $0 === gestureRecognizer }
+        if gestureRecognizer.view === self {
+            gestureRecognizer.view = nil
+        }
+    }
     public func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
         _ = priority
         _ = axis
@@ -415,6 +428,15 @@ public class UIWindow: UIView {}
     public var splitViewController: UISplitViewController?
     public var navigationItem = UINavigationItem()
     public var preferredContentSize: CGSize = CGSize(width: 0, height: 0)
+    public var title: String?
+    open func loadView() {}
+    open var shouldAutorotate: Bool { true }
+    public override init() { super.init() }
+    public init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
+        _ = nibNameOrNil
+        _ = nibBundleOrNil
+        super.init()
+    }
 }
 
 @MainActor public class UISplitViewController: UIViewController {
@@ -556,7 +578,7 @@ public class UIBarButtonItem: NSObject {
 }
 
 @MainActor public class UIAlertController: UIViewController {
-    public init(title: String?, message: String?, preferredStyle: Int) {}
+    public init(title: String?, message: String?, preferredStyle: Int) { super.init() }
     public func addAction(_: Any) {}
     public var popoverPresentationController: UIPopoverPresentationController?
 }
@@ -576,8 +598,8 @@ public class UIAction: NSObject {
 }
 
 @MainActor public class UIActivityViewController: UIViewController {
-    public init(url: URL, title: String?, applicationActivities: [Any]?) {}
-    public init(activityItems: [Any], applicationActivities: [Any]?) {}
+    public init(url: URL, title: String?, applicationActivities: [Any]?) { super.init() }
+    public init(activityItems: [Any], applicationActivities: [Any]?) { super.init() }
 }
 
 public class UIPasteboard: NSObject {
@@ -858,6 +880,37 @@ public class UIGestureRecognizer: NSObject {
     }
 
     public var state: State = .possible
+    public weak var view: UIView?
+    public weak var delegate: UIGestureRecognizerDelegate?
+
+    public override init() { super.init() }
+    public init(target: Any?, action: Selector?) {
+        _ = target
+        _ = action
+        super.init()
+    }
+}
+
+public protocol UIGestureRecognizerDelegate: AnyObject {}
+
+public class UIPinchGestureRecognizer: UIGestureRecognizer {
+    public var scale: CGFloat = 1.0
+}
+
+public class UIRotationGestureRecognizer: UIGestureRecognizer {
+    public var rotation: CGFloat = 0
+}
+
+public class UIPanGestureRecognizer: UIGestureRecognizer {
+    public var numberOfTouches: Int = 0
+    public func translation(in view: UIView?) -> CGPoint {
+        _ = view
+        return .zero
+    }
+    public func setTranslation(_ translation: CGPoint, in view: UIView?) {
+        _ = translation
+        _ = view
+    }
 }
 
 public class UIApplicationShortcutItem: NSObject {
@@ -871,6 +924,10 @@ public class UIApplicationShortcutItem: NSObject {
 // declaration here (the ambiguity that blocked the notifications presenter).
 
 @MainActor public protocol UIApplicationDelegate: AnyObject {}
+
+public extension UIApplicationDelegate {
+    static func main() {}
+}
 
 public typealias UIBackgroundTaskIdentifier = Int
 public extension UIBackgroundTaskIdentifier {

@@ -2188,6 +2188,118 @@ patch_solderscope() {
     fi
 }
 
+patch_euclid() {
+    # Euclid's example app is UIKit + SceneKit with a small RealityKit tab.
+    # Linux has no ObjC runtime, so lower its selector glue in the disposable
+    # checkout. Also instantiate the UIViewController subclasses through their
+    # explicit nib initializer; adding a broad UIViewController.init() changes
+    # UIKit semantics and cascades through other conformance targets.
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        local example="$UPSTREAM_DIR/euclid/Example"
+        [[ -d "$example" ]] || return 0
+        python3 - "$example" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+replacements = {
+    "RealityKitViewController.swift": [
+        ("@objc private func handlePinch", "private func handlePinch"),
+        ("@objc private func handleRotate", "private func handleRotate"),
+        ("@objc private func handlePan", "private func handlePan"),
+        ("#selector(handlePinch(_:))", 'Selector("handlePinch(_:)")'),
+        ("#selector(handleRotate(_:))", 'Selector("handleRotate(_:)")'),
+        ("#selector(handlePan(_:))", 'Selector("handlePan(_:)")'),
+    ],
+    "SceneDelegate.swift": [
+        ("SceneKitViewController()", "SceneKitViewController(nibName: nil, bundle: nil)"),
+        ("RealityKitViewController()", "RealityKitViewController(nibName: nil, bundle: nil)"),
+    ],
+}
+changed = 0
+for name, edits in replacements.items():
+    path = root / name
+    if not path.exists():
+        continue
+    text = path.read_text()
+    new = text
+    for old, replacement in edits:
+        new = new.replace(old, replacement)
+    if new != text:
+        path.write_text(new)
+        changed += 1
+print(f"patch_euclid: lowered selector/init glue in {changed} file(s)")
+PY
+    fi
+}
+
+patch_shapescript() {
+    # ShapeScript's macOS viewer is an AppKit/NSDocument app and uses target-
+    # action selectors plus Interface Builder attributes. Linux has no ObjC
+    # runtime, so lower only the disposable Viewer/Mac checkout through the same
+    # AppKit pass used by WireGuard/SolderScope. Shared/ and CLI stay source-
+    # unchanged; the Mac target is the only slice with @IB*/#selector usage.
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        local mac_viewer="$UPSTREAM_DIR/shapescript/Viewer/Mac"
+        if [[ -d "$mac_viewer" ]] && grep -rqE '#selector|@objc|@IBAction|@IBOutlet|@IB' "$mac_viewer" 2>/dev/null; then
+            echo "==> lowering shapescript Viewer/Mac for Linux"
+            ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$mac_viewer" )
+        fi
+        [[ -d "$mac_viewer" ]] || return 0
+        python3 - "$mac_viewer" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+replacements = {
+    "AppDelegate.swift": [
+        ("files.sorted(by: { $0.path < $1.path })", "files.map({ $0 as URL }).sorted(by: { ($0.path ?? \"\") < ($1.path ?? \"\") })"),
+        ("files.sorted(by: { ($0.path ?? \"\") < ($1.path ?? \"\") })", "files.map({ $0 as URL }).sorted(by: { ($0.path ?? \"\") < ($1.path ?? \"\") })"),
+    ],
+    "DocumentViewController.swift": [
+        ("NSColor.red", "NSColor(red: 1, green: 0, blue: 0, alpha: 1)"),
+        ("scnView.gestureRecognizers.insert(clickGesture, at: 0)", "scnView.addGestureRecognizer(clickGesture)"),
+        ("errorTextView.gestureRecognizers.insert(clickGesture2, at: 0)", "errorTextView.addGestureRecognizer(clickGesture2)"),
+        ("scnView.layer?.backgroundColor", "scnView.layer.backgroundColor"),
+    ],
+    "Utilities.swift": [
+        ("func dismissOpenSavePanel() {", "@MainActor func dismissOpenSavePanel() {"),
+    ],
+}
+changed = 0
+for name, edits in replacements.items():
+    path = root / name
+    if not path.exists():
+        continue
+    text = path.read_text()
+    new = text
+    for old, replacement in edits:
+        new = new.replace(old, replacement)
+    if new != text:
+        path.write_text(new)
+        changed += 1
+shared = root.parent / "Shared" / "DocumentViewController+View.swift"
+if shared.exists():
+    text = shared.read_text()
+    new = text.replace(
+        """renderTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
+            self.scnView.rendersContinuously = false
+            self.renderTimer = nil
+        }""",
+        """scnView.rendersContinuously = false
+        renderTimer = nil""",
+    ).replace(
+        "material.emission.contents = OSColor.red",
+        "material.emission.contents = OSColor(red: 1, green: 0, blue: 0, alpha: 1)",
+    )
+    if new != text:
+        shared.write_text(new)
+        changed += 1
+print(f"patch_shapescript: applied Linux viewer glue in {changed} file(s)")
+PY
+    fi
+}
+
 patch_libsignal() {
     # libsignal's LibSignalClient ships "testing endpoints" (FakeChat / OTP /
     # comparable-backup test helpers) gated `#if !os(iOS) || targetEnvironment(simulator)`
@@ -2277,6 +2389,7 @@ for name in "${want[@]}"; do
             # Example/ is a real UIKit + SceneKit (+ one RealityKit screen)
             # demo app — the warm-up SceneKit conformance driver.
             fetch_repo euclid https://github.com/nicklockwood/Euclid.git
+            patch_euclid
             ;;
         lrucache)
             # nicklockwood/LRUCache (MIT): single-file pure-Swift dependency
@@ -2298,14 +2411,17 @@ for name in "${want[@]}"; do
             # instead (HEAD == 0.8.14 today), so fetch euclid/lrucache/svgpath
             # alongside — or just use the `scenekit` meta-arm.
             fetch_repo shapescript https://github.com/nicklockwood/ShapeScript.git
+            patch_shapescript
             ;;
         scenekit)
             # Meta-arm: everything the SceneKit conformance campaign needs.
             # See docs/scenekit-conformance.md.
             fetch_repo euclid https://github.com/nicklockwood/Euclid.git
+            patch_euclid
             fetch_repo lrucache https://github.com/nicklockwood/LRUCache.git
             fetch_repo svgpath https://github.com/nicklockwood/SVGPath.git
             fetch_repo shapescript https://github.com/nicklockwood/ShapeScript.git
+            patch_shapescript
             ;;
         *)
             echo "unknown upstream: $name" >&2

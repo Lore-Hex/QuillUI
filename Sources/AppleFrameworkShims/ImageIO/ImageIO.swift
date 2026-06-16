@@ -13,24 +13,12 @@
 import Foundation
 @_exported import CoreFoundation
 import QuillFoundation
+@_exported import class QuillFoundation.CGDataProvider
+@_exported import struct QuillFoundation.CGDataProviderDirectCallbacks
 
 // MARK: - Opaque source types
 
 public class CGImageSource {}
-public class CGDataProvider {
-    public init() {}
-    public init?(data: Data) {
-        _ = data
-    }
-    public init?(
-        dataInfo info: UnsafeMutableRawPointer?,
-        data: UnsafeRawPointer,
-        size: Int,
-        releaseData: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer, Int) -> Void)?
-    ) {
-        _ = (info, data, size, releaseData)
-    }
-}
 
 public extension CGImage {
     var utType: String? { nil }
@@ -116,44 +104,6 @@ public let kCGImagePropertyColorModelGray: String = "Gray"
 // and its call sites compile. The position parameter of getBytesAtPosition is
 // typed UInt64 (rather than Apple's off_t/Int64) to match the upstream closure,
 // which compares it against FileHandle.offset() (a UInt64) directly.
-public struct CGDataProviderDirectCallbacks {
-    public var version: UInt32
-    public var getBytePointer: (@convention(c) (UnsafeMutableRawPointer?) -> UnsafeRawPointer?)?
-    public var releaseBytePointer: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer) -> Void)?
-    public var getBytesAtPosition: (@convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer, UInt64, Int) -> Int)?
-    public var releaseInfo: (@convention(c) (UnsafeMutableRawPointer?) -> Void)?
-
-    public init(
-        version: UInt32,
-        getBytePointer: (@convention(c) (UnsafeMutableRawPointer?) -> UnsafeRawPointer?)?,
-        releaseBytePointer: (@convention(c) (UnsafeMutableRawPointer?, UnsafeRawPointer) -> Void)?,
-        getBytesAtPosition: (@convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer, UInt64, Int) -> Int)?,
-        releaseInfo: (@convention(c) (UnsafeMutableRawPointer?) -> Void)?
-    ) {
-        self.version = version
-        self.getBytePointer = getBytePointer
-        self.releaseBytePointer = releaseBytePointer
-        self.getBytesAtPosition = getBytesAtPosition
-        self.releaseInfo = releaseInfo
-    }
-}
-
-extension CGDataProvider {
-    public convenience init?(
-        directInfo info: UnsafeMutableRawPointer?,
-        size: Int64,
-        callbacks: UnsafePointer<CGDataProviderDirectCallbacks>?
-    ) {
-        // Inert: no CoreGraphics consumer pulls bytes on Linux. The provider's
-        // releaseInfo would normally balance the passRetained the caller does, so
-        // release it here to avoid leaking the wrapper the caller handed us.
-        if let info, let release = callbacks?.pointee.releaseInfo {
-            release(info)
-        }
-        self.init()
-    }
-}
-
 // MARK: - CGImageDestination (image writing)
 //
 // SignalServiceKit's BadgeAssets writes a sprite-sheet PNG via CGImageDestination.

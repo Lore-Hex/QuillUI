@@ -3,13 +3,36 @@ import Foundation
 // CFString/CFArray classes into every `import Cocoa` scope (see the QuartzCore
 // shim note). Only the CF names CoreText's API surface needs are re-exported.
 import CoreFoundation
+import QuillKit
 @_exported import QuillFoundation
+@_exported import typealias QuillKit.CFArray
+@_exported import typealias QuillKit.CFString
+@_exported import typealias QuillKit.CFDictionary
 
 public typealias CFIndex = CoreFoundation.CFIndex
 public typealias CFRange = CoreFoundation.CFRange
+public typealias CFAttributedString = NSAttributedString
+public typealias CGGlyph = UInt16
 
-public final class CTFramesetter {}
-public final class CTFrame {}
+public func CFRangeMake(_ loc: CFIndex, _ len: CFIndex) -> CFRange {
+    CFRange(location: loc, length: len)
+}
+
+public final class CTFramesetter {
+    fileprivate let attributedString: NSAttributedString
+
+    fileprivate init(_ attributedString: NSAttributedString) {
+        self.attributedString = attributedString
+    }
+}
+
+public final class CTFrame {
+    fileprivate let lines: [CTLine]
+
+    fileprivate init(lines: [CTLine]) {
+        self.lines = lines
+    }
+}
 public typealias CTFont = RSFont
 
 public let kCTFontAttributeName = "NSFont"
@@ -46,8 +69,7 @@ public enum CTLineTruncationType: UInt32, Sendable {
 }
 
 public func CTFramesetterCreateWithAttributedString(_ attributedString: NSAttributedString) -> CTFramesetter {
-    _ = attributedString
-    return CTFramesetter()
+    CTFramesetter(attributedString)
 }
 
 public func CTFramesetterSuggestFrameSizeWithConstraints(
@@ -57,9 +79,35 @@ public func CTFramesetterSuggestFrameSizeWithConstraints(
     _ constraints: CGSize,
     _ fitRange: UnsafeMutablePointer<CFRange>?
 ) -> CGSize {
-    _ = (framesetter, stringRange, frameAttributes)
+    _ = (stringRange, frameAttributes)
     fitRange?.pointee = CFRange(location: 0, length: 0)
-    return constraints
+    let width = min(constraints.width, CGFloat(max(1, framesetter.attributedString.length)) * 7)
+    return CGSize(width: width, height: min(constraints.height, 14))
+}
+
+public func CTFramesetterCreateFrame(
+    _ framesetter: CTFramesetter,
+    _ stringRange: CFRange,
+    _ path: CGPath,
+    _ frameAttributes: Any?
+) -> CTFrame {
+    _ = (stringRange, path, frameAttributes)
+    return CTFrame(lines: [CTLine(length: framesetter.attributedString.length)])
+}
+
+public func CTFrameGetLines(_ frame: CTFrame) -> NSArray {
+    NSArray(array: frame.lines)
+}
+
+public func CTFrameGetLineOrigins(
+    _ frame: CTFrame,
+    _ range: CFRange,
+    _ origins: UnsafeMutablePointer<CGPoint>
+) {
+    _ = range
+    for index in 0..<frame.lines.count {
+        origins.advanced(by: index).pointee = CGPoint(x: 0, y: CGFloat(index) * 14)
+    }
 }
 
 public func CTLineCreateWithAttributedString(_ attributedString: NSAttributedString) -> CTLine {
@@ -86,6 +134,36 @@ public func CTFontGetDescent(_ font: CTFont) -> CGFloat {
 
 public func CTFontGetLeading(_ font: CTFont) -> CGFloat {
     max(0, font.lineHeight - font.ascender + font.descender)
+}
+
+public func CTFontCreateWithName(
+    _ name: CFString,
+    _ size: CGFloat,
+    _ matrix: UnsafePointer<CGAffineTransform>?
+) -> CTFont {
+    _ = matrix
+    return CTFont(name: name, size: size) ?? CTFont(pointSize: size, fontName: name)
+}
+
+public func CTFontCopyFullName(_ font: CTFont) -> CFString {
+    font.fontName
+}
+
+public func CTFontManagerCopyAvailablePostScriptNames() -> CFArray {
+    ["Helvetica", ".AppleSystemUIFont"]
+}
+
+public func CTFontManagerCopyAvailableFontFamilyNames() -> CFArray {
+    ["Helvetica", ".AppleSystemUIFont"]
+}
+
+@discardableResult
+public func CTFontManagerRegisterGraphicsFont(
+    _ font: CGFont,
+    _ error: UnsafeMutablePointer<Any?>?
+) -> Bool {
+    _ = (font, error)
+    return true
 }
 
 public func CTTypesetterCreateWithAttributedString(_ attributedString: NSAttributedString) -> CTTypesetter? {
@@ -180,4 +258,27 @@ public func CTRunGetStatus(_ run: CTRun) -> CTRunStatus {
 public func CTRunGetAttributes(_ run: CTRun) -> NSDictionary {
     _ = run
     return NSDictionary()
+}
+
+public func CTRunGetGlyphs(_ run: CTRun, _ range: CFRange, _ glyphs: UnsafeMutablePointer<CGGlyph>) {
+    _ = run
+    for index in 0..<max(0, range.length) {
+        glyphs.advanced(by: index).pointee = 0
+    }
+}
+
+public func CTRunGetPositions(_ run: CTRun, _ range: CFRange, _ positions: UnsafeMutablePointer<CGPoint>) {
+    _ = run
+    for index in 0..<max(0, range.length) {
+        positions.advanced(by: index).pointee = .zero
+    }
+}
+
+public func CTFontCreatePathForGlyph(
+    _ font: CTFont,
+    _ glyph: CGGlyph,
+    _ matrix: UnsafePointer<CGAffineTransform>?
+) -> CGPath? {
+    _ = (font, glyph, matrix)
+    return CGPath()
 }

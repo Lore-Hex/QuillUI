@@ -13,6 +13,9 @@
 @_exported import class QuillFoundation.CGMutablePath
 @_exported import class QuillFoundation.CGContext
 @_exported import class QuillFoundation.CGImage
+@_exported import class QuillFoundation.CGDataProvider
+@_exported import struct QuillFoundation.CGDataProviderDirectCallbacks
+@_exported import class QuillFoundation.CGFont
 @_exported import class QuillFoundation.CGColorSpace
 @_exported import class QuillFoundation.CGGradient
 @_exported import struct QuillFoundation.CGVector
@@ -42,6 +45,7 @@
 // CFTypeRef is canonical in QuillKit — re-export it (don't redeclare, or
 // files that already see QuillKit's via AppKit get an ambiguous lookup).
 @_exported import typealias QuillKit.CFTypeRef
+@_exported import typealias QuillFoundation.CFURL
 
 // CoreFoundation type-identity sliver Euclid's defaultMaterialLookup needs (it
 // compares a material against CGImage.typeID / CGColor.typeID to detect image /

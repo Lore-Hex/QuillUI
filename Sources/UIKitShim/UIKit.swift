@@ -13,6 +13,7 @@
 // now that QuillUIKit's stub was removed in favor of the dedicated shim.
 @_exported import UserNotifications
 @_exported import CoreTransferable
+@_exported import CoreText
 // On iOS, Apple's UIKit re-exports QuartzCore — `import UIKit` alone exposes
 // CALayer/CAShapeLayer/CATransaction. Signal-iOS's SignalUI relies on this
 // (~4.8k of its conformance-build errors were CA* names with no QuartzCore

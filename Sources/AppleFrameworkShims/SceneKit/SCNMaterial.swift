@@ -23,6 +23,13 @@ public enum SCNLightingModel: String, Sendable {
     case physicallyBased
 }
 
+public enum SCNTransparencyMode: Int, Sendable {
+    case aOne
+    case rgbZero
+    case singleLayer
+    case dualLayer
+}
+
 /// A single shading channel (diffuse, emission, specular, …). `contents`
 /// holds an `NSColor` / `CGColor` / `CGImage` / image just like macOS.
 public final class SCNMaterialProperty: @unchecked Sendable {
@@ -60,11 +67,33 @@ public final class SCNMaterial: Hashable, @unchecked Sendable {
     public let normal = SCNMaterialProperty()
     public let metalness = SCNMaterialProperty()
     public let roughness = SCNMaterialProperty()
+    public let multiply = SCNMaterialProperty()
     public let transparent = SCNMaterialProperty()
     public var transparency: CGFloat = 1
+    public var transparencyMode: SCNTransparencyMode = .aOne
     public var lightingModel: SCNLightingModel = .blinn
     public var isDoubleSided: Bool = false
     public var shininess: CGFloat = 1
 
     public init() {}
+
+    public func copy() -> Any {
+        let material = SCNMaterial()
+        material.name = name
+        material.diffuse.contents = diffuse.contents
+        material.ambient.contents = ambient.contents
+        material.specular.contents = specular.contents
+        material.emission.contents = emission.contents
+        material.normal.contents = normal.contents
+        material.metalness.contents = metalness.contents
+        material.roughness.contents = roughness.contents
+        material.multiply.contents = multiply.contents
+        material.transparent.contents = transparent.contents
+        material.transparency = transparency
+        material.transparencyMode = transparencyMode
+        material.lightingModel = lightingModel
+        material.isDoubleSided = isDoubleSided
+        material.shininess = shininess
+        return material
+    }
 }

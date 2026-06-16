@@ -63,6 +63,8 @@ public final class SCNGeometryElement: @unchecked Sendable {
     public let primitiveType: SCNGeometryPrimitiveType
     public let primitiveCount: Int
     public let bytesPerIndex: Int
+    public var indicesChannelCount: Int = 1
+    public var hasInterleavedIndicesChannels: Bool = false
 
     public init(
         data: Data,
@@ -82,6 +84,7 @@ public class SCNGeometry: @unchecked Sendable {
     public var materials: [SCNMaterial] = []
     public internal(set) var sources: [SCNGeometrySource] = []
     public internal(set) var elements: [SCNGeometryElement] = []
+    public var geometrySourceChannels: [NSNumber]?
 
     /// Shallow copy (SCNGeometry is NSCopying on macOS). Euclid calls
     /// `geometry.copy() as! SCNGeometry` before reading sources/elements.
