@@ -356,6 +356,8 @@ private struct QuillCollectionViewState {
     var realizedCells: [IndexPath: UICollectionViewCell] = [:]
     var realizedIndexPaths: [IndexPath] = []
     var selectedIndexPaths: Set<IndexPath> = []
+    var isPerformingBatchUpdates = false
+    var needsReloadAfterBatchUpdates = false
 }
 
 @MainActor private var quillCollectionViewStates: [ObjectIdentifier: QuillCollectionViewState] = [:]
@@ -532,22 +534,24 @@ extension UICollectionView {
 
     // MARK: Content updates
 
-    /// Item-level reload. With counts answered live off the dataSource and
-    /// no render pass caching cells, there is no stale state to refresh.
+    /// Item-level reload. Linux realizes a synchronous snapshot, so any
+    /// item mutation invalidates that snapshot. During batch updates we defer
+    /// the refresh until the update block finishes, matching UIKit's "final
+    /// data source state" contract closely enough for Signal's loader.
     public func reloadItems(at indexPaths: [IndexPath]) {
-        _ = indexPaths
+        quillApplyContentMutation(indexPaths)
     }
 
     public func insertItems(at indexPaths: [IndexPath]) {
-        _ = indexPaths
+        quillApplyContentMutation(indexPaths)
     }
 
     public func deleteItems(at indexPaths: [IndexPath]) {
-        _ = indexPaths
+        quillApplyContentMutation(indexPaths)
     }
 
     public func moveItem(at indexPath: IndexPath, to newIndexPath: IndexPath) {
-        _ = (indexPath, newIndexPath)
+        quillApplyContentMutation([indexPath, newIndexPath])
     }
 
     public func selectItem(at indexPath: IndexPath?, animated: Bool, scrollPosition: ScrollPosition) {
@@ -563,6 +567,43 @@ extension UICollectionView {
         }
         state.selectedIndexPaths.insert(indexPath)
         quillCollectionState = state
+    }
+
+    func quillDeselectItem(at indexPath: IndexPath) {
+        var state = quillCollectionState
+        state.selectedIndexPaths.remove(indexPath)
+        quillCollectionState = state
+    }
+
+    func quillPerformBatchUpdates(_ updates: (() -> Void)?, completion: ((Bool) -> Void)?) {
+        var state = quillCollectionState
+        state.isPerformingBatchUpdates = true
+        state.needsReloadAfterBatchUpdates = false
+        quillCollectionState = state
+
+        updates?()
+
+        state = quillCollectionState
+        let shouldReload = state.needsReloadAfterBatchUpdates
+        state.isPerformingBatchUpdates = false
+        state.needsReloadAfterBatchUpdates = false
+        quillCollectionState = state
+
+        if shouldReload {
+            quillReloadData()
+        }
+        completion?(true)
+    }
+
+    private func quillApplyContentMutation(_ indexPaths: [IndexPath]) {
+        _ = indexPaths
+        var state = quillCollectionState
+        if state.isPerformingBatchUpdates {
+            state.needsReloadAfterBatchUpdates = true
+            quillCollectionState = state
+        } else {
+            quillReloadData()
+        }
     }
 
     // MARK: Realized-cell snapshot
@@ -634,7 +675,14 @@ extension UICollectionView {
 
     var quillVisibleCells: [UICollectionViewCell] {
         let state = quillCollectionState
-        return state.realizedIndexPaths.compactMap { state.realizedCells[$0] }
+        let visibleBounds = bounds
+        return state.realizedIndexPaths.compactMap { indexPath in
+            guard let cell = state.realizedCells[indexPath],
+                  cell.frame.intersects(visibleBounds) || visibleBounds.isEmpty else {
+                return nil
+            }
+            return cell
+        }
     }
 
     var quillSelectedIndexPaths: [IndexPath]? {
@@ -666,7 +714,20 @@ extension UICollectionView {
     /// Index paths of items whose frames intersect the visible bounds —
     /// real geometry whenever the layout has been prepared.
     public var indexPathsForVisibleItems: [IndexPath] {
-        collectionViewLayout.layoutAttributesForElements(in: bounds)?.map { $0.indexPath } ?? []
+        if let attributes = collectionViewLayout.layoutAttributesForElements(in: bounds),
+           !attributes.isEmpty {
+            return attributes.map { $0.indexPath }
+        }
+
+        let state = quillCollectionState
+        let visibleBounds = bounds
+        return state.realizedIndexPaths.compactMap { indexPath in
+            guard let cell = state.realizedCells[indexPath],
+                  cell.frame.intersects(visibleBounds) || visibleBounds.isEmpty else {
+                return nil
+            }
+            return indexPath
+        }
     }
 
     /// The item whose frame contains `point` (in content coordinates).
@@ -677,9 +738,16 @@ extension UICollectionView {
             width: CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
         )
-        return collectionViewLayout.layoutAttributesForElements(in: everywhere)?
-            .first { $0.frame.contains(point) }?
-            .indexPath
+        if let indexPath = collectionViewLayout.layoutAttributesForElements(in: everywhere)?
+            .first(where: { $0.frame.contains(point) })?
+            .indexPath {
+            return indexPath
+        }
+
+        let state = quillCollectionState
+        return state.realizedIndexPaths.first { indexPath in
+            state.realizedCells[indexPath]?.frame.contains(point) == true
+        }
     }
 
     /// Translates bounds.origin to bring the item's layout frame to the
@@ -687,8 +755,14 @@ extension UICollectionView {
     /// Animation completes instantly — no animation backend.
     public func scrollToItem(at indexPath: IndexPath, at scrollPosition: ScrollPosition, animated: Bool) {
         _ = animated
-        guard let attributes = collectionViewLayout.layoutAttributesForItem(at: indexPath) else { return }
-        let itemFrame = attributes.frame
+        let itemFrame: CGRect
+        if let attributes = collectionViewLayout.layoutAttributesForItem(at: indexPath) {
+            itemFrame = attributes.frame
+        } else if let cell = quillCollectionState.realizedCells[indexPath] {
+            itemFrame = cell.frame
+        } else {
+            return
+        }
         var origin = bounds.origin
 
         if scrollPosition.contains(.centeredHorizontally) {
