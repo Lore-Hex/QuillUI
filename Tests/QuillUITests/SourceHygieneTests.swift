@@ -1413,6 +1413,7 @@ struct SourceHygieneTests {
         let root = try packageRoot()
         let enchantedShared = try packageSource("Sources/QuillEnchantedShared/QuillEnchantedShared.swift")
         let enchantedQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp")
+        let backendQtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
         let genericQtRuntime = try packageSource("Sources/QuillGenericQtNativeRuntime/QuillGenericQtNativeRuntime.swift")
         let genericQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp")
         let genericQtHarness = try packageSource("scripts/generic-qt-enchanted-harness-check.sh")
@@ -1422,6 +1423,8 @@ struct SourceHygieneTests {
             atPath: root.appendingPathComponent("scripts/generic-qt-enchanted-harness-check.sh").path
         ))
 
+        #expect(backendQtRenderer.contains("MainActor.assumeIsolated"))
+        #expect(!backendQtRenderer.contains("return qtRenderView(view.body)"))
         #expect(genericQtRuntime.contains("import QuillEnchantedShared"))
         #expect(genericQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(genericQtRuntime.contains("minimumWidth: EnchantedVisualMetrics.minimumWindowWidth"))
