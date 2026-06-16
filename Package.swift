@@ -510,12 +510,13 @@ let appKitShadowDependencies: [Target.Dependency] = [
     "CGdkPixbuf",
 ]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
-// UIView.layer: on Linux, QuillUIKit (and the UIKit umbrella that re-exports
-// it) needs the in-tree QuartzCore shim. On Apple platforms CALayer comes from
-// the real QuartzCore via AppKit/UIKit — and the shim target doesn't exist, so
-// the dependency must vanish entirely (a `.when(platforms:)` condition would
-// still dangle: SwiftPM validates named targets even when the condition is off).
-let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore"]
+// UIView.layer and geometry-shaped UIKit surface: on Linux, QuillUIKit (and the
+// UIKit umbrella that re-exports it) needs the in-tree QuartzCore/CoreGraphics
+// shims. On Apple platforms those modules are real SDK modules and the shim
+// targets don't exist, so the dependencies must vanish entirely (a
+// `.when(platforms:)` condition would still dangle: SwiftPM validates named
+// targets even when the condition is off).
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore", "CoreGraphics"]
 let uiKitShimDependencies: [Target.Dependency] =
     ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore", "CoreTransferable"]
 // V4L2 capture backend (#515): Linux-only system library; Apple graphs

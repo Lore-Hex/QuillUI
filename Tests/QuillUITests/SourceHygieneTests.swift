@@ -569,8 +569,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/UIGestureRecognizers.swift"),
             encoding: .utf8
         )
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
 
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\"]"))
+        #expect(pasteboardAdditions.contains("import CoreGraphics"))
         #expect(source.contains("public typealias UserInterfaceStyle = UIUserInterfaceStyle"))
         #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
         #expect(source.contains("usingSpringWithDamping: CGFloat"))
