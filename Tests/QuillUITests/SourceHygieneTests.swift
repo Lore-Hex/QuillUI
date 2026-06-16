@@ -554,8 +554,15 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
-        #expect(appKit.contains("public protocol NSApplicationDelegate"))
-        #expect(!appKit.contains("@MainActor public protocol NSApplicationDelegate"))
+        // NSApplicationDelegate is @preconcurrency @MainActor — exactly what
+        // Apple's AppKit ships. @MainActor matches real macOS (the app delegate
+        // and NSApp run on the main actor); @preconcurrency downgrades the
+        // isolation to a WARNING for not-yet-migrated conformers/callers (e.g.
+        // generated quill-chat's PanelManager reading the @MainActor `NSApp`),
+        // so both strict-concurrency and legacy code compile — Apple's own
+        // migration mechanism. (It is NOT plain-nonisolated; only the
+        // menu/table/outline delegates below are.)
+        #expect(appKit.contains("@preconcurrency @MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,

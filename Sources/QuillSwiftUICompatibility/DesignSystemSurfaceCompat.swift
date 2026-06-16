@@ -1629,11 +1629,13 @@ public struct TextContentType: Hashable, Sendable {
     public static let password = TextContentType("password")
 }
 
-public struct KeyboardType: Hashable, Sendable {
-    public var rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public static let URL = KeyboardType("URL")
-}
+// NOTE: SwiftUI/UIKit has exactly ONE keyboard-type — `UIKeyboardType` (an enum
+// with .default/.URL/.emailAddress/…), and exactly one `keyboardType(_:)` taking
+// it. The separate `KeyboardType` struct + second `keyboardType` overload that
+// used to live here made `.keyboardType(.URL)` ambiguous (KeyboardType.URL vs
+// UIKeyboardType.URL) for callers that see both modules. Removed to mirror
+// Apple: the canonical `keyboardType(_ type: UIKeyboardType)` lives in the
+// SwiftUI shim (PlatformSurface).
 
 public struct TextInputAutocapitalization: Hashable, Sendable {
     public var rawValue: String
@@ -1837,13 +1839,9 @@ public extension View {
         return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
-    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self, KeyboardType> {
-        recordSwiftUICompatibilityFallback(
-            "keyboardType",
-            message: "keyboardType is preserved as text-input metadata on Linux."
-        )
-        return KeyboardTypeView(content: self, keyboardType: keyboardType)
-    }
+    // `keyboardType(_ type: UIKeyboardType)` lives in the SwiftUI shim
+    // (PlatformSurface) — Apple's single canonical signature. No DSSC overload,
+    // to avoid the `.keyboardType(.URL)` ambiguity for dual-module callers.
 
     @_disfavoredOverload
     func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
