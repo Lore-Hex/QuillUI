@@ -2935,7 +2935,7 @@ targets.append(contentsOf: [
     // branch). Apps that want the runtime backing import QuillAppKitGTK.
     .target(
         name: "QuillAppKitGTK",
-        dependencies: ["AppKit", "CGtk4"],
+        dependencies: ["AppKit", "CGtk4", .product(name: "CGTK", package: "SwiftOpenUI")],
         path: "Sources/QuillAppKitGTK",
         swiftSettings: [
             .swiftLanguageMode(.v5),
