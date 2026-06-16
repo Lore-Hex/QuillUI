@@ -621,7 +621,7 @@
 <tr><td><code>NSWorkspace.selectFile</code>, <code>activateFileViewerSelecting</code></td><td>Fallback</td><td>Opens containing directories through <code>xdg-open</code> when a Linux desktop session is available; records diagnostics and no-ops in headless environments.</td></tr>
 <tr><td><code>NSWorkspace.icon(forFile:)</code>, <code>icon(forContentType:)</code></td><td>Fallback</td><td>Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet.</td></tr>
 <tr><td><code>NSWorkspace.urlForApplication(...)</code></td><td>Partial</td><td>Uses <code>xdg-mime</code> plus XDG application directories for existing <code>.desktop</code> files; bundle identifiers only resolve when they already map to a Linux desktop entry.</td></tr>
-<tr><td><code>NSCursor.push()</code> / <code>pop()</code> / <code>set()</code> / hide helpers</td><td>Compile-only</td><td>No native cursor effects.</td></tr>
+<tr><td><code>NSCursor.push()</code> / <code>pop()</code> / <code>set()</code> / hide helpers</td><td>Partial</td><td>Tracks current cursor state; GTK custom NSView hosts apply cursor rects for common AppKit cursors. Hide helpers are no-ops.</td></tr>
 <tr><td><code>NSMenu.addItem(_:)</code>, <code>insertItem</code>, <code>removeItem</code>, <code>item(at:)</code></td><td>Usable</td><td>In-memory menu model.</td></tr>
 <tr><td><code>NSMenu.popUp(...)</code>, <code>update()</code>, <code>cancelTracking()</code></td><td>Fallback</td><td>No native menu display.</td></tr>
 <tr><td><code>NSMenuItem.init(...)</code> / <code>separator()</code></td><td>Usable</td><td>Stores title/action/key equivalent metadata.</td></tr>

@@ -226,7 +226,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let gtk4LinkerFlags: [String] = pkgConfigLinkerFlags(\"gtk4\")"))
         #expect(manifest.contains("let quillUIGTKSwiftImporterSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk ? ["))
         #expect(manifest.contains("let quillUIGTKLinkerSettings: [LinkerSetting] = quillUILinuxBuildBackend == .gtk ? ["))
-        #expect(manifest.contains("pkgConfig: \"gdk-pixbuf-2.0\""))
+        #expect(!manifest.contains("pkgConfig: \"gdk-pixbuf-2.0\""))
         #expect(!manifest.contains("pkgConfig: \"gtk4\""))
         #expect(manifest.contains("] + quillUIGTKSwiftImporterSettings"))
         #expect(manifest.contains("dependencies: quillUIDependencies,\n        swiftSettings: quillUIGTKSwiftImporterSettings,\n        linkerSettings: quillUIGTKLinkerSettings"))
@@ -576,7 +576,7 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/UIKitShim/UIKit.swift"),
             encoding: .utf8
         )
-        let gestures = try String(
+        let gestureSource = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/UIGestureRecognizers.swift"),
             encoding: .utf8
         )
@@ -586,7 +586,7 @@ struct SourceHygieneTests {
         #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
         #expect(source.contains("usingSpringWithDamping: CGFloat"))
         #expect(source.contains("public struct State: OptionSet, Sendable"))
-        #expect(gestures.contains("open class UIGestureRecognizer: NSObject"))
+        #expect(gestureSource.contains("open class UIGestureRecognizer: NSObject"))
         #expect(source.contains("public enum ContentInsetAdjustmentBehavior: Int"))
         #expect(source.contains("public enum DisplayModeButtonVisibility: Int"))
         #expect(source.contains("public enum SplitBehavior: Int"))
@@ -694,7 +694,7 @@ struct SourceHygieneTests {
         // dependency list Linux-only via quillV4L2Dependencies.
         #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
         #expect(manifest.contains("\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\","))
-        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreGraphics\"]"))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreText\"]"))
         #expect(manifest.contains("name: \"QuillUIKit\",\n            dependencies: [\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"CoreTransferable\", \"UniformTypeIdentifiers\"],"))
         #expect(avCaptureSurface.contains("public class AVCaptureSession: @unchecked Sendable"))
         #expect(avCaptureSurface.contains("quillV4L2StartIfAvailable()"))

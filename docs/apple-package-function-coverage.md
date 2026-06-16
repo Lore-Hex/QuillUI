@@ -205,7 +205,7 @@ platform fallbacks.
 | `NSWorkspace.selectFile`, `activateFileViewerSelecting` | Fallback | Opens containing directories through `xdg-open` when a Linux desktop session is available; records diagnostics and no-ops in headless environments. |
 | `NSWorkspace.icon(forFile:)`, `icon(forContentType:)` | Fallback | Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet. |
 | `NSWorkspace.urlForApplication(...)` | Partial | Uses `xdg-mime` plus XDG application directories for existing `.desktop` files; bundle identifiers only resolve when they already map to a Linux desktop entry. |
-| `NSCursor.push()` / `pop()` / `set()` / hide helpers | Compile-only | No native cursor effects. |
+| `NSCursor.push()` / `pop()` / `set()` / hide helpers | Partial | Tracks current cursor state; GTK custom NSView hosts apply cursor rects for common AppKit cursors. Hide helpers are no-ops. |
 | `NSMenu.addItem(_:)`, `insertItem`, `removeItem`, `item(at:)` | Usable | In-memory menu model. |
 | `NSMenu.popUp(...)`, `update()`, `cancelTracking()` | Fallback | No native menu display. |
 | `NSMenuItem.init(...)` / `separator()` | Usable | Stores title/action/key equivalent metadata. |

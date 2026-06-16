@@ -59,6 +59,23 @@ static inline void quill_widget_queue_resize(gpointer w) {
     gtk_widget_queue_resize(GTK_WIDGET(w));
 }
 
+// Cursor helper: Swift can pass the CSS/GDK cursor name chosen by the AppKit
+// backend without importing GdkCursor's ownership details at the call site.
+static inline void quill_widget_set_cursor_name(gpointer widget, const char *name) {
+    GdkCursor *cursor = NULL;
+    if (name && name[0]) {
+        cursor = gdk_cursor_new_from_name(name, NULL);
+    }
+    gtk_widget_set_cursor(GTK_WIDGET(widget), cursor);
+    if (cursor) {
+        g_object_unref(cursor);
+    }
+}
+
+static inline void quill_widget_clear_cursor(gpointer widget) {
+    gtk_widget_set_cursor(GTK_WIDGET(widget), NULL);
+}
+
 // Window helpers for runtime shims that build lightweight modal surfaces.
 static inline void quill_window_set_modal(gpointer window, int modal) {
     gtk_window_set_modal(GTK_WINDOW(window), (gboolean)modal);
