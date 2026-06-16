@@ -567,6 +567,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKit.swift"),
             encoding: .utf8
         )
+        let uiKitShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/UIKitShim/UIKit.swift"),
+            encoding: .utf8
+        )
         let gestures = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/UIGestureRecognizers.swift"),
             encoding: .utf8
@@ -585,6 +589,9 @@ struct SourceHygieneTests {
         #expect(source.contains("public enum LayoutEnvironment: Int"))
         #expect(source.contains("case twoDisplaceSecondary"))
         #expect(source.contains("case inspector"))
+        #expect(source.contains("@MainActor public class UIWindowScene: UIScene"))
+        #expect(!uiKitShim.contains("@MainActor public class UIWindowScene: UIScene"))
+        #expect(!uiKitShim.contains("@MainActor public protocol UINavigationControllerDelegate: AnyObject"))
     }
 
     @Test("Semantic colors have a single platform-color owner")
@@ -681,9 +688,9 @@ struct SourceHygieneTests {
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
         #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\"]"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\", \"UniformTypeIdentifiers\"]"))
         #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreGraphics\"]"))
-        #expect(manifest.contains("name: \"QuillUIKit\",\n            dependencies: [\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\"],"))
+        #expect(manifest.contains("name: \"QuillUIKit\",\n            dependencies: [\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"UniformTypeIdentifiers\"],"))
         #expect(avCaptureSurface.contains("public class AVCaptureSession: @unchecked Sendable"))
         #expect(avCaptureSurface.contains("quillV4L2StartIfAvailable()"))
         #expect(!avCaptureExtras.contains("public final class AVCaptureSession"))

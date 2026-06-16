@@ -138,6 +138,7 @@ private final class TickTarget: NSObject, QuillSelectorDispatching, @unchecked S
 
 // MARK: - Tests
 
+@MainActor
 final class CAAnimationTimingTests: XCTestCase {
 
     // 1. Delegate start/stop fire asynchronously; default

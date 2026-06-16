@@ -273,13 +273,6 @@ public class UISceneConfiguration: NSObject {
     }
 }
 
-@MainActor public protocol UIWindowSceneDelegate: AnyObject {}
-
-@MainActor public class UIWindowScene: UIScene {
-    public var windows: [UIWindow] = []
-    public var keyWindow: UIWindow? { windows.first }
-}
-
 public extension UIWindow {
     var isKeyWindow: Bool { false }
     @MainActor var windowScene: UIWindowScene? {
@@ -483,8 +476,6 @@ public final class UITextPasteItem {
         _ = sender
     }
 }
-
-@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
 
 @MainActor public protocol UIImagePickerControllerDelegate: AnyObject {
     func imagePickerController(

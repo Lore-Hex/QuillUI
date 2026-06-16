@@ -509,7 +509,7 @@ let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
 // the real QuartzCore via AppKit/UIKit — and the shim target doesn't exist, so
 // the dependency must vanish entirely (a `.when(platforms:)` condition would
 // still dangle: SwiftPM validates named targets even when the condition is off).
-let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore", "CoreGraphics"]
+let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit", "QuartzCore", "CoreGraphics", "UniformTypeIdentifiers"]
 let uiKitShimDependencies: [Target.Dependency] =
     ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "QuartzCore", "CoreTransferable", "CoreGraphics"]
 // V4L2 capture backend (#515): Linux-only system library; Apple graphs
@@ -3217,7 +3217,7 @@ if quillUILinuxBuildBackend == .qt {
         // rendered through Qt6. All GTK-free.
         .target(
             name: "QuillUIKit",
-            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics"],
+            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics", "UniformTypeIdentifiers"],
             path: "Sources/QuillUIKit"
         ),
         // Inert GTK-free Apple-framework shims the AppKit shadow
