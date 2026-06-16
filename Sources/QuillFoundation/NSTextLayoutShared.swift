@@ -27,7 +27,7 @@ public enum NSWritingDirection: Int, Sendable {
 }
 
 open class NSParagraphStyle: NSObject, @unchecked Sendable {
-    nonisolated(unsafe) public static let `default` = NSParagraphStyle()
+    public static let `default` = NSParagraphStyle()
 
     public override init() {}
     public var alignment: NSTextAlignment = .natural
@@ -52,7 +52,7 @@ open class NSParagraphStyle: NSObject, @unchecked Sendable {
     }
 }
 
-open class NSMutableParagraphStyle: NSParagraphStyle {}
+open class NSMutableParagraphStyle: NSParagraphStyle, @unchecked Sendable {}
 
 /// Mirror of UIKit/AppKit's NSUnderlineStyle. Modeled as an OptionSet
 /// (matching the platform, where line styles and patterns combine) with the

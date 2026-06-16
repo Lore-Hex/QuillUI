@@ -1652,7 +1652,7 @@ private final class ExtensionOverrideMerger: SyntaxRewriter {
         let kept = recursed.memberBlock.members.filter { !isOverrideMember($0) }
         guard kept.count != recursed.memberBlock.members.count else { return DeclSyntax(recursed) }
         var copy = recursed
-        copy.memberBlock.members = MemberBlockItemListSyntax(kept)
+        copy.memberBlock.members = kept
         return DeclSyntax(copy)
     }
 }
@@ -1782,7 +1782,7 @@ private final class CrossFileExtensionMemberRelocator: SyntaxRewriter {
         }
         guard kept.count != recursed.memberBlock.members.count else { return DeclSyntax(recursed) }
         var copy = recursed
-        copy.memberBlock.members = MemberBlockItemListSyntax(kept)
+        copy.memberBlock.members = kept
         return DeclSyntax(copy)
     }
 
@@ -1796,7 +1796,7 @@ private final class CrossFileExtensionMemberRelocator: SyntaxRewriter {
         guard kept.count != recursed.modifiers.count else { return DeclSyntax(recursed) }
         var copy = recursed
         copy.leadingTrivia = Trivia()
-        copy.modifiers = DeclModifierListSyntax(kept)
+        copy.modifiers = kept
         // Re-anchor the decl's leading trivia onto whatever is now first (a surviving
         // modifier or the `func` keyword) so it keeps its own line + indentation.
         copy.leadingTrivia = savedLeading

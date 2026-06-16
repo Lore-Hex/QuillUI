@@ -412,7 +412,7 @@ private final class SwiftDataRewriter: SyntaxRewriter {
         }
 
         var updated = recursed
-        body.statements = CodeBlockItemListSyntax(filteredStatements)
+        body.statements = filteredStatements
         body.rightBrace = body.rightBrace.with(\.trailingTrivia, .newlines(1))
         updated.body = body
         return DeclSyntax(updated)

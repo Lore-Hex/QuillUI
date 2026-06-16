@@ -117,7 +117,7 @@ open class UndoManager: NSObject, @unchecked Sendable {
     }
 
     public func removeAllActions(withTarget target: Any) {
-        guard let object = target as? AnyObject else { return }
+        let object = target as AnyObject
         let targetID = ObjectIdentifier(object)
         undoStack.removeAll { $0.targetIDs.contains(targetID) }
         redoStack.removeAll { $0.targetIDs.contains(targetID) }
