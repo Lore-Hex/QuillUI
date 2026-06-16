@@ -286,6 +286,13 @@ struct QuillKitTests {
         QuillCompatibilityDiagnostics.shared.clear()
 
         service.reset()
+        let presentedNotifications = LockedValue<[QuillNotificationRequestRecord]>([])
+        service.installPresentationBackend(.init(name: "test-present") { record in
+            presentedNotifications.update { $0.append(record) }
+            return true
+        })
+        defer { service.installPresentationBackend(nil) }
+
         #expect(service.authorizationStatus == .notDetermined)
         #expect(service.requestAuthorization(optionsRawValue: 0) == false)
         #expect(service.authorizationStatus == .denied)
@@ -313,6 +320,8 @@ struct QuillKitTests {
         )
         #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
         #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
+        #expect(presentedNotifications.value.map(\.identifier) == ["now"])
+        #expect(presentedNotifications.value.first?.body == "Delivered")
 
         #expect(service.remoteNotificationsRegistered == false)
         #expect(service.remoteNotificationRegistrationCount == 0)
@@ -332,6 +341,7 @@ struct QuillKitTests {
         #expect(operations.contains("notifications.requestAuthorization"))
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
+        #expect(operations.contains("notifications.present"))
         #expect(operations.contains("notifications.registerForRemoteNotifications"))
     }
 

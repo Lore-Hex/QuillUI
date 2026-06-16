@@ -1210,6 +1210,12 @@ struct CompatibilityModuleTests {
         center.removeAllPendingNotificationRequests()
         service.configureAuthorization(status: .notDetermined, requestResult: true)
         QuillCompatibilityDiagnostics.shared.clear()
+        let presentedNotifications = CompatibilityLockedValue<[QuillNotificationRequestRecord]>([])
+        service.installPresentationBackend(.init(name: "usernotifications-test-present") { record in
+            presentedNotifications.update { $0.append(record) }
+            return true
+        })
+        defer { service.installPresentationBackend(nil) }
         let openedURLs = CompatibilityLockedValue<[URL]>([])
         QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "ui-application-test") { url in
             openedURLs.update { $0.append(url) }
@@ -1304,6 +1310,8 @@ struct CompatibilityModuleTests {
         #expect(pendingIdentifiers == ["later"])
         #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
         #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
+        #expect(presentedNotifications.value.map(\.identifier) == ["now"])
+        #expect(presentedNotifications.value.first?.title == "Ready")
 
         center.removeDeliveredNotifications(withIdentifiers: ["now"])
         center.removePendingNotificationRequests(withIdentifiers: ["later"])
@@ -1314,6 +1322,7 @@ struct CompatibilityModuleTests {
         #expect(operations.contains("notifications.requestAuthorization"))
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
+        #expect(operations.contains("notifications.present"))
         #expect(operations.contains("notifications.registerForRemoteNotifications"))
         #expect(operations.contains("openURL"))
 

@@ -7,10 +7,10 @@
 // module mirrors the common types/initializers/members while routing state into
 // QuillKit's process-local notification compatibility backend.
 //
-// HONEST STATUS: emulated. Requests, categories, settings, and delivered/pending
-// lists are tracked deterministically, but nothing is presented by a desktop
-// notification daemon yet. Wiring this to libnotify / org.freedesktop.Notifications
-// is a later backend milestone.
+// HONEST STATUS: partial-real. Requests, categories, settings, and
+// delivered/pending lists are tracked deterministically. Immediate deliveries
+// route through QuillKit's injectable desktop presentation backend (or Linux
+// notify-send when available); scheduled timer delivery is still queued-only.
 //
 import Foundation
 import QuillKit

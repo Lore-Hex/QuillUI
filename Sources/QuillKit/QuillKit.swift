@@ -1440,6 +1440,16 @@ public struct QuillNotificationRequestRecord: Equatable, Sendable {
 public final class QuillNotificationService: @unchecked Sendable {
     public static let shared = QuillNotificationService()
 
+    public struct PresentationBackend: Sendable {
+        public var name: String
+        public var present: @Sendable (QuillNotificationRequestRecord) -> Bool
+
+        public init(name: String, present: @escaping @Sendable (QuillNotificationRequestRecord) -> Bool) {
+            self.name = name
+            self.present = present
+        }
+    }
+
     private let lock = NSLock()
     private var currentAuthorizationStatus: QuillNotificationAuthorizationStatus = .notDetermined
     private var nextAuthorizationRequestResult = false
@@ -1448,6 +1458,7 @@ public final class QuillNotificationService: @unchecked Sendable {
     private var deliveredNotificationsByIdentifier: [String: QuillNotificationRequestRecord] = [:]
     private var remoteNotificationsRegisteredValue = false
     private var remoteNotificationRegistrationCountValue = 0
+    private var presentationBackend: PresentationBackend?
 
     public init() {}
 
@@ -1479,6 +1490,12 @@ public final class QuillNotificationService: @unchecked Sendable {
         lock.withLock { remoteNotificationRegistrationCountValue }
     }
 
+    public func installPresentationBackend(_ backend: PresentationBackend?) {
+        lock.withLock {
+            presentationBackend = backend
+        }
+    }
+
     public func configureAuthorization(
         status: QuillNotificationAuthorizationStatus,
         requestResult: Bool
@@ -1498,6 +1515,7 @@ public final class QuillNotificationService: @unchecked Sendable {
             deliveredNotificationsByIdentifier.removeAll()
             remoteNotificationsRegisteredValue = false
             remoteNotificationRegistrationCountValue = 0
+            presentationBackend = nil
         }
     }
 
@@ -1535,7 +1553,7 @@ public final class QuillNotificationService: @unchecked Sendable {
         _ record: QuillNotificationRequestRecord,
         deliverImmediately: Bool
     ) {
-        lock.withLock {
+        let backend = lock.withLock { () -> PresentationBackend? in
             if deliverImmediately {
                 pendingRequestsByIdentifier.removeValue(forKey: record.identifier)
                 deliveredNotificationsByIdentifier[record.identifier] = record
@@ -1543,6 +1561,7 @@ public final class QuillNotificationService: @unchecked Sendable {
                 deliveredNotificationsByIdentifier.removeValue(forKey: record.identifier)
                 pendingRequestsByIdentifier[record.identifier] = record
             }
+            return presentationBackend
         }
 
         QuillCompatibilityDiagnostics.shared.record(
@@ -1550,6 +1569,88 @@ public final class QuillNotificationService: @unchecked Sendable {
             operation: "notifications.addRequest",
             severity: .info,
             message: "Stored notification request '\(record.identifier)' in the process-local compatibility backend."
+        )
+
+        if deliverImmediately {
+            presentDeliveredNotification(record, using: backend)
+        }
+    }
+
+    private func presentDeliveredNotification(
+        _ record: QuillNotificationRequestRecord,
+        using backend: PresentationBackend?
+    ) {
+        if let backend {
+            let didPresent = backend.present(record)
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillKit",
+                operation: "notifications.present",
+                severity: didPresent ? .info : .unsupported,
+                message: "Notification request '\(record.identifier)' presentation was handled by \(backend.name)."
+            )
+            return
+        }
+
+        #if os(Linux)
+        guard Self.linuxDesktopNotificationsAvailable else {
+            recordNotificationPresentationUnavailable(
+                record,
+                reason: "notify-send requires /usr/bin/notify-send plus a desktop notification session on Linux."
+            )
+            return
+        }
+
+        let title = record.title.isEmpty ? "Notification" : record.title
+        let message = [record.subtitle, record.body].filter { !$0.isEmpty }.joined(separator: "\n")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/notify-send")
+        process.arguments = message.isEmpty
+            ? ["--app-name=QuillUI", title]
+            : ["--app-name=QuillUI", title, message]
+        do {
+            try process.run()
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillKit",
+                operation: "notifications.present",
+                severity: .info,
+                message: "Notification request '\(record.identifier)' was sent through notify-send."
+            )
+        } catch {
+            recordNotificationPresentationUnavailable(
+                record,
+                reason: "notify-send could not be launched: \(error.localizedDescription)"
+            )
+        }
+        #else
+        recordNotificationPresentationUnavailable(
+            record,
+            reason: "no desktop notification presentation backend is installed."
+        )
+        #endif
+    }
+
+    #if os(Linux)
+    private static var linuxDesktopNotificationsAvailable: Bool {
+        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/notify-send") else {
+            return false
+        }
+
+        let env = ProcessInfo.processInfo.environment
+        return env["DBUS_SESSION_BUS_ADDRESS"]?.isEmpty == false ||
+            env["DISPLAY"]?.isEmpty == false ||
+            env["WAYLAND_DISPLAY"]?.isEmpty == false
+    }
+    #endif
+
+    private func recordNotificationPresentationUnavailable(
+        _ record: QuillNotificationRequestRecord,
+        reason: String
+    ) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "notifications.present",
+            severity: .unsupported,
+            message: "Notification request '\(record.identifier)' was not presented: \(reason)"
         )
     }
 

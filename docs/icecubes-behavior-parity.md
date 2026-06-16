@@ -71,8 +71,11 @@ estimates, not release claims.
       `AppAccount.save()` / `retrieveAll()` flow, not native secure storage.
 - [ ] Desktop URL-scheme registration and native Secret Service-backed OAuth
       token security.
-- [ ] `UserNotifications`: desktop notification delivery through a Linux
-      notification backend instead of dropping requests.
+- [x] `UserNotifications`: immediate local notification delivery routes through
+      an injectable Linux desktop presentation backend, with a `notify-send`
+      default when a desktop session is available.
+- [ ] `UserNotifications`: scheduled timer delivery and APNs-equivalent remote
+      push behavior.
 - [ ] `ImageIO` / `UIImage` / `UIGraphicsImageRenderer`: real decode,
       downsample, thumbnail, metadata, and drawing output.
 - [ ] `QuickLook`: media viewer/window behavior, not just selected item storage.
@@ -157,3 +160,8 @@ estimates, not release claims.
   `ASWebAuthenticationSession`, `UIApplication.open`, and `NSWorkspace.open`.
   Verification: `SourceHygieneTests` (52 tests) passed locally; the new
   Linux-only compatibility test runs in the PR Linux graph.
+- 2026-06-16: Added an injectable QuillKit desktop notification presentation
+  backend and Linux `notify-send` fallback for immediate
+  `UNUserNotificationCenter.add` deliveries. Scheduled notifications remain
+  queued-only. Verification: targeted QuillKit/UserNotifications tests were
+  added; Linux-only compatibility coverage runs in the PR Linux graph.
