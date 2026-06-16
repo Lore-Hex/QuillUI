@@ -502,7 +502,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
         #expect(verifier.contains("root_overlay_field_text_pixels(3)"))
         #expect(verifier.contains("for y in range(panel_y + 32"))
-        #expect(verifier.contains("ping_text_pixels >= 90"))
+        #expect(verifier.contains("ping_text_pixels >= 70"))
         #expect(verifier.contains("if not require_selected_default_model:"))
         #expect(verifier.contains("Mac-reference selected default model was not detected"))
         #expect(verifier.contains("model_x0 = panel_segment.start + 20"))

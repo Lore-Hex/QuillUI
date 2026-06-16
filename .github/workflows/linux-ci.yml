@@ -54,6 +54,7 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             ca-certificates \
             dbus-x11 \
+            ffmpeg \
             fontconfig \
             fonts-noto-cjk \
             fonts-noto-color-emoji \
