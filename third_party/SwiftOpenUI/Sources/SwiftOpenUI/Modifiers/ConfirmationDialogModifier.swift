@@ -81,6 +81,13 @@ extension View {
 
     /// Show a confirmation dialog when `isPresented` becomes true.
     /// Buttons are displayed vertically (action sheet style).
+    ///
+    /// Disfavored so a `actions: { … }` ViewBuilder closure (the SwiftUI form
+    /// real apps like IceCubes' StatusKit use) resolves to the
+    /// `confirmationDialog<Actions: View>` overload below rather than binding
+    /// the closure to this `[AlertButton]` parameter. An explicit array
+    /// argument still selects this overload (the builder form can't match it).
+    @_disfavoredOverload
     public func confirmationDialog(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -96,6 +103,7 @@ extension View {
     }
 
     /// Show a confirmation dialog with explicit title visibility.
+    @_disfavoredOverload
     public func confirmationDialog(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -112,6 +120,7 @@ extension View {
     }
 
     /// Show a confirmation dialog with explicit title visibility and message.
+    @_disfavoredOverload
     public func confirmationDialog(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -143,6 +152,29 @@ extension View {
             isPresented: isPresented,
             titleVisibility: .automatic,
             message: swiftOpenUITextLabel(from: message()),
+            buttons: swiftOpenUIConfirmationDialogButtons(from: actions()),
+            participatesInDismissalInterception: false
+        )
+    }
+
+    /// SwiftUI-shaped builder overload WITHOUT a message — SwiftUI's
+    /// `confirmationDialog(_:isPresented:titleVisibility:actions:)`. Without
+    /// this, a no-message trailing-closure call (e.g. IceCubes StatusKit's
+    /// `confirmationDialog("", isPresented:) { Button(…) }`) has no ViewBuilder
+    /// candidate and the trailing closure falls back to the `[AlertButton]`
+    /// overload ("trailing closure passed to parameter of type '[AlertButton]'").
+    public func confirmationDialog<Actions: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        titleVisibility: Visibility = .automatic,
+        @ViewBuilder actions: () -> Actions
+    ) -> ConfirmationDialogView<Self> {
+        return ConfirmationDialogView(
+            content: self,
+            title: title,
+            isPresented: isPresented,
+            titleVisibility: titleVisibility,
+            message: "",
             buttons: swiftOpenUIConfirmationDialogButtons(from: actions()),
             participatesInDismissalInterception: false
         )

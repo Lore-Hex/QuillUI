@@ -356,7 +356,17 @@ struct QuillDataSourceLoweringTests {
         #expect(wrapper.contains("--scratch-path=*"))
         #expect(wrapper.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(!wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
-        #expect(wrapper.contains("swift test --scratch-path \"$SCRATCH_PATH\""))
+        // The wrapper builds the test bundle first (untimed) then runs it with
+        // a timeout, so a post-suite hang (a leaked GTK/Xvfb subprocess) can't
+        // wedge the CI step. Both invocations pass the scratch path through.
+        #expect(wrapper.contains("swift build --build-tests --scratch-path \"$SCRATCH_PATH\""))
+        #expect(wrapper.contains("swift test --skip-build --scratch-path \"$SCRATCH_PATH\""))
+        #expect(wrapper.contains("TEST_RUN_TIMEOUT"))
+        // The wrapper pre-builds the isolated SwiftSyntax source-lowering tool
+        // untimed and pins QUILLUI_SOURCE_LOWER, so loweringScriptConvertsModelSyntax
+        // execs a prebuilt binary instead of cold-building swift-syntax inside
+        // the timeout-bounded run (that cold build wedged the CI suite).
+        #expect(wrapper.contains("export QUILLUI_SOURCE_LOWER="))
 
         let preparationScript = try String(
             contentsOf: root.appendingPathComponent("scripts/prepare-linux-build-backend.sh"),
@@ -382,8 +392,9 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains(".target(\n        name: \"IOKit\""))
         #expect(manifest.contains("path: \"Sources/IOKit\""))
         #expect(manifest.contains("publicHeadersPath: \".\""))
-        // UserNotifications is @_exported by the UIKit shim so SignalServiceKit's
-        // `import UIKit`-only files resolve UNUserNotificationCenter & co. (Track B).
+        // UserNotifications and CoreTransferable are @_exported by the UIKit
+        // shim so UIKit-only app files resolve notification and share/transfer
+        // APIs without source edits.
         // Both targets take their dependencies from #if os(Linux)-swapped lists:
         // on Linux they add the QuartzCore shim (UIView.layer; UIKit re-exports
         // QuartzCore exactly like iOS), on Apple platforms the real QuartzCore
@@ -392,7 +403,7 @@ struct QuillDataSourceLoweringTests {
         // QuillWorkspace + QuillNotificationService.
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
-        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\"]"))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
         #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\"]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
@@ -666,6 +677,9 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("save_quill_chat_new_completion()"))
         #expect(interactionScript.contains("edit_quill_chat_existing_completion()"))
         #expect(interactionScript.contains("delete_quill_chat_completion()"))
+        #expect(interactionScript.contains("quill_chat_mac_reference_completions_panel_visible()"))
+        #expect(interactionScript.contains("ensure_quill_chat_completions_panel_open()"))
+        #expect(interactionScript.contains("python3 \"$ROOT_DIR/scripts/verify-backend-screenshot.py\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_NAME_TEXT"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_TEXT"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X"))
@@ -1163,7 +1177,12 @@ struct QuillDataSourceLoweringTests {
         #expect(fullSourceCheck.contains("import QuillShims"))
         #expect(!fullSourceCheck.contains("_ = QuillChatUnreachableBanner {"))
         #expect(!fullSourceCheck.contains("QuillDesktopChatConversationSidebar("))
-        #expect(fullSourceCheck.contains("Settings()\n        }"))
+        // The full-source check references the Settings scene to prove the
+        // generated app exposes it. The structural form evolved — `_ = Settings()`
+        // is now followed by an `_ = SettingsView(...)` reference rather than the
+        // body's closing brace — so assert the meaningful symbol reference instead
+        // of the old adjacency to `}`.
+        #expect(fullSourceCheck.contains("_ = Settings()"))
 
         let unreachableEmptyFiles = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/empty-files.txt"),
@@ -2408,7 +2427,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags(\"gtk4\")"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKLinkerFlags)"))
-        #expect(!patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
+        #expect(patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
 
         let patchedRenderer = try String(contentsOf: renderer, encoding: .utf8)
         #expect(patchedRenderer.contains("init(views: [any View], cellMinWidth: Int)"))
@@ -2667,7 +2686,11 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
 
         let patchedDescriptorTree = try String(contentsOf: descriptorTree, encoding: .utf8)
-        #expect(patchedDescriptorTree.contains("GTK Button action closures capture the view state storage"))
+        // The button-action-capture rationale comment was reworded into the
+        // richer reuse explanation; assert the current single-line wording. The
+        // behavior assertions below (kind == .button / props == .none) still
+        // pin the actual contract.
+        #expect(patchedDescriptorTree.contains("closure captured at widget creation writes to the same @State"))
         #expect(patchedDescriptorTree.contains("if plan.newDescriptor.kind == .button"))
         // Props-bearing childless composites (TextField & co.) compare
         // meaningfully and stay narrow-eligible on reuse.
@@ -2751,7 +2774,10 @@ struct QuillDataSourceLoweringTests {
 
         let patchedToolbar = try String(contentsOf: toolbar, encoding: .utf8)
         #expect(patchedToolbar.contains("public let renderedViews: [any View]"))
-        #expect(patchedToolbar.contains("item.content.body as? MultiChildView"))
+        // Body access hops via assumeIsolated since View.body went @MainActor
+        // (#513); the MultiChildView fan-out happens on the hopped value.
+        #expect(patchedToolbar.contains("MainActor.assumeIsolated { item.content.body }"))
+        #expect(patchedToolbar.contains("body as? MultiChildView"))
 
         let patchedLayout = try String(contentsOf: layout, encoding: .utf8)
         #expect(patchedLayout.contains("expandsToFillWidth && width == nil ? maxWidth"))

@@ -85,15 +85,6 @@ public extension NSObject {
     var linkString: String { return "" }
 }
 
-public class IconImage: NSObject {
-    public var image: RSImage?
-    public var isDark: Bool = false
-    public init(image: RSImage?, isDark: Bool = false) {
-        self.image = image
-        self.isDark = isDark
-    }
-}
-
 import QuillUIKit
 public class NonIntrinsicImageView: UIImageView {}
 #else

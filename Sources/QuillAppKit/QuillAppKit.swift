@@ -149,19 +149,27 @@ public final class NSBitmapImageRep: @unchecked Sendable {
     }
 
     private let data: Data
+    /// Raw BGRA pixels + geometry when the rep was built from a CGImage
+    /// (camera/snapshot path). nil when built from container bytes.
+    internal let quillBGRAGeometry: (width: Int, height: Int, bytesPerRow: Int)?
 
     public init?(data: Data) {
         self.data = data
+        self.quillBGRAGeometry = nil
+    }
+
+    /// Pixel-carrying designated init (the `init(cgImage:)` convenience in
+    /// QuillAppKitCursorTrackingImaging.swift funnels through this).
+    internal init(quillBGRA bgra: Data, width: Int, height: Int, bytesPerRow: Int) {
+        self.data = bgra
+        self.quillBGRAGeometry = (width, height, bytesPerRow)
     }
 
     public func representation(
         using storageType: FileType,
         properties: [PropertyKey: Any]
     ) -> Data? {
-        // Pass-through. Real format conversion needs a codec
-        // backend; until then return the source bytes so callers
-        // (e.g. Enchanted's base64 upload) see non-empty data.
-        data
+        quillRepresentation(using: storageType, properties: properties)
     }
 
     /// Looser key signature for upstream call sites that hand in
@@ -170,7 +178,64 @@ public final class NSBitmapImageRep: @unchecked Sendable {
         using storageType: FileType,
         properties: [K: V]
     ) -> Data? {
-        data
+        var typed: [PropertyKey: Any] = [:]
+        for (key, value) in properties {
+            if let propertyKey = key as? PropertyKey { typed[propertyKey] = value }
+        }
+        return quillRepresentation(using: storageType, properties: typed)
+    }
+
+    private func quillRepresentation(
+        using storageType: FileType,
+        properties: [PropertyKey: Any]
+    ) -> Data? {
+        #if os(Linux)
+        let format: QuillBitmapEncodeFormat?
+        switch storageType {
+        case .png: format = .png
+        case .jpeg: format = .jpeg
+        case .tiff: format = .tiff
+        case .bmp: format = .bmp
+        case .gif, .jpeg2000: format = nil
+        }
+        guard let format else {
+            // gdk-pixbuf has no GIF/JPEG2000 writer; fall back to the
+            // pass-through so callers still see bytes (pre-rung-4 behavior).
+            return data
+        }
+        var options: [(key: String, value: String)] = []
+        if format == .jpeg {
+            let factor = (properties[.compressionFactor] as? Double)
+                ?? (properties[.compressionFactor] as? CGFloat).map(Double.init)
+                ?? (properties[.compressionFactor] as? Float).map(Double.init)
+                ?? 0.9
+            let quality = Int((factor * 100).rounded())
+            options.append(("quality", String(max(1, min(100, quality)))))
+        }
+        if format == .tiff,
+           let method = properties[.compressionMethod] as? TIFFCompression {
+            // gdk-pixbuf's TIFF "compression" option takes libtiff codes;
+            // LZW (5) and none (1) map directly. Unsupported schemes fall
+            // back to the writer default rather than failing the save.
+            switch method {
+            case .lzw: options.append(("compression", "5"))
+            case .none: options.append(("compression", "1"))
+            default: break
+            }
+        }
+        if let geometry = quillBGRAGeometry {
+            return quillEncodeBGRAPixels(
+                data, width: geometry.width, height: geometry.height,
+                bytesPerRow: geometry.bytesPerRow, format: format, options: options
+            )
+        }
+        // Container bytes in: transcode to the requested format; if the bytes
+        // don't decode, fall back to pass-through (Apple returns nil for
+        // corrupt input, but pre-rung-4 callers relied on bytes out).
+        return quillTranscodeEncodedImageData(data, format: format, options: options) ?? data
+        #else
+        return data
+        #endif
     }
 }
 
@@ -495,6 +560,12 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 
 // MARK: - NSResponder / NSView / NSViewController / NSWindow
 
+// EPIC #512: Apple's NSResponder is @MainActor. The entire responder tree —
+// NSView, NSControl and every view subclass, NSWindow + panels,
+// NSWindowController, NSApplication, NSPopover — inherits this isolation,
+// matching the macOS SDK. GTK/Qt callbacks enter via MainActor.assumeIsolated
+// (the GTK main loop IS the main thread), the blessed boundary pattern.
+@preconcurrency @MainActor
 open class NSResponder: NSObject, QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime). AppKitLowering injects
     /// an `override` of this into every NSResponder subclass (NSView /
@@ -516,7 +587,9 @@ open class NSResponder: NSObject, QuillSelectorDispatching {
     /// prefer side tables (QuillAppKitGTK today) may ignore this.
     public var quillBackendHandle: UnsafeMutableRawPointer?
 
-    public override init() {}
+    // nonisolated: pure storage init, so nonisolated subclass inits
+    // (NSViewController/NSView lowering ergonomics) can delegate to it.
+    nonisolated public override init() {}
     open var nextResponder: NSResponder? {
         get { quillExplicitNextResponder }
         set { quillExplicitNextResponder = newValue }
@@ -727,10 +800,29 @@ open class NSView: NSResponder {
     // ViewControllers compile). See issue #231. `override` because this overrides
     // NSResponder's designated init(); being *convenience* is what frees subclasses.
     public override convenience init() { self.init(frame: .zero) }
-    public init(frame: NSRect) {
+    // nonisolated: pure storage (observers don't fire during init), so the
+    // nonisolated convenience init() above can delegate (house model, #231).
+    nonisolated public init(frame: NSRect) {
         super.init()
         self.frame = frame
         bounds = NSRect(origin: .zero, size: frame.size)
+    }
+
+    /// NSCoding designated init — `required`, exactly as on Apple (where NSView
+    /// adopts NSCoding), so an unmodified upstream subclass can declare
+    /// `required init?(coder:)` WITHOUT `override` and call `super.init(coder:)`
+    /// (SolderScope's MicroscopeNSView does both). There is no unarchiving on
+    /// Linux: the coder is ignored and the view starts zero-framed, equivalent
+    /// to `init(frame: .zero)`. NOTE: because this is `required`, any NSView
+    /// subclass that declares its own designated init must also declare it —
+    /// real AppKit forces the exact same boilerplate, so upstream app sources
+    /// already carry it; QuillAppKit's own designated-init subclasses
+    /// (NSScrollView, NSButton, NSPopUpButton, NSHostingView, WKWebView)
+    /// declare it alongside their inits. Convenience-only subclasses (e.g.
+    /// NSTextField, NSSlider, NSStackView) inherit it automatically.
+    /// Class-isolated like Apple's (no nonisolated delegation path needs it).
+    public required init?(coder: NSCoder) {
+        super.init()
     }
 
     open func addSubview(_ v: NSView) {
@@ -1185,6 +1277,9 @@ open class NSView: NSResponder {
     }
 }
 
+// @MainActor: constructs NSView (isolated via NSResponder). Lowering-generated
+// callers run on the main thread by AppKit contract.
+@MainActor
 public func QuillInstantiateView<T: NSView>(_ viewType: T.Type, frame: NSRect) -> T {
     _ = viewType
     return NSView(frame: frame) as! T
@@ -1324,7 +1419,7 @@ open class NSWindowController: NSResponder {
     }
 }
 
-@MainActor public protocol NSWindowDelegate: AnyObject {
+@preconcurrency @MainActor public protocol NSWindowDelegate: AnyObject {
     func windowWillClose(_ notification: Notification)
     func windowDidBecomeKey(_ notification: Notification)
     func windowDidResignKey(_ notification: Notification)
@@ -1520,16 +1615,24 @@ open class NSWindow: NSResponder {
         case automatic, preferred, disallowed
     }
 
-    public override init() {
+    // nonisolated (overrides NSResponder's nonisolated init). The contentView
+    // back-pointer wiring is isolated work — hop via assumeIsolated, sound by
+    // the AppKit contract (windows are constructed on the main thread; the GTK
+    // main loop IS the main thread).
+    nonisolated public override init() {
         super.init()
-        contentView?.quillSetWindowRecursively(self)
+        MainActor.assumeIsolated {
+            contentView?.quillSetWindowRecursively(self)
+        }
     }
 
-    public init(contentRect: NSRect, styleMask: StyleMask, backing: BackingStoreType, defer: Bool) {
+    nonisolated public init(contentRect: NSRect, styleMask: StyleMask, backing: BackingStoreType, defer: Bool) {
         super.init()
         self.frame = contentRect
         self.styleMask = styleMask
-        contentView?.quillSetWindowRecursively(self)
+        MainActor.assumeIsolated {
+            contentView?.quillSetWindowRecursively(self)
+        }
     }
 
     public convenience init(contentRect: NSRect, styleMask: StyleMask, backing: BackingStoreType, defer: Bool, screen: NSScreen?) {
@@ -1726,6 +1829,7 @@ open class NSTouchBar: NSObject, @unchecked Sendable {
     public override init() {}
 }
 
+@preconcurrency @MainActor
 public protocol NSTouchBarDelegate: AnyObject {
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem?
 }
@@ -1763,12 +1867,14 @@ open class NSCustomTouchBarItem: NSTouchBarItem {
 
 // MARK: - NSApplication
 
-// Drop `@MainActor` from the Linux NSApplication stub. Real
-// AppKit's NSApplication has main-actor isolation, but our
-// Linux stub is just compile-time scaffolding — generated
-// Enchanted source reads `NSApp.currentEvent` from nonisolated
-// SwiftUI closures, which the unannotated class allows without
-// the `nonisolated(unsafe)` patchwork that broke the init().
+// NSApplication inherits @MainActor through NSResponder (EPIC #512), matching
+// Apple. The old "drop @MainActor" workaround (generated Enchanted source read
+// `NSApp.currentEvent` from nonisolated SwiftUI closures) is obsolete: with
+// SwiftOpenUI.View now @MainActor, closures formed inside `body` inherit
+// main-actor isolation, so those reads type-check without patchwork.
+// @unchecked Sendable is retained (pre-existing; Apple's NSApplication is not
+// Sendable, but removing it would break existing cross-module storage and it
+// is inert under -strict-concurrency=minimal).
 open class NSApplication: NSResponder, @unchecked Sendable {
     public static let shared = NSApplication()
     public weak var delegate: NSApplicationDelegate?
@@ -1916,10 +2022,9 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     }
 }
 
-// Top-level globals. NSApplication itself is no longer
-// `@MainActor` (see comment above) so the accessor doesn't
-// need any isolation override.
-public var NSApp: NSApplication { NSApplication.shared }
+// Top-level globals. @MainActor like Apple's `NSApp` global —
+// NSApplication.shared is main-actor isolated via NSResponder.
+@MainActor public var NSApp: NSApplication { NSApplication.shared }
 
 open class NSDockTile: NSObject, @unchecked Sendable {
     public var badgeLabel: String?
@@ -1928,7 +2033,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
     public func display() {}
 }
 
-public protocol NSApplicationDelegate: AnyObject {
+@preconcurrency @MainActor public protocol NSApplicationDelegate: AnyObject {
     func applicationDidFinishLaunching(_ notification: Notification)
     func applicationWillTerminate(_ notification: Notification)
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool
@@ -2136,6 +2241,9 @@ open class NSEvent: NSObject, @unchecked Sendable {
     private static var globalEventMonitors: [EventMonitor] = []
 }
 
+// Apple parity (#512): gesture recognizers are @MainActor; NSClick/NSPress
+// subclasses inherit.
+@preconcurrency @MainActor
 open class NSGestureRecognizer: NSObject {
     public enum State: Int, Sendable {
         case possible
@@ -2861,7 +2969,9 @@ open class NSRunningApplication: NSObject, @unchecked Sendable {
     }
 
     public static var current: NSRunningApplication {
-        NSRunningApplication(bundleIdentifier: Bundle.main.bundleIdentifier, localizedName: ProcessInfo.processInfo.processName, isActive: NSApp.isActive)
+        // NSApp is @MainActor (#512); app-state reads run on the main loop.
+        let active = MainActor.assumeIsolated { NSApp.isActive }
+        return NSRunningApplication(bundleIdentifier: Bundle.main.bundleIdentifier, localizedName: ProcessInfo.processInfo.processName, isActive: active)
     }
 
     public private(set) var bundleIdentifier: String?
@@ -2896,7 +3006,8 @@ open class NSRunningApplication: NSObject, @unchecked Sendable {
     public func activate(options: ActivationOptions = []) -> Bool {
         _ = options
         isActive = true
-        NSApp.activate(ignoringOtherApps: options.contains(.activateIgnoringOtherApps))
+        let ignoring = options.contains(.activateIgnoringOtherApps)
+        MainActor.assumeIsolated { NSApp.activate(ignoringOtherApps: ignoring) }
         return true
     }
 }
@@ -3219,6 +3330,10 @@ open class NSShadow: NSObject, @unchecked Sendable {
 
 // MARK: - NSMenu / NSMenuItem
 
+// Apple parity (#512). The existing MainActor.assumeIsolated bridges around
+// delegate calls inside this class become load-bearing once NSMenuDelegate is
+// isolated in the follow-up sweep.
+@preconcurrency @MainActor
 open class NSMenu: NSObject, QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSMenu subclasses. Class-body, not an extension.
@@ -3334,6 +3449,8 @@ open class NSMenu: NSObject, QuillSelectorDispatching {
     }
 }
 
+// Apple parity (#512).
+@preconcurrency @MainActor
 open class NSMenuItem: NSObject, QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSMenuItem subclasses (WireGuard's StatusMenu
@@ -3379,6 +3496,7 @@ open class NSMenuItem: NSObject, QuillSelectorDispatching {
     open var isSeparatorItem: Bool { false }
 }
 
+@preconcurrency @MainActor
 public protocol NSMenuDelegate: AnyObject {
     func menuWillOpen(_ menu: NSMenu)
     func menuDidClose(_ menu: NSMenu)
@@ -3400,6 +3518,9 @@ public protocol NSMenuItemValidation: AnyObject {
 
 // MARK: - NSToolbar / NSToolbarItem
 
+// Apple parity (#512); makes the existing per-member @MainActor annotations
+// inside redundant (harmless).
+@preconcurrency @MainActor
 open class NSToolbar: NSObject {
     public var identifier: String = ""
     public weak var delegate: NSToolbarDelegate?
@@ -3444,6 +3565,8 @@ open class NSToolbar: NSObject {
     }
 }
 
+// Apple parity (#512); NSTrackingSeparatorToolbarItem/NSToolbarItemGroup inherit.
+@preconcurrency @MainActor
 open class NSToolbarItem: NSObject {
     public struct Identifier: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
@@ -3488,7 +3611,7 @@ open class NSToolbarItemGroup: NSToolbarItem {
     public enum ControlRepresentation: Int, Sendable { case automatic, expanded, collapsed }
 }
 
-@MainActor public protocol NSToolbarDelegate: AnyObject {
+@preconcurrency @MainActor public protocol NSToolbarDelegate: AnyObject {
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar: Bool) -> NSToolbarItem?
@@ -3501,6 +3624,8 @@ public extension NSToolbarDelegate {
 
 // MARK: - NSAlert / NSSavePanel / NSOpenPanel
 
+// Apple parity (#512).
+@preconcurrency @MainActor
 open class NSAlert: NSObject, QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSAlert subclasses. Class-body, not an extension.
@@ -3665,8 +3790,20 @@ open class NSScrollView: NSView {
     public var contentInsets: NSEdgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     public var automaticallyAdjustsContentInsets: Bool = true
     public convenience init() { self.init(frame: .zero) }
-    public override init(frame: NSRect) {
+    // nonisolated (overrides NSView's nonisolated init(frame:)); the clip-view
+    // install touches the subview tree — main-thread hop, AppKit contract.
+    nonisolated public override init(frame: NSRect) {
         super.init(frame: frame)
+        MainActor.assumeIsolated {
+            quillInstallContentView()
+        }
+    }
+    /// Required NSCoding init (NSView's coder init is `required`; declaring a
+    /// designated init suppresses inheritance). Coder ignored — mirrors
+    /// `init(frame:)` so the clip view is still installed. Class-isolated, so
+    /// the install needs no hop.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
         quillInstallContentView()
     }
     public func flashScrollers() {}
@@ -3842,6 +3979,7 @@ open class NSTextField: NSControl {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSTextFieldDelegate: AnyObject {
     func controlTextDidChange(_ obj: Notification)
     func controlTextDidBeginEditing(_ obj: Notification)
@@ -3871,6 +4009,7 @@ open class NSTokenField: NSTextField {
 /// NSTokenFieldDelegate refines NSTextFieldDelegate; on macOS its methods are
 /// @objc-optional. Declared with a default impl so conformers (e.g. WireGuard's
 /// OnDemandControlsRow) only override what they need.
+@preconcurrency @MainActor
 public protocol NSTokenFieldDelegate: NSTextFieldDelegate {
     func tokenField(_ tokenField: NSTokenField, completionsForSubstring substring: String, indexOfToken tokenIndex: Int, indexOfSelectedItem selectedIndex: UnsafeMutablePointer<Int>?) -> [Any]?
 }
@@ -3944,13 +4083,14 @@ open class NSTextView: NSText {
     /// WireGuard's ConfTextView calls it). Declaring it means NSTextView stops
     /// inheriting NSView's inits, so re-declare them to keep NSTextView() /
     /// NSTextView(frame:) / NSTextView(coder:) working (zero blast radius).
-    public init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
+    // nonisolated: pure storage, delegates to NSView's nonisolated init(frame:).
+    nonisolated public init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
         super.init(frame: frameRect)
         if let container { self.textContainer = container }
     }
-    public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
+    nonisolated public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
     public convenience init() { self.init(frame: .zero, textContainer: nil) }
-    public required init?(coder: NSCoder) { super.init(frame: .zero) }
+    nonisolated public required init?(coder: NSCoder) { super.init(frame: .zero) }
     /// Programmatic text-change hooks (compile-stubs). ConfTextView uses these to
     /// replace text + notify the layout/delegate.
     public func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool { true }
@@ -4033,7 +4173,9 @@ open class NSTextView: NSText {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSLayoutManagerDelegate: AnyObject {}
+@preconcurrency @MainActor
 public protocol NSTextStorageDelegate: AnyObject {}
 
 open class NSTextStorage: NSMutableAttributedString {
@@ -4155,6 +4297,7 @@ open class NSTextContainer: NSObject, @unchecked Sendable {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSTextViewDelegate: NSTextDelegate {
     func textViewDidChangeSelection(_ notification: Notification)
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool
@@ -4164,6 +4307,7 @@ public extension NSTextViewDelegate {
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool { true }
 }
 
+@preconcurrency @MainActor
 public protocol NSTextDelegate: AnyObject {
     func textDidChange(_ notification: Notification)
     func textDidBeginEditing(_ notification: Notification)
@@ -4325,6 +4469,10 @@ open class NSButton: NSControl {
     /// NSView's, so subclasses like WireGuard's FillerButton (super.init(frame:)) need it.
     public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
 
+    /// Required NSCoding init (NSView's coder init is `required`; the
+    /// title/image designated inits suppress inheritance). Coder ignored.
+    public required init?(coder: NSCoder) { super.init(coder: coder) }
+
     public var title: String {
         get { storedTitle }
         set {
@@ -4359,8 +4507,24 @@ open class NSButton: NSControl {
     public enum ButtonType: UInt, Sendable { case momentaryLight, pushOnPushOff, toggle, `switch`, radio, momentaryChange, onOff, momentaryPushIn, accelerator, multiLevelAccelerator }
 
     public convenience init() { self.init(title: "", target: nil, action: nil) }
-    public init(title: String, target: Any?, action: Selector?) { super.init(frame: .zero); self.title = title; self.target = target as AnyObject?; self.action = action }
-    public init(image: NSImage, target: Any?, action: Selector?) { super.init(frame: .zero); self.image = image; self.target = target as AnyObject?; self.action = action }
+    // nonisolated: pure storage writes of inherited stored properties happen
+    // through assumeIsolated (setter dispatch), per the house model (#231).
+    nonisolated public init(title: String, target: Any?, action: Selector?) {
+        super.init(frame: .zero)
+        MainActor.assumeIsolated {
+            self.title = title
+            self.target = target as AnyObject?
+            self.action = action
+        }
+    }
+    nonisolated public init(image: NSImage, target: Any?, action: Selector?) {
+        super.init(frame: .zero)
+        MainActor.assumeIsolated {
+            self.image = image
+            self.target = target as AnyObject?
+            self.action = action
+        }
+    }
     /// Programmatically click the button: fire its action at its target. The Qt
     /// backing routes a real `clicked` signal here once signal wiring lands.
     open func performClick(_ sender: Any?) {
@@ -4639,8 +4803,24 @@ open class NSPopUpButton: NSButton {
     public func itemWithTitle(_ t: String) -> NSMenuItem? {
         menu?.items.first { $0.title == t }
     }
-    public override init(frame: NSRect) { super.init(frame: frame); self.cell = NSPopUpButtonCell() }
-    public init(frame: NSRect, pullsDown: Bool) { super.init(frame: frame); self.pullsDown = pullsDown; self.cell = NSPopUpButtonCell() }
+    nonisolated public override init(frame: NSRect) {
+        super.init(frame: frame)
+        MainActor.assumeIsolated { self.cell = NSPopUpButtonCell() }
+    }
+    nonisolated public init(frame: NSRect, pullsDown: Bool) {
+        super.init(frame: frame)
+        MainActor.assumeIsolated {
+            self.pullsDown = pullsDown
+            self.cell = NSPopUpButtonCell()
+        }
+    }
+    /// Required NSCoding init (NSView's coder init is `required`; the
+    /// designated inits above suppress inheritance). Coder ignored — mirrors
+    /// the designated inits' cell setup. Class-isolated, so no hop needed.
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        self.cell = NSPopUpButtonCell()
+    }
     public convenience init() { self.init(frame: .zero, pullsDown: false) }
 
     private func ensureMenu() -> NSMenu {
@@ -4700,6 +4880,7 @@ open class NSSearchField: NSTextField {
     public weak var searchDelegate: NSSearchFieldDelegate?
 }
 
+@preconcurrency @MainActor
 public protocol NSSearchFieldDelegate: NSTextFieldDelegate {
     func searchFieldDidStartSearching(_ sender: NSSearchField)
     func searchFieldDidEndSearching(_ sender: NSSearchField)
@@ -4825,6 +5006,7 @@ open class NSSplitView: NSView {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSSplitViewDelegate: AnyObject {
     func splitView(_ splitView: NSSplitView, canCollapseSubview: NSView) -> Bool
     func splitViewDidResizeSubviews(_ notification: Notification)
@@ -4859,6 +5041,8 @@ open class NSSplitViewController: NSViewController {
     public var splitView: NSSplitView = NSSplitView()
 }
 
+// Apple parity (#512).
+@preconcurrency @MainActor
 open class NSSplitViewItem: NSObject {
     public var viewController: NSViewController = NSViewController()
     public var behavior: Behavior = .default
@@ -5411,6 +5595,8 @@ open class NSTableCellView: NSView {
     public enum BackgroundStyle: Int, Sendable { case normal, emphasized, raised, lowered }
 }
 
+// Apple parity (#512).
+@preconcurrency @MainActor
 open class NSTableColumn: NSObject {
     public var identifier: NSUserInterfaceItemIdentifier
     public var title: String = ""
@@ -5433,6 +5619,7 @@ open class NSTableColumn: NSObject {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
@@ -5454,6 +5641,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {}
 }
 
+@preconcurrency @MainActor
 public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
@@ -5682,6 +5870,7 @@ open class NSOutlineView: NSTableView {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSOutlineViewDelegate: NSTableViewDelegate {
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView?
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool
@@ -5703,6 +5892,7 @@ public extension NSOutlineViewDelegate {
     func outlineViewItemDidCollapse(_ notification: Notification) {}
 }
 
+@preconcurrency @MainActor
 public protocol NSOutlineViewDataSource: NSTableViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
@@ -5718,6 +5908,8 @@ public extension NSOutlineViewDataSource {
 
 // MARK: - Document support
 
+// Apple parity (#512): NSDocument is @MainActor in the macOS SDK.
+@preconcurrency @MainActor
 open class NSDocument: NSObject {
     public var fileURL: URL?
     public var fileType: String?
@@ -5785,6 +5977,8 @@ open class NSDocument: NSObject {
     public enum ChangeType: UInt, Sendable { case changeDone, changeUndone, changeRedone, changeCleared, changeReadOtherContents, changeAutosaved, changeDiscardable }
 }
 
+// Apple parity (#512).
+@preconcurrency @MainActor
 open class NSDocumentController: NSObject {
     public static let shared = NSDocumentController()
     public var documents: [NSDocument] = []
@@ -5842,6 +6036,12 @@ public class NSHostingView<Content>: NSView {
     public override init(frame: NSRect) {
         fatalError("NSHostingView(frame:) requires a rootView")
     }
+    /// Required NSCoding init (NSView's coder init is `required`). Like
+    /// `init(frame:)`, unsupported — a generic SwiftUI root view cannot be
+    /// unarchived.
+    public required init?(coder: NSCoder) {
+        fatalError("NSHostingView(coder:) requires a rootView")
+    }
 }
 
 public class NSHostingController<Content>: NSViewController {
@@ -5858,6 +6058,8 @@ public class NSHostingController<Content>: NSViewController {
 
 // MARK: - NSStatusBar / NSStatusItem (menu-bar widgets)
 
+// Apple parity (#512).
+@preconcurrency @MainActor
 open class NSStatusBar: NSObject {
     public static let system = NSStatusBar()
     public func statusItem(withLength: CGFloat) -> NSStatusItem { NSStatusItem() }
@@ -5867,6 +6069,8 @@ open class NSStatusBar: NSObject {
     public var thickness: CGFloat = 22
 }
 
+// Apple parity (#512).
+@preconcurrency @MainActor
 open class NSStatusItem: NSObject {
     public var button: NSStatusBarButton? = NSStatusBarButton()
     public var menu: NSMenu?
@@ -5927,6 +6131,7 @@ open class NSPopover: NSResponder {
     }
 }
 
+@preconcurrency @MainActor
 public protocol NSPopoverDelegate: AnyObject {
     func popoverWillShow(_ notification: Notification)
     func popoverDidShow(_ notification: Notification)
@@ -5975,6 +6180,8 @@ open class NSGlassEffectView: NSView {
 
 // MARK: - NSAnimationContext
 
+// Apple parity (#512).
+@preconcurrency @MainActor
 open class NSAnimationContext: NSObject {
     public static var current: NSAnimationContext = NSAnimationContext()
     public var duration: TimeInterval = 0.25
@@ -6117,8 +6324,16 @@ public struct NSWindowEnvironmentKey {
 
 // MARK: - NSCell (legacy, but referenced)
 
+// Apple parity (#512): Apple's NSCell is @MainActor (NSPopUpButtonCell
+// inherits). @unchecked Sendable retained — pre-existing deviation (Apple's
+// NSCell is not Sendable); inert under minimal checking and existing
+// cross-actor storage keeps compiling.
+@preconcurrency @MainActor
 open class NSCell: NSObject, @unchecked Sendable {
-    public override init() {}
+    // nonisolated: pure storage (empty), so isolated-and-nonisolated init
+    // paths alike (e.g. NSPopUpButton's nonisolated init(frame:)) can construct
+    // cells; also required to override NSObject's nonisolated init().
+    nonisolated public override init() {}
     public var title: String = ""
     public var stringValue: String = ""
     public var representedObject: Any?

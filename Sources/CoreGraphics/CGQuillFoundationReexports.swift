@@ -27,6 +27,39 @@
 @_exported import enum QuillFoundation.CGImageAlphaInfo
 @_exported import struct QuillFoundation.CGGradientDrawingOptions
 @_exported import enum QuillFoundation.CGColorRenderingIntent
+// CGPoint/CGSize/CGRect/CGVector/CGFloat are owned by CoreGraphics on Apple,
+// but on Linux they live in (swift-corelibs) Foundation, not QuillFoundation.
+// A pure-geometry file with only `import CoreGraphics` (Euclid+CoreGraphics,
+// SolderScope's ViewTransform, …) still expects them in scope, so surface the
+// Foundation ones here — same canonical identity, no NS* leakage.
+@_exported import struct Foundation.CGPoint
+@_exported import struct Foundation.CGSize
+@_exported import struct Foundation.CGRect
+@_exported import struct Foundation.CGFloat
+@_exported import enum QuillFoundation.CGPathElementType
+@_exported import struct QuillFoundation.CGPathElement
 @_exported import func QuillFoundation.CGColorSpaceCreateDeviceRGB
 @_exported import func QuillFoundation.CGColorSpaceCreateDeviceGray
+// CFTypeRef is canonical in QuillKit — re-export it (don't redeclare, or
+// files that already see QuillKit's via AppKit get an ambiguous lookup).
+@_exported import typealias QuillKit.CFTypeRef
+
+// CoreFoundation type-identity sliver Euclid's defaultMaterialLookup needs (it
+// compares a material against CGImage.typeID / CGColor.typeID to detect image /
+// colour contents). CFTypeID / CFGetTypeID are not vended to `import
+// CoreGraphics`-only files, so model them here.
+public typealias CFTypeID = UInt
+
+public extension CGImage {
+    static var typeID: CFTypeID { 1 }
+}
+// NOTE: RSCGColor (== CGColor) already declares `static var typeID` in
+// QuillFoundation, so it is NOT redeclared here (that caused an ambiguous
+// `CGColor.typeID` lookup).
+
+public func CFGetTypeID(_ cf: CFTypeRef) -> CFTypeID {
+    // CGColor is a value type on QuillOS, so only CGImage reaches here as an
+    // object; everything else (NSColor, …) falls through to 0.
+    cf is CGImage ? CGImage.typeID : 0
+}
 #endif

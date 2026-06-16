@@ -17,6 +17,7 @@ final class ModifierTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testViewModifierPreservesWrappedContent() {
         let text = Text("hello")
         _ = text.modifier(RedBackground())

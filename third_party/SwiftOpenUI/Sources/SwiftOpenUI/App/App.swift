@@ -2,9 +2,13 @@
 ///
 /// Platform backends provide the concrete app lifecycle (GTK application,
 /// Win32 message loop, etc.).
+/// @MainActor matches Apple's SwiftUI App protocol: `init()` and `body` are
+/// main-actor isolated; conforming app types infer the isolation, so e.g.
+/// constructing a @MainActor StateObject inside the app's init type-checks.
+@MainActor @preconcurrency
 public protocol App {
     associatedtype Body: Scene
-    @SceneBuilder var body: Body { get }
+    @MainActor @SceneBuilder var body: Body { get }
 
     init()
 }
@@ -17,9 +21,11 @@ public extension App {
 }
 
 /// A part of an app's user interface with a lifecycle managed by the system.
+/// @MainActor like Apple's SwiftUI.Scene.
+@MainActor @preconcurrency
 public protocol Scene {
     associatedtype Body: Scene
-    @SceneBuilder var body: Body { get }
+    @MainActor @SceneBuilder var body: Body { get }
 }
 
 extension Never: Scene {}
@@ -40,6 +46,9 @@ public struct WindowGroup<Content: View>: Scene {
     public let windowResizeBehavior: WindowResizeBehavior?
     public let windowResizability: WindowResizability?
     public let launchesAtStartup: Bool
+    /// Hidden-title-bar request (SwiftUI's `.windowStyle(.hiddenTitleBar)`);
+    /// the GTK backend renders the window undecorated when set.
+    public let quillHidesTitleBar: Bool
 
     public init(_ title: String, @ViewBuilder content: () -> Content) {
         self.init(title: title, content: content())
@@ -73,7 +82,8 @@ public struct WindowGroup<Content: View>: Scene {
         windowSizing: WindowSizing? = nil,
         windowResizeBehavior: WindowResizeBehavior? = nil,
         windowResizability: WindowResizability? = nil,
-        launchesAtStartup: Bool = true
+        launchesAtStartup: Bool = true,
+        quillHidesTitleBar: Bool = false
     ) {
         self.title = title
         self.content = content
@@ -87,6 +97,7 @@ public struct WindowGroup<Content: View>: Scene {
         self.windowResizeBehavior = windowResizeBehavior
         self.windowResizability = windowResizability
         self.launchesAtStartup = launchesAtStartup
+        self.quillHidesTitleBar = quillHidesTitleBar
     }
 
     public var body: Never { fatalError("WindowGroup is a primitive scene") }
@@ -99,7 +110,10 @@ public struct TupleScene<S0: Scene, S1: Scene>: Scene {
     public let scene0: S0
     public let scene1: S1
 
-    public init(_ s0: S0, _ s1: S1) {
+    // nonisolated: pure value storage; SceneBuilder's nonisolated statics
+    // construct it (the @MainActor Scene conformance would otherwise isolate
+    // the memberwise init).
+    nonisolated public init(_ s0: S0, _ s1: S1) {
         self.scene0 = s0
         self.scene1 = s1
     }

@@ -257,24 +257,30 @@ extension NSView {
                 let box = Unmanaged<_DrawingHostBox>.fromOpaque(userData).takeUnretainedValue()
                 let view = box.view
 
-                let bounds = NSRect(x: 0, y: 0,
-                                    width: CGFloat(width), height: CGFloat(height))
-                view.frame = bounds
-                view.bounds = bounds
+                // GtkDrawingArea draw funcs run on the GTK main loop == the
+                // main thread; NSView (frame/bounds/isFlipped/draw) is
+                // @MainActor via NSResponder, so assume the isolation that is
+                // true by construction.
+                MainActor.assumeIsolated {
+                    let bounds = NSRect(x: 0, y: 0,
+                                        width: CGFloat(width), height: CGFloat(height))
+                    view.frame = bounds
+                    view.bounds = bounds
 
-                let backend = CairoCGContextBackend(cr: cr)
-                // AppKit's default coordinate space is bottom-left; flipped
-                // views (isFlipped == true) draw top-left like GTK/Cairo.
-                if !view.isFlipped {
-                    cairo_translate(cr, 0, Double(height))
-                    cairo_scale(cr, 1, -1)
+                    let backend = CairoCGContextBackend(cr: cr)
+                    // AppKit's default coordinate space is bottom-left; flipped
+                    // views (isFlipped == true) draw top-left like GTK/Cairo.
+                    if !view.isFlipped {
+                        cairo_translate(cr, 0, Double(height))
+                        cairo_scale(cr, 1, -1)
+                    }
+                    let cgContext = CGContext(quillBackend: backend)
+                    let previous = NSGraphicsContext.current
+                    NSGraphicsContext.current = NSGraphicsContext(
+                        cgContext: cgContext, flipped: view.isFlipped)
+                    view.draw(bounds)
+                    NSGraphicsContext.current = previous
                 }
-                let cgContext = CGContext(quillBackend: backend)
-                let previous = NSGraphicsContext.current
-                NSGraphicsContext.current = NSGraphicsContext(
-                    cgContext: cgContext, flipped: view.isFlipped)
-                view.draw(bounds)
-                NSGraphicsContext.current = previous
             },
             userData,
             { userData in

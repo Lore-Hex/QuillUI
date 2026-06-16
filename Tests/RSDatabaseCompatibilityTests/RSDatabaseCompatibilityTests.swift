@@ -175,6 +175,20 @@ struct RSDatabaseCompatibilityTests {
         #expect(table.numberWithSQLAndParameters("SELECT COUNT(*) FROM items;", [], in: database) == 1)
     }
 
+    @Test func fmDatabaseColumnExistsMatchesFMDBSelectorShape() throws {
+        let database = try #require(FMDatabase(path: ":memory:"))
+        #expect(database.open())
+        defer {
+            database.close()
+        }
+
+        #expect(database.executeStatements("CREATE TABLE feedSettings (feedID TEXT PRIMARY KEY, lastResponseCode INTEGER);"))
+        #expect(database.columnExists("lastResponseCode", inTableWithName: "feedSettings"))
+        #expect(database.columnExists("lastresponsecode", inTableWithName: "feedSettings"))
+        #expect(!database.columnExists("missing", inTableWithName: "feedSettings"))
+        #expect(!database.columnExists("lastResponseCode", inTableWithName: "missing"))
+    }
+
     @Test func transactionsRollbackAndCommit() throws {
         let database = try #require(FMDatabase(path: ":memory:"))
         #expect(database.open())

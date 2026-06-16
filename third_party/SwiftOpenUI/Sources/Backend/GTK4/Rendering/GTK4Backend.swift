@@ -171,6 +171,11 @@ extension WindowGroup: GTKWindowRenderable {
         }
         let winPtr = windowPointer(window)
         gtk_window_set_title(winPtr, title)
+        if quillHidesTitleBar {
+            // .windowStyle(.hiddenTitleBar): no server-side decorations, as on
+            // macOS where the content extends into the title bar region.
+            gtk_window_set_decorated(winPtr, 0)
+        }
 
         // Set window ID in environment for keyboard shortcut scoping
         var wgEnv = getCurrentEnvironment()
@@ -237,7 +242,13 @@ extension WindowGroup: GTKWindowRenderable {
 
         gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
-        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+        if !quillHidesTitleBar {
+            // The macOS reference has no in-window menu strip (global menu
+            // bar); hidden-title-bar windows drop ours for the same look.
+            gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+        } else {
+            gtkSetupCommandShortcutsIfNeeded(winPtr: winWidget, windowID: Int(bitPattern: winPtr))
+        }
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)
@@ -620,6 +631,94 @@ final class GTK4MenuBarHost {
     }
 }
 
+/// Registers app-level command shortcuts directly on a window without
+/// creating a visible menu bar. Hidden-title-bar windows use this so
+/// CommandMenu keyboard accelerators remain available while the in-window
+/// GtkPopoverMenuBar is intentionally suppressed.
+final class GTK4CommandShortcutHost {
+    let factory: AnyCommandsFactory
+    let windowID: Int
+    private var shortcutRegIDs: [ShortcutRegistrationID] = []
+    private var focusedValuesObserverID: FocusedValuesObserverID?
+
+    init(factory: @escaping AnyCommandsFactory, windowID: Int) {
+        self.factory = factory
+        self.windowID = windowID
+    }
+
+    func setup() {
+        focusedValuesObserverID = FocusedValuesStore.shared.addObserver(windowID: nil) { [weak self] in
+            self?.scheduleReevaluation()
+        }
+
+        evaluateWithTracking()
+    }
+
+    private func scheduleReevaluation() {
+        let box = Unmanaged.passRetained(ClosureBox { [weak self] in
+            self?.evaluateWithTracking()
+        }).toOpaque()
+        g_idle_add({ (userData: gpointer?) -> gboolean in
+            guard let userData else { return 0 }
+            let box = Unmanaged<ClosureBox>.fromOpaque(userData).takeRetainedValue()
+            box.closure()
+            return 0
+        }, box)
+    }
+
+    func evaluateWithTracking() {
+        #if canImport(Observation)
+        if #available(macOS 14.0, iOS 17.0, *) {
+            withObservationTracking {
+                let groups = self.factory()
+                self.updateShortcuts(groups)
+            } onChange: { [weak self] in
+                self?.scheduleReevaluation()
+            }
+            return
+        }
+        #endif
+        let groups = factory()
+        updateShortcuts(groups)
+    }
+
+    private func updateShortcuts(_ groups: [CommandGroupPlacement: [CommandMenuItem]]) {
+        for regID in shortcutRegIDs {
+            KeyboardShortcutRegistry.shared.unregister(id: regID)
+        }
+        shortcutRegIDs.removeAll()
+
+        let allItems = groups.sorted(by: { $0.key.hashValue < $1.key.hashValue })
+            .flatMap { $0.value }
+
+        for item in allItems {
+            guard let shortcut = item.shortcut, !item.isDisabled else { continue }
+            let regID = KeyboardShortcutRegistry.shared.register(
+                shortcut,
+                windowID: windowID,
+                action: item.action
+            )
+            shortcutRegIDs.append(regID)
+        }
+    }
+
+    func destroy() {
+        for regID in shortcutRegIDs {
+            KeyboardShortcutRegistry.shared.unregister(id: regID)
+        }
+        shortcutRegIDs.removeAll()
+
+        if let observerID = focusedValuesObserverID {
+            FocusedValuesStore.shared.removeObserver(id: observerID)
+        }
+        focusedValuesObserverID = nil
+    }
+
+    func shortcutCountForTesting() -> Int {
+        shortcutRegIDs.count
+    }
+}
+
 /// Attach a menu bar host to a window if Commands are declared.
 func gtkSetupMenuBarIfNeeded(
     winPtr: UnsafeMutablePointer<GtkWidget>,
@@ -636,6 +735,24 @@ func gtkSetupMenuBarIfNeeded(
     g_object_set_data_full(gobject, "gtk-swift-menu-bar-host", retained) { userData in
         guard let userData else { return }
         let host = Unmanaged<GTK4MenuBarHost>.fromOpaque(userData).takeRetainedValue()
+        host.destroy()
+    }
+}
+
+/// Attach command shortcuts to a hidden-title-bar window if Commands are declared.
+func gtkSetupCommandShortcutsIfNeeded(
+    winPtr: UnsafeMutablePointer<GtkWidget>,
+    windowID: Int
+) {
+    guard let commandsFactory = globalCommandsFactory else { return }
+    let host = GTK4CommandShortcutHost(factory: commandsFactory, windowID: windowID)
+    host.setup()
+
+    let retained = Unmanaged.passRetained(host).toOpaque()
+    let gobject = UnsafeMutableRawPointer(winPtr).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(gobject, "gtk-swift-command-shortcut-host", retained) { userData in
+        guard let userData else { return }
+        let host = Unmanaged<GTK4CommandShortcutHost>.fromOpaque(userData).takeRetainedValue()
         host.destroy()
     }
 }
@@ -659,6 +776,14 @@ public struct GTK4Backend: RenderBackend {
         // asks Pango to resolve the "Material Symbols Rounded" family.
         gtkRegisterBundledIconFont()
 
+        // Dark scheme (QUILLUI_COLOR_SCHEME=dark): ask GTK for the dark
+        // theme variant before init so widget chrome matches the semantic
+        // colors' dark resolution. An explicit GTK_THEME wins.
+        if Color.quillPrefersDarkScheme,
+           ProcessInfo.processInfo.environment["GTK_THEME"] == nil {
+            setenv("GTK_THEME", "Adwaita:dark", 1)
+        }
+
         let factory: (OpaquePointer?) -> Void = { appPtr in
             // Inject openWindow action into the environment so views
             // can programmatically open Window scenes by id.
@@ -668,8 +793,12 @@ public struct GTK4Backend: RenderBackend {
             }
             setCurrentEnvironment(env)
 
-            let instance = A()
-            gtkRenderScene(instance.body, app: appPtr)
+            // App.init/App.body are @MainActor (Apple semantics); the GTK app
+            // activate callback runs on the GTK main loop == main thread.
+            MainActor.assumeIsolated {
+                let instance = A()
+                gtkRenderScene(instance.body, app: appPtr)
+            }
         }
 
         // Pump Foundation RunLoop sources (Timer, etc.) periodically.
@@ -822,8 +951,9 @@ private func gtkRenderScene<S: Scene>(_ scene: S, app: OpaquePointer?) {
         renderable.gtkRender(app: app)
         return
     }
-    // Composite scene — recurse through body
+    // Composite scene — recurse through body. Scene.body is @MainActor
+    // (Apple semantics); scene rendering only runs on the GTK main loop.
     if S.Body.self != Never.self {
-        gtkRenderScene(scene.body, app: app)
+        MainActor.assumeIsolated { gtkRenderScene(scene.body, app: app) }
     }
 }

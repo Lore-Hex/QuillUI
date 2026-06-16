@@ -12,8 +12,9 @@
 //  `moduleAliases: ["RSCore": "QuillRSCoreShim"]`. Upstream RSCore
 //  doesn't build on Linux (AppKit/UIKit/os + the RSCoreObjC
 //  sibling), so we mirror only the helpers actually reached:
-//    - `trimmingWhitespace`, `stripping(prefix:)`/`(suffix:)`,
-//      `normalizedURL`  — FeedFinder URL normalization
+//    - `trimmingWhitespace`, `collapsingWhitespace`,
+//      `stripping(prefix:)`/`(suffix:)`, `normalizedURL`  —
+//      FeedFinder URL normalization and article title formatting
 //    - `caseInsensitiveContains`  — FeedSpecifier scoring
 //
 //  Refresh: re-copy these methods verbatim from
@@ -23,6 +24,45 @@
 import Foundation
 
 public extension String {
+
+	/// Trims leading and trailing whitespace and collapses other whitespace into a single space.
+	///
+	/// The original version used `trimmingCharacters` and `replacingOccurrences`
+	/// with regex: `"\\s+"`
+	///
+	/// This faster version loops through UTF-8 bytes. Handles the six
+	/// ASCII whitespace characters matched by NSRegularExpression's `\s`
+	/// (space, tab, LF, VT, FF, CR). Non-ASCII bytes pass through unchanged —
+	/// same as the regex version.
+	var collapsingWhitespace: String {
+		let spaceByte = UInt8(ascii: " ")
+		let tabByte = UInt8(ascii: "\t")
+		let crByte = UInt8(ascii: "\r")
+
+		let utf8 = self.utf8
+		var out = [UInt8]()
+		out.reserveCapacity(utf8.count)
+
+		var sawNonSpace = false
+		var pendingSpace = false
+
+		for byte in utf8 {
+			if byte == spaceByte || (byte >= tabByte && byte <= crByte) {
+				if sawNonSpace {
+					pendingSpace = true
+				}
+				continue
+			}
+			if pendingSpace {
+				out.append(spaceByte)
+				pendingSpace = false
+			}
+			sawNonSpace = true
+			out.append(byte)
+		}
+
+		return String(decoding: out, as: UTF8.self)
+	}
 
 	var trimmingWhitespace: String {
 		self.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
@@ -116,5 +156,15 @@ public extension String {
 	/// - Returns: `true` if the string contains `string`; `false` otherwise.
 	func caseInsensitiveContains(_ string: String) -> Bool {
 		self.range(of: string, options: .caseInsensitive) != nil
+	}
+
+	/// Prepends tabs to a string.
+	///
+	/// - Parameter tabCount: The number of tabs to prepend. Must be greater than or equal to zero.
+	///
+	/// - Returns: The string with `numberOfTabs` tabs prepended.
+	func prepending(tabCount: Int) -> String {
+		let tabs = String(repeating: "\t", count: tabCount)
+		return "\(tabs)\(self)"
 	}
 }

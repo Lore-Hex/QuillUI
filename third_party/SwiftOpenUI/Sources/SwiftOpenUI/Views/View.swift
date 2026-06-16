@@ -1,8 +1,17 @@
 /// A type that represents part of the UI.
 /// Conforming types declare their body as a composition of other views.
+///
+/// `@MainActor @preconcurrency` is Apple's exact 2024-SDK shape: the whole
+/// protocol is main-actor isolated, so conforming types infer type-level
+/// isolation (helper methods and computed properties on app view structs are
+/// isolated, exactly as on macOS), while `@preconcurrency` downgrades
+/// violations from pre-concurrency-shaped code (e.g. nonisolated nested
+/// Coordinator classes touching the parent view) to warnings in the Swift 5
+/// language mode — which is how unmodified upstream apps compile on Apple.
+@MainActor @preconcurrency
 public protocol View {
     associatedtype Body: View
-    @ViewBuilder var body: Body { get }
+    @MainActor @ViewBuilder var body: Body { get }
 }
 
 /// A marker protocol for views that have no reactive properties (@State, etc.)

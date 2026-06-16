@@ -1,0 +1,4 @@
+module CV4L2 [system] {
+    header "shim.h"
+    export *
+}

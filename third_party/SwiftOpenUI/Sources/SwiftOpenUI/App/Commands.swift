@@ -26,6 +26,11 @@
 /// > menu metadata is fragile. `MenuElement` is for in-view popup
 /// > and context menus; `CommandMenuItem` is for app-level command
 /// > menus with disable state and shortcut metadata.
+/// `@MainActor @preconcurrency` like Apple's SwiftUI.Commands: command
+/// closures (Button actions in CommandMenu content) are formed inside the
+/// isolated `body`, so they inherit main-actor isolation and can call into
+/// app state, exactly as on macOS.
+@MainActor @preconcurrency
 public protocol Commands {
 	associatedtype Body: Commands
 	@CommandsBuilder var body: Body { get }
@@ -205,6 +210,9 @@ public struct CommandMenuBuilder {
 		[item]
 	}
 
+	// @_disfavoredOverload: see MenuBuilder note — compat module ships the
+	// functional view arms.
+	@_disfavoredOverload
 	public static func buildExpression<V: View>(_ view: V) -> [CommandMenuItem] {
 		_ = view
 		return []

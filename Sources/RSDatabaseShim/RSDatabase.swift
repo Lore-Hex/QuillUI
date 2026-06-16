@@ -1,34 +1,9 @@
 import Foundation
 @_exported import RSDatabaseObjC
 
-public typealias DatabaseResult = Result<FMDatabase, Error>
-// Upstream NetNewsWire (2026-06) hands the database directly to the block;
-// the older DatabaseResult-based shape is kept above for source back-compat.
 public typealias DatabaseBlock = @Sendable (FMDatabase) -> Void
-// Upstream RSDatabase (2026-06) completion blocks take no arguments
-// (call sites pass `{ continuation.resume() }` / `completion()`).
 public typealias DatabaseCompletionBlock = @Sendable () -> Void
 public typealias DatabaseDictionary = [String: Any]
-
-public extension DatabaseResult {
-    var database: FMDatabase? {
-        switch self {
-        case .success(let database):
-            return database
-        case .failure:
-            return nil
-        }
-    }
-
-    var error: Error? {
-        switch self {
-        case .success:
-            return nil
-        case .failure(let error):
-            return error
-        }
-    }
-}
 
 public final class DatabaseQueue: @unchecked Sendable {
     private let database: FMDatabase

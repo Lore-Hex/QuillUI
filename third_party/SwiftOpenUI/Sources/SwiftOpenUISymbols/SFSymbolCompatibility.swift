@@ -56,6 +56,7 @@ public enum SFSymbolCompatibility {
         "arrow.forward":          "arrow_forward",
         "arrow.forward.circle.fill": "arrow_circle_right",
         "arrow.left":             "arrow_back",
+        "arrow.left.and.right.righttriangle.left.righttriangle.right": "flip",
         "arrow.left.arrow.right": "swap_horiz",
         "arrow.right":            "arrow_forward",
         "arrow.clockwise.circle": "sync",
@@ -63,7 +64,19 @@ public enum SFSymbolCompatibility {
         "arrow.counterclockwise.circle.fill": "history",
         "arrow.triangle.2.circlepath": "sync",
         "arrow.up":               "arrow_upward",
+        "arrow.up.and.down.righttriangle.up.righttriangle.down": "swap_vert",
         "arrow.up.arrow.down":    "swap_vert",
+
+        // MARK: Camera / capture (SolderScope)
+        "camera":                 "photo_camera",
+        "camera.fill":            "photo_camera",
+        "line.diagonal":          "draw",
+        "pause":                  "pause",
+        "record.circle":          "radio_button_checked",
+        "rotate.right":           "rotate_right",
+        "ruler":                  "straighten",
+        "square.stack.3d.up":     "layers",
+        "video.slash":            "videocam_off",
 
         // MARK: File / folder
         "curlybraces":            "data_object",

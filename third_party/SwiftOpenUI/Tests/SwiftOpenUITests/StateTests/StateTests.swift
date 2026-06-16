@@ -1,6 +1,13 @@
 import XCTest
 @testable import SwiftOpenUI
 
+private final class RecordingViewHost: AnyViewHost {
+    var rebuildCount = 0
+
+    func scheduleRebuild() { rebuildCount += 1 }
+    func suppressNextFocusRestore() {}
+}
+
 final class StateTests: XCTestCase {
 
     // MARK: - @State
@@ -71,34 +78,28 @@ final class StateTests: XCTestCase {
         XCTAssertEqual(counter.count, 42)
     }
 
-    func testPublishedNotifiesObservers() {
+    func testObservedObjectStorageSchedulesRebuildOnPublishedChange() {
         let counter = Counter()
-        let expectation = XCTestExpectation(description: "Observer notified")
-        let token = ObjectIdentifier(self)
-        let published = Mirror(reflecting: counter).children.first { $0.value is AnyPublishedProvider }
-        let provider = published!.value as! AnyPublishedProvider
-        provider.anyPublished.setObserver(token: token) {
-            expectation.fulfill()
-        }
+        let storage = ObservedObjectStorage(counter)
+        let host = RecordingViewHost()
+
+        storage.host = host
         counter.count = 1
-        wait(for: [expectation], timeout: 1.0)
+
+        XCTAssertEqual(host.rebuildCount, 1)
     }
 
-    func testPublishedReplacesObserverWithSameToken() {
+    func testObservedObjectStorageGenerationIncrementsOnPublishedChange() {
         let counter = Counter()
-        let token = ObjectIdentifier(self)
-        var callCount = 0
+        let storage = ObservedObjectStorage(counter)
+        let host = RecordingViewHost()
 
-        let published = Mirror(reflecting: counter).children.first { $0.value is AnyPublishedProvider }
-        let provider = published!.value as! AnyPublishedProvider
-
-        // First observer
-        provider.anyPublished.setObserver(token: token) { callCount += 100 }
-        // Replace with second observer using same token
-        provider.anyPublished.setObserver(token: token) { callCount += 1 }
+        storage.host = host
+        XCTAssertEqual(storage.generation, 0)
 
         counter.count = 1
-        XCTAssertEqual(callCount, 1, "Only the latest observer should fire")
+
+        XCTAssertEqual(storage.generation, 1)
     }
 
     // MARK: - Superclass @Published wiring

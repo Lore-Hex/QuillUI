@@ -6,9 +6,14 @@ struct SourceHygieneTests {
     @Test("Repository does not track local smoke-test artifacts")
     func repositoryDoesNotTrackLocalSmokeTestArtifacts() throws {
         let root = try packageRoot()
+        // `-c safe.directory=…`: CI runs tests as a different user than the one
+        // that owns the checkout (root-owned container vs the runner user), so a
+        // bare `git` aborts with "detected dubious ownership" (exit 128). Scope
+        // the exception to this invocation rather than mutating global git config
+        // (and without touching linux-ci.yml, whose contents other tests assert on).
         let result = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
-            arguments: ["git", "-C", root.path, "ls-files"]
+            arguments: ["git", "-c", "safe.directory=*", "-C", root.path, "ls-files"]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
 
@@ -76,6 +81,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let quillCanonicalLinuxApps: [QuillCanonicalLinuxAppSpec] = ["))
         #expect(manifest.contains("let quillCanonicalLinuxAppProducts: [Product] = quillCanonicalLinuxApps.map(\\.productDeclaration)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
+        #expect(manifest.contains("products += ["))
         #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
         #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
@@ -92,7 +98,7 @@ struct SourceHygieneTests {
         // Signal upstream is present (Track B), so non-Signal builds don't get an
         // unused-dependency warning. See Package.swift `if signalUpstreamPresent`.
         #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
-        #expect(manifest.contains("cSQLiteTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
+        #expect(manifest.contains("cSQLiteTarget,\n        cCairoTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
@@ -228,6 +234,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("""
                 "KeychainSwift",
                 "UIKit",
+                "CryptoKit",
 """))
     }
 
@@ -369,6 +376,7 @@ struct SourceHygieneTests {
             "scripts/linux-backend-profile.sh",
             "scripts/linux-backend-visual-check.sh",
             "scripts/linux-backend-interaction-check.sh",
+            "scripts/linux-solderscope-smoke-check.sh",
         ]
 
         for relativePath in guardedScripts {
@@ -595,8 +603,14 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
-        #expect(appKit.contains("public protocol NSApplicationDelegate"))
-        #expect(!appKit.contains("@MainActor public protocol NSApplicationDelegate"))
+        // SolderScope's @preconcurrency pivot (#548) made NSApplicationDelegate
+        // @MainActor (its delegate methods are main-thread). `@preconcurrency`
+        // downgrades the isolation check to Swift-5 mode, so a nonisolated
+        // Telegram conformance is a warning rather than the hard error a bare
+        // `@MainActor` protocol would cause — the protocol must carry BOTH
+        // annotations and never appear as a bare (line-leading) `@MainActor`.
+        #expect(appKit.contains("@preconcurrency @MainActor public protocol NSApplicationDelegate"))
+        #expect(!appKit.contains("\n@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,
@@ -645,7 +659,9 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"], path: \"Sources/AVFoundation\")"))
+        // V4L2 (#515): the capture backend's CV4L2 system library joins the
+        // dependency list Linux-only via quillV4L2Dependencies.
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
         #expect(!osShim.contains("import os"))
     }
 
@@ -671,6 +687,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUI/UpstreamCompatibility.swift"),
             encoding: .utf8
         )
+        let swiftOpenUIControlStyles = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains("name: \"QuillSwiftUICompatibility\""))
         #expect(manifest.contains("\"QuillFoundation\",\n    \"QuillSwiftUICompatibility\","))
@@ -682,16 +702,17 @@ struct SourceHygieneTests {
         #expect(manifest.contains("\"Observation\",\n    .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\"),\n    \"CGdkPixbuf\","))
         #expect(manifest.contains("let wrappingHStackDependencies: [Target.Dependency] = [\n    \"SwiftUI\",\n    \"Observation\","))
         #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
-        #expect(manifest.contains("? [\"Observation\", swiftUIShimBackendDependency] : []"))
+        #expect(manifest.contains("quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [\"QuillAppKitQt\", \"Observation\", swiftUIShimBackendDependency] : []"))
         #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"Observation\",\n                    \"CQtBridge\""))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))
         #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
-        #expect(designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
+        #expect(swiftOpenUIControlStyles.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))
         #expect(!quillUpstreamCompatibility.contains("public struct PlainButtonStyle"))
+        #expect(!designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(!quillUpstreamCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
     }
@@ -733,6 +754,18 @@ struct SourceHygieneTests {
         #expect(!FileManager.default.fileExists(
             atPath: rules.appendingPathComponent("Services/Clipboard.swift.pl").path
         ))
+    }
+
+    @Test("Enchanted composer rewrite expands before drawing border")
+    func enchantedComposerRewriteExpandsBeforeDrawingBorder() throws {
+        let root = try packageRoot()
+        let inputFieldsRule = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/Components/InputFields_macOS.swift.pl"),
+            encoding: .utf8
+        )
+
+        #expect(inputFieldsRule.contains("\\n$1.frame(maxWidth: .infinity)\\n$1.overlay("))
+        #expect(inputFieldsRule.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
     }
 
     @Test("Apple service aliases live in reusable compatibility modules")
@@ -2405,6 +2438,9 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("warm_wordmark_pixel"))
         #expect(screenshotVerifier.contains("Mac-reference wordmark lost its blue-to-red color range"))
         #expect(screenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
+        #expect(screenshotVerifier.contains("validate_quill_solderscope_launch"))
+        #expect(screenshotVerifier.contains("product == \"quill-solderscope-launch\""))
+        #expect(screenshotVerifier.contains("SolderScope dark toolbar pixels were not detected near the top"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
@@ -2528,6 +2564,7 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
+        #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))
@@ -4106,11 +4143,41 @@ struct SourceHygieneTests {
         process.standardOutput = pipe
         process.standardError = pipe
 
+        // Drain the pipe CONCURRENTLY. Reading only after waitUntilExit()
+        // deadlocks once the child's output exceeds the ~64 KB pipe buffer: the
+        // child blocks on write while we block waiting for it to exit. On a full
+        // CI checkout `git ls-files` emits far more than 64 KB, which wedged the
+        // entire Linux test run until the 900 s timeout. (It never deadlocked
+        // locally only because an unmounted .git made git fail fast with a tiny
+        // error — the "git-128" artifact that masked this.) A readabilityHandler
+        // keeps the buffer drained so the child runs to completion.
+        let collector = QuillProcessOutputCollector()
+        let readHandle = pipe.fileHandleForReading
+        readHandle.readabilityHandler = { handle in
+            collector.append(handle.availableData)
+        }
+
         try process.run()
         process.waitUntilExit()
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+        readHandle.readabilityHandler = nil
+        collector.append(readHandle.readDataToEndOfFile())
+        return (process.terminationStatus, collector.string())
+    }
+}
+
+/// Thread-safe accumulator for a subprocess's piped output, fed from the pipe's
+/// readabilityHandler queue so a chatty child never blocks on a full pipe.
+private final class QuillProcessOutputCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock(); data.append(chunk); lock.unlock()
+    }
+    func string() -> String {
+        lock.lock(); defer { lock.unlock() }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 }
 

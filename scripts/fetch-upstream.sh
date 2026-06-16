@@ -1737,6 +1737,438 @@ open(path, "w").write(src)
 print("patched NetNewsWire ErrorLogDatabase.swift selector lowering")
 PY
     fi
+
+    local account_dir="$UPSTREAM_DIR/netnewswire/Modules/Account/Sources/Account"
+    if [[ ! -d "$account_dir" ]]; then
+        echo "==> netnewswire Account source not found; skipping Linux lowering"
+    else
+        echo "==> patching netnewswire Account for Linux FoundationNetworking/selector/CloudKit lowering"
+        python3 - "$account_dir" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+account_dir = Path(sys.argv[1])
+
+for path in account_dir.rglob("*.swift"):
+    src = path.read_text()
+    if "import Foundation" in src and "import FoundationNetworking" not in src:
+        src = src.replace(
+            "import Foundation",
+            "import Foundation\n#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif",
+            1,
+        )
+    path.write_text(src)
+
+cloudkit = account_dir / "CloudKitLinuxUnavailable.swift"
+cloudkit.write_text(
+"""// QuillUI Linux lowering: CloudKit is unavailable on Linux.
+
+import Foundation
+import Articles
+import RSCore
+import RSWeb
+import Secrets
+
+public typealias CloudKitStatsProgressHandler = @MainActor @Sendable (CloudKitStats) -> Void
+
+public struct CloudKitStats: Sendable {
+    public static let empty = CloudKitStats(statusCount: 0, starredStatusCount: 0, unreadStatusCount: 0, readStatusCount: 0, staleStatusCount: 0, articleCount: 0, starredArticleCount: 0, unreadArticleCount: 0, readArticleCount: 0)
+
+    public let statusCount: Int
+    public let starredStatusCount: Int
+    public let unreadStatusCount: Int
+    public let readStatusCount: Int
+    public let staleStatusCount: Int
+    public let articleCount: Int
+    public let starredArticleCount: Int
+    public let unreadArticleCount: Int
+    public let readArticleCount: Int
+
+    public func cleanUpPlan(syncUnreadContent: Bool) -> CloudKitCleanUpPlan {
+        CloudKitCleanUpPlan(staleStatusCount: staleStatusCount, readContentCount: readArticleCount, unreadContentCount: syncUnreadContent ? 0 : unreadArticleCount)
+    }
+}
+
+public struct CloudKitCleanUpPlan: Sendable {
+    public let staleStatusCount: Int
+    public let readContentCount: Int
+    public let unreadContentCount: Int
+
+    public var totalCount: Int { readContentCount + unreadContentCount }
+    public var isEmpty: Bool { totalCount == 0 }
+}
+
+public enum CloudKitCleanUpPhase: Sendable {
+    case deletingStaleStatus
+    case deletingReadContent
+    case deletingUnreadContent
+    case completed
+}
+
+public struct CloudKitCleanUpProgress: Sendable {
+    public let phase: CloudKitCleanUpPhase
+    public let staleStatusDeleted: Int
+    public let readContentDeleted: Int
+    public let unreadContentDeleted: Int
+
+    public var totalDeleted: Int { readContentDeleted + unreadContentDeleted }
+}
+
+public enum CloudKitStatsError: LocalizedError {
+    case noiCloudAccount
+
+    public var errorDescription: String? {
+        NSLocalizedString("No iCloud account found.", comment: "CloudKit stats error")
+    }
+}
+
+@MainActor final class CloudKitAccountDelegate: AccountDelegate {
+    let behaviors: AccountBehaviors = []
+    let isOPMLImportInProgress = false
+    var progressInfo = ProgressInfo()
+    let server: String? = nil
+    var credentials: Credentials?
+    var accountSettings: AccountSettings?
+
+    init(dataFolder: String) {}
+
+    func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable: Any]) async {}
+    func refreshAll(for account: Account) async throws { throw AccountError.invalidParameter }
+    func syncArticleStatus(for account: Account) async throws -> Bool { false }
+    func sendArticleStatus(for account: Account) async throws { throw AccountError.invalidParameter }
+    func refreshArticleStatus(for account: Account) async throws { throw AccountError.invalidParameter }
+    func importOPML(for account: Account, opmlFile: URL) async throws { throw AccountError.invalidParameter }
+    func createFolder(for account: Account, name: String) async throws -> Folder { throw AccountError.invalidParameter }
+    func renameFolder(for account: Account, with folder: Folder, to name: String) async throws { throw AccountError.invalidParameter }
+    func removeFolder(for account: Account, with folder: Folder) async throws { throw AccountError.invalidParameter }
+    func createFeed(for account: Account, url: String, name: String?, container: Container, validateFeed: Bool) async throws -> Feed { throw AccountError.invalidParameter }
+    func renameFeed(for account: Account, with feed: Feed, to name: String) async throws { throw AccountError.invalidParameter }
+    func addFeed(account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func removeFeed(account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func moveFeed(account: Account, feed: Feed, sourceContainer: Container, destinationContainer: Container) async throws { throw AccountError.invalidParameter }
+    func restoreFeed(for account: Account, feed: Feed, container: Container) async throws { throw AccountError.invalidParameter }
+    func restoreFolder(for account: Account, folder: Folder) async throws { throw AccountError.invalidParameter }
+    func markArticles(for account: Account, articles: Set<Article>, statusKey: ArticleStatus.Key, flag: Bool) async throws { throw AccountError.invalidParameter }
+    func accountDidInitialize(_ account: Account) {}
+    func accountWillBeDeleted(_ account: Account) {}
+    static func validateCredentials(transport: Transport, credentials: Credentials, endpoint: URL?) async throws -> Credentials? { nil }
+    func vacuumDatabases(for account: Account) async {}
+    func suspendNetwork() {}
+    func resume(account: Account) {}
+
+    func fetchCloudKitStats(progress: @escaping CloudKitStatsProgressHandler) async throws -> CloudKitStats {
+        throw AccountError.invalidParameter
+    }
+
+    func cleanUpCloudKit(dryRun: Bool, progress: @escaping @MainActor @Sendable (CloudKitCleanUpProgress) -> Void) async throws {
+        throw AccountError.invalidParameter
+    }
+}
+"""
+)
+
+observer_pattern = re.compile(
+    r"(?P<indent>[ \t]*)NotificationCenter\.default\.addObserver\(self, selector: #selector\((?P<method>[A-Za-z0-9_]+)\(_:\)\), name: (?P<name>[^,]+), object: (?P<object>[^\n]+?)\)"
+)
+
+for path in account_dir.rglob("*.swift"):
+    if path.name == "CloudKitLinuxUnavailable.swift" or "/CloudKit/" in path.as_posix():
+        continue
+    src = path.read_text()
+
+    def replace_observer(match):
+        indent = match.group("indent")
+        method = match.group("method")
+        name = match.group("name")
+        obj = match.group("object")
+        original = match.group(0).strip()
+        return (
+            f"{indent}#if os(Linux)\n"
+            f"{indent}// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.\n"
+            f"{indent}_ = NotificationCenter.default.addObserver(forName: {name}, object: {obj}, queue: nil) {{ [weak self] notification in\n"
+            f"{indent}\tTask {{ @MainActor in\n"
+            f"{indent}\t\tself?.{method}(notification)\n"
+            f"{indent}\t}}\n"
+            f"{indent}}}\n"
+            f"{indent}#else\n"
+            f"{indent}{original}\n"
+            f"{indent}#endif"
+        )
+
+    src = observer_pattern.sub(replace_observer, src)
+    src = src.replace("@objc nonisolated final class", "nonisolated final class")
+    src = src.replace("@objc nonisolated func", "#if !os(Linux)\n\t@objc\n#endif\n\tnonisolated func")
+    src = src.replace("@objc func", "#if !os(Linux)\n\t@objc\n#endif\n\tfunc")
+    src = src.replace(
+        "saveQueue.add(self, #selector(saveToDiskIfNeeded))",
+        "saveQueue.add { [weak self] in\n\t\t\t\t\tself?.saveToDiskIfNeeded()\n\t\t\t\t}",
+    )
+    path.write_text(src)
+
+print("patched NetNewsWire Account Linux lowering")
+PY
+    fi
+
+    local shared_dir="$UPSTREAM_DIR/netnewswire/Shared"
+    if [[ -d "$shared_dir" ]] && grep -rqE 'NSSortDescriptor\(key:|sortDescriptor(\?)?\.key' "$shared_dir" 2>/dev/null; then
+        echo "==> lowering netnewswire Shared Foundation compatibility"
+        ( cd "$ROOT_DIR" && swift run quill-lower-foundation "$shared_dir" )
+    fi
+
+    local netnewswire_dir="$UPSTREAM_DIR/netnewswire"
+    if [[ -d "$netnewswire_dir" ]] && grep -rq 'Bundle.main.bundleIdentifier!' "$netnewswire_dir" 2>/dev/null; then
+        echo "==> lowering netnewswire forced bundle identifiers for Linux test runners"
+        python3 - "$netnewswire_dir" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+fallback = '(Bundle.main.bundleIdentifier ?? "com.ranchero.NetNewsWire")'
+for path in root.rglob("*.swift"):
+    src = path.read_text()
+    patched = src.replace("Bundle.main.bundleIdentifier!", fallback)
+    if patched != src:
+        path.write_text(patched)
+PY
+    fi
+
+    local article_string_formatter="$shared_dir/Extensions/ArticleStringFormatter.swift"
+    if [[ -f "$article_string_formatter" ]] && grep -q '#selector(handleAppDidGoToBackground' "$article_string_formatter"; then
+        echo "==> lowering netnewswire Shared ArticleStringFormatter selector observers"
+        python3 - "$article_string_formatter" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init() {
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+	}
+'''
+new_init = '''	init() {
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .appDidGoToBackground, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.handleAppDidGoToBackground(notification)
+			}
+		}
+		_ = NotificationCenter.default.addObserver(forName: .lowMemory, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.handleLowMemory(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(handleAppDidGoToBackground(_:)), name: .appDidGoToBackground, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(handleLowMemory(_:)), name: .lowMemory, object: nil)
+#endif
+	}
+'''
+if old_init not in src:
+    raise SystemExit("ArticleStringFormatter selector observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+
+src = src.replace(
+    "\t@objc func handleAppDidGoToBackground(_ notification: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc handleAppDidGoToBackground(_ notification: Notification) {",
+    1,
+)
+src = src.replace(
+    "\t@objc func handleLowMemory(_ notification: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc handleLowMemory(_ notification: Notification) {",
+    1,
+)
+src = src.replace("return NSAttributedString()", 'return NSAttributedString(string: "")')
+
+path.write_text(src)
+print("patched ArticleStringFormatter selector observer lowering")
+PY
+    fi
+
+    local smart_feed="$shared_dir/SmartFeeds/SmartFeed.swift"
+    if [[ -f "$smart_feed" ]] && grep -q '#selector(unreadCountDidChange' "$smart_feed"; then
+        echo "==> lowering netnewswire Shared SmartFeed selector observers"
+        python3 - "$smart_feed" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init(delegate: SmartFeedDelegate) {
+		self.delegate = delegate
+		NotificationCenter.default.addObserver(self, selector: #selector(unreadCountDidChange(_:)), name: .UnreadCountDidChange, object: nil)
+		queueFetchUnreadCounts() // Fetch unread count at startup
+	}
+'''
+new_init = '''	init(delegate: SmartFeedDelegate) {
+		self.delegate = delegate
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .UnreadCountDidChange, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.unreadCountDidChange(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(unreadCountDidChange(_:)), name: .UnreadCountDidChange, object: nil)
+#endif
+		queueFetchUnreadCounts() // Fetch unread count at startup
+	}
+'''
+if old_init not in src:
+    raise SystemExit("SmartFeed selector observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+
+src = src.replace(
+    "\t@objc func unreadCountDidChange(_ note: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc unreadCountDidChange(_ note: Notification) {",
+    1,
+)
+src = src.replace(
+    "\t@objc func fetchUnreadCounts() {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc fetchUnreadCounts() {",
+    1,
+)
+src = src.replace(
+    "\t\tCoalescingQueue.standard.add(self, #selector(fetchUnreadCounts))",
+    "#if os(Linux)\n\t\tCoalescingQueue.standard.add { [weak self] in\n\t\t\tself?.fetchUnreadCounts()\n\t\t}\n#else\n\t\tCoalescingQueue.standard.add(self, #selector(fetchUnreadCounts))\n#endif",
+    1,
+)
+
+path.write_text(src)
+print("patched SmartFeed selector observer lowering")
+PY
+    fi
+
+    local unread_feed="$shared_dir/SmartFeeds/UnreadFeed.swift"
+    if [[ -f "$unread_feed" ]] && grep -q '#selector(unreadCountDidChange' "$unread_feed"; then
+        echo "==> lowering netnewswire Shared UnreadFeed selector observer"
+        python3 - "$unread_feed" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init() {
+
+		self.unreadCount = appDelegate.unreadCount
+		NotificationCenter.default.addObserver(self, selector: #selector(unreadCountDidChange(_:)), name: .UnreadCountDidChange, object: appDelegate)
+	}
+'''
+new_init = '''	init() {
+
+		self.unreadCount = appDelegate.unreadCount
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: .UnreadCountDidChange, object: appDelegate, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.unreadCountDidChange(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(unreadCountDidChange(_:)), name: .UnreadCountDidChange, object: appDelegate)
+#endif
+	}
+'''
+if old_init not in src:
+    raise SystemExit("UnreadFeed selector observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+src = src.replace(
+    "\t@objc func unreadCountDidChange(_ note: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc unreadCountDidChange(_ note: Notification) {",
+    1,
+)
+
+path.write_text(src)
+print("patched UnreadFeed selector observer lowering")
+PY
+    fi
+
+    local article_utilities="$shared_dir/Extensions/ArticleUtilities.swift"
+    if [[ -f "$article_utilities" ]] && grep -qE '^import Images|func iconImage\(' "$article_utilities"; then
+        echo "==> lowering netnewswire Shared ArticleUtilities image-cache island"
+        python3 - "$article_utilities" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("import Images\n", "")
+src = re.sub(
+    r"\n\tfunc iconImage\(\) -> IconImage\? \{\n\t\treturn IconImageCache\.shared\.imageForArticle\(self\)\n\t\}\n\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{\n\t\tif let image = iconImage\(\) \{\n\t\t\tlet fm = FileManager\.default\n\t\t\tvar path = fm\.urls\(for: \.cachesDirectory, in: \.userDomainMask\)\[0\]\n\t\t\tlet feedID = feed\.feedID\.replacingOccurrences\(of: \"/\", with: \"_\"\)\n\t\t\tpath\.appendPathComponent\(feedID \+ \"_smallIcon\.png\"\)\n\t\t\tfm\.createFile\(atPath: path\.path, contents: image\.image\.dataRepresentation\(\)!, attributes: nil\)\n\t\t\treturn path\n\t\t\} else \{\n\t\t\treturn nil\n\t\t\}\n\t\}\n",
+    "\n",
+    src,
+    count=1,
+)
+path.write_text(src)
+print("patched ArticleUtilities without Images/IconImageCache dependency")
+PY
+    fi
+
+    local dinosaurs_view_model="$shared_dir/Dinosaurs/DinosaursViewModel.swift"
+    if [[ -f "$dinosaurs_view_model" ]] && grep -q '^@Observable$' "$dinosaurs_view_model"; then
+        echo "==> lowering netnewswire Shared DinosaursViewModel Observation macro"
+        python3 - "$dinosaurs_view_model" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("@Observable\n@MainActor final class DinosaursViewModel", "@MainActor final class DinosaursViewModel", 1)
+path.write_text(src)
+print("patched DinosaursViewModel @Observable lowering")
+PY
+    fi
+
+    local article_sorter="$shared_dir/Timeline/ArticleSorter.swift"
+    if [[ -f "$article_sorter" ]] && grep -qE 'feedNameFor: \(Article\) -> String|\.sorted \{' "$article_sorter"; then
+        echo "==> lowering netnewswire Shared ArticleSorter for Swift 6 Linux"
+        python3 - "$article_sorter" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "feedNameFor: (Article) -> String = { $0.sortableFeedName }",
+    "feedNameFor: @MainActor (Article) -> String = { $0.sortableFeedName }",
+)
+src = src.replace(
+    "feedNameFor: (Article) -> String) -> [Article]",
+    "feedNameFor: @MainActor (Article) -> String) -> [Article]",
+)
+src = src.replace(".sorted { lhs, rhs in", ".sorted(by: { lhs, rhs in")
+src = src.replace(
+    """\t\t\t\tcase .orderedSame: lhs.feedID < rhs.feedID
+\t\t\t\t}
+\t\t\t}
+\t\t\t.flatMap""",
+    """\t\t\t\tcase .orderedSame: lhs.feedID < rhs.feedID
+\t\t\t\t}
+\t\t\t})
+\t\t\t.flatMap""",
+)
+src = src.replace("articles.sorted { article1, article2 in", "articles.sorted(by: { article1, article2 in")
+src = src.replace(
+    """\t\t\t} else {
+\t\t\t\tarticle1.logicalDatePublished < article2.logicalDatePublished
+\t\t\t}
+\t\t}""",
+    """\t\t\t} else {
+\t\t\t\tarticle1.logicalDatePublished < article2.logicalDatePublished
+\t\t\t}
+\t\t})""",
+)
+path.write_text(src)
+print("patched ArticleSorter actor/default-closure and sorted(by:) lowering")
+PY
+    fi
 }
 
 want=("$@")
@@ -1803,6 +2235,14 @@ for name in "${want[@]}"; do
             ;;
         netnewswire)
             fetch_repo netnewswire https://github.com/Ranchero-Software/NetNewsWire.git
+            # PINNED to NNW main as of 2026-06-08: the Linux Account/Shared
+            # module train (merged 2026-06-09) compiles against this tree;
+            # upstream HEAD has since drifted its RSDatabase wrapper API
+            # (DatabaseResult lost tableExists/executeStatements/...), which
+            # turned the Linux CI lane red. Advance the pin together with
+            # the slice, not implicitly via HEAD-tracking fetches.
+            git -C "$UPSTREAM_DIR/netnewswire" fetch --depth=1 origin 7fc1e65308583fb014818c342ecbb1560e8461db
+            git -C "$UPSTREAM_DIR/netnewswire" reset --hard 7fc1e65308583fb014818c342ecbb1560e8461db
             patch_netnewswire
             ;;
         wireguard)
@@ -1828,6 +2268,44 @@ for name in "${want[@]}"; do
             # SwiftUI USB-microscope viewer, compiled unmodified on Linux.
             fetch_repo solderscope https://github.com/rjwalters/SolderScope.git
             patch_solderscope
+            ;;
+        euclid)
+            # nicklockwood/Euclid (MIT): pure-Swift 3D geometry/CSG library.
+            # The library core is platform-independent (SceneKit/RealityKit/
+            # AppKit interop files are all canImport-gated upstream), so the
+            # `Euclid` target can go green on Linux ahead of any SCN surface.
+            # Example/ is a real UIKit + SceneKit (+ one RealityKit screen)
+            # demo app — the warm-up SceneKit conformance driver.
+            fetch_repo euclid https://github.com/nicklockwood/Euclid.git
+            ;;
+        lrucache)
+            # nicklockwood/LRUCache (MIT): single-file pure-Swift dependency
+            # of ShapeScript.
+            fetch_repo lrucache https://github.com/nicklockwood/LRUCache.git
+            ;;
+        svgpath)
+            # nicklockwood/SVGPath (MIT): SVG path parser dependency of
+            # ShapeScript (CoreGraphics/SwiftUI extensions canImport-gated).
+            fetch_repo svgpath https://github.com/nicklockwood/SVGPath.git
+            ;;
+        shapescript)
+            # nicklockwood/ShapeScript (MIT): real shipped macOS app whose
+            # entire viewport is SceneKit — the flagship SceneKit conformance
+            # target. Core language lib + CLI already support Linux upstream;
+            # Viewer/Mac is an NSDocument-based AppKit app (also feeds the
+            # AppKit-reimplementation conformance ladder). Upstream pins
+            # Euclid 0.8.x via SwiftPM; we build it against .upstream/euclid
+            # instead (HEAD == 0.8.14 today), so fetch euclid/lrucache/svgpath
+            # alongside — or just use the `scenekit` meta-arm.
+            fetch_repo shapescript https://github.com/nicklockwood/ShapeScript.git
+            ;;
+        scenekit)
+            # Meta-arm: everything the SceneKit conformance campaign needs.
+            # See docs/scenekit-conformance.md.
+            fetch_repo euclid https://github.com/nicklockwood/Euclid.git
+            fetch_repo lrucache https://github.com/nicklockwood/LRUCache.git
+            fetch_repo svgpath https://github.com/nicklockwood/SVGPath.git
+            fetch_repo shapescript https://github.com/nicklockwood/ShapeScript.git
             ;;
         *)
             echo "unknown upstream: $name" >&2

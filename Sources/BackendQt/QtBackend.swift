@@ -66,7 +66,9 @@ public struct QtBackend: RenderBackend {
 
         qtBackendTrace("run: before App init + scene render")
         let instance = A()
-        qtRenderScene(instance.body, app: app)
+        MainActor.assumeIsolated {
+            qtRenderScene(instance.body, app: app)
+        }
         qtBackendTrace("run: after scene render")
 
         // Pump Foundation RunLoop sources alongside Qt's loop in a later slice
@@ -90,7 +92,9 @@ func qtRenderScene<S: Scene>(_ scene: S, app: OpaquePointer) {
         return
     }
     if S.Body.self != Never.self {
-        qtRenderScene(scene.body, app: app)
+        MainActor.assumeIsolated {
+            qtRenderScene(scene.body, app: app)
+        }
     }
 }
 

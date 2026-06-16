@@ -38,7 +38,7 @@ public struct LazyImageState {
 /// A functional NukeUI shim using native AsyncImage for Linux parity.
 public struct LazyImage<Content: View>: View {
     private let url: URL?
-    private let content: (LazyImageState) -> Content
+    private let content: @MainActor (LazyImageState) -> Content
     
     public init(url: URL?) where Content == AnyView {
         self.url = url
@@ -53,7 +53,7 @@ public struct LazyImage<Content: View>: View {
         }
     }
 
-    public init(url: URL?, @ViewBuilder content: @escaping (LazyImageState) -> Content) {
+    public init(url: URL?, @ViewBuilder content: @escaping @MainActor (LazyImageState) -> Content) {
         self.url = url
         self.content = content
     }
@@ -61,14 +61,14 @@ public struct LazyImage<Content: View>: View {
     public init(
         url: URL?,
         transaction: Transaction,
-        @ViewBuilder content: @escaping (LazyImageState) -> Content
+        @ViewBuilder content: @escaping @MainActor (LazyImageState) -> Content
     ) {
         _ = transaction
         self.url = url
         self.content = content
     }
 
-    public init(request: ImageRequest, @ViewBuilder content: @escaping (LazyImageState) -> Content) {
+    public init(request: ImageRequest, @ViewBuilder content: @escaping @MainActor (LazyImageState) -> Content) {
         self.url = request.url
         self.content = content
     }
@@ -90,6 +90,7 @@ public struct LazyImage<Content: View>: View {
 }
 
 private extension Image {
+    @MainActor
     func aspectRatio(contentValue: ContentMode) -> some View {
         self.resizable().aspectRatio(contentMode: contentValue)
     }

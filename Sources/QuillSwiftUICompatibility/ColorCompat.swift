@@ -14,6 +14,11 @@ extension Color {
     public static var accentColor: Color { .blue }
     public static var tint: Color { accentColor }
     public static var foreground: Color { primary }
+    // Disfavored: IceCubes' DesignSystem ships its own `Color.label`, and
+    // StatusKit imports both it and this shadow (re-exported via SwiftUI),
+    // which made `Color.label` ambiguous. Ports that don't pull DesignSystem
+    // still get this one; DesignSystem's wins where both are visible.
+    @_disfavoredOverload
     public static var label: Color { Color(RSColor.label) }
     public static var labelCustom: Color { Color("label") }
     public static var systemGray: Color { Color(RSColor.systemGray) }
@@ -35,6 +40,17 @@ extension Color {
     /// Bridge UIKit/AppKit-style platform colors into the SwiftUI color value.
     public init(_ color: RSColor) {
         self.init(red: color._red, green: color._green, blue: color._blue, opacity: color._alpha)
+    }
+
+    /// SwiftUI's labeled platform-color bridges. `NSColor`/`UIColor` are both
+    /// `RSColor` on QuillOS, so these mirror the macOS/iOS `Color(nsColor:)` /
+    /// `Color(uiColor:)` initializers real source uses to tint SwiftUI views.
+    public init(nsColor: RSColor) {
+        self.init(nsColor)
+    }
+
+    public init(uiColor: RSColor) {
+        self.init(uiColor)
     }
 
     public init(rgba: UInt32) {

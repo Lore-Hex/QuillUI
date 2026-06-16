@@ -16,4 +16,5 @@
 @_exported import Tidemark
 @_exported import KeychainSwift
 @_exported import os
+@_exported import NetNewsWireContext
 #endif

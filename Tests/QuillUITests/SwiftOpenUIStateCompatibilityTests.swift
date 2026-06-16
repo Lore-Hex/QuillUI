@@ -3,7 +3,12 @@ import Testing
 #if os(Linux)
 import SwiftUI
 
+// `@MainActor`: the text-input/submitLabel cases build MainActor-isolated
+// SwiftUI views (TextField/SecureField/Text + @ViewBuilder prompts) whose
+// initializers run a Swift-6 isolation check that SIGTRAPs off the main
+// actor. Swift Testing runs @Test cases off-main, so pin the suite.
 @Suite("SwiftOpenUI state compatibility")
+@MainActor
 struct SwiftOpenUIStateCompatibilityTests {
     @Test("@State observes lowered @Observable object mutations")
     func stateStorageObservesLoweredObservableObjectMutations() {

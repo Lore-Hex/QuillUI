@@ -70,7 +70,14 @@ private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
     }
 }
 
+// `@MainActor`: many tests here construct MainActor-isolated SwiftUI views
+// (WrappingHStack, etc.) whose initializers run a Swift-6 isolation runtime
+// check that SIGTRAPs when evaluated off the main actor. Swift Testing runs
+// @Test cases on a background pool, so pin the whole suite to the main actor
+// rather than relying on a per-function annotation that's easy to miss
+// (thirdPartyUIShimsCompile lacked one and crashed the Linux run).
 @Suite("Linux compatibility import modules", .serialized)
+@MainActor
 struct CompatibilityModuleTests {
     private func pngDimensions(_ data: Data) -> (width: UInt32, height: UInt32)? {
         let pngMagic: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
@@ -124,6 +131,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("SwiftUI and SwiftData module aliases expose Quill APIs")
+    @MainActor
     func swiftUIAndSwiftDataAliasesExposeQuillAPIs() throws {
         _ = Text("Quill")
             .foregroundStyle(Color("label"))
@@ -136,6 +144,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("QuillUI fallback modifiers record diagnostics")
+    @MainActor
     func quillUIFallbackModifiersRecordDiagnostics() {
         let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
 
@@ -344,6 +353,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit image and KeyboardShortcuts compatibility cover Enchanted full source")
+    @MainActor
     func appKitImageAndKeyboardShortcutCompatibility() throws {
         let shortcut = KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .shift])
         let name = KeyboardShortcuts.Name("togglePanelMode", default: shortcut)
@@ -376,6 +386,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit audio compatibility routes NSSound through QuillKit")
+    @MainActor
     func appKitAudioCompatibilityRoutesNSSoundThroughQuillKit() {
         let result = AppleCompatibilitySmoke.runAppKitAudioSmoke()
         #expect(result.dataSoundCreated)
@@ -391,6 +402,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit workspace open routes through QuillWorkspace")
+    @MainActor
     func appKitWorkspaceOpenRoutesThroughQuillWorkspace() {
         let result = AppleCompatibilitySmoke.runAppKitWorkspaceOpenSmoke()
         let expectedURL = URL(string: "https://example.com/quill-appkit-workspace")!
@@ -402,6 +414,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit rect string helpers round-trip common geometry formats")
+    @MainActor
     func appKitRectStringHelpersRoundTripCommonFormats() {
         let result = AppleCompatibilitySmoke.runAppKitGeometrySmoke()
 
@@ -413,6 +426,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit appearance smoke covers names and best matches")
+    @MainActor
     func appKitAppearanceSmokeCoversNamesAndBestMatches() {
         let result = AppleCompatibilitySmoke.runAppKitAppearanceSmoke()
 
@@ -425,6 +439,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit font manager exposes deterministic fallback fonts")
+    @MainActor
     func appKitFontManagerExposesDeterministicFallbackFonts() {
         let result = AppleCompatibilitySmoke.runAppKitFontSmoke()
 
@@ -477,6 +492,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit controls mirror values and button factories")
+    @MainActor
     func appKitControlsMirrorValuesAndButtonFactories() {
         let result = AppleCompatibilitySmoke.runAppKitControlSmoke()
 
@@ -499,6 +515,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit pop-up buttons preserve menu selection state")
+    @MainActor
     func appKitPopUpButtonsPreserveMenuSelectionState() {
         let result = AppleCompatibilitySmoke.runAppKitPopUpButtonSmoke()
 
@@ -707,6 +724,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("AppKit undo managers maintain action stacks")
+    @MainActor
     func appKitUndoManagersMaintainActionStacks() {
         let result = AppleCompatibilitySmoke.runAppKitUndoSmoke()
 
@@ -1559,11 +1577,13 @@ struct CompatibilityModuleTests {
     }
 
     @Test("Security CoreGraphics Accessibility and Alamofire adapters compile")
+    @MainActor
     func lowerLevelServiceModulesCompile() throws {
         #expect(try AppleCompatibilitySmoke.runLowerLevelServiceSmoke())
     }
 
     @Test("os Logger compatibility records privacy-aware diagnostics")
+    @MainActor
     func osLoggerCompatibilityRecordsDiagnostics() {
         let result = AppleCompatibilitySmoke.runOSLogSmoke()
         #expect(result.operations.contains("Logger.info"))
@@ -2521,6 +2541,7 @@ struct CompatibilityModuleTests {
     // MARK: - SPI: view-tree introspection helpers
 
     @Test("quillTextLabel extracts text content from primitive view types")
+    @MainActor
     func quillTextLabelExtractsFromPrimitives() {
         // Text: returns its content directly.
         #expect(QuillUI.quillTextLabel(from: Text("Hello")) == "Hello")
@@ -2541,6 +2562,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillSystemImageName preserves backend-covered SF Symbols and falls back gracefully")
+    @MainActor
     func quillSystemImageNameRemapsAndFallsBack() {
         // Backend-covered SF Symbols preserve the macOS token.
         #expect(QuillUI.quillSystemImageName(from: Image(systemName: "paperplane.fill")) == "paperplane.fill")
@@ -2556,6 +2578,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillTextLabel unwraps styled labels")
+    @MainActor
     func quillTextLabelUnwrapsStyledLabels() {
         let styledLabel = Text("Styled")
             .font(.body)
@@ -2570,6 +2593,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillMenuElements walks Button, Disabled, KeyboardShortcut, and recurses MultiChildView")
+    @MainActor
     func quillMenuElementsWalksViewTree() {
         // Plain Button returns a single .item with the button's title and action.
         let buttonTapCount = QuillTestBox<Int>(0)
@@ -2693,6 +2717,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillCommandMenuItems extracts from Button and respects disabled state")
+    @MainActor
     func quillCommandMenuItemsExtraction() {
         let count = QuillTestBox<Int>(0)
         let button = Button("Open") {
@@ -2757,6 +2782,7 @@ struct CompatibilityModuleTests {
     }
 
     @Test("quillPickerOptions extracts labels and tags from tagged view content")
+    @MainActor
     func quillPickerOptionsExtraction() {
         let options = QuillUI.quillPickerOptions(from: HStack {
             Text("").tag("a")

@@ -14,7 +14,7 @@ public enum ImageScale {
 }
 
 /// A view that displays an image from an icon name or file path.
-public struct Image: View {
+public struct Image {
     public typealias Body = Never
 
     public enum Source {
@@ -109,3 +109,10 @@ public struct Image: View {
 
     public var body: Never { fatalError("Image is a primitive view") }
 }
+
+// View conformance lives in an extension (Apple declares it the same
+// way for primitive value views): protocol-isolation inference applies
+// only to conformances declared on the type itself, so statics like
+// Color.accentColor stay nonisolated and remain usable as default
+// argument values in nonisolated app code (IceCubes ToastCenter).
+extension Image: View {}

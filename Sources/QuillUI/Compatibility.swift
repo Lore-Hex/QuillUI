@@ -379,6 +379,28 @@ public extension Image {
 
 public protocol KeyboardReadable {}
 
+public struct PlainListStyle: Sendable {
+    public init() {}
+}
+
+// `ButtonRole` and the role-taking Button inits moved to
+// QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that
+// only `import SwiftUI`s sees them (SolderScope's alert buttons); QuillUI
+// re-exports that module.
+
+public extension TextField {
+    init(_ title: String, text: Binding<String>, axis: Axis) {
+        self.init(title, text: text)
+    }
+
+    init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
+        self.init(title, text: text)
+    }
+}
+
+// Axis.Set is the fork's typealias (Axis itself is the OptionSet) —
+// the old nested struct here competed with it and was removed.
+
 public struct LayoutPriority: Equatable, Sendable, ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
     public var rawValue: Double
     public init(_ value: Double) { self.rawValue = value }
@@ -427,17 +449,6 @@ private final class QuillImageDataCache: @unchecked Sendable {
 }
 
 public extension Image {
-    init(_ name: String) {
-        if let path = QuillResourceLookup.path(
-            forResource: name,
-            candidateExtensions: QuillResourceLookup.commonImageExtensions
-        ) {
-            self.init(filePath: path)
-        } else {
-            self.init(resource: name)
-        }
-    }
-
     init(data: Data) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("QuillUIImages", isDirectory: true)
@@ -510,6 +521,15 @@ public extension EnvironmentValues {
 }
 
 public extension View {
+    @ViewBuilder
+    func preferredColorScheme(_ colorScheme: ColorScheme?) -> some View {
+        if let colorScheme {
+            environment(\.colorScheme, colorScheme)
+        } else {
+            self
+        }
+    }
+
     @_disfavoredOverload
     @ViewBuilder
     func quillGTKSizeRequest(width: Int = -1, height: Int = -1) -> some View {

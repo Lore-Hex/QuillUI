@@ -8,6 +8,15 @@ import QuillKit
 import QuillFoundation
 import class UIKit.NSItemProvider
 import enum UIKit.UIKeyboardType
+// App-chrome shims that BOTH `import QuillUI` and the Linux `import SwiftUI`
+// shadow must see (Material, the ButtonStyle protocol, ButtonRole, the
+// command/menu builder expressions, WindowGroup conveniences, …) are
+// canonical in QuillSwiftUICompatibility — QuillUI re-exports that module,
+// so keeping ONE defining module avoids ambiguous lookups in files that
+// import both (see the firstTextBaseline note below for the same pattern).
+// This file still references several of those names (Shape.fill(_ material:),
+// PlainButtonStyle, …) via the direct import at the top of this block.
+@_exported import CoreTransferable
 @_exported import UniformTypeIdentifiers
 
 #if !os(macOS) && !os(iOS) && !os(visionOS)
@@ -39,24 +48,6 @@ public extension UTType {
     }
 }
 #endif
-
-public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
-    case representationUnavailable(String)
-    case fileSelectionUnavailable
-    case unsupportedFileSelection(URL, [UTType])
-
-    public var errorDescription: String? {
-        switch self {
-        case .representationUnavailable(let identifier):
-            return "No data representation is available for \(identifier)."
-        case .fileSelectionUnavailable:
-            return "No file selection provider is available."
-        case .unsupportedFileSelection(let url, let allowedTypes):
-            let allowed = allowedTypes.map(\.identifier).joined(separator: ", ")
-            return "\(url.path) is not one of the allowed file types: \(allowed)."
-        }
-    }
-}
 
 public enum QuillFileImporter {
     private static let environmentKey = "QUILLUI_FILE_IMPORTER_SELECTION"
@@ -156,6 +147,9 @@ public enum QuillFileImporter {
     }
 }
 
+// `Material` moved to QuillSwiftUICompatibility so real source that only
+// `import SwiftUI`s sees it; QuillUI re-exports that module. (Namespace
+// lives in DesignSystemSurfaceCompat.swift.)
 // `FocusState` was previously declared here as a Binding-projecting
 // shim, but SwiftOpenUI ships its own `FocusState<Value: Hashable>`
 // with `projectedValue: FocusState<Value>` and a matching
@@ -256,19 +250,10 @@ public extension Animation {
         return .easeOut(duration: duration)
     }
 
-    func repeatForever(autoreverses: Bool = true) -> Animation {
-        recordQuillUIFallback(
-            "Animation.repeatForever",
-            message: "Animation.repeatForever metadata is preserved on Linux; GTK transition repeat loops are not yet implemented."
-        )
-        return Animation(
-            curve: curve,
-            duration: duration,
-            delay: delay,
-            repeatsForever: true,
-            autoreverses: autoreverses
-        )
-    }
+    // `repeatForever(autoreverses:)` moved to QuillSwiftUICompatibility
+    // (SolderScopeChrome.swift) so `import SwiftUI` files see it as well.
+    // That module links QuillKit (via DesignSystemSurfaceCompat), so it keeps
+    // recording the `.info` compatibility diagnostic there.
 
     func delay(_ delay: Double) -> Animation {
         recordQuillUIFallback(
@@ -307,78 +292,14 @@ public extension CommandGroup {
     }
 }
 
-public extension WindowGroup {
-    func defaultSize(width: Double, height: Double) -> WindowGroup<Content> {
-        defaultWindowSize(width: width, height: height)
-    }
-}
-
-public extension CommandMenuBuilder {
-    static func buildExpression<Label: View>(_ button: Button<Label>) -> [CommandMenuItem] {
-        [
-            CommandMenuItem(
-                quillTextLabel(from: button.label),
-                action: button.action
-            )
-        ]
-    }
-
-    static func buildExpression<Label: View>(_ shortcutView: KeyboardShortcutView<Button<Label>>) -> [CommandMenuItem] {
-        [
-            CommandMenuItem(
-                quillTextLabel(from: shortcutView.content.label),
-                shortcut: shortcutView.shortcut,
-                action: shortcutView.content.action
-            )
-        ]
-    }
-
-    static func buildExpression<Content: View>(_ disabledView: DisabledView<Content>) -> [CommandMenuItem] {
-        quillCommandMenuItems(from: disabledView.content)
-            .map { quillCommandMenuItem($0, disabled: disabledView.isDisabled) }
-    }
-
-    static func buildExpression<Content: View>(_ view: Content) -> [CommandMenuItem] {
-        quillCommandMenuItems(from: view)
-    }
-}
-
-public extension Menu {
-    init<LabelContent: View>(
-        @MenuBuilder content: () -> [MenuElement],
-        @ViewBuilder label: () -> LabelContent
-    ) {
-        self.init(quillTextLabel(from: label()), content: content)
-    }
-}
-
-public extension MenuBuilder {
-    static func buildExpression(_ elements: [MenuElement]) -> [MenuElement] {
-        elements
-    }
-
-    static func buildExpression<Label: View>(_ button: Button<Label>) -> [MenuElement] {
-        [.item(label: quillTextLabel(from: button.label), action: button.action)]
-    }
-
-    static func buildExpression<Label: View>(_ shortcutView: KeyboardShortcutView<Button<Label>>) -> [MenuElement] {
-        [.item(label: quillTextLabel(from: shortcutView.content.label), action: shortcutView.content.action)]
-    }
-
-    static func buildExpression<Content: View>(_ disabledView: DisabledView<Content>) -> [MenuElement] {
-        quillMenuElements(from: disabledView.content)
-            .map { quillMenuElement($0, disabled: disabledView.isDisabled) }
-    }
-
-    static func buildExpression(_ divider: Divider) -> [MenuElement] {
-        [.divider]
-    }
-
-    static func buildExpression<Content: View>(_ view: Content) -> [MenuElement] {
-        quillMenuElements(from: view)
-    }
-
-}
+// `WindowGroup.defaultSize(width:height:)`, the `CommandMenuBuilder` /
+// `MenuBuilder` view-expression overloads, and `Menu(content:label:)` moved
+// to QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that
+// only `import SwiftUI`s sees them (SolderScope's camera-picker Menu and
+// command menus); QuillUI re-exports that module. The moved builder
+// expressions walk view trees with self-contained equivalents of the
+// quill* helpers below (which stay here — Picker/Section/Label inits and
+// the @_spi(QuillTesting) surface still use them).
 
 public extension PickerStyle {
     static var menu: PickerStyle { .automatic }
@@ -477,7 +398,9 @@ public extension Image {
 }
 
 extension Image: @retroactive Equatable {
-    public static func == (lhs: Image, rhs: Image) -> Bool {
+    // nonisolated: Equatable's requirement is nonisolated and == is pure
+    // value comparison of stored data.
+    nonisolated public static func == (lhs: Image, rhs: Image) -> Bool {
         switch (lhs.source, rhs.source) {
         case (.systemName(let left), .systemName(let right)):
             return left == right && lhs.scale == rhs.scale && lhs.isResizable == rhs.isResizable
@@ -491,11 +414,8 @@ extension Image: @retroactive Equatable {
     }
 }
 
-public extension WindowGroup {
-    init(@ViewBuilder content: () -> Content) {
-        self.init("Quill", content: content)
-    }
-}
+// Title-less `WindowGroup { … }` init + State(initialValue:) live in
+// QuillSwiftUICompatibility (DesignSystemSurfaceCompat.swift).
 
 public struct LabeledContent<Content: View>: View {
     public var title: String
@@ -621,30 +541,6 @@ public struct ListRowSeparatorView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ScrollIndicatorsView<Content: View>: View {
-    public let content: Content
-    public let visibility: ScrollIndicatorVisibility
-
-    public init(content: Content, visibility: ScrollIndicatorVisibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
-
-public struct ScrollContentBackgroundView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-
-    public init(content: Content, visibility: Visibility) {
-        self.content = content
-        self.visibility = visibility
-    }
-
-    public var body: some View { content }
-}
-
 public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public let content: Content
     public let shape: ShapeValue
@@ -693,6 +589,27 @@ public struct TransitionView<Content: View>: View {
     public var body: some View { content }
 }
 
+public struct SymbolEffectView<Content: View, Value: Equatable>: View {
+    public let content: Content
+    public let effect: SymbolEffect
+    public let options: SymbolEffectOptions
+    public let value: Value
+
+    public init(
+        content: Content,
+        effect: SymbolEffect,
+        options: SymbolEffectOptions,
+        value: Value
+    ) {
+        self.content = content
+        self.effect = effect
+        self.options = options
+        self.value = value
+    }
+
+    public var body: some View { content }
+}
+
 public struct ViewMaskView<Content: View, MaskContent: View>: View {
     public let content: Content
     public let mask: MaskContent
@@ -712,18 +629,6 @@ public struct OnHoverView<Content: View>: View {
     public init(content: Content, action: @escaping (Bool) -> Void) {
         self.content = content
         self.action = action
-    }
-
-    public var body: some View { content }
-}
-
-public struct FocusEffectDisabledView<Content: View>: View {
-    public let content: Content
-    public let disabled: Bool
-
-    public init(content: Content, disabled: Bool) {
-        self.content = content
-        self.disabled = disabled
     }
 
     public var body: some View { content }
@@ -755,30 +660,6 @@ public struct FocusEqualsBindingView<Content: View, Value: Equatable>: View {
     public var body: some View { content }
 }
 
-public struct EdgesIgnoringSafeAreaView<Content: View>: View {
-    public let content: Content
-    public let edges: Edge.Set
-
-    public init(content: Content, edges: Edge.Set) {
-        self.content = content
-        self.edges = edges
-    }
-
-    public var body: some View { content }
-}
-
-public struct IgnoresSafeAreaView<Content: View>: View {
-    public let content: Content
-    public let edges: Edge.Set
-
-    public init(content: Content, edges: Edge.Set) {
-        self.content = content
-        self.edges = edges
-    }
-
-    public var body: some View { content }
-}
-
 public struct TextSelectionView<Content: View>: View {
     public let content: Content
     public let selection: TextSelectability
@@ -786,54 +667,6 @@ public struct TextSelectionView<Content: View>: View {
     public init(content: Content, selection: TextSelectability) {
         self.content = content
         self.selection = selection
-    }
-
-    public var body: some View { content }
-}
-
-public struct TextContentTypeView<Content: View>: View {
-    public let content: Content
-    public let contentType: TextContentType?
-
-    public init(content: Content, contentType: TextContentType?) {
-        self.content = content
-        self.contentType = contentType
-    }
-
-    public var body: some View { content }
-}
-
-public struct AutocorrectionDisabledView<Content: View>: View {
-    public let content: Content
-    public let disabled: Bool?
-
-    public init(content: Content, disabled: Bool?) {
-        self.content = content
-        self.disabled = disabled
-    }
-
-    public var body: some View { content }
-}
-
-public struct KeyboardTypeView<Content: View>: View {
-    public let content: Content
-    public let keyboardType: KeyboardType
-
-    public init(content: Content, keyboardType: KeyboardType) {
-        self.content = content
-        self.keyboardType = keyboardType
-    }
-
-    public var body: some View { content }
-}
-
-public struct AutocapitalizationView<Content: View>: View {
-    public let content: Content
-    public let autocapitalization: TextInputAutocapitalization
-
-    public init(content: Content, autocapitalization: TextInputAutocapitalization) {
-        self.content = content
-        self.autocapitalization = autocapitalization
     }
 
     public var body: some View { content }
@@ -882,6 +715,31 @@ public extension View {
             message: "onHover is preserved as hover handler metadata on Linux."
         )
         return OnHoverView(content: self, action: action)
+    }
+
+    func transition(_ transition: AnyTransition) -> TransitionView<Self> {
+        recordQuillUIFallback(
+            "transition",
+            message: "transition is preserved as transition metadata on Linux."
+        )
+        return TransitionView(content: self, transition: transition)
+    }
+
+    func symbolEffect<Value: Equatable>(
+        _ effect: SymbolEffect,
+        options: SymbolEffectOptions = .default,
+        value: Value
+    ) -> SymbolEffectView<Self, Value> {
+        recordQuillUIFallback(
+            "symbolEffect",
+            message: "symbolEffect is preserved as symbol animation metadata on Linux."
+        )
+        return SymbolEffectView(
+            content: self,
+            effect: effect,
+            options: options,
+            value: value
+        )
     }
 
     func offset(_ size: CGSize) -> OffsetView<Self> {
@@ -1035,50 +893,6 @@ public extension View {
         return SymbolRenderingModeView(content: self, mode: mode)
     }
 
-    @_disfavoredOverload
-    func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> ScrollIndicatorsView<Self> {
-        recordQuillUIFallback(
-            "scrollIndicators",
-            message: "scrollIndicators is preserved as scroll view chrome metadata on Linux."
-        )
-        return ScrollIndicatorsView(content: self, visibility: visibility)
-    }
-
-    @_disfavoredOverload
-    func scrollContentBackground(_ visibility: Visibility) -> ScrollContentBackgroundView<Self> {
-        recordQuillUIFallback(
-            "scrollContentBackground",
-            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
-        )
-        return ScrollContentBackgroundView(content: self, visibility: visibility)
-    }
-
-    @_disfavoredOverload
-    func focusEffectDisabled(_ disabled: Bool = true) -> FocusEffectDisabledView<Self> {
-        recordQuillUIFallback(
-            "focusEffectDisabled",
-            message: "focusEffectDisabled is preserved as focus-effect metadata on Linux."
-        )
-        return FocusEffectDisabledView(content: self, disabled: disabled)
-    }
-
-    @_disfavoredOverload
-    func edgesIgnoringSafeArea(_ edges: Edge.Set) -> EdgesIgnoringSafeAreaView<Self> {
-        recordQuillUIFallback(
-            "edgesIgnoringSafeArea",
-            message: "edgesIgnoringSafeArea is preserved as safe-area layout metadata on Linux."
-        )
-        return EdgesIgnoringSafeAreaView(content: self, edges: edges)
-    }
-
-    func ignoresSafeArea(_ edges: Edge.Set = .all) -> IgnoresSafeAreaView<Self> {
-        recordQuillUIFallback(
-            "ignoresSafeArea",
-            message: "ignoresSafeArea is preserved as safe-area layout metadata on Linux."
-        )
-        return IgnoresSafeAreaView(content: self, edges: edges)
-    }
-
     func onMove(perform action: ((IndexSet, Int) -> Void)?) -> Self {
         recordQuillUIFallback(
             "onMove",
@@ -1087,7 +901,6 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
     func gesture<Gesture>(_ gesture: Gesture) -> GestureView<Self, Gesture> {
         recordQuillUIFallback(
             "gesture",
@@ -1096,7 +909,12 @@ public extension View {
         return GestureView(content: self, gesture: gesture)
     }
 
-    @_disfavoredOverload
+    // The View-mask is the FAVORED functional overload (a View covers Shapes
+    // too). It must win over QuillSwiftUICompatibility's inert
+    // `mask(alignment:_:)` fallback — leaving BOTH disfavored made
+    // `mask(Text(…))` ambiguous (two equally-disfavored View overloads). The
+    // Shape-mask below is disfavored instead, so `mask(Rectangle())` also binds
+    // here (ViewMaskView) rather than tying with the Shape overload.
     func mask<Mask: View>(_ mask: Mask) -> ViewMaskView<Self, Mask> {
         recordQuillUIFallback(
             "mask",
@@ -1138,17 +956,13 @@ public extension View {
         }
     }
 
-    @_disfavoredOverload
-    func matchedGeometryEffect<ID: Hashable>(
-        id: ID,
-        in namespace: Namespace.ID
-    ) -> AnimatedView<Self> {
-        recordQuillUIFallback(
-            "matchedGeometryEffect",
-            message: "matchedGeometryEffect is approximated with value-driven animation on Linux."
-        )
-        return animation(.easeInOut(duration: 0.2), value: AnyHashable(id))
-    }
+    // `matchedGeometryEffect` is canonical in QuillSwiftUICompatibility
+    // (DesignSystemSurfaceCompat.swift) — main canonicalized it there, so
+    // no copy here. `buttonStyle<S: ButtonStyle>` likewise lives in
+    // QuillSwiftUICompatibility (SolderScopeChrome.swift) alongside the
+    // ButtonStyle protocol; custom styles still fall back to the plain GTK
+    // chrome there.
+
 
     func focusedSceneValue<K: FocusedValueKey>(
         _ keyPath: WritableKeyPath<FocusedValues, K.Value?>,
@@ -1168,7 +982,6 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
     func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
         recordQuillUIFallback(
             "formStyle",
@@ -1178,44 +991,11 @@ public extension View {
             .background(Color.gray5Custom)
     }
 
-    @_disfavoredOverload
-    func textContentType(_ contentType: TextContentType?) -> TextContentTypeView<Self> {
-        recordQuillUIFallback(
-            "textContentType",
-            message: "textContentType is preserved as text-input metadata on Linux."
-        )
-        return TextContentTypeView(content: self, contentType: contentType)
-    }
-
-    @_disfavoredOverload
-    func disableAutocorrection(_ disabled: Bool?) -> AutocorrectionDisabledView<Self> {
-        recordQuillUIFallback(
-            "disableAutocorrection",
-            message: "disableAutocorrection is preserved as text-input metadata on Linux."
-        )
-        return AutocorrectionDisabledView(content: self, disabled: disabled)
-    }
-
-    @_disfavoredOverload
-    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
-        recordQuillUIFallback(
-            "keyboardType",
-            message: "keyboardType is preserved as text-input metadata on Linux."
-        )
-        return KeyboardTypeView(content: self, keyboardType: keyboardType)
-    }
-
-    @_disfavoredOverload
-    func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
-        recordQuillUIFallback(
-            "autocapitalization",
-            message: "autocapitalization is preserved as text-input metadata on Linux."
-        )
-        return AutocapitalizationView(content: self, autocapitalization: autocapitalization)
-    }
-
 }
 
+// @MainActor: witnesses are members of main-actor-isolated View types
+// (whole-protocol View isolation, Apple shape); walkers are isolated too.
+@MainActor
 private protocol QuillButtonRepresentable {
     var quillButtonLabel: String { get }
     var quillButtonAction: () -> Void { get }
@@ -1226,6 +1006,9 @@ extension Button: QuillButtonRepresentable {
     fileprivate var quillButtonAction: () -> Void { action }
 }
 
+// @MainActor: witnesses are members of main-actor-isolated View types
+// (whole-protocol View isolation, Apple shape); walkers are isolated too.
+@MainActor
 private protocol QuillDisabledRepresentable {
     var quillDisabledContent: any View { get }
     var quillIsDisabled: Bool { get }
@@ -1236,6 +1019,9 @@ extension DisabledView: QuillDisabledRepresentable {
     fileprivate var quillIsDisabled: Bool { isDisabled }
 }
 
+// @MainActor: witnesses are members of main-actor-isolated View types
+// (whole-protocol View isolation, Apple shape); walkers are isolated too.
+@MainActor
 private protocol QuillKeyboardShortcutRepresentable {
     var quillShortcutContent: any View { get }
     var quillShortcut: KeyboardShortcut { get }
@@ -1246,10 +1032,14 @@ extension KeyboardShortcutView: QuillKeyboardShortcutRepresentable {
     fileprivate var quillShortcut: KeyboardShortcut { shortcut }
 }
 
+// @MainActor: witnesses are members of main-actor-isolated View types
+// (whole-protocol View isolation, Apple shape); walkers are isolated too.
+@MainActor
 private protocol QuillWrappedViewRepresentable {
     var quillWrappedContent: any View { get }
 }
 
+@MainActor
 private protocol QuillAccessibilityLabelRepresentable: QuillWrappedViewRepresentable {
     var quillAccessibilityLabel: String { get }
 }
@@ -1379,6 +1169,10 @@ extension TransitionView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
+extension SymbolEffectView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
 extension ViewMaskView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
@@ -1460,6 +1254,7 @@ extension HelpView: QuillWrappedViewRepresentable {
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillTextLabel(from view: any View) -> String {
     if let text = view as? Text {
         return text.content
@@ -1495,6 +1290,7 @@ public func quillTextLabel(from view: any View) -> String {
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillSystemImageName(from view: any View) -> String {
     guard let image = view as? Image else {
         return "circle"
@@ -1509,6 +1305,7 @@ public func quillSystemImageName(from view: any View) -> String {
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillMenuElements(from view: any View) -> [MenuElement] {
     if let button = view as? any QuillButtonRepresentable {
         return [.item(label: button.quillButtonLabel, action: button.quillButtonAction)]
@@ -1534,6 +1331,7 @@ public func quillMenuElements(from view: any View) -> [MenuElement] {
     return []
 }
 
+@MainActor
 private func quillConfirmationDialogButtons(from view: any View) -> [AlertButton] {
     quillMenuElements(from: view).flatMap(quillAlertButtons)
 }
@@ -1562,6 +1360,7 @@ private func quillMenuElement(_ element: MenuElement, disabled: Bool) -> MenuEle
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
     if let button = view as? any QuillButtonRepresentable {
         return [CommandMenuItem(button.quillButtonLabel, action: button.quillButtonAction)]
@@ -1602,6 +1401,7 @@ private func quillCommandMenuItem(_ item: CommandMenuItem, disabled: Bool) -> Co
 }
 
 @_spi(QuillTesting)
+@MainActor
 public func quillPickerOptions(from view: any View) -> [(label: String, tag: AnyHashable)] {
     if let tagged = view as? AnyTagView {
         let label = quillTextLabel(from: tagged.anyTagContent)

@@ -294,8 +294,9 @@ public struct AppKitLowering {
         // Conservative: ONLY funcs nested in executable code (a function/closure body),
         // never top-level or type-member funcs (those already get default isolation).
         // See LocalFunctionMainActorRewriter.
-        return LocalFunctionMainActorRewriter()
+        let lowered = LocalFunctionMainActorRewriter()
             .rewrite(withDeinit).description
+        return FoundationLowering().lower(lowered)
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Mirrors

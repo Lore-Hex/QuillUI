@@ -161,13 +161,6 @@ public final class UIFontDescriptor: @unchecked Sendable {
 public final class UIFontMetrics: @unchecked Sendable {
     public static let `default` = UIFontMetrics()
     public func scaledValue(for value: CGFloat) -> CGFloat { value }
-    /// `scaledValue(for:compatibleWith:)`. With no Dynamic Type backend the
-    /// trait collection has no effect; return the unscaled value, matching the
-    /// bare overload.
-    public func scaledValue(for value: CGFloat, compatibleWith traitCollection: UITraitCollection?) -> CGFloat {
-        _ = traitCollection
-        return value
-    }
 }
 #endif
 
@@ -219,57 +212,6 @@ public extension UIImage {
     /// .alwaysTemplate for theme-tinted glyphs; the original image suffices.
     func withRenderingMode(_ renderingMode: RenderingMode) -> UIImage {
         return self
-    }
-
-    /// `UIImage.withTintColor(_:)` / `withTintColor(_:renderingMode:)`. There is
-    /// no CoreGraphics tinting backend on Linux, so the color and rendering mode
-    /// are recorded-intent and the original image is returned (matching the
-    /// inert `withRenderingMode` above). `renderingMode` defaults to `.automatic`
-    /// as on Apple.
-    func withTintColor(_ color: UIColor, renderingMode: RenderingMode = .automatic) -> UIImage {
-        _ = (color, renderingMode)
-        return self
-    }
-
-    /// Apple's `UIImage.Configuration` is the abstract base of
-    /// `SymbolConfiguration`; alias it so the `with configuration:` overloads
-    /// below carry the faithful label without introducing a twin type.
-    typealias Configuration = SymbolConfiguration
-
-    // MARK: Asset-catalog / data inits (bundle + trait-aware forms)
-    //
-    // The shim resolves images from QUILLUI_RESOURCE_DIRS / SwiftPM resources
-    // by name only (see RSImage.init?(named:)); the `bundle`, trait-collection,
-    // and configuration arguments are recorded-intent and otherwise inert on
-    // Linux, but the labels match Apple exactly so upstream call sites compile.
-
-    /// `UIImage(named:in:compatibleWith:)`.
-    convenience init?(named name: String, in bundle: Bundle?, compatibleWith traitCollection: UITraitCollection?) {
-        _ = bundle
-        _ = traitCollection
-        self.init(named: name)
-    }
-
-    /// `UIImage(named:compatibleWith:)` -- the no-bundle trait-aware form
-    /// (SignalSymbols loads asset glyphs against the current trait collection).
-    /// The trait collection is recorded-intent on Linux.
-    convenience init?(named name: String, compatibleWith traitCollection: UITraitCollection?) {
-        _ = traitCollection
-        self.init(named: name)
-    }
-
-    /// `UIImage(named:in:with:)` (the modern configuration-bearing form).
-    convenience init?(named name: String, in bundle: Bundle?, with configuration: UIImage.Configuration?) {
-        _ = bundle
-        _ = configuration
-        self.init(named: name)
-    }
-
-    /// `UIImage(data:scale:)`. The scale is recorded-intent (the Linux backing
-    /// image is opaque), matching `init(cgImage:scale:orientation:)`.
-    convenience init?(data: Data, scale: CGFloat) {
-        _ = scale
-        self.init(data: data)
     }
 }
 
@@ -331,20 +273,25 @@ public class UISceneConfiguration: NSObject {
     }
 }
 
-// UIWindowScene, UIStatusBarManager, and UIWindowSceneDelegate moved to
-// QuillUIKit (alongside UIScene) so the UIWindow class body can declare an
-// `open` `init(windowScene:)` that SignalUI's OWSWindow overrides — an
-// extension initializer here could not be overridden cross-module.
+@MainActor public protocol UIWindowSceneDelegate: AnyObject {}
+
+@MainActor public class UIWindowScene: UIScene {
+    public var windows: [UIWindow] = []
+    public var keyWindow: UIWindow? { windows.first }
+}
 
 public extension UIWindow {
     var isKeyWindow: Bool { false }
-    // safeAreaInsets: the UIView-wide extension in UIViewMargins.swift covers
-    // windows too (same .zero — Linux has no notches); a second extension
-    // property here can't shadow it (extension members don't override).
+    var safeAreaInsets: UIEdgeInsets { .zero }
     @MainActor var windowScene: UIWindowScene? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { scene in scene.windows.contains { $0 === self } }
+    }
+
+    convenience init(windowScene: UIWindowScene) {
+        self.init()
+        windowScene.windows.append(self)
     }
 
     var rootViewController: UIViewController? {
@@ -364,14 +311,9 @@ public extension UIWindow {
 @MainActor open class UIFontPickerViewController: UIViewController {
     public weak var delegate: UIFontPickerViewControllerDelegate?
     public var selectedFontDescriptor: UIFontDescriptor?
-    public init() {
+    public override init() {
         self.selectedFontDescriptor = UIFontDescriptor()
-        super.init(nibName: nil, bundle: nil)
-    }
-    // Own designated init suppresses inheritance of UIViewController's
-    // required init?(coder:); restate it.
-    public required init?(coder: NSCoder) {
-        super.init(coder: coder)
+        super.init()
     }
 }
 
@@ -379,194 +321,10 @@ public extension UIColor {
     static let placeholderText = RSColor(red: 0.6, green: 0.6, blue: 0.6, alpha: 1)
 }
 
-public class NSItemProvider: NSObject {
-    public let suggestedName: String?
-    private let fileURL: URL?
-    private let object: Any?
-    private let dataRepresentation: (data: Data, type: UTType)?
-
-    public init?(contentsOf url: URL) {
-        self.fileURL = url
-        self.object = nil
-        self.dataRepresentation = nil
-        self.suggestedName = url.lastPathComponent
-        super.init()
-    }
-
-    public init(object: Any) {
-        self.fileURL = nil
-        self.object = object
-        self.dataRepresentation = nil
-        self.suggestedName = nil
-        super.init()
-    }
-
-    public init(fileURL: URL) {
-        self.fileURL = fileURL
-        self.object = nil
-        self.dataRepresentation = nil
-        self.suggestedName = fileURL.lastPathComponent
-        super.init()
-    }
-
-    public init(data: Data, type: UTType) {
-        self.fileURL = nil
-        self.object = nil
-        self.dataRepresentation = (data, type)
-        self.suggestedName = nil
-        super.init()
-    }
-
-    public override init() {
-        self.fileURL = nil
-        self.object = nil
-        self.dataRepresentation = nil
-        self.suggestedName = nil
-        super.init()
-    }
-
-    public func registeredContentTypes(conformingTo contentType: UTType) -> [UTType] {
-        guard let url = fileURL,
-              let type = UTType(filenameExtension: url.pathExtension),
-              type.conforms(to: contentType)
-        else { return [] }
-        return [type]
-    }
-
-    public var registeredTypeIdentifiers: [String] {
-        if let dataRepresentation {
-            return [dataRepresentation.type.identifier]
-        }
-        guard let url = fileURL,
-              let type = UTType(filenameExtension: url.pathExtension)
-        else { return [] }
-        return [type.identifier]
-    }
-
-    public func hasItemConformingToTypeIdentifier(_ typeIdentifier: String) -> Bool {
-        let requestedType = UTType(typeIdentifier)
-        return registeredTypeIdentifiers.contains { identifier in
-            identifier == typeIdentifier || requestedType.map { UTType(identifier)?.conforms(to: $0) == true } == true
-        }
-    }
-
-    public func loadItem(
-        forTypeIdentifier typeIdentifier: String,
-        options: [AnyHashable: Any]? = nil,
-        completionHandler: @escaping (Any?, Error?) -> Void
-    ) {
-        _ = typeIdentifier
-        _ = options
-        completionHandler(fileURL ?? object, nil)
-    }
-
-    public func loadDataRepresentation(
-        for contentType: UTType,
-        completionHandler: @escaping (Data?, Error?) -> Void
-    ) -> Progress? {
-        if let dataRepresentation, dataRepresentation.type.conforms(to: contentType) {
-            completionHandler(dataRepresentation.data, nil)
-            return nil
-        }
-
-        if let fileURL,
-           let type = UTType(filenameExtension: fileURL.pathExtension),
-           type.conforms(to: contentType) {
-            do {
-                completionHandler(try Data(contentsOf: fileURL), nil)
-            } catch {
-                completionHandler(nil, error)
-            }
-            return nil
-        }
-
-        completionHandler(nil, NSError(
-            domain: "QuillUIKit.NSItemProvider",
-            code: 1,
-            userInfo: [NSLocalizedDescriptionKey: "No data representation is available for \(contentType.identifier)."]
-        ))
-        return nil
-    }
-
-    public func loadDataRepresentation(
-        forTypeIdentifier typeIdentifier: String,
-        completionHandler: @escaping (Data?, Error?) -> Void
-    ) -> Progress? {
-        if let contentType = UTType(typeIdentifier) {
-            return loadDataRepresentation(for: contentType, completionHandler: completionHandler)
-        }
-        completionHandler(nil, NSError(
-            domain: "QuillUIKit.NSItemProvider",
-            code: 2,
-            userInfo: [NSLocalizedDescriptionKey: "Unknown type identifier \(typeIdentifier)."]
-        ))
-        return nil
-    }
-
-    public func loadFileRepresentation(
-        forTypeIdentifier typeIdentifier: String,
-        completionHandler: @escaping (URL?, Error?) -> Void
-    ) -> Progress? {
-        _ = typeIdentifier
-        completionHandler(fileURL, nil)
-        return nil
-    }
-
-    public func canLoadObject<T: NSItemProviderReading>(ofClass aClass: T.Type) -> Bool {
-        _ = aClass
-        return object is T
-    }
-
-    public func loadObject<T: NSItemProviderReading>(
-        ofClass aClass: T.Type,
-        completionHandler: @escaping (T?, Error?) -> Void
-    ) -> Progress {
-        _ = aClass
-        completionHandler(object as? T, nil)
-        return Progress(totalUnitCount: 1)
-    }
-
-    @discardableResult
-    public func loadTransferable<T: Transferable>(
-        type: T.Type,
-        completionHandler: @escaping (Result<T?, Error>) -> Void
-    ) -> Progress {
-        _ = type
-        completionHandler(.success(nil))
-        return Progress(totalUnitCount: 1)
-    }
-}
-
-public protocol NSItemProviderReading {
-    static var readableTypeIdentifiersForItemProvider: [String] { get }
-    static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self
-}
-
-public extension NSItemProviderReading {
-    static var readableTypeIdentifiersForItemProvider: [String] { [] }
-}
-
-extension NSString: NSItemProviderReading {
-    public static var readableTypeIdentifiersForItemProvider: [String] { [UTType.text.identifier, UTType.plainText.identifier] }
-
-    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
-        let value = String(data: data, encoding: .utf8) ?? ""
-        return self.init(string: value)
-    }
-}
-
-extension NSURL: NSItemProviderReading {
-    public static var readableTypeIdentifiersForItemProvider: [String] { [UTType.url.identifier, UTType.fileURL.identifier] }
-
-    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
-        let value = String(data: data, encoding: .utf8) ?? ""
-        let url = typeIdentifier == UTType.fileURL.identifier ? URL(fileURLWithPath: value) : (URL(string: value) ?? URL(fileURLWithPath: value))
-        return NSURL(string: url.absoluteString)! as! Self
-    }
-}
-
 extension UIImage: NSItemProviderReading {
-    public static var readableTypeIdentifiersForItemProvider: [String] { [UTType.image.identifier, UTType.png.identifier, UTType.jpeg.identifier] }
+    public static var readableTypeIdentifiersForItemProvider: [String] {
+        [UTType.image.identifier, UTType.png.identifier, UTType.jpeg.identifier]
+    }
 
     public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
         if let image = UIImage(data: data) as? Self {
@@ -633,119 +391,23 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
     public static let all: UIDataDetectorTypes = [.phoneNumber, .link, .address, .calendarEvent]
 }
 
-// NSTextContainer — the TextKit 1 container geometry object. Faithful CONFIG
-// STATE: size / line limits / padding are stored and drive NSLayoutManager's
-// uniform-advance line model (NSLayoutManagerShim.swift); there is no real
-// glyph geometry on Linux. SignalUI configures these from UITextView/UILabel
-// (AttachmentTextToolbar, CVTextLabel, UIKit+Text) and reads `size` back in
-// enclosing-rect enumeration.
 public final class NSTextContainer {
     public var lineFragmentPadding: CGFloat = 0
-    public var size: CGSize = .zero
-    public var maximumNumberOfLines: Int = 0
-    public var lineBreakMode: NSLineBreakMode = .byWordWrapping
-    public var widthTracksTextView = false
-    public var heightTracksTextView = false
-    /// Weak (Apple: unowned(unsafe)) back-reference; set by
-    /// NSLayoutManager.addTextContainer(_:).
-    public weak var layoutManager: NSLayoutManager?
-
     public init() {}
-    public init(size: CGSize) {
-        self.size = size
-    }
-
-    /// Migrates the receiver's whole text-system group (containers + storage)
-    /// from its current layout manager to `newLayoutManager`, matching Apple's
-    /// documented semantics. With no layout caches on Linux this is pure
-    /// object-graph rewiring.
-    public func replaceLayoutManager(_ newLayoutManager: NSLayoutManager) {
-        guard layoutManager !== newLayoutManager else { return }
-        if let old = layoutManager {
-            let migrating = old.textContainers
-            old.textContainers = []
-            if let storage = old.textStorage {
-                storage.removeLayoutManager(old)
-                if !storage.layoutManagers.contains(where: { $0 === newLayoutManager }) {
-                    storage.addLayoutManager(newLayoutManager)
-                }
-            }
-            for container in migrating where !newLayoutManager.textContainers.contains(where: { $0 === container }) {
-                newLayoutManager.addTextContainer(container)
-            }
-        }
-        if !newLayoutManager.textContainers.contains(where: { $0 === self }) {
-            newLayoutManager.addTextContainer(self)
-        }
-    }
 }
 
-// UITextRange — a contiguous span of a text field/view's content. The rest of
-// the text-input surface (UITextPosition, UITextInput, UITextField) lives in
-// UITextInput.swift; positions are plain UTF-16 offsets (no layout engine on
-// Linux), so a range is just a normalized offset pair.
-open class UITextRange: NSObject {
-    public let start: UITextPosition
-    public let end: UITextPosition
-    public var isEmpty: Bool { start.quillUTF16Offset == end.quillUTF16Offset }
+public class UITextRange: NSObject {}
 
-    public override init() {
-        self.start = UITextPosition()
-        self.end = UITextPosition()
-        super.init()
-    }
-
-    // Module-internal: ranges are minted by the textRange(from:to:) factories,
-    // matching Apple's opaque construction.
-    init(start: UITextPosition, end: UITextPosition) {
-        self.start = start
-        self.end = end
-        super.init()
-    }
-}
-
-/// One rect of a text selection (Apple returns an array of these from
-/// `selectionRects(for:)`). The abstract base carries the geometry +
-/// edge/writing-direction flags upstream reads off drag-preview rects. No glyph
-/// layout on Linux means the shim never produces instances (`selectionRects`
-/// returns `[]`), but the type must exist for the signature to type-check.
-open class UITextSelectionRect: NSObject {
-    open var rect: CGRect { .zero }
-    open var writingDirection: NSWritingDirection { .natural }
-    open var containsStart: Bool { false }
-    open var containsEnd: Bool { false }
-    open var isVertical: Bool { false }
-}
-
-// On Apple `UITextViewDelegate` refines `UIScrollViewDelegate` (a text view IS
-// a scroll view). The shim keeps UITextView a UIView, so the protocol stands
-// alone; every method has a default no-op so conformers implement only what
-// they need (Objective-C optional-method parity).
 @MainActor public protocol UITextViewDelegate: AnyObject {
-    func textViewShouldBeginEditing(_ textView: UITextView) -> Bool
-    func textViewShouldEndEditing(_ textView: UITextView) -> Bool
     func textViewDidBeginEditing(_ textView: UITextView)
-    func textViewDidEndEditing(_ textView: UITextView)
     func textViewDidChange(_ textView: UITextView)
-    func textViewDidChangeSelection(_ textView: UITextView)
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool
-    func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool
-    /// Apple's text-attachment companion to the URL overload above. BodyRangesTextView
-    /// forwards both; without this requirement the attachment call resolves to the
-    /// `URL` overload and fails ("cannot convert NSTextAttachment to URL").
-    func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool
 }
 
 public extension UITextViewDelegate {
-    @MainActor func textViewShouldBeginEditing(_ textView: UITextView) -> Bool { true }
-    @MainActor func textViewShouldEndEditing(_ textView: UITextView) -> Bool { true }
     @MainActor func textViewDidBeginEditing(_ textView: UITextView) {}
-    @MainActor func textViewDidEndEditing(_ textView: UITextView) {}
     @MainActor func textViewDidChange(_ textView: UITextView) {}
-    @MainActor func textViewDidChangeSelection(_ textView: UITextView) {}
     @MainActor func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool { true }
-    @MainActor func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
-    @MainActor func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
 }
 
 @MainActor public protocol UITextPasteConfigurationSupporting: AnyObject {}
@@ -766,244 +428,29 @@ public final class UITextPasteItem {
     public func setDefaultResult() {}
 }
 
-@MainActor public protocol UIDragSession: AnyObject {
-    func location(in view: UIView?) -> CGPoint
-}
-
-public extension UIDragSession {
-    @MainActor func location(in view: UIView?) -> CGPoint {
-        _ = view
-        return .zero
-    }
-}
-
-@MainActor public final class UIDragItem: NSObject {
-    public let itemProvider: NSItemProvider
-    public var localObject: Any?
-    public var previewProvider: (() -> UIDragPreview?)?
-
-    public init(itemProvider: NSItemProvider) {
-        self.itemProvider = itemProvider
-        super.init()
-    }
-}
-
-@MainActor public protocol UIDragInteractionDelegate: AnyObject {
-    func dragInteraction(_ interaction: UIDragInteraction, itemsForBeginning session: UIDragSession) -> [UIDragItem]
-}
-
-public extension UIDragInteractionDelegate {
-    @MainActor func dragInteraction(_ interaction: UIDragInteraction, itemsForBeginning session: UIDragSession) -> [UIDragItem] {
-        _ = (interaction, session)
-        return []
-    }
-}
-
-@MainActor public final class UIDragInteraction: NSObject, UIInteraction {
-    public weak var view: UIView?
-    public weak var delegate: UIDragInteractionDelegate?
-    public var isEnabled = true
-
-    public init(delegate: UIDragInteractionDelegate?) {
-        self.delegate = delegate
-        super.init()
-    }
-}
-
-@MainActor public final class UIDragPreviewParameters: NSObject {
-    public var visiblePath: UIBezierPath?
-    public var backgroundColor: UIColor?
-
-    public override init() {
-        super.init()
-    }
-
-    public init(textLineRects: [CGRect]) {
-        _ = textLineRects
-        super.init()
-    }
-
-    public init(textLineRects: [NSValue]) {
-        _ = textLineRects
-        super.init()
-    }
-}
-
-@MainActor public final class UIDragPreview: NSObject {
-    public let view: UIView
-    public let parameters: UIDragPreviewParameters?
-
-    public init(view: UIView, parameters: UIDragPreviewParameters? = nil) {
-        self.view = view
-        self.parameters = parameters
-        super.init()
-    }
-}
-
-// On Apple, `UITextView: UIScrollView` (it scrolls its own text). The shim
-// keeps it a plain `UIView` on purpose: UIScrollView's stored
-// `delegate: UIScrollViewDelegate?` (QuillUIKit.swift) would collide with
-// UITextView's own `delegate: UITextViewDelegate?` — Swift can't redeclare a
-// settled stored property with a covariant type, and UICollectionView only
-// dodges that because UICollectionViewDelegate REFINES UIScrollViewDelegate
-// (UITextViewDelegate does too on Apple, but the stored-property collision
-// remains). So the scroll surface SignalUI's UITextView subclasses use
-// (contentOffset / contentSize / contentInset / scrollIndicatorInsets /
-// setContentOffset / scrollRangeToVisible) is declared directly on this class
-// body below — `open`, because BodyRangesTextView & co. override several of them.
 @MainActor open class UITextView: UIView, UITextPasteConfigurationSupporting {
-    open weak var delegate: UITextViewDelegate?
-    open weak var pasteDelegate: UITextPasteDelegate?
-    // Apple types `UITextView.attributedText` as `NSAttributedString!` (an
-    // implicitly-unwrapped optional): reads never return nil, but the property
-    // is OPTIONAL-typed so subclasses (BodyRangesTextView) can override it with
-    // `NSAttributedString?`. A non-optional base rejected that override.
-    open var attributedText: NSAttributedString! = NSAttributedString(string: "")
-    open var selectedRange: NSRange = NSRange(location: 0, length: 0)
-    open var markedTextRange: UITextRange?
-    open var textContainer = NSTextContainer()
-    open var textContainerInset: UIEdgeInsets = .zero
+    public weak var delegate: UITextViewDelegate?
+    public weak var pasteDelegate: UITextPasteDelegate?
+    public var attributedText: NSAttributedString = NSAttributedString(string: "")
+    public var selectedRange: NSRange = NSRange(location: 0, length: 0)
+    public var markedTextRange: UITextRange?
+    public var textContainer = NSTextContainer()
+    public var textContainerInset: UIEdgeInsets = .zero
+    public var font: UIFont?
+    public var adjustsFontForContentSizeCategory = false
+    public var autocapitalizationType: UITextAutocapitalizationType = .sentences
+    public var autocorrectionType: UITextAutocorrectionType = .default
+    public var isEditable = true
+    public var isSelectable = true
+    public var isScrollEnabled = true
+    public var dataDetectorTypes: UIDataDetectorTypes = []
+    public var allowsEditingTextAttributes = false
+    public var returnKeyType: UIReturnKeyType = .default
+    public var inlinePredictionType: UITextInlinePredictionType = .default
+    public var keyboardType: UIKeyboardType = .default
+    public var textColor: UIColor?
 
-    // MARK: TextKit 1 stack (NSLayoutManagerShim.swift)
-    //
-    // Apple's designated initializer takes the text container; SignalUI's
-    // UITextView subclasses (OWSTextView, MediaTextView, LinkingTextView,
-    // BodyRangesTextView) all override/call it, and BodyRangesTextView
-    // overrides `layoutManager` — so both must be declared in the class body.
-    // MODEL HONESTY: the shim's text MODEL remains `attributedText` (above);
-    // the layout manager/storage exposed here are real wired objects so the
-    // TextKit object graph and its geometry queries work, but a storage
-    // created lazily by `textStorage` is a SNAPSHOT of `attributedText` at
-    // first access, not a live mirror of later `text`/`attributedText` writes.
-    // (BodyRangesTextView supplies its own storage and overrides the text
-    // accessors to read through it, so the real Signal composer is unaffected.)
-
-    public init(frame: CGRect, textContainer: NSTextContainer?) {
-        if let textContainer {
-            self.textContainer = textContainer
-        }
-        super.init(frame: frame)
-    }
-
-    public convenience override init(frame: CGRect) {
-        self.init(frame: frame, textContainer: nil)
-    }
-
-    public convenience init() {
-        self.init(frame: .zero, textContainer: nil)
-    }
-
-    // Own designated init suppresses inheritance of UIView's
-    // required init?(coder:); restate it. The TextKit stack is lazy (created on
-    // first access to layoutManager/textStorage), so nothing else is needed.
-    public required init?(coder: NSCoder) {
-        super.init(coder: coder)
-    }
-
-    /// Strong anchors for the lazily-created default stack (the container's
-    /// and manager's back-references are weak, matching Apple's ownership).
-    private var quillDefaultLayoutManager: NSLayoutManager?
-    private var quillDefaultTextStorage: NSTextStorage?
-
-    open var layoutManager: NSLayoutManager {
-        if let existing = textContainer.layoutManager {
-            return existing
-        }
-        let created = NSLayoutManager()
-        created.addTextContainer(textContainer)
-        quillDefaultLayoutManager = created
-        return created
-    }
-
-    open var textStorage: NSTextStorage {
-        let manager = layoutManager
-        if let existing = manager.textStorage {
-            return existing
-        }
-        let created = NSTextStorage(attributedString: attributedText)
-        created.addLayoutManager(manager)
-        quillDefaultTextStorage = created
-        return created
-    }
-    open var font: UIFont?
-    open var adjustsFontForContentSizeCategory = false
-    open var autocapitalizationType: UITextAutocapitalizationType = .sentences
-    open var autocorrectionType: UITextAutocorrectionType = .default
-    open var isEditable = true
-    open var isSelectable = true
-    open var isScrollEnabled = true
-    open var dataDetectorTypes: UIDataDetectorTypes = []
-    open var allowsEditingTextAttributes = false
-    open var returnKeyType: UIReturnKeyType = .default
-    open var inlinePredictionType: UITextInlinePredictionType = .default
-    open var keyboardType: UIKeyboardType = .default
-    open var textColor: UIColor?
-    open var typingAttributes: [NSAttributedString.Key: Any] = [:]
-    open var textAlignment: NSTextAlignment = .natural
-
-    // MARK: Text-input surface (protocols + trait types in UITextInput.swift)
-    //
-    // `text` is the plain-string view of `attributedText` (Apple couples them;
-    // attributes are dropped on a plain-text write, matching a styled-storage
-    // rewrite). `selectedTextRange` is the UITextRange view over the stored
-    // `selectedRange`, declared in the class body — not an extension — because
-    // SignalUI subclasses override it (LinkingTextView; BodyRangesTextView
-    // overrides `text`). The input traits are faithful STATE: no keyboard,
-    // autocorrect, or Writing Tools engine consumes them on Linux yet.
-
-    open var text: String! {
-        get { attributedText.string }
-        set { attributedText = NSAttributedString(string: newValue ?? "") }
-    }
-
-    open var selectedTextRange: UITextRange? {
-        get {
-            UITextRange(
-                start: UITextPosition(quillUTF16Offset: selectedRange.location),
-                end: UITextPosition(quillUTF16Offset: selectedRange.location + selectedRange.length)
-            )
-        }
-        set {
-            guard let newValue else {
-                // Apple's nil means "no selection"; the NSRange model's closest
-                // honest equivalent is a collapsed caret at the start.
-                selectedRange = NSRange(location: 0, length: 0)
-                return
-            }
-            selectedRange = NSRange(
-                location: newValue.start.quillUTF16Offset,
-                length: newValue.end.quillUTF16Offset - newValue.start.quillUTF16Offset
-            )
-        }
-    }
-
-    // Apple's UITextView is a UIScrollView subclass, so it inherits the
-    // scroll-view surface. In this shim UITextView descends from UIView (the
-    // TextKit-backed text view is modeled directly), so the scroll-view members
-    // upstream reads on a text view are restated here. MediaTextView sets
-    // `scrollsToTop`. Apple's default: true.
-    open var scrollsToTop: Bool = true
-
-    // UIResponder declares `inputAccessoryView` get-only (overridable). A text
-    // view, however, exposes a SETTABLE accessory view; Signal assigns it
-    // (ImageEditorViewController+Text). Override here with a stored get/set
-    // backing -- a get-only base may be overridden by a get/set property.
-    private var quillInputAccessoryView: UIView?
-    open override var inputAccessoryView: UIView? {
-        get { quillInputAccessoryView }
-        set { quillInputAccessoryView = newValue }
-    }
-
-    open var keyboardAppearance: UIKeyboardAppearance = .default
-    open var spellCheckingType: UITextSpellCheckingType = .default
-    open var isSecureTextEntry = false
-    open var linkTextAttributes: [NSAttributedString.Key: Any] = [:]
-    open var textContentType: UITextContentType!
-    open var writingToolsBehavior: UIWritingToolsBehavior = .default
-    open weak var inputDelegate: (any UITextInputDelegate)?
-
-    // `override`: UIView declares the open base (QuillUIKit.swift).
-    open override func sizeThatFits(_ size: CGSize) -> CGSize {
+    open func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)
         let lineHeight = font?.pointSize ?? 17
         let lines = max(1, ceil(Double(attributedText.string.count) * 8.5 / width))
@@ -1013,120 +460,9 @@ public extension UIDragInteractionDelegate {
     public func select(_ sender: Any?) {
         _ = sender
     }
-
-    open func caretRect(for position: UITextPosition) -> CGRect {
-        _ = position
-        return CGRect(origin: .zero, size: CGSize(width: 1, height: font?.lineHeight ?? 17))
-    }
-
-    /// The bounding rect of the text in `range`. MODEL HONESTY: with no glyph
-    /// layout on Linux the geometry isn't real; a degenerate caret-height rect
-    /// at the origin is the honest stand-in (same as `caretRect`).
-    open func firstRect(for range: UITextRange) -> CGRect {
-        _ = range
-        return CGRect(origin: .zero, size: CGSize(width: 0, height: font?.lineHeight ?? 17))
-    }
-
-    /// The selection-handle rects for `range`. No glyph layout means no real
-    /// per-line rects; SignalUI reads this for drag-preview geometry, which
-    /// degrades to "no rects" honestly. (Apple returns `[UITextSelectionRect]`.)
-    open func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-        _ = range
-        return []
-    }
-
-    /// Replaces the text in `range` with `text`, operating on the UTF-16 model
-    /// behind `attributedText` (the positions are plain offsets — see
-    /// UITextPosition; NSRange is also UTF-16, so the edit is exact). Out-of-range
-    /// positions clamp to the document, matching a best-effort edit; the
-    /// selection collapses to the end of the inserted text, as Apple leaves the
-    /// caret. Replacing with the typing attributes keeps a styled view from
-    /// dropping its run attributes wholesale on a partial edit.
-    open func replace(_ range: UITextRange, withText text: String) {
-        let length = attributedText.length
-        let lower = min(max(0, range.start.quillUTF16Offset), length)
-        let upper = min(max(lower, range.end.quillUTF16Offset), length)
-        let mutable = NSMutableAttributedString(attributedString: attributedText)
-        mutable.replaceCharacters(
-            in: NSRange(location: lower, length: upper - lower),
-            with: NSAttributedString(string: text, attributes: typingAttributes)
-        )
-        attributedText = mutable
-        let caret = lower + text.utf16.count
-        selectedRange = NSRange(location: caret, length: 0)
-    }
-
-    /// Clears any marked (in-composition) text. No input method runs on Linux,
-    /// so there is never marked text to clear — the honest no-op is to drop the
-    /// marked range, matching Apple committing the composition.
-    open func unmarkText() {
-        markedTextRange = nil
-    }
-
-    /// Apple's `UITextView.editMenu(for:suggestedActions:)` (iOS 16+) lets a
-    /// text view customize the edit menu for a selection. CLASS-BODY `open`:
-    /// BodyRangesTextView overrides it to insert mention/format actions. No edit
-    /// menu is presented on Linux, so the base returns the suggested menu as-is
-    /// (Apple returns `nil` to keep the default, which is also valid here).
-    open func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-        _ = (textRange, suggestedActions)
-        return nil
-    }
-
-    // MARK: Input traits not shared with UITextField
-    //
-    // Whether the Return key auto-disables until there is text. Faithful state;
-    // no keyboard consumes it on Linux. (UITextField inherits this from
-    // UITextInputTraits on Apple; SignalUI only sets it on text views here.)
-    open var enablesReturnKeyAutomatically = false
-
-    // MARK: Scroll surface
-    //
-    // On Apple UITextView IS a UIScrollView; the shim keeps it a UIView (the
-    // delegate-type collision documented on the class declaration), so the slice
-    // of the scroll API SignalUI's UITextView subclasses use is declared here
-    // directly. `open`, because BodyRangesTextView overrides them. MODEL HONESTY:
-    // there is no compositor, so these are faithful stored geometry — no actual
-    // scrolling happens, and `scrollRangeToVisible` records intent only.
-
-    open var contentSize: CGSize = .zero
-    open var contentOffset: CGPoint = .zero
-    open var contentInset: UIEdgeInsets = .zero
-    open var scrollIndicatorInsets: UIEdgeInsets = .zero
-    open var verticalScrollIndicatorInsets: UIEdgeInsets = .zero
-    open var horizontalScrollIndicatorInsets: UIEdgeInsets = .zero
-    /// Read-only on Apple; equals `contentInset` here (no safe areas / keyboard
-    /// avoidance on Linux to adjust by). (`isScrollEnabled` is already declared
-    /// above with the other UITextView config flags.)
-    open var adjustedContentInset: UIEdgeInsets { contentInset }
-    open var alwaysBounceVertical = false
-    open var alwaysBounceHorizontal = false
-    open var showsVerticalScrollIndicator = true
-    open var showsHorizontalScrollIndicator = true
-    open var keyboardDismissMode: UIScrollView.KeyboardDismissMode = .none
-
-    open func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
-        _ = animated
-        self.contentOffset = contentOffset
-    }
-
-    /// Scrolls so the characters in `range` are visible. MODEL HONESTY: nothing
-    /// scrolls on Linux yet; this records the request without moving content.
-    open func scrollRangeToVisible(_ range: NSRange) {
-        _ = range
-    }
-
-    open func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        _ = gestureRecognizer
-        return true
-    }
 }
 
-// UINavigationControllerDelegate moved to QuillUIKit
-// (UIViewControllerSurface.swift): the UINavigationController class body
-// needs the type for Apple's `open weak var delegate`, which upstream
-// (OWSNavigationController) overrides. Still visible here via the
-// `@_exported import QuillUIKit` above.
+@MainActor public protocol UINavigationControllerDelegate: AnyObject {}
 
 @MainActor public protocol UIImagePickerControllerDelegate: AnyObject {
     func imagePickerController(
@@ -1157,52 +493,6 @@ public extension UIImagePickerControllerDelegate {
 
     public var sourceType: SourceType = .photoLibrary
     public weak var delegate: (any UINavigationControllerDelegate & UIImagePickerControllerDelegate)?
-
-    public static func isSourceTypeAvailable(_ sourceType: SourceType) -> Bool {
-        _ = sourceType
-        return false
-    }
-}
-
-public enum UIInputViewStyle: Int, Sendable {
-    case `default`
-    case keyboard
-}
-
-@MainActor open class UIInputView: UIView {
-    public var inputViewStyle: UIInputViewStyle
-    public var allowsSelfSizing: Bool = false
-
-    public init(frame: CGRect, inputViewStyle: UIInputViewStyle) {
-        self.inputViewStyle = inputViewStyle
-        super.init(frame: frame)
-    }
-
-    public required init?(coder: NSCoder) {
-        self.inputViewStyle = .default
-        super.init(frame: .zero)
-    }
-}
-
-@MainActor private var quillSearchBarTextFields: [ObjectIdentifier: UITextField] = [:]
-@MainActor private var quillSearchBarWritingToolsBehavior: [ObjectIdentifier: UIWritingToolsBehavior] = [:]
-
-public extension UISearchBar {
-    var searchTextField: UITextField {
-        let key = ObjectIdentifier(self)
-        if let existing = quillSearchBarTextFields[key] {
-            return existing
-        }
-        let field = UITextField(frame: .zero)
-        quillSearchBarTextFields[key] = field
-        addSubview(field)
-        return field
-    }
-
-    var writingToolsBehavior: UIWritingToolsBehavior {
-        get { quillSearchBarWritingToolsBehavior[ObjectIdentifier(self)] ?? .default }
-        set { quillSearchBarWritingToolsBehavior[ObjectIdentifier(self)] = newValue }
-    }
 }
 
 // MARK: - Haptic feedback (no-op on non-iOS)
@@ -1264,7 +554,6 @@ public class UINotificationFeedbackGenerator: NSObject {
     /// off-main-actor callers can read them (Strings are Sendable).
     nonisolated public var systemVersion: String { "1.0" }
     nonisolated public var model: String { "QuillOS" }
-    nonisolated public var orientation: UIDeviceOrientation { .portrait }
 
     #if os(Linux)
     /// Battery monitoring is unavailable on QuillOS; this notification name
@@ -1307,10 +596,9 @@ public extension Notification.Name {
 }
 #endif
 
-// UIUserInterfaceIdiom moved to QuillUIKit (next to UIUserInterfaceStyle): the
-// UITraitCollection class body there needs the type for `userInterfaceIdiom`
-// (OWSViewController compares it against `.pad`; CustomKeyboard assigns it).
-// Still visible to `import UIKit` consumers via `@_exported import QuillUIKit`.
+public enum UIUserInterfaceIdiom: Int, Sendable {
+    case unspecified = -1, phone = 0, pad = 1, tv = 2, carPlay = 3, mac = 5, vision = 6
+}
 
 // MARK: - UIEdgeInsets
 //
@@ -1318,21 +606,19 @@ public extension Notification.Name {
 // reaches it via `import UIKit`. Only the raw four-edge value-holder lives here;
 // SSK's own `UIEdgeInsets(margin:)` convenience init is an extension that builds
 // on this base.
-// `UIEdgeInsets` is the canonical four-edge inset type declared as
-// `QuillEdgeInsets` DOWN in QuillUIKit (UIViewLayout.swift), re-exported here
-// under its Apple name — the same `UIImage = NSImage` / `UIColor = NSColor`
-// pattern used throughout this module. It MUST be the same type as
-// QuillUIKit's, not a separate struct: UIScrollView (in QuillUIKit) now
-// declares `contentInset` / `scrollIndicatorInsets` as `open` class-body
-// members typed `QuillEdgeInsets`, so upstream scroll-view subclasses
-// (StickerPackCollectionView & co., which `import UIKit` and write
-// `override var contentInset: UIEdgeInsets`) override the SAME inherited
-// member rather than colliding with an un-overridable extension accessor.
-// With a distinct struct here the override saw two `contentInset`s →
-// "ambiguous use of 'contentInset'"; the typealias makes them one.
-// SSK's convenience inits (`init(hMargin:vMargin:)`, the leading/trailing
-// init) extend this same underlying type and are unaffected.
-public typealias UIEdgeInsets = QuillEdgeInsets
+public struct UIEdgeInsets: Equatable, Sendable {
+    public var top: CGFloat
+    public var left: CGFloat
+    public var bottom: CGFloat
+    public var right: CGFloat
+    public init(top: CGFloat = 0, left: CGFloat = 0, bottom: CGFloat = 0, right: CGFloat = 0) {
+        self.top = top
+        self.left = left
+        self.bottom = bottom
+        self.right = right
+    }
+    public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+}
 
 // MARK: - NSDirectionalEdgeInsets
 //
@@ -1353,7 +639,7 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
     public static let zero = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
 }
 
-// MARK: - UISwitch
+// MARK: - UISwitch + UIInterfaceOrientationMask
 
 /// `UISwitch: UIControl`. SSK only references it as a callback parameter type
 /// (`switchDidChange(_ sender: UISwitch)` reading `.isOn`); never instantiated here.
@@ -1373,51 +659,15 @@ public final class UIBezierPath {
     public init(ovalIn rect: CGRect) { self.cgPath = CGPath() }
     public init(rect: CGRect) { self.cgPath = CGPath() }
     public init(roundedRect rect: CGRect, cornerRadius: CGFloat) { self.cgPath = CGPath() }
-    public init(
-        arcCenter center: CGPoint,
-        radius: CGFloat,
-        startAngle: CGFloat,
-        endAngle: CGFloat,
-        clockwise: Bool
-    ) { self.cgPath = CGPath() }
     public init(cgPath: CGPath) { self.cgPath = cgPath }
     public func move(to point: CGPoint) {}
     public func addLine(to point: CGPoint) {}
-    public func addCurve(to endPoint: CGPoint, controlPoint1: CGPoint, controlPoint2: CGPoint) {}
     public func addArc(withCenter center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {}
     public func close() {}
     public func append(_ bezierPath: UIBezierPath) {}
-    public func reversing() -> UIBezierPath { UIBezierPath(cgPath: cgPath) }
     public func addClip() {}
     public func fill() {}
     public func stroke() {}
-
-    /// `-[UIBezierPath applyTransform:]`: transforms all points in place.
-    /// Path geometry is not materialized on Linux (cgPath is a placeholder),
-    /// so the transform is recorded-intent and the call is inert.
-    public func apply(_ transform: CGAffineTransform) {
-        _ = transform
-    }
-
-    /// NSCopying's `copy()` (UIBezierPath conforms on Apple). Returns `Any` to
-    /// match the platform signature; OWSBubbleShapeView casts the result back
-    /// to `UIBezierPath`. The copy shares the placeholder cgPath.
-    public func copy() -> Any {
-        return UIBezierPath(cgPath: cgPath)
-    }
-}
-
-// On Apple, `UIBezierPath` is an `NSObject` and is therefore `Equatable` (via
-// `isEqual(_:)`). Code like `OWSBubbleShapeView.State` embeds a `UIBezierPath`
-// in an `Equatable` struct and relies on that synthesized conformance. This
-// inert Linux shim records no geometry, so equality falls back to object
-// identity -- distinct path instances compare unequal, which faithfully drives
-// the "path changed -> redraw" guard (a freshly fetched mask path is always a
-// new instance) without claiming a content equality the shim cannot compute.
-extension UIBezierPath: Equatable {
-    public static func == (lhs: UIBezierPath, rhs: UIBezierPath) -> Bool {
-        lhs === rhs
-    }
 }
 
 public enum UIDeviceOrientation: Int, Sendable {
@@ -1428,10 +678,17 @@ public enum UIDeviceOrientation: Int, Sendable {
     public var isValidInterfaceOrientation: Bool { isPortrait || isLandscape }
 }
 
-// UIInterfaceOrientationMask moved to QuillUIKit (UIGeometryExtras.swift,
-// next to UIInterfaceOrientation): the UIViewController class body needs the
-// type for Apple's `supportedInterfaceOrientations`. Still visible to
-// `import UIKit` consumers via the `@_exported import QuillUIKit` above.
+public struct UIInterfaceOrientationMask: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let portrait = UIInterfaceOrientationMask(rawValue: 1 << 1)
+    public static let portraitUpsideDown = UIInterfaceOrientationMask(rawValue: 1 << 2)
+    public static let landscapeRight = UIInterfaceOrientationMask(rawValue: 1 << 3)
+    public static let landscapeLeft = UIInterfaceOrientationMask(rawValue: 1 << 4)
+    public static let landscape: UIInterfaceOrientationMask = [.landscapeLeft, .landscapeRight]
+    public static let all: UIInterfaceOrientationMask = [.portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight]
+    public static let allButUpsideDown: UIInterfaceOrientationMask = [.portrait, .landscapeLeft, .landscapeRight]
+}
 
 // MARK: - UIGraphicsImageRenderer (Linux: placeholder images)
 //
@@ -1482,21 +739,7 @@ public extension String {
     }
 }
 
-// NSAttributedString.boundingRect — UIKit string measurement (ImageEditor
-// text layers size themselves with it). Same rough estimate as
-// String.boundingRect above, reading the font from the string's leading
-// attributes. Linux-gated like the String version (macOS has the real one).
-public extension NSAttributedString {
-    func boundingRect(with size: CGSize,
-                      options: NSStringDrawingOptions = [],
-                      context: NSStringDrawingContext? = nil) -> CGRect {
-        _ = (options, context)
-        let attributes = length > 0 ? self.attributes(at: 0, effectiveRange: nil) : [:]
-        return quillEstimatedTextRect(string, proposed: size, attributes: attributes)
-    }
-}
-
-public final class UIGraphicsImageRendererFormat: @unchecked Sendable {
+public final class UIGraphicsImageRendererFormat {
     public var scale: CGFloat = 1
     public var opaque: Bool = false
     public var prefersExtendedRange: Bool = false
@@ -1505,7 +748,7 @@ public final class UIGraphicsImageRendererFormat: @unchecked Sendable {
     public static func preferred() -> UIGraphicsImageRendererFormat { UIGraphicsImageRendererFormat() }
 }
 
-public final class UIGraphicsImageRendererContext: @unchecked Sendable {
+public final class UIGraphicsImageRendererContext {
     public let cgContext: CGContext
     public let format: UIGraphicsImageRendererFormat
     public init(cgContext: CGContext, format: UIGraphicsImageRendererFormat) {
@@ -1531,23 +774,20 @@ public final class UIGraphicsImageRenderer {
         self.init(size: bounds.size, format: format)
     }
 
-    private func runActions(_ actions: @MainActor (UIGraphicsImageRendererContext) -> Void) {
-        let context = UIGraphicsImageRendererContext(cgContext: CGContext(), format: format)
-        MainActor.assumeIsolated {
-            actions(context)
-        }
+    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) {
+        actions(UIGraphicsImageRendererContext(cgContext: CGContext(), format: format))
     }
 
     /// Returns a blank placeholder image of `size` (nothing is rasterized).
-    public func image(_ actions: @MainActor (UIGraphicsImageRendererContext) -> Void) -> UIImage {
+    public func image(_ actions: (UIGraphicsImageRendererContext) -> Void) -> UIImage {
         runActions(actions)
         return UIImage(size: size)
     }
-    public func pngData(_ actions: @MainActor (UIGraphicsImageRendererContext) -> Void) -> Data {
+    public func pngData(_ actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
         runActions(actions)
         return Data()
     }
-    public func jpegData(withCompressionQuality quality: CGFloat, actions: @MainActor (UIGraphicsImageRendererContext) -> Void) -> Data {
+    public func jpegData(withCompressionQuality quality: CGFloat, actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
         runActions(actions)
         return Data()
     }
@@ -1601,24 +841,6 @@ open class NSTextStorage: NSMutableAttributedString {
     public typealias EditActions = NSTextStorageEditActions
 
     public weak var delegate: AnyObject?
-
-    /// TextKit 1 wiring (NSLayoutManagerShim.swift). The storage owns its
-    /// layout managers (strong, matching Apple); managers point back weakly.
-    /// Edit notifications are NOT forwarded — managers recompute geometry from
-    /// the storage on every query, so there is no layout state to invalidate.
-    public private(set) var layoutManagers: [NSLayoutManager] = []
-
-    public func addLayoutManager(_ aLayoutManager: NSLayoutManager) {
-        layoutManagers.append(aLayoutManager)
-        aLayoutManager.textStorage = self
-    }
-
-    public func removeLayoutManager(_ aLayoutManager: NSLayoutManager) {
-        layoutManagers.removeAll { $0 === aLayoutManager }
-        if aLayoutManager.textStorage === self {
-            aLayoutManager.textStorage = nil
-        }
-    }
 
     open func processEditing() {}
 

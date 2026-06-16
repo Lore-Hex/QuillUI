@@ -92,8 +92,17 @@ extension NSApplication {
 /// now pump the GTK4 main loop — no source changes needed.
 
 public func _quillAppKitGTKInstallRunHook() {
-    NSApplication._runHook = {
-        NSApplication.shared.runGTK()
+    // Install runs on the process main thread (first touch of a public symbol
+    // from the importing app's startup); NSApplication._runHook and .shared
+    // are @MainActor via NSResponder, so assume the isolation that is true by
+    // construction. The stored hook re-asserts it at call time because
+    // _runHook's type stays a plain () -> Void.
+    MainActor.assumeIsolated {
+        NSApplication._runHook = {
+            MainActor.assumeIsolated {
+                NSApplication.shared.runGTK()
+            }
+        }
     }
 }
 
@@ -289,7 +298,11 @@ private var _buttonContexts: [ObjectIdentifier: _ButtonClickContext] = [:]
 private let _quillButtonClickedTrampoline: @convention(c) (OpaquePointer?, UnsafeMutableRawPointer?) -> Void = { _, userData in
     guard let userData else { return }
     let ctx = Unmanaged<_ButtonClickContext>.fromOpaque(userData).takeUnretainedValue()
-    ctx.handler()
+    // GTK "clicked" fires on the GTK main loop == the main thread; click
+    // handlers are app UI code (Apple runs target/action on the main actor).
+    MainActor.assumeIsolated {
+        ctx.handler()
+    }
 }
 
 extension NSButton {
@@ -417,7 +430,11 @@ private let _quillEntryChangedTrampoline: @convention(c) (OpaquePointer?, Unsafe
     guard let userData, let editable else { return }
     let ctx = Unmanaged<_EntryChangedContext>.fromOpaque(userData).takeUnretainedValue()
     if let cstr = quill_editable_get_text(UnsafeMutableRawPointer(editable)) {
-        ctx.handler(String(cString: cstr))
+        let text = String(cString: cstr)
+        // GTK "changed" fires on the GTK main loop == the main thread.
+        MainActor.assumeIsolated {
+            ctx.handler(text)
+        }
     }
 }
 

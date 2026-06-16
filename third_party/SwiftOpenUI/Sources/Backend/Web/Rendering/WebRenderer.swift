@@ -1104,6 +1104,17 @@ extension ButtonStyleModifier: WebRenderable {
     }
 }
 
+extension CustomButtonStyleModifier: WebRenderable {
+    public func webCreateElement() -> JSValue {
+        var env = getCurrentEnvironment()
+        env.customButtonStyle = style
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(prev) }
+        return webRenderView(content)
+    }
+}
+
 extension ToggleStyleModifier: WebRenderable {
     public func webCreateElement() -> JSValue {
         var env = getCurrentEnvironment()

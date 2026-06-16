@@ -39,10 +39,29 @@ const char *quill_appkit_qt_window_title(void *window);
 void quill_appkit_qt_window_size(void *window, int *width, int *height);
 
 // --- NSView (M2): child QWidgets — hierarchy + absolute geometry ---
+// Draw callback for custom NSView drawing hosts. The cairo_context is a
+// cairo_t* surfaced as void* so Swift can import this header without exposing
+// cairo headers through the public C ABI.
+typedef void (*quill_appkit_qt_draw_callback)(
+    void *cairo_context,
+    int width,
+    int height,
+    void *user_data
+);
+typedef void (*quill_appkit_qt_destroy_callback)(void *user_data);
+
 // A child view (a bare QWidget with no parent yet). Returns a handle or NULL.
 void *quill_appkit_qt_view_new(void);
+// A QWidget whose paintEvent calls `draw(cairo_t*, width, height, user_data)`.
+void *quill_appkit_qt_drawing_view_new(
+    quill_appkit_qt_draw_callback draw,
+    void *user_data,
+    quill_appkit_qt_destroy_callback destroy
+);
 // Reparent `child` under `parent` and show it (AppKit addSubview).
 void quill_appkit_qt_view_add_subview(void *parent, void *child);
+// Queue a repaint for an existing QWidget.
+void quill_appkit_qt_view_update(void *view);
 // Number of immediate child QWidgets (test verification).
 int quill_appkit_qt_view_child_count(void *view);
 // Absolute frame, in parent coordinates. Geometry is set by the Auto Layout
