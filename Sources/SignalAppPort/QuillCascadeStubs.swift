@@ -1,6 +1,4 @@
-// QuillCascadeStubs.swift — AUTO-GENERATED (cumulative) empty stand-ins for
-// app types whose defining files were pruned to shrink SignalApp to the
-// conversation slice.
+// QuillCascadeStubs.swift — AUTO-GENERATED (cumulative).
 import Foundation
 import UIKit
 import SignalServiceKit
@@ -9,14 +7,25 @@ import SignalUI
 struct ApplePayButton { }
 struct AttachmentKeyboard { }
 protocol AttachmentKeyboardDelegate: AnyObject { }
+struct BadgeIssueSheetAction { }
+protocol BadgeIssueSheetDelegate: AnyObject { }
+struct BadgeIssueSheetState { }
 struct CVComponentGenericAttachment { }
+struct ChatHistoryContextMenuInteraction { }
 struct ContactShareViewHelper { }
 protocol ContactShareViewHelperDelegate: AnyObject { }
+struct ContextMenuAction { }
+struct ContextMenuConfiguration { }
+struct ContextMenuInteraction { }
+protocol ContextMenuInteractionDelegate: AnyObject { }
+struct ContextMenuTargetedPreview { }
+struct ContextMenuTargetedPreviewAccessory { }
 struct ConversationSettingsPresentationMode { }
 protocol ConversationSettingsViewDelegate: AnyObject { }
 class DonationSettingsViewController: UIViewController { }
 struct Emoji { }
 struct EmojiPickerSheet { }
+class GroupDescriptionPreviewView: UIView { }
 class GroupDescriptionViewController: UIViewController { }
 protocol GroupDescriptionViewControllerDelegate: AnyObject { }
 struct GroupViewHelper { }
@@ -43,6 +52,7 @@ struct SafetyTipsType { }
 protocol SendMediaNavDataSource: AnyObject { }
 protocol SendMediaNavDelegate: AnyObject { }
 class SendMediaNavigationController: UIViewController { }
+protocol SendPaymentViewDelegate: AnyObject { }
 struct ShareableAttachment { }
 protocol ThreadContextualActionProvider: AnyObject { }
 struct UpgradableDevice { }

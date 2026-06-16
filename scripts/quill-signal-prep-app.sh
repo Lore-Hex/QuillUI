@@ -54,18 +54,22 @@ for sub in \
     src/ViewControllers/Registration src/ViewControllers/DonationViewControllers \
     src/ViewControllers/AppSettings src/ViewControllers/NewGroupView \
     "src/ViewControllers/Attachment Keyboard" src/ViewControllers/GroupViewControllers \
-    src/ViewControllers/ConversationSettings \
+    src/ViewControllers/ConversationSettings src/ViewControllers/ContextMenus \
+    src/ViewControllers/Payments src/ViewControllers/Donations \
 ; do
     rm -rf "$APP/$sub"
 done
 for f in \
     "src/views/MarqueeLabel.swift" \
     "src/views/MockConversationView.swift" \
+    "src/views/GroupDescriptionPreviewView.swift" \
     "src/ViewControllers/SafetyTipsViewController.swift" \
     "src/ViewControllers/MessageDetailViewController.swift" \
     "src/ViewControllers/ContactShareViewHelper.swift" \
     "src/ViewControllers/MessageReactionPicker.swift" \
     "src/ViewControllers/SendMediaNavigationController.swift" \
+    "src/ViewControllers/GetStartedBannerViewController.swift" \
+    "util/VolumeButtons.swift" \
 ; do
     rm -f "$APP/$f"
 done
