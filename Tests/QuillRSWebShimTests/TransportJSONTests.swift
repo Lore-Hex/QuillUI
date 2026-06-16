@@ -41,6 +41,19 @@ struct TransportJSONTests {
         #expect(try JSONDecoder().decode(RenamePayload.self, from: try #require(transport.upload).payload).newName == "New")
     }
 
+    @Test("Async raw sends require response data")
+    func asyncRawSendRequiresResponseData() async throws {
+        let transport = RecordingTransport()
+        let request = URLRequest(url: URL(string: "https://example.com/no-data")!)
+
+        await #expect(throws: TransportError.noData) {
+            _ = try await transport.send(request: request)
+        }
+        await #expect(throws: TransportError.noData) {
+            _ = try await transport.send(request: request, method: HTTPMethod.post, payload: Data())
+        }
+    }
+
     private struct RenamePayload: Codable, Equatable, Sendable {
         let oldName: String
         let newName: String
@@ -73,8 +86,11 @@ struct TransportJSONTests {
 
         func cancelAll() {}
 
-        func send(request: URLRequest) async throws -> (HTTPURLResponse, Data?) {
-            (Self.okResponse(url: request.url), responseData)
+        func send(request: URLRequest) async throws -> (HTTPURLResponse, Data) {
+            guard let responseData else {
+                throw TransportError.noData
+            }
+            return (Self.okResponse(url: request.url), responseData)
         }
 
         func send(request: URLRequest, completion: @escaping @Sendable (Result<(HTTPURLResponse, Data?), Error>) -> Void) {
@@ -87,8 +103,11 @@ struct TransportJSONTests {
             completion(.success(()))
         }
 
-        func send(request: URLRequest, method: String, payload: Data) async throws -> (HTTPURLResponse, Data?) {
+        func send(request: URLRequest, method: String, payload: Data) async throws -> (HTTPURLResponse, Data) {
             record(request: request, method: method, payload: payload)
+            guard let responseData else {
+                throw TransportError.noData
+            }
             return (Self.okResponse(url: request.url), responseData)
         }
 
