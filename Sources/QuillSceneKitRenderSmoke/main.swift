@@ -23,10 +23,20 @@ struct QuillSceneKitRenderSmoke {
         let sphereStats = PixelStats(renderSphereScene())
         try require(sphereStats.nonBlackPixels > 1_000, "sphere render stayed mostly black: \(sphereStats)")
         try require(sphereStats.redDominantPixels > 900, "sphere render did not produce red pixels: \(sphereStats)")
+        try requireMatchesAppleEnvelope(
+            sphereStats,
+            .sphere,
+            label: "sphere"
+        )
 
         let triangleStats = PixelStats(renderTriangleScene())
         try require(triangleStats.nonBlackPixels > 1_500, "triangle render stayed mostly black: \(triangleStats)")
         try require(triangleStats.greenDominantPixels > 1_400, "triangle render did not produce green pixels: \(triangleStats)")
+        try requireMatchesAppleEnvelope(
+            triangleStats,
+            .triangle,
+            label: "triangle"
+        )
 
         let nestedCameraStats = PixelStats(renderNestedCameraScene())
         try require(nestedCameraStats.nonBlackPixels > 1_000, "nested-camera render stayed mostly black: \(nestedCameraStats)")
@@ -35,9 +45,17 @@ struct QuillSceneKitRenderSmoke {
         let sideCameraStats = PixelStats(renderSideCameraScene())
         try require(sideCameraStats.nonBlackPixels > 1_000, "side-camera render stayed mostly black: \(sideCameraStats)")
         try require(sideCameraStats.redDominantPixels > 900, "side-camera render did not produce red pixels: \(sideCameraStats)")
+        try requireMatchesAppleEnvelope(
+            sideCameraStats,
+            .sphere,
+            label: "side camera"
+        )
 
         let awayCameraStats = PixelStats(renderAwayCameraScene())
         try require(awayCameraStats.nonBlackPixels == 0, "away-camera render unexpectedly produced pixels: \(awayCameraStats)")
+
+        let clippedCameraStats = PixelStats(renderClippedCameraScene())
+        try require(clippedCameraStats.nonBlackPixels == 0, "clipped-camera render unexpectedly produced pixels: \(clippedCameraStats)")
 
         try runCameraControlSmoke()
         try runHitTestSmoke()
@@ -48,6 +66,7 @@ struct QuillSceneKitRenderSmoke {
         log("nested camera: \(nestedCameraStats)")
         log("side camera: \(sideCameraStats)")
         log("away camera: \(awayCameraStats)")
+        log("clipped camera: \(clippedCameraStats)")
 
         if ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_GTK_SMOKE"] == "1" {
             try runGTKSceneViewSmoke()
@@ -60,6 +79,22 @@ struct QuillSceneKitRenderSmoke {
 
     private static func require(_ condition: Bool, _ message: String) throws {
         guard condition else { throw SmokeFailure.assertion(message) }
+    }
+
+    private static func requireMatchesAppleEnvelope(
+        _ stats: PixelStats,
+        _ reference: AppleSceneKitGoldenEnvelope,
+        label: String
+    ) throws {
+        try require(abs(stats.nonBlackPixels - reference.nonBlackPixels) <= 180, "\(label) area drifted from Apple envelope: \(stats)")
+        try require(
+            abs(stats.dominantPixels(for: reference.dominantColor) - reference.dominantPixels) <= 180,
+            "\(label) dominant color drifted from Apple envelope: \(stats)"
+        )
+        try require(abs(stats.bounds.minX - reference.bounds.minX) <= 8, "\(label) minX drifted from Apple envelope: \(stats)")
+        try require(abs(stats.bounds.minY - reference.bounds.minY) <= 8, "\(label) minY drifted from Apple envelope: \(stats)")
+        try require(abs(stats.bounds.maxX - reference.bounds.maxX) <= 8, "\(label) maxX drifted from Apple envelope: \(stats)")
+        try require(abs(stats.bounds.maxY - reference.bounds.maxY) <= 8, "\(label) maxY drifted from Apple envelope: \(stats)")
     }
 
     private static func renderSphereScene() -> CGImage {
@@ -133,6 +168,17 @@ struct QuillSceneKitRenderSmoke {
         cameraNode.camera = SCNCamera()
         cameraNode.position = SCNVector3(0, 0, 4)
         cameraNode.eulerAngles = SCNVector3(0, .pi, 0)
+        scene.rootNode.addChildNode(cameraNode)
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func renderClippedCameraScene() -> CGImage {
+        let scene = makeSphereScene()
+        let cameraNode = SCNNode()
+        let camera = SCNCamera()
+        camera.zNear = 4.5
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
         scene.rootNode.addChildNode(cameraNode)
         return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
     }
@@ -244,9 +290,10 @@ private struct PixelStats: CustomStringConvertible {
     var nonBlackPixels = 0
     var redDominantPixels = 0
     var greenDominantPixels = 0
+    var bounds = PixelBounds.empty
 
     var description: String {
-        "nonBlack=\(nonBlackPixels) red=\(redDominantPixels) green=\(greenDominantPixels)"
+        "nonBlack=\(nonBlackPixels) red=\(redDominantPixels) green=\(greenDominantPixels) bounds=\(bounds)"
     }
 
     init(_ image: CGImage) {
@@ -265,6 +312,7 @@ private struct PixelStats: CustomStringConvertible {
                 let a = Int(pixels[offset + 3])
                 if a > 0, r + g + b > 8 {
                     nonBlackPixels += 1
+                    bounds.include(x: x, y: y)
                 }
                 if r > g * 2, r > b * 2 {
                     redDominantPixels += 1
@@ -274,5 +322,59 @@ private struct PixelStats: CustomStringConvertible {
                 }
             }
         }
+    }
+
+    func dominantPixels(for color: DominantPixelColor) -> Int {
+        switch color {
+        case .red: redDominantPixels
+        case .green: greenDominantPixels
+        }
+    }
+}
+
+private struct AppleSceneKitGoldenEnvelope {
+    static let sphere = AppleSceneKitGoldenEnvelope(
+        nonBlackPixels: 2_260,
+        dominantPixels: 2_260,
+        dominantColor: .red,
+        bounds: PixelBounds(minX: 53, minY: 33, maxX: 106, maxY: 86)
+    )
+
+    static let triangle = AppleSceneKitGoldenEnvelope(
+        nonBlackPixels: 2_076,
+        dominantPixels: 2_076,
+        dominantColor: .green,
+        bounds: PixelBounds(minX: 54, minY: 40, maxX: 125, maxY: 96)
+    )
+
+    let nonBlackPixels: Int
+    let dominantPixels: Int
+    let dominantColor: DominantPixelColor
+    let bounds: PixelBounds
+}
+
+private enum DominantPixelColor {
+    case red
+    case green
+}
+
+private struct PixelBounds: CustomStringConvertible {
+    var minX: Int
+    var minY: Int
+    var maxX: Int
+    var maxY: Int
+
+    static let empty = PixelBounds(minX: Int.max, minY: Int.max, maxX: Int.min, maxY: Int.min)
+
+    var description: String {
+        guard minX <= maxX, minY <= maxY else { return "empty" }
+        return "(\(minX),\(minY))-(\(maxX),\(maxY))"
+    }
+
+    mutating func include(x: Int, y: Int) {
+        minX = min(minX, x)
+        minY = min(minY, y)
+        maxX = max(maxX, x)
+        maxY = max(maxY, y)
     }
 }

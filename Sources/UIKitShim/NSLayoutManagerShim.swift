@@ -155,8 +155,8 @@ open class NSLayoutManager: NSObject, @unchecked Sendable {
     public func glyphIndex(for point: CGPoint, in container: NSTextContainer) -> Int {
         let grid = lineGrid(for: container)
         guard grid.length > 0 else { return 0 }
-        let line = Swift.max(0, Swift.min(Int(point.y / grid.lineHeight), grid.lineCount - 1))
-        let column = Swift.max(0, Swift.min(Int(point.x / grid.charWidth), grid.charsPerLine - 1))
+        let line = clampedGridIndex(for: point.y, step: grid.lineHeight, upperBound: grid.lineCount - 1)
+        let column = clampedGridIndex(for: point.x, step: grid.charWidth, upperBound: grid.charsPerLine - 1)
         return Swift.min(line * grid.charsPerLine + column, grid.length - 1)
     }
 
@@ -266,22 +266,18 @@ open class NSLayoutManager: NSObject, @unchecked Sendable {
 
     private func lineGrid(for container: NSTextContainer?) -> LineGrid {
         // Default 17pt mirrors UITextView.sizeThatFits's fallback in UIKit.swift.
-        let pointSize: CGFloat
+        let rawPointSize: CGFloat
         if let storage = textStorage, storage.length > 0,
            let font = storage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont {
-            pointSize = font.pointSize
+            rawPointSize = font.pointSize
         } else {
-            pointSize = 17
+            rawPointSize = 17
         }
+        let pointSize = rawPointSize > 0 && rawPointSize.isFinite ? rawPointSize : 17
         let charWidth = pointSize * 0.6
         let lineHeight = pointSize * 1.2
         let length = textStorage?.length ?? 0
-        let charsPerLine: Int
-        if let width = container?.size.width, width > 0, width.isFinite {
-            charsPerLine = Swift.max(1, Int(width / charWidth))
-        } else {
-            charsPerLine = Swift.max(1, length)
-        }
+        let charsPerLine = charactersPerLine(for: container, charWidth: charWidth, length: length)
         var lineCount = Swift.max(1, Int(ceil(Double(length) / Double(charsPerLine))))
         if let maxLines = container?.maximumNumberOfLines, maxLines > 0 {
             lineCount = Swift.min(lineCount, maxLines)
@@ -293,6 +289,32 @@ open class NSLayoutManager: NSObject, @unchecked Sendable {
             charsPerLine: charsPerLine,
             lineCount: lineCount
         )
+    }
+
+    private func charactersPerLine(for container: NSTextContainer?, charWidth: CGFloat, length: Int) -> Int {
+        let unwrappedCapacity = Swift.max(1, length)
+        guard charWidth > 0, charWidth.isFinite else { return unwrappedCapacity }
+        guard let width = container?.size.width, width > 0, width.isFinite else {
+            return unwrappedCapacity
+        }
+
+        let rawCapacity = width / charWidth
+        guard rawCapacity > 0, rawCapacity.isFinite else { return unwrappedCapacity }
+        if rawCapacity >= CGFloat(unwrappedCapacity) {
+            return unwrappedCapacity
+        }
+        return Swift.max(1, Int(rawCapacity))
+    }
+
+    private func clampedGridIndex(for coordinate: CGFloat, step: CGFloat, upperBound: Int) -> Int {
+        guard upperBound > 0, step > 0, step.isFinite else { return 0 }
+        let rawIndex = coordinate / step
+        guard rawIndex.isFinite else {
+            return coordinate.sign == .minus ? 0 : upperBound
+        }
+        if rawIndex <= 0 { return 0 }
+        if rawIndex >= CGFloat(upperBound) { return upperBound }
+        return Int(rawIndex)
     }
 
     /// Walks the per-line sub-rects of `range` (one rect per modeled line,

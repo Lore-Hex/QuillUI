@@ -91,6 +91,8 @@ func installBaseCSS(windowBackground: String) {
     .qheader { background-color: #FFFFFF; padding: 10px 16px; border-bottom: 1px solid rgba(60,60,67,0.15); }
     .qcomposer { background-color: #FFFFFF; padding: 10px 12px; border-top: 1px solid rgba(60,60,67,0.15); }
     .qfield { background-color: #FFFFFF; border: 1px solid rgba(60,60,67,0.30); border-radius: 18px; padding: 8px 14px; }
+    .qrealcomponentstack { padding: 8px 0; }
+    .qrealcvcell { background-color: transparent; }
     """
     let provider = gtk_css_provider_new()
     css.withCString { gtk_css_provider_load_from_string(provider, $0) }
@@ -145,6 +147,7 @@ guard gtk_init_check() != 0 else {
 //   firstlight   → trivial pipeline proof
 //   conversation → a chat styled by Signal's REAL ConversationStyle
 //   realapp-link → proves the GTK renderer links SignalApp / ConversationViewController
+//   real-components → real CVItemModel/CVRootComponent/CVCellView render path
 //   (default)    → Signal's REAL OWSTableViewController2 (Settings)
 MainActor.assumeIsolated {
     switch ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] {
@@ -157,6 +160,10 @@ MainActor.assumeIsolated {
     case "realapp-link":
         renderRootViewController(SignalConversationDemo.makeRealAppLinkProbeViewController(),
                                  title: "SignalApp Link Probe", width: 520, height: 260,
+                                 windowBackground: "#FFFFFF")
+    case "real-components":
+        renderRootViewController(SignalConversationDemo.makeRealComponentPreviewViewController(),
+                                 title: "Signal Real Components", width: 568, height: 300,
                                  windowBackground: "#FFFFFF")
     case "privacy":
         renderRootViewController(SignalSettingsDemo.makePrivacyViewController(),

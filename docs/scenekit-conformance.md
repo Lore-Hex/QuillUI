@@ -124,17 +124,34 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    now exposed as a SwiftPM executable product, rebuilds against the rendered
    `SCNView`, and launch-smokes under Xvfb by staying alive until timeout with
    no early crash.
-6. **Pixel parity / controls / hit-testing** — IN PROGRESS. `SCNView.hitTest`
+6. **Pixel parity / controls / hit-testing** — ✅ DONE for the current
+   CPU/software renderer scope. `SCNView.hitTest`
    now uses the same projected primitives as the software renderer and returns
    nearest-first `SCNHitTestResult`s, covering ShapeScript's geometry-selection
-   path. Camera orientation is now respected by the software renderer, and
-   deterministic `SCNView` camera-control movement is smoke-gated by creating a
-   moved point-of-view camera for ShapeScript-style `cameraHasMoved` checks.
+   path. Camera orientation is now respected by the software renderer, explicit
+   `SCNCamera.zNear`/`zFar` clipping culls both rendered and hit-tested
+   primitives, and deterministic `SCNView` camera-control movement is
+   smoke-gated by creating a moved point-of-view camera for ShapeScript-style
+   `cameraHasMoved` checks.
    The AppKit event pump now forwards pointer, scroll, magnify, cursor, and
    enter/exit events through `NSApplication.sendEvent`, with a SceneView backing
    view smoke proving application-dispatched orbit and magnify controls reach
-   the camera. Native GTK event-controller synthesis for hosted `NSView`s and
-   full macOS pixel-reference parity remain open.
+   the camera. Hosted GTK `NSView` drawing areas now synthesize AppKit pointer
+   enter/move/exit, cursor rect, left/right drag, scroll-wheel, and
+   magnify/pinch events from native GTK controllers before routing them through
+   `NSApplication` when a window/first-responder path exists, or directly to the
+   hosted view when the SwiftUI representable has no synthetic `NSWindow`.
+   `GtkGestureZoom` is installed in capture phase with a multitouch-safe CGTK
+   shim helper and dispatches AppKit `.magnify` events with incremental
+   `NSEvent.magnification` deltas.
+
+   Pixel parity is intentionally scoped to deterministic software-renderer
+   envelopes, not GPU SceneKit parity. Native macOS `SCNRenderer.snapshot`
+   references for the canonical sphere, triangle, and side-camera scenes are
+   pinned in `SceneKitRendererTests` and the runnable
+   `quill-scenekit-render-smoke` executable. The smoke gate checks rendered
+   area, dominant color, screen bounds, explicit clipping, camera control, and
+   hit-test checks, then runs an Xvfb GTK `SceneView` render smoke.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
 existing 2D paint layer. That is enough for these apps' scene scale; a GL/
@@ -152,4 +169,4 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Rung 3: fixtures render (GTK screenshot gate)
 - [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
 - [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
-- [ ] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, deterministic camera movement, and AppKit-pump-dispatched camera movement are smoke-gated; native GTK event synthesis and macOS golden images remain open)
+- [x] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, explicit camera clipping, deterministic camera movement, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)

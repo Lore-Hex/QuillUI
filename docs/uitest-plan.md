@@ -110,6 +110,11 @@ error color token in both paths. CI runs those extra semantic paths through
 per-app native interactions can join the same runner without hand-written
 workflow steps.
 
+SolderScope's GTK interaction smoke uses the same Xvfb/xdotool pattern with an
+opt-in synthetic AVFoundation camera, then verifies real microscope frame pixels
+after scroll, drag, and double-click gestures instead of accepting a surviving
+no-camera window.
+
 For semantic interaction predicates, extend
 `scripts/linux-backend-interaction-check.sh` (also proven for Enchanted), which
 drives the running app with `xdotool`. Per-app predicates to add next:

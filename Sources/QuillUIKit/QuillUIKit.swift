@@ -474,6 +474,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public init(frame: CGRect) {
         super.init()
         self.frame = frame
+        self.bounds = CGRect(origin: .zero, size: frame.size)
     }
 
     // Apple's UIView declares `public required init?(coder:)`. It must live on
@@ -498,6 +499,12 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     // cross-module.
     open var frame: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
         didSet {
+            if bounds.size != frame.size {
+                bounds.size = frame.size
+            }
+            if oldValue.size != frame.size {
+                setNeedsLayout()
+            }
             #if os(Linux)
             _layer?.frame = frame
             #endif
@@ -505,6 +512,9 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     }
     open var bounds: CGRect = CGRect(x: 0, y: 0, width: 0, height: 0) {
         didSet {
+            if oldValue.size != bounds.size {
+                setNeedsLayout()
+            }
             #if os(Linux)
             _layer?.bounds = bounds
             #endif
@@ -558,14 +568,16 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     open var autoresizesSubviews: Bool = true
 
     open func removeFromSuperview() {
+        let oldSuperview = superview
         // Apple notifies the (old) superview before the subview leaves, so the
         // hook still sees `self` in `subviews`.
-        superview?.willRemoveSubview(self)
-        superview?.subviews.removeAll { $0 === self }
+        oldSuperview?.willRemoveSubview(self)
+        oldSuperview?.subviews.removeAll { $0 === self }
         superview = nil
         #if os(Linux)
         _layer?.removeFromSuperlayer()
         #endif
+        oldSuperview?.setNeedsLayout()
     }
     // `open` (not just `public`): a classic overridable Apple UIView property
     // — Signal subclasses override backgroundColor with didSet observers.
@@ -582,6 +594,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         // Apple calls didAddSubview on the receiver after the subview is in
         // place (so overrides can observe the new child).
         didAddSubview(view)
+        setNeedsLayout()
     }
 
     // MARK: Subview observation hooks
@@ -635,6 +648,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         #endif
         // Apple fires didAddSubview for every insertion path.
         didAddSubview(view)
+        setNeedsLayout()
     }
 
     /// Apple requires `siblingSubview` to already be a child (behavior is
@@ -840,17 +854,155 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
 
     /// Layout dirtying. MODEL HONESTY: there is no compositor-driven layout
     /// pass on Linux — layoutIfNeeded() just gives layoutSubviews() overrides
-    /// one chance to run per dirtying, so upstream code that does manual
-    /// frame math there still executes.
+    /// one chance to run per dirtying, applies the common direct-subview
+    /// equality constraints that PureLayout emits, then walks into children so
+    /// upstream manual frame math still executes.
     private var quillNeedsLayout = true
     open func setNeedsLayout() { quillNeedsLayout = true }
     public func setNeedsDisplay() {}
     open func layoutIfNeeded() {
-        guard quillNeedsLayout else { return }
-        quillNeedsLayout = false
-        layoutSubviews()
+        quillApplyDirectSubviewConstraints()
+        if quillNeedsLayout {
+            quillNeedsLayout = false
+            layoutSubviews()
+            quillApplyDirectSubviewConstraints()
+        }
+        for subview in subviews {
+            subview.layoutIfNeeded()
+        }
     }
     open func layoutSubviews() {}
+
+    private struct QuillConstraintFrame {
+        var left: CGFloat?
+        var right: CGFloat?
+        var top: CGFloat?
+        var bottom: CGFloat?
+        var width: CGFloat?
+        var height: CGFloat?
+        var centerX: CGFloat?
+        var centerY: CGFloat?
+    }
+
+    private func quillApplyDirectSubviewConstraints() {
+        guard !subviews.isEmpty else { return }
+        for subview in subviews {
+            let resolved = quillResolvedConstraintFrame(for: subview)
+            var nextFrame = subview.frame
+
+            if let width = resolved.width {
+                nextFrame.size.width = max(0, width)
+            }
+            if let height = resolved.height {
+                nextFrame.size.height = max(0, height)
+            }
+
+            if let left = resolved.left, let right = resolved.right {
+                nextFrame.origin.x = left
+                nextFrame.size.width = max(0, right - left)
+            } else if let left = resolved.left {
+                nextFrame.origin.x = left
+            } else if let right = resolved.right {
+                nextFrame.origin.x = right - nextFrame.size.width
+            } else if let centerX = resolved.centerX {
+                nextFrame.origin.x = centerX - nextFrame.size.width / 2
+            }
+
+            if let top = resolved.top, let bottom = resolved.bottom {
+                nextFrame.origin.y = top
+                nextFrame.size.height = max(0, bottom - top)
+            } else if let top = resolved.top {
+                nextFrame.origin.y = top
+            } else if let bottom = resolved.bottom {
+                nextFrame.origin.y = bottom - nextFrame.size.height
+            } else if let centerY = resolved.centerY {
+                nextFrame.origin.y = centerY - nextFrame.size.height / 2
+            }
+
+            if subview.frame != nextFrame {
+                subview.frame = nextFrame
+            }
+        }
+    }
+
+    private func quillResolvedConstraintFrame(for subview: UIView) -> QuillConstraintFrame {
+        var resolved = QuillConstraintFrame()
+        for constraint in NSLayoutConstraint.quillActive where constraint.quillRelation == .equal {
+            guard let first = constraint.quillFirstAnchor, first.quillItem === subview else {
+                continue
+            }
+            guard let value = quillResolvedConstraintValue(for: constraint) else {
+                continue
+            }
+            switch first.quillAttribute {
+            case .left, .leading:
+                resolved.left = value
+            case .right, .trailing:
+                resolved.right = value
+            case .top:
+                resolved.top = value
+            case .bottom:
+                resolved.bottom = value
+            case .width:
+                resolved.width = value
+            case .height:
+                resolved.height = value
+            case .centerX:
+                resolved.centerX = value
+            case .centerY:
+                resolved.centerY = value
+            case .firstBaseline, .lastBaseline, .notAnAttribute:
+                break
+            }
+        }
+        return resolved
+    }
+
+    private func quillResolvedConstraintValue(for constraint: NSLayoutConstraint) -> CGFloat? {
+        let constant = constraint.constant
+        guard let second = constraint.quillSecondAnchor else {
+            return constant
+        }
+        guard let secondValue = quillLayoutValue(for: second) else {
+            return nil
+        }
+        return secondValue * constraint.quillMultiplier + constant
+    }
+
+    private func quillLayoutValue(for anchor: any QuillLayoutAnchorReading) -> CGFloat? {
+        guard let view = anchor.quillItem as? UIView else {
+            return nil
+        }
+        let frame: CGRect
+        if view === self {
+            frame = CGRect(origin: .zero, size: bounds.size)
+        } else if view.superview === self {
+            frame = view.frame
+        } else {
+            return nil
+        }
+
+        switch anchor.quillAttribute {
+        case .left, .leading:
+            return frame.minX
+        case .right, .trailing:
+            return frame.maxX
+        case .top:
+            return frame.minY
+        case .bottom:
+            return frame.maxY
+        case .width:
+            return frame.width
+        case .height:
+            return frame.height
+        case .centerX:
+            return frame.midX
+        case .centerY:
+            return frame.midY
+        case .firstBaseline, .lastBaseline, .notAnAttribute:
+            return nil
+        }
+    }
 
     /// Apple's UIView is its own layer's delegate and implements
     /// `CALayerDelegate.action(for:forKey:)`. CLASS-BODY `open`: BezierPathView
@@ -2056,6 +2208,7 @@ public class SLComposeSheetConfigurationItem: NSObject {
     /// UIFont is declared in the UIKit shim module, which depends on this one,
     /// so the shim layers `font: UIFont!` over this slot (UIFontExtras.swift).
     public var quillFontStorage: AnyObject?
+    public var quillFontPointSize: CGFloat = 17
 
     /// UILabel's text-drawing override point. Signal subclasses (CVCapsuleLabel)
     /// override this and call super; there is no text renderer on Linux, so the
@@ -2074,7 +2227,38 @@ public class SLComposeSheetConfigurationItem: NSObject {
     /// UIKit exposes `sizeToFit` on UIView; Quill keeps it on the concrete
     /// classes that need override points. UILabel callers use it to ask for an
     /// intrinsic-content-size pass, which is inert until a text renderer lands.
-    open func sizeToFit() {}
+    open func sizeToFit() {
+        frame.size = sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+    }
+
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let string = attributedText?.string ?? text ?? ""
+        guard !string.isEmpty else {
+            return .zero
+        }
+        let pointSize = quillFontPointSize > 0 && quillFontPointSize.isFinite ? quillFontPointSize : 17
+        let lineHeight = ceil(pointSize * 1.25)
+        let charWidth = pointSize * 0.56
+        let singleLineWidth = ceil(CGFloat(string.count) * charWidth)
+        let proposedWidth = size.width.isFinite && size.width > 0 ? size.width : singleLineWidth
+        let lineLimit = numberOfLines > 0 ? numberOfLines : Int.max
+        let measuredLines = max(1, Int(ceil(singleLineWidth / max(proposedWidth, 1))))
+        let lines = min(measuredLines, lineLimit)
+        return CGSize(
+            width: min(singleLineWidth, proposedWidth),
+            height: CGFloat(lines) * lineHeight
+        )
+    }
+
+    open override var intrinsicContentSize: CGSize {
+        sizeThatFits(CGSize(
+            width: preferredMaxLayoutWidth > 0 ? preferredMaxLayoutWidth : CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+    }
 
     public static func titleLabelForRegistration(text: String) -> UILabel {
         let label = UILabel()

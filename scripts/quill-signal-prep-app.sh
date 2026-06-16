@@ -197,6 +197,114 @@ else
     echo "quill-signal-prep-app: no SignalApp build log at $BUILD_LOG; log-driven app fixes skipped"
 fi
 
+# (8d) Add tiny same-file Linux factories for CVComponentState. Signal keeps the
+#      designated initializer + Builder fileprivate inside CVComponentState.swift;
+#      app-port files are same module but not same file, so they cannot construct
+#      real render items for smoke previews without this disposable helper.
+STATE_FILE="$APP/ConversationView/Components/CVComponentState.swift"
+if [ -f "$STATE_FILE" ] && ! grep -q "QuillSignal CVComponentState preview factories" "$STATE_FILE"; then
+    cat >> "$STATE_FILE" <<'SWIFT'
+
+#if os(Linux)
+// QuillSignal CVComponentState preview factories. Generated into the disposable
+// Signal app slice so Linux renderer checks can exercise real CVRootComponents
+// without weakening upstream's fileprivate initializer in the source checkout.
+extension CVComponentState {
+    static func quillPreviewDateHeaderState() -> CVComponentState {
+        CVComponentState(
+            messageCellType: .dateHeader,
+            senderName: nil,
+            senderAvatar: nil,
+            bodyText: nil,
+            bodyMedia: nil,
+            genericAttachment: nil,
+            paymentAttachment: nil,
+            archivedPaymentAttachment: nil,
+            audioAttachment: nil,
+            viewOnce: nil,
+            quotedReply: nil,
+            sticker: nil,
+            undownloadableAttachment: nil,
+            contactShare: nil,
+            linkPreview: nil,
+            giftBadge: nil,
+            systemMessage: nil,
+            dateHeader: DateHeader(),
+            unreadIndicator: nil,
+            reactions: nil,
+            typingIndicator: nil,
+            threadDetails: nil,
+            unknownThreadWarning: nil,
+            defaultDisappearingMessageTimer: nil,
+            collapseSet: nil,
+            bottomButtons: nil,
+            bottomLabel: nil,
+            skippedDownloads: nil,
+            sendFailureBadge: nil,
+            messageHasBodyAttachments: false,
+            hasRenderableContent: true,
+            poll: nil,
+        )
+    }
+
+    static func quillPreviewUnreadIndicatorState() -> CVComponentState {
+        CVComponentState(
+            messageCellType: .unreadIndicator,
+            senderName: nil,
+            senderAvatar: nil,
+            bodyText: nil,
+            bodyMedia: nil,
+            genericAttachment: nil,
+            paymentAttachment: nil,
+            archivedPaymentAttachment: nil,
+            audioAttachment: nil,
+            viewOnce: nil,
+            quotedReply: nil,
+            sticker: nil,
+            undownloadableAttachment: nil,
+            contactShare: nil,
+            linkPreview: nil,
+            giftBadge: nil,
+            systemMessage: nil,
+            dateHeader: nil,
+            unreadIndicator: UnreadIndicator(),
+            reactions: nil,
+            typingIndicator: nil,
+            threadDetails: nil,
+            unknownThreadWarning: nil,
+            defaultDisappearingMessageTimer: nil,
+            collapseSet: nil,
+            bottomButtons: nil,
+            bottomLabel: nil,
+            skippedDownloads: nil,
+            sendFailureBadge: nil,
+            messageHasBodyAttachments: false,
+            hasRenderableContent: true,
+            poll: nil,
+        )
+    }
+}
+#endif
+SWIFT
+fi
+
+THREAD_ASSOCIATED_DATA_FILE="$ROOT/.upstream/signal-ios/SignalServiceKit/Contacts/ThreadAssociatedData.swift"
+if [ -f "$THREAD_ASSOCIATED_DATA_FILE" ] && ! grep -q "QuillSignal ThreadAssociatedData preview factory" "$THREAD_ASSOCIATED_DATA_FILE"; then
+    cat >> "$THREAD_ASSOCIATED_DATA_FILE" <<'SWIFT'
+
+#if os(Linux)
+// QuillSignal ThreadAssociatedData preview factory. Generated into the
+// disposable upstream copy so the SignalApp renderer bridge can build real
+// CVItemModels without a database-backed thread-associated-data row.
+public extension ThreadAssociatedData {
+    static func quillPreview(threadUniqueId: String) -> ThreadAssociatedData {
+        ThreadAssociatedData(threadUniqueId: threadUniqueId)
+    }
+}
+#endif
+SWIFT
+fi
+
 # (9) Link the same-module app ports (Linux stand-ins for pruned app types) into
 #     the disposable tree, the same way SignalUI's port files are linked.
 PORT_SRC="$ROOT/Sources/SignalAppPort"

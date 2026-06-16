@@ -409,6 +409,8 @@ private struct CameraProjection {
     let forward: Vector3
     let focalLength: CGFloat
     let orthographicScale: CGFloat?
+    let zNear: CGFloat
+    let zFar: CGFloat
 
     init(cameraNode: SCNNode?, cameraWorld: Matrix4?, bounds: Bounds, width: Int, height: Int) {
         self.width = width
@@ -439,6 +441,7 @@ private struct CameraProjection {
         let ortho = camera?.usesOrthographicProjection == true
             ? CGFloat(max(0.001, camera?.orthographicScale ?? Double(radius * 2.4)))
             : nil
+        let clipping = CameraClipping(camera: camera)
 
         self.position = cameraPosition
         self.forward = forward
@@ -446,12 +449,14 @@ private struct CameraProjection {
         self.up = up
         self.focalLength = focal
         self.orthographicScale = ortho
+        self.zNear = clipping.near
+        self.zFar = clipping.far
     }
 
     func project(_ point: Vector3) -> (point: CGPoint, depth: CGFloat)? {
         let relative = point - position
         let depth = relative.dot(forward)
-        guard depth > 0.001 else { return nil }
+        guard depth >= zNear, depth <= zFar else { return nil }
         let cameraX = relative.dot(right)
         let cameraY = relative.dot(up)
         let scale: CGFloat
@@ -474,6 +479,23 @@ private struct CameraProjection {
             return length * CGFloat(height) / orthographicScale
         }
         return length * focalLength / max(0.001, depth)
+    }
+}
+
+private struct CameraClipping {
+    let near: CGFloat
+    let far: CGFloat
+
+    init(camera: SCNCamera?) {
+        guard let camera, !camera.automaticallyAdjustsZRange else {
+            self.near = 0.001
+            self.far = .greatestFiniteMagnitude
+            return
+        }
+
+        let near = max(0.001, CGFloat(camera.zNear))
+        self.near = near
+        self.far = max(near + 0.001, CGFloat(camera.zFar))
     }
 }
 

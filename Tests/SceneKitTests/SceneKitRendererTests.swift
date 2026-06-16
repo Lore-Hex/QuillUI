@@ -118,6 +118,66 @@ struct SceneKitRendererTests {
         #expect(stats.nonBlackPixels == 0)
     }
 
+    @Test("Software renderer respects explicit camera clipping planes")
+    func cameraClippingPlanesCullRenderAndHitTest() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let camera = SCNCamera()
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        var stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(!scene.quillHitTest(CGPoint(x: 80, y: 60), width: 160, height: 120, pointOfView: cameraNode).isEmpty)
+
+        camera.zNear = 4.5
+        stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels == 0)
+        #expect(scene.quillHitTest(CGPoint(x: 80, y: 60), width: 160, height: 120, pointOfView: cameraNode).isEmpty)
+
+        camera.zNear = 0.1
+        camera.zFar = 3
+        stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels == 0)
+
+        camera.zFar = 10
+        stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels > 1_000)
+    }
+
+    @Test("Software renderer stays inside Apple SceneKit golden envelopes")
+    func softwareRendererMatchesAppleGoldenEnvelopes() {
+        let (sphereScene, sphereCamera) = makeCameraControlScene()
+        expect(
+            PixelStats(sphereScene.quillRenderImage(width: 160, height: 120, pointOfView: sphereCamera)),
+            matches: .sphere
+        )
+
+        let (triangleScene, triangleCamera) = makeTriangleGeometryScene()
+        expect(
+            PixelStats(triangleScene.quillRenderImage(width: 180, height: 140, pointOfView: triangleCamera)),
+            matches: .triangle
+        )
+
+        let (sideScene, _) = makeCameraControlScene()
+        let sideCamera = SCNNode()
+        sideCamera.camera = SCNCamera()
+        sideCamera.position = SCNVector3(4, 0, 0)
+        sideCamera.look(at: SCNVector3(0, 0, 0))
+        sideScene.rootNode.addChildNode(sideCamera)
+        expect(
+            PixelStats(sideScene.quillRenderImage(width: 160, height: 120, pointOfView: sideCamera)),
+            matches: .sphere
+        )
+    }
+
     @MainActor
     @Test("SCNView camera controls create a moved point-of-view camera")
     func scnViewCameraControlsCreateMovedCamera() {
@@ -316,6 +376,29 @@ struct SceneKitRendererTests {
         return (scene, cameraNode)
     }
 
+    private func makeTriangleGeometryScene() -> (scene: SCNScene, cameraNode: SCNNode) {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let vertices = [
+            SCNVector3(-1.2, -0.9, 0),
+            SCNVector3(1.2, -0.9, 0),
+            SCNVector3(0, 1.0, 0),
+        ]
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: vertices)],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0.1, green: 0.85, blue: 0.25, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+        return (scene, cameraNode)
+    }
+
     @MainActor
     private func makeCameraControlView(scene: SCNScene, cameraNode: SCNNode) -> SCNView {
         let view = SCNView()
@@ -338,12 +421,25 @@ struct SceneKitRendererTests {
         event.locationInWindow = location
         return event
     }
+
+    private func expect(_ stats: PixelStats, matches reference: AppleSceneKitGoldenEnvelope) {
+        // Captured from native macOS `SCNRenderer.snapshot` on this branch's
+        // canonical scenes. The envelope allows small CPU/software projection
+        // differences while still pinning area, color, and screen placement.
+        #expect(abs(stats.nonBlackPixels - reference.nonBlackPixels) <= 180)
+        #expect(abs(stats.dominantPixels(for: reference.dominantColor) - reference.dominantPixels) <= 180)
+        #expect(abs(stats.bounds.minX - reference.bounds.minX) <= 8)
+        #expect(abs(stats.bounds.minY - reference.bounds.minY) <= 8)
+        #expect(abs(stats.bounds.maxX - reference.bounds.maxX) <= 8)
+        #expect(abs(stats.bounds.maxY - reference.bounds.maxY) <= 8)
+    }
 }
 
 private struct PixelStats {
     var nonBlackPixels = 0
     var redDominantPixels = 0
     var greenDominantPixels = 0
+    var bounds = PixelBounds.empty
 
     init(_ image: CGImage) {
         guard let pixels = image.quillBGRAPixels else { return }
@@ -361,6 +457,7 @@ private struct PixelStats {
                 let a = Int(pixels[offset + 3])
                 if a > 0, r + g + b > 8 {
                     nonBlackPixels += 1
+                    bounds.include(x: x, y: y)
                 }
                 if r > g * 2, r > b * 2 {
                     redDominantPixels += 1
@@ -370,5 +467,54 @@ private struct PixelStats {
                 }
             }
         }
+    }
+
+    func dominantPixels(for color: DominantPixelColor) -> Int {
+        switch color {
+        case .red: redDominantPixels
+        case .green: greenDominantPixels
+        }
+    }
+}
+
+private struct AppleSceneKitGoldenEnvelope {
+    static let sphere = AppleSceneKitGoldenEnvelope(
+        nonBlackPixels: 2_260,
+        dominantPixels: 2_260,
+        dominantColor: .red,
+        bounds: PixelBounds(minX: 53, minY: 33, maxX: 106, maxY: 86)
+    )
+
+    static let triangle = AppleSceneKitGoldenEnvelope(
+        nonBlackPixels: 2_076,
+        dominantPixels: 2_076,
+        dominantColor: .green,
+        bounds: PixelBounds(minX: 54, minY: 40, maxX: 125, maxY: 96)
+    )
+
+    let nonBlackPixels: Int
+    let dominantPixels: Int
+    let dominantColor: DominantPixelColor
+    let bounds: PixelBounds
+}
+
+private enum DominantPixelColor {
+    case red
+    case green
+}
+
+private struct PixelBounds {
+    var minX: Int
+    var minY: Int
+    var maxX: Int
+    var maxY: Int
+
+    static let empty = PixelBounds(minX: Int.max, minY: Int.max, maxX: Int.min, maxY: Int.min)
+
+    mutating func include(x: Int, y: Int) {
+        minX = min(minX, x)
+        minY = min(minY, y)
+        maxX = max(maxX, x)
+        maxY = max(maxY, y)
     }
 }

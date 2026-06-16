@@ -48,13 +48,114 @@ private struct PressOpacityButtonStyle: SwiftOpenUI.ButtonStyle {
     }
 }
 
-/// Mirrors SolderScopeCommands.swift: a `Commands` conformer whose body is a
-/// `CommandMenu` of `Button`s carrying `.keyboardShortcut` metadata.
-private struct ZoomCommands: Commands {
+@MainActor
+private final class SolderScopeCommandProbeState {
+    var selectedCameraExists = false
+    var isFrozen = false
+    var isRecording = false
+    var scaleBarToggleCount = 0
+    var integrationCycleCount = 0
+    var resetViewCount = 0
+    var horizontalFlipCount = 0
+    var verticalFlipCount = 0
+    var clockwiseRotationCount = 0
+    var isCalibrating = false
+    var snapshotCount = 0
+    var helpCount = 0
+    var shortcutHelpCount = 0
+
+    func toggleScaleBar() { scaleBarToggleCount += 1 }
+    func cycleIntegration() { integrationCycleCount += 1 }
+    func resetView() { resetViewCount += 1 }
+    func flipHorizontal() { horizontalFlipCount += 1 }
+    func flipVertical() { verticalFlipCount += 1 }
+    func rotateClockwise() { clockwiseRotationCount += 1 }
+    func toggleFreeze() { isFrozen.toggle() }
+    func takeSnapshot() { snapshotCount += 1 }
+    func toggleRecording() { isRecording.toggle() }
+}
+
+/// Mirrors SolderScopeCommands.swift: the real View/Capture/Help command
+/// surface, dynamic Capture labels, disabled Recalibrate item, and all
+/// keyboard shortcuts from the upstream app.
+private struct SolderScopeCommandProbe: Commands {
+    let state: SolderScopeCommandProbeState
+
     var body: some Commands {
+        CommandGroup(replacing: .newItem) { }
+
         CommandMenu("View") {
-            Button("Zoom In") {}
-                .keyboardShortcut("]", modifiers: .command)
+            Button("Toggle Scale Bar") {
+                state.toggleScaleBar()
+            }
+            .keyboardShortcut("b", modifiers: [])
+
+            Button("Cycle Integration") {
+                state.cycleIntegration()
+            }
+            .keyboardShortcut("i", modifiers: [])
+
+            Divider()
+
+            Button("Reset View") {
+                state.resetView()
+            }
+            .keyboardShortcut("0", modifiers: [])
+
+            Divider()
+
+            Button("Flip Horizontal") {
+                state.flipHorizontal()
+            }
+            .keyboardShortcut("h", modifiers: [])
+
+            Button("Flip Vertical") {
+                state.flipVertical()
+            }
+            .keyboardShortcut("v", modifiers: [])
+
+            Button("Rotate 90° Clockwise") {
+                state.rotateClockwise()
+            }
+            .keyboardShortcut("]", modifiers: [])
+
+            Divider()
+
+            Button("Recalibrate...") {
+                state.isCalibrating = true
+            }
+            .disabled(!state.selectedCameraExists)
+        }
+
+        CommandMenu("Capture") {
+            Button(state.isFrozen ? "Unfreeze" : "Freeze") {
+                state.toggleFreeze()
+            }
+            .keyboardShortcut(.space, modifiers: [])
+
+            Divider()
+
+            Button("Take Snapshot") {
+                state.takeSnapshot()
+            }
+            .keyboardShortcut("s", modifiers: [])
+
+            Button(state.isRecording ? "Stop Recording" : "Start Recording") {
+                state.toggleRecording()
+            }
+            .keyboardShortcut("r", modifiers: [])
+        }
+
+        CommandGroup(replacing: .help) {
+            Button("SolderScope Help") {
+                state.helpCount += 1
+            }
+
+            Divider()
+
+            Button("Keyboard Shortcuts") {
+                state.shortcutHelpCount += 1
+            }
         }
     }
 }
@@ -65,6 +166,69 @@ private struct ZoomCommands: Commands {
 private final class CrosshairCursorView: NSView {
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .crosshair)
+    }
+}
+
+/// Mirrors the mouse/scroll handling shape in Renderer/MicroscopeView.swift
+/// without importing the upstream app target into this small conformance suite.
+private final class MicroscopeInteractionProbeView: NSView {
+    var zooms: [(factor: CGFloat, point: CGPoint)] = []
+    var pans: [CGPoint] = []
+    var resetCount = 0
+    private var isDragging = false
+    private var lastDragPoint: CGPoint = .zero
+
+    override var isFlipped: Bool { true }
+
+    override func scrollWheel(with event: NSEvent) {
+        let zoomFactor: CGFloat
+        if event.hasPreciseScrollingDeltas {
+            zoomFactor = 1.0 + event.scrollingDeltaY * 0.01
+        } else {
+            zoomFactor = event.scrollingDeltaY > 0 ? 1.1 : 0.9
+        }
+        zooms.append((zoomFactor, convert(event.locationInWindow, from: nil)))
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            resetCount += 1
+        } else {
+            isDragging = true
+            lastDragPoint = convert(event.locationInWindow, from: nil)
+            NSCursor.closedHand.push()
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isDragging else { return }
+        let currentPoint = convert(event.locationInWindow, from: nil)
+        pans.append(CGPoint(
+            x: currentPoint.x - lastDragPoint.x,
+            y: currentPoint.y - lastDragPoint.y
+        ))
+        lastDragPoint = currentPoint
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        _ = event
+        if isDragging {
+            isDragging = false
+            NSCursor.pop()
+        }
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        _ = event
+        if isDragging {
+            NSCursor.closedHand.set()
+        } else {
+            NSCursor.openHand.set()
+        }
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .openHand)
     }
 }
 
@@ -256,21 +420,98 @@ struct SolderScopeChromeConformanceTests {
 
     @Test func commandMenuOfButtonsWithKeyboardShortcut() {
         // SolderScopeCommands: CommandMenu("View") { Button(…).keyboardShortcut(…) }
-        let commands = ZoomCommands()
+        let commands = SolderScopeCommandProbe(state: SolderScopeCommandProbeState())
         #expect(builds(commands.body))
     }
 
-    @Test func commandMenuItemsExtractForBackendShortcuts() {
+    @Test func commandMenuItemsExtractFullSolderScopeSurfaceForBackendShortcuts() {
         // Hidden-title-bar SolderScope windows do not show an in-window GTK
         // menu bar, but the backend still needs the extracted command items
         // so keyboard shortcuts match the macOS app chrome.
-        let items = extractCommandGroups(from: ZoomCommands())
-            .values
-            .flatMap { $0 }
+        let state = SolderScopeCommandProbeState()
+        let groups = extractCommandGroups(from: SolderScopeCommandProbe(state: state))
 
-        #expect(items.count == 1)
-        #expect(items.first?.label == "Zoom In")
-        #expect(items.first?.shortcut == KeyboardShortcut("]", modifiers: .command))
+        let viewItems = groups[.menu("View")] ?? []
+        #expect(viewItems.map(\.label) == [
+            "Toggle Scale Bar",
+            "Cycle Integration",
+            "Reset View",
+            "Flip Horizontal",
+            "Flip Vertical",
+            "Rotate 90° Clockwise",
+            "Recalibrate..."
+        ])
+        #expect(viewItems.map(\.shortcut) == [
+            KeyboardShortcut("b", modifiers: []),
+            KeyboardShortcut("i", modifiers: []),
+            KeyboardShortcut("0", modifiers: []),
+            KeyboardShortcut("h", modifiers: []),
+            KeyboardShortcut("v", modifiers: []),
+            KeyboardShortcut("]", modifiers: []),
+            nil
+        ])
+        #expect(viewItems.last?.isDisabled == true)
+
+        let captureItems = groups[.menu("Capture")] ?? []
+        #expect(captureItems.map(\.label) == [
+            "Freeze",
+            "Take Snapshot",
+            "Start Recording"
+        ])
+        #expect(captureItems.map(\.shortcut) == [
+            KeyboardShortcut(.space, modifiers: []),
+            KeyboardShortcut("s", modifiers: []),
+            KeyboardShortcut("r", modifiers: [])
+        ])
+
+        let helpItems = groups[.help] ?? []
+        #expect(helpItems.map(\.label) == ["SolderScope Help", "Keyboard Shortcuts"])
+        #expect(helpItems.allSatisfy { $0.shortcut == nil && !$0.isDisabled })
+
+        let nativeSections = commandMenuSections(from: groups)
+        #expect(nativeSections.map(\.title) == ["View", "Capture", "Help"])
+        #expect(nativeSections.flatMap { $0.items }.count == 12)
+
+        viewItems[0].action()
+        viewItems[1].action()
+        viewItems[2].action()
+        viewItems[3].action()
+        viewItems[4].action()
+        viewItems[5].action()
+        #expect(state.scaleBarToggleCount == 1)
+        #expect(state.integrationCycleCount == 1)
+        #expect(state.resetViewCount == 1)
+        #expect(state.horizontalFlipCount == 1)
+        #expect(state.verticalFlipCount == 1)
+        #expect(state.clockwiseRotationCount == 1)
+        #expect(state.isCalibrating == false)
+
+        state.selectedCameraExists = true
+        let enabledViewItems = extractCommandGroups(from: SolderScopeCommandProbe(state: state))[.menu("View")] ?? []
+        let recalibrate = enabledViewItems.last
+        #expect(recalibrate?.label == "Recalibrate...")
+        #expect(recalibrate?.isDisabled == false)
+        recalibrate?.action()
+        #expect(state.isCalibrating == true)
+
+        captureItems[0].action()
+        captureItems[1].action()
+        captureItems[2].action()
+        #expect(state.isFrozen == true)
+        #expect(state.snapshotCount == 1)
+        #expect(state.isRecording == true)
+
+        let updatedCaptureItems = extractCommandGroups(from: SolderScopeCommandProbe(state: state))[.menu("Capture")] ?? []
+        #expect(updatedCaptureItems.map(\.label) == [
+            "Unfreeze",
+            "Take Snapshot",
+            "Stop Recording"
+        ])
+
+        helpItems[0].action()
+        helpItems[1].action()
+        #expect(state.helpCount == 1)
+        #expect(state.shortcutHelpCount == 1)
     }
 
     @Test func keyEquivalentSpaceExists() {
@@ -335,6 +576,57 @@ struct SolderScopeChromeConformanceTests {
         view.discardCursorRects()
         #expect(view.quillCursorRects.isEmpty)
         #expect(view.quillCursor(at: NSPoint(x: 50, y: 40)) == nil)
+    }
+
+    @Test func microscopeMouseAndScrollEventsMatchAppHandlers() {
+        // MicroscopeNSView.scrollWheel/mouseDown/mouseDragged/mouseUp:
+        // GTK hosts synthesize these AppKit events so zoom-around-cursor and
+        // drag-pan work without changing the upstream app.
+        let view = MicroscopeInteractionProbeView(frame: NSRect(x: 0, y: 0, width: 200, height: 120))
+        view.resetCursorRects()
+        NSCursor.openHand.set()
+
+        let preciseScroll = NSEvent()
+        preciseScroll.type = .scrollWheel
+        preciseScroll.locationInWindow = CGPoint(x: 80, y: 40)
+        preciseScroll.hasPreciseScrollingDeltas = true
+        preciseScroll.scrollingDeltaY = 8
+        view.scrollWheel(with: preciseScroll)
+        #expect(view.zooms.count == 1)
+        #expect(view.zooms[0].factor == 1.08)
+        #expect(view.zooms[0].point == CGPoint(x: 80, y: 40))
+
+        let wheelScroll = NSEvent()
+        wheelScroll.type = .scrollWheel
+        wheelScroll.locationInWindow = CGPoint(x: 90, y: 45)
+        wheelScroll.scrollingDeltaY = -1
+        view.scrollWheel(with: wheelScroll)
+        #expect(view.zooms[1].factor == 0.9)
+
+        let mouseDown = NSEvent()
+        mouseDown.type = .leftMouseDown
+        mouseDown.locationInWindow = CGPoint(x: 10, y: 10)
+        view.mouseDown(with: mouseDown)
+        #expect(NSCursor.current === NSCursor.closedHand)
+
+        let mouseDrag = NSEvent()
+        mouseDrag.type = .leftMouseDragged
+        mouseDrag.locationInWindow = CGPoint(x: 25, y: 30)
+        view.mouseDragged(with: mouseDrag)
+        #expect(view.pans == [CGPoint(x: 15, y: 20)])
+
+        let mouseUp = NSEvent()
+        mouseUp.type = .leftMouseUp
+        mouseUp.locationInWindow = CGPoint(x: 25, y: 30)
+        view.mouseUp(with: mouseUp)
+        #expect(NSCursor.current === NSCursor.openHand)
+
+        let doubleClick = NSEvent()
+        doubleClick.type = .leftMouseDown
+        doubleClick.clickCount = 2
+        doubleClick.locationInWindow = CGPoint(x: 50, y: 60)
+        view.mouseDown(with: doubleClick)
+        #expect(view.resetCount == 1)
     }
 
     // MARK: NSBitmapImageRep / NSImage

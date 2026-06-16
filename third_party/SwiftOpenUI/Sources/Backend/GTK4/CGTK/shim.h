@@ -249,9 +249,29 @@ gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
 }
 
+static inline void
+gtk_swift_add_capture_multitouch_gesture(GtkWidget *widget, GtkGesture *gesture) {
+    gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
+    gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+}
+
 static inline gpointer
 gtk_swift_legacy_capture_controller(void) {
     GtkEventController *controller = gtk_event_controller_legacy_new();
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+    return controller;
+}
+
+static inline gpointer
+gtk_swift_motion_capture_controller(void) {
+    GtkEventController *controller = gtk_event_controller_motion_new();
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+    return controller;
+}
+
+static inline gpointer
+gtk_swift_scroll_capture_controller(void) {
+    GtkEventController *controller = gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
     gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
     return controller;
 }

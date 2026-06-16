@@ -121,6 +121,16 @@ enum SignalConversationDemo {
         return vc
     }
 
+    static func makeRealComponentPreviewViewController() -> UIViewController {
+        SignalSettingsDemo.bootstrapMinimalEnvironment()
+
+        #if canImport(SignalApp)
+        return QuillSignalRealComponentPreview.makeViewController()
+        #else
+        return makeRealAppLinkProbeViewController()
+        #endif
+    }
+
     // MARK: - Pieces
 
     private static func makeHeader(name: String, subtitle: String, ink: UIColor, gray: UIColor) -> UIView {

@@ -669,6 +669,46 @@ struct SourceHygieneTests {
         #expect(!gtk.contains("let ctx = g_main_context_default()"))
     }
 
+    @Test("GTK NSView drawing host forwards native input as AppKit events")
+    func gtkNSViewDrawingHostForwardsNativeInputAsAppKitEvents() throws {
+        let root = try packageRoot()
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let host = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillNSViewDrawingHost.swift"),
+            encoding: .utf8
+        )
+        let shim = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h"),
+            encoding: .utf8
+        )
+
+        #expect(manifest.contains("dependencies: [\"AppKit\", \"CGtk4\", .product(name: \"CGTK\", package: \"SwiftOpenUI\")]"))
+        #expect(host.contains("quillInstallGtkDrawHostInputControllers(on: area, host: box)"))
+        #expect(host.contains("gtk_gesture_drag_new()"))
+        #expect(host.contains("gtk_gesture_click_new()"))
+        #expect(host.contains("gtk_swift_gesture_single_set_button(gesture, button.gtkButton)"))
+        #expect(host.contains("gtk_event_controller_motion_new()"))
+        #expect(host.contains("gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES)"))
+        #expect(host.contains("gtk_gesture_zoom_new()"))
+        #expect(host.contains("gtk_swift_add_capture_multitouch_gesture(widget, gesture)"))
+        #expect(host.contains("event.magnification = magnification"))
+        #expect(host.contains("context.host.beginMagnifyGesture()"))
+        #expect(host.contains("dispatch(type: button.draggedEventType"))
+        #expect(host.contains("clickCount: 2"))
+        #expect(host.contains("lastPointerLocation ?? CGPoint(x: view.bounds.midX, y: view.bounds.midY)"))
+        #expect(host.contains("updateCursor(at: location)"))
+        #expect(host.contains("quillGTKCursorName(for: cursor)"))
+        #expect(!host.contains("quillInstallNSViewCursorController"))
+        #expect(host.contains("NSApplication.shared.sendEvent(event)"))
+        #expect(host.contains("view.scrollWheel(with: event)"))
+        #expect(shim.contains("gtk_swift_motion_capture_controller(void)"))
+        #expect(shim.contains("gtk_swift_scroll_capture_controller(void)"))
+        #expect(shim.contains("gtk_swift_add_capture_multitouch_gesture(GtkWidget *widget, GtkGesture *gesture)"))
+    }
+
     @Test("Linux Apple compatibility shims avoid generated app warnings")
     func linuxAppleCompatibilityShimsAvoidGeneratedAppWarnings() throws {
         let root = try packageRoot()
@@ -688,8 +728,16 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureExtras.swift"),
             encoding: .utf8
         )
-        let avCaptureSurface = try String(
+        let captureSurface = try String(
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureSurface.swift"),
+            encoding: .utf8
+        )
+        let syntheticCapture = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/SyntheticCapture.swift"),
+            encoding: .utf8
+        )
+        let captureTests = try String(
+            contentsOf: root.appendingPathComponent("Tests/QuillCompatibilityModuleTests/AVCaptureSurfaceTests.swift"),
             encoding: .utf8
         )
         let osShim = try String(
@@ -705,10 +753,22 @@ struct SourceHygieneTests {
         #expect(manifest.contains("\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\","))
         #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreText\"]"))
         #expect(manifest.contains("name: \"QuillUIKit\",\n            dependencies: [\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"CoreTransferable\", \"UniformTypeIdentifiers\"],"))
-        #expect(avCaptureSurface.contains("public class AVCaptureSession: @unchecked Sendable"))
-        #expect(avCaptureSurface.contains("quillV4L2StartIfAvailable()"))
+        #expect(captureSurface.contains("public class AVCaptureSession: @unchecked Sendable"))
+        #expect(captureSurface.contains("quillV4L2StartIfAvailable()"))
         #expect(!avCaptureExtras.contains("public final class AVCaptureSession"))
         #expect(!avCaptureExtras.contains("public protocol AVCaptureVideoDataOutputSampleBufferDelegate"))
+        #expect(avFoundation.contains("self.devices = AVCaptureDevice.quillDiscoveredCaptureDevices()"))
+        #expect(captureSurface.contains("var quillSyntheticBridge: AnyObject?"))
+        #expect(captureSurface.contains("quillSyntheticStartIfAvailable()"))
+        #expect(captureSurface.contains("quillSyntheticStopIfAvailable()"))
+        #expect(syntheticCapture.contains("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA"))
+        #expect(syntheticCapture.contains("static func quillDiscoveredCaptureDevices() -> [AVCaptureDevice]"))
+        #expect(syntheticCapture.contains("static func deviceConfiguration(_ device: AVCaptureDevice)"))
+        #expect(syntheticCapture.contains("let configuration = QuillSyntheticCaptureConfiguration.deviceConfiguration(syntheticDevice)"))
+        #expect(syntheticCapture.contains("QuillSyntheticFrameFactory.makeFrame"))
+        #expect(syntheticCapture.contains("captureOutput(box.output, didOutput: box.sampleBuffer, from: box.connection)"))
+        #expect(captureTests.contains("syntheticCameraDiscoveryIsOptIn"))
+        #expect(captureTests.contains("syntheticCaptureSessionDeliversFrames"))
         #expect(!osShim.contains("import os"))
     }
 
@@ -2031,6 +2091,7 @@ struct SourceHygieneTests {
         let backendProducts = try packageSource("scripts/quillui-backend-products.sh")
         let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
         let interactionModeRunner = try packageSource("scripts/run-linux-backend-interaction-modes.sh")
+        let solderScopeSmoke = try packageSource("scripts/linux-solderscope-smoke-check.sh")
         let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
         let legacyScreenshotVerifier = try packageSource("scripts/verify-gtk-screenshot.py")
         let legacyGtkScript = try packageSource("scripts/linux-gtk-interaction-check.sh")
@@ -2582,10 +2643,13 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("Mac-reference wordmark lost its blue-to-red color range"))
         #expect(screenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
         #expect(screenshotVerifier.contains("validate_quill_solderscope_launch"))
+        #expect(screenshotVerifier.contains("validate_quill_solderscope_interaction"))
         #expect(screenshotVerifier.contains("\"quill-solderscope-launch\""))
         #expect(screenshotVerifier.contains("quill-solderscope-interaction"))
         #expect(screenshotVerifier.contains("SolderScope dark toolbar pixels were not detected near the top"))
         #expect(screenshotVerifier.contains("canvas_dark_pixels >= 25_000"))
+        #expect(screenshotVerifier.contains("frame_pixels >= 20_000"))
+        #expect(screenshotVerifier.contains("SolderScope synthetic camera frame was not detected"))
         #expect(screenshotVerifier.contains("minimum_mean = 250 if solderscope_launch_product else 1000"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
@@ -2711,6 +2775,19 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
+        #expect(solderScopeSmoke.contains("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=\"${QUILL_AVFOUNDATION_SYNTHETIC_CAMERA:-1}\""))
+        #expect(solderScopeSmoke.contains("QUILL_AVFOUNDATION_SYNTHETIC_WIDTH=\"${QUILL_AVFOUNDATION_SYNTHETIC_WIDTH:-640}\""))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool click 4"))
+        #expect(solderScopeSmoke.contains("xdotool mousedown 1 mousemove --sync \"$drag_end_x\" \"$drag_end_y\" mouseup 1"))
+        #expect(solderScopeSmoke.contains("click --repeat 2 --delay 80 1"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key i"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key h"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key v"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key bracketright"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key 0"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key b"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key space"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key Escape"))
         #expect(solderScopeWorkflow.contains("name: SolderScope Linux CI"))
         #expect(solderScopeWorkflow.contains("SolderScope API and fixture tests"))
         #expect(solderScopeWorkflow.contains("SolderScope GTK launch and interaction"))

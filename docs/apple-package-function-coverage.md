@@ -53,7 +53,7 @@ is `Usable` or `Parity`.
 | `CloudKit` | `import CloudKit`, `CKContainer.default()`, `CKContainer.accountStatus`, `CKDatabase.save`, `fetch`, `delete`, `perform`, `CKRecord`, record zones, queries, subscriptions, account status, and common error codes compile with explicit unavailable diagnostics. | No iCloud account integration, entitlements, CloudKit Web Services authentication, sync, server change tokens, push subscriptions, conflict resolution, or production OpenCloudKit adapter is wired yet. |
 | `CoreGraphics` | None yet beyond compile/fallback shapes. | Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete. |
 | `Security` | `SecRandomCopyBytes`, process-local `SecKeyCreateWithData`, `SecKeyCreateRandomKey`, `SecKeyGeneratePair`, `SecKeyCopyPublicKey`, `SecKeyGetBlockSize`, `SecKeyCopyAttributes`, `SecKeyCopyExternalRepresentation`, metadata-gated `SecKeyIsAlgorithmSupported`, deterministic ECDSA message/digest `SecKeyCreateSignature` and `SecKeyVerifySignature` compatibility, deterministic symmetric ECDH `SecKeyCopyKeyExchangeResult` compatibility, key-exchange parameter constants, synthesized `SecKey` references, `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, `SecItemDelete` generic-password, internet-password, and key-class rows, persistent-reference returns/lookups/deletes, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, `kSecAttrSynchronizableAny`, server/security-domain/protocol/authentication/port/path endpoint identity, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and current keychain constants. | Native secure keychain persistence/access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete. |
-| `AVFoundation` / `AVKit` | Speech synthesis lifecycle callback fallback. | Audio session, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, capture, and real media I/O are incomplete. |
+| `AVFoundation` / `AVKit` | Speech synthesis lifecycle callback fallback, SolderScope capture-session graph, V4L2 discovery path, and opt-in synthetic camera frame delivery. | Audio session policy, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, broad camera hardware coverage, and real media I/O are incomplete. |
 | `Speech` | Configurable authorization, recognizer availability, recognition-result delivery, request buffer counting, and task cancellation state. | Native microphone/audio capture, native transcription, and audio bridge behavior are incomplete. |
 | `PhotosUI` / `Photos` | None yet beyond compile-compatible shapes. | Photo-library authorization, asset fetching, picker UI, transferable item loading, and photo service behavior are incomplete. |
 | `Charts`, `StoreKit`, `TipKit` | None yet beyond compile-compatible shapes. | Chart marks/rendering/axes/scales/interaction/accessibility, product lookup, purchases, transactions, subscriptions, tip rules, persistence, display frequency, and popovers are incomplete. |
@@ -175,7 +175,7 @@ platform fallbacks.
 | `NSView.layoutSubtreeIfNeeded()` / display invalidation calls | Fallback | Marks simple flags; no native layout/render pass. |
 | `NSView.convert(_:from:)` / `convert(_:to:)` | Partial | Basic coordinate conversion only. |
 | `NSView.hitTest(_:)` | Partial | In-memory bounds/subview hit testing. |
-| `NSView.addTrackingArea(_:)` / `removeTrackingArea(_:)` | Partial | Tracks registered areas without native event delivery. |
+| `NSView.addTrackingArea(_:)` / `removeTrackingArea(_:)` | Partial | Tracks registered areas; GTK custom NSView hosts now synthesize pointer motion, cursor rect updates, primary click/drag, and scroll-wheel delivery for hosted AppKit views. |
 | `NSViewController.loadView()` / lifecycle hooks | Fallback | Hook shape exists; no platform lifecycle. |
 | `NSViewController.addChild(_:)` / `removeFromParent()` | Usable | Maintains child relationships. |
 | `NSViewController.presentAsSheet(_:)` / `presentAsModalWindow(_:)` / `dismiss(_:)` | Fallback | Presentation state only. |
@@ -193,7 +193,7 @@ platform fallbacks.
 | `NSApplication.shared` | Usable | Singleton app object. |
 | `NSApplication.setActivationPolicy(_:)` / `activate(...)` / `deactivate()` | Fallback | Records state only. |
 | `NSApplication.run()` / `stop(_:)` | Fallback | Hook/no-op loop, not a native event loop. |
-| `NSApplication.sendEvent(_:)` / `nextEvent(...)` | Compile-only | Event dispatch is incomplete. |
+| `NSApplication.sendEvent(_:)` / `nextEvent(...)` | Partial | Common synthetic AppKit events can be dispatched through compatibility surfaces; no native AppKit event queue parity. |
 | `NSApplication.beginModalSession(...)`, `runModal(...)`, sheet helpers | Fallback | Modal state only. |
 | `NSApplication.sendAction(...)` | Partial | Basic target/action bridge only. |
 | `NSDockTile.display()` | Compile-only | No-op. |
@@ -462,7 +462,9 @@ surface used by SwiftUI's `webAuthenticationSession` environment action.
 | `AVAudioEngine.attach(_:)` / `connect(...)` | Partial | Tracks process-local graph attachment and connection counts; no real graph processing. |
 | `AVAudioNode.installTap(...)` / `removeTap(onBus:)` | Partial | Tracks process-local tap registration/removal; no audio tap stream. |
 | `AVAudioFormat`, `AVAudioPCMBuffer`, `AVAudioTime` initializers | Compile-only | Data containers only. |
-| Real synthesis, playback, capture, engine graph processing, media decoding | Incomplete | Required for AVFoundation Parity. |
+| `AVCaptureSession` graph, `AVCaptureDeviceInput`, `AVCaptureVideoDataOutput`, and delegate frame delivery | Partial | Current SolderScope-shaped graph assembles, starts, stops, and delivers sample buffers through V4L2 hardware or the opt-in `QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1` fixture. |
+| `AVCaptureDevice.DiscoverySession` | Partial | Discovers V4L2 devices on Linux and prepends the opt-in synthetic fixture camera for deterministic tests/smoke. Full Apple device filtering, authorization states, and multi-camera metadata are incomplete. |
+| Real synthesis, playback, broad capture hardware parity, engine graph processing, media decoding | Incomplete | Required for AVFoundation Parity. |
 
 ## AVKit
 

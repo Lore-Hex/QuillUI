@@ -60,6 +60,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     /// Render a full UIView tree to a GtkWidget. Returns nil for hidden views.
     public static func render(_ view: UIView) -> GtkWidgetPtr? {
         if view.isHidden { return nil }
+        view.layoutIfNeeded()
         let ctx = UIKitGtkRenderContext(
             render: { Self.render($0) },
             applyLayerStyle: { Self.applyLayerStyle($0, $1) },

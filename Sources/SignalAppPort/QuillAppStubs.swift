@@ -728,6 +728,7 @@ extension CVPollVoteDelegate {
 extension CVComponentDelegate {
     var hasPendingMessageRequest: Bool { false }
     var wallpaperBlurProvider: WallpaperBlurProvider? { nil }
+    var spoilerState: SpoilerRenderState { SpoilerRenderState() }
     var selectionState: CVSelectionState { CVSelectionState() }
 
     func didTapBodyTextItem(_ item: CVTextLabel.Item) { _ = item }
@@ -830,16 +831,4 @@ extension UIImage {
     static var personQuestionmarkCompact: UIImage { UIImage(named: "person-questionmark-compact") ?? UIImage() }
     static var groupQuestionmarkCompact: UIImage { UIImage(named: "group-questionmark-compact") ?? UIImage() }
     static var tag22: UIImage { UIImage(named: "tag-22") ?? UIImage() }
-}
-
-extension Optional where Wrapped == UIImage {
-    static var check: UIImage? { UIImage.check }
-    static var pinSlash: UIImage? { UIImage.pinSlash }
-    static var pin: UIImage? { UIImage.pin }
-    static var pinFill: UIImage? { UIImage.pinFill }
-    static var chatArrow: UIImage? { UIImage.chatArrow }
-    static var listBullet: UIImage? { UIImage.listBullet }
-    static var personQuestionmarkCompact: UIImage? { UIImage.personQuestionmarkCompact }
-    static var groupQuestionmarkCompact: UIImage? { UIImage.groupQuestionmarkCompact }
-    static var tag22: UIImage? { UIImage.tag22 }
 }

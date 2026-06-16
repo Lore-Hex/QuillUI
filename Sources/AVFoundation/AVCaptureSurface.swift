@@ -43,6 +43,10 @@ public class AVCaptureSession: @unchecked Sendable {
     /// data outputs. AnyObject-typed so this file builds with or without the
     /// CV4L2 shim target.
     var quillV4L2Bridge: AnyObject?
+    /// Deterministic fixture camera hook: while running with the opt-in
+    /// synthetic device, holds the bridge feeding BGRA frames through the same
+    /// AVCaptureVideoDataOutput delegate contract as real V4L2 hardware.
+    var quillSyntheticBridge: AnyObject?
     public private(set) var inputs: [AVCaptureInput] = []
     public private(set) var outputs: [AVCaptureOutput] = []
     public private(set) var isRunning: Bool = false
@@ -71,9 +75,11 @@ public class AVCaptureSession: @unchecked Sendable {
         // V4L2 backend (#515): begin real frame delivery when a /dev/video*
         // device is attached (no-op otherwise, preserving the inert surface).
         quillV4L2StartIfAvailable()
+        quillSyntheticStartIfAvailable()
     }
 
     public func stopRunning() {
+        quillSyntheticStopIfAvailable()
         quillV4L2StopIfAvailable()
         isRunning = false
     }
