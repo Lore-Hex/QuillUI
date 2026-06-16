@@ -27,6 +27,7 @@
 #include <QListWidgetItem>
 #include <QBrush>
 #include <QColor>
+#include <QEvent>
 #include <QFontMetricsF>
 #include <QMenu>
 #include <QObject>
@@ -220,6 +221,66 @@ private:
     quill_qt_bridge_paint_callback callback_ = nullptr;
     void *userData_ = nullptr;
     quill_qt_bridge_click_callback destroy_ = nullptr;
+};
+
+// QuillQtRepaintForwarder — a moc-free QObject event filter that calls
+// QWidget::update() on a target paint widget whenever the watched source widget
+// changes appearance. This is the Qt analogue of the GTK chrome's
+// `state-flags-changed` / `notify::active` / `notify::sensitive` signal
+// connections, which call gtk_widget_queue_draw on the drawing area.
+//
+// No Q_OBJECT macro: eventFilter() is a plain virtual on QObject, so overriding
+// it needs no signals/slots and therefore no moc step — matching the rest of
+// CQtBridge. The forwarder parents itself to the paint widget so its lifetime is
+// bounded by the widget it updates; it also watches for the source's
+// destruction to stop filtering a dangling pointer.
+class QuillQtRepaintForwarder final : public QObject {
+public:
+    QuillQtRepaintForwarder(QWidget *paintWidget, QWidget *source)
+        : QObject(paintWidget)
+        , paintWidget_(paintWidget)
+        , source_(source)
+    {
+        if (source_ != nullptr) {
+            source_->installEventFilter(this);
+            // If the source is destroyed first, drop our reference so we never
+            // touch it again (the filter is auto-removed by Qt on destruction).
+            QObject::connect(source_, &QObject::destroyed, this, [this]() {
+                source_ = nullptr;
+            });
+        }
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched == source_ && paintWidget_ != nullptr) {
+            switch (event->type()) {
+            case QEvent::Paint:
+            case QEvent::Resize:
+            case QEvent::Move:
+            case QEvent::FocusIn:
+            case QEvent::FocusOut:
+            case QEvent::Enter:
+            case QEvent::Leave:
+            case QEvent::HoverEnter:
+            case QEvent::HoverLeave:
+            case QEvent::MouseButtonPress:
+            case QEvent::MouseButtonRelease:
+            case QEvent::EnabledChange:
+            case QEvent::Show:
+                paintWidget_->update();
+                break;
+            default:
+                break;
+            }
+        }
+        // Never consume the event: the native control must still handle it.
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QWidget *paintWidget_ = nullptr;
+    QWidget *source_ = nullptr;
 };
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
@@ -618,6 +679,17 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     }
 
     return reinterpret_cast<QuillQtWidgetHandle>(button);
+}
+
+void quill_qt_button_set_title(
+    QuillQtWidgetHandle button,
+    const char *title
+) {
+    QPushButton *pushButton = qobject_cast<QPushButton *>(asWidget(button));
+    if (pushButton == nullptr) {
+        return;
+    }
+    pushButton->setText(utf8(title));
 }
 
 QuillQtWidgetHandle quill_qt_make_check_box(void) {
@@ -1098,6 +1170,120 @@ void quill_qt_paint_widget_request_repaint(QuillQtWidgetHandle widget) {
     if (target != nullptr) {
         target->update();
     }
+}
+
+void quill_qt_paint_widget_set_mouse_transparent(
+    QuillQtWidgetHandle widget,
+    int transparent
+) {
+    QWidget *target = asWidget(widget);
+    if (target != nullptr) {
+        target->setAttribute(
+            Qt::WA_TransparentForMouseEvents,
+            transparent != 0
+        );
+    }
+}
+
+void quill_qt_paint_widget_attach_repaint_source(
+    QuillQtWidgetHandle paint_widget,
+    QuillQtWidgetHandle source
+) {
+    QWidget *paintWidget = asWidget(paint_widget);
+    QWidget *sourceWidget = asWidget(source);
+    if (paintWidget == nullptr || sourceWidget == nullptr) {
+        return;
+    }
+    // Parented to the paint widget: Qt deletes the forwarder with it.
+    new QuillQtRepaintForwarder(paintWidget, sourceWidget);
+}
+
+// --- Painted-control live state readers ------------------------------------
+
+int quill_qt_widget_is_enabled(QuillQtWidgetHandle widget) {
+    QWidget *target = asWidget(widget);
+    return (target != nullptr && target->isEnabled()) ? 1 : 0;
+}
+
+int quill_qt_widget_has_focus(QuillQtWidgetHandle widget) {
+    QWidget *target = asWidget(widget);
+    return (target != nullptr && target->hasFocus()) ? 1 : 0;
+}
+
+int quill_qt_widget_is_under_mouse(QuillQtWidgetHandle widget) {
+    QWidget *target = asWidget(widget);
+    return (target != nullptr && target->underMouse()) ? 1 : 0;
+}
+
+int quill_qt_abstract_button_is_down(QuillQtWidgetHandle widget) {
+    QAbstractButton *button = qobject_cast<QAbstractButton *>(asWidget(widget));
+    return (button != nullptr && button->isDown()) ? 1 : 0;
+}
+
+int quill_qt_abstract_button_is_checked(QuillQtWidgetHandle widget) {
+    QAbstractButton *button = qobject_cast<QAbstractButton *>(asWidget(widget));
+    return (button != nullptr && button->isChecked()) ? 1 : 0;
+}
+
+namespace {
+
+// A QWidget that reports its painted-control child's size hint as its own, so
+// the shared layout engine sizes the composite exactly like the bare native
+// control would be. Without this the container's hint is the max of its
+// children, but the paint-chrome child has no meaningful hint — so we forward
+// the interactive control's hint explicitly.
+class QuillQtPaintedControlOverlay final : public QWidget {
+public:
+    QuillQtPaintedControlOverlay(QWidget *chrome, QWidget *control)
+        : control_(control)
+    {
+        QGridLayout *layout = new QGridLayout();
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        setLayout(layout);
+        // No alignment => each child stretches to fill the single cell.
+        if (chrome != nullptr) {
+            layout->addWidget(chrome, 0, 0);
+            chrome->lower();
+        }
+        if (control_ != nullptr) {
+            layout->addWidget(control_, 0, 0);
+            control_->raise();
+            QObject::connect(control_, &QObject::destroyed, this, [this]() {
+                control_ = nullptr;
+            });
+        }
+    }
+
+    QSize sizeHint() const override {
+        if (control_ != nullptr) {
+            return control_->sizeHint();
+        }
+        return QWidget::sizeHint();
+    }
+
+    QSize minimumSizeHint() const override {
+        if (control_ != nullptr) {
+            return control_->minimumSizeHint();
+        }
+        return QWidget::minimumSizeHint();
+    }
+
+private:
+    QWidget *control_ = nullptr;
+};
+
+} // namespace
+
+QuillQtWidgetHandle quill_qt_make_painted_control_overlay(
+    QuillQtWidgetHandle chrome,
+    QuillQtWidgetHandle control
+) {
+    QWidget *chromeWidget = asWidget(chrome);
+    QWidget *controlWidget = asWidget(control);
+    QuillQtPaintedControlOverlay *overlay =
+        new QuillQtPaintedControlOverlay(chromeWidget, controlWidget);
+    return reinterpret_cast<QuillQtWidgetHandle>(overlay);
 }
 
 // --- QPainter primitive shims ----------------------------------------------

@@ -223,6 +223,13 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     quill_qt_bridge_click_callback destroy
 );
 
+// Set a QPushButton's title text. Used by the QuillPaint button host to clear
+// the native label (the painted chrome draws the label itself).
+void quill_qt_button_set_title(
+    QuillQtWidgetHandle button,
+    const char *title
+);
+
 // Create a QCheckBox. Swift configures text, checked state, and signal wiring
 // separately so initial setChecked() does not fire the Swift binding callback.
 QuillQtWidgetHandle quill_qt_make_check_box(void);
@@ -445,6 +452,71 @@ int quill_qt_widget_is_paint_widget(QuillQtWidgetHandle widget);
 // Request a repaint of a paint widget (QWidget::update()). The actual paint
 // callback fires later on the next main-loop turn, coalesced by Qt.
 void quill_qt_paint_widget_request_repaint(QuillQtWidgetHandle widget);
+
+// Make a paint widget transparent to mouse events (Qt::WA_TransparentForMouse-
+// Events). Used when the painted chrome sits UNDER an interactive native widget
+// in an overlay: the chrome must never intercept clicks/typing destined for the
+// native control on top. The Qt analogue of GTK's gtk_widget_set_can_target(0)
+// on the chrome drawing area.
+void quill_qt_paint_widget_set_mouse_transparent(
+    QuillQtWidgetHandle widget,
+    int transparent
+);
+
+// Install an event filter on `source` so that whenever `source` changes the way
+// it looks — paint, resize, focus in/out, enter/leave (hover), enabled-state
+// change, mouse press/release, or its toggle/text state — the paint widget is
+// asked to repaint via QWidget::update(). This is the Qt analogue of the GTK
+// chrome's `state-flags-changed` / `notify::*` signal connections that call
+// gtk_widget_queue_draw on the drawing area. `source` must outlive or be
+// destroyed together with `paint_widget`; the filter auto-removes itself when
+// either is destroyed.
+void quill_qt_paint_widget_attach_repaint_source(
+    QuillQtWidgetHandle paint_widget,
+    QuillQtWidgetHandle source
+);
+
+// --- Painted-control live state readers ------------------------------------
+//
+// QuillPaint controls are stateless: every paint they consume a PaintControlState
+// snapshot. The Qt paint hosts read the live native-widget state through these
+// thin shims (the Qt analogue of gtk_widget_get_state_flags / get_sensitive),
+// so the painted chrome reflects hover / press / focus / disabled / checked
+// exactly as the native QWidget sees it. Null / wrong-type handles return 0.
+
+// Non-zero if the widget is enabled (interactive). Qt's QWidget::isEnabled().
+int quill_qt_widget_is_enabled(QuillQtWidgetHandle widget);
+
+// Non-zero if the widget currently has keyboard focus. QWidget::hasFocus().
+int quill_qt_widget_has_focus(QuillQtWidgetHandle widget);
+
+// Non-zero if the pointer is currently over the widget. QWidget::underMouse().
+int quill_qt_widget_is_under_mouse(QuillQtWidgetHandle widget);
+
+// Non-zero if the abstract button is currently pressed (mouse held down on it).
+// QAbstractButton::isDown(). Works for QPushButton / QCheckBox / QToolButton.
+int quill_qt_abstract_button_is_down(QuillQtWidgetHandle widget);
+
+// Non-zero if the checkable button is checked. QAbstractButton::isChecked().
+int quill_qt_abstract_button_is_checked(QuillQtWidgetHandle widget);
+
+// Compose a painted-chrome control: an overlay container holding `chrome`
+// (a paint widget that fills the whole cell, drawn behind) and `control` (the
+// interactive native widget, drawn on top, also filling the cell). This is the
+// Qt analogue of the GTK setup where a GtkOverlay holds a non-targetable
+// GtkDrawingArea as its child plus the interactive native widget as an overlay.
+//
+// Both children are added to the same QGridLayout cell with NO alignment, so
+// each STRETCHES to fill the container (unlike quill_qt_overlay_container_add_
+// child, which centers at the child's size hint). `control` is raised above
+// `chrome` and keeps full interactivity; `chrome` should be made mouse-
+// transparent by the caller so it never intercepts the control's events. The
+// container reports `control`'s size hint, so the shared layout engine sizes the
+// composite exactly like the bare native control. Returns the container handle.
+QuillQtWidgetHandle quill_qt_make_painted_control_overlay(
+    QuillQtWidgetHandle chrome,
+    QuillQtWidgetHandle control
+);
 
 // --- QPainter primitive shims (QuillPaint's 4 PaintContext primitives) -------
 //

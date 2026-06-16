@@ -591,7 +591,20 @@ extension Button: QtRenderable {
             Unmanaged<QtClosureBox>.fromOpaque(userData).release()
         }
 
-        return qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+        let button = qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+
+        // QuillPaint chrome: only for the painted button styles, mirroring the
+        // GTK backend which gates the paint hook on the environment's buttonStyle
+        // (.quillPaintMacDefault / .quillPaintMacBordered). Other styles keep the
+        // bare native QPushButton.
+        switch getCurrentEnvironment().buttonStyle {
+        case .quillPaintMacDefault:
+            return quillPaintQtButton(button: button, label: title, isDefault: true)
+        case .quillPaintMacBordered:
+            return quillPaintQtButton(button: button, label: title, isDefault: false)
+        default:
+            return button
+        }
     }
 }
 
