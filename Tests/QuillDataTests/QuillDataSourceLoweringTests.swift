@@ -398,15 +398,16 @@ struct QuillDataSourceLoweringTests {
         // Both targets take their dependencies from #if os(Linux)-swapped lists:
         // on Linux they add the QuartzCore shim (UIView.layer; UIKit re-exports
         // QuartzCore exactly like iOS), while QuillUIKit also depends on
-        // CoreGraphics for geometry-shaped shim surface. On Apple platforms the
-        // real SDK modules exist and the shim targets don't. QuillKit rides in
-        // both arms: the canonical UIApplication opens URLs / registers
-        // notifications through QuillWorkspace + QuillNotificationService.
+        // CoreGraphics for geometry-shaped shim surface and
+        // UniformTypeIdentifiers for document/content-type APIs. On Apple
+        // platforms the real SDK modules exist and the shim targets don't.
+        // QuillKit rides in both arms: the canonical UIApplication opens URLs /
+        // registers notifications through QuillWorkspace + QuillNotificationService.
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
-        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\"]"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\", \"UniformTypeIdentifiers\"]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
@@ -670,7 +671,11 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_completions_click_x)}\""))
         #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_completions_click_y)}\""))
         #expect(interactionScript.contains("open_quill_chat_completions_panel 1\n  if quillui_is_quill_chat_mac_reference_product \"$PRODUCT\"; then\n    edit_x="))
-        #expect(interactionScript.contains("ensure_quill_chat_completions_panel_open() {\n  quillui_is_quill_chat_mac_reference_product \"$PRODUCT\" || return 0\n  if quill_chat_mac_reference_completions_panel_visible; then\n    return 0\n  fi\n\n  open_quill_chat_completions_panel 1"))
+        #expect(interactionScript.contains("settle_quill_chat_completion_capture_if_verified()"))
+        #expect(interactionScript.contains("quill_chat_completion_interaction_needs_settled_capture()"))
+        #expect(interactionScript.contains("cp -f \"$quill_chat_completions_panel_probe_path\" \"$SCREENSHOT_PATH\""))
+        #expect(interactionScript.contains("settled_capture_taken=1"))
+        #expect(interactionScript.contains("ensure_quill_chat_completions_panel_open() {\n  quillui_is_quill_chat_mac_reference_product \"$PRODUCT\" || return 0\n  if quill_chat_mac_reference_completions_panel_visible; then\n    settle_quill_chat_completion_capture_if_verified\n    return 0\n  fi\n\n  open_quill_chat_completions_panel 1"))
         #expect(interactionScript.contains("open_quill_chat_new_completion_sheet() {\n  local new_x\n  local new_y\n\n  if quillui_is_quill_chat_mac_reference_product \"$PRODUCT\"; then\n    open_quill_chat_completions_panel 1"))
         #expect(interactionScript.contains("window_x + 90"))
         #expect(interactionScript.contains("window_height - 136"))

@@ -239,6 +239,7 @@ capture_window="root"
 # screenshot itself (e.g. the WireGuard invalid-import settle); the final capture
 # below then skips re-grabbing a possibly-mid-repaint frame over it.
 settled_capture_taken=0
+quill_chat_completions_panel_probe_path=""
 window_x=0
 window_y=0
 window_width="$screen_width"
@@ -598,19 +599,55 @@ quill_chat_mac_reference_completions_panel_visible() {
   quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 1
   probe_path="$OUTPUT_DIR/quill-chat-completions-panel-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}.png"
   DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" >/dev/null 2>&1 || return 1
-  python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+  if python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
     "$probe_path" \
     quill-chat-linux-mac-reference-completions-panel \
-    >/dev/null 2>&1
+    >/dev/null 2>&1; then
+    quill_chat_completions_panel_probe_path="$probe_path"
+    return 0
+  fi
+
+  return 1
+}
+
+quill_chat_completion_interaction_needs_settled_capture() {
+  case "$INTERACTION_MODE" in
+    completions-save|completions-edit-save|completions-delete)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+settle_quill_chat_completion_capture_if_verified() {
+  local verify_product
+
+  quill_chat_completion_interaction_needs_settled_capture || return 0
+  [[ -n "$quill_chat_completions_panel_probe_path" ]] || return 0
+
+  quillui_backend_interaction_verify_product "$PRODUCT" "$INTERACTION_MODE" verify_product 2>/dev/null || return 0
+  if python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+    "$quill_chat_completions_panel_probe_path" \
+    "$verify_product" \
+    >/dev/null 2>&1; then
+    cp -f "$quill_chat_completions_panel_probe_path" "$SCREENSHOT_PATH"
+    settled_capture_taken=1
+  fi
 }
 
 ensure_quill_chat_completions_panel_open() {
   quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
   if quill_chat_mac_reference_completions_panel_visible; then
+    settle_quill_chat_completion_capture_if_verified
     return 0
   fi
 
   open_quill_chat_completions_panel 1
+  if quill_chat_mac_reference_completions_panel_visible; then
+    settle_quill_chat_completion_capture_if_verified
+  fi
 }
 
 open_quill_chat_new_completion_sheet() {
@@ -759,6 +796,7 @@ delete_quill_chat_completion() {
 
   click_at "$delete_x" "$delete_y"
   sleep "${QUILLUI_BACKEND_COMPLETION_DELETE_SLEEP:-2}"
+  ensure_quill_chat_completions_panel_open
 }
 
 select_quill_chat_markdown_transcript() {
