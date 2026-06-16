@@ -492,6 +492,72 @@ public enum QuillWorkspace {
     }
 }
 
+public final class QuillQuickLookService: @unchecked Sendable {
+    public static let shared = QuillQuickLookService()
+
+    public struct PreviewBackend: Sendable {
+        public var name: String
+        public var preview: @Sendable (URL) -> Bool
+
+        public init(name: String, preview: @escaping @Sendable (URL) -> Bool) {
+            self.name = name
+            self.preview = preview
+        }
+    }
+
+    private let lock = NSLock()
+    private var previewBackend: PreviewBackend?
+    private var previewedURLsValue: [URL] = []
+
+    public init() {}
+
+    public var previewedURLs: [URL] {
+        lock.withLock { previewedURLsValue }
+    }
+
+    public func installPreviewBackend(_ backend: PreviewBackend?) {
+        lock.withLock {
+            previewBackend = backend
+        }
+    }
+
+    public func reset() {
+        lock.withLock {
+            previewBackend = nil
+            previewedURLsValue.removeAll()
+        }
+    }
+
+    @discardableResult
+    public func preview(_ url: URL) -> Bool {
+        let backend = lock.withLock { previewBackend }
+        let backendName: String
+        let didPreview: Bool
+
+        if let backend {
+            backendName = backend.name
+            didPreview = backend.preview(url)
+        } else {
+            backendName = "QuillWorkspace"
+            didPreview = QuillWorkspace.open(url)
+        }
+
+        if didPreview {
+            lock.withLock {
+                previewedURLsValue.append(url)
+            }
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillKit",
+            operation: "quickLook.preview",
+            severity: didPreview ? .info : .unsupported,
+            message: "QuickLook preview for \(url.absoluteString) was \(didPreview ? "handled" : "rejected") by \(backendName)."
+        )
+        return didPreview
+    }
+}
+
 public struct QuillSpeechVoice: Hashable, Sendable {
     public var identifier: String
     public var name: String

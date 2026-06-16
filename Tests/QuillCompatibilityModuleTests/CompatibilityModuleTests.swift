@@ -1329,6 +1329,35 @@ struct CompatibilityModuleTests {
         service.reset()
     }
 
+    @Test("SwiftUI quickLookPreview routes URLs through QuillKit")
+    func swiftUIQuickLookPreviewRoutesThroughQuillKit() {
+        let service = QuillQuickLookService.shared
+        service.reset()
+        QuillCompatibilityDiagnostics.shared.clear()
+        let previewedURLs = CompatibilityLockedValue<[URL]>([])
+        service.installPreviewBackend(.init(name: "quicklook-preview-test") { url in
+            previewedURLs.update { $0.append(url) }
+            return true
+        })
+        defer { service.reset() }
+
+        let previewURL = URL(fileURLWithPath: "/tmp/icecubes-media-preview.jpg")
+        let selectedURL = CompatibilityLockedValue<URL?>(previewURL)
+        let binding = Binding<URL?>(
+            get: { selectedURL.value },
+            set: { newValue in selectedURL.update { $0 = newValue } }
+        )
+
+        _ = Text("Preview").quickLookPreview(binding)
+
+        #expect(previewedURLs.value == [previewURL])
+        #expect(service.previewedURLs == [previewURL])
+        #expect(selectedURL.value == nil)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "quickLook.preview" && $0.message.contains("quicklook-preview-test")
+        })
+    }
+
     @Test("Magnet hot keys use the shared QuillKit registry")
     func magnetHotKeysUseSharedQuillKitRegistry() {
         QuillHotkeyService.shared.unregisterAll()

@@ -78,7 +78,10 @@ estimates, not release claims.
       push behavior.
 - [ ] `ImageIO` / `UIImage` / `UIGraphicsImageRenderer`: real decode,
       downsample, thumbnail, metadata, and drawing output.
-- [ ] `QuickLook`: media viewer/window behavior, not just selected item storage.
+- [x] SwiftUI `.quickLookPreview(_:)` opens local preview URLs through a shared
+      QuillKit QuickLook backend instead of dropping the binding.
+- [ ] `QuickLook`: full IceCubes media viewer/window behavior for
+      `Env.QuickLook.selectedMediaAttachment`, not just selected item storage.
 - [ ] `AppIntents`: runtime values and shortcuts, not just compile surface.
 - [ ] `RevenueCat`, `StoreKit`, `WishKit`: graceful real Linux behavior or
       explicit unsupported UI states.
@@ -165,3 +168,9 @@ estimates, not release claims.
   `UNUserNotificationCenter.add` deliveries. Scheduled notifications remain
   queued-only. Verification: targeted QuillKit/UserNotifications tests were
   added; Linux-only compatibility coverage runs in the PR Linux graph.
+- 2026-06-16: Added `QuillQuickLookService` and routed SwiftUI
+  `.quickLookPreview($url)` through it, clearing the binding after an attempt to
+  avoid repeated preview launches during GTK/Qt rebuilds. This covers IceCubes'
+  media toolbar quick-look button; the larger selected-attachment media viewer
+  still needs native window/sheet parity. Verification: targeted QuillKit and
+  Linux-only compatibility tests were added.

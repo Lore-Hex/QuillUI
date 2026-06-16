@@ -200,6 +200,29 @@ struct QuillKitTests {
         })
     }
 
+    @Test("QuickLook preview uses configurable backend")
+    func quickLookPreviewUsesConfigurableBackend() {
+        let service = QuillQuickLookService()
+        let previewedURLs = LockedValue<[URL]>([])
+        let url = URL(fileURLWithPath: "/tmp/quill-preview.png")
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        service.installPreviewBackend(.init(name: "test-preview") { previewURL in
+            previewedURLs.update { $0.append(previewURL) }
+            return true
+        })
+        defer { service.installPreviewBackend(nil) }
+
+        #expect(service.preview(url))
+        #expect(previewedURLs.value == [url])
+        #expect(service.previewedURLs == [url])
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "quickLook.preview"
+                && $0.severity == .info
+                && $0.message.contains("test-preview")
+        })
+    }
+
     @Test("update service tracks configuration and checks")
     func updateServiceTracksConfigurationAndChecks() {
         let service = QuillUpdateService()

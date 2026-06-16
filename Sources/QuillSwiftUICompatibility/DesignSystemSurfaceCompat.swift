@@ -2488,7 +2488,10 @@ public extension View {
     }
 
     func quickLookPreview(_ item: Binding<URL?>) -> Self {
-        _ = item
+        if let url = item.wrappedValue {
+            QuillQuickLookService.shared.preview(url)
+            item.wrappedValue = nil
+        }
         return self
     }
 
