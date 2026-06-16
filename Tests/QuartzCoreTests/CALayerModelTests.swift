@@ -69,6 +69,45 @@ private func scalar(_ any: Any?) -> Double? {
     }
 }
 
+private final class LayerTestAction: CAAction, @unchecked Sendable {
+    let id: String
+
+    init(_ id: String) {
+        self.id = id
+    }
+
+    func run(forKey event: String, object anObject: Any, arguments dict: [AnyHashable: Any]?) {}
+}
+
+private final class LayerActionDelegate: CALayerDelegate {
+    var action: CAAction?
+
+    init(action: CAAction?) {
+        self.action = action
+    }
+
+    func action(for layer: CALayer, forKey event: String) -> CAAction? {
+        action
+    }
+}
+
+private final class DefaultActionLayer: CALayer {
+    private static let defaultLayerAction = LayerTestAction("default")
+
+    override class func defaultAction(forKey event: String) -> CAAction? {
+        event == "opacity" ? defaultLayerAction : nil
+    }
+}
+
+private func assertAction(
+    _ action: CAAction?,
+    hasID expectedID: String,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertEqual((action as? LayerTestAction)?.id, expectedID, file: file, line: line)
+}
+
 // MARK: - CALayer model tests
 
 final class CALayerModelTests: XCTestCase {
@@ -376,6 +415,45 @@ final class CALayerModelTests: XCTestCase {
         layer.removeAllAnimations()
         XCTAssertTrue((layer.animationKeys() ?? []).isEmpty)
         XCTAssertNil(layer.animation(forKey: "move"))
+    }
+
+    // MARK: Actions
+
+    func testActionLookupFollowsApplePrecedenceAndStyleFallback() {
+        let layer = DefaultActionLayer()
+        let styleAction = LayerTestAction("style")
+        let dictionaryAction = LayerTestAction("dictionary")
+        let delegateAction = LayerTestAction("delegate")
+
+        assertAction(layer.action(forKey: "opacity"), hasID: "default")
+
+        layer.style = ["actions": ["opacity": styleAction as CAAction]]
+        assertAction(layer.action(forKey: "opacity"), hasID: "style")
+
+        layer.actions = ["opacity": dictionaryAction]
+        assertAction(layer.action(forKey: "opacity"), hasID: "dictionary")
+
+        let delegate = LayerActionDelegate(action: delegateAction)
+        layer.delegate = delegate
+        assertAction(layer.action(forKey: "opacity"), hasID: "delegate")
+    }
+
+    func testNSNullSuppressesLowerPriorityLayerActions() {
+        let layer = DefaultActionLayer()
+        let styleAction = LayerTestAction("style")
+
+        layer.style = ["actions": ["opacity": styleAction as CAAction]]
+        layer.actions = ["opacity": NSNull()]
+        XCTAssertNil(layer.action(forKey: "opacity"), "actions NSNull suppresses style and defaults")
+
+        layer.actions = nil
+        layer.style = ["actions": ["opacity": NSNull()]]
+        XCTAssertNil(layer.action(forKey: "opacity"), "style NSNull suppresses class defaults")
+
+        let delegate = LayerActionDelegate(action: NSNull())
+        layer.delegate = delegate
+        layer.style = ["actions": ["opacity": styleAction as CAAction]]
+        XCTAssertNil(layer.action(forKey: "opacity"), "delegate NSNull suppresses every lower-priority action")
     }
 }
 

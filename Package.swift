@@ -1655,7 +1655,7 @@ if nnwUpstreamEnabled {
     targets += [
         .target(
             name: "NetNewsWireSharedCore",
-            dependencies: ["NNWAccount", "AppKit", "Articles", "ArticlesDatabase", "Images", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
+            dependencies: ["NNWAccount", "ActivityLog", "AppKit", "Articles", "ArticlesDatabase", "Images", "QuillShims", "RSCore", "RSParser", "SwiftUI", "UIKit"],
             path: ".upstream/netnewswire/Shared",
             exclude: [
                 "Activity/ActivityManager.swift",
@@ -1700,6 +1700,7 @@ if nnwUpstreamEnabled {
             sources: [
                 "AccountType+Helpers.swift",
                 "AccountStats/AccountStatsViewModel.swift",
+                "ActivityLog/ActivityLogViewModel.swift",
                 "Activity/ActivityType.swift",
                 "AppNotifications.swift",
                 "Assets.swift",
@@ -1711,6 +1712,7 @@ if nnwUpstreamEnabled {
                 "ArticleStyles/ArticleThemePlist.swift",
                 "Commands/MarkCommandValidationStatus.swift",
                 "Commands/MarkStatusCommand.swift",
+                "CurrentActivity/CurrentActivityViewModel.swift",
                 "Dinosaurs/DinosaursViewModel.swift",
                 "Extensions/ArticleStringFormatter.swift",
                 "Extensions/ArticleUtilities.swift",
@@ -3743,7 +3745,7 @@ let packageTestTargets: [Target] = {
         // through the local QuillNetNewsWireCore reader replacement.
         tests.append(.testTarget(
             name: "NetNewsWireSharedCoreTests",
-            dependencies: ["NNWAccount", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore"],
+            dependencies: ["NNWAccount", "ActivityLog", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore"],
             swiftSettings: nnwSwiftSettings
         ))
     }

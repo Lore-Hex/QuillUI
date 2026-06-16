@@ -15,17 +15,32 @@ nonisolated public protocol Transport: Sendable {
     func cancelAll()
 
     @discardableResult
-    func send(request: URLRequest) async throws -> (HTTPURLResponse, Data?)
+    func send(request: URLRequest) async throws -> (HTTPURLResponse, Data)
     func send(request: URLRequest, completion: @escaping @Sendable (Result<(HTTPURLResponse, Data?), Error>) -> Void)
 
     func send(request: URLRequest, method: String) async throws
     func send(request: URLRequest, method: String, completion: @escaping @Sendable (Result<Void, Error>) -> Void)
 
-    func send(request: URLRequest, method: String, payload: Data) async throws -> (HTTPURLResponse, Data?)
+    func send(request: URLRequest, method: String, payload: Data) async throws -> (HTTPURLResponse, Data)
     func send(request: URLRequest, method: String, payload: Data, completion: @escaping @Sendable (Result<(HTTPURLResponse, Data?), Error>) -> Void)
 }
 
 nonisolated extension URLSession: Transport {
+    public static let webservice: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.timeoutIntervalForRequest = 60.0
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpMaximumConnectionsPerHost = 1
+        configuration.httpCookieStorage = nil
+        configuration.urlCache = nil
+        if let headers = UserAgent.headers() {
+            configuration.httpAdditionalHeaders = headers
+        }
+        return URLSession(configuration: configuration)
+    }()
+
     public func cancelAll() {
         getTasksWithCompletionHandler { dataTasks, uploadTasks, downloadTasks in
             for task in dataTasks {
@@ -40,12 +55,16 @@ nonisolated extension URLSession: Transport {
         }
     }
 
-    public func send(request: URLRequest) async throws -> (HTTPURLResponse, Data?) {
-        try await withCheckedThrowingContinuation { continuation in
+    public func send(request: URLRequest) async throws -> (HTTPURLResponse, Data) {
+        let (response, data) = try await withCheckedThrowingContinuation { continuation in
             send(request: request) { result in
                 continuation.resume(with: result)
             }
         }
+        guard let data else {
+            throw TransportError.noData
+        }
+        return (response, data)
     }
 
     public func send(request: URLRequest, completion: @escaping @Sendable (Result<(HTTPURLResponse, Data?), Error>) -> Void) {
@@ -87,12 +106,16 @@ nonisolated extension URLSession: Transport {
         task.resume()
     }
 
-    public func send(request: URLRequest, method: String, payload: Data) async throws -> (HTTPURLResponse, Data?) {
-        try await withCheckedThrowingContinuation { continuation in
+    public func send(request: URLRequest, method: String, payload: Data) async throws -> (HTTPURLResponse, Data) {
+        let (response, data) = try await withCheckedThrowingContinuation { continuation in
             send(request: request, method: method, payload: payload) { result in
                 continuation.resume(with: result)
             }
         }
+        guard let data else {
+            throw TransportError.noData
+        }
+        return (response, data)
     }
 
     public func send(request: URLRequest, method: String, payload: Data, completion: @escaping @Sendable (Result<(HTTPURLResponse, Data?), Error>) -> Void) {
