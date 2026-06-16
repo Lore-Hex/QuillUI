@@ -163,7 +163,6 @@ fileprivate func recordCompatibilityWarning(_ operation: String, message: String
 }
 
 public typealias QuillPlatformImage = RSImage
-public typealias PlatformImage = RSImage
 
 public extension QuillPlatformImage {
     func convertImageToBase64String() -> String {
