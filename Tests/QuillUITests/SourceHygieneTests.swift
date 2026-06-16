@@ -50,6 +50,17 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Package manifest uses frontend-compatible default isolation flags")
+    func packageManifestUsesFrontendCompatibleDefaultIsolationFlags() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+
+        #expect(manifest.contains("let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = ["))
+        #expect(manifest.contains(".unsafeFlags([\"-Xfrontend\", \"-default-isolation\", \"-Xfrontend\", \"MainActor\"])"))
+        #expect(manifest.contains("let quillMinimalConcurrencyMainActorSwiftSettings: [SwiftSetting] = ["))
+        #expect(!manifest.contains("\"-default-isolation\", \"MainActor\""))
+    }
+
     @Test("Qt manifest avoids pkg-config prohibited flag warnings")
     func qtManifestAvoidsPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()

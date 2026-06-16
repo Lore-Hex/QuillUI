@@ -603,6 +603,17 @@ let standardSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal", "-Xfrontend", "-import-module", "-Xfrontend", "QuillShims"])
 ]
 
+let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = [
+    // Apple Swift 6.1 rejects `-default-isolation MainActor` when it is passed
+    // directly through SwiftPM; the frontend spelling works across the CI
+    // toolchains we support.
+    .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])
+]
+
+let quillMinimalConcurrencyMainActorSwiftSettings: [SwiftSetting] = [
+    .unsafeFlags(["-strict-concurrency=minimal"])
+] + quillMainActorDefaultIsolationSwiftSettings
+
 let appSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5),
     .unsafeFlags(["-strict-concurrency=minimal"])
@@ -1819,10 +1830,7 @@ if wireguardUpstreamPresent {
             // parsing, IPv4/v6 helpers, the public API surface) compiles
             // unmodified on Linux.
             exclude: wireGuardKitExcludes,
-            swiftSettings: [
-                .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])
-            ]
+            swiftSettings: [.swiftLanguageMode(.v5)] + quillMinimalConcurrencyMainActorSwiftSettings
         ),
         // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
         // / asWgQuickConfig()) lives in the App's Shared/Model, extending
@@ -2550,7 +2558,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "UIKitExtensions/UIStackView+SignalUITest.swift",
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
-            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
+            swiftSettings: [.swiftLanguageMode(.v5)] + quillMinimalConcurrencyMainActorSwiftSettings
         )
     ]
     // SignalApp: Signal-iOS's main *app* target (`Signal/`), home of the real
@@ -2579,7 +2587,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 exclude: [
                     "Signal-Prefix.pch",
                 ],
-                swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
+                swiftSettings: [.swiftLanguageMode(.v5)] + quillMinimalConcurrencyMainActorSwiftSettings
             )
         ]
     }
