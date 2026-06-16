@@ -718,17 +718,44 @@ open class CALayer: NSObject, CAMediaTiming {
 
     // MARK: Actions
 
-    /// Resolution order: delegate → actions dictionary → nil. An NSNull at
-    /// either step means "explicitly no action" (Apple contract). NOTE:
-    /// implicit actions are not auto-dispatched on property mutation yet;
-    /// this lookup serves explicit action(forKey:) callers.
+    /// Resolution order: delegate, actions dictionary, style actions, class
+    /// default. An NSNull at any step means "explicitly no action" (Apple
+    /// contract). NOTE: implicit actions are not auto-dispatched on property
+    /// mutation yet; this lookup serves explicit action(forKey:) callers.
     open func action(forKey event: String) -> CAAction? {
         if let delegateAction = delegate?.action(for: self, forKey: event) {
             return delegateAction is NSNull ? nil : delegateAction
         }
         if let entry = actions?[event] {
             if entry is NSNull { return nil }
-            return entry as? CAAction
+            return entry
+        }
+        if let entry = styleAction(forKey: event) {
+            if entry is NSNull { return nil }
+            return entry
+        }
+        if let defaultAction = type(of: self).defaultAction(forKey: event) {
+            return defaultAction is NSNull ? nil : defaultAction
+        }
+        return nil
+    }
+
+    open class func defaultAction(forKey event: String) -> CAAction? {
+        return nil
+    }
+
+    private func styleAction(forKey event: String) -> CAAction? {
+        guard let styleActions = style?["actions"] else {
+            return nil
+        }
+        if let actions = styleActions as? [String: CAAction] {
+            return actions[event]
+        }
+        if let actions = styleActions as? [AnyHashable: Any] {
+            return actions[event] as? CAAction
+        }
+        if let actions = styleActions as? NSDictionary {
+            return actions[event] as? CAAction
         }
         return nil
     }
