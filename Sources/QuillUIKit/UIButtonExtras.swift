@@ -309,6 +309,7 @@ private struct QuillBackgroundConfigurationState {
     // NSDirectionalEdgeInsets (it lives in the UIKit shim). The directional-
     // typed `backgroundInsets` accessor is layered in Sources/UIKitShim.
     var backgroundInsets: QuillEdgeInsets = .zero
+    var customView: UIView?
 }
 
 /// Not MainActor-bound: Apple's type is a value type usable off-main, and the
@@ -371,6 +372,11 @@ extension UIBackgroundConfiguration {
     public var quillBackgroundInsets: QuillEdgeInsets {
         get { quillBackgroundState.backgroundInsets }
         set { quillBackgroundState.backgroundInsets = newValue }
+    }
+
+    public var customView: UIView? {
+        get { quillBackgroundState.customView }
+        set { quillBackgroundState.customView = newValue }
     }
 }
 

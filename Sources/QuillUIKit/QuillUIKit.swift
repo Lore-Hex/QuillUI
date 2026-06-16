@@ -180,7 +180,11 @@ public class NSLayoutAnchor<AnchorType>: NSObject, QuillLayoutAnchorReading {
     }
 }
 
-public class NSLayoutXAxisAnchor: NSLayoutAnchor<NSLayoutXAxisAnchor> {}
+public class NSLayoutXAxisAnchor: NSLayoutAnchor<NSLayoutXAxisAnchor> {
+    public func constraint(equalToSystemSpacingAfter anchor: NSLayoutXAxisAnchor, multiplier: CGFloat) -> NSLayoutConstraint {
+        NSLayoutConstraint(first: self, relation: .equal, second: anchor, multiplier: multiplier, constant: 8 * multiplier)
+    }
+}
 public class NSLayoutYAxisAnchor: NSLayoutAnchor<NSLayoutYAxisAnchor> {}
 
 public class NSLayoutDimension: NSLayoutAnchor<NSLayoutDimension> {
@@ -585,6 +589,14 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     // the documented moments.
     open func didAddSubview(_ subview: UIView) { _ = subview }
     open func willRemoveSubview(_ subview: UIView) { _ = subview }
+    open func observeValue(
+        forKeyPath keyPath: String?,
+        of object: Any?,
+        change: [NSKeyValueChangeKey: Any]?,
+        context: UnsafeMutableRawPointer?
+    ) {
+        _ = (keyPath, object, change, context)
+    }
 
     /// Inserts a subview at an explicit z-position (index 0 is backmost).
     /// Same installation sequence as addSubview. APPROXIMATION: Apple raises
@@ -861,6 +873,28 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         return bounds.size
     }
 
+    /// APPROXIMATION: on Apple this runs the constraint solver for the
+    /// smallest satisfying size. There is no solver behind the shim, so per
+    /// axis the view's intrinsic metric wins when it has one and the target's
+    /// axis is echoed otherwise.
+    open func systemLayoutSizeFitting(_ targetSize: CGSize) -> CGSize {
+        let intrinsic = intrinsicContentSize
+        return CGSize(
+            width: intrinsic.width >= 0 ? intrinsic.width : targetSize.width,
+            height: intrinsic.height >= 0 ? intrinsic.height : targetSize.height
+        )
+    }
+
+    open func systemLayoutSizeFitting(
+        _ targetSize: CGSize,
+        withHorizontalFittingPriority horizontalFittingPriority: UILayoutPriority,
+        verticalFittingPriority: UILayoutPriority
+    ) -> CGSize {
+        _ = horizontalFittingPriority
+        _ = verticalFittingPriority
+        return systemLayoutSizeFitting(targetSize)
+    }
+
     /// No intrinsic size, exactly Apple's UIView default; content-bearing
     /// views override with real metrics.
     open var intrinsicContentSize: CGSize {
@@ -1021,6 +1055,16 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public var clipsToBounds: Bool = true
     public var tag: Int = 0
     public var semanticContentAttribute: UISemanticContentAttribute = .unspecified
+    public var effectiveUserInterfaceLayoutDirection: UIUserInterfaceLayoutDirection {
+        switch semanticContentAttribute {
+        case .forceRightToLeft:
+            return .rightToLeft
+        case .forceLeftToRight:
+            return .leftToRight
+        default:
+            return traitCollection.layoutDirection
+        }
+    }
 
     /// Compositing hint ("my content fills my bounds — skip blending behind
     /// me"). Apple's UIView default is true. Faithful STATE only: there is
@@ -1179,6 +1223,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     open func viewWillLayoutSubviews() {}
     open func viewDidLayoutSubviews() {}
     open func viewSafeAreaInsetsDidChange() {}
+    open func viewLayoutMarginsDidChange() {}
     open func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {}
     open var hidesBottomBarWhenPushed: Bool = false
     open var shouldAutorotate: Bool { true }
@@ -1253,7 +1298,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     open var popoverPresentationController: UIPopoverPresentationController?
 }
 
-@MainActor public class UISplitViewController: UIViewController {
+@MainActor open class UISplitViewController: UIViewController {
     public enum DisplayMode: Int {
         case automatic
         case secondaryOnly
@@ -1525,6 +1570,13 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         self.primaryAction = primaryAction
     }
 
+    /// `UIBarButtonItem(image:primaryAction:)` (iOS 14+).
+    public convenience init(image: UIImage?, primaryAction: UIAction?) {
+        self.init()
+        self.image = image
+        self.primaryAction = primaryAction
+    }
+
     /// `UIBarButtonItem(title:image:primaryAction:menu:)` (iOS 14+).
     public convenience init(title: String?, image: UIImage?, primaryAction: UIAction?, menu: UIMenu?) {
         self.init()
@@ -1576,7 +1628,27 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     /// in UITableViewExtras.swift; same-module visibility.)
     public var rowHeight: CGFloat = UITableView.automaticDimension
     public var sectionIndexColor: UIColor?
-    // init(frame:style:), style, reloadData and the rest of the member
+
+    public init() {
+        super.init(frame: .zero)
+        quillSetTableStyle(.plain)
+    }
+
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+        quillSetTableStyle(.plain)
+    }
+
+    public init(frame: CGRect, style: Style) {
+        super.init(frame: frame)
+        quillSetTableStyle(style)
+    }
+
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    // style, reloadData and the rest of the member
     // surface live in UITableViewExtras.swift.
 }
 
@@ -1593,6 +1665,9 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
 
     public enum CellStyle: Int { case `default`, value1, value2, subtitle }
     public private(set) var reuseIdentifier: String?
+    private let quillTextLabel = UILabel()
+    private let quillDetailTextLabel = UILabel()
+    private let quillImageView = UIImageView(image: nil)
     // Apple's `UITableViewCell.init(style:reuseIdentifier:)` is the DESIGNATED
     // initializer and is NOT `required` -- only `init?(coder:)` is (from
     // NSCoding). The earlier `required` here drove the lowered cells into two
@@ -1619,9 +1694,9 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
-    public var textLabel: UILabel?
-    public var detailTextLabel: UILabel?
-    public var imageView: UIImageView?
+    open var textLabel: UILabel? { quillTextLabel }
+    open var detailTextLabel: UILabel? { quillDetailTextLabel }
+    open var imageView: UIImageView? { quillImageView }
     // Inert on Linux: stored but never applied to a content view. SignalUI's
     // RecipientPickerViewController assigns a UIHostingConfiguration here.
     public var contentConfiguration: UIContentConfiguration?
@@ -1684,6 +1759,11 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         addSubview(contentView)
     }
     open func prepareForReuse() {}
+    open func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
+        frame = layoutAttributes.frame
+        alpha = layoutAttributes.alpha
+        isHidden = layoutAttributes.isHidden
+    }
 }
 
 @MainActor public class UIAlertController: UIViewController {
@@ -1977,6 +2057,14 @@ public class SLComposeSheetConfigurationItem: NSObject {
     /// classes that need override points. UILabel callers use it to ask for an
     /// intrinsic-content-size pass, which is inert until a text renderer lands.
     open func sizeToFit() {}
+
+    public static func titleLabelForRegistration(text: String) -> UILabel {
+        let label = UILabel()
+        label.text = text
+        label.numberOfLines = 0
+        label.textAlignment = .center
+        return label
+    }
 }
 
 // UIVisualEffectView lives in UIEffects.swift with the UIVisualEffect family.
@@ -2177,6 +2265,24 @@ public class UIApplication: NSObject, @unchecked Sendable {
     public enum LaunchOptionsKey: Hashable { case remoteNotification }
     @MainActor public var connectedScenes: Set<UIScene> = []
     @MainActor public var applicationState: UIApplicationState { .active }
+    @MainActor private var quillNextBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = 1
+
+    @MainActor @discardableResult public func beginBackgroundTask(
+        expirationHandler handler: (() -> Void)? = nil
+    ) -> UIBackgroundTaskIdentifier {
+        _ = handler
+        let identifier = quillNextBackgroundTaskIdentifier
+        quillNextBackgroundTaskIdentifier += 1
+        return identifier
+    }
+
+    @MainActor @discardableResult public func beginBackgroundTask(
+        withName taskName: String?,
+        expirationHandler handler: (() -> Void)? = nil
+    ) -> UIBackgroundTaskIdentifier {
+        _ = taskName
+        return beginBackgroundTask(expirationHandler: handler)
+    }
 
     @MainActor @discardableResult public func sendAction(
         _ action: Selector,
@@ -2680,6 +2786,21 @@ public class UIShadowProperties: NSObject {
 }
 
 public class UIStoryboard: NSObject {
+    public let name: String?
+    public let bundle: Bundle?
+
+    public override init() {
+        self.name = nil
+        self.bundle = nil
+        super.init()
+    }
+
+    public init(name: String, bundle storyboardBundleOrNil: Bundle?) {
+        self.name = name
+        self.bundle = storyboardBundleOrNil
+        super.init()
+    }
+
     @MainActor public static let settings = UIStoryboard()
     @MainActor public static let add = UIStoryboard()
     @MainActor public func instantiateInitialViewController() -> UIViewController? { nil }
@@ -2691,8 +2812,14 @@ public extension IndexPath {
     // outer/inner convention — matches the inits in UICollectionViewExtras
     // and the SSK port). The old hardcoded zeros silently misrouted every
     // multi-section table.
-    var row: Int { count >= 2 ? self[1] : 0 }
-    var section: Int { count >= 1 ? self[0] : 0 }
+    var row: Int {
+        get { count >= 2 ? self[1] : 0 }
+        set { self = IndexPath(indexes: [section, newValue]) }
+    }
+    var section: Int {
+        get { count >= 1 ? self[0] : 0 }
+        set { self = IndexPath(indexes: [newValue, row]) }
+    }
 }
 
 public class NonIntrinsicImageView: UIImageView {}

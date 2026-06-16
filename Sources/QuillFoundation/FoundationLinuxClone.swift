@@ -43,6 +43,20 @@ public extension NSDictionary {
     }
 }
 
+public extension NSIndexPath {
+    convenience init(row: Int, section: Int) {
+        self.init(indexes: [section, row], length: 2)
+    }
+
+    convenience init(item: Int, section: Int) {
+        self.init(indexes: [section, item], length: 2)
+    }
+
+    var row: Int { length >= 2 ? index(atPosition: 1) : 0 }
+    var item: Int { row }
+    var section: Int { length >= 1 ? index(atPosition: 0) : 0 }
+}
+
 public extension FileManager {
     /// Clone of Apple's app-group container API, absent from
     /// swift-corelibs-foundation. Linux has no entitlement-backed app groups;

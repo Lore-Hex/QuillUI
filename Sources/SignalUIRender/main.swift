@@ -144,6 +144,7 @@ guard gtk_init_check() != 0 else {
 // SIGNAL_UI_RENDER_DEMO selects the screen:
 //   firstlight   → trivial pipeline proof
 //   conversation → a chat styled by Signal's REAL ConversationStyle
+//   realapp-link → proves the GTK renderer links SignalApp / ConversationViewController
 //   (default)    → Signal's REAL OWSTableViewController2 (Settings)
 MainActor.assumeIsolated {
     switch ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] {
@@ -152,6 +153,10 @@ MainActor.assumeIsolated {
     case "conversation":
         renderRootViewController(SignalConversationDemo.makeConversationViewController(),
                                  title: "Signal on Linux", width: 760, height: 720,
+                                 windowBackground: "#FFFFFF")
+    case "realapp-link":
+        renderRootViewController(SignalConversationDemo.makeRealAppLinkProbeViewController(),
+                                 title: "SignalApp Link Probe", width: 520, height: 260,
                                  windowBackground: "#FFFFFF")
     case "privacy":
         renderRootViewController(SignalSettingsDemo.makePrivacyViewController(),

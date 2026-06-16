@@ -23,6 +23,7 @@ set -euo pipefail
 
 ROOT="${1:-.upstream/signal-ios/SignalServiceKit}"
 PORT_SRC_DIR="Sources/SignalServiceKitObjCPort"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ ! -d "$ROOT" ]; then
     echo "error: SSK root not found: $ROOT" >&2
@@ -49,5 +50,7 @@ for f in "$PORT_SRC_DIR"/*.swift; do
     ln -s "$REL_PREFIX/$base" "$link"
     linked=$((linked + 1))
 done
+
+"$SCRIPT_DIR/quill-signal-fix-ssk-concurrency.sh" "$ROOT"
 
 echo "quill-signal-link-ports: linked $linked port file(s) into $QUILLPORT_DIR"

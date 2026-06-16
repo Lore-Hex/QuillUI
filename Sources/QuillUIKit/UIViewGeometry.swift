@@ -85,32 +85,6 @@ public extension UIView {
     /// Apple's "largest possible size" fitting target (10000 × 10000).
     static let layoutFittingExpandedSize = CGSize(width: 10_000, height: 10_000)
 
-    /// APPROXIMATION: on Apple this runs the constraint solver for the
-    /// smallest satisfying size. There is no solver behind the shim, so per
-    /// axis the view's intrinsic metric wins when it has one and the target's
-    /// axis is echoed otherwise — intrinsically-sized views fit like Apple's,
-    /// and everything else returns the request unchanged.
-    func systemLayoutSizeFitting(_ targetSize: CGSize) -> CGSize {
-        let intrinsic = intrinsicContentSize
-        return CGSize(
-            width: intrinsic.width >= 0 ? intrinsic.width : targetSize.width,
-            height: intrinsic.height >= 0 ? intrinsic.height : targetSize.height
-        )
-    }
-
-    /// The priorities only modulate the (nonexistent) solver; accepted and
-    /// ignored. UILayoutPriority is the UIAutoLayout.swift typealias for
-    /// NSLayoutConstraint.Priority.
-    func systemLayoutSizeFitting(
-        _ targetSize: CGSize,
-        withHorizontalFittingPriority horizontalFittingPriority: UILayoutPriority,
-        verticalFittingPriority: UILayoutPriority
-    ) -> CGSize {
-        _ = horizontalFittingPriority
-        _ = verticalFittingPriority
-        return systemLayoutSizeFitting(targetSize)
-    }
-
     // MARK: - Subview z-reordering
 
     /// Moves an existing subview to the front (end of `subviews`). Not a

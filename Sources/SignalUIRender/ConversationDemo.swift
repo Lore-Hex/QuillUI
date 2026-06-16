@@ -1,12 +1,9 @@
 // ConversationDemo.swift — a Signal conversation styled by Signal's REAL engine.
 // =============================================================================
-// The actual ConversationViewController + CVComponent message pipeline live in
-// Signal's *app* target, which isn't compiled on Linux. But SignalUI IS reachable,
-// so this drives Signal-iOS's real `ConversationStyle` (its bubble-color + metric
-// engine, built against a real in-memory `TSContactThread`) and renders the
-// message bubbles through the UIKit→GTK renderer. The bubble colors and incoming
-// gray come from `ConversationStyle`, not hand-picked constants — the same styling
-// the real app uses.
+// The real ConversationViewController + CVComponent message pipeline live in
+// Signal's app target. This renderer now links that module when the prepared
+// app slice exists, while the visible conversation demo still uses
+// ConversationStyle until a DB-backed CVC bootstrap is installed.
 
 import SignalUI
 import SignalServiceKit
@@ -14,6 +11,9 @@ import QuillUIKit
 import UIKit
 import QuillFoundation
 import Foundation
+#if canImport(SignalApp)
+import SignalApp
+#endif
 
 @MainActor
 enum SignalConversationDemo {
@@ -82,6 +82,39 @@ enum SignalConversationDemo {
         root.addSubview(header)
         root.addSubview(scroll)
         root.addSubview(composer)
+
+        let vc = UIViewController()
+        vc.view = root
+        return vc
+    }
+
+    static func makeRealAppLinkProbeViewController() -> UIViewController {
+        SignalSettingsDemo.bootstrapMinimalEnvironment()
+
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 520, height: 260))
+        root.backgroundColor = .white
+
+        let title = UILabel()
+        title.text = "SignalApp module linked"
+        title.font = UIFont.systemFont(ofSize: 22, weight: .semibold)
+        title.textColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
+
+        let subtitle = UILabel()
+        #if canImport(SignalApp)
+        _ = QuillSignalAppModuleProbe.hasConversationViewController
+        subtitle.text = "Real ConversationViewController is linked into the Linux GTK renderer."
+        #else
+        subtitle.text = "Prepared SignalApp slice is not present in this checkout."
+        #endif
+        subtitle.font = UIFont.systemFont(ofSize: 15)
+        subtitle.textColor = UIColor(red: 0.36, green: 0.36, blue: 0.39, alpha: 1)
+        subtitle.numberOfLines = 0
+
+        let stack = UIStackView(arrangedSubviews: [title, subtitle])
+        stack.axis = .vertical
+        stack.spacing = 8
+        stack.frame = CGRect(x: 24, y: 32, width: 472, height: 160)
+        root.addSubview(stack)
 
         let vc = UIViewController()
         vc.view = root
