@@ -104,11 +104,12 @@ public func qtRenderView<V: View>(_ view: V) -> OpaquePointer {
         return container
     }
 
-    // Stateless composite view — recurse through body.
-    return qtRenderView(view.body)
     // Stateless composite view — recurse through body. SwiftOpenUI's body is
     // @MainActor; the Qt renderer runs on the Qt GUI thread, so assume the
-    // isolation that is true by construction.
+    // isolation that is true by construction. (A stale early `return
+    // qtRenderView(view.body)` used to sit here, which both referenced the
+    // MainActor-isolated `body` from this nonisolated context — the actual
+    // compile error — and made the assumeIsolated block below dead code.)
     nonisolated(unsafe) var rendered: OpaquePointer?
     MainActor.assumeIsolated {
         rendered = qtRenderView(view.body)
