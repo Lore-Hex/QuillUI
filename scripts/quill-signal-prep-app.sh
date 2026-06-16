@@ -17,11 +17,12 @@
 # upstream fetch (and whenever this script or the lowering tool changes), the
 # same way the SignalUI re-lower recipe is re-applied.
 #
-# Usage: scripts/quill-signal-prep-app.sh [SCRATCH_PATH]
+# Usage: scripts/quill-signal-prep-app.sh [SCRATCH_PATH] [BUILD_LOG]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH="${1:-$ROOT/.build}"
+BUILD_LOG="${QUILL_SIGNAL_APP_LOG:-${2:-$ROOT/.signalapp-target.log}}"
 APP="$ROOT/.upstream/signal-ios/Signal"
 
 if [ ! -d "$APP" ]; then
@@ -88,14 +89,27 @@ done < <(grep -rlE "$MISSING_FW" "$APP" --include="*.swift" 2>/dev/null || true)
 #      (tens of thousands of errors). Make every plain/internal import `public`
 #      so the access level is consistent module-wide. (@-attributed and submodule
 #      imports are left as-is.)
-find "$APP" -name "*.swift" -print0 | xargs -0 sed -i -E \
-    's/^(public |internal |package |private |fileprivate )?import ([A-Za-z_][A-Za-z0-9_.]*)$/public import \2/'
+python3 - "$APP" <<'PY'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+pattern = re.compile(r"^(?:public |internal |package |private |fileprivate )?import ([A-Za-z_][A-Za-z0-9_.]*)$")
+for path in root.rglob("*.swift"):
+    lines = path.read_text(errors="replace").splitlines()
+    out = [pattern.sub(r"public import \1", line) for line in lines]
+    path.write_text("\n".join(out) + ("\n" if lines else ""))
+PY
 
 # (3) UIKit Clang-submodule imports -> base UIKit module (no Linux equivalent).
-grep -rlE '^import UIKit\.[A-Za-z]' "$APP" --include="*.swift" 2>/dev/null \
-    | while IFS= read -r f; do
-        sed -i -E 's/^import UIKit\.[A-Za-z][A-Za-z0-9]*/import UIKit/' "$f"
-    done || true
+python3 - "$APP" <<'PY'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+pattern = re.compile(r"^(public )?import UIKit\.[A-Za-z][A-Za-z0-9]*$")
+for path in root.rglob("*.swift"):
+    lines = path.read_text(errors="replace").splitlines()
+    out = [pattern.sub("public import UIKit", line) for line in lines]
+    if out != lines:
+        path.write_text("\n".join(out) + ("\n" if lines else ""))
+PY
 
 # (4) Strip SwiftUI #Preview / PreviewProvider blocks.
 "$ROOT/scripts/quill-signal-strip-previews.sh" "$APP"
@@ -125,6 +139,30 @@ for glue in \
 ; do
     rm -f "$APP/$glue"
 done
+
+# (8b) Lower Objective-C optional protocol remnants in the app conversation
+#      slice after the generic lowerer has stripped @objc.
+"$ROOT/scripts/quill-signal-fix-app-optionals.sh" "$APP"
+"$ROOT/scripts/quill-signal-fix-app-mainactor-closures.sh" "$APP"
+"$ROOT/scripts/quill-signal-fix-app-layout-isolation.sh" "$APP"
+"$ROOT/scripts/quill-signal-fix-app-generated-perform.sh" "$APP"
+"$ROOT/scripts/quill-signal-lower-app-declaration-access.sh" "$APP"
+"$ROOT/scripts/quill-signal-fix-app-generated-inits.sh"
+
+# (8c) Replay safe log-driven source lowerings from the latest SignalApp build
+#      log when one is available. Each pass validates that the diagnostic path
+#      still points inside .upstream/signal-ios before touching a file, so stale
+#      logs become harmless no-ops after the affected source has moved on.
+if [ -f "$BUILD_LOG" ]; then
+    "$ROOT/scripts/quill-signal-fix-app-public-requirements.sh" "$BUILD_LOG"
+    "$ROOT/scripts/quill-signal-fix-app-public-access.sh" "$BUILD_LOG" "$ROOT/.upstream/signal-ios"
+    "$ROOT/scripts/quill-signal-fix-app-deinits.sh" "$BUILD_LOG"
+    "$ROOT/scripts/quill-signal-fix-app-required-coders.sh" "$BUILD_LOG"
+    "$ROOT/scripts/quill-signal-fix-app-actor-isolation.sh" "$BUILD_LOG"
+    "$ROOT/scripts/quill-signal-fix-app-overrides.sh" "$BUILD_LOG"
+else
+    echo "quill-signal-prep-app: no SignalApp build log at $BUILD_LOG; log-driven app fixes skipped"
+fi
 
 # (9) Link the same-module app ports (Linux stand-ins for pruned app types) into
 #     the disposable tree, the same way SignalUI's port files are linked.

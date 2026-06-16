@@ -12,11 +12,10 @@ import QuartzCore
 
 #if os(Linux)
 
-// MARK: - Orientation + authorization
+// MARK: - Orientation + device configuration
 
-/// Apple raw values (AVCaptureVideoOrientationPortrait = 1, …). Upstream
-/// SignalUI adds `init?(deviceOrientation:)` / `init?(interfaceOrientation:)`
-/// in its own extension.
+/// Apple raw values (AVCaptureVideoOrientationPortrait = 1, ...). Upstream
+/// Signal adds conversion initializers in its own extensions.
 public enum AVCaptureVideoOrientation: Int, Sendable {
     case portrait = 1
     case portraitUpsideDown = 2
@@ -26,7 +25,7 @@ public enum AVCaptureVideoOrientation: Int, Sendable {
 
 // MARK: - AVCaptureDevice capture configuration
 
-extension AVCaptureDevice {
+public extension AVCaptureDevice {
     public enum FocusMode: Int, Sendable {
         case locked = 0
         case autoFocus = 1
@@ -50,12 +49,12 @@ extension AVCaptureDevice {
     // are declared in AVFoundation.swift.
 }
 
-extension AVCaptureDevice.DeviceType {
-    public static let builtInTripleCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInTripleCamera")
-    public static let builtInDualWideCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInDualWideCamera")
-    public static let builtInDualCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInDualCamera")
-    public static let builtInUltraWideCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInUltraWideCamera")
-    public static let builtInTelephotoCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInTelephotoCamera")
+public extension AVCaptureDevice.DeviceType {
+    static let builtInTripleCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInTripleCamera")
+    static let builtInDualWideCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInDualWideCamera")
+    static let builtInDualCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInDualCamera")
+    static let builtInUltraWideCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInUltraWideCamera")
+    static let builtInTelephotoCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInTelephotoCamera")
 }
 
 // MARK: - Preview layer
@@ -64,8 +63,8 @@ open class AVCaptureVideoPreviewLayer: CALayer {
     public var session: AVCaptureSession?
     public var videoGravity: AVLayerVideoGravity = .resizeAspect
 
-    /// Nil until a capture pipeline exists — i.e. always, on Linux; upstream
-    /// treats that as "preview hasn't completed setup".
+    /// Nil until a preview pipeline exists; upstream treats that as preview setup
+    /// not having completed.
     public var connection: AVCaptureConnection? { nil }
 
     public init(session: AVCaptureSession) {
@@ -91,13 +90,12 @@ public extension Notification.Name {
 public let AVCaptureSessionErrorKey = "AVCaptureSessionErrorKey"
 public let AVCaptureSessionInterruptionReasonKey = "AVCaptureSessionInterruptionReasonKey"
 
-// MARK: - Export extras (PreviewableAttachment)
+// MARK: - Export extras
 
 public let AVAssetExportPreset640x480 = "AVAssetExportPreset640x480"
 
 /// `AVMetadataItemFilter.forSharing()` strips privacy-sensitive metadata on
-/// export. The Linux exporter never runs (AVAssetExportSession is inert in
-/// AVFoundation.swift), so the filter is a pure token object.
+/// Apple platforms. The Linux exporter is inert, so the filter is a token object.
 public final class AVMetadataItemFilter: @unchecked Sendable {
     private init() {}
 

@@ -398,16 +398,17 @@ struct QuillDataSourceLoweringTests {
         // Both targets take their dependencies from #if os(Linux)-swapped lists:
         // on Linux they add the QuartzCore shim (UIView.layer; UIKit re-exports
         // QuartzCore exactly like iOS), while QuillUIKit also depends on
-        // CoreGraphics for geometry-shaped shim surface and
-        // UniformTypeIdentifiers for document/content-type APIs. On Apple
-        // platforms the real SDK modules exist and the shim targets don't.
+        // CoreGraphics for geometry-shaped shim surface,
+        // UniformTypeIdentifiers for document/content-type APIs, and
+        // CoreTransferable for share/transfer APIs. On Apple platforms the real
+        // SDK modules exist and the shim targets don't.
         // QuillKit rides in both arms: the canonical UIApplication opens URLs /
         // registers notifications through QuillWorkspace + QuillNotificationService.
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
         #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\", \"UniformTypeIdentifiers\"]"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\n    \"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\",\n]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))

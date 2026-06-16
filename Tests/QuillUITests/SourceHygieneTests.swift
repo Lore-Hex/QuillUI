@@ -592,7 +592,7 @@ struct SourceHygieneTests {
         )
 
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\", \"CoreGraphics\", \"UniformTypeIdentifiers\"]"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\n    \"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\",\n]"))
         #expect(pasteboardAdditions.contains("import CoreGraphics"))
         #expect(uiKitShim.contains("public typealias UIEdgeInsets = QuillEdgeInsets"))
         #expect(uiKitShim.contains("public weak var layoutManager: NSLayoutManager?"))

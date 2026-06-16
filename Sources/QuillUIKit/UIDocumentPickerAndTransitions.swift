@@ -67,6 +67,8 @@ extension UIDocumentPickerDelegate {
     var bounds: CGRect { get }
     func convert(_ point: CGPoint, to coordinateSpace: any UICoordinateSpace) -> CGPoint
     func convert(_ rect: CGRect, to coordinateSpace: any UICoordinateSpace) -> CGRect
+    func convert(_ point: CGPoint, from coordinateSpace: any UICoordinateSpace) -> CGPoint
+    func convert(_ rect: CGRect, from coordinateSpace: any UICoordinateSpace) -> CGRect
 }
 
 extension UICoordinateSpace {
@@ -77,4 +79,14 @@ extension UICoordinateSpace {
     public func convert(_ rect: CGRect, to coordinateSpace: any UICoordinateSpace) -> CGRect {
         return rect
     }
+
+    public func convert(_ point: CGPoint, from coordinateSpace: any UICoordinateSpace) -> CGPoint {
+        return point
+    }
+
+    public func convert(_ rect: CGRect, from coordinateSpace: any UICoordinateSpace) -> CGRect {
+        return rect
+    }
 }
+
+extension UIView: UICoordinateSpace {}

@@ -382,10 +382,10 @@ public struct PlainListStyle: Sendable {
     public init() {}
 }
 
-// `ButtonRole` and the role-taking Button inits moved to
-// QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that
-// only `import SwiftUI`s sees them (SolderScope's alert buttons); QuillUI
-// re-exports that module.
+// `ButtonRole` and the core role-taking Button inits live in SwiftOpenUI so
+// renderers and compatibility walkers can preserve semantic metadata. Extra
+// LocalizedStringKey convenience overloads live in QuillSwiftUICompatibility,
+// which QuillUI re-exports.
 
 public extension TextField {
     init(_ title: String, text: Binding<String>, axis: Axis) {

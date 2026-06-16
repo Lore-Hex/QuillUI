@@ -130,11 +130,6 @@ public struct PlainListStyle: Sendable {
     public static let grouped = PlainListStyle()
 }
 
-public enum ButtonRole: Sendable {
-    case cancel
-    case destructive
-}
-
 public struct LocalizedStringKey: Equatable, ExpressibleByStringLiteral, ExpressibleByStringInterpolation, Sendable {
     private static let encodedPrefix = "\u{1F}quill-localized-key:"
 
@@ -238,13 +233,11 @@ public extension Button where Label == Text {
     }
 
     init(_ title: LocalizedStringKey, role: ButtonRole?, action: @escaping () -> Void) {
-        _ = role
-        self.init(title.resolved, action: action)
+        self.init(title.resolved, role: role, action: action)
     }
 
     init<T>(_ title: T, role: ButtonRole?, action: @escaping () -> Void) {
-        _ = role
-        self.init(String(describing: title), action: action)
+        self.init(String(describing: title), role: role, action: action)
     }
 }
 
@@ -255,13 +248,6 @@ public extension Text {
 
     init(verbatim content: String) {
         self.init(styledRuns: [.init(text: content)])
-    }
-}
-
-public extension Button {
-    init(role: ButtonRole?, action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
-        _ = role
-        self.init(action: action, label: label)
     }
 }
 

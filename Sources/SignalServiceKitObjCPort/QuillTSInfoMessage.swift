@@ -178,6 +178,13 @@ open class TSInfoMessage: TSMessage, OWSReadTracking {
 
     open override var interactionType: OWSInteractionType { .info }
 
+    public func conversationSystemMessageComponentText(with transaction: DBReadTransaction) -> String {
+        if let customMessage, !customMessage.isEmpty {
+            return customMessage
+        }
+        return String(describing: messageType)
+    }
+
     // MARK: OWSReadTracking
 
     public func markAsRead(atTimestamp readTimestamp: UInt64,

@@ -15,6 +15,12 @@ import QuillUIKit
 /// RSImage's initializers (including the failable `init?(data:)` SSK calls) --
 /// which yields a placeholder image on Linux (no frames are actually decoded).
 open class SDAnimatedImage: UIImage, @unchecked Sendable {
+    public var animatedImageFrameCount: UInt { 0 }
+
+    public func animatedImageDuration(at index: UInt) -> TimeInterval {
+        _ = index
+        return 0
+    }
 }
 
 /// `SDAnimatedImageView: UIImageView`. Inert display wrapper for SignalUI's
