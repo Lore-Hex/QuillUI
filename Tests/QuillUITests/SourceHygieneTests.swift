@@ -2246,6 +2246,8 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("Quill Chat completions panel did not open after reset/retry attempts"))
         #expect(backendScript.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --clearmodifiers Escape"))
         #expect(backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}\""))
+        #expect(backendScript.contains("delete_x=\"${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1510))}\""))
+        #expect(backendScript.contains("delete_y=\"${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 545))}\""))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_TEXT"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y"))

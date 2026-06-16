@@ -773,10 +773,11 @@ delete_quill_chat_completion() {
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1618))}"
+      delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 536))}"
     else
-      delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1545))}"
+      delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1510))}"
+      delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 545))}"
     fi
-    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 536))}"
   else
     delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + window_width - 125))}"
     delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 320))}"

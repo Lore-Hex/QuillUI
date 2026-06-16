@@ -701,6 +701,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X"))
+        #expect(interactionScript.contains("delete_x=\"${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1510))}\""))
+        #expect(interactionScript.contains("delete_y=\"${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 545))}\""))
         #expect(interactionScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}\""))
         #expect(interactionScript.contains("instruction_x=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}\""))
         #expect(interactionScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 548))}\""))
