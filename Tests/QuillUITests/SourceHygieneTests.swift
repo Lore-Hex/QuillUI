@@ -973,7 +973,8 @@ struct SourceHygieneTests {
         let root = try packageRoot()
         let workflowPaths = [
             ".github/workflows/linux-ci.yml",
-            ".github/workflows/macos-ci.yml"
+            ".github/workflows/macos-ci.yml",
+            ".github/workflows/solderscope-ci.yml"
         ]
 
         let workflows = try workflowPaths
@@ -1903,6 +1904,7 @@ struct SourceHygieneTests {
         let legacyScreenshotVerifier = try packageSource("scripts/verify-gtk-screenshot.py")
         let legacyGtkScript = try packageSource("scripts/linux-gtk-interaction-check.sh")
         let workflow = try packageSource(".github/workflows/linux-ci.yml")
+        let solderScopeWorkflow = try packageSource(".github/workflows/solderscope-ci.yml")
         let macOSWorkflow = try packageSource(".github/workflows/macos-ci.yml")
 
         #expect(sharedView.contains("public struct QuillInteractionSmokeConfiguration"))
@@ -2439,8 +2441,11 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("Mac-reference wordmark lost its blue-to-red color range"))
         #expect(screenshotVerifier.contains("validate_quill_backend_interaction_smoke"))
         #expect(screenshotVerifier.contains("validate_quill_solderscope_launch"))
-        #expect(screenshotVerifier.contains("product == \"quill-solderscope-launch\""))
+        #expect(screenshotVerifier.contains("\"quill-solderscope-launch\""))
+        #expect(screenshotVerifier.contains("quill-solderscope-interaction"))
         #expect(screenshotVerifier.contains("SolderScope dark toolbar pixels were not detected near the top"))
+        #expect(screenshotVerifier.contains("canvas_dark_pixels >= 25_000"))
+        #expect(screenshotVerifier.contains("minimum_mean = 300 if solderscope_launch_product else 1000"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
@@ -2565,6 +2570,20 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
+        #expect(solderScopeWorkflow.contains("name: SolderScope Linux CI"))
+        #expect(solderScopeWorkflow.contains("SolderScope API and fixture tests"))
+        #expect(solderScopeWorkflow.contains("SolderScope GTK launch and interaction"))
+        #expect(solderScopeWorkflow.contains("scripts/fetch-upstream.sh solderscope"))
+        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter SolderScopeChromeConformanceTests"))
+        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-capture --filter AVCaptureSurfaceTests"))
+        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-v4l2 --filter V4L2ConversionTests"))
+        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-encode --filter BitmapAndMovieEncodeTests"))
+        #expect(solderScopeWorkflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-visual.png visual"))
+        #expect(solderScopeWorkflow.contains("QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction"))
+        #expect(solderScopeWorkflow.contains("uses: actions/upload-artifact@v6"))
+        #expect(fetchUpstream.contains("want=(enchanted netnewswire wireguard icecubes solderscope)"))
+        #expect(fetchUpstream.contains("fetch_repo solderscope https://github.com/rjwalters/SolderScope.git"))
+        #expect(fetchUpstream.contains("patch_solderscope"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))

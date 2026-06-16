@@ -18,6 +18,23 @@ fi
 SMOKE_SECONDS="${QUILLUI_SOLDERSCOPE_SMOKE_SECONDS:-${QUILLUI_SMOKE_SECONDS:-10}}"
 DISPLAY_ID="${QUILLUI_SOLDERSCOPE_DISPLAY:-:93}"
 SCREEN_SIZE="${QUILLUI_SOLDERSCOPE_SCREEN_SIZE:-1180x760x24}"
+SMOKE_MODE="${2:-${QUILLUI_SOLDERSCOPE_SMOKE_MODE:-launch}}"
+VERIFY_PRODUCT="quill-solderscope-launch"
+case "$SMOKE_MODE" in
+  launch)
+    VERIFY_PRODUCT="quill-solderscope-launch"
+    ;;
+  visual)
+    VERIFY_PRODUCT="quill-solderscope-visual"
+    ;;
+  interaction)
+    VERIFY_PRODUCT="quill-solderscope-interaction"
+    ;;
+  *)
+    echo "Unsupported SolderScope smoke mode '$SMOKE_MODE' (expected launch, visual, or interaction)" >&2
+    exit 64
+    ;;
+esac
 
 "$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
 
@@ -30,7 +47,7 @@ fi
 
 quillui_install_linux_backend_smoke_packages
 
-for required_command in swift Xvfb import identify convert; do
+for required_command in swift Xvfb import identify convert xdotool; do
   if ! command -v "$required_command" >/dev/null 2>&1; then
     echo "$required_command is required for the SolderScope launch smoke" >&2
     exit 66
@@ -39,14 +56,16 @@ done
 
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 
-"$ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
-  --backend gtk \
-  --scratch-path "$SCRATCH_PATH"
+if [[ "${QUILLUI_SOLDERSCOPE_SKIP_BUILD:-0}" != "1" ]]; then
+  "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
+    --backend gtk \
+    --scratch-path "$SCRATCH_PATH"
 
-QUILLUI_LINUX_BACKEND=gtk \
-  "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-  swift build --disable-index-store --scratch-path "$SCRATCH_PATH" --product QuillSolderScope
-quillui_record_backend_product_build "$BUILD_STAMP_SCRATCH_PATH" QuillSolderScope gtk
+  QUILLUI_LINUX_BACKEND=gtk \
+    "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
+    swift build --disable-index-store --scratch-path "$SCRATCH_PATH" --product QuillSolderScope
+  quillui_record_backend_product_build "$BUILD_STAMP_SCRATCH_PATH" QuillSolderScope gtk
+fi
 
 BIN_PATH="$(
   QUILLUI_LINUX_BACKEND=gtk \
@@ -70,6 +89,42 @@ cleanup() {
   quillui_stop_process_if_running "$xvfb_pid"
 }
 trap cleanup EXIT
+
+quillui_drive_solderscope_interaction() {
+  local window_id=""
+  local window_x=0
+  local window_y=0
+  local window_width=1180
+  local window_height=760
+  local click_x=590
+  local click_y=380
+
+  window_id="$(quillui_wait_for_app_window_for_pid "$DISPLAY_ID" "$app_pid" "${QUILLUI_SOLDERSCOPE_WINDOW_WAIT_SECONDS:-20}")" || window_id=""
+  if [[ -z "$window_id" ]]; then
+    echo "SolderScope interaction smoke could not find a visible app window; capturing root window" >&2
+    return 0
+  fi
+
+  quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
+  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  while IFS='=' read -r key value; do
+    case "$key" in
+      X) window_x="$value" ;;
+      Y) window_y="$value" ;;
+      WIDTH) window_width="$value" ;;
+      HEIGHT) window_height="$value" ;;
+    esac
+  done < <(DISPLAY="$DISPLAY_ID" xdotool getwindowgeometry --shell "$window_id")
+
+  click_x=$((window_x + window_width / 2))
+  click_y=$((window_y + window_height / 2))
+  echo "SolderScope interaction smoke: window=$window_id geometry=${window_x},${window_y} ${window_width}x${window_height}" >&2
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y" click 1
+  DISPLAY="$DISPLAY_ID" xdotool key space
+  DISPLAY="$DISPLAY_ID" xdotool key Escape
+  sleep 1
+}
 
 env \
   DISPLAY="$DISPLAY_ID" \
@@ -96,6 +151,10 @@ if ! kill -0 "$app_pid" >/dev/null 2>&1; then
   exit "$app_status"
 fi
 
+if [[ "$SMOKE_MODE" == "interaction" ]]; then
+  quillui_drive_solderscope_interaction
+fi
+
 DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
 
 if ! kill -0 "$app_pid" >/dev/null 2>&1; then
@@ -109,8 +168,8 @@ if ! kill -0 "$app_pid" >/dev/null 2>&1; then
   exit "$app_status"
 fi
 
-if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" quill-solderscope-launch; then
-  echo "SolderScope launch smoke survived ${SMOKE_SECONDS}s under Xvfb: $SCREENSHOT_PATH"
+if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
+  echo "SolderScope $SMOKE_MODE smoke survived ${SMOKE_SECONDS}s under Xvfb: $SCREENSHOT_PATH"
 else
   verify_status=$?
   quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_SOLDERSCOPE_APP_LOG_LINES:-120}"

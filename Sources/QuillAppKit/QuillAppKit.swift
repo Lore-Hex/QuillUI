@@ -566,7 +566,7 @@ open class NSAppearance: NSObject, @unchecked Sendable {
 // matching the macOS SDK. GTK/Qt callbacks enter via MainActor.assumeIsolated
 // (the GTK main loop IS the main thread), the blessed boundary pattern.
 @preconcurrency @MainActor
-open class NSResponder: NSObject, QuillSelectorDispatching {
+open class NSResponder: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime). AppKitLowering injects
     /// an `override` of this into every NSResponder subclass (NSView /
     /// NSViewController / NSControl / NSWindow / NSTextView / NSButton …) that
@@ -1861,7 +1861,7 @@ open class NSTouchBarItem: NSObject, @unchecked Sendable {
     }
 }
 
-open class NSCustomTouchBarItem: NSTouchBarItem {
+open class NSCustomTouchBarItem: NSTouchBarItem, @unchecked Sendable {
     public var view: NSView?
 }
 
@@ -2273,7 +2273,7 @@ open class NSGestureRecognizer: NSObject {
 open class NSClickGestureRecognizer: NSGestureRecognizer {}
 open class NSPressGestureRecognizer: NSGestureRecognizer {}
 
-public struct NSTouch: Hashable, Sendable {
+public struct NSTouch: Hashable, @unchecked Sendable {
     public struct Phase: OptionSet, Hashable, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -3334,7 +3334,7 @@ open class NSShadow: NSObject, @unchecked Sendable {
 // delegate calls inside this class become load-bearing once NSMenuDelegate is
 // isolated in the follow-up sweep.
 @preconcurrency @MainActor
-open class NSMenu: NSObject, QuillSelectorDispatching {
+open class NSMenu: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSMenu subclasses. Class-body, not an extension.
     /// See QuillSelectorDispatching (QuillFoundation).
@@ -3451,7 +3451,7 @@ open class NSMenu: NSObject, QuillSelectorDispatching {
 
 // Apple parity (#512).
 @preconcurrency @MainActor
-open class NSMenuItem: NSObject, QuillSelectorDispatching {
+open class NSMenuItem: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSMenuItem subclasses (WireGuard's StatusMenu
     /// items). Class-body, not an extension. See QuillSelectorDispatching
@@ -3626,7 +3626,7 @@ public extension NSToolbarDelegate {
 
 // Apple parity (#512).
 @preconcurrency @MainActor
-open class NSAlert: NSObject, QuillSelectorDispatching {
+open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSAlert subclasses. Class-body, not an extension.
     /// See QuillSelectorDispatching (QuillFoundation).
@@ -4562,7 +4562,7 @@ open class NSButton: NSControl {
 }
 
 public extension NSControl {
-    public struct StateValue: RawRepresentable, Equatable, Sendable {
+    struct StateValue: RawRepresentable, Equatable, Sendable {
         public var rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
         public static let off = StateValue(rawValue: 0)
@@ -4864,7 +4864,7 @@ open class NSPopUpButton: NSButton {
     }
 }
 
-open class NSPopUpButtonCell: NSCell {
+open class NSPopUpButtonCell: NSCell, @unchecked Sendable {
     public var arrowPosition: ArrowPosition = .arrowAtBottom
     public enum ArrowPosition: UInt, Sendable { case noArrow, arrowAtCenter, arrowAtBottom }
     public override init() { super.init() }
