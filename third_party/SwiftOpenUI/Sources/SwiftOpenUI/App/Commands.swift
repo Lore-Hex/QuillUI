@@ -51,6 +51,8 @@ extension Never: Commands {}
 
 /// Where a command group should appear in the menu bar.
 public enum CommandGroupPlacement: Equatable, Hashable {
+	/// A custom top-level command menu by title.
+	case menu(String)
 	/// Replaces the New Item commands (File menu).
 	case newItem
 	/// Replaces the app settings command.
@@ -103,6 +105,111 @@ public struct CommandMenuItem {
 		var copy = self
 		copy.isDisabled = isDisabled
 		return copy
+	}
+}
+
+/// A native top-level command-menu section after SwiftUI command placements
+/// have been mapped onto platform menu names.
+public struct CommandMenuSection {
+	public let title: String
+	public let items: [CommandMenuItem]
+
+	public init(title: String, items: [CommandMenuItem]) {
+		self.title = title
+		self.items = items
+	}
+}
+
+/// Converts extracted command groups into deterministic native menu sections.
+public func commandMenuSections(
+	from groups: [CommandGroupPlacement: [CommandMenuItem]]
+) -> [CommandMenuSection] {
+	var sections: [CommandMenuSection] = []
+	for (placement, items) in groups.sorted(by: commandPlacementComesBefore) {
+		let title = commandMenuTitle(for: placement)
+		if let existingIndex = sections.firstIndex(where: { $0.title == title }) {
+			let existing = sections[existingIndex]
+			sections[existingIndex] = CommandMenuSection(
+				title: existing.title,
+				items: existing.items + items
+			)
+		} else {
+			sections.append(CommandMenuSection(title: title, items: items))
+		}
+	}
+	return sections.filter { !$0.items.isEmpty }
+}
+
+private func commandMenuTitle(for placement: CommandGroupPlacement) -> String {
+	switch placement {
+	case .menu(let title):
+		return title
+	case .newItem, .appSettings, .saveItem, .printItem:
+		return "File"
+	case .undoRedo, .pasteboard, .textFormatting:
+		return "Edit"
+	case .toolbar, .sidebar:
+		return "View"
+	case .windowSize:
+		return "Window"
+	case .help:
+		return "Help"
+	}
+}
+
+private func commandPlacementComesBefore(
+	_ lhs: (key: CommandGroupPlacement, value: [CommandMenuItem]),
+	_ rhs: (key: CommandGroupPlacement, value: [CommandMenuItem])
+) -> Bool {
+	let lhsKey = commandPlacementSortKey(lhs.key)
+	let rhsKey = commandPlacementSortKey(rhs.key)
+	if lhsKey.rank != rhsKey.rank {
+		return lhsKey.rank < rhsKey.rank
+	}
+	return lhsKey.tieBreak < rhsKey.tieBreak
+}
+
+private func commandPlacementSortKey(_ placement: CommandGroupPlacement) -> (rank: Int, tieBreak: String) {
+	switch placement {
+	case .newItem:
+		return (0, "newItem")
+	case .appSettings:
+		return (1, "appSettings")
+	case .saveItem:
+		return (2, "saveItem")
+	case .printItem:
+		return (3, "printItem")
+	case .undoRedo:
+		return (10, "undoRedo")
+	case .pasteboard:
+		return (11, "pasteboard")
+	case .textFormatting:
+		return (12, "textFormatting")
+	case .toolbar:
+		return (20, "toolbar")
+	case .sidebar:
+		return (21, "sidebar")
+	case .menu(let title):
+		switch title {
+		case "File":
+			return (4, title)
+		case "Edit":
+			return (13, title)
+		case "View":
+			return (22, title)
+		case "Capture":
+			return (30, title)
+		case "Window":
+			return (79, title)
+		case "Help":
+			return (91, title)
+		default:
+			return (40, title)
+		}
+	case .windowSize:
+		return (80, "windowSize")
+	case .help:
+		return (90, "help")
 	}
 }
 
@@ -264,7 +371,7 @@ private func collectKnownCommand(_ command: any Commands, into result: inout [Co
 	if let group = command as? CommandGroup {
 		result[group.placement, default: []].append(contentsOf: group.items)
 	} else if let menu = command as? CommandMenu {
-		result[.newItem, default: []].append(contentsOf: menu.items)
+		result[.menu(menu.title), default: []].append(contentsOf: menu.items)
 	} else if let tuple = command as? TupleCommandsProtocol {
 		tuple.collectInto(&result)
 	}
@@ -274,7 +381,7 @@ private func collectCommandGroups<C: Commands>(_ commands: C, into result: inout
 	if let group = commands as? CommandGroup {
 		result[group.placement, default: []].append(contentsOf: group.items)
 	} else if let menu = commands as? CommandMenu {
-		result[.newItem, default: []].append(contentsOf: menu.items)
+		result[.menu(menu.title), default: []].append(contentsOf: menu.items)
 	} else if let tuple = commands as? TupleCommandsProtocol {
 		tuple.collectInto(&result)
 	} else if !(commands is EmptyCommands) {

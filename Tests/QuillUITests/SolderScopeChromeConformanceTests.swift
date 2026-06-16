@@ -48,13 +48,114 @@ private struct PressOpacityButtonStyle: SwiftOpenUI.ButtonStyle {
     }
 }
 
-/// Mirrors SolderScopeCommands.swift: a `Commands` conformer whose body is a
-/// `CommandMenu` of `Button`s carrying `.keyboardShortcut` metadata.
-private struct ZoomCommands: Commands {
+@MainActor
+private final class SolderScopeCommandProbeState {
+    var selectedCameraExists = false
+    var isFrozen = false
+    var isRecording = false
+    var scaleBarToggleCount = 0
+    var integrationCycleCount = 0
+    var resetViewCount = 0
+    var horizontalFlipCount = 0
+    var verticalFlipCount = 0
+    var clockwiseRotationCount = 0
+    var isCalibrating = false
+    var snapshotCount = 0
+    var helpCount = 0
+    var shortcutHelpCount = 0
+
+    func toggleScaleBar() { scaleBarToggleCount += 1 }
+    func cycleIntegration() { integrationCycleCount += 1 }
+    func resetView() { resetViewCount += 1 }
+    func flipHorizontal() { horizontalFlipCount += 1 }
+    func flipVertical() { verticalFlipCount += 1 }
+    func rotateClockwise() { clockwiseRotationCount += 1 }
+    func toggleFreeze() { isFrozen.toggle() }
+    func takeSnapshot() { snapshotCount += 1 }
+    func toggleRecording() { isRecording.toggle() }
+}
+
+/// Mirrors SolderScopeCommands.swift: the real View/Capture/Help command
+/// surface, dynamic Capture labels, disabled Recalibrate item, and all
+/// keyboard shortcuts from the upstream app.
+private struct SolderScopeCommandProbe: Commands {
+    let state: SolderScopeCommandProbeState
+
     var body: some Commands {
+        CommandGroup(replacing: .newItem) { }
+
         CommandMenu("View") {
-            Button("Zoom In") {}
-                .keyboardShortcut("]", modifiers: .command)
+            Button("Toggle Scale Bar") {
+                state.toggleScaleBar()
+            }
+            .keyboardShortcut("b", modifiers: [])
+
+            Button("Cycle Integration") {
+                state.cycleIntegration()
+            }
+            .keyboardShortcut("i", modifiers: [])
+
+            Divider()
+
+            Button("Reset View") {
+                state.resetView()
+            }
+            .keyboardShortcut("0", modifiers: [])
+
+            Divider()
+
+            Button("Flip Horizontal") {
+                state.flipHorizontal()
+            }
+            .keyboardShortcut("h", modifiers: [])
+
+            Button("Flip Vertical") {
+                state.flipVertical()
+            }
+            .keyboardShortcut("v", modifiers: [])
+
+            Button("Rotate 90° Clockwise") {
+                state.rotateClockwise()
+            }
+            .keyboardShortcut("]", modifiers: [])
+
+            Divider()
+
+            Button("Recalibrate...") {
+                state.isCalibrating = true
+            }
+            .disabled(!state.selectedCameraExists)
+        }
+
+        CommandMenu("Capture") {
+            Button(state.isFrozen ? "Unfreeze" : "Freeze") {
+                state.toggleFreeze()
+            }
+            .keyboardShortcut(.space, modifiers: [])
+
+            Divider()
+
+            Button("Take Snapshot") {
+                state.takeSnapshot()
+            }
+            .keyboardShortcut("s", modifiers: [])
+
+            Button(state.isRecording ? "Stop Recording" : "Start Recording") {
+                state.toggleRecording()
+            }
+            .keyboardShortcut("r", modifiers: [])
+        }
+
+        CommandGroup(replacing: .help) {
+            Button("SolderScope Help") {
+                state.helpCount += 1
+            }
+
+            Divider()
+
+            Button("Keyboard Shortcuts") {
+                state.shortcutHelpCount += 1
+            }
         }
     }
 }
@@ -319,21 +420,98 @@ struct SolderScopeChromeConformanceTests {
 
     @Test func commandMenuOfButtonsWithKeyboardShortcut() {
         // SolderScopeCommands: CommandMenu("View") { Button(…).keyboardShortcut(…) }
-        let commands = ZoomCommands()
+        let commands = SolderScopeCommandProbe(state: SolderScopeCommandProbeState())
         #expect(builds(commands.body))
     }
 
-    @Test func commandMenuItemsExtractForBackendShortcuts() {
+    @Test func commandMenuItemsExtractFullSolderScopeSurfaceForBackendShortcuts() {
         // Hidden-title-bar SolderScope windows do not show an in-window GTK
         // menu bar, but the backend still needs the extracted command items
         // so keyboard shortcuts match the macOS app chrome.
-        let items = extractCommandGroups(from: ZoomCommands())
-            .values
-            .flatMap { $0 }
+        let state = SolderScopeCommandProbeState()
+        let groups = extractCommandGroups(from: SolderScopeCommandProbe(state: state))
 
-        #expect(items.count == 1)
-        #expect(items.first?.label == "Zoom In")
-        #expect(items.first?.shortcut == KeyboardShortcut("]", modifiers: .command))
+        let viewItems = groups[.menu("View")] ?? []
+        #expect(viewItems.map(\.label) == [
+            "Toggle Scale Bar",
+            "Cycle Integration",
+            "Reset View",
+            "Flip Horizontal",
+            "Flip Vertical",
+            "Rotate 90° Clockwise",
+            "Recalibrate..."
+        ])
+        #expect(viewItems.map(\.shortcut) == [
+            KeyboardShortcut("b", modifiers: []),
+            KeyboardShortcut("i", modifiers: []),
+            KeyboardShortcut("0", modifiers: []),
+            KeyboardShortcut("h", modifiers: []),
+            KeyboardShortcut("v", modifiers: []),
+            KeyboardShortcut("]", modifiers: []),
+            nil
+        ])
+        #expect(viewItems.last?.isDisabled == true)
+
+        let captureItems = groups[.menu("Capture")] ?? []
+        #expect(captureItems.map(\.label) == [
+            "Freeze",
+            "Take Snapshot",
+            "Start Recording"
+        ])
+        #expect(captureItems.map(\.shortcut) == [
+            KeyboardShortcut(.space, modifiers: []),
+            KeyboardShortcut("s", modifiers: []),
+            KeyboardShortcut("r", modifiers: [])
+        ])
+
+        let helpItems = groups[.help] ?? []
+        #expect(helpItems.map(\.label) == ["SolderScope Help", "Keyboard Shortcuts"])
+        #expect(helpItems.allSatisfy { $0.shortcut == nil && !$0.isDisabled })
+
+        let nativeSections = commandMenuSections(from: groups)
+        #expect(nativeSections.map(\.title) == ["View", "Capture", "Help"])
+        #expect(nativeSections.flatMap { $0.items }.count == 12)
+
+        viewItems[0].action()
+        viewItems[1].action()
+        viewItems[2].action()
+        viewItems[3].action()
+        viewItems[4].action()
+        viewItems[5].action()
+        #expect(state.scaleBarToggleCount == 1)
+        #expect(state.integrationCycleCount == 1)
+        #expect(state.resetViewCount == 1)
+        #expect(state.horizontalFlipCount == 1)
+        #expect(state.verticalFlipCount == 1)
+        #expect(state.clockwiseRotationCount == 1)
+        #expect(state.isCalibrating == false)
+
+        state.selectedCameraExists = true
+        let enabledViewItems = extractCommandGroups(from: SolderScopeCommandProbe(state: state))[.menu("View")] ?? []
+        let recalibrate = enabledViewItems.last
+        #expect(recalibrate?.label == "Recalibrate...")
+        #expect(recalibrate?.isDisabled == false)
+        recalibrate?.action()
+        #expect(state.isCalibrating == true)
+
+        captureItems[0].action()
+        captureItems[1].action()
+        captureItems[2].action()
+        #expect(state.isFrozen == true)
+        #expect(state.snapshotCount == 1)
+        #expect(state.isRecording == true)
+
+        let updatedCaptureItems = extractCommandGroups(from: SolderScopeCommandProbe(state: state))[.menu("Capture")] ?? []
+        #expect(updatedCaptureItems.map(\.label) == [
+            "Unfreeze",
+            "Take Snapshot",
+            "Stop Recording"
+        ])
+
+        helpItems[0].action()
+        helpItems[1].action()
+        #expect(state.helpCount == 1)
+        #expect(state.shortcutHelpCount == 1)
     }
 
     @Test func keyEquivalentSpaceExists() {
