@@ -34,6 +34,30 @@ struct ActorIsolationLoweringTests {
         #expect(!lowered.contains("actor SpeechRecognizer"))
     }
 
+    @Test("converting a bare actor does not duplicate leading blank lines")
+    func actorConversionPreservesLeadingTrivia() {
+        // Regression: the rewriter used to emit the node's leading trivia twice
+        // (once on the rebuilt class decl, once on the synthesized `final`),
+        // doubling the blank line that precedes a bare `actor` declaration.
+        let source = """
+        import Speech
+
+        actor SpeechRecognizer: ObservableObject {
+            var count = 0
+        }
+        """
+        let lowered = lower(source)
+        let expected = """
+        import Speech
+
+        final class SpeechRecognizer: ObservableObject {
+            var count = 0
+        }
+        """
+        #expect(lowered == expected)
+        #expect(!lowered.contains("\n\n\n"))
+    }
+
     @Test("nonisolated modifier is removed from a func")
     func nonisolatedModifierRemoved() {
         let source = """
