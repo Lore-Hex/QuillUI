@@ -128,9 +128,11 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    CPU/software renderer scope. `SCNView.hitTest`
    now uses the same projected primitives as the software renderer and returns
    nearest-first `SCNHitTestResult`s, covering ShapeScript's geometry-selection
-   path. Camera orientation is now respected by the software renderer, and
-   deterministic `SCNView` camera-control movement is smoke-gated by creating a
-   moved point-of-view camera for ShapeScript-style `cameraHasMoved` checks.
+   path. Camera orientation is now respected by the software renderer, explicit
+   `SCNCamera.zNear`/`zFar` clipping culls both rendered and hit-tested
+   primitives, and deterministic `SCNView` camera-control movement is
+   smoke-gated by creating a moved point-of-view camera for ShapeScript-style
+   `cameraHasMoved` checks.
    The AppKit event pump now forwards pointer, scroll, magnify, cursor, and
    enter/exit events through `NSApplication.sendEvent`, with a SceneView backing
    view smoke proving application-dispatched orbit and magnify controls reach
@@ -148,9 +150,8 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    references for the canonical sphere, triangle, and side-camera scenes are
    pinned in `SceneKitRendererTests` and the runnable
    `quill-scenekit-render-smoke` executable. The smoke gate checks rendered
-   area, dominant color, and screen bounds against those Apple envelopes, then
-   runs direct camera-control/hit-test checks and an Xvfb GTK `SceneView`
-   render smoke.
+   area, dominant color, screen bounds, explicit clipping, camera control, and
+   hit-test checks, then runs an Xvfb GTK `SceneView` render smoke.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
 existing 2D paint layer. That is enough for these apps' scene scale; a GL/
@@ -168,4 +169,4 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Rung 3: fixtures render (GTK screenshot gate)
 - [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
 - [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
-- [x] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, deterministic camera movement, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)
+- [x] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, explicit camera clipping, deterministic camera movement, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)
