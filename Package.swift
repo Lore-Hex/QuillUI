@@ -412,6 +412,7 @@ if quillUILinuxBuildBackend == .gtk {
 }
 
 products.append(.executable(name: "quill-imageio-smoke", targets: ["QuillImageIOSmoke"]))
+products.append(.executable(name: "quill-photos-smoke", targets: ["QuillPhotosSmoke"]))
 
 if quillUILinuxBuildBackend == .gtk && signalUpstreamPresent && libsignalUpstreamPresent {
     // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
@@ -2679,6 +2680,12 @@ targets += [
         path: "Sources/QuillImageIOSmoke",
         swiftSettings: appSwiftSettings
     ),
+    .executableTarget(
+        name: "QuillPhotosSmoke",
+        dependencies: ["Photos", "QuillKit", "UIKit"],
+        path: "Sources/QuillPhotosSmoke",
+        swiftSettings: appSwiftSettings
+    ),
     .systemLibrary(name: "CV4L2", path: "Sources/CV4L2"),
 ]
 #endif
@@ -3107,7 +3114,7 @@ targets.append(contentsOf: [
     // `import AVFoundation` alone); AVCaptureExtras.swift mirrors that with an
     // @_exported import. CoreImage depends only on QuillFoundation — no cycle.
     .target(name: "CoreHaptics", dependencies: [], path: "Sources/AppleFrameworkShims/CoreHaptics"),
-    .target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
+    .target(name: "Photos", dependencies: ["QuillFoundation", "QuillKit"], path: "Sources/PhotosShim"),
     .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
     .target(name: "FoundationModels", dependencies: ["QuillDataMacros"], path: "Sources/FoundationModels"),
     // CV4L2 (Linux): named non-variadic ioctl wrappers + V4L2 constants the

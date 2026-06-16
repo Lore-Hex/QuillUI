@@ -86,6 +86,12 @@ estimates, not release claims.
 - [ ] `UIImage` / `UIGraphicsImageRenderer`: text drawing, gradients, masks,
       complex paths/transforms/blend modes, orientation/EXIF metadata,
       animated images, HEIC/video thumbnails, and full compositing parity.
+- [x] `Photos`: local Linux photo-library fallback saves `UIImage` assets,
+      fetches `PHAsset` rows, and loads image data/resized thumbnails back
+      through `PHImageManager`.
+- [ ] `PhotosUI`: native picker UI, desktop file chooser integration,
+      Transferable-backed `PhotosPickerItem.loadTransferable`, video previews,
+      and real system photo-library integration.
 - [x] SwiftUI `.quickLookPreview(_:)` opens local preview URLs through a shared
       QuillKit QuickLook backend instead of dropping the binding.
 - [ ] `QuickLook`: full IceCubes media viewer/window behavior for
@@ -196,3 +202,10 @@ estimates, not release claims.
   pixels instead of inert placeholders. Verification: `QuillFoundationTests`,
   `SourceHygieneTests`, Docker/GTK `quill-imageio-smoke`, Docker/GTK
   `IceCubesLinuxApp`, and Docker/Qt `ImageIO` builds passed locally.
+- 2026-06-16: Replaced the empty Linux `Photos` behavior with a local
+  Quill photo-library fallback. `UIImageWriteToSavedPhotosAlbum`,
+  `PHAssetCreationRequest`, `PHAsset.fetchAssets`, and `PHImageManager`
+  data/image requests now persist and reload real image bytes for IceCubes'
+  media viewer save button and recent-photos strip. Verification: Docker/GTK
+  `quill-photos-smoke`, Docker/GTK `IceCubesLinuxApp`, and
+  `SourceHygieneTests` passed locally.

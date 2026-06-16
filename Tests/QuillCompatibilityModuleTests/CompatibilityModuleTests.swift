@@ -23,6 +23,7 @@ import Carbon
 import CoreSpotlight
 import CloudKit
 import AuthenticationServices
+import Photos
 // Scoped: the AppKit shadow supplies kUTTypeData (upstream Telegram pairs
 // `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
 // `import AppKit` here would collide with the UIKit shim surface.
@@ -3692,7 +3693,7 @@ struct CompatibilityModuleTests {
         #expect(Array(encodedPNG.prefix(8)) == [UInt8(0x89), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
 
         let filled = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { _ in
-            UIColor.red.setFill()
+            UIColor(red: 1, green: 0, blue: 0, alpha: 1).setFill()
             UIRectFill(CGRect(x: 0, y: 0, width: 2, height: 2))
         }
         guard let filledPixels = filled.cgImage?.quillBGRAPixels else {
@@ -3703,6 +3704,74 @@ struct CompatibilityModuleTests {
         #expect(filledPixels[1] == 0)
         #expect(filledPixels[2] > 240)
         #expect(filledPixels[3] == 255)
+    }
+
+    @Test("Photos shim persists saved UIImage assets and loads them back")
+    func photosShimPersistsSavedUIImageAssets() async throws {
+        #if os(Linux)
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-photos-\(UUID().uuidString)", isDirectory: true)
+        PHPhotoLibrary.quillUseLibraryDirectoryForTesting(temporaryDirectory)
+        defer {
+            PHPhotoLibrary.quillUseLibraryDirectoryForTesting(nil)
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 3, height: 2)).image { _ in
+            UIColor(red: 1, green: 0, blue: 0, alpha: 1).setFill()
+            UIRectFill(CGRect(x: 0, y: 0, width: 3, height: 2))
+        }
+
+        #expect(PHPhotoLibrary.authorizationStatus(for: .addOnly) == .authorized)
+        #expect(await PHPhotoLibrary.requestAuthorization(for: .readWrite) == .authorized)
+
+        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+
+        let options = PHFetchOptions()
+        options.fetchLimit = 10
+        let fetched = PHAsset.fetchAssets(with: .image, options: options)
+        #expect(fetched.count == 1)
+
+        let asset = fetched.object(at: 0)
+        #expect(asset.mediaType == .image)
+
+        var loadedData: Data?
+        var loadedType: String?
+        var loadedOrientation: UIImage.Orientation?
+        PHImageManager.default().requestImageDataAndOrientation(for: asset, options: nil) { data, type, orientation, _ in
+            loadedData = data
+            loadedType = type
+            loadedOrientation = orientation
+        }
+        #expect(loadedData?.starts(with: [0x89, 0x50, 0x4E, 0x47]) == true)
+        #expect(loadedType == "public.png")
+        #expect(loadedOrientation == .up)
+
+        var loadedImage: UIImage?
+        PHImageManager.default().requestImage(
+            for: asset,
+            targetSize: CGSize(width: 1, height: 1),
+            contentMode: .aspectFit,
+            options: nil
+        ) { image, _ in
+            loadedImage = image
+        }
+        #expect(loadedImage?.size == CGSize(width: 1, height: 1))
+        #expect(loadedImage?.cgImage?.quillBGRAPixels?.isEmpty == false)
+
+        try await PHPhotoLibrary.shared().performChanges {
+            let request = PHAssetCreationRequest.creationRequestForAsset(from: image)
+            #expect(request.placeholderForCreatedAsset != nil)
+        }
+        #expect(PHAsset.fetchAssets(with: .image, options: nil).count == 2)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("photos.saveImage"))
+        #expect(operations.contains("photos.fetchAssets"))
+        #expect(operations.contains("photos.requestImageData"))
+        #expect(operations.contains("photos.requestImage"))
+        #endif
     }
 
     @Test("QuillCompatibilityEvent equality covers all fields")
