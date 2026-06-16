@@ -6,9 +6,10 @@ PROFILE_ROOT="$ROOT_DIR/scripts/profiles"
 PROFILE=""
 MAX_LINES="${QUILLUI_PROFILE_MAX_SHELL_LINES:-50}"
 MAX_TEMPLATE_LINES="${QUILLUI_PROFILE_MAX_TEMPLATE_LINES:-0}"
+MAX_REWRITE_LINES="${QUILLUI_PROFILE_MAX_REWRITE_LINES:-0}"
 
 usage() {
-  echo "Usage: $(basename "$0") [--profile NAME] [--max-shell-lines N] [--max-template-lines N]" >&2
+  echo "Usage: $(basename "$0") [--profile NAME] [--max-shell-lines N] [--max-template-lines N] [--max-rewrite-lines N]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -16,6 +17,7 @@ while [[ $# -gt 0 ]]; do
     --profile) PROFILE="${2:-}"; shift 2 ;;
     --max-shell-lines) MAX_LINES="${2:-}"; shift 2 ;;
     --max-template-lines) MAX_TEMPLATE_LINES="${2:-}"; shift 2 ;;
+    --max-rewrite-lines) MAX_REWRITE_LINES="${2:-}"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 64 ;;
   esac
@@ -27,6 +29,10 @@ done
 }
 [[ "$MAX_TEMPLATE_LINES" =~ ^[0-9]+$ ]] || {
   echo "--max-template-lines must be a non-negative integer, got: $MAX_TEMPLATE_LINES" >&2
+  exit 64
+}
+[[ "$MAX_REWRITE_LINES" =~ ^[0-9]+$ ]] || {
+  echo "--max-rewrite-lines must be a non-negative integer, got: $MAX_REWRITE_LINES" >&2
   exit 64
 }
 
@@ -72,6 +78,26 @@ profile_template_line_count() {
   echo "$total"
 }
 
+profile_rewrite_line_count() {
+  local name="$1"
+  local dir="$PROFILE_ROOT/$name/rewrite-rules"
+  local total=0
+  local file
+  local lines
+
+  [[ -d "$dir" ]] || {
+    echo 0
+    return
+  }
+
+  while IFS= read -r -d '' file; do
+    lines="$(wc -l < "$file" | tr -d '[:space:]')"
+    total=$((total + lines))
+  done < <(find "$dir" -type f -print0)
+
+  echo "$total"
+}
+
 status=0
 while IFS= read -r profile; do
   [[ -z "$profile" ]] && continue
@@ -96,6 +122,17 @@ while IFS= read -r profile; do
     echo "profile template budget ok: $template_path has $template_lines lines (max $MAX_TEMPLATE_LINES)"
   else
     echo "profile template budget report: $template_path has $template_lines lines"
+  fi
+
+  rewrite_lines="$(profile_rewrite_line_count "$profile")"
+  rewrite_path="scripts/profiles/$profile/rewrite-rules"
+  if (( MAX_REWRITE_LINES > 0 && rewrite_lines > MAX_REWRITE_LINES )); then
+    echo "profile rewrite budget failed: $rewrite_path has $rewrite_lines lines (max $MAX_REWRITE_LINES)" >&2
+    status=1
+  elif (( MAX_REWRITE_LINES > 0 )); then
+    echo "profile rewrite budget ok: $rewrite_path has $rewrite_lines lines (max $MAX_REWRITE_LINES)"
+  else
+    echo "profile rewrite budget report: $rewrite_path has $rewrite_lines lines"
   fi
 done < <(emit_profiles)
 

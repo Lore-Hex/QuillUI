@@ -322,16 +322,20 @@ struct QuillDataSourceLoweringTests {
         let root = try packageRoot()
         let script = root.appendingPathComponent("scripts/audit-profile-budget.sh")
 
-        let passing = try runScript(script, arguments: ["--max-shell-lines", "50"])
+        let passing = try runScript(script, arguments: [
+            "--max-shell-lines", "50",
+            "--max-rewrite-lines", "150"
+        ])
         #expect(passing.status == 0, Comment(rawValue: passing.output))
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
         #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
+        #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has 150 lines (max 150)"))
 
         let workflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140"))
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140 --max-rewrite-lines 150"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
@@ -343,6 +347,13 @@ struct QuillDataSourceLoweringTests {
         ])
         #expect(templateFailing.status != 0, Comment(rawValue: templateFailing.output))
         #expect(templateFailing.output.contains("profile template budget failed"))
+
+        let rewriteFailing = try runScript(script, arguments: [
+            "--profile", "enchanted-full-source",
+            "--max-rewrite-lines", "1"
+        ])
+        #expect(rewriteFailing.status != 0, Comment(rawValue: rewriteFailing.output))
+        #expect(rewriteFailing.output.contains("profile rewrite budget failed"))
     }
 
     @Test("Linux Swift test wrapper applies checkout patches before testing")
