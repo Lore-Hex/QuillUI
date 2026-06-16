@@ -93,12 +93,20 @@ private final class ActorIsolationRewriter: SyntaxRewriter {
             return recursedSyntax
         }
 
-        // `final` carries the actor keyword's leading trivia so leading comments
-        // / blank lines stay attached to the head of the declaration. The actor
-        // keyword itself becomes the `class` keyword with a single leading space.
+        // The head of the declaration owns the node's leading trivia (leading
+        // comments / blank lines / indentation). That head is the first
+        // *attribute* if the actor has any, otherwise the new `final` modifier.
+        // We must place the leading trivia on exactly ONE token and leave the
+        // `ClassDeclSyntax`'s own `leadingTrivia` empty — otherwise the node's
+        // leading trivia is emitted twice (e.g. a blank line is doubled).
+        let hasAttributes = !actor.attributes.isEmpty
         let finalKeyword = TokenSyntax.keyword(
             .final,
-            leadingTrivia: actor.actorKeyword.leadingTrivia,
+            // When attributes precede the modifiers, the attributes already carry
+            // the node's head trivia, so `final` only needs a single leading
+            // space. With no attributes, `final` becomes the head token and
+            // inherits the actor keyword's leading trivia verbatim.
+            leadingTrivia: hasAttributes ? .space : actor.actorKeyword.leadingTrivia,
             trailingTrivia: .space
         )
         let finalModifier = DeclModifierSyntax(name: finalKeyword)
@@ -113,7 +121,9 @@ private final class ActorIsolationRewriter: SyntaxRewriter {
         )
 
         let classDecl = ClassDeclSyntax(
-            leadingTrivia: actor.leadingTrivia,
+            // Leading trivia lives on the head token (attribute or `final`), not
+            // on the class decl itself, to avoid duplicating it.
+            leadingTrivia: [],
             attributes: actor.attributes,
             modifiers: modifiers,
             classKeyword: classKeyword,
