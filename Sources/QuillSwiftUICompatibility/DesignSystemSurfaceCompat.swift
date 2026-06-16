@@ -2837,11 +2837,6 @@ public extension Array {
 }
 
 
-public extension URL {
-    func startAccessingSecurityScopedResource() -> Bool { true }
-    func stopAccessingSecurityScopedResource() {}
-}
-
 /// Crosses non-Sendable view values into assumeIsolated hops (single
 /// thread: backend main loop). Same pattern as the V4L2 delivery box.
 struct QuillIsolationHopBox<T>: @unchecked Sendable { let value: T }

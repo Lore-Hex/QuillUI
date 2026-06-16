@@ -576,6 +576,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/UIKitShim/UIKit.swift"),
             encoding: .utf8
         )
+        let swiftUICompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift"),
+            encoding: .utf8
+        )
         let gestureSource = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/UIGestureRecognizers.swift"),
             encoding: .utf8
@@ -597,6 +601,11 @@ struct SourceHygieneTests {
         #expect(source.contains("@MainActor public class UIWindowScene: UIScene"))
         #expect(!uiKitShim.contains("@MainActor public class UIWindowScene: UIScene"))
         #expect(!uiKitShim.contains("@MainActor public protocol UINavigationControllerDelegate: AnyObject"))
+        #expect(source.contains("@MainActor func textViewDidChange(_ textView: Any)"))
+        #expect(uiKitShim.contains("guard let textView = textView as? UITextView else { return }"))
+        #expect(uiKitShim.contains("self.textViewDidChange(textView)"))
+        #expect(!swiftUICompatibility.contains("func startAccessingSecurityScopedResource() -> Bool"))
+        #expect(!swiftUICompatibility.contains("func stopAccessingSecurityScopedResource()"))
     }
 
     @Test("Semantic colors have a single platform-color owner")

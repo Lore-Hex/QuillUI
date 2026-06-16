@@ -477,6 +477,12 @@ public extension UITextViewDelegate {
     @MainActor func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool { true }
     @MainActor func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
     @MainActor func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
+    /// Bridges the inherited `UIScrollView.delegate` protocol requirement back
+    /// to UIKit's typed `UITextViewDelegate` callback.
+    @MainActor func textViewDidChange(_ textView: Any) {
+        guard let textView = textView as? UITextView else { return }
+        self.textViewDidChange(textView)
+    }
 }
 
 @MainActor public protocol UITextPasteConfigurationSupporting: AnyObject {}

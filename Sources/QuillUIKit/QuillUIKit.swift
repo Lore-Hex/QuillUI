@@ -2760,12 +2760,14 @@ public struct UIContentSizeCategory: RawRepresentable, Equatable, Hashable, Send
 
 public protocol UIScrollViewDelegate: AnyObject {
     @MainActor func scrollViewDidScroll(_: UIScrollView)
+    @MainActor func textViewDidChange(_ textView: Any)
 }
 
 public extension UIScrollViewDelegate {
     @MainActor func scrollViewDidScroll(_: UIScrollView) {}
     @MainActor func viewForZooming(in scrollView: UIScrollView) -> UIView? { nil }
     @MainActor func scrollViewDidEndZooming(_: UIScrollView, with view: UIView?, atScale scale: CGFloat) {}
+    @MainActor func textViewDidChange(_ textView: Any) {}
 }
 
 // UIGestureRecognizer (base + tap/long-press/pan/pinch recognizers, the
