@@ -595,7 +595,7 @@
 <tr><td><code>NSMenu.popUp(...)</code>, <code>update()</code>, <code>cancelTracking()</code></td><td>Fallback</td><td>No native menu display.</td></tr>
 <tr><td><code>NSMenuItem.init(...)</code> / <code>separator()</code></td><td>Usable</td><td>Stores title/action/key equivalent metadata.</td></tr>
 <tr><td><code>NSToolbar.insertItem(withItemIdentifier:at:)</code> / <code>removeItem(at:)</code> / <code>validateVisibleItems()</code></td><td>Partial</td><td>In-memory toolbar item list only.</td></tr>
-<tr><td><code>NSAlert.addButton(withTitle:)</code>, <code>runModal()</code>, <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Deterministic modal response, no native dialog.</td></tr>
+<tr><td><code>NSAlert.addButton(withTitle:)</code>, <code>runModal()</code>, <code>beginSheetModal(...)</code></td><td>Partial</td><td>Deterministic headless response plus GTK-backed modal presenter with button responses and accessory text-field capture.</td></tr>
 <tr><td><code>NSSavePanel.runModal()</code> / <code>begin(...)</code> / <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Returns <code>.OK</code> and completes synchronously; real file dialog is incomplete.</td></tr>
 <tr><td><code>NSOpenPanel</code> configuration / <code>runModal()</code> / <code>begin(...)</code> / <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Stores picker configuration and deterministically returns <code>.cancel</code>; no native dialog or user selection yet.</td></tr>
 <tr><td><code>NSScrollView</code> document-view helpers and <code>flashScrollers()</code></td><td>Partial</td><td>Stores document view; no native scrolling.</td></tr>
