@@ -56,6 +56,7 @@ struct QuillLowerAppKit {
           each type with @objc actions                 -> a generated
                                                           QuillActionDispatching conformance
                                                           (quillPerform selector dispatch)
+          UIView.layerClass returning SomeLayer.self   -> Linux-only layer factory registration
         """
         stream.write(Data((usage + "\n").utf8))
     }

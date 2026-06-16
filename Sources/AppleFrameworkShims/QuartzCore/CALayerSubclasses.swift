@@ -101,7 +101,7 @@ open class CAShapeLayer: CALayer {
     open var lineDashPhase: CGFloat = 0
     open var lineDashPattern: [NSNumber]?
 
-    public required init() { super.init() }
+    public override init() { super.init() }
 
     /// Apple's built-in subclasses copy their own state in init(layer:) —
     /// the contract custom subclasses rely on when they override it and
@@ -163,7 +163,7 @@ open class CAGradientLayer: CALayer {
 
     open var type: CAGradientLayerType = .axial
 
-    public required init() { super.init() }
+    public override init() { super.init() }
 
     public override init(layer: Any) {
         super.init(layer: layer)
@@ -242,7 +242,7 @@ open class CATextLayer: CALayer {
     /// Apple default false. No-op on Linux until rasterization exists.
     open var allowsFontSubpixelQuantization: Bool = false
 
-    public required init() { super.init() }
+    public override init() { super.init() }
 
     public override init(layer: Any) {
         super.init(layer: layer)
@@ -410,7 +410,7 @@ open class CAEmitterLayer: CALayer {
     /// Seed for the particle randomizer. Apple default 0.
     open var seed: UInt32 = 0
 
-    public required init() { super.init() }
+    public override init() { super.init() }
 
     public override init(layer: Any) {
         super.init(layer: layer)
@@ -465,7 +465,7 @@ open class CAReplicatorLayer: CALayer {
     open var instanceBlueOffset: Float = 0
     open var instanceAlphaOffset: Float = 0
 
-    public required init() { super.init() }
+    public override init() { super.init() }
 
     public override init(layer: Any) {
         super.init(layer: layer)
@@ -507,7 +507,7 @@ public struct CAScrollLayerScrollMode: RawRepresentable, Hashable, Sendable, Exp
 open class CAScrollLayer: CALayer {
     open var scrollMode: CAScrollLayerScrollMode = .both
 
-    public required init() { super.init() }
+    public override init() { super.init() }
 
     public override init(layer: Any) {
         super.init(layer: layer)

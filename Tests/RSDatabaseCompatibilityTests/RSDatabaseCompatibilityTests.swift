@@ -154,6 +154,22 @@ struct RSDatabaseCompatibilityTests {
         #expect(NSString.rs_SQLKeyPlaceholderPairs(withKeys: ["feedURL", "feedID"]) == "feedURL=?, feedID=?")
     }
 
+    @Test func databaseCompletionBlockMatchesNetNewsWireErrorCallbackShape() {
+        let completion: DatabaseCompletionBlock = { error in
+            #expect(error == nil)
+        }
+
+        completion(nil)
+    }
+
+    @Test func rsDatabaseImportExposesDispatchQueueClosureAsyncShape() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                continuation.resume()
+            }
+        }
+    }
+
     @Test func databaseTableHelpersHandleEmptyInputsAndColumnLookup() throws {
         struct ItemsTable: DatabaseTable {
             let name = "items"

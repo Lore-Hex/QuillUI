@@ -2743,6 +2743,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/generated-telegram-package-check.sh"),
             encoding: .utf8
         )
+        let telegramAppSourceCheck = try String(
+            contentsOf: root.appendingPathComponent("scripts/generated-telegram-app-source-check.sh"),
+            encoding: .utf8
+        )
         let telegramManifestPatcher = try String(
             contentsOf: root.appendingPathComponent("scripts/patch-telegram-package-manifest.py"),
             encoding: .utf8
@@ -2951,6 +2955,11 @@ struct SourceHygieneTests {
         #expect(telegramPackageCheck.contains("HOME=\"$CACHE_HOME\""))
         #expect(telegramPackageCheck.contains("find \"$UPSTREAM_DIR/packages\""))
         #expect(telegramPackageCheck.contains("lower-telegram-linux-source.py"))
+        #expect(telegramPackageCheck.contains("run_reusable_apple_lowering_if_needed"))
+        #expect(telegramPackageCheck.contains("run-quill-appkit-lower.sh"))
+        #expect(telegramPackageCheck.contains("layerClass"))
+        #expect(telegramAppSourceCheck.contains("run-quill-appkit-lower.sh"))
+        #expect(telegramAppSourceCheck.contains("layerClass"))
         #expect(telegramPackageCheck.contains("patch-telegram-package-manifest.py"))
         #expect(telegramPackageCheck.contains("materialize_telegram_shared_headers \"$submodule_name\" \"$mirrored_submodule\"\n        python3 \"$ROOT_DIR/scripts/patch-telegram-package-manifest.py\" \"$mirrored_submodule\" \"$ROOT_DIR\""))
         #expect(telegramPackageCheck.contains("find \"$submodule_mirror_root\" -type f -name Package.swift -print | sort"))

@@ -91,6 +91,9 @@ while IFS= read -r swift_source; do
 done < <(find "$UPSTREAM_DIR/Telegram-Mac" -maxdepth 1 -name '*.swift' -print | sort)
 
 python3 "$ROOT_DIR/scripts/lower-telegram-linux-source.py" "$app_dir"
+if grep -rqE '#selector|@objc|@IBAction|@IBOutlet|@NSManaged|import os\.log|layerClass' "$app_dir" 2>/dev/null; then
+  "$ROOT_DIR/scripts/run-quill-appkit-lower.sh" "$app_dir"
+fi
 python3 "$ROOT_DIR/scripts/generate-telegram-image-resource-symbols.py" "$app_dir"
 
 # The app entry is lowered away; the check builds a library, not a runnable.

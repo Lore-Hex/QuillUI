@@ -225,6 +225,66 @@ struct AppKitLoweringTests {
         #expect(!lowered.contains("QuillActionDispatching"))
     }
 
+    @Test("UIView layerClass override registers a Linux layer factory inline")
+    func layerClassRegistersFactoryInline() {
+        let source = """
+        private final class PrivateLayer: CALayer {}
+        final class PrivateLayerView: UIView {
+            override class var layerClass: AnyClass {
+                return PrivateLayer.self
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("#if os(Linux)"))
+        #expect(lowered.contains("quillUIKitRegisterLayerClass(PrivateLayer.self) { PrivateLayer() }"))
+        #expect(lowered.contains("return PrivateLayer.self"))
+    }
+
+    @Test("UIView layerClass static override without explicit return registers a factory")
+    func layerClassStaticExpressionRegistersFactory() {
+        let source = """
+        final class MetalView: UIView {
+            static override var layerClass: AnyClass {
+                CAMetalLayer.self
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("quillUIKitRegisterLayerClass(CAMetalLayer.self) { CAMetalLayer() }"))
+        #expect(lowered.contains("return CAMetalLayer.self"))
+    }
+
+    @Test("UIView layerClass factory lowering is idempotent")
+    func layerClassFactoryLoweringIdempotent() {
+        let source = """
+        final class ShapeView: UIView {
+            override public static var layerClass: AnyClass {
+                return CAShapeLayer.self
+            }
+        }
+        """
+        let once = AppKitLowering().lower(source)
+        let twice = AppKitLowering().lower(once)
+        #expect(once == twice)
+        let count = once.components(separatedBy: "quillUIKitRegisterLayerClass").count - 1
+        #expect(count == 1)
+    }
+
+    @Test("Non-layerClass AnyClass properties are not rewritten")
+    func nonLayerClassPropertiesUntouched() {
+        let source = """
+        final class C {
+            override static var fallbackClass: AnyClass {
+                return CALayer.self
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("quillUIKitRegisterLayerClass"))
+        #expect(lowered.contains("fallbackClass"))
+    }
+
     @Test("Conformance generation is idempotent (second pass adds nothing)")
     func conformanceIdempotent() {
         let once = AppKitLowering().lower("class VC { @objc func tap() {} }")

@@ -164,9 +164,11 @@ open class CALayer: NSObject, CAMediaTiming {
 
     // MARK: Initializers
 
-    /// `required` so metatype instantiation works: QuillUIKit's UIView does
-    /// `(Self.layerClass as? CALayer.Type)?.init()`.
-    public required override init() {
+    /// Keep the initializer non-`required`, matching Apple source semantics:
+    /// existing CALayer subclasses commonly declare a plain `override init()`.
+    /// Dynamic layer creation belongs in the view framework's factory layer,
+    /// not in a source-breaking initializer requirement on every subclass.
+    public override init() {
         super.init()
     }
 

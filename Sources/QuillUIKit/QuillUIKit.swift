@@ -33,6 +33,58 @@ public typealias ASPresentationAnchor = NSObject
 
 #if !os(iOS)
 
+#if os(Linux)
+@MainActor public protocol QuillUIKitLayerConstructible: AnyObject {
+    static func quillUIKitMakeLayer() -> CALayer
+}
+
+public typealias QuillUIKitLayerFactory = @MainActor () -> CALayer
+
+@MainActor private var quillUIKitLayerFactories: [ObjectIdentifier: QuillUIKitLayerFactory] = [:]
+
+@MainActor
+public func quillUIKitRegisterLayerClass(_ layerClass: AnyClass, factory: @escaping QuillUIKitLayerFactory) {
+    quillUIKitLayerFactories[ObjectIdentifier(layerClass)] = factory
+}
+
+@MainActor
+private func quillUIKitCreateLayer(for layerClass: AnyClass) -> CALayer {
+    if let factory = quillUIKitLayerFactories[ObjectIdentifier(layerClass)] {
+        return factory()
+    }
+
+    // Swift cannot call `CALayer.Type.init()` unless CALayer's initializer is
+    // `required`, but Apple's CALayer does not force that on subclasses.
+    // Source-lowered registrations or same-module generated conformances can
+    // opt custom layer classes into default construction without changing the
+    // app's original source.
+    if let constructible = layerClass as? QuillUIKitLayerConstructible.Type {
+        return constructible.quillUIKitMakeLayer()
+    }
+
+    switch ObjectIdentifier(layerClass) {
+    case ObjectIdentifier(CALayer.self):
+        return CALayer()
+    case ObjectIdentifier(CAShapeLayer.self):
+        return CAShapeLayer()
+    case ObjectIdentifier(CAGradientLayer.self):
+        return CAGradientLayer()
+    case ObjectIdentifier(CATextLayer.self):
+        return CATextLayer()
+    case ObjectIdentifier(CAEmitterLayer.self):
+        return CAEmitterLayer()
+    case ObjectIdentifier(CAReplicatorLayer.self):
+        return CAReplicatorLayer()
+    case ObjectIdentifier(CAScrollLayer.self):
+        return CAScrollLayer()
+    case ObjectIdentifier(CAMetalLayer.self):
+        return CAMetalLayer()
+    default:
+        return CALayer()
+    }
+}
+#endif
+
 // MARK: - UIResponder / UIView / UIViewController stubs
 
 @MainActor open class UIResponder: NSObject {
@@ -287,8 +339,9 @@ public class UIWindow: UIView {}
 
     #if os(Linux)
     // UIView.layer — Apple's view/layer pairing. Created lazily (first access)
-    // via `layerClass` so subclasses that override `layerClass` (CAShapeLayer-
-    // backed views etc.) get the right class; geometry writes mirror into it.
+    // via `layerClass` so subclasses that override `layerClass` for system or
+    // constructible custom CALayer subclasses get the right class; the registry
+    // is an escape hatch for unusual classes that cannot be default-constructed.
     // There is no compositor on Linux yet, so the layer is a faithful MODEL
     // (geometry, hierarchy, animation timing) — not pixels. Linux-only block:
     // on macOS this module builds against real AppKit and predates the shim.
@@ -296,8 +349,7 @@ public class UIWindow: UIView {}
     open class var layerClass: AnyClass { CALayer.self }
     open var layer: CALayer {
         if let existing = _layer { return existing }
-        let cls = type(of: self).layerClass as? CALayer.Type ?? CALayer.self
-        let created = cls.init()
+        let created = quillUIKitCreateLayer(for: type(of: self).layerClass)
         // Seed from BOTH stored geometry properties: a bounds set before the
         // first layer access must survive (frame alone would reset the
         // layer's bounds to the possibly-zero stored frame). frame first —

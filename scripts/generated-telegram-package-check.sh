@@ -110,6 +110,19 @@ submodule_mirror_root="$WORK_ROOT/submodules"
 overlaid_packages=()
 swift_build_flags=()
 
+run_reusable_apple_lowering_if_needed() {
+  local source_dir="$1"
+
+  if [[ "$(uname -s)" != "Linux" ]]; then
+    return
+  fi
+  if ! grep -rqE '#selector|@objc|@IBAction|@IBOutlet|@NSManaged|import os\.log|layerClass' "$source_dir" 2>/dev/null; then
+    return
+  fi
+
+  "$ROOT_DIR/scripts/run-quill-appkit-lower.sh" "$source_dir"
+}
+
 mirror_package_like_dir() {
   local source_dir="$1"
   local mirror_package_dir="$2"
@@ -125,6 +138,7 @@ mirror_package_like_dir() {
   fi
 
   python3 "$ROOT_DIR/scripts/lower-telegram-linux-source.py" "$mirror_package_dir"
+  run_reusable_apple_lowering_if_needed "$mirror_package_dir"
   python3 "$ROOT_DIR/scripts/generate-telegram-image-resource-symbols.py" "$mirror_package_dir"
   python3 "$ROOT_DIR/scripts/patch-telegram-package-manifest.py" "$mirror_package_dir" "$ROOT_DIR"
 }
@@ -337,6 +351,7 @@ if [[ "$(uname -s)" == "Linux" ]]; then
         fi
         materialize_telegram_shared_headers "$submodule_package_name" "$submodule_package_dir"
         python3 "$ROOT_DIR/scripts/lower-telegram-linux-source.py" "$submodule_package_dir"
+        run_reusable_apple_lowering_if_needed "$submodule_package_dir"
         python3 "$ROOT_DIR/scripts/generate-telegram-image-resource-symbols.py" "$submodule_package_dir"
         python3 "$ROOT_DIR/scripts/patch-telegram-package-manifest.py" "$submodule_package_dir" "$ROOT_DIR"
         link_package_sibling_if_free "$submodule_package_dir" "$submodule_package_name"

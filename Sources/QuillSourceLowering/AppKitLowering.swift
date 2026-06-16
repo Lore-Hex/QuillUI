@@ -49,6 +49,12 @@ import SwiftSyntaxBuilder
 ///     class itself (e.g. WireGuard's `LogViewController.cancelOperation`). Only
 ///     extensions of classes defined in the same file are touched; non-`override`
 ///     members stay in the extension.
+///   * `UIView.layerClass` overrides that return `SomeLayer.self` register a
+///     Linux-only factory for that layer class inside the accessor. Linux Swift
+///     cannot dynamically call a non-`required` `CALayer` initializer through an
+///     arbitrary metatype, while Apple's UIKit can. Inline registration keeps
+///     private layer classes source-compatible because the factory is emitted in
+///     the same file/scope as the original override.
 ///
 /// Runtime dispatch (a generated per-class `quillPerform(_:)` the Qt control
 /// backing invokes on click) layers on separately; this pass produces source
@@ -269,7 +275,9 @@ private final class AppKitRewriter: SyntaxRewriter {
         DeclSyntax(stripAttributes(super.visit(node).cast(FunctionDeclSyntax.self)))
     }
     override func visit(_ node: VariableDeclSyntax) -> DeclSyntax {
-        DeclSyntax(stripAttributes(super.visit(node).cast(VariableDeclSyntax.self)))
+        var variable = stripAttributes(super.visit(node).cast(VariableDeclSyntax.self))
+        variable = Self.addLayerClassFactoryRegistrationIfNeeded(to: variable)
+        return DeclSyntax(variable)
     }
     override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax {
         DeclSyntax(stripAttributes(super.visit(node).cast(InitializerDeclSyntax.self)))
@@ -389,6 +397,81 @@ private final class AppKitRewriter: SyntaxRewriter {
             return labels == ["timeInterval", "repeats"]
         }
         return labels == ["timeInterval", "repeats", "block"]
+    }
+
+    /// Add a Linux-only `quillUIKitRegisterLayerClass(SomeLayer.self)` call to
+    /// Apple-style `UIView.layerClass` overrides:
+    ///
+    ///     override class var layerClass: AnyClass { return SomeLayer.self }
+    ///
+    /// The registration is intentionally inline rather than emitted as a sidecar
+    /// extension: many real apps keep these layer classes `private`, so only the
+    /// original file/scope can legally construct them.
+    static func addLayerClassFactoryRegistrationIfNeeded(to variable: VariableDeclSyntax) -> VariableDeclSyntax {
+        guard variable.bindingSpecifier.text == "var",
+              variable.modifiers.contains(where: { $0.name.text == "override" }),
+              variable.modifiers.contains(where: { $0.name.text == "class" || $0.name.text == "static" }),
+              variable.bindings.count == 1
+        else {
+            return variable
+        }
+
+        var bindings = variable.bindings
+        guard var binding = bindings.first,
+              let identifier = binding.pattern.as(IdentifierPatternSyntax.self),
+              identifier.identifier.text == "layerClass",
+              binding.typeAnnotation?.type.trimmedDescription == "AnyClass",
+              let accessorBlock = binding.accessorBlock,
+              !accessorBlock.description.contains("quillUIKitRegisterLayerClass"),
+              let layerType = layerTypeReturnedByLayerClassAccessor(accessorBlock)
+        else {
+            return variable
+        }
+
+        guard let replacement = layerClassAccessorBlock(layerType: layerType) else {
+            return variable
+        }
+
+        binding.accessorBlock = replacement
+            .with(\.leadingTrivia, accessorBlock.leadingTrivia)
+            .with(\.trailingTrivia, accessorBlock.trailingTrivia)
+        bindings[bindings.startIndex] = binding
+
+        var updated = variable
+        updated.bindings = bindings
+        return updated
+    }
+
+    static func layerTypeReturnedByLayerClassAccessor(_ accessorBlock: AccessorBlockSyntax) -> String? {
+        let pattern = #"^\s*\{\s*(?:return\s+)?([A-Za-z_][A-Za-z0-9_\.]*)\.self\s*\}\s*$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            return nil
+        }
+        let text = accessorBlock.description
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, range: range),
+              match.numberOfRanges == 2,
+              let swiftRange = Range(match.range(at: 1), in: text)
+        else {
+            return nil
+        }
+        return String(text[swiftRange])
+    }
+
+    static func layerClassAccessorBlock(layerType: String) -> AccessorBlockSyntax? {
+        let source = """
+        var __quillLayerClassScratch: AnyClass {
+                #if os(Linux)
+                quillUIKitRegisterLayerClass(\(layerType).self) { \(layerType)() }
+                #endif
+                return \(layerType).self
+            }
+        """
+        return DeclSyntax(stringLiteral: source)
+            .as(VariableDeclSyntax.self)?
+            .bindings
+            .first?
+            .accessorBlock
     }
 
     /// Normalize a `#selector` reference into a stable key: drop the leading type
