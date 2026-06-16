@@ -3650,6 +3650,10 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
 
     public enum Style: UInt, Sendable { case warning, informational, critical }
 
+    /// Runtime backends (GTK/Qt) install a modal presenter here. Returning nil
+    /// preserves the headless console fallback.
+    public static var _runModalHook: ((NSAlert) -> NSApplication.ModalResponse?)?
+
     public override init() { super.init() }
     public func addButton(withTitle title: String) -> NSButton {
         let b = NSButton()
@@ -3667,6 +3671,9 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
         quillApplyAccessoryTextOverride()
         if let overrideResponse = quillModalResponseOverride() {
             return overrideResponse
+        }
+        if let hookResponse = NSAlert._runModalHook?(self) {
+            return hookResponse
         }
 
         let prefix: String
@@ -3720,11 +3727,11 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
             if numericValue <= 0 || numericValue >= 1000 {
                 return NSApplication.ModalResponse(rawValue: numericValue)
             }
-            return quillAlertButtonResponse(atOneBasedIndex: numericValue)
+            return quillResponse(forButtonAtOneBasedIndex: numericValue)
         }
 
         if let index = _buttonTitles.firstIndex(where: { trimmed.caseInsensitiveCompare($0) == .orderedSame }) {
-            return quillAlertButtonResponse(atOneBasedIndex: index + 1)
+            return quillResponse(forButtonAtOneBasedIndex: index + 1)
         }
 
         switch trimmed.lowercased() {
@@ -3736,7 +3743,7 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
             return .alertThirdButtonReturn
         case "cancel":
             if let index = _buttonTitles.firstIndex(where: { $0.caseInsensitiveCompare("Cancel") == .orderedSame }) {
-                return quillAlertButtonResponse(atOneBasedIndex: index + 1)
+                return quillResponse(forButtonAtOneBasedIndex: index + 1)
             }
             return .cancel
         default:
@@ -3744,7 +3751,9 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
         }
     }
 
-    private func quillAlertButtonResponse(atOneBasedIndex index: Int) -> NSApplication.ModalResponse {
+    public var quillButtonTitles: [String] { _buttonTitles }
+
+    public func quillResponse(forButtonAtOneBasedIndex index: Int) -> NSApplication.ModalResponse {
         switch index {
         case 1: return .alertFirstButtonReturn
         case 2: return .alertSecondButtonReturn
@@ -3756,7 +3765,11 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
     private func quillApplyAccessoryTextOverride() {
         let environment = ProcessInfo.processInfo.environment
         guard let accessoryText = environment["QUILLUI_NSALERT_ACCESSORY_TEXT"] else { return }
-        quillFirstTextField(in: accessoryView)?.stringValue = accessoryText
+        quillFirstAccessoryTextField()?.stringValue = accessoryText
+    }
+
+    public func quillFirstAccessoryTextField() -> NSTextField? {
+        quillFirstTextField(in: accessoryView)
     }
 
     private func quillFirstTextField(in view: NSView?) -> NSTextField? {

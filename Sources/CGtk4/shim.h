@@ -19,6 +19,18 @@ static inline const char *quill_editable_get_text(gpointer instance) {
 static inline void quill_editable_set_text(gpointer instance, const char *text) {
     gtk_editable_set_text(GTK_EDITABLE(instance), text);
 }
+static inline void quill_entry_set_placeholder_text(gpointer instance, const char *text) {
+    gtk_entry_set_placeholder_text(GTK_ENTRY(instance), text);
+}
+
+// GtkLabel helpers, again through gpointer because not all Swift GTK imports
+// expose the opaque GtkLabel name.
+static inline void quill_label_set_wrap(gpointer label, int wrap) {
+    gtk_label_set_wrap(GTK_LABEL(label), (gboolean)wrap);
+}
+static inline void quill_label_set_xalign(gpointer label, float xalign) {
+    gtk_label_set_xalign(GTK_LABEL(label), xalign);
+}
 
 // GtkScrolledWindow's set_child takes a typed GtkScrolledWindow* but
 // Swift's typed-pointer binding to GTK's struct hierarchy is fragile;
@@ -45,6 +57,34 @@ static inline int quill_widget_child_count(gpointer parent) {
 // children after the parent has already been presented.
 static inline void quill_widget_queue_resize(gpointer w) {
     gtk_widget_queue_resize(GTK_WIDGET(w));
+}
+
+// Window helpers for runtime shims that build lightweight modal surfaces.
+static inline void quill_window_set_modal(gpointer window, int modal) {
+    gtk_window_set_modal(GTK_WINDOW(window), (gboolean)modal);
+}
+static inline void quill_window_set_transient_for(gpointer window, gpointer parent) {
+    gtk_window_set_transient_for(GTK_WINDOW(window), GTK_WINDOW(parent));
+}
+static inline void quill_window_set_child(gpointer window, gpointer child) {
+    gtk_window_set_child(GTK_WINDOW(window), GTK_WIDGET(child));
+}
+static inline void quill_window_destroy(gpointer window) {
+    gtk_window_destroy(GTK_WINDOW(window));
+}
+
+// GMainLoop helpers exposed as gpointer to keep Swift call sites simple.
+static inline gpointer quill_main_loop_new(void) {
+    return g_main_loop_new(NULL, FALSE);
+}
+static inline void quill_main_loop_run(gpointer loop) {
+    g_main_loop_run((GMainLoop *)loop);
+}
+static inline void quill_main_loop_quit(gpointer loop) {
+    g_main_loop_quit((GMainLoop *)loop);
+}
+static inline void quill_main_loop_unref(gpointer loop) {
+    g_main_loop_unref((GMainLoop *)loop);
 }
 
 // Same gpointer pattern for GtkProgressBar.
