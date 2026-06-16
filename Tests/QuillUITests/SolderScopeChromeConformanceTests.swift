@@ -148,8 +148,29 @@ struct SolderScopeChromeConformanceTests {
         // Button("Delete", role: .destructive) { … }
         let cancel = Button("Cancel", role: .cancel) {}
         #expect(builds(cancel))
+        #expect(cancel.role == .cancel)
         let destructive = Button("Delete", role: .destructive) {}
         #expect(builds(destructive))
+        #expect(destructive.role == .destructive)
+    }
+
+    @Test func alertActionBuilderPreservesButtonRoles() {
+        // ScaleBarView's SwiftUI-style alert builder must preserve role
+        // metadata through the compatibility lowering so GTK can style
+        // destructive actions and keep cancel semantics.
+        let view = Text("scope").alert("Delete scale?", isPresented: .constant(true)) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {}
+        } message: {
+            Text("This cannot be undone.")
+        }
+
+        #expect(view.buttons.count == 2)
+        #expect(view.buttons[0].label == "Cancel")
+        #expect(view.buttons[0].role == .cancel)
+        #expect(view.buttons[1].label == "Delete")
+        #expect(view.buttons[1].role == .destructive)
+        #expect(view.message == "This cannot be undone.")
     }
 
     // MARK: Scenes
@@ -199,6 +220,37 @@ struct SolderScopeChromeConformanceTests {
     @Test func keyEquivalentSpaceExists() {
         // SolderScopeCommands: .keyboardShortcut(.space, modifiers: [])
         #expect(KeyEquivalent.space.character == " ")
+    }
+
+    @Test func onExitCommandPreservesCancelHandler() {
+        // ContentView: `.onExitCommand { ... }` should be real Escape/cancel
+        // command metadata, not a source-only no-op.
+        var fired = 0
+        let view = Text("exit").onExitCommand {
+            fired += 1
+        }
+        #expect(builds(view))
+        view.action?()
+        #expect(fired == 1)
+
+        let disabled = Text("exit").onExitCommand(perform: nil)
+        #expect(disabled.action == nil)
+    }
+
+    @Test func cancelShortcutDispatchesWithinWindowScope() {
+        // GTK backs onExitCommand with KeyboardShortcut.cancelAction, scoped
+        // to the active window so one app window cannot steal another's Escape.
+        let windowID = 93_501
+        var fired = 0
+        let id = KeyboardShortcutRegistry.shared.register(.cancelAction, windowID: windowID) {
+            fired += 1
+        }
+        defer { KeyboardShortcutRegistry.shared.unregister(id: id) }
+
+        #expect(KeyboardShortcutRegistry.shared.dispatch(.cancelAction, windowID: windowID))
+        #expect(fired == 1)
+        #expect(!KeyboardShortcutRegistry.shared.dispatch(.cancelAction, windowID: windowID + 1))
+        #expect(fired == 1)
     }
 
     // MARK: NSCursor

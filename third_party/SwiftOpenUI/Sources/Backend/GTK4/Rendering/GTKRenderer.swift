@@ -1298,6 +1298,43 @@ extension KeyboardShortcutView: GTKRenderable {
     }
 }
 
+// MARK: - onExitCommand GTK extension
+
+extension ExitCommandView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let windowID = getCurrentEnvironment().windowID
+        let widget = gtkRenderView(content)
+
+        guard let action else {
+            return widget
+        }
+
+        let boundAction = bindActionToCurrentEnvironment(action)
+        let regID = KeyboardShortcutRegistry.shared.register(.cancelAction, windowID: windowID) {
+            gtkFlushPendingTextBindingUpdate()
+            boundAction()
+        }
+
+        let destroyBox = Unmanaged.passRetained(ClosureBox {
+            KeyboardShortcutRegistry.shared.unregister(id: regID)
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(widget), "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            destroyBox,
+            { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+            },
+            GConnectFlags(rawValue: 0)
+        )
+
+        return widget
+    }
+}
+
 // MARK: - focusedValue GTK extension
 
 extension FocusedValueView: GTKRenderable {

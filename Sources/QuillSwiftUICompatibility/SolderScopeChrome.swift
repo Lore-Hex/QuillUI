@@ -91,20 +91,13 @@ extension View {
 // canonical in SwiftOpenUI so renderers can apply makeBody(configuration:)
 // with live pressed state instead of Quill-only compile shims.
 
-// MARK: - ButtonRole (moved from QuillUI)
+// MARK: - ButtonRole
 
-// ButtonRole lives in DesignSystemSurfaceCompat.swift.
+// ButtonRole and role-taking Button initializers are canonical in SwiftOpenUI
+// so backend renderers and view-tree walkers can preserve semantic metadata.
 
-extension Button where Label == Text {
-    /// Role-taking title initializer. The role is currently presentation-only
-    /// metadata Apple uses for emphasis/ordering; it is accepted and dropped
-    /// (the action and title are preserved).
-    public init(_ title: String, role: ButtonRole?, action: @escaping () -> Void) {
-        self.init(title, action: action)
-    }
-}
-
-// Button(role:) inits live in DesignSystemSurfaceCompat.swift.
+// LocalizedStringKey Button(role:) conveniences live in
+// DesignSystemSurfaceCompat.swift.
 
 // MARK: - MenuStyle
 
@@ -151,11 +144,13 @@ extension View {
 private protocol ChromeButtonRepresentable {
     var chromeButtonTitle: String { get }
     var chromeButtonAction: () -> Void { get }
+    var chromeButtonRole: ButtonRole? { get }
 }
 
 extension Button: ChromeButtonRepresentable {
     var chromeButtonTitle: String { chromeTextLabel(from: label) }
     var chromeButtonAction: () -> Void { action }
+    var chromeButtonRole: ButtonRole? { role }
 }
 
 @MainActor
@@ -336,13 +331,19 @@ private func chromeCommandMenuItem(_ item: CommandMenuItem, shortcut: KeyboardSh
     .disabled(item.isDisabled)
 }
 
-/// Alert buttons lifted out of a ViewBuilder actions tree. Role metadata is
-/// not carried by `Button` values (see `ButtonRole`), so every button maps to
-/// a default-role `AlertButton`; tapping any button dismisses the alert.
+/// Alert buttons lifted out of a ViewBuilder actions tree. Button role
+/// metadata is preserved so cancel/destructive actions render and dismiss like
+/// the array-based alert API.
 @MainActor
 private func chromeAlertButtons(from view: any View) -> [AlertButton] {
     if let button = view as? any ChromeButtonRepresentable {
-        return [AlertButton(button.chromeButtonTitle, action: button.chromeButtonAction)]
+        return [
+            AlertButton(
+                button.chromeButtonTitle,
+                role: chromeAlertButtonRole(from: button.chromeButtonRole),
+                action: button.chromeButtonAction
+            )
+        ]
     }
     if let shortcut = view as? any ChromeShortcutRepresentable {
         return chromeAlertButtons(from: shortcut.chromeShortcutContent)
@@ -357,6 +358,17 @@ private func chromeAlertButtons(from view: any View) -> [AlertButton] {
         return multi.children.flatMap(chromeAlertButtons)
     }
     return []
+}
+
+private func chromeAlertButtonRole(from role: ButtonRole?) -> AlertButtonRole {
+    switch role {
+    case .cancel:
+        return .cancel
+    case .destructive:
+        return .destructive
+    case nil:
+        return .default
+    }
 }
 
 // MARK: - Menu label-builder init (moved from QuillUI)
@@ -503,12 +515,11 @@ extension WindowGroup {
 
 extension View {
     /// SwiftUI's `alert(_:isPresented:actions:message:)` with ViewBuilder
-    /// closures. Buttons declared in `actions` are lifted into `AlertButton`s
-    /// (role metadata is dropped — see `ButtonRole`); the `message` view is
-    /// reduced to its first text run. Routes to the existing array-based
-    /// alert modifier, so presentation behavior is identical. An empty or
-    /// unrecognized actions tree falls back to a single OK button so the
-    /// dialog stays dismissable.
+    /// closures. Buttons declared in `actions` are lifted into `AlertButton`s;
+    /// the `message` view is reduced to its first text run. Routes to the
+    /// existing array-based alert modifier, so presentation behavior is
+    /// identical. An empty or unrecognized actions tree falls back to a single
+    /// OK button so the dialog stays dismissable.
     public func alert<A: View, M: View>(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -522,17 +533,6 @@ extension View {
             actions: buttons.isEmpty ? [AlertButton("OK")] : buttons,
             message: chromeTextLabel(from: message())
         )
-    }
-}
-
-// MARK: - onExitCommand
-
-extension View {
-    /// SwiftUI's `onExitCommand(perform:)`. Compile-surface: returns `self`
-    /// unchanged — the Escape/cancel command path is not yet wired through
-    /// the GTK key controller, so the handler is accepted and never invoked.
-    public func onExitCommand(perform action: (() -> Void)?) -> some View {
-        self
     }
 }
 

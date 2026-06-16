@@ -340,6 +340,25 @@ public extension UITextFieldDelegate {
     }
 }
 
+@MainActor private var quillSearchBarTextFields: [ObjectIdentifier: UITextField] = [:]
+@MainActor private var quillSearchBarWritingTools: [ObjectIdentifier: UIWritingToolsBehavior] = [:]
+
+extension UISearchBar {
+    public var searchTextField: UITextField {
+        let key = ObjectIdentifier(self)
+        if let existing = quillSearchBarTextFields[key] { return existing }
+        let created = UITextField()
+        created.text = text
+        quillSearchBarTextFields[key] = created
+        return created
+    }
+
+    public var writingToolsBehavior: UIWritingToolsBehavior {
+        get { quillSearchBarWritingTools[ObjectIdentifier(self)] ?? .default }
+        set { quillSearchBarWritingTools[ObjectIdentifier(self)] = newValue }
+    }
+}
+
 // MARK: - UITextView: text-input parity
 //
 // The stored/overridable pieces (text, selectedTextRange, the trait vars)
@@ -348,9 +367,9 @@ public extension UITextFieldDelegate {
 // extension members can't be overridden. What's here is the pure offset math
 // and the appearance proxy, which nothing overrides.
 
-extension UITextView {
+extension UITextView: UITextInput {
 
-    private var quillUTF16Length: Int { attributedText.string.utf16.count }
+    private var quillUTF16Length: Int { (attributedText?.string ?? text ?? "").utf16.count }
 
     public var beginningOfDocument: UITextPosition { UITextPosition() }
     public var endOfDocument: UITextPosition { UITextPosition(quillUTF16Offset: quillUTF16Length) }

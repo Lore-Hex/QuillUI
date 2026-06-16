@@ -138,6 +138,15 @@ public enum UIVibrancyEffectStyle: Int, Sendable {
     }
 }
 
+/// iOS 26 container effect for grouping glass-backed content. Inert on Linux;
+/// it records the effect identity so `UIVisualEffectView(effect:)` call sites
+/// compile and can be rendered by a future compositor.
+@MainActor open class UIGlassContainerEffect: UIVisualEffect {
+    public override init() {
+        super.init()
+    }
+}
+
 // MARK: - UIVisualEffectView
 
 @MainActor open class UIVisualEffectView: UIView {

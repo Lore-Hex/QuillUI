@@ -31,6 +31,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+import CoreTransferable
 import QuillFoundation
 
 #if !os(iOS)
@@ -479,6 +481,51 @@ public class UIMenuItem: NSObject {
     public static let menuFrameDidChangeNotification = Notification.Name("UIMenuControllerMenuFrameDidChangeNotification")
 }
 
+// MARK: - Drag interactions
+
+@MainActor public protocol UIDragSession: AnyObject {
+    func location(in view: UIView?) -> CGPoint
+}
+
+@MainActor public protocol UIDragInteractionDelegate: AnyObject {
+    func dragInteraction(
+        _ interaction: UIDragInteraction,
+        itemsForBeginning session: UIDragSession
+    ) -> [UIDragItem]
+}
+
+@MainActor public final class UIDragInteraction: NSObject, UIInteraction {
+    public weak var view: UIView?
+    public weak var delegate: (any UIDragInteractionDelegate)?
+    public var isEnabled = true
+
+    public init(delegate: (any UIDragInteractionDelegate)?) {
+        self.delegate = delegate
+        super.init()
+    }
+}
+
+@MainActor public final class UIDragItem: NSObject {
+    public let itemProvider: NSItemProvider
+    public var previewProvider: (() -> UIDragPreview?)?
+
+    public init(itemProvider: NSItemProvider) {
+        self.itemProvider = itemProvider
+        super.init()
+    }
+}
+
+@MainActor public final class UIDragPreviewParameters: UIPreviewParameters {
+    public let textLineRects: [NSValue]
+
+    public init(textLineRects: [NSValue]) {
+        self.textLineRects = textLineRects
+        super.init()
+    }
+}
+
+public typealias UIDragPreview = UITargetedPreview
+
 // MARK: - UITextItemInteraction
 
 /// What the user is doing with a text item (link/attachment) in a text
@@ -547,14 +594,14 @@ public enum UIContextMenuInteractionCommitStyle: Int, Sendable {
 /// delegate and (via UIView.addInteraction, when the interaction plumbing
 /// lands) attachment; with no event backend the delegate is never asked
 /// for a configuration.
-@MainActor public class UIContextMenuInteraction: NSObject {
+@MainActor public class UIContextMenuInteraction: NSObject, UIInteraction {
 
     /// Weak and get-only, as on Apple.
     public private(set) weak var delegate: UIContextMenuInteractionDelegate?
 
     /// The view the interaction is attached to. Nothing sets this until
     /// the interaction-attachment plumbing exists.
-    public private(set) weak var view: UIView?
+    public weak var view: UIView?
 
     public init(delegate: UIContextMenuInteractionDelegate) {
         self.delegate = delegate

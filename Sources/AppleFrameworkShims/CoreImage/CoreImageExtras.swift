@@ -67,6 +67,11 @@ public extension CIImage {
         self.init()
     }
 
+    convenience init?(image: RSImage) {
+        _ = image
+        self.init()
+    }
+
     func applyingFilter(_ filterName: String, parameters: [String: Any] = [:]) -> CIImage {
         _ = (filterName, parameters)
         return self
@@ -110,5 +115,34 @@ open class CIQRCodeDescriptor: CIBarcodeDescriptor {
         self.maskPattern = maskPattern
         self.errorCorrectionLevel = errorCorrectionLevel
         super.init()
+    }
+}
+
+// MARK: - Legacy CIDetector QR surface
+
+public let CIDetectorTypeQRCode = "CIDetectorTypeQRCode"
+public let CIDetectorAccuracy = "CIDetectorAccuracy"
+public let CIDetectorAccuracyHigh = "CIDetectorAccuracyHigh"
+
+open class CIFeature: NSObject {}
+
+open class CIQRCodeFeature: CIFeature {
+    public let messageString: String?
+
+    public init(messageString: String? = nil) {
+        self.messageString = messageString
+        super.init()
+    }
+}
+
+open class CIDetector: NSObject {
+    public init?(ofType type: String, context: CIContext?, options: [String: Any]?) {
+        _ = (type, context, options)
+        super.init()
+    }
+
+    open func features(in image: CIImage) -> [CIFeature] {
+        _ = image
+        return []
     }
 }

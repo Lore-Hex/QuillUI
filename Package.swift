@@ -209,6 +209,9 @@ let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsy
 // QuillUI's Apple-framework shim products, so the targets are `#if os(Linux)`.
 let signalUpstreamPresent: Bool = upstreamPresent(".upstream/signal-ios/SignalServiceKit")
 let libsignalUpstreamPresent: Bool = upstreamPresent(".upstream/libsignal/swift/Sources/LibSignalClient")
+let signalAppTargetPresent: Bool = signalUpstreamPresent
+    && FileManager.default.fileExists(atPath: ".upstream/signal-ios/Signal/ConversationView")
+    && !FileManager.default.fileExists(atPath: ".upstream/signal-ios/Signal/Calls")
 // rjwalters/SolderScope — first community-requested conformance app: a real
 // macOS SwiftUI USB-microscope viewer (MIT) compiled UNMODIFIED on Linux
 // against the SwiftUI/AppKit/AVFoundation/CoreImage shim surface.
@@ -509,7 +512,8 @@ let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
 // the dependency must vanish entirely (a `.when(platforms:)` condition would
 // still dangle: SwiftPM validates named targets even when the condition is off).
 let quillUIKitDependencies: [Target.Dependency] = [
-    "QuillFoundation", "QuillKit", "QuartzCore", "CoreGraphics", "UniformTypeIdentifiers",
+    "QuillFoundation", "QuillKit", "CoreGraphics", "QuartzCore",
+    "CoreTransferable", "UniformTypeIdentifiers",
 ]
 let uiKitShimDependencies: [Target.Dependency] =
     ["QuillFoundation", "QuillUIKit", "QuillKit", "CoreGraphics", "UserNotifications", "QuartzCore", "CoreTransferable", "CoreText"]
@@ -523,7 +527,7 @@ let appKitShadowDependencies: [Target.Dependency] = [
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation"]
 let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit"]
 let uiKitShimDependencies: [Target.Dependency] =
-    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications", "CoreTransferable"]
+    ["QuillFoundation", "QuillUIKit", "QuillKit", "UserNotifications"]
 let quillV4L2Dependencies: [Target.Dependency] = []
 #endif
 
@@ -976,6 +980,7 @@ var targets: [Target] = [
     .systemLibrary(
         name: "CGdkPixbuf",
         path: "Sources/CGdkPixbuf",
+        pkgConfig: "gdk-pixbuf-2.0",
         providers: [
             .apt(["libgdk-pixbuf-2.0-dev"])
         ]
@@ -1806,7 +1811,10 @@ if wireguardUpstreamPresent {
             // parsing, IPv4/v6 helpers, the public API surface) compiles
             // unmodified on Linux.
             exclude: wireGuardKitExcludes,
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])
+            ]
         ),
         // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
         // / asWgQuickConfig()) lives in the App's Shared/Model, extending
@@ -2419,6 +2427,12 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
         "Storage/Database/SSKAccessors+SDS.h",
         "Storage/TSYapDatabaseObject.h", "Storage/TSYapDatabaseObject.m",
     ]
+    let signalUIRenderDependencies: [Target.Dependency] = [
+        "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore",
+        "SignalUI", "SignalServiceKit",
+        .product(name: "CGTK", package: "SwiftOpenUI"),
+        .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+    ] + (signalAppTargetPresent ? ["SignalApp"] : [])
     targets += [
         .target(
             name: "SignalServiceKit",
@@ -2474,12 +2488,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
         // is added here once the real-VC (Settings) wiring lands.
         .executableTarget(
             name: "SignalUIRender",
-            dependencies: [
-                "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore",
-                "SignalUI", "SignalServiceKit",
-                .product(name: "CGTK", package: "SwiftOpenUI"),
-                .product(name: "CGTKBridge", package: "SwiftOpenUI"),
-            ],
+            dependencies: signalUIRenderDependencies,
             path: "Sources/SignalUIRender",
             swiftSettings: appSwiftSettings + [.unsafeFlags(gtk4SwiftImporterFlags)],
             // Link GTK4 + gdk-pixbuf (pulls glib/gobject/gio/pango/cairo) — needed
@@ -2542,8 +2551,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
     // un-shimmed frameworks, then lowers the remainder exactly like SignalUI.
     // Inert until the prep script has run against the disposable .upstream copy
     // (gated on a pruned-tree marker so a pristine fetch doesn't try to build it).
-    if FileManager.default.fileExists(atPath: ".upstream/signal-ios/Signal/ConversationView")
-        && !FileManager.default.fileExists(atPath: ".upstream/signal-ios/Signal/Calls") {
+    if signalAppTargetPresent {
         targets += [
             .target(
                 name: "SignalApp",
@@ -2908,10 +2916,9 @@ targets.append(contentsOf: [
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"]),
-            // The bitmap encoder (rung 4) imports CGdkPixbuf, which has no
-            // pkgConfig (filtered-flag house style): the importer flags must
-            // ride this target or the PCM build races (gdk-pixbuf.h not
-            // found whenever this target builds the PCM first).
+            // The bitmap encoder (rung 4) imports CGdkPixbuf. Keep the importer
+            // flags here for older/non-explicit module builds; the systemLibrary
+            // target also carries pkgConfig so clean builds can compile its PCM.
             .unsafeFlags(gdkPixbufSwiftImporterFlags)
         ]
     ),
@@ -3218,7 +3225,7 @@ if quillUILinuxBuildBackend == .qt {
         // rendered through Qt6. All GTK-free.
         .target(
             name: "QuillUIKit",
-            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics"],
+            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics", "CoreTransferable"],
             path: "Sources/QuillUIKit"
         ),
         // Inert GTK-free Apple-framework shims the AppKit shadow
@@ -3288,6 +3295,7 @@ if quillUILinuxBuildBackend == .qt {
         .systemLibrary(
             name: "CGdkPixbuf",
             path: "Sources/CGdkPixbuf",
+            pkgConfig: "gdk-pixbuf-2.0",
             providers: [
                 .apt(["libgdk-pixbuf-2.0-dev"])
             ]

@@ -99,10 +99,19 @@ import QuillFoundation
         self.init(indexPath: indexPath, elementKind: elementKind)
     }
 
-    private init(indexPath: IndexPath, elementKind: String?) {
+    public required init(indexPath: IndexPath, elementKind: String?) {
         self.indexPath = indexPath
         self.representedElementKind = elementKind
         super.init()
+    }
+
+    open func copy(with zone: NSZone? = nil) -> Any {
+        let copy = type(of: self).init(indexPath: indexPath, elementKind: representedElementKind)
+        copy.frame = frame
+        copy.alpha = alpha
+        copy.zIndex = zIndex
+        copy.isHidden = isHidden
+        return copy
     }
 }
 
@@ -512,8 +521,16 @@ extension UICollectionView {
         _ = indexPaths
     }
 
+    public func insertItems(at indexPaths: [IndexPath]) {
+        _ = indexPaths
+    }
+
     public func deleteItems(at indexPaths: [IndexPath]) {
         _ = indexPaths
+    }
+
+    public func moveItem(at indexPath: IndexPath, to newIndexPath: IndexPath) {
+        _ = (indexPath, newIndexPath)
     }
 
     public func selectItem(at indexPath: IndexPath?, animated: Bool, scrollPosition: ScrollPosition) {
@@ -644,7 +661,8 @@ extension UICollectionViewCell {
 public extension IndexPath {
     /// The item component ([section, item] ordering), 0 when absent.
     var item: Int {
-        count >= 2 ? self[1] : 0
+        get { count >= 2 ? self[1] : 0 }
+        set { self = IndexPath(item: newValue, section: section) }
     }
 
     init(item: Int, section: Int) {

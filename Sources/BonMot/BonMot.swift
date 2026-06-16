@@ -29,6 +29,8 @@ public struct StringStyle {
     public var link: URL?
     public var color: UIColor?
     public var alignment: NSTextAlignment?
+    public var lineHeightMultiple: CGFloat?
+    public var hyphenationFactor: Float?
     /// XML rules captured from `.xmlRules`. Upstream stores an `XMLStyler`
     /// protocol value; the shim keeps the rule array directly — only the
     /// rule-array shape is demanded so far.
@@ -44,9 +46,21 @@ public struct StringStyle {
         if let font { theAttributes[.font] = font }
         if let link { theAttributes[.link] = link }
         if let color { theAttributes[.foregroundColor] = color }
-        if let alignment {
+        if alignment != nil || lineHeightMultiple != nil || hyphenationFactor != nil {
             let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.alignment = alignment
+            if let alignment {
+                paragraphStyle.alignment = alignment
+            }
+            if let lineHeightMultiple {
+                paragraphStyle.lineHeightMultiple = lineHeightMultiple
+            }
+            if let hyphenationFactor {
+                _ = hyphenationFactor
+                // swift-corelibs Foundation does not currently expose
+                // NSMutableParagraphStyle.hyphenationFactor; keep the source
+                // API and merge semantics, but omit the platform-missing
+                // rendered attribute on Linux.
+            }
             theAttributes[.paragraphStyle] = paragraphStyle
         }
         return theAttributes
@@ -63,6 +77,8 @@ extension StringStyle {
         case link(URL)
         case color(UIColor)
         case alignment(NSTextAlignment)
+        case lineHeightMultiple(CGFloat)
+        case hyphenationFactor(Float)
         case xmlRules([XMLStyleRule])
     }
 
@@ -90,6 +106,10 @@ extension StringStyle {
             self.color = color
         case let .alignment(alignment):
             self.alignment = alignment
+        case let .lineHeightMultiple(lineHeightMultiple):
+            self.lineHeightMultiple = lineHeightMultiple
+        case let .hyphenationFactor(hyphenationFactor):
+            self.hyphenationFactor = hyphenationFactor
         case let .xmlRules(rules):
             xmlRules.append(contentsOf: rules)
         }
@@ -109,6 +129,8 @@ extension StringStyle {
         if let link = style.link { result.link = link }
         if let color = style.color { result.color = color }
         if let alignment = style.alignment { result.alignment = alignment }
+        if let lineHeightMultiple = style.lineHeightMultiple { result.lineHeightMultiple = lineHeightMultiple }
+        if let hyphenationFactor = style.hyphenationFactor { result.hyphenationFactor = hyphenationFactor }
         result.xmlRules.append(contentsOf: style.xmlRules)
         return result
     }
