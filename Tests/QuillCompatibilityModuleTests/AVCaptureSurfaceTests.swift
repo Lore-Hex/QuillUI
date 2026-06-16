@@ -42,6 +42,7 @@ private final class RecordingDelegate: AVCaptureVideoDataOutputSampleBufferDeleg
     // (Apple's optional-method semantics).
 }
 
+@Suite(.serialized)
 struct AVCaptureSurfaceTests {
 
     @Test func captureSessionGraphAssembles() throws {
