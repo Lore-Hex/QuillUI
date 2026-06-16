@@ -610,14 +610,18 @@ ensure_quill_chat_completions_panel_open() {
     return 0
   fi
 
-  open_quill_chat_completions_panel
+  open_quill_chat_completions_panel 1
 }
 
 open_quill_chat_new_completion_sheet() {
   local new_x
   local new_y
 
-  open_quill_chat_completions_panel
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    open_quill_chat_completions_panel 1
+  else
+    open_quill_chat_completions_panel
+  fi
   sleep "${QUILLUI_BACKEND_NEW_COMPLETION_PRE_CLICK_SLEEP:-1.5}"
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}"
