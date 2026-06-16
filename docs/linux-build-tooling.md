@@ -301,6 +301,12 @@ both brightness and pixel variation so blank white windows fail, and verifies
 Quill Chat-specific layout landmarks such as the sidebar width, header divider,
 prompt cards, and composer width.
 
+For SolderScope, `scripts/linux-solderscope-smoke-check.sh ... interaction`
+enables the opt-in AVFoundation synthetic camera by default, drives the
+microscope canvas with `xdotool` scroll/drag/double-click gestures, and verifies
+visible frame pixels. Launch and visual modes remain no-camera-tolerant so they
+can still prove chrome rendering on hosts without camera hardware.
+
 There is also an opt-in strict reference pass for the large macOS Quill Chat
 window screenshot. It resizes the Xvfb window to the same reference frame and
 verifies the Mac-derived landmarks instead of the older compact smoke layout:

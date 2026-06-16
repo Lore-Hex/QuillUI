@@ -98,6 +98,8 @@ quillui_drive_solderscope_interaction() {
   local window_height=760
   local click_x=590
   local click_y=380
+  local drag_end_x=650
+  local drag_end_y=420
 
   window_id="$(quillui_wait_for_app_window_for_pid "$DISPLAY_ID" "$app_pid" "${QUILLUI_SOLDERSCOPE_WINDOW_WAIT_SECONDS:-20}")" || window_id=""
   if [[ -z "$window_id" ]]; then
@@ -119,23 +121,44 @@ quillui_drive_solderscope_interaction() {
 
   click_x=$((window_x + window_width / 2))
   click_y=$((window_y + window_height / 2))
+  drag_end_x=$((click_x + 80))
+  drag_end_y=$((click_y + 55))
   echo "SolderScope interaction smoke: window=$window_id geometry=${window_x},${window_y} ${window_width}x${window_height}" >&2
-  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y" click 1
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y"
+  for _ in 1 2 3 4 5 6 7 8; do
+    DISPLAY="$DISPLAY_ID" xdotool click 4
+  done
+  DISPLAY="$DISPLAY_ID" xdotool mousedown 1 mousemove --sync "$drag_end_x" "$drag_end_y" mouseup 1
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y" click --repeat 2 --delay 80 1
+  for _ in 1 2 3 4 5 6; do
+    DISPLAY="$DISPLAY_ID" xdotool click 4
+  done
   DISPLAY="$DISPLAY_ID" xdotool key space
   DISPLAY="$DISPLAY_ID" xdotool key Escape
   sleep 1
 }
 
-env \
-  DISPLAY="$DISPLAY_ID" \
-  GDK_BACKEND=x11 \
-  GTK_A11Y=none \
-  GSK_RENDERER=cairo \
-  QUILLUI_BACKEND=gtk \
-  QUILLUI_COLOR_SCHEME=dark \
-  QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=1180 \
-  QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=760 \
-  "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
+app_env=(
+  DISPLAY="$DISPLAY_ID"
+  GDK_BACKEND=x11
+  GTK_A11Y=none
+  GSK_RENDERER=cairo
+  QUILLUI_BACKEND=gtk
+  QUILLUI_COLOR_SCHEME=dark
+  QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=1180
+  QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=760
+)
+
+if [[ "$SMOKE_MODE" == "interaction" ]]; then
+  app_env+=(
+    QUILL_AVFOUNDATION_SYNTHETIC_CAMERA="${QUILL_AVFOUNDATION_SYNTHETIC_CAMERA:-1}"
+    QUILL_AVFOUNDATION_SYNTHETIC_WIDTH="${QUILL_AVFOUNDATION_SYNTHETIC_WIDTH:-640}"
+    QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT="${QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT:-480}"
+    QUILL_AVFOUNDATION_SYNTHETIC_FPS="${QUILL_AVFOUNDATION_SYNTHETIC_FPS:-12}"
+  )
+fi
+
+env "${app_env[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 
 sleep "$SMOKE_SECONDS"

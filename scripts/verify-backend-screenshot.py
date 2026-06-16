@@ -4240,6 +4240,53 @@ def validate_quill_solderscope_launch(image: Screenshot) -> str:
     )
 
 
+def validate_quill_solderscope_interaction(image: Screenshot) -> str:
+    toolbar_height = min(140, image.height)
+    toolbar_pixels = pixel_count(
+        image,
+        0,
+        0,
+        image.width,
+        toolbar_height,
+        solderscope_toolbar_pixel,
+    )
+    top_nonblack_pixels = pixel_count(
+        image,
+        0,
+        0,
+        image.width,
+        toolbar_height,
+        lambda rgb: sum(rgb) >= 24,
+    )
+    frame_pixels = pixel_count(
+        image,
+        image.width // 5,
+        max(toolbar_height, image.height // 5),
+        (image.width * 4) // 5,
+        (image.height * 4) // 5,
+        lambda rgb: sum(rgb) >= 160 and max(rgb) - min(rgb) >= 48,
+    )
+    require(
+        toolbar_pixels >= 1_500,
+        f"SolderScope dark toolbar pixels were not detected near the top: pixels={toolbar_pixels}",
+    )
+    require(
+        top_nonblack_pixels >= 5_000,
+        f"SolderScope top chrome appears black/empty: nonblack_pixels={top_nonblack_pixels}",
+    )
+    require(
+        frame_pixels >= 20_000,
+        f"SolderScope synthetic camera frame was not detected: frame_pixels={frame_pixels}",
+    )
+
+    return (
+        "Quill SolderScope interaction: "
+        f"toolbar_pixels={toolbar_pixels}, "
+        f"top_nonblack_pixels={top_nonblack_pixels}, "
+        f"frame_pixels={frame_pixels}"
+    )
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print("Usage: verify-backend-screenshot.py SCREENSHOT_PATH PRODUCT", file=sys.stderr)
@@ -4437,7 +4484,9 @@ def main() -> int:
         print(validate_quill_wireguard_gtk_import(image))
     elif product in {"quill-wireguard-import-invalid-paste", "quill-wireguard-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="gtk"))
-    elif product in {"quill-solderscope-launch", "quill-solderscope-visual", "quill-solderscope-interaction"}:
+    elif product == "quill-solderscope-interaction":
+        print(validate_quill_solderscope_interaction(image))
+    elif product in {"quill-solderscope-launch", "quill-solderscope-visual"}:
         print(validate_quill_solderscope_launch(image))
     elif product in {
         "quill-gtk-interaction-smoke-open",

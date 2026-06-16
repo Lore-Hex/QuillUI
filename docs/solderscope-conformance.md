@@ -10,8 +10,8 @@ parallelized to the swarm via the issues below.
 | Rung | State | Work |
 |---|---|---|
 | 1. Compiles unmodified | ~80% (152 → ~124 unique errors) | #506 AVFoundation surface, #507 AppKit members, #508 SwiftUI chrome, #512 @MainActor AppKit tree, #513 @MainActor View.body |
-| 2. Launches + renders + input | **GTK launch/input proven** (Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, and Tests/QuillUITests/SolderScopeChromeConformanceTests.swift) | remaining: mac-reference visual delta closure, full toolbar/menu interaction parity, and broader real-device gesture coverage |
-| 3. Live camera | spec'd | #515 V4L2 AVCaptureSession backend |
+| 2. Launches + renders + input | **GTK launch/input proven** (Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, deterministic synthetic camera frame smoke, and Tests/QuillUITests/SolderScopeChromeConformanceTests.swift) | remaining: mac-reference visual delta closure, full toolbar/menu interaction parity, and broader real-device gesture coverage |
+| 3. Live camera | partial | #515 V4L2 AVCaptureSession backend plus opt-in `QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1` fixture camera for deterministic CI/runtime smoke; remaining: real USB microscope/device matrix coverage |
 | 4. Recording/snapshots | queued | AVAssetWriter→encoder; NSBitmapImageRep→PNG (part of #507 acceptance) |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once 2–4 are real |
 
@@ -20,6 +20,17 @@ Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderSc
 --target QuillSolderScope`.
 
 ## Decisions log
+
+- **2026-06-16 — Runtime smoke needs frames, not just a surviving no-camera UI**:
+  SolderScope ignores zoom/pan until its hosted microscope view has an image
+  size, so a no-camera interaction smoke only proved event delivery and app
+  survival. AVFoundation now has an opt-in synthetic capture device
+  (`QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1`) that appears through normal
+  `AVCaptureDevice.DiscoverySession`, feeds BGRA `CMSampleBuffer`s through
+  `AVCaptureVideoDataOutput`, and lets the interaction smoke verify visible
+  microscope frame pixels after scroll/drag/double-click gestures. This is a
+  deterministic runtime-fidelity fixture, not a substitute for the real USB
+  camera matrix.
 
 - **2026-06-16 — Hosted AppKit NSView input is backend-local, not app-local**:
   QuillAppKitGTK's custom `NSView` drawing host now installs GTK motion,

@@ -236,6 +236,7 @@ private final class _DrawingHostBox {
     var area: OpaquePointer?
     private var dragStarts: [_DrawingHostButton: CGPoint] = [:]
     private var lastPointerLocation: CGPoint?
+    private var lastMagnifyScale: CGFloat?
     private var cursorRectBounds: NSRect?
     private weak var currentCursor: NSCursor?
     init(view: NSView) { self.view = view }
@@ -318,6 +319,33 @@ private final class _DrawingHostBox {
         event.hasPreciseScrollingDeltas = true
         dispatch(event)
         return true
+    }
+
+    @MainActor
+    func beginMagnifyGesture() {
+        lastMagnifyScale = 1
+    }
+
+    @MainActor
+    @discardableResult
+    func magnify(scale: CGFloat) -> Bool {
+        guard scale > 0 else { return false }
+        let previousScale = lastMagnifyScale ?? 1
+        lastMagnifyScale = scale
+
+        let magnification = (scale / previousScale) - 1
+        guard abs(magnification) > 0.0001 else { return true }
+
+        let location = lastPointerLocation ?? CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+        let event = event(type: .magnify, location: location)
+        event.magnification = magnification
+        dispatch(event)
+        return true
+    }
+
+    @MainActor
+    func endMagnifyGesture() {
+        lastMagnifyScale = nil
     }
 
     @MainActor
@@ -516,6 +544,7 @@ private func quillInstallGtkDrawHostInputControllers(
     quillInstallGtkDrawHostClickController(on: widget, host: host, button: .left)
     quillInstallGtkDrawHostMotionController(on: widget, host: host)
     quillInstallGtkDrawHostScrollController(on: widget, host: host)
+    quillInstallGtkDrawHostMagnifyController(on: widget, host: host)
 }
 
 private func quillInstallGtkDrawHostDragController(
@@ -671,6 +700,71 @@ private func quillInstallGtkDrawHostScrollController(
     )
 
     gtk_swift_add_event_controller(widget, controller)
+}
+
+private func quillInstallGtkDrawHostMagnifyController(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    host: _DrawingHostBox
+) {
+    let gesture = gtk_gesture_zoom_new()!
+
+    g_signal_connect_data(
+        gpointer(gesture),
+        "begin",
+        unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
+            guard let context = quillGtkDrawHostContext(from: userData) else { return }
+            MainActor.assumeIsolated {
+                context.host.beginMagnifyGesture()
+            }
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+        quillRetainedGtkDrawHostContext(host),
+        { userData, _ in quillReleaseGtkDrawHostContext(userData) },
+        GConnectFlags(rawValue: 0)
+    )
+
+    g_signal_connect_data(
+        gpointer(gesture),
+        "scale-changed",
+        unsafeBitCast({ (_: gpointer?, scale: gdouble, userData: gpointer?) in
+            guard let context = quillGtkDrawHostContext(from: userData) else { return }
+            MainActor.assumeIsolated {
+                _ = context.host.magnify(scale: CGFloat(scale))
+            }
+        } as @convention(c) (gpointer?, gdouble, gpointer?) -> Void, to: GCallback.self),
+        quillRetainedGtkDrawHostContext(host),
+        { userData, _ in quillReleaseGtkDrawHostContext(userData) },
+        GConnectFlags(rawValue: 0)
+    )
+
+    g_signal_connect_data(
+        gpointer(gesture),
+        "end",
+        unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
+            guard let context = quillGtkDrawHostContext(from: userData) else { return }
+            MainActor.assumeIsolated {
+                context.host.endMagnifyGesture()
+            }
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+        quillRetainedGtkDrawHostContext(host),
+        { userData, _ in quillReleaseGtkDrawHostContext(userData) },
+        GConnectFlags(rawValue: 0)
+    )
+
+    g_signal_connect_data(
+        gpointer(gesture),
+        "cancel",
+        unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
+            guard let context = quillGtkDrawHostContext(from: userData) else { return }
+            MainActor.assumeIsolated {
+                context.host.endMagnifyGesture()
+            }
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+        quillRetainedGtkDrawHostContext(host),
+        { userData, _ in quillReleaseGtkDrawHostContext(userData) },
+        GConnectFlags(rawValue: 0)
+    )
+
+    gtk_swift_add_capture_multitouch_gesture(widget, gesture)
 }
 
 private let _quillGTKCursorNames: [(cursor: NSCursor, name: String)] = [
