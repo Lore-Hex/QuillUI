@@ -3664,6 +3664,11 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
     /// button's response (matches Apple's "default" button semantics
     /// for unattended runs).
     public func runModal() -> NSApplication.ModalResponse {
+        quillApplyAccessoryTextOverride()
+        if let overrideResponse = quillModalResponseOverride() {
+            return overrideResponse
+        }
+
         let prefix: String
         switch alertStyle {
         case .critical:      prefix = "[!] "
@@ -3701,6 +3706,70 @@ open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
     public func beginSheetModal(for window: NSWindow, completionHandler: ((NSApplication.ModalResponse) -> Void)? = nil) {
         let response = runModal()
         completionHandler?(response)
+    }
+
+    private func quillModalResponseOverride() -> NSApplication.ModalResponse? {
+        let environment = ProcessInfo.processInfo.environment
+        guard let rawValue = environment["QUILLUI_NSALERT_RESPONSE"] ?? environment["QUILLUI_NSALERT_BUTTON"] else {
+            return nil
+        }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let numericValue = Int(trimmed) {
+            if numericValue <= 0 || numericValue >= 1000 {
+                return NSApplication.ModalResponse(rawValue: numericValue)
+            }
+            return quillAlertButtonResponse(atOneBasedIndex: numericValue)
+        }
+
+        if let index = _buttonTitles.firstIndex(where: { trimmed.caseInsensitiveCompare($0) == .orderedSame }) {
+            return quillAlertButtonResponse(atOneBasedIndex: index + 1)
+        }
+
+        switch trimmed.lowercased() {
+        case "default", "first", "ok", "apply":
+            return .alertFirstButtonReturn
+        case "second":
+            return .alertSecondButtonReturn
+        case "third":
+            return .alertThirdButtonReturn
+        case "cancel":
+            if let index = _buttonTitles.firstIndex(where: { $0.caseInsensitiveCompare("Cancel") == .orderedSame }) {
+                return quillAlertButtonResponse(atOneBasedIndex: index + 1)
+            }
+            return .cancel
+        default:
+            return nil
+        }
+    }
+
+    private func quillAlertButtonResponse(atOneBasedIndex index: Int) -> NSApplication.ModalResponse {
+        switch index {
+        case 1: return .alertFirstButtonReturn
+        case 2: return .alertSecondButtonReturn
+        case 3: return .alertThirdButtonReturn
+        default: return NSApplication.ModalResponse(rawValue: 999 + index)
+        }
+    }
+
+    private func quillApplyAccessoryTextOverride() {
+        let environment = ProcessInfo.processInfo.environment
+        guard let accessoryText = environment["QUILLUI_NSALERT_ACCESSORY_TEXT"] else { return }
+        quillFirstTextField(in: accessoryView)?.stringValue = accessoryText
+    }
+
+    private func quillFirstTextField(in view: NSView?) -> NSTextField? {
+        guard let view else { return nil }
+        if let textField = view as? NSTextField {
+            return textField
+        }
+        for subview in view.subviews {
+            if let textField = quillFirstTextField(in: subview) {
+                return textField
+            }
+        }
+        return nil
     }
 }
 

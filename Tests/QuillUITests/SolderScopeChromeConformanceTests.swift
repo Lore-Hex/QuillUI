@@ -22,6 +22,7 @@
 // Apple-exact spelling from the app compiles against QuillUI's shadow modules.
 // Each surface gets its own @Test so one regression doesn't mask the rest.
 #if os(Linux)
+import Glibc
 import Testing
 import SwiftUI
 
@@ -171,6 +172,32 @@ struct SolderScopeChromeConformanceTests {
         #expect(view.buttons[1].label == "Delete")
         #expect(view.buttons[1].role == .destructive)
         #expect(view.message == "This cannot be undone.")
+    }
+
+    @Test func nsAlertAutomationCanDriveAccessoryTextInput() {
+        // CalibrationOverlay.showCustomLengthAlert(): NSAlert with Apply /
+        // Cancel buttons and an NSTextField accessory. The shim can be driven
+        // deterministically by smoke tests without requiring stdin.
+        setenv("QUILLUI_NSALERT_RESPONSE", "Cancel", 1)
+        setenv("QUILLUI_NSALERT_ACCESSORY_TEXT", "2.54 mm", 1)
+        defer {
+            unsetenv("QUILLUI_NSALERT_RESPONSE")
+            unsetenv("QUILLUI_NSALERT_ACCESSORY_TEXT")
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Enter Known Length"
+        alert.informativeText = "Supports: mm, um, cm, in (default: mm)"
+        alert.alertStyle = .informational
+        _ = alert.addButton(withTitle: "Apply")
+        _ = alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        textField.placeholderString = "e.g., 2.54 mm"
+        alert.accessoryView = textField
+
+        #expect(alert.runModal() == .alertSecondButtonReturn)
+        #expect(textField.stringValue == "2.54 mm")
     }
 
     // MARK: Scenes
