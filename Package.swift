@@ -3954,6 +3954,20 @@ targets += [
 ]
 #endif
 
+// Some opt-in append paths re-introduce a target already present from a
+// non-reset graph: QUILLUI_QT_GENERIC re-adds Combine/QuillSwiftUICompatibility/
+// SwiftUI + the SwiftOpenUI closure, and the WireGuard-conformance block re-adds
+// os/Network/Security/WireGuard* shims that the qt *reset* path drops but the
+// *append* path keeps. SwiftPM rejects duplicate target names outright
+// ("duplicate target named …"), which wedged the generic-Qt smoke step. Collapse
+// to the FIRST occurrence — the common-graph definition, per the documented
+// qt-generic collision policy. A clean build has no duplicates, so this is a
+// no-op there; it only removes the collisions an opt-in re-add introduces.
+do {
+    var seenTargetNames = Set<String>()
+    targets = targets.filter { seenTargetNames.insert($0.name).inserted }
+}
+
 let package = Package(
     name: "QuillUI",
     defaultLocalization: "en",
