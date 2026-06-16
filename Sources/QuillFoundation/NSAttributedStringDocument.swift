@@ -15,6 +15,7 @@ import Foundation
 // exactly what HTMLMetadata needs (it reads `.string` for the title), without
 // pretending to reconstruct fonts/colors from CSS.
 
+#if os(Linux)
 public extension NSAttributedString {
 
     /// Mirrors Apple's `NSAttributedString.DocumentType` (the value passed as
@@ -85,3 +86,4 @@ public extension NSAttributedString {
         self.init(string: text)
     }
 }
+#endif

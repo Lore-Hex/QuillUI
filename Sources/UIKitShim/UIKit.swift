@@ -282,7 +282,6 @@ public class UISceneConfiguration: NSObject {
 
 public extension UIWindow {
     var isKeyWindow: Bool { false }
-    var safeAreaInsets: UIEdgeInsets { .zero }
     @MainActor var windowScene: UIWindowScene? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -311,9 +310,14 @@ public extension UIWindow {
 @MainActor open class UIFontPickerViewController: UIViewController {
     public weak var delegate: UIFontPickerViewControllerDelegate?
     public var selectedFontDescriptor: UIFontDescriptor?
-    public override init() {
+    public init() {
         self.selectedFontDescriptor = UIFontDescriptor()
-        super.init()
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    public required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not available on Linux")
     }
 }
 
@@ -393,10 +397,30 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
 
 public final class NSTextContainer {
     public var lineFragmentPadding: CGFloat = 0
-    public init() {}
+    public weak var layoutManager: NSLayoutManager?
+    public var size: CGSize
+    public var maximumNumberOfLines: Int = 0
+
+    public init(size: CGSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)) {
+        self.size = size
+    }
 }
 
-public class UITextRange: NSObject {}
+public class UITextRange: NSObject {
+    public let start: UITextPosition
+    public let end: UITextPosition
+    public var isEmpty: Bool { start.quillUTF16Offset == end.quillUTF16Offset }
+
+    public override convenience init() {
+        self.init(start: UITextPosition(), end: UITextPosition())
+    }
+
+    public init(start: UITextPosition, end: UITextPosition) {
+        self.start = start
+        self.end = end
+        super.init()
+    }
+}
 
 @MainActor public protocol UITextViewDelegate: AnyObject {
     func textViewDidBeginEditing(_ textView: UITextView)
@@ -450,7 +474,7 @@ public final class UITextPasteItem {
     public var keyboardType: UIKeyboardType = .default
     public var textColor: UIColor?
 
-    open func sizeThatFits(_ size: CGSize) -> CGSize {
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)
         let lineHeight = font?.pointSize ?? 17
         let lines = max(1, ceil(Double(attributedText.string.count) * 8.5 / width))

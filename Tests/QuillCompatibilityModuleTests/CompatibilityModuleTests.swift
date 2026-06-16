@@ -1839,7 +1839,7 @@ struct CompatibilityModuleTests {
         #expect(renderer.uiImage == nil)
         #expect(renderer.nsImage == nil)
         let colorRenderer = ImageRenderer(content: Color.red)
-        let renderedPlatformImage: PlatformImage? = colorRenderer.nsImage
+        let renderedPlatformImage: QuillUI.PlatformImage? = colorRenderer.nsImage
         let renderedNSImage: NSImage? = colorRenderer.nsImage
         #expect(renderedPlatformImage?.data?.isEmpty == false)
         #expect(renderedNSImage?.data?.isEmpty == false)
@@ -1847,7 +1847,7 @@ struct CompatibilityModuleTests {
         #expect(Image(systemName: "photo").render() == nil)
         let fileBackedImageData = "quill-render-\(UUID().uuidString)".data(using: .utf8)!
         #expect(Image(data: fileBackedImageData).render()?.data == fileBackedImageData)
-        guard let platformImage = PlatformImage(data: Data([1, 2, 3])) else {
+        guard let platformImage = QuillUI.PlatformImage(data: Data([1, 2, 3])) else {
             Issue.record("PlatformImage(data:) should construct the RSImage-backed image container")
             return
         }
@@ -2997,7 +2997,7 @@ struct CompatibilityModuleTests {
             return
         }
 
-        guard let image = PlatformImage(data: png) else {
+        guard let image = QuillUI.PlatformImage(data: png) else {
             Issue.record("PlatformImage(data:) should construct from valid PNG bytes")
             return
         }

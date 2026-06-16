@@ -74,7 +74,8 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsCxxFlags)"))
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsLinkerFlags)"))
         #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
-        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))\n}"))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))"))
+        #expect(manifest.contains("if signalUpstreamPresent && libsignalUpstreamPresent {\n        products.append(.executable(name: \"signal-ui-render\", targets: [\"SignalUIRender\"]))\n    }"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("enum QuillCanonicalLinuxAppQtRuntime"))
         #expect(manifest.contains("struct QuillCanonicalLinuxAppSpec"))
@@ -556,17 +557,19 @@ struct SourceHygieneTests {
     @Test("Linux UIKit shim covers dependency conformance symbols")
     func linuxUIKitShimCoversDependencyConformanceSymbols() throws {
         let root = try packageRoot()
-        let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKit.swift"),
-            encoding: .utf8
-        )
+        let source = try [
+            "Sources/QuillUIKit/QuillUIKit.swift",
+            "Sources/QuillUIKit/UIGestureRecognizers.swift",
+        ].map {
+            try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8)
+        }.joined(separator: "\n")
 
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
         #expect(source.contains("public typealias UserInterfaceStyle = UIUserInterfaceStyle"))
         #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
         #expect(source.contains("usingSpringWithDamping: CGFloat"))
         #expect(source.contains("public struct State: OptionSet, Sendable"))
-        #expect(source.contains("public class UIGestureRecognizer: NSObject"))
+        #expect(source.contains("open class UIGestureRecognizer: NSObject"))
         #expect(source.contains("public enum ContentInsetAdjustmentBehavior: Int"))
         #expect(source.contains("public enum DisplayModeButtonVisibility: Int"))
         #expect(source.contains("public enum SplitBehavior: Int"))
@@ -652,6 +655,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVFoundation.swift"),
             encoding: .utf8
         )
+        let avCaptureExtras = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureExtras.swift"),
+            encoding: .utf8
+        )
+        let nsAttributedStringDocument = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillFoundation/NSAttributedStringDocument.swift"),
+            encoding: .utf8
+        )
         let osShim = try String(
             contentsOf: root.appendingPathComponent("Sources/osShim/os.swift"),
             encoding: .utf8
@@ -661,7 +672,15 @@ struct SourceHygieneTests {
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
-        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
+        #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
+        #expect(avCaptureExtras.contains("extension AVCaptureSession.Preset"))
+        #expect(avCaptureExtras.contains("extension AVCaptureConnection"))
+        #expect(!avCaptureExtras.contains("public enum AVAuthorizationStatus"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureInput"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureOutput"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureSession"))
+        #expect(nsAttributedStringDocument.contains("#if os(Linux)"))
+        #expect(nsAttributedStringDocument.contains("#endif"))
         #expect(!osShim.contains("import os"))
     }
 
@@ -1462,6 +1481,7 @@ struct SourceHygieneTests {
         let root = try packageRoot()
         let enchantedShared = try packageSource("Sources/QuillEnchantedShared/QuillEnchantedShared.swift")
         let enchantedQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillEnchantedQt6Widgets.cpp")
+        let backendQtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
         let genericQtRuntime = try packageSource("Sources/QuillGenericQtNativeRuntime/QuillGenericQtNativeRuntime.swift")
         let genericQtHost = try packageSource("Sources/CQuillQt6WidgetsShim/QuillGenericQt6Widgets.cpp")
         let genericQtHarness = try packageSource("scripts/generic-qt-enchanted-harness-check.sh")
@@ -1471,6 +1491,8 @@ struct SourceHygieneTests {
             atPath: root.appendingPathComponent("scripts/generic-qt-enchanted-harness-check.sh").path
         ))
 
+        #expect(backendQtRenderer.contains("MainActor.assumeIsolated"))
+        #expect(!backendQtRenderer.contains("return qtRenderView(view.body)"))
         #expect(genericQtRuntime.contains("import QuillEnchantedShared"))
         #expect(genericQtRuntime.contains("import QuillQtNativeRuntimeSupport"))
         #expect(genericQtRuntime.contains("minimumWidth: EnchantedVisualMetrics.minimumWindowWidth"))
@@ -1900,6 +1922,7 @@ struct SourceHygieneTests {
         let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
         let interactionModeRunner = try packageSource("scripts/run-linux-backend-interaction-modes.sh")
         let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
+        let fetchUpstream = try packageSource("scripts/fetch-upstream.sh")
         let legacyScreenshotVerifier = try packageSource("scripts/verify-gtk-screenshot.py")
         let legacyGtkScript = try packageSource("scripts/linux-gtk-interaction-check.sh")
         let workflow = try packageSource(".github/workflows/linux-ci.yml")
@@ -2441,6 +2464,7 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("validate_quill_solderscope_launch"))
         #expect(screenshotVerifier.contains("product == \"quill-solderscope-launch\""))
         #expect(screenshotVerifier.contains("SolderScope dark toolbar pixels were not detected near the top"))
+        #expect(screenshotVerifier.contains("minimum_mean = 300 if solderscope_launch_product else 1000"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
@@ -2565,6 +2589,9 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
+        #expect(fetchUpstream.contains("want=(enchanted netnewswire wireguard icecubes solderscope)"))
+        #expect(fetchUpstream.contains("fetch_repo solderscope https://github.com/rjwalters/SolderScope.git"))
+        #expect(fetchUpstream.contains("patch_solderscope"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))

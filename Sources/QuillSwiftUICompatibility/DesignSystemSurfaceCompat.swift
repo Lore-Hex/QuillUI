@@ -794,13 +794,6 @@ public enum NavigationBarTitleDisplayMode: Sendable {
 
 public typealias ScrollContentBackgroundVisibility = Visibility
 
-public extension View {
-    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self {
-        _ = visibility
-        return self
-    }
-}
-
 public enum ScrollBounceBehavior: Sendable {
     case automatic
     case always
@@ -1069,32 +1062,6 @@ public extension EnvironmentValues {
     var dynamicTypeSize: DynamicTypeSize {
         get { self[DynamicTypeSizeKey.self] }
         set { self[DynamicTypeSizeKey.self] = newValue }
-    }
-}
-
-public struct ButtonStyleConfiguration {
-    public let label: AnyView
-    public let isPressed: Bool
-
-    public init(label: AnyView = AnyView(EmptyView()), isPressed: Bool = false) {
-        self.label = label
-        self.isPressed = isPressed
-    }
-}
-
-public protocol ButtonStyle {
-    associatedtype Body: View
-    typealias Configuration = ButtonStyleConfiguration
-
-    @ViewBuilder
-    func makeBody(configuration: Configuration) -> Body
-}
-
-public struct PlainButtonStyle: ButtonStyle {
-    public init() {}
-
-    public func makeBody(configuration: Configuration) -> AnyView {
-        configuration.label
     }
 }
 

@@ -102,7 +102,13 @@ struct AVCaptureSurfaceTests {
             return
         }
         writer.startSession(atSourceTime: CMTime(value: 0, timescale: 600))
-        #expect(adaptor.append(CVPixelBuffer(width: 4, height: 4, pixelFormatType: kCVPixelFormatType_32BGRA),
+        // The appended frame must match the writer's configured geometry
+        // (AVVideoWidthKey/HeightKey above): the Linux ffmpeg-backed encoder
+        // is launched as a fixed-size rawvideo pipe and rejects a mismatched
+        // frame (encoder.appendFrame guards pixelBuffer.width/height == the
+        // configured width/height). A 4x4 buffer only ever "passed" on macOS,
+        // whose shim append path is inert-true. Feed a real 1280x720 frame.
+        #expect(adaptor.append(CVPixelBuffer(width: 1280, height: 720, pixelFormatType: kCVPixelFormatType_32BGRA),
                                withPresentationTime: CMTime(value: 1, timescale: 30)))
         input.markAsFinished()
         // Deterministic finalize: the callback form finishes on a detached

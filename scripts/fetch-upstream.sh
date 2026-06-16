@@ -2304,7 +2304,7 @@ if [[ ${#want[@]} -eq 0 ]]; then
     # from source"). Until the upstream is patched or replaced,
     # the CodeEdit work has to be opt-in via:
     #   scripts/fetch-upstream.sh codeedit codeeditsymbols
-    want=(enchanted netnewswire wireguard icecubes)
+    want=(enchanted netnewswire wireguard icecubes solderscope)
 fi
 
 for name in "${want[@]}"; do

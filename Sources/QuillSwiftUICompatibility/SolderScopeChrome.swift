@@ -16,8 +16,8 @@
 // closure-based alert, onExitCommand) mirrors Apple's names and signatures
 // exactly; inert behavior is documented inline.
 
-import QuillKit
 import SwiftOpenUI
+import QuillKit
 
 #if os(Linux)
 
