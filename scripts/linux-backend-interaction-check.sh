@@ -579,9 +579,14 @@ open_quill_chat_completions_panel() {
       # Settings opens as a sheet in the Mac-reference build. Dismiss it before
       # the Completions click, otherwise the click lands behind the modal and
       # follow-up edit/delete interactions exercise the wrong screen.
-      reset_cancel_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}"
-      reset_cancel_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}"
+      reset_cancel_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 610))}}"
+      reset_cancel_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 412))}}"
       click_at "$reset_cancel_x" "$reset_cancel_y"
+      sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SETTLE_SLEEP:-0.2}"
+      # Packaged GTK has slightly different sheet text metrics from the
+      # source-built runner. Escape is harmless after a successful Cancel click
+      # and clears the modal when the coordinate path lands on the titlebar.
+      DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape
       sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6}"
     fi
   else

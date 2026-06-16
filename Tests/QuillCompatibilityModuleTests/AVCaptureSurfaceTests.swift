@@ -74,10 +74,12 @@ struct AVCaptureSurfaceTests {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         #expect(writer.outputURL == url)
 
+        let width = 4
+        let height = 4
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: 1280,
-            AVVideoHeightKey: 720,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: 10_000_000,
                 AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
@@ -102,7 +104,7 @@ struct AVCaptureSurfaceTests {
             return
         }
         writer.startSession(atSourceTime: CMTime(value: 0, timescale: 600))
-        #expect(adaptor.append(CVPixelBuffer(width: 4, height: 4, pixelFormatType: kCVPixelFormatType_32BGRA),
+        #expect(adaptor.append(CVPixelBuffer(width: width, height: height, pixelFormatType: kCVPixelFormatType_32BGRA),
                                withPresentationTime: CMTime(value: 1, timescale: 30)))
         input.markAsFinished()
         // Deterministic finalize: the callback form finishes on a detached
