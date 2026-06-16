@@ -4258,7 +4258,10 @@ def main() -> int:
     else:
         minimum_width = 900
         minimum_height = 600
-    minimum_mean = 500 if solderscope_launch_product else 1000
+    # SolderScope's correct no-camera launch surface is intentionally dominated
+    # by a black microscope canvas. Product-specific toolbar/nonblack/stddev
+    # checks below catch blank windows without rejecting that dark UI.
+    minimum_mean = 300 if solderscope_launch_product else 1000
     minimum_stddev = 1000 if solderscope_launch_product else 250
     require(
         image.width >= minimum_width and image.height >= minimum_height,

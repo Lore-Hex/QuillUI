@@ -32,17 +32,17 @@ extension Animation {
     /// preserved on the Animation value; GTK transition repeat loops are not
     /// yet implemented, so playback currently runs the transition once.
     public func repeatForever(autoreverses: Bool = true) -> Animation {
-        // Record an .info fallback like the sibling Animation chain methods
-        // (Animation.delay / .snappy in QuillUI's UpstreamCompatibility): the
-        // repeat metadata is preserved but GTK transition repeat loops are not
-        // implemented yet, so playback runs the transition once. The
-        // "previously-silent stubs now record diagnostics" contract test
-        // asserts this operation is recorded with .info severity.
+        // The repeat metadata is preserved, but GTK transition repeat loops
+        // aren't implemented yet, so playback runs the transition once — a
+        // silent no-op without this diagnostic. `.info` (not `.warning`): the
+        // value is faithfully carried, only playback is approximated. This
+        // module links QuillKit (see DesignSystemSurfaceCompat), so the record
+        // dropped in the move from QuillUI is restored here.
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillUI",
             operation: "Animation.repeatForever",
             severity: .info,
-            message: "repeatForever metadata is preserved on Linux; GTK transition repeat loops run the transition once until repeat playback is implemented."
+            message: "Animation.repeatForever metadata is preserved on Linux, but GTK transition repeat loops aren't implemented yet; the transition currently plays once."
         )
         return Animation(
             curve: curve,

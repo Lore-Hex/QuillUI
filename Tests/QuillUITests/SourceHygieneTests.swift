@@ -554,20 +554,14 @@ struct SourceHygieneTests {
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
-        // NSApplicationDelegate is @MainActor, matching Apple's real AppKit
-        // declaration. Unmodified macOS apps (e.g. SolderScope) declare their
-        // @NSApplicationDelegateAdaptor delegate as `class AppDelegate: NSObject,
-        // NSApplicationDelegate` WITHOUT an explicit @MainActor and rely on the
-        // protocol to supply the main-actor isolation Apple gives it; making it
-        // nonisolated breaks their compile (the app body's main-actor
-        // assumptions, e.g. Combine `.receive(on: .main).assign(to:)` bindings,
-        // no longer hold). This is distinct from the menu/table/outline
-        // delegates below — Telegram's TGUIKit conforms to THOSE from
-        // nonisolated code, so those stay nonisolated; NSApplicationDelegate is
-        // not among them. If a future un-gated Telegram needs a nonisolated app
-        // delegate, it should bridge via MainActor.assumeIsolated at its
-        // conformance, the same pattern the menu delegates use.
-        #expect(appKit.contains("@MainActor public protocol NSApplicationDelegate"))
+        // SolderScope's @preconcurrency pivot (#548) made NSApplicationDelegate
+        // @MainActor (its delegate methods are main-thread). `@preconcurrency`
+        // downgrades the isolation check to Swift-5 mode, so a nonisolated
+        // Telegram conformance is a warning rather than the hard error a bare
+        // `@MainActor` protocol would cause — the protocol must carry BOTH
+        // annotations and never appear as a bare (line-leading) `@MainActor`.
+        #expect(appKit.contains("@preconcurrency @MainActor public protocol NSApplicationDelegate"))
+        #expect(!appKit.contains("\n@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,
@@ -1857,6 +1851,7 @@ struct SourceHygieneTests {
         let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
         let interactionModeRunner = try packageSource("scripts/run-linux-backend-interaction-modes.sh")
         let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
+        let fetchUpstream = try packageSource("scripts/fetch-upstream.sh")
         let legacyScreenshotVerifier = try packageSource("scripts/verify-gtk-screenshot.py")
         let legacyGtkScript = try packageSource("scripts/linux-gtk-interaction-check.sh")
         let workflow = try packageSource(".github/workflows/linux-ci.yml")
@@ -2398,6 +2393,7 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("validate_quill_solderscope_launch"))
         #expect(screenshotVerifier.contains("product == \"quill-solderscope-launch\""))
         #expect(screenshotVerifier.contains("SolderScope dark toolbar pixels were not detected near the top"))
+        #expect(screenshotVerifier.contains("minimum_mean = 300 if solderscope_launch_product else 1000"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))
@@ -2522,6 +2518,9 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
+        #expect(fetchUpstream.contains("want=(enchanted netnewswire wireguard icecubes solderscope)"))
+        #expect(fetchUpstream.contains("fetch_repo solderscope https://github.com/rjwalters/SolderScope.git"))
+        #expect(fetchUpstream.contains("patch_solderscope"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction generated-app-matrix '.qa/{product}-toolbar-menu-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual app-matrix '.qa/{product}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_BACKEND_SKIP_BUILD=1 scripts/run-linux-backend-smoke-matrix.sh interaction interaction-matrix '.qa/{product}-interaction-{backend}.png'"))
@@ -4100,11 +4099,41 @@ struct SourceHygieneTests {
         process.standardOutput = pipe
         process.standardError = pipe
 
+        // Drain the pipe CONCURRENTLY. Reading only after waitUntilExit()
+        // deadlocks once the child's output exceeds the ~64 KB pipe buffer: the
+        // child blocks on write while we block waiting for it to exit. On a full
+        // CI checkout `git ls-files` emits far more than 64 KB, which wedged the
+        // entire Linux test run until the 900 s timeout. (It never deadlocked
+        // locally only because an unmounted .git made git fail fast with a tiny
+        // error — the "git-128" artifact that masked this.) A readabilityHandler
+        // keeps the buffer drained so the child runs to completion.
+        let collector = QuillProcessOutputCollector()
+        let readHandle = pipe.fileHandleForReading
+        readHandle.readabilityHandler = { handle in
+            collector.append(handle.availableData)
+        }
+
         try process.run()
         process.waitUntilExit()
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+        readHandle.readabilityHandler = nil
+        collector.append(readHandle.readDataToEndOfFile())
+        return (process.terminationStatus, collector.string())
+    }
+}
+
+/// Thread-safe accumulator for a subprocess's piped output, fed from the pipe's
+/// readabilityHandler queue so a chatty child never blocks on a full pipe.
+private final class QuillProcessOutputCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock(); data.append(chunk); lock.unlock()
+    }
+    func string() -> String {
+        lock.lock(); defer { lock.unlock() }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 }
 

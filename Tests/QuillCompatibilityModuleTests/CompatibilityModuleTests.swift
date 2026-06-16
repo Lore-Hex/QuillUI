@@ -70,14 +70,12 @@ private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
     }
 }
 
-// @MainActor: these cases construct and read SwiftUI `View` values (which are
-// @MainActor-isolated) synchronously. Swift Testing runs synchronous cases on a
-// background cooperative-pool executor on Linux, and Swift 6.2's strict
-// isolation runtime check (swift_task_isCurrentExecutor) SIGTRAPs via
-// dispatch_assert_queue_fail the moment a @MainActor closure (e.g. the
-// `Optional.map`s inside WrappingHStack) runs off the main actor. Pinning the
-// whole suite to the main actor is the correct fix — UI-type tests belong on
-// the main actor — and avoids whack-a-mole over every @MainActor closure.
+// `@MainActor`: many tests here construct MainActor-isolated SwiftUI views
+// (WrappingHStack, etc.) whose initializers run a Swift-6 isolation runtime
+// check that SIGTRAPs when evaluated off the main actor. Swift Testing runs
+// @Test cases on a background pool, so pin the whole suite to the main actor
+// rather than relying on a per-function annotation that's easy to miss
+// (thirdPartyUIShimsCompile lacked one and crashed the Linux run).
 @Suite("Linux compatibility import modules", .serialized)
 @MainActor
 struct CompatibilityModuleTests {
