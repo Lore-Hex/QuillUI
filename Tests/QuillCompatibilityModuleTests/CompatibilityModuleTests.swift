@@ -1865,7 +1865,7 @@ struct CompatibilityModuleTests {
         #expect(renderer.uiImage == nil)
         #expect(renderer.nsImage == nil)
         let colorRenderer = ImageRenderer(content: Color.red)
-        let renderedPlatformImage: PlatformImage? = colorRenderer.nsImage
+        let renderedPlatformImage: QuillPlatformImage? = colorRenderer.nsImage
         let renderedNSImage: NSImage? = colorRenderer.nsImage
         #expect(renderedPlatformImage?.data?.isEmpty == false)
         #expect(renderedNSImage?.data?.isEmpty == false)

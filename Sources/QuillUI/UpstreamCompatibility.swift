@@ -9,13 +9,12 @@ import QuillFoundation
 import class UIKit.NSItemProvider
 import enum UIKit.UIKeyboardType
 // App-chrome shims that BOTH `import QuillUI` and the Linux `import SwiftUI`
-// shadow must see (Material, the ButtonStyle protocol, ButtonRole, the
-// command/menu builder expressions, WindowGroup conveniences, …) are
-// canonical in QuillSwiftUICompatibility — QuillUI re-exports that module,
-// so keeping ONE defining module avoids ambiguous lookups in files that
-// import both (see the firstTextBaseline note below for the same pattern).
-// This file still references several of those names (Shape.fill(_ material:),
-// PlainButtonStyle, …) via the direct import at the top of this block.
+// shadow must see are split by ownership: SwiftOpenUI owns ButtonStyle and the
+// functional buttonStyle renderer plumbing, while QuillSwiftUICompatibility
+// owns missing higher-level SwiftUI surface such as Material, ButtonRole,
+// command/menu builder expressions, and WindowGroup conveniences. Keeping one
+// defining owner per symbol avoids ambiguous lookups in files that import both
+// (see the firstTextBaseline note below for the same pattern).
 @_exported import CoreTransferable
 @_exported import UniformTypeIdentifiers
 

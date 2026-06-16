@@ -10,8 +10,8 @@ import QuillPaint
 import SwiftUI
 #else
 import SwiftOpenUI
-// The ButtonStyle protocol + configuration are canonical in
-// QuillSwiftUICompatibility (QuillGrowingButtonStyle below conforms to them).
+// ButtonStyle + ButtonStyleConfiguration are canonical in SwiftOpenUI because
+// SwiftOpenUI owns the functional buttonStyle modifier and renderer plumbing.
 import QuillSwiftUICompatibility
 #endif
 

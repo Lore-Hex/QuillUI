@@ -282,7 +282,6 @@ public class UISceneConfiguration: NSObject {
 
 public extension UIWindow {
     var isKeyWindow: Bool { false }
-    var safeAreaInsets: UIEdgeInsets { .zero }
     @MainActor var windowScene: UIWindowScene? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -311,9 +310,14 @@ public extension UIWindow {
 @MainActor open class UIFontPickerViewController: UIViewController {
     public weak var delegate: UIFontPickerViewControllerDelegate?
     public var selectedFontDescriptor: UIFontDescriptor?
-    public override init() {
+    public init() {
         self.selectedFontDescriptor = UIFontDescriptor()
-        super.init()
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    public required init?(coder: NSCoder) {
+        self.selectedFontDescriptor = UIFontDescriptor()
+        super.init(coder: coder)
     }
 }
 
@@ -393,10 +397,28 @@ public struct UIDataDetectorTypes: OptionSet, Sendable {
 
 public final class NSTextContainer {
     public var lineFragmentPadding: CGFloat = 0
+    public var size: CGSize = .zero
+    public var maximumNumberOfLines: Int = 0
+    public weak var layoutManager: NSLayoutManager?
     public init() {}
 }
 
-public class UITextRange: NSObject {}
+public class UITextRange: NSObject {
+    public let start: UITextPosition
+    public let end: UITextPosition
+
+    public override init() {
+        self.start = UITextPosition()
+        self.end = UITextPosition()
+        super.init()
+    }
+
+    public init(start: UITextPosition, end: UITextPosition) {
+        self.start = start
+        self.end = end
+        super.init()
+    }
+}
 
 @MainActor public protocol UITextViewDelegate: AnyObject {
     func textViewDidBeginEditing(_ textView: UITextView)
@@ -450,7 +472,7 @@ public final class UITextPasteItem {
     public var keyboardType: UIKeyboardType = .default
     public var textColor: UIColor?
 
-    open func sizeThatFits(_ size: CGSize) -> CGSize {
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)
         let lineHeight = font?.pointSize ?? 17
         let lines = max(1, ceil(Double(attributedText.string.count) * 8.5 / width))
@@ -602,23 +624,10 @@ public enum UIUserInterfaceIdiom: Int, Sendable {
 
 // MARK: - UIEdgeInsets
 //
-// Layout-inset geometry (UIKit on iOS; NSEdgeInsets on macOS). SignalServiceKit
-// reaches it via `import UIKit`. Only the raw four-edge value-holder lives here;
-// SSK's own `UIEdgeInsets(margin:)` convenience init is an extension that builds
-// on this base.
-public struct UIEdgeInsets: Equatable, Sendable {
-    public var top: CGFloat
-    public var left: CGFloat
-    public var bottom: CGFloat
-    public var right: CGFloat
-    public init(top: CGFloat = 0, left: CGFloat = 0, bottom: CGFloat = 0, right: CGFloat = 0) {
-        self.top = top
-        self.left = left
-        self.bottom = bottom
-        self.right = right
-    }
-    public static let zero = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-}
+// Layout-inset geometry (UIKit on iOS; NSEdgeInsets on macOS). The public UIKit
+// spelling aliases QuillUIKit's backing value so class-body members in
+// QuillUIKit and UIKit-typed extension accessors share one type.
+public typealias UIEdgeInsets = QuillEdgeInsets
 
 // MARK: - NSDirectionalEdgeInsets
 //
@@ -736,6 +745,16 @@ public extension String {
     }
     func draw(in rect: CGRect, withAttributes attributes: [NSAttributedString.Key: Any]? = nil) {
         _ = (rect, attributes)
+    }
+}
+
+public extension NSAttributedString {
+    func boundingRect(with size: CGSize,
+                      options: NSStringDrawingOptions = [],
+                      context: NSStringDrawingContext? = nil) -> CGRect {
+        _ = (options, context)
+        let attributes = length > 0 ? self.attributes(at: 0, effectiveRange: nil) : nil
+        return quillEstimatedTextRect(string, proposed: size, attributes: attributes)
     }
 }
 
