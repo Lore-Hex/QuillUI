@@ -709,8 +709,7 @@ public struct QuillConversationHistoryList: View {
                             }
                             .padding(rowPadding)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(rowBackgroundColor(for: rowState))
-                            .cornerRadius(rowCornerRadius)
+                            .quillHistoryRowBackground(rowBackgroundColor(for: rowState), cornerRadius: rowCornerRadius)
                         }
                         .contentShape(Rectangle())
                         .accessibilityElement(children: .combine)
@@ -723,7 +722,7 @@ public struct QuillConversationHistoryList: View {
                         .onHover { hovering in
                             hoveredItemID = hovering ? item.id : nil
                         }
-                        .buttonStyle(.plain)
+                        .quillHistoryRowButtonStyle(isSelected: isSelected, drawsIdleBackground: true)
                     }
                 }
             }
@@ -946,13 +945,14 @@ public struct QuillDateGroupedConversationHistoryList: View {
     private func groupedRow(for item: QuillConversationHistoryItem) -> some View {
         let isSelected = selectedID == item.id
         let isHovered = hoveredItemID == item.id
-        let textState = PaintControlState(isHovered: isHovered, isSelected: false)
+        let textState = PaintControlState(isHovered: isHovered, isSelected: isSelected)
 
         return Button(action: { onSelect(item) }) {
             HStack {
                 if isSelected {
                     Circle()
                         .frame(width: groupedSelectionDotSize, height: groupedSelectionDotSize)
+                        .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: textState)))
                         .transition(.opacity)
                 }
 
@@ -977,7 +977,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
         .onHover { hovering in
             hoveredItemID = hovering ? item.id : nil
         }
-        .buttonStyle(.plain)
+        .quillHistoryRowButtonStyle(isSelected: isSelected, drawsIdleBackground: false)
         .animation(.easeOut(duration: 0.15), value: isSelected)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .contextMenu(menuItems: {
@@ -1018,6 +1018,31 @@ public struct QuillDateGroupedConversationHistoryList: View {
     #endif
     private var groupedListSpacing: CGFloat { 17 }
     private var groupedSectionBottomPadding: CGFloat { 30 }
+}
+
+private extension View {
+    @ViewBuilder
+    func quillHistoryRowBackground(_ fill: Color, cornerRadius: CGFloat) -> some View {
+        #if os(Linux)
+        self
+        #else
+        self
+            .background(fill)
+            .cornerRadius(cornerRadius)
+        #endif
+    }
+
+    @ViewBuilder
+    func quillHistoryRowButtonStyle(isSelected: Bool, drawsIdleBackground: Bool) -> some View {
+        #if os(Linux)
+        self.buttonStyle(ButtonStyleType.quillPaintMacListRow(
+            isSelected: isSelected,
+            drawsIdleBackground: drawsIdleBackground
+        ))
+        #else
+        self.buttonStyle(.plain)
+        #endif
+    }
 }
 
 private extension Color {
