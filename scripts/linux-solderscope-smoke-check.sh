@@ -181,6 +181,7 @@ quillui_solderscope_drive_snapshot_action() {
         "${QUILLUI_SOLDERSCOPE_SNAPSHOT_TOOLBAR_Y_OFFSET:-38}"
       ;;
     shortcut)
+      echo "SolderScope interaction smoke: shortcut $label key s" >&2
       quillui_solderscope_send_key "$window_id" s
       ;;
     none)
@@ -278,7 +279,7 @@ quillui_solderscope_wait_for_visible_frame() {
 
   local frame_probe_path
   frame_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-frame.XXXXXX.png")"
-  local frame_wait_deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_FRAME_WAIT_SECONDS:-18}))
+  local frame_wait_deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_FRAME_WAIT_SECONDS:-45}))
   local last_error=""
   while (( SECONDS <= frame_wait_deadline )); do
     DISPLAY="$DISPLAY_ID" import -window root "$frame_probe_path" 2>/dev/null || true
@@ -292,9 +293,8 @@ quillui_solderscope_wait_for_visible_frame() {
   done
 
   echo "SolderScope interaction smoke did not observe a visible synthetic frame before interaction: $last_error" >&2
-  if [[ -n "${QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT:-}" ]]; then
-    cp "$frame_probe_path" "$QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT" 2>/dev/null || true
-  fi
+  local frame_probe_out="${QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT:-${SCREENSHOT_PATH%.png}-frame-probe.png}"
+  cp "$frame_probe_path" "$frame_probe_out" 2>/dev/null || true
   rm -f "$frame_probe_path" /tmp/quill-solderscope-frame-check.log
   return 1
 }
@@ -512,6 +512,9 @@ quillui_drive_solderscope_interaction() {
     local snapshot_fallback_sent=0
     local snapshot_attempts="${QUILLUI_SOLDERSCOPE_SNAPSHOT_ATTEMPTS:-40}"
     local snapshot_tick_seconds="${QUILLUI_SOLDERSCOPE_SNAPSHOT_TICK_SECONDS:-0.25}"
+    local snapshot_retry_tick="${QUILLUI_SOLDERSCOPE_SNAPSHOT_RETRY_TICK:-5}"
+    local snapshot_fallback_tick="${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_TICK:-8}"
+    local snapshot_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_RETRY_INTERVAL_TICKS:-10}"
     quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot
     local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
     local attempt
@@ -521,14 +524,16 @@ quillui_drive_solderscope_interaction() {
         echo "SolderScope interaction smoke: snapshot saved to $SOLDERSCOPE_DESKTOP_DIR" >&2
         break
       fi
-      if (( attempt == ${QUILLUI_SOLDERSCOPE_SNAPSHOT_RETRY_TICK:-5} )); then
+      if (( attempt == snapshot_retry_tick )); then
         quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot-retry
       fi
-      if (( snapshot_fallback_sent == 0 && attempt == ${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_TICK:-8} )); then
+      if (( snapshot_fallback_sent == 0 && attempt == snapshot_fallback_tick )); then
         if [[ "$snapshot_fallback_driver" != "none" && "$snapshot_fallback_driver" != "$snapshot_driver" ]]; then
           quillui_solderscope_drive_snapshot_action "$snapshot_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot-fallback
           snapshot_fallback_sent=1
         fi
+      elif (( snapshot_fallback_sent == 1 && snapshot_fallback_retry_interval > 0 && attempt > snapshot_fallback_tick && (attempt - snapshot_fallback_tick) % snapshot_fallback_retry_interval == 0 )); then
+        quillui_solderscope_drive_snapshot_action "$snapshot_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot-fallback-retry
       fi
       sleep "$snapshot_tick_seconds"
     done
