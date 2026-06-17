@@ -670,6 +670,7 @@ struct SourceHygieneTests {
             #expect(!uiKit.contains("static let \(colorName) = RSColor("))
         }
 
+        #expect(foundation.contains("@_implementationOnly import CGdkPixbuf"))
         #expect(uiKit.contains("static let placeholderText = RSColor("))
     }
 
@@ -678,6 +679,10 @@ struct SourceHygieneTests {
         let root = try packageRoot()
         let appKit = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillAppKit/QuillAppKit.swift"),
+            encoding: .utf8
+        )
+        let appKitBitmapEncode = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKit/QuillAppKitBitmapEncode.swift"),
             encoding: .utf8
         )
         let gtk = try String(
@@ -696,6 +701,7 @@ struct SourceHygieneTests {
         #expect(appKit.contains("@preconcurrency @MainActor public protocol NSApplicationDelegate"))
         #expect(!appKit.contains("\n@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
+        #expect(appKitBitmapEncode.contains("@_implementationOnly import CGdkPixbuf"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,
         // which breaks upstream Telegram TGUIKit types (TableView, ContextMenu)
@@ -2368,10 +2374,9 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("instruction_x=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}\""))
         #expect(backendScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 548))}\""))
         #expect(backendScript.contains("Reply with a concise Linux validation response."))
-        #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1522))}\""))
-        #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 383))}\""))
+        #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}\""))
+        #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 410))}\""))
         #expect(!backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}\""))
-        #expect(!backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
         #expect(backendScript.contains("run_list_selection_or_header_interaction()"))
         #expect(backendScript.contains("unsupported_backend_interaction_mode()"))
         #expect(backendScript.contains("backend_label_for_message()"))

@@ -3252,8 +3252,11 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillFoundation",
-            dependencies: ["QuillKit"],
-            path: "Sources/QuillFoundation"
+            dependencies: ["QuillKit", "CGdkPixbuf"],
+            path: "Sources/QuillFoundation",
+            swiftSettings: [
+                .unsafeFlags(gdkPixbufSwiftImporterFlags)
+            ]
         ),
         .target(
             name: "UniformTypeIdentifiers",
@@ -3325,7 +3328,8 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/QuillAppKit",
             swiftSettings: [
                 .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(gdkPixbufSwiftImporterFlags)
             ]
         ),
         // `import Cocoa` umbrella (re-exports AppKit + common AppKit-adjacent

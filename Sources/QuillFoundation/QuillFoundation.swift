@@ -14,7 +14,7 @@
 #endif
 #if os(Linux)
 import Glibc
-import CGdkPixbuf
+@_implementationOnly import CGdkPixbuf
 import QuillKit
 #endif
 

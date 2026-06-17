@@ -1,6 +1,6 @@
 #if os(Linux)
 import Foundation
-import CGdkPixbuf
+@_implementationOnly import CGdkPixbuf
 
 // Real raster encoding for NSBitmapImageRep (rung 4 of the SolderScope
 // ladder): BGRA pixels (camera/snapshot path) or already-encoded container
