@@ -2662,7 +2662,7 @@ replacements = [
     (
         """    private var frozenFrame: CIImage?
 """,
-        """    private var frozenFrame: CGImage?
+        """    private var frozenFrame: QuillFoundation.CGImage?
 """,
     ),
     (
@@ -2692,7 +2692,7 @@ replacements = [
 """,
         """    override var isFlipped: Bool { true }
 
-    private func materializedFrame(from image: CIImage?) -> CGImage? {
+    private func materializedFrame(from image: CIImage?) -> QuillFoundation.CGImage? {
         guard let image,
               let ciContext = ciContext else { return nil }
         return ciContext.createCGImage(image, from: image.extent)
@@ -2711,7 +2711,7 @@ replacements = [
         guard let cgImage = ciContext.createCGImage(ciImage, from: imageExtent) else { return }
 """,
         """        // Get the frame to display
-        let cgImage: CGImage
+        let cgImage: QuillFoundation.CGImage
         if isFrozen {
             guard let frozenFrame else { return }
             cgImage = frozenFrame
@@ -2725,8 +2725,8 @@ replacements = [
 ]
 patched_markers = [
     "frozenFrame = materializedFrame(from: currentFrame)",
-    "private var frozenFrame: CGImage?",
-    "private func materializedFrame(from image: CIImage?) -> CGImage?",
+    "private var frozenFrame: QuillFoundation.CGImage?",
+    "private func materializedFrame(from image: CIImage?) -> QuillFoundation.CGImage?",
 ]
 if all(marker in new for marker in patched_markers):
     raise SystemExit(0)
