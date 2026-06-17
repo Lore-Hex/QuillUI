@@ -107,6 +107,89 @@ struct CoreGraphicsPathTests {
         #expect(path.quillElements.first?.points == [CGPoint(x: 5, y: 4)])
         #expect(path.quillElements.dropFirst().prefix(4).allSatisfy { $0.points.count == 3 })
     }
+
+    @Test("CGPath exposes emptiness, current point, and point bounds")
+    func pathAccessorsReflectRecordedElements() {
+        let empty = CGMutablePath()
+        #expect(empty.isEmpty)
+        #expect(empty.currentPoint == .zero)
+        #expect(empty.boundingBox.isNull)
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 1, y: 2))
+        path.addCurve(
+            to: CGPoint(x: 7, y: 3),
+            control1: CGPoint(x: 4, y: -2),
+            control2: CGPoint(x: 5, y: 9)
+        )
+
+        #expect(!path.isEmpty)
+        #expect(path.currentPoint == CGPoint(x: 7, y: 3))
+        #expect(path.boundingBox == CGRect(x: 1, y: -2, width: 6, height: 11))
+        #expect(path.boundingBoxOfPath.minX >= 1)
+        #expect(path.boundingBoxOfPath.maxX <= 7)
+
+        let closed = CGMutablePath()
+        closed.addRect(CGRect(x: 3, y: 4, width: 10, height: 8))
+        #expect(closed.currentPoint == CGPoint(x: 3, y: 4))
+    }
+
+    @Test("CGPath path bounds use curve extrema instead of control-point bounds")
+    func pathBoundingBoxOfPathUsesCurveExtrema() {
+        let quadratic = CGMutablePath()
+        quadratic.move(to: CGPoint(x: 0, y: 0))
+        quadratic.addQuadCurve(to: CGPoint(x: 20, y: 0), control: CGPoint(x: 10, y: 10))
+        #expect(quadratic.boundingBox == CGRect(x: 0, y: 0, width: 20, height: 10))
+        #expect(abs(quadratic.boundingBoxOfPath.height - 5) < 0.0001)
+
+        let cubic = CGMutablePath()
+        cubic.move(to: CGPoint(x: 0, y: 0))
+        cubic.addCurve(
+            to: CGPoint(x: 3, y: 0),
+            control1: CGPoint(x: 0, y: 3),
+            control2: CGPoint(x: 3, y: 3)
+        )
+        #expect(cubic.boundingBox == CGRect(x: 0, y: 0, width: 3, height: 3))
+        #expect(abs(cubic.boundingBoxOfPath.height - 2.25) < 0.0001)
+    }
+
+    @Test("CGPath contains supports rects, transforms, and even-odd holes")
+    func pathContainsUsesFillRulesAndTransforms() {
+        let rect = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 8), transform: nil)
+        #expect(rect.contains(CGPoint(x: 5, y: 4)))
+        #expect(rect.contains(CGPoint(x: 0, y: 4)))
+        #expect(!rect.contains(CGPoint(x: 12, y: 4)))
+
+        let transformed = CGMutablePath()
+        transformed.addRect(CGRect(x: 0, y: 0, width: 10, height: 8))
+        #expect(transformed.contains(
+            CGPoint(x: 15, y: 24),
+            using: .winding,
+            transform: CGAffineTransform(translationX: 10, y: 20)
+        ))
+        #expect(!transformed.contains(
+            CGPoint(x: 5, y: 4),
+            using: .winding,
+            transform: CGAffineTransform(translationX: 10, y: 20)
+        ))
+
+        let donut = CGMutablePath()
+        donut.addRect(CGRect(x: 0, y: 0, width: 10, height: 10))
+        donut.addRect(CGRect(x: 3, y: 3, width: 4, height: 4))
+        #expect(donut.contains(CGPoint(x: 5, y: 5), using: .winding))
+        #expect(!donut.contains(CGPoint(x: 5, y: 5), using: .evenOdd))
+        #expect(donut.contains(CGPoint(x: 1, y: 1), using: .evenOdd))
+        #expect(donut.contains(CGPoint(x: 3, y: 5), using: .evenOdd))
+    }
+
+    @Test("CGPath contains flattens cubic ellipse paths")
+    func pathContainsFlattenedEllipse() {
+        let path = CGMutablePath()
+        path.addEllipse(in: CGRect(x: 2, y: 4, width: 6, height: 10))
+
+        #expect(path.contains(CGPoint(x: 5, y: 9)))
+        #expect(!path.contains(CGPoint(x: 5, y: 2)))
+    }
 }
 
 private struct PathElementSnapshot: Equatable {

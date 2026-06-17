@@ -88,7 +88,9 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    The follow-up CoreGraphics quality pass now makes recorded `CGPath` data
    transform-aware (`CGPath(rect:transform:)`, `copy(using:)`, and
    `CGMutablePath.addPath(_:transform:)`) and records rounded rects/ellipses as
-   cubic curve elements instead of plain rectangles. `CoreGraphicsTests`
+   cubic curve elements instead of plain rectangles. The path value surface now
+   includes emptiness/current-point accessors, point and tight path bounds, and
+   winding/even-odd containment over flattened curves. `CoreGraphicsTests`
    exercises this through a direct `import CoreGraphics` path.
 
    This surface is now enabled by rung 2c. The key build gotcha remains:
@@ -149,9 +151,12 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    envelopes, not GPU SceneKit parity. Native macOS `SCNRenderer.snapshot`
    references for the canonical sphere, triangle, and side-camera scenes are
    pinned in `SceneKitRendererTests` and the runnable
-   `quill-scenekit-render-smoke` executable. The smoke gate checks rendered
-   area, dominant color, screen bounds, explicit clipping, camera control, and
-   hit-test checks, then runs an Xvfb GTK `SceneView` render smoke.
+   `quill-scenekit-render-smoke` executable. The software renderer now keeps a
+   per-pixel depth buffer for opaque overlap, and the source/smoke gates include
+   an intersecting-triangle scene with sampled pixels on both sides of the depth
+   crossover. The smoke gate checks rendered area, dominant color, screen
+   bounds, explicit clipping, camera control, hit-test checks, and z-buffered
+   overlap, then runs an Xvfb GTK `SceneView` render smoke.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
 existing 2D paint layer. That is enough for these apps' scene scale; a GL/
@@ -164,9 +169,9 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Inert RealityKit shim module (Euclid Example's RealityKitViewController)
 - [x] Rung 1: Euclid + ShapeScript lib/CLI green on Linux (CLI renders .shape → .stl)
 - [x] Rung 2 (fixtures): SceneKit scene-graph shim authored; QuillSolarSystem + QuillMoleculeViewer compile
-- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0; CGPath transform/curve recording now directly tested
+- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0; CGPath transform/curve recording, bounds/current-point accessors, and containment now directly tested
 - [x] Rung 2c (app-tier enablement): enable Euclid interop + fix ShapeScript interop + QuillEuclidExample + QuillShapeScriptViewer compile (all-at-once)
 - [x] Rung 3: fixtures render (GTK screenshot gate)
 - [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
 - [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
-- [x] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, explicit camera clipping, deterministic camera movement, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)
+- [x] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, explicit camera clipping, per-pixel z-buffered intersecting geometry, deterministic camera movement, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)
