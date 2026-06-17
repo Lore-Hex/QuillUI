@@ -1813,7 +1813,11 @@ if wireguardUpstreamPresent {
             exclude: wireGuardKitExcludes,
             swiftSettings: [
                 .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal", "-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(
+                    ["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"],
+                    .when(platforms: [.linux])
+                )
             ]
         ),
         // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
@@ -2541,7 +2545,14 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "UIKitExtensions/UIStackView+SignalUITest.swift",
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
-            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])]
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(
+                    ["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"],
+                    .when(platforms: [.linux])
+                )
+            ]
         ),
         .testTarget(
             name: "SignalServiceKitObjCPortTests",
@@ -2575,7 +2586,14 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 exclude: [
                     "Signal-Prefix.pch",
                 ],
-                swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])]
+                swiftSettings: [
+                    .swiftLanguageMode(.v5),
+                    .unsafeFlags(["-strict-concurrency=minimal"]),
+                    .unsafeFlags(
+                        ["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"],
+                        .when(platforms: [.linux])
+                    )
+                ]
             )
         ]
     }
