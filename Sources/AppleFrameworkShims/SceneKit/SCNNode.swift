@@ -31,6 +31,11 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     public private(set) weak var parent: SCNNode?
     public private(set) var childNodes: [SCNNode] = []
 
+    public var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get { quillResolvedBoundingBox() ?? (SCNVector3(), SCNVector3()) }
+        set { _ = newValue }
+    }
+
     /// Actions started via `runAction`. They are retained as interpretable
     /// data so the shim can advance them deterministically.
     public private(set) var runningActions: [SCNAction] = []
@@ -95,6 +100,16 @@ public final class SCNNode: Equatable, @unchecked Sendable {
             }
         }
         return nil
+    }
+
+    public func getBoundingBoxMin(_ min: UnsafeMutablePointer<SCNVector3>?, max: UnsafeMutablePointer<SCNVector3>?) -> Bool {
+        guard let box = quillResolvedBoundingBox() else {
+            return false
+        }
+
+        min?.pointee = box.min
+        max?.pointee = box.max
+        return true
     }
 
     public func childNodes(passingTest predicate: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Bool) -> [SCNNode] {
@@ -280,6 +295,25 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         node.renderingOrder = renderingOrder
     }
 
+    private func quillResolvedBoundingBox() -> (min: SCNVector3, max: SCNVector3)? {
+        var accumulator = QuillNodeBoundingBox()
+        quillAccumulateBoundingBox(into: &accumulator, transform: .identity)
+        return accumulator.result
+    }
+
+    private func quillAccumulateBoundingBox(into accumulator: inout QuillNodeBoundingBox, transform: Matrix4) {
+        if let geometry {
+            accumulator.include(geometry.boundingBox, transform: transform)
+        }
+
+        for child in childNodes {
+            child.quillAccumulateBoundingBox(
+                into: &accumulator,
+                transform: transform * Matrix4.localTransform(for: child)
+            )
+        }
+    }
+
     private func invalidateExplicitTransform() {
         if !isApplyingTransform {
             explicitTransform = nil
@@ -358,6 +392,49 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         }
         runningActionKeys = Array(repeating: nil, count: runningActions.count)
         runningActionCompletions = Array(repeating: nil, count: runningActions.count)
+    }
+}
+
+private struct QuillNodeBoundingBox {
+    private(set) var hasBounds = false
+    private(set) var min = Vector3(.greatestFiniteMagnitude, .greatestFiniteMagnitude, .greatestFiniteMagnitude)
+    private(set) var max = Vector3(-.greatestFiniteMagnitude, -.greatestFiniteMagnitude, -.greatestFiniteMagnitude)
+
+    var result: (min: SCNVector3, max: SCNVector3)? {
+        guard hasBounds else { return nil }
+        return (SCNVector3(min), SCNVector3(max))
+    }
+
+    mutating func include(_ box: (min: SCNVector3, max: SCNVector3), transform: Matrix4) {
+        let min = box.min
+        let max = box.max
+        include(Vector3(min.x, min.y, min.z), transform: transform)
+        include(Vector3(max.x, min.y, min.z), transform: transform)
+        include(Vector3(min.x, max.y, min.z), transform: transform)
+        include(Vector3(max.x, max.y, min.z), transform: transform)
+        include(Vector3(min.x, min.y, max.z), transform: transform)
+        include(Vector3(max.x, min.y, max.z), transform: transform)
+        include(Vector3(min.x, max.y, max.z), transform: transform)
+        include(Vector3(max.x, max.y, max.z), transform: transform)
+    }
+
+    private mutating func include(_ point: Vector3, transform: Matrix4) {
+        let transformed = transform.transformPoint(point)
+        guard transformed.x.isFinite, transformed.y.isFinite, transformed.z.isFinite else {
+            return
+        }
+
+        hasBounds = true
+        min = Vector3(
+            Swift.min(min.x, transformed.x),
+            Swift.min(min.y, transformed.y),
+            Swift.min(min.z, transformed.z)
+        )
+        max = Vector3(
+            Swift.max(max.x, transformed.x),
+            Swift.max(max.y, transformed.y),
+            Swift.max(max.z, transformed.z)
+        )
     }
 }
 

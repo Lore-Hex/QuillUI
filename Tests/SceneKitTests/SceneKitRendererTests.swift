@@ -110,6 +110,31 @@ struct SceneKitRendererTests {
         #expect(replacement.parent == nil)
     }
 
+    @Test("SCNNode boundingBox aggregates own and transformed child geometry")
+    func sceneNodeBoundingBoxAggregatesOwnAndTransformedChildGeometry() {
+        let root = SCNNode(geometry: SCNSphere(radius: 1))
+
+        let child = SCNNode(geometry: SCNBox(width: 2, height: 4, length: 6, chamferRadius: 0))
+        child.position = SCNVector3(5, 0, 0)
+        child.scale = SCNVector3(2, 1, 1)
+        root.addChildNode(child)
+
+        let box = root.boundingBox
+        #expect(box.min == SCNVector3(-1, -2, -3))
+        #expect(box.max == SCNVector3(7, 2, 3))
+
+        var min = SCNVector3()
+        var max = SCNVector3()
+        #expect(root.getBoundingBoxMin(&min, max: &max))
+        #expect(min == box.min)
+        #expect(max == box.max)
+
+        let empty = SCNNode()
+        #expect(!empty.getBoundingBoxMin(&min, max: &max))
+        #expect(empty.boundingBox.min == SCNVector3())
+        #expect(empty.boundingBox.max == SCNVector3())
+    }
+
     @Test("SCNGeometry copy preserves primitive subtype parameters and metadata")
     func geometryCopyPreservesPrimitiveSubtypeParametersAndMetadata() throws {
         let material = SCNMaterial()
