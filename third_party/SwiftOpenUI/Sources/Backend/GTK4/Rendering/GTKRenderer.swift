@@ -85,6 +85,9 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
         gtk_widget_set_size_request(context.child, width, -1)
         gtk_widget_queue_resize(context.child)
     }
+    if context.fillWidth {
+        gtkClampHiddenHorizontalScrollOffset(widget)
+    }
     if context.fillHeight, height > 1, height != context.lastHeight {
         context.lastHeight = height
         gtk_widget_set_size_request(context.child, -1, height)
@@ -92,6 +95,16 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
     }
 
     return 1
+}
+
+private func gtkClampHiddenHorizontalScrollOffset(_ scrolled: UnsafeMutablePointer<GtkWidget>) {
+    guard let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) else {
+        return
+    }
+    let lower = gtk_adjustment_get_lower(hadjustment)
+    if gtk_adjustment_get_value(hadjustment) != lower {
+        gtk_adjustment_set_value(hadjustment, lower)
+    }
 }
 
 private func gtkInstallScrollViewCrossAxisFill(
@@ -3195,7 +3208,9 @@ private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor:
                 }
             }
 
-            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+            if hasTargetCoordinates,
+               !isSwiftUIVerticalScrollView,
+               let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
                 let lower = gtk_adjustment_get_lower(hadjustment)
                 let upper = gtk_adjustment_get_upper(hadjustment)
                 let pageSize = gtk_adjustment_get_page_size(hadjustment)

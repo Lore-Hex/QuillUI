@@ -3414,6 +3414,9 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
         gtk_widget_set_size_request(context.child, width, -1)
         gtk_widget_queue_resize(context.child)
     }
+    if context.fillWidth {
+        gtkClampHiddenHorizontalScrollOffset(widget)
+    }
     if context.fillHeight, height > 1, height != context.lastHeight {
         context.lastHeight = height
         gtk_widget_set_size_request(context.child, -1, height)
@@ -3421,6 +3424,16 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
     }
 
     return 1
+}
+
+private func gtkClampHiddenHorizontalScrollOffset(_ scrolled: UnsafeMutablePointer<GtkWidget>) {
+    guard let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) else {
+        return
+    }
+    let lower = gtk_adjustment_get_lower(hadjustment)
+    if gtk_adjustment_get_value(hadjustment) != lower {
+        gtk_adjustment_set_value(hadjustment, lower)
+    }
 }
 
 private func gtkInstallScrollViewCrossAxisFill(
@@ -3767,6 +3780,43 @@ private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePoint
     if old_scroll_context_init not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader context upgrade shape was not recognized")
     text = text.replace(old_scroll_context_init, new_scroll_context_init, 1)
+if "private func gtkClampHiddenHorizontalScrollOffset" not in text:
+    old_scroll_cross_axis_clamp = '''    if context.fillWidth, width > 1, width != context.lastWidth {
+        context.lastWidth = width
+        gtk_widget_set_size_request(context.child, width, -1)
+        gtk_widget_queue_resize(context.child)
+    }
+    if context.fillHeight, height > 1, height != context.lastHeight {
+'''
+    new_scroll_cross_axis_clamp = '''    if context.fillWidth, width > 1, width != context.lastWidth {
+        context.lastWidth = width
+        gtk_widget_set_size_request(context.child, width, -1)
+        gtk_widget_queue_resize(context.child)
+    }
+    if context.fillWidth {
+        gtkClampHiddenHorizontalScrollOffset(widget)
+    }
+    if context.fillHeight, height > 1, height != context.lastHeight {
+'''
+    scroll_cross_axis_helper_marker = '''private func gtkInstallScrollViewCrossAxisFill(
+'''
+    scroll_cross_axis_clamp_helper = '''private func gtkClampHiddenHorizontalScrollOffset(_ scrolled: UnsafeMutablePointer<GtkWidget>) {
+    guard let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) else {
+        return
+    }
+    let lower = gtk_adjustment_get_lower(hadjustment)
+    if gtk_adjustment_get_value(hadjustment) != lower {
+        gtk_adjustment_set_value(hadjustment, lower)
+    }
+}
+
+'''
+    if old_scroll_cross_axis_clamp not in text:
+        raise SystemExit("SwiftOpenUI ScrollView hidden horizontal clamp shape was not recognized")
+    if scroll_cross_axis_helper_marker not in text:
+        raise SystemExit("SwiftOpenUI ScrollView hidden horizontal clamp helper marker was not recognized")
+    text = text.replace(old_scroll_cross_axis_clamp, new_scroll_cross_axis_clamp, 1)
+    text = text.replace(scroll_cross_axis_helper_marker, scroll_cross_axis_clamp_helper + scroll_cross_axis_helper_marker, 1)
 if "remainingTicks: Int = 4" in text:
     text = text.replace("remainingTicks: Int = 4", "remainingTicks: Int = 180")
 old_apply_scroll = '''private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
@@ -7182,7 +7232,9 @@ if "var fallbackVerticalApplied = false" not in text:
 
     old_apply_horizontal = '''            if let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
 '''
-    new_apply_horizontal = '''            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+    new_apply_horizontal = '''            if hasTargetCoordinates,
+               !isSwiftUIVerticalScrollView,
+               let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
 '''
     if old_apply_horizontal not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll horizontal shape was not recognized")
@@ -7218,6 +7270,17 @@ if "var fallbackVerticalApplied = false" not in text:
     text = text.replace(old_apply_footer, new_apply_footer, 1)
 elif "isSwiftUIVerticalScrollView" not in text or "return fallbackVerticalApplied" not in text:
     raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll shape was not recognized")
+
+if "!isSwiftUIVerticalScrollView,\n               let hadjustment = gtk_scrolled_window_get_hadjustment" not in text:
+    old_vertical_scroll_horizontal_guard = '''            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+'''
+    new_vertical_scroll_horizontal_guard = '''            if hasTargetCoordinates,
+               !isSwiftUIVerticalScrollView,
+               let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+'''
+    if old_vertical_scroll_horizontal_guard not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader vertical horizontal guard shape was not recognized")
+    text = text.replace(old_vertical_scroll_horizontal_guard, new_vertical_scroll_horizontal_guard, 1)
 
 path.write_text(text)
 PY

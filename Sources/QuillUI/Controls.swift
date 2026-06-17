@@ -779,12 +779,14 @@ public struct QuillConversationHistoryList: View {
                                 Text(item.title)
                                     .font(.system(size: rowFontSize))
                                     .lineLimit(1)
+                                    .truncationMode(.tail)
                                     .foregroundColor(rowTitleColor(for: rowState))
 
                                 if !lastMessage.isEmpty {
                                     Text(lastMessage)
                                         .font(.system(size: rowPreviewFontSize))
                                         .lineLimit(2)
+                                        .truncationMode(.tail)
                                         .foregroundColor(rowPreviewColor(for: rowState))
                                 }
                             }
@@ -807,6 +809,7 @@ public struct QuillConversationHistoryList: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onAppear { applyInitialSelectionIfNeeded() }
     }
@@ -993,6 +996,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
                     Divider()
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(ScrollIndicatorVisibility.never)
         .onAppear { applyInitialSelectionIfNeeded() }
@@ -1039,6 +1043,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
 
                 Text(item.title)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                     .font(.system(size: groupedRowFontSize))
                     .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: textState)))
                     .transition(.opacity)
@@ -1265,6 +1270,7 @@ public struct QuillDesktopSidebar<Content: View>: View {
         VStack(spacing: 0) {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .clipped()
 
             Divider()
                 .padding(.bottom, 24)
@@ -1272,6 +1278,7 @@ public struct QuillDesktopSidebar<Content: View>: View {
             QuillSidebarBottomNavigation(actions: bottomActions)
                 .frame(height: 146)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
+                .clipped()
         }
         .padding(.horizontal, 18)
         .padding(.top, 88)
@@ -1533,6 +1540,7 @@ public struct QuillSidebarNavigationButton: View {
 
                 Text(title)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                     .font(.system(size: navigationFontSize))
 
                 Spacer()
