@@ -1248,6 +1248,10 @@ struct Matrix4 {
         self.m = m
     }
 
+    init(_ matrix: SCNMatrix4) {
+        self = Self.matrix(matrix)
+    }
+
     static func localTransform(for node: SCNNode) -> Matrix4 {
         matrix(node.transform)
     }
@@ -1287,6 +1291,10 @@ struct Matrix4 {
         )
     }
 
+    func inverted() -> Matrix4 {
+        Matrix4(SCNMatrix4Invert(scnMatrix))
+    }
+
     static func * (lhs: Matrix4, rhs: Matrix4) -> Matrix4 {
         var out = [CGFloat](repeating: 0, count: 16)
         for row in 0..<4 {
@@ -1299,6 +1307,15 @@ struct Matrix4 {
             }
         }
         return Matrix4(out)
+    }
+
+    var scnMatrix: SCNMatrix4 {
+        SCNMatrix4(
+            m11: m[0], m12: m[4], m13: m[8], m14: m[12],
+            m21: m[1], m22: m[5], m23: m[9], m24: m[13],
+            m31: m[2], m32: m[6], m33: m[10], m34: m[14],
+            m41: m[3], m42: m[7], m43: m[11], m44: m[15]
+        )
     }
 
     private static func matrix(_ m: SCNMatrix4) -> Matrix4 {

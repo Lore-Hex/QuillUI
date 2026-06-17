@@ -146,6 +146,30 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         eulerAngles = SCNVector3(pitch, yaw, 0)
     }
 
+    public func convertPosition(_ position: SCNVector3, to node: SCNNode?) -> SCNVector3 {
+        let worldPosition = Matrix4.worldTransform(for: self).transformPoint(Vector3(position))
+        let destination = Self.quillWorldTransform(for: node).inverted()
+        return SCNVector3(destination.transformPoint(worldPosition))
+    }
+
+    public func convertPosition(_ position: SCNVector3, from node: SCNNode?) -> SCNVector3 {
+        let worldPosition = Self.quillWorldTransform(for: node).transformPoint(Vector3(position))
+        let local = Matrix4.worldTransform(for: self).inverted()
+        return SCNVector3(local.transformPoint(worldPosition))
+    }
+
+    public func convertVector(_ vector: SCNVector3, to node: SCNNode?) -> SCNVector3 {
+        let worldVector = Matrix4.worldTransform(for: self).transformDirection(Vector3(vector))
+        let destination = Self.quillWorldTransform(for: node).inverted()
+        return SCNVector3(destination.transformDirection(worldVector))
+    }
+
+    public func convertVector(_ vector: SCNVector3, from node: SCNNode?) -> SCNVector3 {
+        let worldVector = Self.quillWorldTransform(for: node).transformDirection(Vector3(vector))
+        let local = Matrix4.worldTransform(for: self).inverted()
+        return SCNVector3(local.transformDirection(worldVector))
+    }
+
     private func appendAction(_ action: SCNAction, key: String?, completionHandler: (() -> Void)?) {
         runningActions.append(action)
         runningActionStates.append(SCNActionRuntime.State(baseline: SCNActionRuntime.Baseline(node: self)))
@@ -169,6 +193,10 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         if !isApplyingTransform {
             explicitTransform = nil
         }
+    }
+
+    private static func quillWorldTransform(for node: SCNNode?) -> Matrix4 {
+        node.map(Matrix4.worldTransform) ?? .identity
     }
 
     private func applyTransformComponents(_ transform: SCNMatrix4) {
@@ -339,5 +367,11 @@ private extension SCNMatrix4 {
         }
 
         return SCNQuaternion(x, y, z, w)
+    }
+}
+
+private extension SCNVector3 {
+    init(_ vector: Vector3) {
+        self.init(vector.x, vector.y, vector.z)
     }
 }

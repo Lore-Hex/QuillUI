@@ -177,6 +177,32 @@ struct SceneKitRendererTests {
         #expect(transform.m43 == 13)
     }
 
+    @Test("SCNNode converts positions and vectors across coordinate spaces")
+    func nodeConvertsPositionsAndVectorsAcrossCoordinateSpaces() {
+        let root = SCNNode()
+        root.position = SCNVector3(10, 0, 0)
+
+        let child = SCNNode()
+        child.position = SCNVector3(0, 2, 0)
+        root.addChildNode(child)
+
+        let sibling = SCNNode()
+        sibling.position = SCNVector3(5, 0, 0)
+        root.addChildNode(sibling)
+
+        expectVector(child.convertPosition(SCNVector3(1, 0, 0), to: nil), closeTo: SCNVector3(11, 2, 0))
+        expectVector(child.convertPosition(SCNVector3(1, 0, 0), to: sibling), closeTo: SCNVector3(-4, 2, 0))
+        expectVector(child.convertPosition(SCNVector3(11, 2, 0), from: nil), closeTo: SCNVector3(1, 0, 0))
+        expectVector(sibling.convertPosition(SCNVector3(1, 0, 0), from: child), closeTo: SCNVector3(-4, 2, 0))
+
+        let scaled = SCNNode()
+        scaled.scale = SCNVector3(2, 3, 4)
+        root.addChildNode(scaled)
+
+        expectVector(scaled.convertVector(SCNVector3(1, 1, 0), to: nil), closeTo: SCNVector3(2, 3, 0))
+        expectVector(root.convertVector(SCNVector3(1, 1, 0), from: scaled), closeTo: SCNVector3(2, 3, 0))
+    }
+
     @Test("Software renderer draws colored sphere pixels")
     func rendersSpherePixels() {
         let scene = SCNScene()
