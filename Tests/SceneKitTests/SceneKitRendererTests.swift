@@ -142,6 +142,41 @@ struct SceneKitRendererTests {
         #expect(abs(zRotation.m22) < 0.0001)
     }
 
+    @Test("SCNNode transform synchronizes with transform components")
+    func nodeTransformSynchronizesWithComponents() {
+        let node = SCNNode()
+        node.position = SCNVector3(1, 2, 3)
+        node.scale = SCNVector3(2, 3, 4)
+
+        var transform = node.transform
+        #expect(transform.m11 == 2)
+        #expect(transform.m22 == 3)
+        #expect(transform.m33 == 4)
+        #expect(transform.m41 == 1)
+        #expect(transform.m42 == 2)
+        #expect(transform.m43 == 3)
+
+        node.transform = SCNMatrix4MakeTranslation(5, 6, 7)
+        #expect(node.position == SCNVector3(5, 6, 7))
+        #expect(node.scale == SCNVector3(1, 1, 1))
+        #expect(node.eulerAngles == SCNVector3(0, 0, 0))
+
+        node.transform = SCNMatrix4MakeScale(8, 9, 10)
+        #expect(node.position == SCNVector3(0, 0, 0))
+        #expect(node.scale == SCNVector3(8, 9, 10))
+
+        node.transform = SCNMatrix4MakeRotation(.pi / 2, 0, 1, 0)
+        let quarterTurn = CGFloat(2).squareRoot() / 2
+        #expect(abs(abs(node.orientation.y) - quarterTurn) < 0.0001)
+        #expect(abs(abs(node.orientation.w) - quarterTurn) < 0.0001)
+
+        node.position = SCNVector3(11, 12, 13)
+        transform = node.transform
+        #expect(transform.m41 == 11)
+        #expect(transform.m42 == 12)
+        #expect(transform.m43 == 13)
+    }
+
     @Test("Software renderer draws colored sphere pixels")
     func rendersSpherePixels() {
         let scene = SCNScene()

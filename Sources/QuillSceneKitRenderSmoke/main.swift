@@ -309,6 +309,21 @@ struct QuillSceneKitRenderSmoke {
         try require(translation.m14 == 0, "translation matrix used m14 instead of SceneKit m41 layout")
         try require(translation.m41 == 1 && translation.m42 == 2 && translation.m43 == 3, "translation matrix lost m41/m42/m43")
 
+        let node = SCNNode()
+        node.position = SCNVector3(1, 2, 3)
+        node.scale = SCNVector3(2, 3, 4)
+        try require(node.transform.m41 == 1 && node.transform.m42 == 2 && node.transform.m43 == 3, "component transform lost translation")
+        try require(node.transform.m11 == 2 && node.transform.m22 == 3 && node.transform.m33 == 4, "component transform lost scale")
+
+        node.transform = SCNMatrix4MakeTranslation(5, 6, 7)
+        try require(node.position == SCNVector3(5, 6, 7), "assigned transform did not update node position")
+        try require(node.scale == SCNVector3(1, 1, 1), "assigned translation transform changed node scale")
+
+        node.transform = SCNMatrix4MakeRotation(.pi / 2, 0, 1, 0)
+        let quarterTurn = CGFloat(2).squareRoot() / 2
+        try require(abs(abs(node.orientation.y) - quarterTurn) < 0.0001, "assigned rotation transform did not update node orientation y")
+        try require(abs(abs(node.orientation.w) - quarterTurn) < 0.0001, "assigned rotation transform did not update node orientation w")
+
         let inverse = SCNMatrix4Invert(translation)
         try require(abs(inverse.m41 + 1) < 0.0001, "translation inverse lost x offset")
         try require(abs(inverse.m42 + 2) < 0.0001, "translation inverse lost y offset")

@@ -1163,13 +1163,7 @@ struct Matrix4 {
     }
 
     static func localTransform(for node: SCNNode) -> Matrix4 {
-        let s = scale(node.scale)
-        let q = quaternion(node.orientation)
-        let r = rotation(euler: node.eulerAngles)
-        let t = translation(node.position)
-        let raw = matrix(node.transform)
-        let local = t * r * q * s
-        return SCNMatrix4IsIdentity(node.transform) ? local : raw * local
+        matrix(node.transform)
     }
 
     static func worldTransform(for node: SCNNode) -> Matrix4 {
@@ -1219,71 +1213,6 @@ struct Matrix4 {
             }
         }
         return Matrix4(out)
-    }
-
-    private static func translation(_ v: SCNVector3) -> Matrix4 {
-        Matrix4([
-            1, 0, 0, v.x,
-            0, 1, 0, v.y,
-            0, 0, 1, v.z,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func scale(_ v: SCNVector3) -> Matrix4 {
-        Matrix4([
-            v.x, 0, 0, 0,
-            0, v.y, 0, 0,
-            0, 0, v.z, 0,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func rotation(euler: SCNVector3) -> Matrix4 {
-        rotationY(euler.y) * rotationX(euler.x) * rotationZ(euler.z)
-    }
-
-    private static func rotationX(_ a: CGFloat) -> Matrix4 {
-        let c = cos(a), s = sin(a)
-        return Matrix4([
-            1, 0, 0, 0,
-            0, c, -s, 0,
-            0, s, c, 0,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func rotationY(_ a: CGFloat) -> Matrix4 {
-        let c = cos(a), s = sin(a)
-        return Matrix4([
-            c, 0, s, 0,
-            0, 1, 0, 0,
-            -s, 0, c, 0,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func rotationZ(_ a: CGFloat) -> Matrix4 {
-        let c = cos(a), s = sin(a)
-        return Matrix4([
-            c, -s, 0, 0,
-            s, c, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func quaternion(_ q: SCNQuaternion) -> Matrix4 {
-        let x = q.x, y = q.y, z = q.z, w = q.w
-        let xx = x * x, yy = y * y, zz = z * z
-        let xy = x * y, xz = x * z, yz = y * z
-        let wx = w * x, wy = w * y, wz = w * z
-        return Matrix4([
-            1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy), 0,
-            2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx), 0,
-            2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy), 0,
-            0, 0, 0, 1,
-        ])
     }
 
     private static func matrix(_ m: SCNMatrix4) -> Matrix4 {
