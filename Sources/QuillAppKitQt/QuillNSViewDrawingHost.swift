@@ -64,6 +64,19 @@ public final class QtCairoCGContextBackend: QuillCGContextBackend {
     public func translateBy(x: CGFloat, y: CGFloat) { cairo_translate(cr, Double(x), Double(y)) }
     public func scaleBy(x: CGFloat, y: CGFloat) { cairo_scale(cr, Double(x), Double(y)) }
     public func rotate(by angle: CGFloat) { cairo_rotate(cr, Double(angle)) }
+    public func concatenate(_ transform: CGAffineTransform) {
+        var matrix = cairo_matrix_t()
+        cairo_matrix_init(
+            &matrix,
+            Double(transform.a),
+            Double(transform.b),
+            Double(transform.c),
+            Double(transform.d),
+            Double(transform.tx),
+            Double(transform.ty)
+        )
+        cairo_transform(cr, &matrix)
+    }
 
     public func setFillColor(_ rgba: [CGFloat]) { state.fill = rgba }
     public func setStrokeColor(_ rgba: [CGFloat]) { state.stroke = rgba }

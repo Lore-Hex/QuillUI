@@ -18,6 +18,7 @@ public protocol QuillCGContextBackend: AnyObject {
     func translateBy(x: CGFloat, y: CGFloat)
     func scaleBy(x: CGFloat, y: CGFloat)
     func rotate(by angle: CGFloat)
+    func concatenate(_ transform: CGAffineTransform)
 
     func setFillColor(_ rgba: [CGFloat])
     func setStrokeColor(_ rgba: [CGFloat])
@@ -53,6 +54,12 @@ public protocol QuillCGContextBackend: AnyObject {
     /// `image` is the CGContext.draw(_:in:) argument (typed Any in the shadow);
     /// implementations downcast to CGImage and draw `quillBGRAPixels` if set.
     func draw(_ image: Any, in rect: CGRect, interpolationQuality: CGInterpolationQuality)
+}
+
+public extension QuillCGContextBackend {
+    func concatenate(_ transform: CGAffineTransform) {
+        _ = transform
+    }
 }
 
 extension CGContext {

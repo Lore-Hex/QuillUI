@@ -1674,9 +1674,11 @@ public final class CGContext {
     public func translateBy(x: CGFloat, y: CGFloat) { quillBackend?.translateBy(x: x, y: y) }
     public func scaleBy(x: CGFloat, y: CGFloat) { quillBackend?.scaleBy(x: x, y: y) }
     public func rotate(by angle: CGFloat) { quillBackend?.rotate(by: angle) }
-    // `CGAffineTransform` is absent from swift-corelibs Foundation on this
-    // toolchain, so the param is typed `Any` (the op is an inert no-op anyway).
-    public func concatenate(_ transform: Any) {}
+    public func concatenate(_ transform: CGAffineTransform) { quillBackend?.concatenate(transform) }
+    public func concatenate(_ transform: Any) {
+        guard let transform = transform as? CGAffineTransform else { return }
+        concatenate(transform)
+    }
 
     public func draw(_ image: Any, in rect: CGRect) { quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality) }
     public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}

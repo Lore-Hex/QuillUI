@@ -17,6 +17,9 @@ private final class RecordingBackend: QuillCGContextBackend {
     func translateBy(x: CGFloat, y: CGFloat) { rec("translate(\(Int(x)),\(Int(y)))") }
     func scaleBy(x: CGFloat, y: CGFloat) { rec("scale(\(x),\(y))") }
     func rotate(by angle: CGFloat) { rec("rotate") }
+    func concatenate(_ transform: CGAffineTransform) {
+        rec("concat(\(Int(transform.a)),\(Int(transform.d)),\(Int(transform.tx)),\(Int(transform.ty)))")
+    }
     func setFillColor(_ rgba: [CGFloat]) { rec("fillColor\(rgba)") }
     func setStrokeColor(_ rgba: [CGFloat]) { rec("strokeColor\(rgba)") }
     func setLineWidth(_ width: CGFloat) { rec("lineWidth(\(Int(width)))") }
@@ -61,6 +64,7 @@ struct NSViewRepresentableMountTests {
         ctx.saveGState()
         ctx.translateBy(x: 160, y: 120)
         ctx.rotate(by: 0.5)
+        ctx.concatenate(CGAffineTransform(a: 2, b: 0, c: 0, d: 3, tx: 4, ty: 5))
         ctx.restoreGState()
 
         #expect(backend.ops == [
@@ -69,6 +73,7 @@ struct NSViewRepresentableMountTests {
             "save",
             "translate(160,120)",
             "rotate",
+            "concat(2,3,4,5)",
             "restore",
         ])
     }
