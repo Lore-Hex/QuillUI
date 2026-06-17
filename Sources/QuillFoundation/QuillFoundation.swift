@@ -1652,6 +1652,7 @@ public final class CGContext {
         var start: CGPoint
         var end: CGPoint
         var dashStart: CGFloat
+        var joinsNext: Bool
 
         var length: CGFloat {
             let dx = end.x - start.x
@@ -2637,7 +2638,8 @@ public final class CGContext {
             let segment = QuillStrokeSegment(
                 start: subpath[index],
                 end: subpath[index + 1],
-                dashStart: dashStart
+                dashStart: dashStart,
+                joinsNext: index < subpath.count - 2
             )
             segments.append(segment)
             dashStart += segment.length
@@ -2658,7 +2660,8 @@ public final class CGContext {
             segments.append(QuillStrokeSegment(
                 start: points[index].applying(transform),
                 end: points[index + 1].applying(transform),
-                dashStart: 0
+                dashStart: 0,
+                joinsNext: false
             ))
         }
         return segments
@@ -2676,15 +2679,23 @@ public final class CGContext {
 
         let drawableSegments = segments.filter(Self.quillStrokeSegmentIsFinite)
         let halfWidth = lineWidth / 2
-        guard let strokeBounds = Self.quillBounds(for: drawableSegments, expandedBy: halfWidth),
+        let lineCap = quillLineCap
+        let lineJoin = quillLineJoin
+        let miterLimit = quillMiterLimit
+        let lineDash = quillDeviceLineDash()
+        let boundsExpansion = Self.quillStrokeBoundsExpansion(
+            segments: drawableSegments,
+            halfWidth: halfWidth,
+            lineJoin: lineJoin,
+            miterLimit: miterLimit,
+            lineDash: lineDash
+        )
+        guard let strokeBounds = Self.quillBounds(for: drawableSegments, expandedBy: boundsExpansion),
               let bounds = quillPixelBounds(for: strokeBounds)
         else {
             return
         }
 
-        let lineCap = quillLineCap
-        let lineJoin = quillLineJoin
-        let lineDash = quillDeviceLineDash()
         quillDrawBitmapShadow(sourceBounds: bounds) { devicePoint in
             Self.quillStrokeContains(
                 devicePoint,
@@ -2692,6 +2703,7 @@ public final class CGContext {
                 halfWidth: halfWidth,
                 lineCap: lineCap,
                 lineJoin: lineJoin,
+                miterLimit: miterLimit,
                 lineDash: lineDash
             ) ? source.alpha : 0
         }
@@ -2710,6 +2722,7 @@ public final class CGContext {
                            halfWidth: halfWidth,
                            lineCap: lineCap,
                            lineJoin: lineJoin,
+                           miterLimit: miterLimit,
                            lineDash: lineDash
                        ),
                        let clippedSource = Self.quillPremultipliedColor(
@@ -2763,6 +2776,42 @@ public final class CGContext {
             segment.end.x.isFinite && segment.end.y.isFinite
     }
 
+    private static func quillStrokeBoundsExpansion(
+        segments: [QuillStrokeSegment],
+        halfWidth: CGFloat,
+        lineJoin: CGLineJoin,
+        miterLimit: CGFloat,
+        lineDash: QuillLineDash?
+    ) -> CGFloat {
+        guard lineDash == nil,
+              lineJoin == .miter,
+              quillHasAngledJoin(segments)
+        else {
+            return halfWidth
+        }
+
+        return halfWidth * Swift.max(1, miterLimit * 2)
+    }
+
+    private static func quillHasAngledJoin(_ segments: [QuillStrokeSegment]) -> Bool {
+        for index in segments.indices.dropLast() where segments[index].joinsNext {
+            let current = segments[index]
+            let next = segments[index + 1]
+            guard CGPath.pointsAreClose(current.end, next.start),
+                  let incoming = CGPath.normalizedVector(from: current.start, to: current.end),
+                  let outgoing = CGPath.normalizedVector(from: next.start, to: next.end)
+            else {
+                continue
+            }
+
+            let cross = incoming.x * outgoing.y - incoming.y * outgoing.x
+            if abs(cross) > 0.0001 {
+                return true
+            }
+        }
+        return false
+    }
+
     private static func quillBounds(
         for segments: [QuillStrokeSegment],
         expandedBy expansion: CGFloat
@@ -2801,6 +2850,7 @@ public final class CGContext {
         halfWidth: CGFloat,
         lineCap: CGLineCap,
         lineJoin: CGLineJoin,
+        miterLimit: CGFloat,
         lineDash: QuillLineDash?
     ) -> Bool {
         for segment in segments where quillStrokeContains(
@@ -2813,14 +2863,17 @@ public final class CGContext {
             return true
         }
 
-        guard lineDash == nil, lineJoin == .round else {
+        guard lineDash == nil else {
             return false
         }
 
-        let halfWidthSquared = halfWidth * halfWidth
-        return segments.contains { segment in
-            quillDistanceSquared(point, segment.start) <= halfWidthSquared ||
-                quillDistanceSquared(point, segment.end) <= halfWidthSquared
+        switch lineJoin {
+        case .round:
+            return quillRoundJoinContains(point, segments: segments, halfWidth: halfWidth)
+        case .bevel:
+            return quillAngledJoinContains(point, segments: segments, halfWidth: halfWidth, miterLimit: 0)
+        case .miter:
+            return quillAngledJoinContains(point, segments: segments, halfWidth: halfWidth, miterLimit: miterLimit)
         }
     }
 
@@ -2875,6 +2928,119 @@ public final class CGContext {
             y: segment.start.y + projection * dy
         )
         return quillDistanceSquared(point, closest) <= halfWidthSquared
+    }
+
+    private static func quillRoundJoinContains(
+        _ point: CGPoint,
+        segments: [QuillStrokeSegment],
+        halfWidth: CGFloat
+    ) -> Bool {
+        let halfWidthSquared = halfWidth * halfWidth
+        for index in segments.indices.dropLast() where segments[index].joinsNext {
+            let current = segments[index]
+            let next = segments[index + 1]
+            if CGPath.pointsAreClose(current.end, next.start),
+               quillDistanceSquared(point, current.end) <= halfWidthSquared {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func quillAngledJoinContains(
+        _ point: CGPoint,
+        segments: [QuillStrokeSegment],
+        halfWidth: CGFloat,
+        miterLimit: CGFloat
+    ) -> Bool {
+        for index in segments.indices.dropLast() where segments[index].joinsNext {
+            let current = segments[index]
+            let next = segments[index + 1]
+            guard CGPath.pointsAreClose(current.end, next.start),
+                  let incoming = CGPath.normalizedVector(from: current.start, to: current.end),
+                  let outgoing = CGPath.normalizedVector(from: next.start, to: next.end)
+            else {
+                continue
+            }
+
+            let cross = incoming.x * outgoing.y - incoming.y * outgoing.x
+            guard abs(cross) > 0.0001 else {
+                continue
+            }
+
+            let joint = current.end
+            let outerSide: CGFloat = cross < 0 ? 1 : -1
+            let currentNormal = CGPoint(x: -incoming.y * outerSide, y: incoming.x * outerSide)
+            let nextNormal = CGPoint(x: -outgoing.y * outerSide, y: outgoing.x * outerSide)
+            let currentOuter = CGPoint(
+                x: joint.x + currentNormal.x * halfWidth,
+                y: joint.y + currentNormal.y * halfWidth
+            )
+            let nextOuter = CGPoint(
+                x: joint.x + nextNormal.x * halfWidth,
+                y: joint.y + nextNormal.y * halfWidth
+            )
+
+            if miterLimit <= 0 {
+                if quillPointIsInTriangle(point, joint, currentOuter, nextOuter) {
+                    return true
+                }
+                continue
+            }
+
+            guard let miter = quillLineIntersection(
+                point: currentOuter,
+                direction: CGPoint(x: incoming.x, y: incoming.y),
+                otherPoint: nextOuter,
+                otherDirection: CGPoint(x: outgoing.x, y: outgoing.y)
+            ) else {
+                if quillPointIsInTriangle(point, joint, currentOuter, nextOuter) {
+                    return true
+                }
+                continue
+            }
+
+            let allowedMiterDistance = miterLimit * halfWidth * 2
+            if quillDistanceSquared(joint, miter) <= allowedMiterDistance * allowedMiterDistance {
+                if quillPointIsInTriangle(point, currentOuter, miter, nextOuter) {
+                    return true
+                }
+            } else if quillPointIsInTriangle(point, joint, currentOuter, nextOuter) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func quillLineIntersection(
+        point: CGPoint,
+        direction: CGPoint,
+        otherPoint: CGPoint,
+        otherDirection: CGPoint
+    ) -> CGPoint? {
+        let denominator = direction.x * otherDirection.y - direction.y * otherDirection.x
+        guard abs(denominator) > 0.0001 else {
+            return nil
+        }
+
+        let dx = otherPoint.x - point.x
+        let dy = otherPoint.y - point.y
+        let scale = (dx * otherDirection.y - dy * otherDirection.x) / denominator
+        return CGPoint(x: point.x + direction.x * scale, y: point.y + direction.y * scale)
+    }
+
+    private static func quillPointIsInTriangle(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint, _ c: CGPoint) -> Bool {
+        let ab = quillSignedArea(point, a, b)
+        let bc = quillSignedArea(point, b, c)
+        let ca = quillSignedArea(point, c, a)
+        let tolerance: CGFloat = 0.0001
+        let hasNegative = ab < -tolerance || bc < -tolerance || ca < -tolerance
+        let hasPositive = ab > tolerance || bc > tolerance || ca > tolerance
+        return !(hasNegative && hasPositive)
+    }
+
+    private static func quillSignedArea(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        (point.x - b.x) * (a.y - b.y) - (a.x - b.x) * (point.y - b.y)
     }
 
     private static func quillDashAllowsEndpoint(_ distance: CGFloat, lineDash: QuillLineDash?) -> Bool {

@@ -29,6 +29,87 @@ struct SceneKitRendererTests {
         #expect(grandchild.childNodes.isEmpty)
     }
 
+    @Test("SCNNode traversal replacement and cloning preserve node graph contracts")
+    func sceneGraphHelpersTraverseReplaceAndCloneHierarchy() throws {
+        let root = SCNNode()
+        root.name = "root"
+        root.position = SCNVector3(1, 2, 3)
+
+        let geometry = SCNSphere(radius: 2)
+        let light = SCNLight()
+        light.type = .ambient
+        let camera = SCNCamera()
+        camera.fieldOfView = 44
+
+        let child = SCNNode(geometry: geometry)
+        child.name = "mesh"
+        child.light = light
+        child.camera = camera
+        child.scale = SCNVector3(2, 3, 4)
+        child.categoryBitMask = 7
+
+        let grandchild = SCNNode()
+        grandchild.name = "target"
+        grandchild.opacity = 0.5
+        child.addChildNode(grandchild)
+        root.addChildNode(child)
+
+        var childNames: [String] = []
+        root.enumerateChildNodes { node, stop in
+            childNames.append(node.name ?? "")
+            if node.name == "target" {
+                stop.pointee = true
+            }
+        }
+        #expect(childNames == ["mesh", "target"])
+
+        var hierarchyNames: [String] = []
+        root.enumerateHierarchy { node, _ in
+            hierarchyNames.append(node.name ?? "")
+        }
+        #expect(hierarchyNames == ["root", "mesh", "target"])
+
+        let matches = root.childNodes(passingTest: { node, _ in
+            node.name?.contains("t") == true
+        })
+        #expect(matches.compactMap(\.name) == ["target"])
+
+        let clonedRoot = root.clone()
+        let clonedChild = try #require(clonedRoot.childNode(withName: "mesh", recursively: false))
+        let clonedGrandchild = try #require(clonedRoot.childNode(withName: "target", recursively: true))
+        let clonedGeometry = try #require(clonedChild.geometry)
+        #expect(clonedRoot !== root)
+        #expect(clonedRoot.parent == nil)
+        #expect(clonedRoot.name == "root")
+        #expect(clonedRoot.position == root.position)
+        #expect(clonedChild !== child)
+        #expect(clonedChild.parent === clonedRoot)
+        #expect(clonedGeometry === geometry)
+        #expect(clonedChild.light === light)
+        #expect(clonedChild.camera === camera)
+        #expect(clonedChild.scale == child.scale)
+        #expect(clonedChild.categoryBitMask == 7)
+        #expect(clonedGrandchild !== grandchild)
+        #expect(clonedGrandchild.parent === clonedChild)
+        #expect(clonedGrandchild.opacity == 0.5)
+
+        let flattened = root.flattenedClone()
+        let flattenedTarget = try #require(flattened.childNode(withName: "target", recursively: true))
+        #expect(flattened !== root)
+        #expect(flattenedTarget !== grandchild)
+
+        let replacement = SCNNode()
+        replacement.name = "replacement"
+        root.replaceChildNode(child, with: replacement)
+        #expect(root.childNodes == [replacement])
+        #expect(child.parent == nil)
+        #expect(replacement.parent === root)
+
+        root.removeAllChildNodes()
+        #expect(root.childNodes.isEmpty)
+        #expect(replacement.parent == nil)
+    }
+
     @Test("SCNGeometry copy preserves primitive subtype parameters and metadata")
     func geometryCopyPreservesPrimitiveSubtypeParametersAndMetadata() throws {
         let material = SCNMaterial()

@@ -919,6 +919,30 @@ struct CoreGraphicsPathTests {
         #expect(try bitmapAlphas(in: restored) == [255, 0, 255, 0])
     }
 
+    @Test("CGContext bitmap strokePath distinguishes bevel and miter joins")
+    func bitmapContextStrokePathDistinguishesBevelAndMiterJoins() throws {
+        func draw(join: CGLineJoin) throws -> [UInt8] {
+            let context = try makeBitmapContext(width: 8, height: 8)
+            context.setStrokeColor(red: 1, green: 0, blue: 0, alpha: 1)
+            context.setLineWidth(4)
+            context.setLineCap(.butt)
+            context.setLineJoin(join)
+            context.setMiterLimit(10)
+            context.move(to: CGPoint(x: 1, y: 4))
+            context.addLine(to: CGPoint(x: 4, y: 4))
+            context.addLine(to: CGPoint(x: 4, y: 1))
+            context.strokePath()
+            return try bitmapPixels(in: context)
+        }
+
+        let bevel = try draw(join: .bevel)
+        let miter = try draw(join: .miter)
+
+        #expect(pixelBGRA(in: bevel, width: 8, x: 4, y: 5)[3] == 255)
+        #expect(pixelBGRA(in: bevel, width: 8, x: 5, y: 5)[3] == 0)
+        #expect(pixelBGRA(in: miter, width: 8, x: 5, y: 5)[3] == 255)
+    }
+
     @Test("CGContext bitmap clip(to:) restricts fill and resetClip clears it")
     func bitmapContextClipToRectRestrictsFillAndResetClipClearsIt() throws {
         let context = try makeBitmapContext(width: 4, height: 1)
