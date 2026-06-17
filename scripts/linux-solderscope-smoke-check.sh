@@ -713,6 +713,7 @@ quillui_drive_solderscope_interaction() {
     local recording_stop_fallback_sent=0
     local recording_stop_fallback_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_TICK:-12}"
     local recording_stop_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_RETRY_INTERVAL_TICKS:-8}"
+    local recording_stop_observed_idle=0
     for ((attempt = 1; attempt <= recording_save_attempts; attempt += 1)); do
       recording_saved_count="$(quillui_solderscope_recording_saved_log_count)"
       recording_count="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
@@ -728,21 +729,27 @@ quillui_drive_solderscope_interaction() {
         if quillui_solderscope_recording_indicator_visible; then
           quillui_solderscope_drive_recording_action "$recording_stop_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-retry stop
         else
+          recording_stop_observed_idle=1
           echo "SolderScope interaction smoke: stop retry skipped because recording indicator is not visible" >&2
         fi
       elif (( recording_saved_count <= recording_saved_before && recording_stop_fallback_tick > 0 )); then
         if (( recording_stop_fallback_sent == 0 && attempt == recording_stop_fallback_tick )); then
-          if [[ "$recording_stop_fallback_driver" != "none" && "$recording_stop_fallback_driver" != "$recording_stop_driver" ]]; then
+          if (( recording_stop_observed_idle == 1 )); then
+            echo "SolderScope interaction smoke: stop fallback skipped because recording UI was already observed idle" >&2
+          elif [[ "$recording_stop_fallback_driver" != "none" && "$recording_stop_fallback_driver" != "$recording_stop_driver" ]]; then
             if quillui_solderscope_recording_indicator_visible; then
               quillui_solderscope_drive_recording_action "$recording_stop_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-fallback stop
               recording_stop_fallback_sent=1
             else
+              recording_stop_observed_idle=1
               echo "SolderScope interaction smoke: recording UI is idle; deferring stop fallback" >&2
             fi
           fi
         elif (( recording_stop_fallback_sent == 1 && recording_stop_fallback_retry_interval > 0 && attempt > recording_stop_fallback_tick && (attempt - recording_stop_fallback_tick) % recording_stop_fallback_retry_interval == 0 )); then
           if quillui_solderscope_recording_indicator_visible; then
             quillui_solderscope_drive_recording_action "$recording_stop_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-fallback-retry stop
+          else
+            recording_stop_observed_idle=1
           fi
         fi
       fi
