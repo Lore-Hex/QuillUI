@@ -165,6 +165,72 @@ quillui_solderscope_click_toolbar_button() {
   sleep "${QUILLUI_SOLDERSCOPE_TOOLBAR_SETTLE_SECONDS:-0.2}"
 }
 
+quillui_solderscope_drive_freeze_once() {
+  local freeze_driver="$1"
+  local window_id="$2"
+  local window_x="$3"
+  local window_y="$4"
+  local window_width="$5"
+
+  case "$freeze_driver" in
+    toolbar)
+      quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" \
+        "${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-235}" \
+        freeze \
+        "${QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET:-38}"
+      ;;
+    shortcut)
+      quillui_solderscope_send_key "$window_id" space
+      ;;
+    none)
+      echo "SolderScope interaction smoke: freeze skipped" >&2
+      ;;
+    *)
+      echo "Unsupported QUILLUI_SOLDERSCOPE_FREEZE_DRIVER='$freeze_driver' (expected toolbar, shortcut, or none)" >&2
+      return 64
+      ;;
+  esac
+}
+
+quillui_solderscope_verify_freeze_attempt() {
+  local attempt_screenshot="$1"
+
+  DISPLAY="$DISPLAY_ID" import -window root "$attempt_screenshot" >/dev/null 2>&1 || return 1
+  "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+    "$attempt_screenshot" \
+    quill-solderscope-freeze-interaction >/dev/null 2>&1
+}
+
+quillui_solderscope_converge_freeze() {
+  local freeze_driver="$1"
+  local window_id="$2"
+  local window_x="$3"
+  local window_y="$4"
+  local window_width="$5"
+
+  if [[ "$freeze_driver" == "none" ]]; then
+    quillui_solderscope_drive_freeze_once "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"
+    return 0
+  fi
+
+  local attempt_screenshot="${SCREENSHOT_PATH%.png}-freeze-attempt.png"
+  local freeze_attempts="${QUILLUI_SOLDERSCOPE_FREEZE_ATTEMPTS:-3}"
+  local attempt
+  for ((attempt = 1; attempt <= freeze_attempts; attempt += 1)); do
+    quillui_solderscope_drive_freeze_once "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"
+    sleep "${QUILLUI_SOLDERSCOPE_FREEZE_VERIFY_SETTLE_SECONDS:-1}"
+    if quillui_solderscope_verify_freeze_attempt "$attempt_screenshot"; then
+      echo "SolderScope interaction smoke: freeze reached verified state on attempt $attempt" >&2
+      return 0
+    fi
+    echo "SolderScope interaction smoke: freeze attempt $attempt did not show the FROZEN badge" >&2
+  done
+
+  cp -f "$attempt_screenshot" "$SCREENSHOT_PATH" 2>/dev/null || true
+  echo "SolderScope interaction smoke did not reach the verified frozen state after $freeze_attempts attempts" >&2
+  return 1
+}
+
 SOLDERSCOPE_DESKTOP_DIR="$(quillui_solderscope_resolve_desktop_dir)"
 SOLDERSCOPE_DRIVE_SNAPSHOT=0
 case "${QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT:-auto}" in
@@ -466,21 +532,7 @@ quillui_drive_solderscope_interaction() {
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
-  case "$freeze_driver" in
-    toolbar)
-      quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-235}" freeze "${QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET:-46}"
-      ;;
-    shortcut)
-      quillui_solderscope_send_key "$window_id" space
-      ;;
-    none)
-      echo "SolderScope interaction smoke: freeze skipped" >&2
-      ;;
-    *)
-      echo "Unsupported QUILLUI_SOLDERSCOPE_FREEZE_DRIVER='$freeze_driver' (expected toolbar, shortcut, or none)" >&2
-      return 64
-      ;;
-  esac
+  quillui_solderscope_converge_freeze "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"
   quillui_solderscope_send_key "$window_id" b
   quillui_solderscope_send_key "$window_id" Escape
   sleep 1
