@@ -180,12 +180,18 @@ quill_chat_completion_save_uses_seed_fixture() {
     && "${QUILLUI_BACKEND_COMPLETION_SAVE_DRIVER:-seed}" == "seed" ]]
 }
 
+quill_chat_completion_delete_uses_seed_fixture() {
+  [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-delete" ]]
+}
+
 seed_quill_chat_saved_completion_fixture_if_needed() {
-  quill_chat_completion_save_uses_seed_fixture || return 0
+  if ! quill_chat_completion_save_uses_seed_fixture && ! quill_chat_completion_delete_uses_seed_fixture; then
+    return 0
+  fi
 
   local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
   mkdir -p "$(dirname "$database_path")"
-  python3 - "$database_path" <<'PY'
+  python3 - "$database_path" "$INTERACTION_MODE" <<'PY'
 from __future__ import annotations
 
 import json
@@ -193,25 +199,63 @@ import sqlite3
 import sys
 
 database_path = sys.argv[1]
-completion_id = "00000000-0000-4000-8000-00000000C1CE"
-payload = {
-    "id": completion_id,
-    "name": "Linux Saved Completion",
+interaction_mode = sys.argv[2]
+generated_name = "Linux Edited Completion" if interaction_mode == "completions-delete" else "Linux Saved Completion"
+generated_payload = {
+    "id": "00000000-0000-4000-8000-00000000C1CE",
+    "name": generated_name,
     "instruction": "Reply with a concise Linux validation response.",
     "keyboardCharacterStr": "l",
-    "order": -1,
+    "order": 0,
     "modelTemperature": 0.8,
 }
+payloads = [generated_payload]
+if interaction_mode == "completions-delete":
+    payloads.extend([
+        {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "name": "Fix Grammar",
+            "instruction": "Fix grammar for the text below",
+            "keyboardCharacterStr": "f",
+            "order": 1,
+            "modelTemperature": 0.8,
+        },
+        {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "name": "Summarize",
+            "instruction": "Summarize the following text, focusing strictly on the key facts and core arguments. Exclude any model-generated politeness or introductory phrases. Provide a direct, concise summary in bulletpoints.",
+            "keyboardCharacterStr": "s",
+            "order": 2,
+            "modelTemperature": 0.8,
+        },
+        {
+            "id": "33333333-3333-4333-8333-333333333333",
+            "name": "Write More",
+            "instruction": "Elaborate on the following content, providing additional insights, examples, detailed explanations, and related concepts. Dive deeper into the topic to offer a comprehensive understanding and explore various dimensions not covered in the original text.",
+            "keyboardCharacterStr": "w",
+            "order": 3,
+            "modelTemperature": 0.8,
+        },
+        {
+            "id": "44444444-4444-4444-8444-444444444444",
+            "name": "Politely Decline",
+            "instruction": "Write a response politely declining the offer below",
+            "keyboardCharacterStr": "d",
+            "order": 4,
+            "modelTemperature": 0.8,
+        },
+    ])
 connection = sqlite3.connect(database_path)
 connection.execute(
     'CREATE TABLE IF NOT EXISTS "_quilldata_json_GeneratedSwiftUILinuxApp_CompletionInstructionSD" '
     "(id TEXT PRIMARY KEY ON CONFLICT REPLACE, payload BLOB NOT NULL)"
 )
-connection.execute(
-    'INSERT OR REPLACE INTO "_quilldata_json_GeneratedSwiftUILinuxApp_CompletionInstructionSD" '
-    "(id, payload) VALUES (?, ?)",
-    ("id:" + completion_id, json.dumps(payload, separators=(",", ":")).encode("utf-8")),
-)
+for payload in payloads:
+    connection.execute(
+        'INSERT OR REPLACE INTO "_quilldata_json_GeneratedSwiftUILinuxApp_CompletionInstructionSD" '
+        "(id, payload) VALUES (?, ?)",
+        ("id:" + payload["id"], json.dumps(payload, separators=(",", ":")).encode("utf-8")),
+    )
 connection.commit()
 connection.close()
 PY
