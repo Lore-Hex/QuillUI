@@ -944,10 +944,10 @@ private struct PixelSurface {
 
 private extension SCNGeometryElement {
     func quillIndices() -> [Int] {
-        guard bytesPerIndex > 0, !data.isEmpty else { return [] }
+        guard [1, 2, 4, 8].contains(bytesPerIndex), !data.isEmpty else { return [] }
         let count = data.count / bytesPerIndex
         return data.withUnsafeBytes { raw in
-            (0..<count).map { i in
+            (0..<count).compactMap { i in
                 let offset = i * bytesPerIndex
                 switch bytesPerIndex {
                 case 1:
@@ -957,9 +957,10 @@ private extension SCNGeometryElement {
                 case 4:
                     return Int(raw.loadUnaligned(fromByteOffset: offset, as: UInt32.self))
                 case 8:
-                    return Int(raw.loadUnaligned(fromByteOffset: offset, as: UInt64.self))
+                    let value = raw.loadUnaligned(fromByteOffset: offset, as: UInt64.self)
+                    return value <= UInt64(Int.max) ? Int(value) : nil
                 default:
-                    return 0
+                    return nil
                 }
             }
         }
@@ -1211,10 +1212,18 @@ private func color(for geometry: SCNGeometry, elementIndex: Int) -> RGBA {
     } else {
         material = geometry.firstMaterial
     }
-    if let emission = color(from: material?.emission.contents), emission != .black {
+    if let material,
+       material.emission.intensity > 0,
+       let emission = color(from: material.emission.contents),
+       emission != .black {
         return emission
+            .scaled(max(0, material.emission.intensity))
+            .withAlphaMultiplier(material.transparency)
     }
-    return color(from: material?.diffuse.contents) ?? .neutral
+    let diffuse = color(from: material?.diffuse.contents) ?? .neutral
+    return diffuse
+        .scaled(max(0, material?.diffuse.intensity ?? 1))
+        .withAlphaMultiplier(material?.transparency ?? 1)
 }
 
 private func color(from contents: Any?) -> RGBA? {

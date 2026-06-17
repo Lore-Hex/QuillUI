@@ -109,6 +109,54 @@ struct SceneKitRendererTests {
         #expect(stats.greenDominantPixels > 1_400)
     }
 
+    @Test("SCNGeometrySource decoder rejects unsupported or malformed vertex layouts")
+    func geometrySourceDecoderRejectsMalformedLayouts() {
+        let floats: [Float] = [1, 2, 3]
+        let data = Data(bytes: floats, count: floats.count * MemoryLayout<Float>.size)
+
+        let integerSource = SCNGeometrySource(
+            data: data,
+            semantic: .vertex,
+            vectorCount: 1,
+            usesFloatComponents: false,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: 0
+        )
+        #expect(integerSource.quillVector3Values().isEmpty)
+
+        let negativeOffsetSource = SCNGeometrySource(
+            data: data,
+            semantic: .vertex,
+            vectorCount: 1,
+            usesFloatComponents: true,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: -1,
+            dataStride: 0
+        )
+        #expect(negativeOffsetSource.quillVector3Values().isEmpty)
+    }
+
+    @Test("Software renderer applies material intensity and transparency")
+    func rendererAppliesMaterialIntensityAndTransparency() {
+        let zeroIntensity = SCNSphere(radius: 1)
+        zeroIntensity.firstMaterial?.diffuse.intensity = 0
+        #expect(PixelStats(renderParametricGeometry(zeroIntensity)).nonBlackPixels == 0)
+
+        let transparent = SCNSphere(radius: 1)
+        transparent.firstMaterial?.transparency = 0
+        #expect(PixelStats(renderParametricGeometry(transparent)).nonBlackPixels == 0)
+
+        let zeroEmission = SCNSphere(radius: 1)
+        zeroEmission.firstMaterial?.emission.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        zeroEmission.firstMaterial?.emission.intensity = 0
+        let stats = PixelStats(renderParametricGeometry(zeroEmission))
+        #expect(stats.redDominantPixels > 900)
+        #expect(stats.greenDominantPixels == 0)
+    }
+
     @Test("Software renderer draws parametric planes")
     func rendersParametricPlaneGeometry() {
         let scene = SCNScene()

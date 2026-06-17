@@ -71,6 +71,7 @@ struct QuillSceneKitRenderSmoke {
         )
 
         try runParametricPrimitiveSmoke()
+        try runMaterialSmoke()
         try runCameraControlSmoke()
         try runHitTestSmoke()
         try runActionSmoke()
@@ -283,6 +284,24 @@ struct QuillSceneKitRenderSmoke {
         let stats = PixelStats(image)
         try require(stats.nonBlackPixels >= minimumPixels, "\(label) render stayed mostly black: \(stats)")
         try require(stats.redDominantPixels >= minimumPixels, "\(label) render did not produce red pixels: \(stats)")
+    }
+
+    private static func runMaterialSmoke() throws {
+        let zeroIntensity = SCNSphere(radius: 1)
+        zeroIntensity.firstMaterial?.diffuse.intensity = 0
+        let zeroIntensityStats = PixelStats(renderParametricGeometry(zeroIntensity))
+        try require(
+            zeroIntensityStats.nonBlackPixels == 0,
+            "zero diffuse intensity unexpectedly rendered pixels: \(zeroIntensityStats)"
+        )
+
+        let transparent = SCNSphere(radius: 1)
+        transparent.firstMaterial?.transparency = 0
+        let transparentStats = PixelStats(renderParametricGeometry(transparent))
+        try require(
+            transparentStats.nonBlackPixels == 0,
+            "transparent material unexpectedly rendered pixels: \(transparentStats)"
+        )
     }
 
     @MainActor

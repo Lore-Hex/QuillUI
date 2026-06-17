@@ -152,12 +152,17 @@ public class SCNGeometry: @unchecked Sendable {
 
 extension SCNGeometrySource {
     func quillVector3Values() -> [SCNVector3] {
-        guard vectorCount > 0, componentsPerVector > 0, bytesPerComponent > 0 else { return [] }
+        guard usesFloatComponents,
+              vectorCount > 0,
+              componentsPerVector > 0,
+              bytesPerComponent > 0,
+              dataOffset >= 0 else { return [] }
         let stride = dataStride > 0 ? dataStride : componentsPerVector * bytesPerComponent
         return data.withUnsafeBytes { raw in
             (0..<vectorCount).compactMap { i in
                 let base = dataOffset + i * stride
-                guard base + componentsPerVector * bytesPerComponent <= raw.count else { return nil }
+                let requiredBytes = componentsPerVector * bytesPerComponent
+                guard base >= 0, requiredBytes > 0, base + requiredBytes <= raw.count else { return nil }
                 guard let x = component(at: base, in: raw) else { return nil }
                 let y = componentsPerVector > 1 ? component(at: base + bytesPerComponent, in: raw) ?? 0 : 0
                 let z = componentsPerVector > 2 ? component(at: base + 2 * bytesPerComponent, in: raw) ?? 0 : 0
@@ -167,6 +172,7 @@ extension SCNGeometrySource {
     }
 
     private func component(at offset: Int, in raw: UnsafeRawBufferPointer) -> CGFloat? {
+        guard offset >= 0, offset + bytesPerComponent <= raw.count else { return nil }
         switch bytesPerComponent {
         case MemoryLayout<Float>.size:
             return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: Float.self))
