@@ -2,6 +2,17 @@ import CoreGraphics
 import Testing
 
 struct CoreGraphicsEventTests {
+    @Test("CGEvent source state and tap enums use Apple raw values")
+    func eventSourceStateAndTapEnumsUseAppleRawValues() {
+        #expect(CGEventSourceStateID.privateState.rawValue == -1)
+        #expect(CGEventSourceStateID.combinedSessionState.rawValue == 0)
+        #expect(CGEventSourceStateID.hidSystemState.rawValue == 1)
+
+        #expect(CGEventTapLocation.cghidEventTap.rawValue == 0)
+        #expect(CGEventTapLocation.cgSessionEventTap.rawValue == 1)
+        #expect(CGEventTapLocation.cgAnnotatedSessionEventTap.rawValue == 2)
+    }
+
     @Test("CGEventFlags use Apple event and modifier raw masks")
     func eventFlagsUseAppleEventAndModifierRawMasks() {
         #expect(CGEventFlags.maskNonCoalesced.rawValue == 1 << 8)

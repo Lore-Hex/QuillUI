@@ -33,9 +33,10 @@ public struct CGEventFlags: OptionSet, Sendable {
     public static let maskSecondaryFn = CGEventFlags(rawValue: 1 << 23)
 }
 
-public enum CGEventSourceStateID: Sendable {
-    case hidSystemState
-    case combinedSessionState
+public enum CGEventSourceStateID: Int32, Sendable {
+    case privateState = -1
+    case combinedSessionState = 0
+    case hidSystemState = 1
 }
 
 public final class CGEventSource: @unchecked Sendable {
@@ -55,8 +56,10 @@ public final class CGEventSource: @unchecked Sendable {
     }
 }
 
-public enum CGEventTapLocation: Sendable {
-    case cghidEventTap
+public enum CGEventTapLocation: Int32, Sendable {
+    case cghidEventTap = 0
+    case cgSessionEventTap = 1
+    case cgAnnotatedSessionEventTap = 2
 }
 
 public final class CGEvent: @unchecked Sendable {
