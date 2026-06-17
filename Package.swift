@@ -3860,6 +3860,16 @@ let packageTestTargets: [Target] = {
         dependencies: ["OllamaKit"],
         swiftSettings: appSwiftSettings
     ))
+    tests.append(.testTarget(
+        name: "SceneKitTests",
+        dependencies: ["SceneKit", "AppKit", "UIKit", "QuillFoundation"],
+        swiftSettings: appSwiftSettings
+    ))
+    tests.append(.testTarget(
+        name: "CoreGraphicsTests",
+        dependencies: ["CoreGraphics"],
+        swiftSettings: appSwiftSettings
+    ))
     #endif
 
     return tests

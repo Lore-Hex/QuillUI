@@ -316,7 +316,17 @@ private enum WorldPrimitive {
         case let .triangle(a, b, c, color, owner):
             guard let pa = camera.project(a), let pb = camera.project(b), let pc = camera.project(c) else { return nil }
             let depth = (pa.depth + pb.depth + pc.depth) / 3
-            return .triangle(a: pa.point, b: pb.point, c: pc.point, depth: depth, color: color, owner: owner)
+            return .triangle(
+                a: pa.point,
+                b: pb.point,
+                c: pc.point,
+                depthA: pa.depth,
+                depthB: pb.depth,
+                depthC: pc.depth,
+                depth: depth,
+                color: color,
+                owner: owner
+            )
         }
     }
 }
@@ -324,18 +334,28 @@ private enum WorldPrimitive {
 private enum ProjectedPrimitive {
     case sphere(center: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA, owner: PrimitiveOwner)
     case line(a: CGPoint, b: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA, owner: PrimitiveOwner)
-    case triangle(a: CGPoint, b: CGPoint, c: CGPoint, depth: CGFloat, color: RGBA, owner: PrimitiveOwner)
+    case triangle(
+        a: CGPoint,
+        b: CGPoint,
+        c: CGPoint,
+        depthA: CGFloat,
+        depthB: CGFloat,
+        depthC: CGFloat,
+        depth: CGFloat,
+        color: RGBA,
+        owner: PrimitiveOwner
+    )
 
     var depth: CGFloat {
         switch self {
-        case let .sphere(_, _, depth, _, _), let .line(_, _, _, depth, _, _), let .triangle(_, _, _, depth, _, _):
+        case let .sphere(_, _, depth, _, _), let .line(_, _, _, depth, _, _), let .triangle(_, _, _, _, _, _, depth, _, _):
             return depth
         }
     }
 
     private var owner: PrimitiveOwner {
         switch self {
-        case let .sphere(_, _, _, _, owner), let .line(_, _, _, _, _, owner), let .triangle(_, _, _, _, _, owner):
+        case let .sphere(_, _, _, _, owner), let .line(_, _, _, _, _, owner), let .triangle(_, _, _, _, _, _, _, _, owner):
             return owner
         }
     }
@@ -348,12 +368,12 @@ private enum ProjectedPrimitive {
 
     func draw(into surface: inout PixelSurface) {
         switch self {
-        case let .sphere(center, radius, _, color, _):
-            surface.fillCircle(center: center, radius: radius, color: color)
-        case let .line(a, b, radius, _, color, _):
-            surface.strokeCapsule(from: a, to: b, radius: radius, color: color)
-        case let .triangle(a, b, c, _, color, _):
-            surface.fillTriangle(a, b, c, color: color)
+        case let .sphere(center, radius, depth, color, _):
+            surface.fillCircle(center: center, radius: radius, depth: depth, color: color)
+        case let .line(a, b, radius, depth, color, _):
+            surface.strokeCapsule(from: a, to: b, radius: radius, depth: depth, color: color)
+        case let .triangle(a, b, c, depthA, depthB, depthC, _, color, _):
+            surface.fillTriangle(a, b, c, depths: (depthA, depthB, depthC), color: color)
         }
     }
 
@@ -368,7 +388,7 @@ private enum ProjectedPrimitive {
         case let .line(a, b, radius, _, _, _):
             return squaredDistance(from: point, toSegmentFrom: a, to: b) <= pow(max(4, radius + 2), 2)
 
-        case let .triangle(a, b, c, _, _, _):
+        case let .triangle(a, b, c, _, _, _, _, _, _):
             let area = edge(a, b, c)
             guard abs(area) > 0.0001 else { return false }
             let w0 = edge(b, c, point)
@@ -502,14 +522,18 @@ private struct CameraClipping {
 // MARK: - Pixel surface
 
 private struct PixelSurface {
+    private static let depthTolerance: CGFloat = 0.0001
+
     let width: Int
     let height: Int
     var pixels: [UInt8]
+    var depthBuffer: [CGFloat]
 
     init(width: Int, height: Int, background: RGBA) {
         self.width = width
         self.height = height
         self.pixels = [UInt8](repeating: 0, count: width * height * 4)
+        self.depthBuffer = [CGFloat](repeating: .greatestFiniteMagnitude, count: width * height)
         for y in 0..<height {
             for x in 0..<width {
                 writeOpaque(x: x, y: y, color: background)
@@ -517,7 +541,7 @@ private struct PixelSurface {
         }
     }
 
-    mutating func fillCircle(center: CGPoint, radius: CGFloat, color: RGBA) {
+    mutating func fillCircle(center: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA) {
         let minX = max(0, Int(floor(center.x - radius)))
         let maxX = min(width - 1, Int(ceil(center.x + radius)))
         let minY = max(0, Int(floor(center.y - radius)))
@@ -532,12 +556,12 @@ private struct PixelSurface {
                 guard d2 <= r2 else { continue }
                 let normalized = min(1, d2 / max(1, r2))
                 let highlight = 1.05 - 0.35 * normalized + 0.12 * max(0, (-dx - dy) / max(1, radius * 2))
-                blend(x: x, y: y, color: color.scaled(highlight))
+                blend(x: x, y: y, depth: depth, color: color.scaled(highlight))
             }
         }
     }
 
-    mutating func strokeCapsule(from a: CGPoint, to b: CGPoint, radius: CGFloat, color: RGBA) {
+    mutating func strokeCapsule(from a: CGPoint, to b: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA) {
         let minX = max(0, Int(floor(min(a.x, b.x) - radius)))
         let maxX = min(width - 1, Int(ceil(max(a.x, b.x) + radius)))
         let minY = max(0, Int(floor(min(a.y, b.y) - radius)))
@@ -559,13 +583,13 @@ private struct PixelSurface {
                 let dx = p.x - q.x
                 let dy = p.y - q.y
                 if dx * dx + dy * dy <= r2 {
-                    blend(x: x, y: y, color: color)
+                    blend(x: x, y: y, depth: depth, color: color)
                 }
             }
         }
     }
 
-    mutating func fillTriangle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, color: RGBA) {
+    mutating func fillTriangle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, depths: (CGFloat, CGFloat, CGFloat), color: RGBA) {
         let minX = max(0, Int(floor(min(a.x, min(b.x, c.x)))))
         let maxX = min(width - 1, Int(ceil(max(a.x, max(b.x, c.x)))))
         let minY = max(0, Int(floor(min(a.y, min(b.y, c.y)))))
@@ -580,7 +604,11 @@ private struct PixelSurface {
                 let w1 = edge(c, a, p)
                 let w2 = edge(a, b, p)
                 if (w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0) {
-                    blend(x: x, y: y, color: color.scaled(0.9))
+                    let barycentricScale = 1 / area
+                    let depth = depths.0 * w0 * barycentricScale
+                        + depths.1 * w1 * barycentricScale
+                        + depths.2 * w2 * barycentricScale
+                    blend(x: x, y: y, depth: depth, color: color.scaled(0.9))
                 }
             }
         }
@@ -598,9 +626,12 @@ private struct PixelSurface {
         pixels[index + 3] = color.a
     }
 
-    private mutating func blend(x: Int, y: Int, color: RGBA) {
+    private mutating func blend(x: Int, y: Int, depth: CGFloat, color: RGBA) {
         guard x >= 0, x < width, y >= 0, y < height else { return }
-        let index = (y * width + x) * 4
+        let pixelIndex = y * width + x
+        guard depth <= depthBuffer[pixelIndex] + Self.depthTolerance else { return }
+        depthBuffer[pixelIndex] = depth
+        let index = pixelIndex * 4
         let alpha = CGFloat(color.a) / 255
         let inv = 1 - alpha
         pixels[index] = UInt8(clamping: Int(CGFloat(color.b) * alpha + CGFloat(pixels[index]) * inv))
