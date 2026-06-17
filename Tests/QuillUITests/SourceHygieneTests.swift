@@ -995,6 +995,7 @@ struct SourceHygieneTests {
             encoding: .utf8
         )
         #expect(quillKit.contains("ProcessInfo.processInfo.environment[\"QUILLUI_ACCESSIBILITY_TRUSTED\"]"))
+        #expect(quillKit.contains("return false\n        #else\n        return true"))
         let swiftUILowering = try String(
             contentsOf: root.appendingPathComponent("scripts/lower-swiftui-source-for-linux.sh"),
             encoding: .utf8
