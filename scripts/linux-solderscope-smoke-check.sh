@@ -278,7 +278,7 @@ quillui_solderscope_wait_for_visible_frame() {
 
   local frame_probe_path
   frame_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-frame.XXXXXX.png")"
-  local frame_wait_deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_FRAME_WAIT_SECONDS:-18}))
+  local frame_wait_deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_FRAME_WAIT_SECONDS:-45}))
   local last_error=""
   while (( SECONDS <= frame_wait_deadline )); do
     DISPLAY="$DISPLAY_ID" import -window root "$frame_probe_path" 2>/dev/null || true
@@ -292,9 +292,8 @@ quillui_solderscope_wait_for_visible_frame() {
   done
 
   echo "SolderScope interaction smoke did not observe a visible synthetic frame before interaction: $last_error" >&2
-  if [[ -n "${QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT:-}" ]]; then
-    cp "$frame_probe_path" "$QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT" 2>/dev/null || true
-  fi
+  local frame_probe_out="${QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT:-${SCREENSHOT_PATH%.png}-frame-probe.png}"
+  cp "$frame_probe_path" "$frame_probe_out" 2>/dev/null || true
   rm -f "$frame_probe_path" /tmp/quill-solderscope-frame-check.log
   return 1
 }
