@@ -322,16 +322,20 @@ struct QuillDataSourceLoweringTests {
         let root = try packageRoot()
         let script = root.appendingPathComponent("scripts/audit-profile-budget.sh")
 
-        let passing = try runScript(script, arguments: ["--max-shell-lines", "50"])
+        let passing = try runScript(script, arguments: [
+            "--max-shell-lines", "50",
+            "--max-rewrite-lines", "137"
+        ])
         #expect(passing.status == 0, Comment(rawValue: passing.output))
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
         #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
+        #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has 137 lines (max 137)"))
 
         let workflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
         )
-        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140"))
+        #expect(workflow.contains("scripts/audit-profile-budget.sh --max-shell-lines 50 --max-template-lines 140 --max-rewrite-lines 137"))
 
         let failing = try runScript(script, arguments: ["--profile", "enchanted-full-source", "--max-shell-lines", "1"])
         #expect(failing.status != 0, Comment(rawValue: failing.output))
@@ -343,6 +347,13 @@ struct QuillDataSourceLoweringTests {
         ])
         #expect(templateFailing.status != 0, Comment(rawValue: templateFailing.output))
         #expect(templateFailing.output.contains("profile template budget failed"))
+
+        let rewriteFailing = try runScript(script, arguments: [
+            "--profile", "enchanted-full-source",
+            "--max-rewrite-lines", "1"
+        ])
+        #expect(rewriteFailing.status != 0, Comment(rawValue: rewriteFailing.output))
+        #expect(rewriteFailing.output.contains("profile rewrite budget failed"))
     }
 
     @Test("Linux Swift test wrapper applies checkout patches before testing")
@@ -397,15 +408,18 @@ struct QuillDataSourceLoweringTests {
         // APIs without source edits.
         // Both targets take their dependencies from #if os(Linux)-swapped lists:
         // on Linux they add the QuartzCore shim (UIView.layer; UIKit re-exports
-        // QuartzCore exactly like iOS), on Apple platforms the real QuartzCore
-        // exists and the shim target doesn't. QuillKit rides in both arms: the
-        // canonical UIApplication opens URLs / registers notifications through
-        // QuillWorkspace + QuillNotificationService.
+        // QuartzCore exactly like iOS), while QuillUIKit also depends on
+        // CoreGraphics for geometry-shaped shim surface,
+        // UniformTypeIdentifiers for document/content-type APIs, and
+        // CoreTransferable for share/transfer APIs. On Apple platforms the real
+        // SDK modules exist and the shim targets don't.
+        // QuillKit rides in both arms: the canonical UIApplication opens URLs /
+        // registers notifications through QuillWorkspace + QuillNotificationService.
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
-        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreText\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\"]"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\n    \"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\",\n]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
@@ -504,11 +518,13 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("top + int(app_height * 0.18)"))
         #expect(verifier.contains("abs(panel_segment.center - detail_center)"))
         #expect(verifier.contains("Mac-reference root-overlay settings panel is misplaced or too narrow"))
+        #expect(verifier.contains("body_dark_threshold = 900 if panel_kind == \"root-overlay\" else 1_000"))
         #expect(verifier.contains("panel={panel_segment.width}px@{panel_y} ({panel_kind})"))
         #expect(verifier.contains("Mac-reference typed settings endpoint was not detected"))
         #expect(verifier.contains("endpoint_text_pixels >= 300"))
         #expect(verifier.contains("Mac-reference typed settings bearer token was not detected"))
         #expect(verifier.contains("root_overlay_field_text_pixels(2)"))
+        #expect(verifier.contains("token_text_threshold = 220"))
         #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
         #expect(verifier.contains("root_overlay_field_text_pixels(3)"))
         #expect(verifier.contains("for y in range(panel_y + 32"))
@@ -615,25 +631,27 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("quill_chat_settings_click_x()"))
         #expect(interactionScript.contains("quill_chat_settings_click_y()"))
         #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 80))}\""))
-        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 60))}\""))
-        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_X:-52}\""))
-        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366}\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 22))}\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}\""))
+        #expect(interactionScript.contains("printf '%s\\n' \"${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 22))}\""))
+        #expect(!interactionScript.contains("QUILLUI_BACKEND_SETTINGS_CLICK_Y:-1366"))
         #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_settings_click_x)}\""))
         #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_settings_click_y)}\""))
-        #expect(interactionScript.contains("endpoint_x=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-650}\""))
+        #expect(interactionScript.contains("endpoint_x=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}\""))
+        #expect(interactionScript.contains("endpoint_y=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}\""))
         #expect(interactionScript.contains("token_x=\"${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}\""))
-        #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-831}\""))
+        #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-803}\""))
         #expect(interactionScript.contains("ping_x=\"${QUILLUI_BACKEND_PING_CLICK_X:-1000}\""))
-        #expect(interactionScript.contains("ping_y=\"${QUILLUI_BACKEND_PING_CLICK_Y:-853}\""))
+        #expect(interactionScript.contains("ping_y=\"${QUILLUI_BACKEND_PING_CLICK_Y:-828}\""))
         #expect(interactionScript.contains("model_x=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}\""))
-        #expect(interactionScript.contains("model_y=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-763}\""))
+        #expect(interactionScript.contains("model_y=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-772}\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_OPEN_SLEEP"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers Down Return"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_SELECTED_MODEL_NAME=${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers Escape"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP"))
         #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}\""))
-        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-1000}\""))
+        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-969}\""))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
         // No capture==root gate on the child-window refresh (smoke sheets
         // present as separate toplevels); IM popups are filtered by the
@@ -657,6 +675,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_ESCAPE_SLEEP:-0.3"))
         #expect(interactionScript.contains("reset_cancel_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}\""))
         #expect(interactionScript.contains("reset_cancel_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}\""))
         #expect(interactionScript.contains("quill_chat_completions_click_x()"))
@@ -667,7 +686,21 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_completions_click_x)}\""))
         #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_completions_click_y)}\""))
         #expect(interactionScript.contains("open_quill_chat_completions_panel 1\n  if quillui_is_quill_chat_mac_reference_product \"$PRODUCT\"; then\n    edit_x="))
-        #expect(!interactionScript.contains("open_quill_chat_new_completion_sheet() {\n  local new_x\n  local new_y\n\n  open_quill_chat_completions_panel 1"))
+        #expect(interactionScript.contains("settle_quill_chat_completion_capture_if_verified()"))
+        #expect(interactionScript.contains("quill_chat_completion_interaction_needs_settled_capture()"))
+        #expect(interactionScript.contains("cp -f \"$quill_chat_completions_panel_probe_path\" \"$SCREENSHOT_PATH\""))
+        #expect(interactionScript.contains("settled_capture_taken=1"))
+        #expect(interactionScript.contains("local max_attempts=\"${QUILLUI_BACKEND_COMPLETIONS_OPEN_ATTEMPTS:-3}\""))
+        #expect(interactionScript.contains("for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do"))
+        #expect(interactionScript.contains("open_quill_chat_completions_panel 1"))
+        #expect(interactionScript.contains("open_quill_chat_completions_panel 0"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_COMPLETIONS_OPEN_RETRY_SLEEP:-0.8"))
+        #expect(interactionScript.contains("open_quill_chat_new_completion_sheet() {\n  local new_x\n  local new_y\n\n  if quillui_is_quill_chat_mac_reference_product \"$PRODUCT\"; then\n    ensure_quill_chat_completions_panel_open"))
+        #expect(interactionScript.contains("new_x=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}\""))
+        #expect(interactionScript.contains("new_y=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 458))}\""))
+        #expect(interactionScript.contains("new_x=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1487))}\""))
+        #expect(interactionScript.contains("new_y=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 477))}\""))
+        #expect(!interactionScript.contains("new_y=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 498))}\""))
         #expect(interactionScript.contains("window_x + 90"))
         #expect(interactionScript.contains("window_height - 136"))
         #expect(interactionScript.contains("completions-new-sheet"))
@@ -692,8 +725,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("instruction_x=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}\""))
         #expect(interactionScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 548))}\""))
         #expect(interactionScript.contains("Reply with a concise Linux validation response."))
-        #expect(interactionScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}\""))
-        #expect(interactionScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 407))}\""))
+        #expect(interactionScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1522))}\""))
+        #expect(interactionScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 383))}\""))
         #expect(!interactionScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}\""))
         #expect(!interactionScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
         #expect(interactionScript.contains("history-selection"))
@@ -1028,6 +1061,8 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(applicationEntryPointRule.contains("WindowGroup(\"Quill Chat\")"))
+        #expect(!applicationEntryPointRule.contains("@State var panelManager"))
+        #expect(!applicationEntryPointRule.contains("@NSApplicationDelegateAdaptor"))
 
         let chatViewRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/ChatView_macOS.swift.pl"),
@@ -1208,9 +1243,8 @@ struct QuillDataSourceLoweringTests {
         #expect(conversationStoreRule.contains("pendingMessages.append(assistantMessage)"))
         #expect(conversationStoreRule.contains("self.messages = pendingMessages.sorted"))
         #expect(conversationStoreRule.contains("self.selectedConversation = conversation"))
-        #expect(conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
-        #expect(conversationStoreRule.contains("!messageHistory.contains(where: { \\$0.role == .user && \\$0.content == userPrompt })"))
-        #expect(conversationStoreRule.contains("messageHistory.append(currentUserRequestMessage)"))
+        #expect(!conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
+        #expect(!conversationStoreRule.contains("messageHistory.append(currentUserRequestMessage)"))
         #expect(conversationStoreRule.contains("Task { try? await self.loadConversations() }"))
         #expect(!conversationStoreRule.contains("conversation.messages + [userMessage]"))
 

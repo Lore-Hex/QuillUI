@@ -16,8 +16,9 @@ import AppKit
 /// so a generic metatype can't be instantiated (the same wall as
 /// `NSTableView.dequeueReusableCell`; see `QuillReusableView` in QuillAppKit).
 /// The adaptor therefore instantiates the delegate only when the type opts in
-/// to `QuillReusableView` (one `required init()` — a future app-lowering pass
-/// can add the conformance mechanically), and otherwise records no instance.
+/// to `QuillReusableView` (one `required init()`); `AppKitLowering` adds that
+/// conformance mechanically for `NSApplicationDelegate` classes. Otherwise the
+/// adaptor records no instance.
 /// Reading `wrappedValue` without an instance traps with guidance; apps that
 /// declare the adaptor but never read the property — SolderScope's pattern —
 /// compile and run. Delegate lifecycle callbacks are wired by the app runner

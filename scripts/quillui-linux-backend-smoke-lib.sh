@@ -297,7 +297,7 @@ quillui_backend_interaction_verify_product() {
   local product="$1"
   local interaction_mode="$2"
   local output_var="$3"
-  local verify_product="$product"
+  local resolved_verify_product="$product"
   local app_verify_product=""
   local list_selection_verify_product=""
   local selected_backend=""
@@ -305,18 +305,18 @@ quillui_backend_interaction_verify_product() {
   selected_backend="$(quillui_require_requested_backend_for_product "$product" 2>/dev/null || true)"
 
   if app_verify_product="$(quillui_backend_app_interaction_verify_product_for_product "$product" "$selected_backend" "$interaction_mode")"; then
-    verify_product="$app_verify_product"
+    resolved_verify_product="$app_verify_product"
   elif [[ "$interaction_mode" == "list-selection" ]] && list_selection_verify_product="$(quillui_backend_list_selection_verify_product "$product" "$selected_backend")"; then
-    verify_product="$list_selection_verify_product"
+    resolved_verify_product="$list_selection_verify_product"
   elif quillui_is_backend_smoke_product "$product"; then
-    verify_product="$(quillui_backend_smoke_interaction_verify_product "$product" "$interaction_mode")" || return $?
+    resolved_verify_product="$(quillui_backend_smoke_interaction_verify_product "$product" "$interaction_mode")" || return $?
   fi
 
   if [[ -n "${QUILLUI_BACKEND_VERIFY_PRODUCT:-}" ]]; then
-    verify_product="$QUILLUI_BACKEND_VERIFY_PRODUCT"
+    resolved_verify_product="$QUILLUI_BACKEND_VERIFY_PRODUCT"
   fi
 
-  quillui_assign_output "$output_var" "$verify_product"
+  quillui_assign_output "$output_var" "$resolved_verify_product"
 }
 
 quillui_assign_output() {

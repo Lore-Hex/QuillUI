@@ -355,16 +355,16 @@ public enum QuillImageFormatDetector {
 }
 
 public extension Image {
-    func render() -> PlatformImage? {
+    func render() -> QuillPlatformImage? {
         if case .filePath(let path) = source,
            let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
            !data.isEmpty {
-            return PlatformImage(data: data)
+            return QuillPlatformImage(data: data)
         }
 
         let renderer = SwiftOpenUI.OpenUIImageRenderer(content: self)
         if let data = renderer.platformImage?.data,
-           let image = PlatformImage(data: data) {
+           let image = QuillPlatformImage(data: data) {
             return image
         }
 

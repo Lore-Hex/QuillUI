@@ -32,7 +32,7 @@
 import Foundation
 import Dispatch
 import XCTest
-import QuartzCore
+@preconcurrency import QuartzCore
 
 // MARK: - Helpers
 
@@ -143,378 +143,410 @@ final class CAAnimationTimingTests: XCTestCase {
     // 1. Delegate start/stop fire asynchronously; default
     //    isRemovedOnCompletion (true) removes the animation afterwards.
     func testDelegateCompletionFiresAsynchronouslyAndAnimationIsRemoved() {
-        let didStart = expectation(description: "animationDidStart delivered")
-        let didStop = expectation(description: "animationDidStop(finished: true) delivered")
-        let recorder = AnimationDelegateRecorder(didStart: didStart, didStop: didStop)
+        MainActor.assumeIsolated {
+            let didStart = expectation(description: "animationDidStart delivered")
+            let didStop = expectation(description: "animationDidStop(finished: true) delivered")
+            let recorder = AnimationDelegateRecorder(didStart: didStart, didStop: didStop)
 
-        let layer = CALayer()
-        let anim = CABasicAnimation(keyPath: "opacity")
-        anim.duration = 0.05
-        anim.fromValue = 1.0
-        anim.toValue = 0.0
-        anim.delegate = recorder
+            let layer = CALayer()
+            let anim = CABasicAnimation(keyPath: "opacity")
+            anim.duration = 0.05
+            anim.fromValue = 1.0
+            anim.toValue = 0.0
+            anim.delegate = recorder
 
-        layer.add(anim, forKey: "fade")
+            layer.add(anim, forKey: "fade")
 
-        // Eventual delivery only — never assert how long it actually took.
-        wait(for: [didStart, didStop], timeout: 5.0)
+            // Eventual delivery only — never assert how long it actually took.
+            wait(for: [didStart, didStop], timeout: 5.0)
 
-        XCTAssertEqual(recorder.recordedStartCount, 1)
-        XCTAssertEqual(recorder.recordedFinishedFlags, [true],
-                       "natural completion must report finished == true exactly once")
+            XCTAssertEqual(recorder.recordedStartCount, 1)
+            XCTAssertEqual(recorder.recordedFinishedFlags, [true],
+                           "natural completion must report finished == true exactly once")
 
-        // Checked only AFTER didStop resolved: by then the default
-        // isRemovedOnCompletion == true must have removed the animation.
-        let keys = layer.animationKeys() ?? []
-        XCTAssertTrue(keys.isEmpty,
-                      "isRemovedOnCompletion should have removed the animation; found \(keys)")
+            // Checked only AFTER didStop resolved: by then the default
+            // isRemovedOnCompletion == true must have removed the animation.
+            let keys = layer.animationKeys() ?? []
+            XCTAssertTrue(keys.isEmpty,
+                          "isRemovedOnCompletion should have removed the animation; found \(keys)")
+        }
     }
 
     // 2. Removing an in-flight animation delivers didStop(finished: false)
     //    promptly — long before its nominal 60s duration.
     func testRemovalMidFlightDeliversDidStopNotFinished() {
-        let didStop = expectation(description: "animationDidStop(finished: false) delivered")
-        let recorder = AnimationDelegateRecorder(didStop: didStop)
+        MainActor.assumeIsolated {
+            let didStop = expectation(description: "animationDidStop(finished: false) delivered")
+            let recorder = AnimationDelegateRecorder(didStop: didStop)
 
-        let layer = CALayer()
-        let anim = CABasicAnimation(keyPath: "opacity")
-        anim.duration = 60.0 // would "finish" far beyond any test timeout
-        anim.delegate = recorder
+            let layer = CALayer()
+            let anim = CABasicAnimation(keyPath: "opacity")
+            anim.duration = 60.0 // would "finish" far beyond any test timeout
+            anim.delegate = recorder
 
-        layer.add(anim, forKey: "longFade")
-        layer.removeAnimation(forKey: "longFade")
+            layer.add(anim, forKey: "longFade")
+            layer.removeAnimation(forKey: "longFade")
 
-        wait(for: [didStop], timeout: 5.0)
+            wait(for: [didStop], timeout: 5.0)
 
-        XCTAssertEqual(recorder.recordedFinishedFlags, [false],
-                       "interrupted animation must report finished == false exactly once")
-        let keys = layer.animationKeys() ?? []
-        XCTAssertTrue(keys.isEmpty, "removed animation must not linger; found \(keys)")
+            XCTAssertEqual(recorder.recordedFinishedFlags, [false],
+                           "interrupted animation must report finished == false exactly once")
+            let keys = layer.animationKeys() ?? []
+            XCTAssertTrue(keys.isEmpty, "removed animation must not linger; found \(keys)")
+        }
     }
 
     // 3. isRemovedOnCompletion = false keeps the animation attached after it
     //    finishes (the Telegram-style "fillMode: .forwards" idiom).
     func testNotRemovedOnCompletionKeepsAnimationAttached() {
-        let didStop = expectation(description: "animationDidStop(finished: true) delivered")
-        let recorder = AnimationDelegateRecorder(didStop: didStop)
+        MainActor.assumeIsolated {
+            let didStop = expectation(description: "animationDidStop(finished: true) delivered")
+            let recorder = AnimationDelegateRecorder(didStop: didStop)
 
-        let layer = CALayer()
-        let anim = CABasicAnimation(keyPath: "opacity")
-        anim.duration = 0.05
-        anim.isRemovedOnCompletion = false
-        anim.delegate = recorder
+            let layer = CALayer()
+            let anim = CABasicAnimation(keyPath: "opacity")
+            anim.duration = 0.05
+            anim.isRemovedOnCompletion = false
+            anim.delegate = recorder
 
-        layer.add(anim, forKey: "sticky")
+            layer.add(anim, forKey: "sticky")
 
-        wait(for: [didStop], timeout: 5.0)
+            wait(for: [didStop], timeout: 5.0)
 
-        XCTAssertEqual(recorder.recordedFinishedFlags, [true])
-        let kept = layer.animation(forKey: "sticky")
-        XCTAssertNotNil(kept, "isRemovedOnCompletion = false must keep the animation attached")
-        XCTAssertEqual((kept as? CABasicAnimation)?.keyPath, "opacity")
+            XCTAssertEqual(recorder.recordedFinishedFlags, [true])
+            let kept = layer.animation(forKey: "sticky")
+            XCTAssertNotNil(kept, "isRemovedOnCompletion = false must keep the animation attached")
+            XCTAssertEqual((kept as? CABasicAnimation)?.keyPath, "opacity")
+        }
     }
 
     // 4. A transaction's completion block runs only after the animations
     //    added inside it have completed — and after their didStop callbacks.
     func testTransactionCompletionFiresAfterItsAnimationsFinish() {
-        let order = EventOrderRecorder()
-        let didStop = expectation(description: "animation didStop delivered")
-        let txnDone = expectation(description: "transaction completion block delivered")
+        MainActor.assumeIsolated {
+            let order = EventOrderRecorder()
+            let didStop = expectation(description: "animation didStop delivered")
+            let txnDone = expectation(description: "transaction completion block delivered")
 
-        let recorder = AnimationDelegateRecorder(didStop: didStop)
-        recorder.onStop = { _ in order.append("didStop") }
+            let recorder = AnimationDelegateRecorder(didStop: didStop)
+            recorder.onStop = { _ in order.append("didStop") }
 
-        let layer = CALayer()
+            let layer = CALayer()
 
-        CATransaction.begin()
-        CATransaction.setCompletionBlock {
-            order.append("transactionCompletion")
-            txnDone.fulfill()
+            CATransaction.begin()
+            CATransaction.setCompletionBlock {
+                order.append("transactionCompletion")
+                txnDone.fulfill()
+            }
+
+            let anim = CABasicAnimation(keyPath: "position")
+            anim.duration = 0.05
+            anim.delegate = recorder
+            layer.add(anim, forKey: "move")
+
+            CATransaction.commit()
+
+            wait(for: [didStop, txnDone], timeout: 5.0)
+
+            XCTAssertEqual(recorder.recordedFinishedFlags, [true])
+            // Strict equality asserts both ordering AND exactly-once delivery.
+            XCTAssertEqual(order.events, ["didStop", "transactionCompletion"],
+                           "the animation's didStop must precede the transaction completion block")
         }
-
-        let anim = CABasicAnimation(keyPath: "position")
-        anim.duration = 0.05
-        anim.delegate = recorder
-        layer.add(anim, forKey: "move")
-
-        CATransaction.commit()
-
-        wait(for: [didStop, txnDone], timeout: 5.0)
-
-        XCTAssertEqual(recorder.recordedFinishedFlags, [true])
-        // Strict equality asserts both ordering AND exactly-once delivery.
-        XCTAssertEqual(order.events, ["didStop", "transactionCompletion"],
-                       "the animation's didStop must precede the transaction completion block")
     }
 
     // 5. A transaction with no animations still fires its completion block
     //    after commit.
     func testTransactionCompletionFiresWithoutAnimations() {
-        let done = expectation(description: "empty transaction completion delivered")
+        MainActor.assumeIsolated {
+            let done = expectation(description: "empty transaction completion delivered")
 
-        CATransaction.begin()
-        CATransaction.setCompletionBlock { done.fulfill() }
-        CATransaction.commit()
+            CATransaction.begin()
+            CATransaction.setCompletionBlock { done.fulfill() }
+            CATransaction.commit()
 
-        wait(for: [done], timeout: 5.0)
+            wait(for: [done], timeout: 5.0)
+        }
     }
 
     // 6. Nested transactions scope setDisableActions: visible inside the
     //    inner transaction, restored when the inner one commits.
     func testNestedTransactionDisableActionsScoping() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(false) // make the outer value explicit
-        XCTAssertFalse(CATransaction.disableActions())
+        MainActor.assumeIsolated {
+            CATransaction.begin()
+            CATransaction.setDisableActions(false) // make the outer value explicit
+            XCTAssertFalse(CATransaction.disableActions())
 
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        XCTAssertTrue(CATransaction.disableActions(),
-                      "inner transaction must see its own setDisableActions(true)")
-        CATransaction.commit()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            XCTAssertTrue(CATransaction.disableActions(),
+                          "inner transaction must see its own setDisableActions(true)")
+            CATransaction.commit()
 
-        XCTAssertFalse(CATransaction.disableActions(),
-                       "outer transaction's value must be restored after the inner commit")
-        CATransaction.commit()
+            XCTAssertFalse(CATransaction.disableActions(),
+                           "outer transaction's value must be restored after the inner commit")
+            CATransaction.commit()
+        }
     }
 
     // 7. setCompletionBlock with NO explicit begin participates in the
     //    implicit transaction and still fires (when the run loop pumps,
     //    which wait(for:timeout:) guarantees).
     func testImplicitTransactionCompletionBlockFires() {
-        let done = expectation(description: "implicit transaction completion delivered")
+        MainActor.assumeIsolated {
+            let done = expectation(description: "implicit transaction completion delivered")
 
-        CATransaction.setCompletionBlock { done.fulfill() }
+            CATransaction.setCompletionBlock { done.fulfill() }
 
-        wait(for: [done], timeout: 5.0)
+            wait(for: [done], timeout: 5.0)
+        }
     }
 
     // 8. CADisplayLink actually ticks: the lowered Selector token is opaque,
     //    delivery is via QuillSelectorDispatching.quillPerform on the main
     //    queue, and timestamps advance.
     func testDisplayLinkTicksTargetViaQuillSelectorDispatching() {
-        let threeTicks = expectation(description: "display link delivered three ticks")
-        let target = TickTarget(expectation: threeTicks, fulfillAtTick: 3)
+        MainActor.assumeIsolated {
+            let threeTicks = expectation(description: "display link delivered three ticks")
+            let target = TickTarget(expectation: threeTicks, fulfillAtTick: 3)
 
-        let link = CADisplayLink(target: target, selector: Selector("tick"))
-        link.preferredFramesPerSecond = 30
-        link.add(to: .main, forMode: .common)
+            let link = CADisplayLink(target: target, selector: Selector("tick"))
+            link.preferredFramesPerSecond = 30
+            link.add(to: .main, forMode: .common)
 
-        // 3 ticks at 30fps is nominally ~0.1s; the generous timeout absorbs
-        // starved-runner scheduling jitter. Never assert elapsed time.
-        wait(for: [threeTicks], timeout: 10.0)
+            // 3 ticks at 30fps is nominally ~0.1s; the generous timeout absorbs
+            // starved-runner scheduling jitter. Never assert elapsed time.
+            wait(for: [threeTicks], timeout: 10.0)
 
-        XCTAssertGreaterThanOrEqual(target.tickCount, 3)
-        // After ticking, the link must report a real timestamp and a target
-        // timestamp strictly in its future. Read before invalidate(), on the
-        // main thread, so nothing mutates concurrently.
-        XCTAssertGreaterThan(link.timestamp, 0, "timestamp must be set once the link has ticked")
-        XCTAssertGreaterThan(link.targetTimestamp, link.timestamp,
-                             "targetTimestamp must be ahead of the last tick's timestamp")
+            XCTAssertGreaterThanOrEqual(target.tickCount, 3)
+            // After ticking, the link must report a real timestamp and a target
+            // timestamp strictly in its future. Read before invalidate(), on the
+            // main thread, so nothing mutates concurrently.
+            XCTAssertGreaterThan(link.timestamp, 0, "timestamp must be set once the link has ticked")
+            XCTAssertGreaterThan(link.targetTimestamp, link.timestamp,
+                                 "targetTimestamp must be ahead of the last tick's timestamp")
 
-        link.invalidate()
+            link.invalidate()
+        }
     }
 
     // 9. isPaused suppresses ticks; clearing it resumes them.
     func testDisplayLinkIsPausedSuppressesAndResumeDelivers() {
-        // fulfillAtTick = 3 means: even if one tick slips through before the
-        // pause takes effect (tolerated below), fulfillment still requires at
-        // least two POST-unpause ticks — so an early stray tick can never
-        // satisfy the resume expectation on its own.
-        let resumed = expectation(description: "ticks delivered after unpause")
-        let target = TickTarget(expectation: resumed, fulfillAtTick: 3)
+        MainActor.assumeIsolated {
+            // fulfillAtTick = 3 means: even if one tick slips through before the
+            // pause takes effect (tolerated below), fulfillment still requires at
+            // least two POST-unpause ticks — so an early stray tick can never
+            // satisfy the resume expectation on its own.
+            let resumed = expectation(description: "ticks delivered after unpause")
+            let target = TickTarget(expectation: resumed, fulfillAtTick: 3)
 
-        let link = CADisplayLink(target: target, selector: Selector("tick"))
-        link.preferredFramesPerSecond = 30
-        link.add(to: .main, forMode: .common)
-        link.isPaused = true
+            let link = CADisplayLink(target: target, selector: Selector("tick"))
+            link.preferredFramesPerSecond = 30
+            link.add(to: .main, forMode: .common)
+            link.isPaused = true
 
-        // Grace period WITHOUT sleeping: asyncAfter + expectation keeps the
-        // run loop pumping, so a buggy unpaused link would tick repeatedly.
-        let grace = expectation(description: "grace period elapsed")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { grace.fulfill() }
-        wait(for: [grace], timeout: 5.0)
+            // Grace period WITHOUT sleeping: asyncAfter + expectation keeps the
+            // run loop pumping, so a buggy unpaused link would tick repeatedly.
+            let grace = expectation(description: "grace period elapsed")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { grace.fulfill() }
+            wait(for: [grace], timeout: 5.0)
 
-        XCTAssertLessThanOrEqual(target.tickCount, 1,
-                                 "paused link must not tick (<= 1 tolerates one in-flight tick racing the pause)")
+            XCTAssertLessThanOrEqual(target.tickCount, 1,
+                                     "paused link must not tick (<= 1 tolerates one in-flight tick racing the pause)")
 
-        link.isPaused = false
-        wait(for: [resumed], timeout: 10.0)
+            link.isPaused = false
+            wait(for: [resumed], timeout: 10.0)
 
-        XCTAssertGreaterThanOrEqual(target.tickCount, 3, "ticks must resume after unpausing")
-        link.invalidate()
+            XCTAssertGreaterThanOrEqual(target.tickCount, 3, "ticks must resume after unpausing")
+            link.invalidate()
+        }
     }
 
     // 10. Transaction GROUPS: an outer transaction's completion block waits
     // for animations added while a NESTED transaction was open (Apple treats
     // nested begin/commit pairs as one group).
     func testOuterTransactionWaitsForAnimationAddedInNestedTransaction() {
-        let order = EventOrderRecorder()
-        let stopped = expectation(description: "didStop")
-        let outerDone = expectation(description: "outer completion")
-        let recorder = AnimationDelegateRecorder(didStop: stopped)
-        recorder.onStop = { _ in order.append("didStop") }
+        MainActor.assumeIsolated {
+            let order = EventOrderRecorder()
+            let stopped = expectation(description: "didStop")
+            let outerDone = expectation(description: "outer completion")
+            let recorder = AnimationDelegateRecorder(didStop: stopped)
+            recorder.onStop = { _ in order.append("didStop") }
 
-        let layer = CALayer()
-        let anim = CABasicAnimation(keyPath: "opacity")
-        anim.duration = 0.05
-        anim.delegate = recorder
+            let layer = CALayer()
+            let anim = CABasicAnimation(keyPath: "opacity")
+            anim.duration = 0.05
+            anim.delegate = recorder
 
-        CATransaction.begin()
-        CATransaction.setCompletionBlock {
-            order.append("outer-completion")
-            outerDone.fulfill()
+            CATransaction.begin()
+            CATransaction.setCompletionBlock {
+                order.append("outer-completion")
+                outerDone.fulfill()
+            }
+            CATransaction.begin()
+            layer.add(anim, forKey: "fade")
+            CATransaction.commit()
+            CATransaction.commit()
+
+            wait(for: [stopped, outerDone], timeout: 5.0)
+            XCTAssertEqual(order.events, ["didStop", "outer-completion"],
+                           "outer block must fire AFTER the nested transaction's animation stops")
         }
-        CATransaction.begin()
-        layer.add(anim, forKey: "fade")
-        CATransaction.commit()
-        CATransaction.commit()
-
-        wait(for: [stopped, outerDone], timeout: 5.0)
-        XCTAssertEqual(order.events, ["didStop", "outer-completion"],
-                       "outer block must fire AFTER the nested transaction's animation stops")
     }
 
     // 11. A nested transaction's own completion block must not fire before
     // the OUTERMOST commit (nested commits defer to the group).
     func testInnerTransactionBlockDefersToOutermostCommit() {
-        let innerFired = expectation(description: "inner completion")
-        let firedEarly = NSLockedFlag()
+        MainActor.assumeIsolated {
+            let innerFired = expectation(description: "inner completion")
+            let firedEarly = NSLockedFlag()
 
-        CATransaction.begin()
-        CATransaction.begin()
-        CATransaction.setCompletionBlock {
-            firedEarly.set()
-            innerFired.fulfill()
+            CATransaction.begin()
+            CATransaction.begin()
+            CATransaction.setCompletionBlock {
+                firedEarly.set()
+                innerFired.fulfill()
+            }
+            CATransaction.commit() // inner: must NOT settle the block yet
+
+            // Grace period with the run loop pumping: a buggy early fire lands
+            // here, before the outer commit below.
+            let grace = expectation(description: "grace before outer commit")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { grace.fulfill() }
+            wait(for: [grace], timeout: 5.0)
+            XCTAssertFalse(firedEarly.isSet,
+                           "inner completion block fired before the outermost commit")
+
+            CATransaction.commit() // outermost: now the group settles
+            wait(for: [innerFired], timeout: 5.0)
         }
-        CATransaction.commit() // inner: must NOT settle the block yet
-
-        // Grace period with the run loop pumping: a buggy early fire lands
-        // here, before the outer commit below.
-        let grace = expectation(description: "grace before outer commit")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { grace.fulfill() }
-        wait(for: [grace], timeout: 5.0)
-        XCTAssertFalse(firedEarly.isSet,
-                       "inner completion block fired before the outermost commit")
-
-        CATransaction.commit() // outermost: now the group settles
-        wait(for: [innerFired], timeout: 5.0)
     }
 
     // 12. CAMediaTiming attribute storage round-trip (the engine reads these
     // for its wall-clock arithmetic; Apple stores them verbatim).
     func testMediaTimingAttributesRoundTrip() {
-        let anim = CABasicAnimation(keyPath: "position")
-        anim.beginTime = 1.5
-        anim.timeOffset = 0.25
-        anim.speed = 2
-        anim.repeatCount = 3
-        anim.repeatDuration = 4.5
-        anim.autoreverses = true
-        anim.fillMode = .backwards
-        XCTAssertEqual(anim.beginTime, 1.5)
-        XCTAssertEqual(anim.timeOffset, 0.25)
-        XCTAssertEqual(anim.speed, 2)
-        XCTAssertEqual(anim.repeatCount, 3)
-        XCTAssertEqual(anim.repeatDuration, 4.5)
-        XCTAssertTrue(anim.autoreverses)
-        XCTAssertEqual(anim.fillMode, .backwards)
+        MainActor.assumeIsolated {
+            let anim = CABasicAnimation(keyPath: "position")
+            anim.beginTime = 1.5
+            anim.timeOffset = 0.25
+            anim.speed = 2
+            anim.repeatCount = 3
+            anim.repeatDuration = 4.5
+            anim.autoreverses = true
+            anim.fillMode = .backwards
+            XCTAssertEqual(anim.beginTime, 1.5)
+            XCTAssertEqual(anim.timeOffset, 0.25)
+            XCTAssertEqual(anim.speed, 2)
+            XCTAssertEqual(anim.repeatCount, 3)
+            XCTAssertEqual(anim.repeatDuration, 4.5)
+            XCTAssertTrue(anim.autoreverses)
+            XCTAssertEqual(anim.fillMode, .backwards)
+        }
     }
 
     // 13. repeatCount + autoreverses still auto-complete (the engine folds
     // them into the effective duration); speed <= 0 never auto-completes
     // (paused on Apple) but explicit removal delivers didStop(false).
     func testRepeatingAnimationCompletesAndPausedAnimationDoesNot() {
-        let repeatStopped = expectation(description: "repeat didStop")
-        let repeating = AnimationDelegateRecorder(didStop: repeatStopped)
-        let layer = CALayer()
+        MainActor.assumeIsolated {
+            let repeatStopped = expectation(description: "repeat didStop")
+            let repeating = AnimationDelegateRecorder(didStop: repeatStopped)
+            let layer = CALayer()
 
-        let fast = CABasicAnimation(keyPath: "opacity")
-        fast.duration = 0.02
-        fast.repeatCount = 2
-        fast.autoreverses = true
-        fast.delegate = repeating
-        layer.add(fast, forKey: "repeat")
-        wait(for: [repeatStopped], timeout: 5.0)
-        XCTAssertEqual(repeating.recordedFinishedFlags, [true])
+            let fast = CABasicAnimation(keyPath: "opacity")
+            fast.duration = 0.02
+            fast.repeatCount = 2
+            fast.autoreverses = true
+            fast.delegate = repeating
+            layer.add(fast, forKey: "repeat")
+            wait(for: [repeatStopped], timeout: 5.0)
+            XCTAssertEqual(repeating.recordedFinishedFlags, [true])
 
-        let pausedStopped = expectation(description: "paused removal didStop")
-        let paused = AnimationDelegateRecorder(didStop: pausedStopped)
-        let frozen = CABasicAnimation(keyPath: "opacity")
-        frozen.duration = 0.02
-        frozen.speed = 0
-        frozen.delegate = paused
-        layer.add(frozen, forKey: "frozen")
+            let pausedStopped = expectation(description: "paused removal didStop")
+            let paused = AnimationDelegateRecorder(didStop: pausedStopped)
+            let frozen = CABasicAnimation(keyPath: "opacity")
+            frozen.duration = 0.02
+            frozen.speed = 0
+            frozen.delegate = paused
+            layer.add(frozen, forKey: "frozen")
 
-        let grace = expectation(description: "paused grace")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { grace.fulfill() }
-        wait(for: [grace], timeout: 5.0)
-        XCTAssertTrue(paused.recordedFinishedFlags.isEmpty,
-                      "speed <= 0 must not auto-complete")
+            let grace = expectation(description: "paused grace")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { grace.fulfill() }
+            wait(for: [grace], timeout: 5.0)
+            XCTAssertTrue(paused.recordedFinishedFlags.isEmpty,
+                          "speed <= 0 must not auto-complete")
 
-        layer.removeAnimation(forKey: "frozen")
-        wait(for: [pausedStopped], timeout: 5.0)
-        XCTAssertEqual(paused.recordedFinishedFlags, [false])
+            layer.removeAnimation(forKey: "frozen")
+            wait(for: [pausedStopped], timeout: 5.0)
+            XCTAssertEqual(paused.recordedFinishedFlags, [false])
+        }
     }
 
     // 14. Re-adding one animation OBJECT to a second layer transfers the
     // schedule: the first layer's bookkeeping drops the pair immediately,
     // and the first layer dying must NOT cancel the second layer's run.
     func testReaddToSecondLayerSurvivesFirstLayerDeinit() {
-        let stopped = expectation(description: "didStop on second layer")
-        let recorder = AnimationDelegateRecorder(didStop: stopped)
+        MainActor.assumeIsolated {
+            let stopped = expectation(description: "didStop on second layer")
+            let recorder = AnimationDelegateRecorder(didStop: stopped)
 
-        let anim = CABasicAnimation(keyPath: "opacity")
-        anim.duration = 0.08
-        anim.delegate = recorder
+            let anim = CABasicAnimation(keyPath: "opacity")
+            anim.duration = 0.08
+            anim.delegate = recorder
 
-        let keeper = CALayer()
-        var dying: CALayer? = CALayer()
-        dying?.add(anim, forKey: "shared")
-        keeper.add(anim, forKey: "shared")
+            let keeper = CALayer()
+            var dying: CALayer? = CALayer()
+            dying?.add(anim, forKey: "shared")
+            keeper.add(anim, forKey: "shared")
 
-        XCTAssertNil(dying?.animation(forKey: "shared"),
-                     "displaced layer must stop reporting the rescheduled animation")
-        XCTAssertNotNil(keeper.animation(forKey: "shared"))
+            XCTAssertNil(dying?.animation(forKey: "shared"),
+                         "displaced layer must stop reporting the rescheduled animation")
+            XCTAssertNotNil(keeper.animation(forKey: "shared"))
 
-        dying = nil // former owner dies mid-flight; must not cancel keeper's run
-        wait(for: [stopped], timeout: 5.0)
-        XCTAssertEqual(recorder.recordedFinishedFlags.last, true,
-                       "the new owner's schedule must complete normally")
+            dying = nil // former owner dies mid-flight; must not cancel keeper's run
+            wait(for: [stopped], timeout: 5.0)
+            XCTAssertEqual(recorder.recordedFinishedFlags.last, true,
+                           "the new owner's schedule must complete normally")
+        }
     }
 
     // 15. A scheduled display link stays alive without any external strong
     // reference (Apple's runloop retains it until invalidate/remove).
     func testUnstoredDisplayLinkStaysAliveUntilInvalidate() {
-        weak var weakLink: CADisplayLink?
-        let ticked = expectation(description: "fire-and-forget tick")
-        let target = TickTarget(expectation: ticked, fulfillAtTick: 1)
-        do { // plain scope: autoreleasepool doesn't exist on Linux
-            let link = CADisplayLink(target: target, selector: Selector("tick"))
-            link.preferredFramesPerSecond = 60
-            link.add(to: .main, forMode: .common)
-            weakLink = link
-        }
-        XCTAssertNotNil(weakLink, "scheduled link must be kept alive by its timer")
-        wait(for: [ticked], timeout: 10.0)
+        MainActor.assumeIsolated {
+            weak var weakLink: CADisplayLink?
+            let ticked = expectation(description: "fire-and-forget tick")
+            let target = TickTarget(expectation: ticked, fulfillAtTick: 1)
+            do { // plain scope: autoreleasepool doesn't exist on Linux
+                let link = CADisplayLink(target: target, selector: Selector("tick"))
+                link.preferredFramesPerSecond = 60
+                link.add(to: .main, forMode: .common)
+                weakLink = link
+            }
+            XCTAssertNotNil(weakLink, "scheduled link must be kept alive by its timer")
+            wait(for: [ticked], timeout: 10.0)
 
-        weakLink?.invalidate()
-        let drained = expectation(description: "main hop after invalidate")
-        DispatchQueue.main.async { drained.fulfill() }
-        wait(for: [drained], timeout: 5.0)
-        XCTAssertNil(weakLink, "invalidate must break the keep-alive cycle")
+            weakLink?.invalidate()
+            let drained = expectation(description: "main hop after invalidate")
+            DispatchQueue.main.async { drained.fulfill() }
+            wait(for: [drained], timeout: 5.0)
+            XCTAssertNil(weakLink, "invalidate must break the keep-alive cycle")
+        }
     }
 
     // 16. Apple invalidates layout on ANY bounds change — origin included
     // (scrolling is bounds.origin mutation).
     func testBoundsOriginChangeMarksNeedsLayout() {
-        let layer = CALayer()
-        layer.bounds = CGRect(x: 0, y: 0, width: 10, height: 10)
-        layer.layoutIfNeeded()
-        XCTAssertFalse(layer.needsLayout())
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            layer.bounds = CGRect(x: 0, y: 0, width: 10, height: 10)
+            layer.layoutIfNeeded()
+            XCTAssertFalse(layer.needsLayout())
 
-        layer.bounds.origin = CGPoint(x: 0, y: 25)
-        XCTAssertTrue(layer.needsLayout(),
-                      "a bounds.origin change must mark the layer as needing layout")
+            layer.bounds.origin = CGPoint(x: 0, y: 25)
+            XCTAssertTrue(layer.needsLayout(),
+                          "a bounds.origin change must mark the layer as needing layout")
+        }
     }
 }
 

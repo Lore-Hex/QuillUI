@@ -156,6 +156,31 @@ patch_wireguard_apple() {
         done
     fi
 
+    # Apple Swift 6.1's SwiftPM rejects raw `-default-isolation MainActor`
+    # passed through `swiftSettings: .unsafeFlags(...)`; newer toolchains accept
+    # the frontend flag only when routed with `-Xfrontend`. Normalize whichever
+    # upstream WireGuard manifest was fetched before the macOS CI target build.
+    local manifest="$UPSTREAM_DIR/wireguard-apple/Package.swift"
+    if [[ -f "$manifest" ]] && grep -q '"-default-isolation"' "$manifest"; then
+        echo "==> patching wireguard-apple Package.swift default-isolation flags"
+        python3 - "$manifest" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+replacement = '["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]'
+patched = re.sub(
+    r'\[\s*"-default-isolation"\s*,\s*"MainActor"\s*\]',
+    replacement,
+    src,
+)
+if patched != src:
+    open(path, "w", encoding="utf-8").write(patched)
+    print("patched WireGuard Package.swift default-isolation flags for SwiftPM frontend compatibility")
+PY
+    fi
+
     # `WireGuardKitC.h` uses `u_int32_t` / `u_char` / `u_int16_t`
     # / `sockaddr_ctl` from <sys/types.h> + <sys/kern_control.h>
     # but doesn't include them. macOS 15+ enforces strict
