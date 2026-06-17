@@ -1618,6 +1618,7 @@ public final class CGContext {
         var shouldSubpixelPositionFonts: Bool
         var allowsFontSubpixelQuantization: Bool
         var shouldSubpixelQuantizeFonts: Bool
+        var interpolationQuality: CGInterpolationQuality
         var alpha: CGFloat
         var blendMode: CGBlendMode
         var shadow: QuillShadow?
@@ -1802,6 +1803,28 @@ public final class CGContext {
         )
     }
 
+    private static func quillColor(
+        in source: QuillBitmapImageSource,
+        x: Int,
+        y: Int
+    ) -> QuillPremultipliedBGRA? {
+        guard x >= 0, x < source.width, y >= 0, y < source.height else {
+            return nil
+        }
+
+        let offset = y * source.bytesPerRow + x * 4
+        guard offset + 3 < source.pixels.count else {
+            return nil
+        }
+
+        return QuillPremultipliedBGRA(
+            blue: CGFloat(source.pixels[offset]) / 255,
+            green: CGFloat(source.pixels[offset + 1]) / 255,
+            red: CGFloat(source.pixels[offset + 2]) / 255,
+            alpha: CGFloat(source.pixels[offset + 3]) / 255
+        )
+    }
+
     private static func quillPremultipliedColor(
         from rgba: [CGFloat],
         alphaScale: CGFloat
@@ -1833,6 +1856,63 @@ public final class CGContext {
 
     private func quillPremultipliedStrokeColor() -> QuillPremultipliedBGRA? {
         quillPremultipliedColor(from: quillStrokeRGBA)
+    }
+
+    private func quillSampleBitmapImage(
+        _ source: QuillBitmapImageSource,
+        unitX: CGFloat,
+        unitY: CGFloat
+    ) -> QuillPremultipliedBGRA? {
+        switch interpolationQuality {
+        case .none:
+            let sourceX = Swift.max(0, Swift.min(source.width - 1, Int((unitX * CGFloat(source.width)).rounded(.down))))
+            let sourceY = Swift.max(0, Swift.min(source.height - 1, Int((unitY * CGFloat(source.height)).rounded(.down))))
+            return Self.quillColor(in: source, x: sourceX, y: sourceY)
+        case .default, .low, .medium, .high:
+            let sampleX = source.width == 1
+                ? CGFloat(0)
+                : Swift.max(0, Swift.min(CGFloat(source.width - 1), unitX * CGFloat(source.width) - 0.5))
+            let sampleY = source.height == 1
+                ? CGFloat(0)
+                : Swift.max(0, Swift.min(CGFloat(source.height - 1), unitY * CGFloat(source.height) - 0.5))
+            let x0 = Int(sampleX.rounded(.down))
+            let y0 = Int(sampleY.rounded(.down))
+            let x1 = Swift.min(source.width - 1, x0 + 1)
+            let y1 = Swift.min(source.height - 1, y0 + 1)
+            let tx = sampleX - CGFloat(x0)
+            let ty = sampleY - CGFloat(y0)
+
+            guard let c00 = Self.quillColor(in: source, x: x0, y: y0),
+                  let c10 = Self.quillColor(in: source, x: x1, y: y0),
+                  let c01 = Self.quillColor(in: source, x: x0, y: y1),
+                  let c11 = Self.quillColor(in: source, x: x1, y: y1)
+            else {
+                return nil
+            }
+
+            func interpolate(_ start: CGFloat, _ end: CGFloat, _ amount: CGFloat) -> CGFloat {
+                start + (end - start) * amount
+            }
+
+            let top = QuillPremultipliedBGRA(
+                blue: interpolate(c00.blue, c10.blue, tx),
+                green: interpolate(c00.green, c10.green, tx),
+                red: interpolate(c00.red, c10.red, tx),
+                alpha: interpolate(c00.alpha, c10.alpha, tx)
+            )
+            let bottom = QuillPremultipliedBGRA(
+                blue: interpolate(c01.blue, c11.blue, tx),
+                green: interpolate(c01.green, c11.green, tx),
+                red: interpolate(c01.red, c11.red, tx),
+                alpha: interpolate(c01.alpha, c11.alpha, tx)
+            )
+            return QuillPremultipliedBGRA(
+                blue: interpolate(top.blue, bottom.blue, ty),
+                green: interpolate(top.green, bottom.green, ty),
+                red: interpolate(top.red, bottom.red, ty),
+                alpha: interpolate(top.alpha, bottom.alpha, ty)
+            )
+        }
     }
 
     private func quillCompositePremultipliedBGRA(
@@ -3149,13 +3229,10 @@ public final class CGContext {
 
             let unitX = (userPoint.x - userRect.origin.x) / userRect.size.width
             let unitY = (userPoint.y - userRect.origin.y) / userRect.size.height
-            let sourceX = Swift.max(0, Swift.min(source.width - 1, Int((unitX * CGFloat(source.width)).rounded(.down))))
-            let sourceY = Swift.max(0, Swift.min(source.height - 1, Int((unitY * CGFloat(source.height)).rounded(.down))))
-            let sourceOffset = sourceY * source.bytesPerRow + sourceX * 4
-            guard sourceOffset + 3 < source.pixels.count else {
+            guard let sourceColor = quillSampleBitmapImage(source, unitX: unitX, unitY: unitY) else {
                 return 0
             }
-            return (CGFloat(source.pixels[sourceOffset + 3]) / 255) * globalAlpha
+            return sourceColor.alpha * globalAlpha
         }
 
         quillBitmapBytes?.withUnsafeMutableBufferPointer { destination in
@@ -3184,20 +3261,13 @@ public final class CGContext {
 
                     let unitX = (userPoint.x - userRect.origin.x) / userRect.size.width
                     let unitY = (userPoint.y - userRect.origin.y) / userRect.size.height
-                    let sourceX = Swift.max(0, Swift.min(source.width - 1, Int((unitX * CGFloat(source.width)).rounded(.down))))
-                    let sourceY = Swift.max(0, Swift.min(source.height - 1, Int((unitY * CGFloat(source.height)).rounded(.down))))
-                    let sourceOffset = sourceY * source.bytesPerRow + sourceX * 4
-                    guard sourceOffset + 3 < source.pixels.count else {
+                    guard let sampledColor = quillSampleBitmapImage(source, unitX: unitX, unitY: unitY),
+                          let sourceColor = Self.quillPremultipliedColor(sampledColor, multipliedBy: globalAlpha)
+                    else {
                         destinationOffset += 4
                         continue
                     }
 
-                    let sourceColor = QuillPremultipliedBGRA(
-                        blue: (CGFloat(source.pixels[sourceOffset]) / 255) * globalAlpha,
-                        green: (CGFloat(source.pixels[sourceOffset + 1]) / 255) * globalAlpha,
-                        red: (CGFloat(source.pixels[sourceOffset + 2]) / 255) * globalAlpha,
-                        alpha: (CGFloat(source.pixels[sourceOffset + 3]) / 255) * globalAlpha
-                    )
                     if let clippedSource = Self.quillPremultipliedColor(sourceColor, multipliedBy: clipAlpha) {
                         quillCompositePremultipliedBGRA(clippedSource, into: destination, at: destinationOffset)
                     }
@@ -3490,6 +3560,9 @@ public final class CGContext {
     }
 
     public var interpolationQuality: CGInterpolationQuality = .default
+    public func setInterpolationQuality(_ quality: CGInterpolationQuality) {
+        interpolationQuality = quality
+    }
 
     public var isPathEmpty: Bool { quillCurrentPath.isEmpty }
     public var currentPointOfPath: CGPoint { quillCurrentPath.currentPoint }
@@ -3815,6 +3888,7 @@ public final class CGContext {
             shouldSubpixelPositionFonts: quillShouldSubpixelPositionFontsState,
             allowsFontSubpixelQuantization: quillAllowsFontSubpixelQuantizationState,
             shouldSubpixelQuantizeFonts: quillShouldSubpixelQuantizeFontsState,
+            interpolationQuality: interpolationQuality,
             alpha: quillAlpha,
             blendMode: quillBlendMode,
             shadow: quillShadow,
@@ -3841,6 +3915,7 @@ public final class CGContext {
             quillShouldSubpixelPositionFontsState = state.shouldSubpixelPositionFonts
             quillAllowsFontSubpixelQuantizationState = state.allowsFontSubpixelQuantization
             quillShouldSubpixelQuantizeFontsState = state.shouldSubpixelQuantizeFonts
+            interpolationQuality = state.interpolationQuality
             quillAlpha = state.alpha
             quillBlendMode = state.blendMode
             quillShadow = state.shadow

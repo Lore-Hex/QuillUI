@@ -718,6 +718,35 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGContext bitmap draw interpolation quality is stateful and restored")
+    func bitmapContextDrawInterpolationQualityIsStatefulAndRestored() throws {
+        let context = try makeBitmapContext(width: 2, height: 1)
+
+        let source = CGImage()
+        source.width = 2
+        source.height = 1
+        source.quillBytesPerRow = 8
+        source.quillBGRAPixels = [
+            0, 0, 255, 255,
+            255, 0, 0, 255,
+        ]
+
+        context.setInterpolationQuality(.none)
+        context.saveGState()
+        context.setInterpolationQuality(.high)
+        context.restoreGState()
+        #expect(context.interpolationQuality == .none)
+        context.draw(source, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        context.setInterpolationQuality(.high)
+        context.draw(source, in: CGRect(x: 1, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            255, 0, 0, 255,
+            128, 0, 128, 255,
+        ])
+    }
+
     @Test("CGContext bitmap draw honors transforms and global alpha")
     func bitmapContextDrawHonorsTransformAndAlpha() throws {
         let context = try #require(CGContext(
