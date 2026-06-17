@@ -1450,6 +1450,13 @@ public final class CGContext {
         var ctm: CGAffineTransform
     }
 
+    private struct QuillBitmapImageSource {
+        var width: Int
+        var height: Int
+        var bytesPerRow: Int
+        var pixels: [UInt8]
+    }
+
     public init() {}
 
     private static func quillResolvedBytesPerRow(
@@ -1529,6 +1536,71 @@ public final class CGContext {
             quillClampedUnit(blue),
             quillClampedUnit(alpha),
         ]
+    }
+
+    private static func quillBitmapSource(from image: Any) -> QuillBitmapImageSource? {
+        let cgImage: CGImage?
+        switch image {
+        case let image as CGImage:
+            cgImage = image
+        case let image as RSImage:
+            cgImage = image.cgImage
+        default:
+            cgImage = nil
+        }
+
+        guard let cgImage,
+              cgImage.width > 0,
+              cgImage.height > 0,
+              let pixels = cgImage.quillBGRAPixels,
+              let minimumBytesPerRow = quillPixelByteCount(width: cgImage.width),
+              cgImage.quillBytesPerRow >= minimumBytesPerRow,
+              let requiredByteCount = quillBitmapStorageByteCount(
+                height: cgImage.height,
+                bytesPerRow: cgImage.quillBytesPerRow
+              ),
+              pixels.count >= requiredByteCount
+        else {
+            return nil
+        }
+
+        return QuillBitmapImageSource(
+            width: cgImage.width,
+            height: cgImage.height,
+            bytesPerRow: cgImage.quillBytesPerRow,
+            pixels: pixels
+        )
+    }
+
+    private static func quillNormalizedRect(_ rect: CGRect) -> CGRect? {
+        guard rect.origin.x.isFinite, rect.origin.y.isFinite,
+              rect.size.width.isFinite, rect.size.height.isFinite
+        else {
+            return nil
+        }
+
+        let rectMaxX = rect.origin.x + rect.size.width
+        let rectMaxY = rect.origin.y + rect.size.height
+        guard rectMaxX.isFinite, rectMaxY.isFinite else {
+            return nil
+        }
+
+        let minX = Swift.min(rect.origin.x, rectMaxX)
+        let maxX = Swift.max(rect.origin.x, rectMaxX)
+        let minY = Swift.min(rect.origin.y, rectMaxY)
+        let maxY = Swift.max(rect.origin.y, rectMaxY)
+        guard minX < maxX, minY < maxY else {
+            return nil
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    private static func quillInverse(_ transform: CGAffineTransform) -> CGAffineTransform? {
+        let determinant = transform.a * transform.d - transform.b * transform.c
+        guard determinant.isFinite, abs(determinant) > 0.000001 else {
+            return nil
+        }
+        return transform.inverted()
     }
 
     private func quillPixelBounds(for rect: CGRect) -> (minX: Int, minY: Int, maxX: Int, maxY: Int)? {
@@ -1623,6 +1695,75 @@ public final class CGContext {
                 let end = y * bytesPerRow + bounds.maxX * 4
                 for index in start..<end {
                     pixels[index] = 0
+                }
+            }
+        }
+    }
+
+    private func quillDrawBitmapImage(_ image: Any, in rect: CGRect) {
+        guard quillCanDrawCurrentBitmap,
+              let source = Self.quillBitmapSource(from: image),
+              let userRect = Self.quillNormalizedRect(rect),
+              let inverseCTM = Self.quillInverse(quillCTM),
+              let bounds = quillPixelBounds(for: userRect.applying(quillCTM)),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        let userMaxX = userRect.origin.x + userRect.size.width
+        let userMaxY = userRect.origin.y + userRect.size.height
+        let globalAlpha = quillAlpha
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { destination in
+            guard destination.count >= requiredByteCount else {
+                return
+            }
+
+            for y in bounds.minY..<bounds.maxY {
+                var destinationOffset = y * bytesPerRow + bounds.minX * 4
+                for x in bounds.minX..<bounds.maxX {
+                    let userPoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5).applying(inverseCTM)
+                    guard userPoint.x >= userRect.origin.x,
+                          userPoint.x < userMaxX,
+                          userPoint.y >= userRect.origin.y,
+                          userPoint.y < userMaxY
+                    else {
+                        destinationOffset += 4
+                        continue
+                    }
+
+                    let unitX = (userPoint.x - userRect.origin.x) / userRect.size.width
+                    let unitY = (userPoint.y - userRect.origin.y) / userRect.size.height
+                    let sourceX = Swift.max(0, Swift.min(source.width - 1, Int((unitX * CGFloat(source.width)).rounded(.down))))
+                    let sourceY = Swift.max(0, Swift.min(source.height - 1, Int((unitY * CGFloat(source.height)).rounded(.down))))
+                    let sourceOffset = sourceY * source.bytesPerRow + sourceX * 4
+                    guard sourceOffset + 3 < source.pixels.count else {
+                        destinationOffset += 4
+                        continue
+                    }
+
+                    let sourceAlpha = (CGFloat(source.pixels[sourceOffset + 3]) / 255) * globalAlpha
+                    guard sourceAlpha > 0 else {
+                        destinationOffset += 4
+                        continue
+                    }
+
+                    let inverseSourceAlpha = 1 - sourceAlpha
+                    let sourceBlue = (CGFloat(source.pixels[sourceOffset]) / 255) * globalAlpha
+                    let sourceGreen = (CGFloat(source.pixels[sourceOffset + 1]) / 255) * globalAlpha
+                    let sourceRed = (CGFloat(source.pixels[sourceOffset + 2]) / 255) * globalAlpha
+                    let destinationBlue = CGFloat(destination[destinationOffset]) / 255
+                    let destinationGreen = CGFloat(destination[destinationOffset + 1]) / 255
+                    let destinationRed = CGFloat(destination[destinationOffset + 2]) / 255
+                    let destinationAlpha = CGFloat(destination[destinationOffset + 3]) / 255
+
+                    destination[destinationOffset] = Self.quillClampedByte(sourceBlue + destinationBlue * inverseSourceAlpha)
+                    destination[destinationOffset + 1] = Self.quillClampedByte(sourceGreen + destinationGreen * inverseSourceAlpha)
+                    destination[destinationOffset + 2] = Self.quillClampedByte(sourceRed + destinationRed * inverseSourceAlpha)
+                    destination[destinationOffset + 3] = Self.quillClampedByte(sourceAlpha + destinationAlpha * inverseSourceAlpha)
+                    destinationOffset += 4
                 }
             }
         }
@@ -1928,7 +2069,10 @@ public final class CGContext {
         concatenate(transform)
     }
 
-    public func draw(_ image: Any, in rect: CGRect) { quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality) }
+    public func draw(_ image: Any, in rect: CGRect) {
+        quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality)
+        quillDrawBitmapImage(image, in: rect)
+    }
     public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}
     public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
 
