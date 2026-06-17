@@ -389,6 +389,34 @@ struct CompatibilityModuleTests {
         #expect(child.frame == CGRect(x: 12, y: 10, width: 174, height: 94))
     }
 
+    @Test("UIView layout uses intrinsic size for edge-pinned controls")
+    @MainActor
+    func uiViewLayoutUsesIntrinsicSizeForEdgePinnedControls() {
+        final class IntrinsicControl: UIControl {
+            override var intrinsicContentSize: CGSize {
+                CGSize(width: 40, height: 40)
+            }
+        }
+
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 140))
+        let primary = IntrinsicControl()
+        let secondary = IntrinsicControl()
+        root.addSubview(primary)
+        root.addSubview(secondary)
+
+        NSLayoutConstraint.activate([
+            primary.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -15),
+            primary.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -24),
+            secondary.trailingAnchor.constraint(equalTo: primary.trailingAnchor),
+            secondary.bottomAnchor.constraint(equalTo: primary.topAnchor, constant: -30),
+        ])
+
+        root.layoutIfNeeded()
+
+        #expect(primary.frame == CGRect(x: 145, y: 76, width: 40, height: 40))
+        #expect(secondary.frame == CGRect(x: 145, y: 6, width: 40, height: 40))
+    }
+
     @Test("UIView infers bottom-pinned container height from edge-pinned stack")
     @MainActor
     func uiViewInfersBottomPinnedContainerHeightFromEdgePinnedStack() {
