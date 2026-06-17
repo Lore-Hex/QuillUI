@@ -833,6 +833,7 @@ struct CompatibilityModuleTests {
 
         let result = try AppleCompatibilitySmoke.runAppKitImageSmoke()
         #expect(result.sizeRoundTrip)
+        #expect(result.focusBitmapCreated)
         #expect(result.namedImagePlaceholder)
         #expect(result.systemImagePlaceholder)
         #expect(result.workspaceFileIconPlaceholder)
@@ -842,9 +843,6 @@ struct CompatibilityModuleTests {
         #expect(result.bitmapRepresentationRoundTrip)
         #expect(result.windowTabbingRoundTrip)
         #expect(result.operations.isSuperset(of: Set([
-            "NSImage.lockFocus",
-            "NSImage.draw",
-            "NSImage.unlockFocus",
             "NSImage(named:)",
             "NSImage(systemName:)",
             "NSWorkspace.icon(forFile:)",

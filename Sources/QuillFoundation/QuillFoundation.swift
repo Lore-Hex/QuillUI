@@ -4196,6 +4196,7 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     public var data: Data?
     private var quillBackingCGImage: CGImage?
     private var quillImageScale: CGFloat = 1
+    private var quillFocusContext: CGContext?
     public var capInsets: NSEdgeInsets = NSEdgeInsets()
     public var resizingMode: ResizingMode = .tile
     public func pngData() -> Data? { data }
@@ -4231,26 +4232,88 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     }
 
     public func lockFocus() {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "QuillFoundation",
-            operation: "NSImage.lockFocus",
-            severity: .warning,
-            message: "NSImage.lockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
-        )
+        quillBeginFocus(flipped: false)
     }
 
     public func lockFocusFlipped(_ flipped: Bool) {
-        _ = flipped
-        lockFocus()
+        quillBeginFocus(flipped: flipped)
     }
 
     public func unlockFocus() {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "QuillFoundation",
-            operation: "NSImage.unlockFocus",
-            severity: .warning,
-            message: "NSImage.unlockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
-        )
+        guard let context = quillFocusContext else {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage.unlockFocus",
+                severity: .warning,
+                message: "NSImage.unlockFocus called without an active Linux focus context."
+            )
+            return
+        }
+
+        if QuillGraphicsContextState.currentContext === context {
+            QuillGraphicsContextState.popContext()
+        }
+        quillBackingCGImage = context.makeImage()
+        quillImageScale = 1
+        data = nil
+        quillFocusContext = nil
+    }
+
+    private func quillBeginFocus(flipped: Bool) {
+        guard quillFocusContext == nil else {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage.lockFocus",
+                severity: .warning,
+                message: "NSImage.lockFocus called while this image already has an active Linux focus context."
+            )
+            return
+        }
+
+        let pixelWidth = Int(size.width.rounded(.up))
+        let pixelHeight = Int(size.height.rounded(.up))
+        guard pixelWidth > 0, pixelHeight > 0 else {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage.lockFocus",
+                severity: .warning,
+                message: "NSImage.lockFocus requires a positive image size on Linux."
+            )
+            return
+        }
+
+        let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+        guard let context = CGContext(
+            data: nil,
+            width: pixelWidth,
+            height: pixelHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: pixelWidth * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: bitmapInfo
+        ) else {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage.lockFocus",
+                severity: .warning,
+                message: "NSImage.lockFocus could not create a Linux bitmap drawing context."
+            )
+            return
+        }
+
+        if let quillBackingCGImage {
+            context.draw(
+                quillBackingCGImage,
+                in: CGRect(origin: .zero, size: CGSize(width: CGFloat(pixelWidth), height: CGFloat(pixelHeight)))
+            )
+        }
+        if flipped {
+            context.translateBy(x: 0, y: CGFloat(pixelHeight))
+            context.scaleBy(x: 1, y: -1)
+        }
+
+        quillFocusContext = context
+        QuillGraphicsContextState.pushContext(context)
     }
 
     private func quillRecordImageDrawFallback(_ message: String) {
