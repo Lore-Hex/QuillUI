@@ -104,7 +104,7 @@ jobs:
       - name: SolderScope GTK visual smoke
         run: QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-visual.png visual
 
-      - name: SolderScope GTK snapshot smoke
+      - name: SolderScope GTK snapshot and freeze smoke
         run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction
 
       - name: SolderScope GTK recording smoke

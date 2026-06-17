@@ -4305,6 +4305,27 @@ def validate_quill_solderscope_interaction(image: Screenshot) -> str:
     )
 
 
+def validate_quill_solderscope_freeze_interaction(image: Screenshot) -> str:
+    base = validate_quill_solderscope_interaction(image)
+    frozen_badge_pixels = pixel_count(
+        image,
+        max(0, image.width - 150),
+        0,
+        image.width,
+        min(80, image.height),
+        lambda rgb: rgb[2] >= 120
+        and rgb[0] <= 90
+        and rgb[1] <= 120
+        and rgb[2] - rgb[0] >= 80,
+    )
+    require(
+        frozen_badge_pixels >= 500,
+        "SolderScope FROZEN indicator was not detected after the freeze shortcut: "
+        f"pixels={frozen_badge_pixels}",
+    )
+    return f"{base}, frozen_badge_pixels={frozen_badge_pixels}"
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print("Usage: verify-backend-screenshot.py SCREENSHOT_PATH PRODUCT", file=sys.stderr)
@@ -4336,6 +4357,7 @@ def main() -> int:
         "quill-solderscope-launch",
         "quill-solderscope-visual",
         "quill-solderscope-interaction",
+        "quill-solderscope-freeze-interaction",
     }
     if compact_quill_chat_dialog_product:
         minimum_width = 260
@@ -4504,6 +4526,8 @@ def main() -> int:
         print(validate_quill_wireguard_import_error(image, backend="gtk"))
     elif product == "quill-solderscope-interaction":
         print(validate_quill_solderscope_interaction(image))
+    elif product == "quill-solderscope-freeze-interaction":
+        print(validate_quill_solderscope_freeze_interaction(image))
     elif product in {"quill-solderscope-launch", "quill-solderscope-visual"}:
         print(validate_quill_solderscope_launch(image))
     elif product in {
