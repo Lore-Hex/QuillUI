@@ -38,12 +38,14 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     }
 
     public func addChildNode(_ child: SCNNode) {
+        guard canAdopt(child) else { return }
         child.removeFromParentNode()
         child.parent = self
         childNodes.append(child)
     }
 
     public func insertChildNode(_ child: SCNNode, at index: Int) {
+        guard canAdopt(child) else { return }
         child.removeFromParentNode()
         child.parent = self
         childNodes.insert(child, at: Swift.max(0, Swift.min(index, childNodes.count)))
@@ -141,6 +143,18 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         runningActionStates.append(SCNActionRuntime.State(baseline: SCNActionRuntime.Baseline(node: self)))
         runningActionKeys.append(key)
         runningActionCompletions.append(completionHandler)
+    }
+
+    private func canAdopt(_ child: SCNNode) -> Bool {
+        guard child !== self else { return false }
+
+        var ancestor = parent
+        while let node = ancestor {
+            if node === child { return false }
+            ancestor = node.parent
+        }
+
+        return true
     }
 
     private func stepOwnActions(by deltaTime: TimeInterval) {
