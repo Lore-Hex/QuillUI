@@ -509,6 +509,86 @@ struct CoreGraphicsPathTests {
             0, 0, 255, 255, 128, 0, 128, 255, 0, 0, 255, 255,
         ])
     }
+
+    @Test("CGContext bitmap fillPath rasterizes the current path and clears it")
+    func bitmapContextFillPathRasterizesPathAndClearsIt() throws {
+        let context = try makeBitmapContext(width: 4, height: 2)
+        context.setFillColor(red: 0, green: 1, blue: 0, alpha: 1)
+        context.addRect(CGRect(x: 1, y: 0, width: 2, height: 2))
+        context.fillPath()
+
+        #expect(context.isPathEmpty)
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 0, 0, 0, 255, 0, 255, 0, 255, 0, 255, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 255, 0, 255, 0, 255, 0, 255, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap fillPath honors even-odd fill holes")
+    func bitmapContextFillPathHonorsEvenOddHoles() throws {
+        let context = try makeBitmapContext(width: 5, height: 5)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.addRect(CGRect(x: 0, y: 0, width: 5, height: 5))
+        context.addRect(CGRect(x: 1, y: 1, width: 3, height: 3))
+        context.fillPath(using: .evenOdd)
+
+        #expect(try bitmapAlphas(in: context) == [
+            255, 255, 255, 255, 255,
+            255, 0, 0, 0, 255,
+            255, 0, 0, 0, 255,
+            255, 0, 0, 0, 255,
+            255, 255, 255, 255, 255,
+        ])
+    }
+
+    @Test("CGContext bitmap fillPath samples through the current transform")
+    func bitmapContextFillPathSamplesThroughCurrentTransform() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.translateBy(x: 1, y: 0)
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.addRect(CGRect(x: 0, y: 0, width: 2, height: 1))
+        context.fillPath()
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap fillEllipse rasterizes without mutating the current path")
+    func bitmapContextFillEllipseRasterizesWithoutMutatingPath() throws {
+        let context = try makeBitmapContext(width: 5, height: 5)
+        context.addRect(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        context.fillEllipse(in: CGRect(x: 1, y: 1, width: 3, height: 3))
+
+        let alphas = try bitmapAlphas(in: context)
+        #expect(alphas[12] == 255)
+        #expect(alphas[0] == 0)
+        #expect(alphas[24] == 0)
+        #expect(!context.isPathEmpty)
+    }
+
+    private func makeBitmapContext(width: Int, height: Int) throws -> CGContext {
+        try #require(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+    }
+
+    private func bitmapPixels(in context: CGContext) throws -> [UInt8] {
+        let image = try #require(context.makeImage())
+        return try #require(image.quillBGRAPixels)
+    }
+
+    private func bitmapAlphas(in context: CGContext) throws -> [UInt8] {
+        let pixels = try bitmapPixels(in: context)
+        return stride(from: 3, to: pixels.count, by: 4).map { pixels[$0] }
+    }
     #endif
 
     @Test("CGContext tracks current path without a backend")

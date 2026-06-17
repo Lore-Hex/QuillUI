@@ -1457,6 +1457,13 @@ public final class CGContext {
         var pixels: [UInt8]
     }
 
+    private struct QuillPremultipliedBGRA {
+        var blue: CGFloat
+        var green: CGFloat
+        var red: CGFloat
+        var alpha: CGFloat
+    }
+
     public init() {}
 
     private static func quillResolvedBytesPerRow(
@@ -1572,6 +1579,45 @@ public final class CGContext {
         )
     }
 
+    private func quillPremultipliedFillColor() -> QuillPremultipliedBGRA? {
+        let sourceAlpha = Self.quillClampedUnit(quillFillRGBA[3] * quillAlpha)
+        guard sourceAlpha > 0 else {
+            return nil
+        }
+
+        return QuillPremultipliedBGRA(
+            blue: quillFillRGBA[2] * sourceAlpha,
+            green: quillFillRGBA[1] * sourceAlpha,
+            red: quillFillRGBA[0] * sourceAlpha,
+            alpha: sourceAlpha
+        )
+    }
+
+    private static func quillCompositePremultipliedBGRA(
+        _ source: QuillPremultipliedBGRA,
+        into pixels: UnsafeMutableBufferPointer<UInt8>,
+        at offset: Int
+    ) {
+        guard offset >= 0, offset + 3 < pixels.count else {
+            return
+        }
+        let sourceAlpha = quillClampedUnit(source.alpha)
+        guard sourceAlpha > 0 else {
+            return
+        }
+
+        let inverseSourceAlpha = 1 - sourceAlpha
+        let destinationBlue = CGFloat(pixels[offset]) / 255
+        let destinationGreen = CGFloat(pixels[offset + 1]) / 255
+        let destinationRed = CGFloat(pixels[offset + 2]) / 255
+        let destinationAlpha = CGFloat(pixels[offset + 3]) / 255
+
+        pixels[offset] = quillClampedByte(source.blue + destinationBlue * inverseSourceAlpha)
+        pixels[offset + 1] = quillClampedByte(source.green + destinationGreen * inverseSourceAlpha)
+        pixels[offset + 2] = quillClampedByte(source.red + destinationRed * inverseSourceAlpha)
+        pixels[offset + 3] = quillClampedByte(sourceAlpha + destinationAlpha * inverseSourceAlpha)
+    }
+
     private static func quillNormalizedRect(_ rect: CGRect) -> CGRect? {
         guard rect.origin.x.isFinite, rect.origin.y.isFinite,
               rect.size.width.isFinite, rect.size.height.isFinite
@@ -1640,20 +1686,11 @@ public final class CGContext {
         guard quillCanDrawCurrentBitmap,
               let bounds = quillPixelBounds(for: rect.applying(quillCTM)),
               let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              let source = quillPremultipliedFillColor(),
               quillBitmapBytes != nil
         else {
             return
         }
-
-        let sourceAlpha = Self.quillClampedUnit(quillFillRGBA[3] * quillAlpha)
-        guard sourceAlpha > 0 else {
-            return
-        }
-
-        let inverseSourceAlpha = 1 - sourceAlpha
-        let sourceBlue = quillFillRGBA[2] * sourceAlpha
-        let sourceGreen = quillFillRGBA[1] * sourceAlpha
-        let sourceRed = quillFillRGBA[0] * sourceAlpha
 
         quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
             guard pixels.count >= requiredByteCount else {
@@ -1662,15 +1699,38 @@ public final class CGContext {
             for y in bounds.minY..<bounds.maxY {
                 var offset = y * bytesPerRow + bounds.minX * 4
                 for _ in bounds.minX..<bounds.maxX {
-                    let destinationBlue = CGFloat(pixels[offset]) / 255
-                    let destinationGreen = CGFloat(pixels[offset + 1]) / 255
-                    let destinationRed = CGFloat(pixels[offset + 2]) / 255
-                    let destinationAlpha = CGFloat(pixels[offset + 3]) / 255
+                    Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                    offset += 4
+                }
+            }
+        }
+    }
 
-                    pixels[offset] = Self.quillClampedByte(sourceBlue + destinationBlue * inverseSourceAlpha)
-                    pixels[offset + 1] = Self.quillClampedByte(sourceGreen + destinationGreen * inverseSourceAlpha)
-                    pixels[offset + 2] = Self.quillClampedByte(sourceRed + destinationRed * inverseSourceAlpha)
-                    pixels[offset + 3] = Self.quillClampedByte(sourceAlpha + destinationAlpha * inverseSourceAlpha)
+    private func quillFillBitmapPath(_ path: CGPath, using rule: CGPathFillRule) {
+        let userBounds = path.boundingBoxOfPath
+        guard quillCanDrawCurrentBitmap,
+              !path.isEmpty,
+              !userBounds.isNull,
+              let bounds = quillPixelBounds(for: userBounds.applying(quillCTM)),
+              let inverseCTM = Self.quillInverse(quillCTM),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              let source = quillPremultipliedFillColor(),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in bounds.minY..<bounds.maxY {
+                var offset = y * bytesPerRow + bounds.minX * 4
+                for x in bounds.minX..<bounds.maxX {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    if path.contains(devicePoint.applying(inverseCTM), using: rule, transform: .identity) {
+                        Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                    }
                     offset += 4
                 }
             }
@@ -1744,25 +1804,13 @@ public final class CGContext {
                         continue
                     }
 
-                    let sourceAlpha = (CGFloat(source.pixels[sourceOffset + 3]) / 255) * globalAlpha
-                    guard sourceAlpha > 0 else {
-                        destinationOffset += 4
-                        continue
-                    }
-
-                    let inverseSourceAlpha = 1 - sourceAlpha
-                    let sourceBlue = (CGFloat(source.pixels[sourceOffset]) / 255) * globalAlpha
-                    let sourceGreen = (CGFloat(source.pixels[sourceOffset + 1]) / 255) * globalAlpha
-                    let sourceRed = (CGFloat(source.pixels[sourceOffset + 2]) / 255) * globalAlpha
-                    let destinationBlue = CGFloat(destination[destinationOffset]) / 255
-                    let destinationGreen = CGFloat(destination[destinationOffset + 1]) / 255
-                    let destinationRed = CGFloat(destination[destinationOffset + 2]) / 255
-                    let destinationAlpha = CGFloat(destination[destinationOffset + 3]) / 255
-
-                    destination[destinationOffset] = Self.quillClampedByte(sourceBlue + destinationBlue * inverseSourceAlpha)
-                    destination[destinationOffset + 1] = Self.quillClampedByte(sourceGreen + destinationGreen * inverseSourceAlpha)
-                    destination[destinationOffset + 2] = Self.quillClampedByte(sourceRed + destinationRed * inverseSourceAlpha)
-                    destination[destinationOffset + 3] = Self.quillClampedByte(sourceAlpha + destinationAlpha * inverseSourceAlpha)
+                    let sourceColor = QuillPremultipliedBGRA(
+                        blue: (CGFloat(source.pixels[sourceOffset]) / 255) * globalAlpha,
+                        green: (CGFloat(source.pixels[sourceOffset + 1]) / 255) * globalAlpha,
+                        red: (CGFloat(source.pixels[sourceOffset + 2]) / 255) * globalAlpha,
+                        alpha: (CGFloat(source.pixels[sourceOffset + 3]) / 255) * globalAlpha
+                    )
+                    Self.quillCompositePremultipliedBGRA(sourceColor, into: destination, at: destinationOffset)
                     destinationOffset += 4
                 }
             }
@@ -1900,13 +1948,18 @@ public final class CGContext {
         quillFillBitmap(rect)
     }
     public func fill(_ rects: [CGRect]) { for r in rects { fill(r) } }
-    public func fillEllipse(in rect: CGRect) { quillBackend?.fillEllipse(in: rect) }
+    public func fillEllipse(in rect: CGRect) {
+        quillBackend?.fillEllipse(in: rect)
+        quillFillBitmapPath(CGPath(ellipseIn: rect, transform: nil), using: .winding)
+    }
     public func fillPath() {
         quillBackend?.fillPath()
+        quillFillBitmapPath(quillCurrentPath, using: .winding)
         clearCurrentPath()
     }
     public func fillPath(using rule: CGPathFillRule) {
         quillBackend?.fillPath(using: rule)
+        quillFillBitmapPath(quillCurrentPath, using: rule)
         clearCurrentPath()
     }
     public func clear(_ rect: CGRect) {
