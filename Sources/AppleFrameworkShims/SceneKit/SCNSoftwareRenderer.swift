@@ -64,10 +64,19 @@ public extension SCNScene {
         width: Int,
         height: Int,
         pointOfView: SCNNode? = nil,
-        searchMode: SCNHitTestSearchMode = .closest
+        searchMode: SCNHitTestSearchMode = .closest,
+        categoryBitMask: Int? = nil,
+        rootNode: SCNNode? = nil
     ) -> [SCNHitTestResult] {
         SCNSoftwareRenderer(scene: self, pointOfView: pointOfView)
-            .hitTest(point: point, width: width, height: height, searchMode: searchMode)
+            .hitTest(
+                point: point,
+                width: width,
+                height: height,
+                searchMode: searchMode,
+                categoryBitMask: categoryBitMask,
+                rootNode: rootNode
+            )
     }
     #endif
 
@@ -117,9 +126,20 @@ public struct SCNSoftwareRenderer {
         point: CGPoint,
         width: Int,
         height: Int,
-        searchMode: SCNHitTestSearchMode = .closest
+        searchMode: SCNHitTestSearchMode = .closest,
+        categoryBitMask: Int? = nil,
+        rootNode: SCNNode? = nil
     ) -> [SCNHitTestResult] {
         let hits = projectedPrimitives(width: max(1, width), height: max(1, height))
+            .filter { primitive in
+                guard categoryBitMask.map({ primitive.node.categoryBitMask & $0 != 0 }) ?? true else {
+                    return false
+                }
+                guard rootNode.map({ primitive.node.quillIsDescendantOrSelf(of: $0) }) ?? true else {
+                    return false
+                }
+                return true
+            }
             .filter { $0.contains(point) }
             .sorted { $0.depth < $1.depth }
             .map { SCNHitTestResult(node: $0.node, geometryIndex: $0.geometryIndex) }
@@ -176,6 +196,19 @@ public struct SCNSoftwareRenderer {
 private struct ProjectionContext {
     var collector: RenderCollector
     var camera: CameraProjection
+}
+
+private extension SCNNode {
+    func quillIsDescendantOrSelf(of root: SCNNode) -> Bool {
+        var node: SCNNode? = self
+        while let current = node {
+            if current === root {
+                return true
+            }
+            node = current.parent
+        }
+        return false
+    }
 }
 
 // MARK: - Scene collection

@@ -185,4 +185,4 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Rung 3: fixtures render (GTK screenshot gate)
 - [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
 - [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
-- [x] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, explicit camera clipping, per-pixel z-buffered intersecting geometry, deterministic camera movement, primitive/sequence/group/repeating action stepping, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)
+- [x] Rung 6: pixel parity / live camera controls (hit-testing with search/category/root options, camera orientation, explicit camera clipping, per-pixel z-buffered intersecting geometry, deterministic camera movement, primitive/sequence/group/repeating action stepping, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)

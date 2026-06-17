@@ -1364,6 +1364,55 @@ struct SceneKitRendererTests {
         #expect(miss.isEmpty)
     }
 
+    @MainActor
+    @Test("SCNView hitTest filters category bit masks and root nodes")
+    func scnViewHitTestFiltersCategoryBitMasksAndRootNodes() {
+        let scene = SCNScene()
+
+        let frontParent = SCNNode()
+        let front = SCNNode(geometry: SCNSphere(radius: 0.65))
+        front.categoryBitMask = 0b0010
+        frontParent.addChildNode(front)
+        scene.rootNode.addChildNode(frontParent)
+
+        let backParent = SCNNode()
+        let back = SCNNode(geometry: SCNSphere(radius: 0.65))
+        back.categoryBitMask = 0b0100
+        back.position = SCNVector3(0, 0, -0.8)
+        backParent.addChildNode(back)
+        scene.rootNode.addChildNode(backParent)
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let view = SCNView()
+        view.bounds = CGRect(x: 0, y: 0, width: 160, height: 120)
+        view.scene = scene
+        view.pointOfView = cameraNode
+
+        let center = CGPoint(x: 80, y: 60)
+        let allHits = view.hitTest(center, options: [.searchMode: SCNHitTestSearchMode.all])
+        #expect(allHits.first?.node === front)
+        #expect(allHits.contains { $0.node === back })
+
+        let maskedHits = view.hitTest(center, options: [
+            .searchMode: SCNHitTestSearchMode.all,
+            .categoryBitMask: 0b0100,
+        ])
+        #expect(maskedHits.map(\.node) == [back])
+
+        let rootedHits = view.hitTest(center, options: [
+            .searchMode: SCNHitTestSearchMode.all,
+            .rootNode: backParent,
+        ])
+        #expect(rootedHits.map(\.node) == [back])
+
+        let maskedMiss = view.hitTest(center, options: [.categoryBitMask: 0b1000])
+        #expect(maskedMiss.isEmpty)
+    }
+
     @Test("SCNAction stepping advances primitives and clears completed actions")
     func actionSteppingAdvancesPrimitiveActions() {
         let node = SCNNode()
