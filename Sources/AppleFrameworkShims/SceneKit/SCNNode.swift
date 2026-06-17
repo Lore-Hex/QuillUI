@@ -28,6 +28,22 @@ public final class SCNNode: Equatable, @unchecked Sendable {
             position = SCNVector3(parentWorld.inverted().transformPoint(Vector3(newValue)))
         }
     }
+    public var worldOrientation: SCNQuaternion {
+        get {
+            let transform = Matrix4.worldTransform(for: self).scnMatrix
+            return transform.quillOrientation(scale: transform.quillScale)
+        }
+        set {
+            let parentTransform = parent.map(Matrix4.worldTransform)?.scnMatrix ?? SCNMatrix4Identity
+            let parentOrientation = parentTransform.quillOrientation(scale: parentTransform.quillScale)
+            let localOrientation = SCNMatrix4Mult(
+                SCNMatrix4Invert(SCNMatrix4(quillQuaternion: parentOrientation)),
+                SCNMatrix4(quillQuaternion: newValue)
+            )
+            orientation = localOrientation.quillOrientation(scale: localOrientation.quillScale)
+            eulerAngles = SCNVector3(0, 0, 0)
+        }
+    }
     public var worldTransform: SCNMatrix4 {
         get { Matrix4.worldTransform(for: self).scnMatrix }
         set {

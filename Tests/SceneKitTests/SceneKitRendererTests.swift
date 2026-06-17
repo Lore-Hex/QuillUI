@@ -320,6 +320,29 @@ struct SceneKitRendererTests {
         expectMatrix(child.worldTransform, closeTo: SCNMatrix4MakeTranslation(30, 44, 55))
     }
 
+    @Test("SCNNode worldOrientation composes and sets through parents")
+    func nodeWorldOrientationComposesAndSetsThroughParents() {
+        let quarterTurn = CGFloat(0.5).squareRoot()
+        let parent = SCNNode()
+        parent.orientation = SCNQuaternion(0, quarterTurn, 0, quarterTurn)
+
+        let child = SCNNode()
+        child.orientation = SCNQuaternion(0, quarterTurn, 0, quarterTurn)
+        parent.addChildNode(child)
+
+        #expect(abs(abs(child.worldOrientation.y) - 1) <= 0.0001)
+        #expect(abs(child.worldOrientation.w) <= 0.0001)
+
+        child.worldOrientation = SCNQuaternion(0, 0, 0, 1)
+
+        #expect(abs(abs(child.worldOrientation.w) - 1) <= 0.0001)
+        #expect(abs(child.worldOrientation.x) <= 0.0001)
+        #expect(abs(child.worldOrientation.y) <= 0.0001)
+        #expect(abs(child.worldOrientation.z) <= 0.0001)
+        #expect(abs(child.orientation.y + quarterTurn) <= 0.0001)
+        #expect(abs(child.orientation.w - quarterTurn) <= 0.0001)
+    }
+
     @Test("SCNNode converts positions and vectors across coordinate spaces")
     func nodeConvertsPositionsAndVectorsAcrossCoordinateSpaces() {
         let root = SCNNode()
