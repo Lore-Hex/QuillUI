@@ -2723,6 +2723,13 @@ replacements = [
 """,
     ),
 ]
+patched_markers = [
+    "frozenFrame = materializedFrame(from: currentFrame)",
+    "private var frozenFrame: CGImage?",
+    "private func materializedFrame(from image: CIImage?) -> CGImage?",
+]
+if all(marker in new for marker in patched_markers):
+    raise SystemExit(0)
 for old, replacement in replacements:
     if old not in new:
         raise SystemExit(f"patch_solderscope: expected MicroscopeView snippet not found in {path}: {old.splitlines()[0]}")
