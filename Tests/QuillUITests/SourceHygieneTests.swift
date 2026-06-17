@@ -2874,6 +2874,8 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("xdotool mousedown 1 mousemove --sync \"$drag_end_x\" \"$drag_end_y\" mouseup 1"))
         #expect(solderScopeSmoke.contains("click --repeat 2 --delay 80 1"))
         #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" --clearmodifiers \"$key\""))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_SAVE_ATTEMPTS:-120"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_SAVE_TICK_SECONDS:-0.25"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key \"$window_id\" i"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key \"$window_id\" h"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key \"$window_id\" v"))

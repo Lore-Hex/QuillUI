@@ -642,8 +642,10 @@ quillui_drive_solderscope_interaction() {
     local recording_path=""
     local recording_saved_count="$recording_saved_before"
     local recording_verified=0
+    local recording_save_attempts="${QUILLUI_SOLDERSCOPE_RECORDING_SAVE_ATTEMPTS:-120}"
+    local recording_save_tick_seconds="${QUILLUI_SOLDERSCOPE_RECORDING_SAVE_TICK_SECONDS:-0.25}"
     local recording_stop_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-}"
-    for attempt in {1..40}; do
+    for ((attempt = 1; attempt <= recording_save_attempts; attempt += 1)); do
       recording_saved_count="$(quillui_solderscope_recording_saved_log_count)"
       recording_count="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
       if (( recording_saved_count > recording_saved_before && recording_count > SOLDERSCOPE_RECORDING_BEFORE_COUNT )); then
@@ -665,7 +667,7 @@ quillui_drive_solderscope_interaction() {
             ;;
         esac
       fi
-      sleep 0.25
+      sleep "$recording_save_tick_seconds"
     done
     if [[ "$recording_verified" != "1" ]]; then
       if [[ -n "$recording_path" ]]; then
