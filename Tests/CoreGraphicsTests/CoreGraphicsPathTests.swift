@@ -481,6 +481,83 @@ struct CoreGraphicsPathTests {
         #expect(try bitmapPixels(in: context) == [0, 0, 0, 255])
     }
 
+    @Test("CGContext bitmap setShadow(offset:blur:) uses black one-third alpha")
+    func bitmapContextDefaultShadowUsesBlackOneThirdAlpha() throws {
+        let context = try makeBitmapContext(width: 3, height: 1)
+        context.setShadow(offset: CGSize(width: 1, height: 0), blur: 0)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 255, 255, 0, 0, 0, 85, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap setShadow(offset:blur:color:) uses color and nil disables")
+    func bitmapContextColoredShadowAndNilDisable() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.setShadow(
+            offset: CGSize(width: 1, height: 0),
+            blur: 0,
+            color: CGColor(red: 0, green: 1, blue: 0, alpha: 0.5)
+        )
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        context.setShadow(offset: CGSize(width: 1, height: 0), blur: 0, color: nil)
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 2, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 255, 255,
+            0, 128, 0, 128,
+            255, 0, 0, 255,
+            0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap graphics state restores shadow")
+    func bitmapContextRestoreGraphicsStateRestoresShadow() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.setShadow(
+            offset: CGSize(width: 1, height: 0),
+            blur: 0,
+            color: CGColor(red: 0, green: 1, blue: 0, alpha: 0.5)
+        )
+
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 1, height: 0), blur: 0, color: nil)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.restoreGState()
+
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 2, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 255, 255,
+            0, 0, 0, 0,
+            255, 0, 0, 255,
+            0, 128, 0, 128,
+        ])
+    }
+
+    @Test("CGContext bitmap shadow blur spreads alpha")
+    func bitmapContextShadowBlurSpreadsAlpha() throws {
+        let context = try makeBitmapContext(width: 3, height: 1)
+        context.setShadow(
+            offset: CGSize(width: 1, height: 0),
+            blur: 1,
+            color: CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        )
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 255, 255, 0, 0, 0, 128, 0, 0, 0, 85,
+        ])
+    }
+
     @Test("CGContext bitmap draw composites CGImage pixels")
     func bitmapContextDrawCompositesImagePixels() throws {
         let context = try #require(CGContext(

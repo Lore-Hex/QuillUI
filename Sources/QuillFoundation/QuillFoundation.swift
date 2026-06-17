@@ -1583,6 +1583,7 @@ public final class CGContext {
     private var quillLineJoin: CGLineJoin = .miter
     private var quillAlpha: CGFloat = 1
     private var quillBlendMode: CGBlendMode = .normal
+    private var quillShadow: QuillShadow?
     private var quillCTM: CGAffineTransform = .identity
     private var quillClipRegions: [QuillClipRegion] = []
     private var quillStateStack: [QuillGraphicsState] = []
@@ -1596,9 +1597,12 @@ public final class CGContext {
         var lineJoin: CGLineJoin
         var alpha: CGFloat
         var blendMode: CGBlendMode
+        var shadow: QuillShadow?
         var ctm: CGAffineTransform
         var clipRegions: [QuillClipRegion]
     }
+
+    private typealias QuillPixelBounds = (minX: Int, minY: Int, maxX: Int, maxY: Int)
 
     private struct QuillBitmapImageSource {
         var width: Int
@@ -1612,6 +1616,12 @@ public final class CGContext {
         var green: CGFloat
         var red: CGFloat
         var alpha: CGFloat
+    }
+
+    private struct QuillShadow {
+        var offset: CGSize
+        var blur: CGFloat
+        var colorRGBA: [CGFloat]
     }
 
     private enum QuillClipRegion {
@@ -1739,12 +1749,15 @@ public final class CGContext {
         )
     }
 
-    private func quillPremultipliedColor(from rgba: [CGFloat]) -> QuillPremultipliedBGRA? {
+    private static func quillPremultipliedColor(
+        from rgba: [CGFloat],
+        alphaScale: CGFloat
+    ) -> QuillPremultipliedBGRA? {
         let red = rgba.indices.contains(0) ? rgba[0] : 0
         let green = rgba.indices.contains(1) ? rgba[1] : 0
         let blue = rgba.indices.contains(2) ? rgba[2] : 0
         let alpha = rgba.indices.contains(3) ? rgba[3] : 1
-        let sourceAlpha = Self.quillClampedUnit(alpha * quillAlpha)
+        let sourceAlpha = quillClampedUnit(alpha * alphaScale)
         guard sourceAlpha > 0 else {
             return nil
         }
@@ -1755,6 +1768,10 @@ public final class CGContext {
             red: red * sourceAlpha,
             alpha: sourceAlpha
         )
+    }
+
+    private func quillPremultipliedColor(from rgba: [CGFloat]) -> QuillPremultipliedBGRA? {
+        Self.quillPremultipliedColor(from: rgba, alphaScale: quillAlpha)
     }
 
     private func quillPremultipliedFillColor() -> QuillPremultipliedBGRA? {
@@ -2032,7 +2049,7 @@ public final class CGContext {
         return transform.inverted()
     }
 
-    private func quillPixelBounds(for rect: CGRect) -> (minX: Int, minY: Int, maxX: Int, maxY: Int)? {
+    private func quillPixelBounds(for rect: CGRect) -> QuillPixelBounds? {
         guard rect.origin.x.isFinite, rect.origin.y.isFinite,
               rect.size.width.isFinite, rect.size.height.isFinite
         else {
@@ -2065,6 +2082,172 @@ public final class CGContext {
         return (minX, minY, maxX, maxY)
     }
 
+    private func quillDrawBitmapShadow(
+        sourceBounds: QuillPixelBounds,
+        alphaAtDevicePoint: (CGPoint) -> CGFloat
+    ) {
+        guard let shadow = quillShadow,
+              quillCanDrawCurrentBitmap,
+              shadow.offset.width.isFinite,
+              shadow.offset.height.isFinite,
+              let shadowColor = Self.quillPremultipliedColor(from: shadow.colorRGBA, alphaScale: 1),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        let blurRadius = quillShadowBlurRadius(shadow.blur)
+        var alphaMask = [CGFloat](repeating: 0, count: width * height)
+        for y in sourceBounds.minY..<sourceBounds.maxY {
+            for x in sourceBounds.minX..<sourceBounds.maxX {
+                let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                let alpha = Self.quillClampedUnit(alphaAtDevicePoint(devicePoint) * quillBitmapClipAlpha(devicePoint))
+                if alpha > 0 {
+                    alphaMask[y * width + x] = alpha
+                }
+            }
+        }
+
+        if blurRadius > 0 {
+            alphaMask = Self.quillBoxBlurredAlphaMask(alphaMask, width: width, height: height, radius: blurRadius)
+        }
+
+        guard let shadowBounds = quillShadowDestinationBounds(
+            sourceBounds: sourceBounds,
+            offset: shadow.offset,
+            blurRadius: blurRadius
+        ) else {
+            return
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+
+            for y in shadowBounds.minY..<shadowBounds.maxY {
+                var offset = y * bytesPerRow + shadowBounds.minX * 4
+                for x in shadowBounds.minX..<shadowBounds.maxX {
+                    let sourceX = Int((CGFloat(x) + 0.5 - shadow.offset.width).rounded(.down))
+                    let sourceY = Int((CGFloat(y) + 0.5 - shadow.offset.height).rounded(.down))
+                    if sourceX >= 0, sourceX < width, sourceY >= 0, sourceY < height {
+                        let maskAlpha = alphaMask[sourceY * width + sourceX]
+                        if maskAlpha > 0 {
+                            let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                            let clipAlpha = quillBitmapClipAlpha(devicePoint)
+                            if let source = Self.quillPremultipliedColor(
+                                shadowColor,
+                                multipliedBy: maskAlpha * clipAlpha
+                            ) {
+                                quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                            }
+                        }
+                    }
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillShadowBlurRadius(_ blur: CGFloat) -> Int {
+        guard blur.isFinite, blur > 0 else {
+            return 0
+        }
+        return Int(Swift.min(CGFloat(Swift.max(width, height)), blur.rounded(.up)))
+    }
+
+    private func quillShadowDestinationBounds(
+        sourceBounds: QuillPixelBounds,
+        offset: CGSize,
+        blurRadius: Int
+    ) -> QuillPixelBounds? {
+        let expansion = CGFloat(blurRadius)
+        let minX = Int(Swift.max(0, Swift.min(
+            CGFloat(width),
+            (CGFloat(sourceBounds.minX) + offset.width - expansion).rounded(.down)
+        )))
+        let minY = Int(Swift.max(0, Swift.min(
+            CGFloat(height),
+            (CGFloat(sourceBounds.minY) + offset.height - expansion).rounded(.down)
+        )))
+        let maxX = Int(Swift.max(0, Swift.min(
+            CGFloat(width),
+            (CGFloat(sourceBounds.maxX) + offset.width + expansion).rounded(.up)
+        )))
+        let maxY = Int(Swift.max(0, Swift.min(
+            CGFloat(height),
+            (CGFloat(sourceBounds.maxY) + offset.height + expansion).rounded(.up)
+        )))
+        guard minX < maxX, minY < maxY else {
+            return nil
+        }
+        return (minX, minY, maxX, maxY)
+    }
+
+    private static func quillBoxBlurredAlphaMask(
+        _ mask: [CGFloat],
+        width: Int,
+        height: Int,
+        radius: Int
+    ) -> [CGFloat] {
+        guard radius > 0, width > 0, height > 0, mask.count >= width * height else {
+            return mask
+        }
+
+        var horizontal = [CGFloat](repeating: 0, count: width * height)
+        for y in 0..<height {
+            var left = 0
+            var right = -1
+            var sum: CGFloat = 0
+            var count = 0
+            for x in 0..<width {
+                let targetRight = Swift.min(width - 1, x + radius)
+                while right < targetRight {
+                    right += 1
+                    sum += mask[y * width + right]
+                    count += 1
+                }
+
+                let targetLeft = Swift.max(0, x - radius)
+                while left < targetLeft {
+                    sum -= mask[y * width + left]
+                    count -= 1
+                    left += 1
+                }
+
+                horizontal[y * width + x] = count > 0 ? sum / CGFloat(count) : 0
+            }
+        }
+
+        var blurred = [CGFloat](repeating: 0, count: width * height)
+        for x in 0..<width {
+            var top = 0
+            var bottom = -1
+            var sum: CGFloat = 0
+            var count = 0
+            for y in 0..<height {
+                let targetBottom = Swift.min(height - 1, y + radius)
+                while bottom < targetBottom {
+                    bottom += 1
+                    sum += horizontal[bottom * width + x]
+                    count += 1
+                }
+
+                let targetTop = Swift.max(0, y - radius)
+                while top < targetTop {
+                    sum -= horizontal[top * width + x]
+                    count -= 1
+                    top += 1
+                }
+
+                blurred[y * width + x] = count > 0 ? Self.quillClampedUnit(sum / CGFloat(count)) : 0
+            }
+        }
+
+        return blurred
+    }
+
     private func quillFillBitmap(_ rect: CGRect) {
         guard let source = quillPremultipliedFillColor() else {
             return
@@ -2079,6 +2262,10 @@ public final class CGContext {
               quillBitmapBytes != nil
         else {
             return
+        }
+
+        quillDrawBitmapShadow(sourceBounds: bounds) { _ in
+            source.alpha
         }
 
         quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
@@ -2119,6 +2306,10 @@ public final class CGContext {
               quillBitmapBytes != nil
         else {
             return
+        }
+
+        quillDrawBitmapShadow(sourceBounds: bounds) { devicePoint in
+            path.contains(devicePoint.applying(inverseCTM), using: rule, transform: .identity) ? source.alpha : 0
         }
 
         quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
@@ -2245,6 +2436,16 @@ public final class CGContext {
 
         let lineCap = quillLineCap
         let lineJoin = quillLineJoin
+        quillDrawBitmapShadow(sourceBounds: bounds) { devicePoint in
+            Self.quillStrokeContains(
+                devicePoint,
+                segments: drawableSegments,
+                halfWidth: halfWidth,
+                lineCap: lineCap,
+                lineJoin: lineJoin
+            ) ? source.alpha : 0
+        }
+
         quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
             guard pixels.count >= requiredByteCount else {
                 return
@@ -2444,6 +2645,27 @@ public final class CGContext {
         let userMaxY = userRect.origin.y + userRect.size.height
         let globalAlpha = quillAlpha
 
+        quillDrawBitmapShadow(sourceBounds: bounds) { devicePoint in
+            let userPoint = devicePoint.applying(inverseCTM)
+            guard userPoint.x >= userRect.origin.x,
+                  userPoint.x < userMaxX,
+                  userPoint.y >= userRect.origin.y,
+                  userPoint.y < userMaxY
+            else {
+                return 0
+            }
+
+            let unitX = (userPoint.x - userRect.origin.x) / userRect.size.width
+            let unitY = (userPoint.y - userRect.origin.y) / userRect.size.height
+            let sourceX = Swift.max(0, Swift.min(source.width - 1, Int((unitX * CGFloat(source.width)).rounded(.down))))
+            let sourceY = Swift.max(0, Swift.min(source.height - 1, Int((unitY * CGFloat(source.height)).rounded(.down))))
+            let sourceOffset = sourceY * source.bytesPerRow + sourceX * 4
+            guard sourceOffset + 3 < source.pixels.count else {
+                return 0
+            }
+            return (CGFloat(source.pixels[sourceOffset + 3]) / 255) * globalAlpha
+        }
+
         quillBitmapBytes?.withUnsafeMutableBufferPointer { destination in
             guard destination.count >= requiredByteCount else {
                 return
@@ -2504,6 +2726,18 @@ public final class CGContext {
               quillBitmapBytes != nil
         else {
             return
+        }
+
+        let sourceBounds: QuillPixelBounds = (0, 0, width, height)
+        quillDrawBitmapShadow(sourceBounds: sourceBounds) { devicePoint in
+            guard let rawLocation = locationForUserPoint(devicePoint.applying(inverseCTM)),
+                  Self.quillGradientOptionsAllow(rawLocation, options: options)
+            else {
+                return 0
+            }
+            let rgba = gradient.quillRGBA(at: rawLocation)
+            let alpha = rgba.indices.contains(3) ? rgba[3] : 1
+            return Self.quillClampedUnit(alpha * quillAlpha)
         }
 
         quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
@@ -2820,8 +3054,24 @@ public final class CGContext {
         quillBackend?.setLineJoin(join)
     }
     public func setMiterLimit(_ limit: CGFloat) {}
-    public func setShadow(offset: CGSize, blur: CGFloat) {}
-    public func setShadow(offset: CGSize, blur: CGFloat, color: CGColor?) {}
+    public func setShadow(offset: CGSize, blur: CGFloat) {
+        quillShadow = QuillShadow(
+            offset: offset,
+            blur: blur,
+            colorRGBA: [0, 0, 0, CGFloat(1) / 3]
+        )
+    }
+    public func setShadow(offset: CGSize, blur: CGFloat, color: CGColor?) {
+        guard let color else {
+            quillShadow = nil
+            return
+        }
+        quillShadow = QuillShadow(
+            offset: offset,
+            blur: blur,
+            colorRGBA: Self.quillNormalizedFillRGBA(quillNormalizedRGBA(color))
+        )
+    }
     public func setAllowsAntialiasing(_ allowsAntialiasing: Bool) {}
     public func setShouldAntialias(_ shouldAntialias: Bool) {}
     public func setAllowsFontSmoothing(_ allowsFontSmoothing: Bool) {}
@@ -3018,6 +3268,7 @@ public final class CGContext {
             lineJoin: quillLineJoin,
             alpha: quillAlpha,
             blendMode: quillBlendMode,
+            shadow: quillShadow,
             ctm: quillCTM,
             clipRegions: quillClipRegions
         ))
@@ -3032,6 +3283,7 @@ public final class CGContext {
             quillLineJoin = state.lineJoin
             quillAlpha = state.alpha
             quillBlendMode = state.blendMode
+            quillShadow = state.shadow
             quillCTM = state.ctm
             quillClipRegions = state.clipRegions
         }
