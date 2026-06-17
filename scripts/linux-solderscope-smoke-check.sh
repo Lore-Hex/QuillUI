@@ -139,6 +139,10 @@ quillui_drive_solderscope_interaction() {
   DISPLAY="$DISPLAY_ID" xdotool key bracketright
   DISPLAY="$DISPLAY_ID" xdotool key 0
   DISPLAY="$DISPLAY_ID" xdotool key b
+  sleep 0.2
+  DISPLAY="$DISPLAY_ID" xdotool key b
+  DISPLAY="$DISPLAY_ID" xdotool key space
+  sleep 0.2
   DISPLAY="$DISPLAY_ID" xdotool key space
   DISPLAY="$DISPLAY_ID" xdotool key Escape
   sleep 1

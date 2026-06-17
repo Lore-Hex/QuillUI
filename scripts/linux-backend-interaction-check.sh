@@ -1057,7 +1057,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # editable TextField; keep this aligned with the typed-composer verifier,
         # which looks for typed pixels near the composer's left inset.
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 115))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 80))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
@@ -1070,7 +1070,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # message leaves the empty state and renders as a trailing user message;
         # the live Ollama/persistence proof remains a separate functional smoke.
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 115))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 80))}"
         click_at "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
