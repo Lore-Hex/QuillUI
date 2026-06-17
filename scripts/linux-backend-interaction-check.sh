@@ -858,7 +858,12 @@ edit_quill_chat_existing_completion() {
   local save_x
   local save_y
 
-  open_quill_chat_completions_panel 1
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    quill_chat_completions_panel_probe_path=""
+    ensure_quill_chat_completions_panel_open
+  else
+    open_quill_chat_completions_panel 1
+  fi
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     edit_x="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_X:-$((window_x + 1475))}"
     edit_y="${QUILLUI_BACKEND_COMPLETION_EDIT_CLICK_Y:-$((window_y + 545))}"
@@ -902,7 +907,12 @@ delete_quill_chat_completion() {
   local delete_x
   local delete_y
 
-  open_quill_chat_completions_panel 1
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    quill_chat_completions_panel_probe_path=""
+    ensure_quill_chat_completions_panel_open
+  else
+    open_quill_chat_completions_panel
+  fi
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1618))}"
