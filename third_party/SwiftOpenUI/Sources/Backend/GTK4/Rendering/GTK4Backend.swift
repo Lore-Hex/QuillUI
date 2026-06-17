@@ -158,11 +158,21 @@ extension WindowGroup: GTKWindowRenderable {
     }
 
     func gtkRender(app: OpaquePointer?) {
+        if let valueTypeKey = quillValueTypeKey {
+            GTK4WindowRegistry.shared.registerValue(typeKey: valueTypeKey) { [self] value in
+                self.gtkCreateWindow(app: app, content: self.quillContent(forPresentedValue: value))
+            }
+        }
+
         guard launchesAtStartup else {
             gtkBackendDebugLog("defer WindowGroup title=\(title)")
             return
         }
 
+        gtkCreateWindow(app: app, content: content)
+    }
+
+    func gtkCreateWindow(app: OpaquePointer?, content renderedContent: Content) {
         let window: UnsafeMutablePointer<GtkWidget>
         if let app {
             window = gtk_application_window_new(gtkApplicationPointer(app))!
@@ -182,7 +192,7 @@ extension WindowGroup: GTKWindowRenderable {
         wgEnv.windowID = Int(bitPattern: winPtr)
         setCurrentEnvironment(wgEnv)
 
-        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let contentWidget = widgetFromOpaque(gtkRenderView(renderedContent))
         if let titlebarWidget = findTitlebar(in: contentWidget) {
             gtk_window_set_titlebar(winPtr, titlebarWidget)
         }
@@ -816,9 +826,14 @@ public struct GTK4Backend: RenderBackend {
             // Inject openWindow action into the environment so views
             // can programmatically open Window scenes by id.
             var env = getCurrentEnvironment()
-            env.openWindow = OpenWindowAction { id in
-                GTK4WindowRegistry.shared.open(id: id)
-            }
+            env.openWindow = OpenWindowAction(
+                handler: { id in
+                    GTK4WindowRegistry.shared.open(id: id)
+                },
+                valueHandler: { valueTypeKey, value in
+                    GTK4WindowRegistry.shared.openValue(typeKey: valueTypeKey, value: value)
+                }
+            )
             setCurrentEnvironment(env)
 
             // App.init/App.body are @MainActor (Apple semantics); the GTK app
@@ -943,10 +958,15 @@ extension TupleScene: GTKWindowRenderable {
 class GTK4WindowRegistry {
     static let shared = GTK4WindowRegistry()
     private var factories: [String: () -> Void] = [:]
+    private var valueFactories: [String: (Any) -> Void] = [:]
     private var liveWindows: [String: UnsafeMutablePointer<GtkWindow>] = [:]
 
     func register(id: String, factory: @escaping () -> Void) {
         factories[id] = factory
+    }
+
+    func registerValue(typeKey: String, factory: @escaping (Any) -> Void) {
+        valueFactories[typeKey] = factory
     }
 
     /// Record a live GTK window for the given id.
@@ -969,6 +989,12 @@ class GTK4WindowRegistry {
         }
         // Window was closed or never created — invoke the factory.
         factories[id]?()
+    }
+
+    /// Open a value-based WindowGroup. SwiftUI treats these as window groups,
+    /// so this deliberately creates a fresh top-level window for each request.
+    func openValue(typeKey: String, value: Any) {
+        valueFactories[typeKey]?(value)
     }
 }
 

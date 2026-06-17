@@ -394,14 +394,30 @@ extension EnvironmentValues {
 /// A callable action that opens a window by its identifier.
 public struct OpenWindowAction {
     let handler: (String) -> Void
+    let valueHandler: (String, Any) -> Void
 
-    public init(handler: @escaping (String) -> Void = { _ in }) {
+    public init(
+        handler: @escaping (String) -> Void = { _ in },
+        valueHandler: @escaping (String, Any) -> Void = { _, _ in }
+    ) {
         self.handler = handler
+        self.valueHandler = valueHandler
     }
 
     /// Open the window with the given identifier.
     public func callAsFunction(id: String) {
         handler(id)
+    }
+
+    /// Open the value-based window group registered for this value's type.
+    public func callAsFunction<Value>(value: Value) {
+        valueHandler(quillOpenWindowValueTypeKey(for: Value.self), value)
+    }
+
+    /// Open the value-based window group registered for the given id and
+    /// value type.
+    public func callAsFunction<Value>(id: String, value: Value) {
+        valueHandler(quillOpenWindowValueTypeKey(id: id, for: Value.self), value)
     }
 }
 

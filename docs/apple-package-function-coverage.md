@@ -76,6 +76,7 @@ table covers the local Apple-package clone layer.
 | API or function | Linux status | Notes |
 | --- | --- | --- |
 | `import SwiftUI` | Partial | Resolves to `SwiftOpenUI` plus `QuillSwiftUICompatibility`; it intentionally does not ambiently re-export `QuillUI` to avoid AppKit symbol collisions. |
+| `WindowGroup(for:)`, `OpenWindowAction.callAsFunction(value:)`, `OpenWindowAction.callAsFunction(id:value:)` | Partial-real | Value-based window scenes defer at startup, preserve their `Binding<Value?>` content factory through sizing/resizability modifiers, and GTK opens a top-level window with the requested value bound into content. Scene phase, restoration/refocus, exact chrome, and full command/window-manager parity remain incomplete. |
 | `Font.Weight` | Usable | Local typealias to `FontWeight`; enough for app source compatibility. |
 | `VerticalAlignment.firstTextBaseline` | Fallback | Maps to `.top`; true text-baseline metrics are incomplete. |
 | `VerticalAlignment.lastTextBaseline` | Fallback | Maps to `.bottom`; true text-baseline metrics are incomplete. |
@@ -579,6 +580,7 @@ surface used by SwiftUI's `webAuthenticationSession` environment action.
 | --- | --- | --- |
 | OpenCombine re-export | Partial | Broad Combine surface comes from OpenCombine, not local Apple SDK code. |
 | `AnyPublisher.init()` where `Failure == Never` | Usable | Creates an empty publisher. |
+| `DispatchQueue`/`RunLoop`/`OperationQueue` scheduler overloads | Partial-real | Apple-spelled `debounce`, `delay`, `receive(on:)`, `subscribe(on:)`, and `throttle` route to OpenCombine's `.ocombine` scheduler wrappers so app code can keep using `DispatchQueue.main` style calls. |
 | `Publishers.Merge` local implementation | Partial | Current merge behavior exists, but full Apple Combine edge-case parity is incomplete. |
 | Backpressure, scheduler, demand, cancellation, and operator fuzz parity | Incomplete | Required before claiming Combine Parity. |
 

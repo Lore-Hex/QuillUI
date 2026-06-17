@@ -20,8 +20,10 @@ estimates, not release claims.
       shows the unauthenticated timeline shell and Add Account sheet.
 - [x] First-run environment must not crash on missing account/session defaults
       during the initial 8-second launch smoke.
-- [ ] App-level `WindowGroup`, extra windows, `openWindow`, scene phase, and
-      commands must have observable GTK behavior.
+- [x] Value-based `WindowGroup(for:)` scenes must defer at startup and open
+      observable GTK windows from `openWindow(value:)` with the bound value.
+- [ ] Scene phase, full commands, command keyboard routing, and value-window
+      restoration/refocus must have observable GTK behavior.
 
 ## P1 Core App Behavior
 
@@ -142,6 +144,21 @@ estimates, not release claims.
   initial content paint/layout, not process launch.
 - 2026-06-09: Deferred value-based `WindowGroup(for:)` scenes at startup so
   editor/media value windows no longer cover the main app with a blank window.
+- 2026-06-17: Added typed value-window registration to SwiftOpenUI and the GTK
+  backend. `OpenWindowAction` now supports `openWindow(value:)` and
+  `openWindow(id:value:)`, `WindowGroup(for:)` preserves its
+  `Binding<Value?>` content factory through window modifiers, and GTK opens a
+  deferred top-level window with the requested value bound into content. This
+  covers IceCubes' composer and media-viewer destination pattern generically;
+  scene phase, command parity, value-window restoration/refocus, and exact
+  window chrome remain incomplete. Verification: Docker/GTK
+  `SwiftUIValueWindowCompatibilityTests` passed.
+- 2026-06-17: Added reusable Linux `Combine` scheduler overloads for the Apple
+  spellings IceCubes uses (`DispatchQueue.main` with `debounce`, plus
+  `RunLoop`/`OperationQueue` coverage for adjacent operators). The gated
+  Docker/GTK `icecubes-linux-app` product build now completes after clearing
+  the previous `DispatchQueue` scheduler failure; this is compile parity, not
+  a claim of complete interactive or visual parity.
 - 2026-06-09: Added form/section fill behavior, responsive sheet sizing, root
   sheet overlay navigation context, `.xcstrings` localization, and additional
   SF Symbol mappings. Fresh captures show the real Add Account sheet with

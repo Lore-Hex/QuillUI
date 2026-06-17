@@ -100,6 +100,11 @@ func qtRenderScene<S: Scene>(_ scene: S, app: OpaquePointer) {
 
 extension WindowGroup: QtWindowRenderable {
     func qtRender(app: OpaquePointer) {
+        guard launchesAtStartup else {
+            qtBackendTrace("WindowGroup.qtRender: deferred title=\(title)")
+            return
+        }
+
         qtBackendTrace("WindowGroup.qtRender: creating window")
         let window = qtOpaque(quill_qt_bridge_window_create(title))
 

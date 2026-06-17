@@ -2003,6 +2003,24 @@ struct CompatibilityModuleTests {
             .sink { _ in }
         cancellable.cancel()
 
+        let subject = PassthroughSubject<String, Never>()
+        let dispatchQueueCancellable = subject
+            .debounce(for: .milliseconds(1), scheduler: DispatchQueue.main)
+            .sink { _ in }
+        subject.send("debounced")
+        dispatchQueueCancellable.cancel()
+
+        let runLoopCancellable = Just("runloop")
+            .delay(for: .milliseconds(1), scheduler: RunLoop.current)
+            .sink { _ in }
+        runLoopCancellable.cancel()
+
+        let operationQueue = OperationQueue()
+        let operationQueueCancellable = Just("operation")
+            .receive(on: operationQueue)
+            .sink { _ in }
+        operationQueueCancellable.cancel()
+
         let publisher = AnyPublisher<Int, Never>()
             .map { $0 > 0 }
             .eraseToAnyPublisher()

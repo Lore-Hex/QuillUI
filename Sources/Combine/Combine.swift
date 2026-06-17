@@ -1,4 +1,5 @@
 #if os(Linux)
+import Dispatch
 import Foundation
 
 @_exported import OpenCombine
@@ -6,6 +7,130 @@ import Foundation
 @_exported import OpenCombineFoundation
 
 public typealias _CombineScheduler = OpenCombine.Scheduler
+
+// OpenCombine exposes Apple-compatible scheduler implementations behind
+// `.ocombine` wrappers. Its direct retroactive conformances are not reliably
+// re-exported through this shim target, so provide the Apple-spelled Publisher
+// operator overloads here. Downstream app code imports `Combine`, not
+// `OpenCombineDispatch`, and can keep writing `scheduler: DispatchQueue.main`.
+public extension Publisher {
+    func debounce(
+        for dueTime: DispatchQueue.OCombine.SchedulerTimeType.Stride,
+        scheduler: DispatchQueue,
+        options: DispatchQueue.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.Debounce<Self, DispatchQueue.OCombine> {
+        debounce(for: dueTime, scheduler: scheduler.ocombine, options: options)
+    }
+
+    func debounce(
+        for dueTime: RunLoop.OCombine.SchedulerTimeType.Stride,
+        scheduler: RunLoop,
+        options: RunLoop.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.Debounce<Self, RunLoop.OCombine> {
+        debounce(for: dueTime, scheduler: scheduler.ocombine, options: options)
+    }
+
+    func debounce(
+        for dueTime: OperationQueue.OCombine.SchedulerTimeType.Stride,
+        scheduler: OperationQueue,
+        options: OperationQueue.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.Debounce<Self, OperationQueue.OCombine> {
+        debounce(for: dueTime, scheduler: scheduler.ocombine, options: options)
+    }
+
+    func delay(
+        for interval: DispatchQueue.OCombine.SchedulerTimeType.Stride,
+        tolerance: DispatchQueue.OCombine.SchedulerTimeType.Stride? = nil,
+        scheduler: DispatchQueue,
+        options: DispatchQueue.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.Delay<Self, DispatchQueue.OCombine> {
+        delay(for: interval, tolerance: tolerance, scheduler: scheduler.ocombine, options: options)
+    }
+
+    func delay(
+        for interval: RunLoop.OCombine.SchedulerTimeType.Stride,
+        tolerance: RunLoop.OCombine.SchedulerTimeType.Stride? = nil,
+        scheduler: RunLoop,
+        options: RunLoop.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.Delay<Self, RunLoop.OCombine> {
+        delay(for: interval, tolerance: tolerance, scheduler: scheduler.ocombine, options: options)
+    }
+
+    func delay(
+        for interval: OperationQueue.OCombine.SchedulerTimeType.Stride,
+        tolerance: OperationQueue.OCombine.SchedulerTimeType.Stride? = nil,
+        scheduler: OperationQueue,
+        options: OperationQueue.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.Delay<Self, OperationQueue.OCombine> {
+        delay(for: interval, tolerance: tolerance, scheduler: scheduler.ocombine, options: options)
+    }
+
+    func receive(
+        on scheduler: DispatchQueue,
+        options: DispatchQueue.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.ReceiveOn<Self, DispatchQueue.OCombine> {
+        receive(on: scheduler.ocombine, options: options)
+    }
+
+    func receive(
+        on scheduler: RunLoop,
+        options: RunLoop.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.ReceiveOn<Self, RunLoop.OCombine> {
+        receive(on: scheduler.ocombine, options: options)
+    }
+
+    func receive(
+        on scheduler: OperationQueue,
+        options: OperationQueue.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.ReceiveOn<Self, OperationQueue.OCombine> {
+        receive(on: scheduler.ocombine, options: options)
+    }
+
+    func subscribe(
+        on scheduler: DispatchQueue,
+        options: DispatchQueue.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.SubscribeOn<Self, DispatchQueue.OCombine> {
+        subscribe(on: scheduler.ocombine, options: options)
+    }
+
+    func subscribe(
+        on scheduler: RunLoop,
+        options: RunLoop.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.SubscribeOn<Self, RunLoop.OCombine> {
+        subscribe(on: scheduler.ocombine, options: options)
+    }
+
+    func subscribe(
+        on scheduler: OperationQueue,
+        options: OperationQueue.OCombine.SchedulerOptions? = nil
+    ) -> Publishers.SubscribeOn<Self, OperationQueue.OCombine> {
+        subscribe(on: scheduler.ocombine, options: options)
+    }
+
+    func throttle(
+        for interval: DispatchQueue.OCombine.SchedulerTimeType.Stride,
+        scheduler: DispatchQueue,
+        latest: Bool
+    ) -> Publishers.Throttle<Self, DispatchQueue.OCombine> {
+        throttle(for: interval, scheduler: scheduler.ocombine, latest: latest)
+    }
+
+    func throttle(
+        for interval: RunLoop.OCombine.SchedulerTimeType.Stride,
+        scheduler: RunLoop,
+        latest: Bool
+    ) -> Publishers.Throttle<Self, RunLoop.OCombine> {
+        throttle(for: interval, scheduler: scheduler.ocombine, latest: latest)
+    }
+
+    func throttle(
+        for interval: OperationQueue.OCombine.SchedulerTimeType.Stride,
+        scheduler: OperationQueue,
+        latest: Bool
+    ) -> Publishers.Throttle<Self, OperationQueue.OCombine> {
+        throttle(for: interval, scheduler: scheduler.ocombine, latest: latest)
+    }
+}
 
 public extension NotificationCenter {
     typealias Publisher = OCombine.Publisher
