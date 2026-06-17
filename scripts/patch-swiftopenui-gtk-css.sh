@@ -2173,7 +2173,14 @@ if has_fixed_frame_clip_region and fixed_frame_flexible_width_fixed_height_clip 
         let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
         gtk_widget_set_size_request(wrapper, requestWidth, requestHeight)
 '''
-    new_parent_flexible_request = '''        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
+    new_parent_flexible_request = '''        if !widthMayGrowWithParent && heightMayGrowWithParent && childExpV {
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
+        }
+
+        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
         let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
         if widthMayGrowWithParent && !heightMayGrowWithParent && childExpV {
             return gtkFrameFlexibleWidthFixedHeightClip(
@@ -2245,6 +2252,101 @@ if has_fixed_frame_clip_region and fixed_frame_flexible_width_fixed_height_clip 
         fixed_height_clip_helper + fixed_height_clip_helper_anchor,
         1,
     )
+
+fixed_width_flexible_height_clip = "gtkFrameFixedWidthFlexibleHeightClip"
+if fixed_width_flexible_height_clip not in text:
+    fixed_width_clip_helper_anchor = '''    /// Build a frame wrapper using GtkBox instead of GtkFixed, for frames
+'''
+    fixed_width_clip_helper = '''    private func gtkFrameFixedWidthFlexibleHeightClip(
+        child: UnsafeMutablePointer<GtkWidget>,
+        width: gint
+    ) -> OpaquePointer {
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+        gtk_scrolled_window_set_min_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_max_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+
+        gtk_widget_set_size_request(scrolled, width, -1)
+        gtk_widget_set_hexpand(scrolled, 0)
+        gtk_widget_set_vexpand(scrolled, 1)
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_vexpand(child, 1)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(child, width, -1)
+        gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: true,
+            fillHeight: true
+        )
+        return opaqueFromWidget(scrolled)
+    }
+
+'''
+    if fixed_width_clip_helper_anchor not in text:
+        raise SystemExit("SwiftOpenUI flexible-height fixed-width frame helper anchor was not recognized")
+    text = text.replace(
+        fixed_width_clip_helper_anchor,
+        fixed_width_clip_helper + fixed_width_clip_helper_anchor,
+        1,
+    )
+
+    old_fixed_width_flexible_height = '''        if constrainedWidth {
+            // Width constrained, height flexible
+            gtk_widget_set_size_request(wrapper, gtkPixelSize(layout.containerSize.width), -1)
+            let hexp: gint = (maxWidth != nil) ? 1 : 0
+            gtk_widget_set_hexpand(wrapper, hexp)
+            gtk_widget_set_vexpand(wrapper, 1)
+        } else {
+'''
+    old_fixed_width_flexible_height_with_child_request = '''        if constrainedWidth {
+            // Width constrained, height flexible
+            gtk_widget_set_size_request(wrapper, gtkPixelSize(layout.containerSize.width), -1)
+            gtk_widget_set_size_request(child, gtkPixelSize(layout.childPlacement.size.width), -1)
+            let hexp: gint = (maxWidth != nil) ? 1 : 0
+            gtk_widget_set_hexpand(wrapper, hexp)
+            gtk_widget_set_vexpand(wrapper, 1)
+        } else {
+'''
+    new_fixed_width_flexible_height = '''        if constrainedWidth {
+            // Width constrained, height flexible
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
+        } else {
+'''
+    if old_fixed_width_flexible_height in text:
+        text = text.replace(old_fixed_width_flexible_height, new_fixed_width_flexible_height, 1)
+    elif old_fixed_width_flexible_height_with_child_request in text:
+        text = text.replace(old_fixed_width_flexible_height_with_child_request, new_fixed_width_flexible_height, 1)
+    else:
+        raise SystemExit("SwiftOpenUI fixed-width flexible-height branch shape was not recognized")
+
+fixed_width_parent_flexible_guard = "!widthMayGrowWithParent && heightMayGrowWithParent && childExpV"
+if fixed_width_parent_flexible_guard not in text:
+    old_parent_flexible_guard_anchor = '''        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
+        let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+'''
+    new_parent_flexible_guard_anchor = '''        if !widthMayGrowWithParent && heightMayGrowWithParent && childExpV {
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
+        }
+
+        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
+        let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+'''
+    if old_parent_flexible_guard_anchor not in text:
+        raise SystemExit("SwiftOpenUI parent-flexible fixed-width guard anchor was not recognized")
+    text = text.replace(old_parent_flexible_guard_anchor, new_parent_flexible_guard_anchor, 1)
 
 padded_view_child_fill = "PaddedView must let expanding content fill its margin wrapper"
 has_padded_view_region = (
@@ -5487,12 +5589,43 @@ private func gtkWrapWithToolbarRow<V: View>(
     return box
 }
 
+private func gtkApplyFixedSplitColumnWidth(_ widget: UnsafeMutablePointer<GtkWidget>, width: Double) {
+    let pixelWidth = gint(width)
+    gtk_widget_set_size_request(widget, pixelWidth, gtkRequestedDefaultWindowHeight())
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    if typeName == "GtkScrolledWindow" {
+        let scrolledOp = OpaquePointer(widget)
+        gtk_scrolled_window_set_min_content_width(scrolledOp, pixelWidth)
+        gtk_scrolled_window_set_max_content_width(scrolledOp, pixelWidth)
+    }
+}
+
 private func gtkConfigureFixedSplitColumn(_ widget: UnsafeMutablePointer<GtkWidget>, width: Double) {
-    gtk_widget_set_size_request(widget, gint(width), gtkRequestedDefaultWindowHeight())
+    gtkApplyFixedSplitColumnWidth(widget, width: width)
     gtk_widget_set_hexpand(widget, 0)
     gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
     gtk_widget_set_vexpand(widget, 1)
     gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+}
+
+private func gtkCreateFixedSplitColumnContainer(
+    child: UnsafeMutablePointer<GtkWidget>,
+    width: Double
+) -> UnsafeMutablePointer<GtkWidget> {
+    let scrolled = gtk_scrolled_window_new()!
+    let scrolledOp = OpaquePointer(scrolled)
+    gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+    gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+    gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+    gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+    gtkConfigureFixedSplitColumn(scrolled, width: width)
+
+    gtk_widget_set_hexpand(child, 1)
+    gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+    gtk_widget_set_vexpand(child, 1)
+    gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+    gtk_scrolled_window_set_child(scrolledOp, child)
+    return scrolled
 }
 
 private func gtkConfigureFillingSplitColumn(_ widget: UnsafeMutablePointer<GtkWidget>) {
@@ -5515,7 +5648,7 @@ private let gtkFixedSplitSidebarTickCallback: GtkTickCallback = { widget, _, use
     let width = Double(gtk_widget_get_width(widget))
     guard width > 0 else { return 1 }
     let sidebarW = max(320.0, min(600.0, width * 0.27))
-    gtk_widget_set_size_request(sidebar, gint(sidebarW), gtkRequestedDefaultWindowHeight())
+    gtkApplyFixedSplitColumnWidth(sidebar, width: sidebarW)
     gtk_widget_queue_resize(sidebar)
     gtk_widget_queue_resize(widget)
     if gtkBackendLayoutDebugEnabled {
@@ -5750,12 +5883,10 @@ if two_column_start >= 0 and three_column_start > two_column_start:
         let resolvedSidebarW = max(sidebarMinW, sidebarW)
 
         let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))
-        let sidebarWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_widget_set_hexpand(sidebarContentWidget, 1)
-        gtk_widget_set_halign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_widget_set_vexpand(sidebarContentWidget, 1)
-        gtk_widget_set_valign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)
+        let sidebarWidget = gtkCreateFixedSplitColumnContainer(
+            child: sidebarContentWidget,
+            width: resolvedSidebarW
+        )
 
         let detailWidget = gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)
         let splitBox = gtkCreateTwoColumnSplitBox(
@@ -5788,14 +5919,15 @@ if three_column_start >= 0 and column_width_view_start > three_column_start:
         let resolvedContentW = max(contentMinW, contentW)
 
         let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))
-        let sidebarWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_widget_set_hexpand(sidebarContentWidget, 1)
-        gtk_widget_set_halign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_widget_set_vexpand(sidebarContentWidget, 1)
-        gtk_widget_set_valign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)
+        let sidebarWidget = gtkCreateFixedSplitColumnContainer(
+            child: sidebarContentWidget,
+            width: resolvedSidebarW
+        )
 
-        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let contentWidget = gtkCreateFixedSplitColumnContainer(
+            child: widgetFromOpaque(gtkRenderView(content)),
+            width: resolvedContentW
+        )
         let detailWidget = gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)
         let splitBox = gtkCreateThreeColumnSplitBox(
             sidebarWidget: sidebarWidget,

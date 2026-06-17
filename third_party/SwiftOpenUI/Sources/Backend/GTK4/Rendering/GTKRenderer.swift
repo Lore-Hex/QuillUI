@@ -2229,6 +2229,13 @@ extension FrameView: GTKRenderable, GTKDescribable {
                 || (maxHeight == nil && childExpV)
             )
 
+        if !widthMayGrowWithParent && heightMayGrowWithParent && childExpV {
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
+        }
+
         let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
         let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
         if widthMayGrowWithParent && !heightMayGrowWithParent && childExpV {
@@ -2374,6 +2381,37 @@ extension FrameView: GTKRenderable, GTKDescribable {
         return opaqueFromWidget(scrolled)
     }
 
+    private func gtkFrameFixedWidthFlexibleHeightClip(
+        child: UnsafeMutablePointer<GtkWidget>,
+        width: gint
+    ) -> OpaquePointer {
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+        gtk_scrolled_window_set_min_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_max_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+
+        gtk_widget_set_size_request(scrolled, width, -1)
+        gtk_widget_set_hexpand(scrolled, 0)
+        gtk_widget_set_vexpand(scrolled, 1)
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_vexpand(child, 1)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(child, width, -1)
+        gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: true,
+            fillHeight: true
+        )
+        return opaqueFromWidget(scrolled)
+    }
+
     /// Build a frame wrapper using GtkBox instead of GtkFixed, for frames
     /// that constrain one axis while the child expands on the other.
     /// GtkFixed can't propagate allocation to children, so we let GTK's
@@ -2403,10 +2441,10 @@ extension FrameView: GTKRenderable, GTKDescribable {
 
         if constrainedWidth {
             // Width constrained, height flexible
-            gtk_widget_set_size_request(wrapper, gtkPixelSize(layout.containerSize.width), -1)
-            let hexp: gint = (maxWidth != nil) ? 1 : 0
-            gtk_widget_set_hexpand(wrapper, hexp)
-            gtk_widget_set_vexpand(wrapper, 1)
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
         } else {
             // Height constrained, width flexible
             gtk_widget_set_size_request(wrapper, -1, gtkPixelSize(layout.containerSize.height))
