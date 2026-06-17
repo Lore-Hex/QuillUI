@@ -191,6 +191,48 @@ private struct RenderCollector {
             primitives.append(.line(a: a, b: b, radius: radius, color: baseColor, owner: owner))
             return
 
+        case let cone as SCNCone:
+            appendFrustumSurface(
+                bottomRadius: cone.bottomRadius,
+                topRadius: cone.topRadius,
+                height: cone.height,
+                world: world,
+                color: baseColor,
+                owner: PrimitiveOwner(node: node, geometryIndex: 0)
+            )
+            return
+
+        case let capsule as SCNCapsule:
+            appendCapsule(
+                capRadius: capsule.capRadius,
+                height: capsule.height,
+                world: world,
+                color: baseColor,
+                owner: PrimitiveOwner(node: node, geometryIndex: 0)
+            )
+            return
+
+        case let tube as SCNTube:
+            appendTubeSurface(
+                innerRadius: tube.innerRadius,
+                outerRadius: tube.outerRadius,
+                height: tube.height,
+                world: world,
+                color: baseColor,
+                owner: PrimitiveOwner(node: node, geometryIndex: 0)
+            )
+            return
+
+        case let torus as SCNTorus:
+            appendTorusSurface(
+                ringRadius: torus.ringRadius,
+                pipeRadius: torus.pipeRadius,
+                world: world,
+                color: baseColor,
+                owner: PrimitiveOwner(node: node, geometryIndex: 0)
+            )
+            return
+
         case let box as SCNBox:
             let owner = PrimitiveOwner(node: node, geometryIndex: 0)
             let hx = box.width / 2
@@ -256,6 +298,210 @@ private struct RenderCollector {
         }
 
         collectBufferedGeometry(geometry, node: node, world: world, opacity: opacity)
+    }
+
+    private mutating func appendCapsule(
+        capRadius: CGFloat,
+        height: CGFloat,
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let capRadius = max(0, capRadius)
+        let height = max(0, height)
+        let radius = max(0.001, world.approximateScale * capRadius)
+        let halfCylinder = max(0, height / 2 - capRadius)
+        let a = world.transformPoint(Vector3(0, -halfCylinder, 0))
+        let b = world.transformPoint(Vector3(0, halfCylinder, 0))
+        include(a - Vector3(radius, radius, radius))
+        include(a + Vector3(radius, radius, radius))
+        include(b - Vector3(radius, radius, radius))
+        include(b + Vector3(radius, radius, radius))
+        if halfCylinder <= 0.0001 {
+            primitives.append(.sphere(center: world.transformPoint(.zero), radius: radius, color: color, owner: owner))
+        } else {
+            primitives.append(.line(a: a, b: b, radius: radius, color: color, owner: owner))
+        }
+    }
+
+    private mutating func appendFrustumSurface(
+        bottomRadius: CGFloat,
+        topRadius: CGFloat,
+        height: CGFloat,
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let bottomRadius = max(0, bottomRadius)
+        let topRadius = max(0, topRadius)
+        let height = max(0.001, height)
+        guard bottomRadius > 0 || topRadius > 0 else { return }
+
+        let segmentCount = 32
+        let bottomY = -height / 2
+        let topY = height / 2
+        var vertices: [Vector3] = []
+        var faces: [(Int, Int, Int)] = []
+
+        func appendVertex(_ vertex: Vector3) -> Int {
+            vertices.append(vertex)
+            return vertices.count - 1
+        }
+
+        func appendRing(radius: CGFloat, y: CGFloat) -> [Int] {
+            (0..<segmentCount).map { segment in
+                let angle = CGFloat(segment) * 2 * .pi / CGFloat(segmentCount)
+                return appendVertex(Vector3(cos(angle) * radius, y, sin(angle) * radius))
+            }
+        }
+
+        let bottomRing = bottomRadius > 0 ? appendRing(radius: bottomRadius, y: bottomY) : []
+        let topRing = topRadius > 0 ? appendRing(radius: topRadius, y: topY) : []
+        let bottomApex = bottomRing.isEmpty ? appendVertex(Vector3(0, bottomY, 0)) : nil
+        let topApex = topRing.isEmpty ? appendVertex(Vector3(0, topY, 0)) : nil
+
+        for segment in 0..<segmentCount {
+            let next = (segment + 1) % segmentCount
+            switch (bottomRing.isEmpty, topRing.isEmpty) {
+            case (false, false):
+                faces.append((bottomRing[segment], bottomRing[next], topRing[next]))
+                faces.append((bottomRing[segment], topRing[next], topRing[segment]))
+            case (false, true):
+                if let topApex {
+                    faces.append((bottomRing[segment], bottomRing[next], topApex))
+                }
+            case (true, false):
+                if let bottomApex {
+                    faces.append((bottomApex, topRing[next], topRing[segment]))
+                }
+            case (true, true):
+                break
+            }
+        }
+
+        if !bottomRing.isEmpty {
+            let center = appendVertex(Vector3(0, bottomY, 0))
+            for segment in 0..<segmentCount {
+                faces.append((center, bottomRing[(segment + 1) % segmentCount], bottomRing[segment]))
+            }
+        }
+        if !topRing.isEmpty {
+            let center = appendVertex(Vector3(0, topY, 0))
+            for segment in 0..<segmentCount {
+                faces.append((center, topRing[segment], topRing[(segment + 1) % segmentCount]))
+            }
+        }
+
+        appendSurface(localVertices: vertices, faces: faces, world: world, color: color, owner: owner)
+    }
+
+    private mutating func appendTubeSurface(
+        innerRadius: CGFloat,
+        outerRadius: CGFloat,
+        height: CGFloat,
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let outerRadius = max(0, outerRadius)
+        guard outerRadius > 0 else { return }
+        let innerRadius = max(0, min(innerRadius, outerRadius * 0.95))
+        let height = max(0.001, height)
+        guard innerRadius > 0 else {
+            appendFrustumSurface(
+                bottomRadius: outerRadius,
+                topRadius: outerRadius,
+                height: height,
+                world: world,
+                color: color,
+                owner: owner
+            )
+            return
+        }
+
+        let segmentCount = 32
+        let bottomY = -height / 2
+        let topY = height / 2
+        var vertices: [Vector3] = []
+        var faces: [(Int, Int, Int)] = []
+
+        func appendRing(radius: CGFloat, y: CGFloat) -> [Int] {
+            (0..<segmentCount).map { segment in
+                let angle = CGFloat(segment) * 2 * .pi / CGFloat(segmentCount)
+                vertices.append(Vector3(cos(angle) * radius, y, sin(angle) * radius))
+                return vertices.count - 1
+            }
+        }
+
+        let outerBottom = appendRing(radius: outerRadius, y: bottomY)
+        let outerTop = appendRing(radius: outerRadius, y: topY)
+        let innerBottom = appendRing(radius: innerRadius, y: bottomY)
+        let innerTop = appendRing(radius: innerRadius, y: topY)
+
+        for segment in 0..<segmentCount {
+            let next = (segment + 1) % segmentCount
+            faces.append((outerBottom[segment], outerBottom[next], outerTop[next]))
+            faces.append((outerBottom[segment], outerTop[next], outerTop[segment]))
+            faces.append((innerBottom[segment], innerTop[next], innerBottom[next]))
+            faces.append((innerBottom[segment], innerTop[segment], innerTop[next]))
+            faces.append((outerTop[segment], outerTop[next], innerTop[next]))
+            faces.append((outerTop[segment], innerTop[next], innerTop[segment]))
+            faces.append((outerBottom[next], outerBottom[segment], innerBottom[segment]))
+            faces.append((outerBottom[next], innerBottom[segment], innerBottom[next]))
+        }
+
+        appendSurface(localVertices: vertices, faces: faces, world: world, color: color, owner: owner)
+    }
+
+    private mutating func appendTorusSurface(
+        ringRadius: CGFloat,
+        pipeRadius: CGFloat,
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let ringRadius = max(0, ringRadius)
+        let pipeRadius = max(0, pipeRadius)
+        guard ringRadius > 0, pipeRadius > 0 else { return }
+
+        let ringSegments = 32
+        let pipeSegments = 16
+        var vertices: [Vector3] = []
+        var faces: [(Int, Int, Int)] = []
+
+        func vertexIndex(ring: Int, pipe: Int) -> Int {
+            ring * pipeSegments + pipe
+        }
+
+        for ring in 0..<ringSegments {
+            let ringAngle = CGFloat(ring) * 2 * .pi / CGFloat(ringSegments)
+            let radialX = cos(ringAngle)
+            let radialY = sin(ringAngle)
+            for pipe in 0..<pipeSegments {
+                let pipeAngle = CGFloat(pipe) * 2 * .pi / CGFloat(pipeSegments)
+                let radialDistance = ringRadius + pipeRadius * cos(pipeAngle)
+                vertices.append(Vector3(
+                    radialX * radialDistance,
+                    radialY * radialDistance,
+                    pipeRadius * sin(pipeAngle)
+                ))
+            }
+        }
+
+        for ring in 0..<ringSegments {
+            let nextRing = (ring + 1) % ringSegments
+            for pipe in 0..<pipeSegments {
+                let nextPipe = (pipe + 1) % pipeSegments
+                let a = vertexIndex(ring: ring, pipe: pipe)
+                let b = vertexIndex(ring: nextRing, pipe: pipe)
+                let c = vertexIndex(ring: nextRing, pipe: nextPipe)
+                let d = vertexIndex(ring: ring, pipe: nextPipe)
+                faces.append((a, b, c))
+                faces.append((a, c, d))
+            }
+        }
+
+        appendSurface(localVertices: vertices, faces: faces, world: world, color: color, owner: owner)
     }
 
     private mutating func appendSurface(
@@ -331,12 +577,13 @@ private struct RenderCollector {
         guard element.primitiveCount > 0, raw.count >= element.primitiveCount else { return }
         let counts = Array(raw.prefix(element.primitiveCount))
         var offset = element.primitiveCount
-        for count in counts where count >= 3 {
+        for count in counts {
             guard offset + count <= raw.count else { return }
             let polygon = Array(raw[offset..<(offset + count)])
             offset += count
-            for i in 1..<(polygon.count - 1) {
-                appendTriangle(polygon[0], polygon[i], polygon[i + 1], vertices: vertices, color: color, owner: owner)
+            guard count >= 3 else { continue }
+            for index in 1..<(polygon.count - 1) {
+                appendTriangle(polygon[0], polygon[index], polygon[index + 1], vertices: vertices, color: color, owner: owner)
             }
         }
     }

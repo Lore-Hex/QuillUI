@@ -225,14 +225,44 @@ public class CGImage: Hashable, @unchecked Sendable {
     }
 
     // Pixel dimensions + cropping (BadgeAssets spritesheets, image utilities).
-    // Inert decode means dimensions are 0 and cropping yields a blank sub-image
-    // until a real decoder (libpng/Cairo) lands.
     public var width: Int = 0
     public var height: Int = 0
     public var bytesPerRow: Int { quillBytesPerRow }
     public func cropping(to rect: CGRect) -> CGImage? {
-        _ = rect
-        return CGImage()
+        guard width > 0, height > 0,
+              rect.minX.isFinite, rect.minY.isFinite,
+              rect.maxX.isFinite, rect.maxY.isFinite else {
+            return nil
+        }
+
+        let minX = max(0, Int(floor(rect.minX)))
+        let minY = max(0, Int(floor(rect.minY)))
+        let maxX = min(width, Int(ceil(rect.maxX)))
+        let maxY = min(height, Int(ceil(rect.maxY)))
+        guard minX < maxX, minY < maxY else { return nil }
+
+        let cropped = CGImage()
+        cropped.width = maxX - minX
+        cropped.height = maxY - minY
+        cropped.quillBytesPerRow = cropped.width * 4
+        guard let sourcePixels = quillBGRAPixels else { return cropped }
+
+        let sourceBytesPerRow = quillBytesPerRow > 0 ? quillBytesPerRow : width * 4
+        guard sourceBytesPerRow >= width * 4 else { return cropped }
+
+        var croppedPixels = [UInt8](repeating: 0, count: cropped.height * cropped.quillBytesPerRow)
+        for y in 0..<cropped.height {
+            let sourceOffset = (minY + y) * sourceBytesPerRow + minX * 4
+            let destinationOffset = y * cropped.quillBytesPerRow
+            let byteCount = cropped.width * 4
+            guard sourceOffset >= 0, sourceOffset + byteCount <= sourcePixels.count else { return cropped }
+            croppedPixels.replaceSubrange(
+                destinationOffset..<(destinationOffset + byteCount),
+                with: sourcePixels[sourceOffset..<(sourceOffset + byteCount)]
+            )
+        }
+        cropped.quillBGRAPixels = croppedPixels
+        return cropped
     }
 
     public static func == (lhs: CGImage, rhs: CGImage) -> Bool {
@@ -366,12 +396,10 @@ public final class NSHashTable<ObjectType>: @unchecked Sendable {
     public var count: Int { storage.count }
 }
 
-// Opaque path types (Linux). SSK builds UIBezierPaths and reads `.cgPath`; the
-// CGContext drawing shim takes paths as `Any`, so these only need to exist as
-// inert handles (no real geometry is recorded).
-// CoreGraphics path-element introspection. On Apple these are CoreGraphics
-// types; here they live beside CGPath and are re-exported by the CoreGraphics
-// shim. Euclid's `Path(CGPath)` reads them via `applyWithBlock`.
+// CoreGraphics path recording and path-element introspection. On Apple these
+// are CoreGraphics types; here they live beside the Linux geometry shims and are
+// re-exported by the CoreGraphics module. Euclid's `Path(CGPath)` reads them via
+// `applyWithBlock`, and CGContext uses the recorded elements for path drawing.
 public enum CGPathElementType: Int32, Sendable {
     case moveToPoint = 0
     case addLineToPoint = 1

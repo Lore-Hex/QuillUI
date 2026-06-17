@@ -164,6 +164,63 @@ struct SceneKitRendererTests {
         ).first?.node === pyramidNode)
     }
 
+    @Test("Software renderer draws additional parametric primitives")
+    func rendersAdditionalParametricGeometry() {
+        let coneStats = PixelStats(renderParametricGeometry(SCNCone(topRadius: 0.15, bottomRadius: 0.9, height: 1.7)))
+        #expect(coneStats.nonBlackPixels > 550)
+        #expect(coneStats.redDominantPixels > 500)
+
+        let capsuleStats = PixelStats(renderParametricGeometry(SCNCapsule(capRadius: 0.45, height: 1.8)))
+        #expect(capsuleStats.nonBlackPixels > 500)
+        #expect(capsuleStats.redDominantPixels > 450)
+
+        let tubeStats = PixelStats(renderParametricGeometry(SCNTube(innerRadius: 0.35, outerRadius: 0.8, height: 1.5)))
+        #expect(tubeStats.nonBlackPixels > 450)
+        #expect(tubeStats.redDominantPixels > 400)
+
+        let torusStats = PixelStats(renderParametricGeometry(SCNTorus(ringRadius: 0.65, pipeRadius: 0.25)))
+        #expect(torusStats.nonBlackPixels > 600)
+        #expect(torusStats.redDominantPixels > 550)
+    }
+
+    @Test("Polygon primitives advance past degenerate entries")
+    func polygonPrimitiveDecoderAdvancesPastDegenerateEntries() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let vertices = [
+            SCNVector3(-1.1, -0.9, 0),
+            SCNVector3(1.1, -0.9, 0),
+            SCNVector3(0, 0.95, 0),
+        ]
+        let rawIndices: [UInt32] = [
+            2, 3,
+            0, 1,
+            0, 1, 2,
+        ]
+        let element = SCNGeometryElement(
+            data: Data(bytes: rawIndices, count: rawIndices.count * MemoryLayout<UInt32>.size),
+            primitiveType: .polygon,
+            primitiveCount: 2,
+            bytesPerIndex: MemoryLayout<UInt32>.size
+        )
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: vertices)],
+            elements: [element]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(stats.greenDominantPixels > 900)
+    }
+
     @Test("Software renderer resolves point-of-view camera transforms through parent nodes")
     func rendersWithNestedPointOfViewCamera() {
         let scene = SCNScene()
@@ -669,6 +726,21 @@ struct SceneKitRendererTests {
         cameraNode.position = SCNVector3(0, 0, 4)
         scene.rootNode.addChildNode(cameraNode)
         return (scene, cameraNode)
+    }
+
+    private func renderParametricGeometry(_ geometry: SCNGeometry) -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
     }
 
     @MainActor

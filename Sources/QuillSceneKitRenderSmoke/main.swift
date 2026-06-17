@@ -70,6 +70,7 @@ struct QuillSceneKitRenderSmoke {
             "z-buffer scene did not keep green triangle in front above intersection: \(intersectingTriangleStats)"
         )
 
+        try runParametricPrimitiveSmoke()
         try runCameraControlSmoke()
         try runHitTestSmoke()
         try runActionSmoke()
@@ -234,6 +235,54 @@ struct QuillSceneKitRenderSmoke {
         scene.rootNode.addChildNode(cameraNode)
 
         return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func runParametricPrimitiveSmoke() throws {
+        try requireRedPixels(
+            renderParametricGeometry(SCNCone(topRadius: 0.15, bottomRadius: 0.9, height: 1.7)),
+            minimumPixels: 500,
+            label: "cone"
+        )
+        try requireRedPixels(
+            renderParametricGeometry(SCNCapsule(capRadius: 0.45, height: 1.8)),
+            minimumPixels: 450,
+            label: "capsule"
+        )
+        try requireRedPixels(
+            renderParametricGeometry(SCNTube(innerRadius: 0.35, outerRadius: 0.8, height: 1.5)),
+            minimumPixels: 400,
+            label: "tube"
+        )
+        try requireRedPixels(
+            renderParametricGeometry(SCNTorus(ringRadius: 0.65, pipeRadius: 0.25)),
+            minimumPixels: 550,
+            label: "torus"
+        )
+    }
+
+    private static func renderParametricGeometry(_ geometry: SCNGeometry) -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func requireRedPixels(
+        _ image: CGImage,
+        minimumPixels: Int,
+        label: String
+    ) throws {
+        let stats = PixelStats(image)
+        try require(stats.nonBlackPixels >= minimumPixels, "\(label) render stayed mostly black: \(stats)")
+        try require(stats.redDominantPixels >= minimumPixels, "\(label) render did not produce red pixels: \(stats)")
     }
 
     @MainActor

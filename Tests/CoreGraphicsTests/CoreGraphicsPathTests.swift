@@ -272,6 +272,30 @@ struct CoreGraphicsPathTests {
         #expect(!path.contains(CGPoint(x: 5, y: 2)))
     }
 
+    #if os(Linux)
+    @Test("CGImage cropping preserves BGRA pixel backing")
+    func imageCroppingPreservesPixelBacking() throws {
+        let image = CGImage()
+        image.width = 3
+        image.height = 2
+        image.quillBytesPerRow = 12
+        image.quillBGRAPixels = [
+            1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255,
+            10, 11, 12, 255, 13, 14, 15, 255, 16, 17, 18, 255,
+        ]
+
+        let cropped = try #require(image.cropping(to: CGRect(x: 1, y: 0, width: 2, height: 2)))
+        #expect(cropped.width == 2)
+        #expect(cropped.height == 2)
+        #expect(cropped.quillBytesPerRow == 8)
+        #expect(cropped.quillBGRAPixels == [
+            4, 5, 6, 255, 7, 8, 9, 255,
+            13, 14, 15, 255, 16, 17, 18, 255,
+        ])
+        #expect(image.cropping(to: CGRect(x: 4, y: 0, width: 1, height: 1)) == nil)
+    }
+    #endif
+
     @Test("CGContext tracks current path without a backend")
     func contextTracksCurrentPathWithoutBackend() throws {
         let context = CGContext()
