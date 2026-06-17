@@ -356,6 +356,97 @@ struct CoreGraphicsPathTests {
         shortStride.quillBGRAPixels = Array(repeating: 0, count: 12)
         #expect(shortStride.cropping(to: CGRect(x: 0, y: 0, width: 1, height: 1)) == nil)
     }
+
+    @Test("CGContext bitmap fill and clear update makeImage pixels")
+    func bitmapContextFillAndClearUpdateImagePixels() throws {
+        let context = try #require(CGContext(
+            data: nil,
+            width: 3,
+            height: 2,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+
+        #expect(context.bytesPerRow == 12)
+        context.setFillColor(red: 1, green: 0.5, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 1, y: 0, width: 2, height: 1))
+
+        var image = try #require(context.makeImage())
+        #expect(image.width == 3)
+        #expect(image.height == 2)
+        #expect(image.quillBytesPerRow == 12)
+        #expect(image.quillBGRAPixels == [
+            0, 0, 0, 0, 0, 128, 255, 255, 0, 128, 255, 255,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ])
+
+        context.clear(CGRect(x: 2, y: 0, width: 1, height: 1))
+        image = try #require(context.makeImage())
+        #expect(image.quillBGRAPixels == [
+            0, 0, 0, 0, 0, 128, 255, 255, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap fill composites over supplied pixels")
+    func bitmapContextFillCompositesOverSuppliedPixels() throws {
+        var sourcePixels: [UInt8] = [
+            10, 20, 30, 255, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+        ]
+        var context: CGContext?
+        sourcePixels.withUnsafeMutableBytes { rawBuffer in
+            context = CGContext(
+                data: rawBuffer.baseAddress,
+                width: 2,
+                height: 2,
+                bitsPerComponent: 8,
+                bytesPerRow: 8,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        }
+
+        let bitmapContext = try #require(context)
+        bitmapContext.setAlpha(0.5)
+        bitmapContext.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        bitmapContext.fill(CGRect(x: -1, y: 0, width: 2, height: 1))
+
+        let image = try #require(bitmapContext.makeImage())
+        #expect(image.quillBGRAPixels == [
+            133, 10, 15, 255, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap graphics state restores fill color and alpha")
+    func bitmapContextRestoreGraphicsStateRestoresFillColorAndAlpha() throws {
+        let context = try #require(CGContext(
+            data: nil,
+            width: 2,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.saveGState()
+        context.setAlpha(0.5)
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.restoreGState()
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        context.fill(CGRect(x: 1, y: 0, width: 1, height: 1))
+
+        let image = try #require(context.makeImage())
+        #expect(image.quillBGRAPixels == [
+            0, 0, 255, 255, 0, 0, 255, 255,
+        ])
+    }
     #endif
 
     @Test("CGContext tracks current path without a backend")

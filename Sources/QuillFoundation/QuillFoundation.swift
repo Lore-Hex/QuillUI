@@ -1375,8 +1375,7 @@ public final class CGGradient {
 
 // Pixel-format flags for a CGContext bitmap context. Raw values match Apple's
 // <CoreGraphics/CGImage.h> so callers that OR them into a UInt32 bitmapInfo (e.g.
-// BlurHash: byteOrder32Big | premultipliedLast) get the right bits. Inert on
-// Linux -- no real bitmap is allocated.
+// BlurHash: byteOrder32Big | premultipliedLast) get the right bits.
 public struct CGBitmapInfo: OptionSet, Sendable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }
@@ -1439,13 +1438,198 @@ public final class CGContext {
     public var textMatrix: CGAffineTransform = .identity
     public var textPosition: CGPoint = .zero
     private var quillBitmapBytes: [UInt8]?
+    private var quillFillRGBA: [CGFloat] = [0, 0, 0, 1]
+    private var quillAlpha: CGFloat = 1
+    private var quillStateStack: [QuillGraphicsState] = []
     private var quillCurrentPath = CGMutablePath()
+
+    private struct QuillGraphicsState {
+        var fillRGBA: [CGFloat]
+        var alpha: CGFloat
+    }
 
     public init() {}
 
-    /// Bitmap-context initializer. Drawing is still inert without a backend, but
-    /// the supplied pixels are retained so `makeImage()` can return a CGImage
-    /// instead of trapping callers that force-unwrap it.
+    private static func quillResolvedBytesPerRow(
+        width: Int,
+        bitsPerComponent: Int,
+        bytesPerRow: Int
+    ) -> Int? {
+        if bytesPerRow > 0 {
+            return bytesPerRow
+        }
+        guard bitsPerComponent == 8 else {
+            return nil
+        }
+        return quillPixelByteCount(width: width)
+    }
+
+    private static func quillPixelByteCount(width: Int) -> Int? {
+        guard width > 0 else {
+            return nil
+        }
+        let result = width.multipliedReportingOverflow(by: 4)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private static func quillBitmapStorageByteCount(height: Int, bytesPerRow: Int) -> Int? {
+        guard height > 0, bytesPerRow > 0 else {
+            return nil
+        }
+        let result = height.multipliedReportingOverflow(by: bytesPerRow)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private static func quillSupportsDirectBitmapDrawing(
+        width: Int,
+        height: Int,
+        bitsPerComponent: Int,
+        bitsPerPixel: Int,
+        bytesPerRow: Int
+    ) -> Bool {
+        guard width > 0, height > 0, bitsPerComponent == 8, bitsPerPixel == 32,
+              let minimumBytesPerRow = quillPixelByteCount(width: width)
+        else {
+            return false
+        }
+        return bytesPerRow >= minimumBytesPerRow
+    }
+
+    private var quillCanDrawCurrentBitmap: Bool {
+        Self.quillSupportsDirectBitmapDrawing(
+            width: width,
+            height: height,
+            bitsPerComponent: bitsPerComponent,
+            bitsPerPixel: bitsPerPixel,
+            bytesPerRow: bytesPerRow
+        )
+    }
+
+    private static func quillClampedUnit(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return 0
+        }
+        return Swift.max(0, Swift.min(1, value))
+    }
+
+    private static func quillClampedByte(_ value: CGFloat) -> UInt8 {
+        UInt8((quillClampedUnit(value) * 255).rounded())
+    }
+
+    private static func quillNormalizedFillRGBA(_ rgba: [CGFloat]) -> [CGFloat] {
+        let red = rgba.indices.contains(0) ? rgba[0] : 0
+        let green = rgba.indices.contains(1) ? rgba[1] : 0
+        let blue = rgba.indices.contains(2) ? rgba[2] : 0
+        let alpha = rgba.indices.contains(3) ? rgba[3] : 1
+        return [
+            quillClampedUnit(red),
+            quillClampedUnit(green),
+            quillClampedUnit(blue),
+            quillClampedUnit(alpha),
+        ]
+    }
+
+    private func quillPixelBounds(for rect: CGRect) -> (minX: Int, minY: Int, maxX: Int, maxY: Int)? {
+        guard rect.origin.x.isFinite, rect.origin.y.isFinite,
+              rect.size.width.isFinite, rect.size.height.isFinite
+        else {
+            return nil
+        }
+
+        let rectMaxX = rect.origin.x + rect.size.width
+        let rectMaxY = rect.origin.y + rect.size.height
+        guard rectMaxX.isFinite, rectMaxY.isFinite else {
+            return nil
+        }
+
+        let rawMinX = Swift.min(rect.origin.x, rectMaxX)
+        let rawMaxX = Swift.max(rect.origin.x, rectMaxX)
+        let rawMinY = Swift.min(rect.origin.y, rectMaxY)
+        let rawMaxY = Swift.max(rect.origin.y, rectMaxY)
+        guard rawMinX < rawMaxX, rawMinY < rawMaxY else {
+            return nil
+        }
+
+        let imageWidth = CGFloat(width)
+        let imageHeight = CGFloat(height)
+        let minX = Int(Swift.max(0, Swift.min(imageWidth, rawMinX.rounded(.down))))
+        let minY = Int(Swift.max(0, Swift.min(imageHeight, rawMinY.rounded(.down))))
+        let maxX = Int(Swift.max(0, Swift.min(imageWidth, rawMaxX.rounded(.up))))
+        let maxY = Int(Swift.max(0, Swift.min(imageHeight, rawMaxY.rounded(.up))))
+        guard minX < maxX, minY < maxY else {
+            return nil
+        }
+        return (minX, minY, maxX, maxY)
+    }
+
+    private func quillFillBitmap(_ rect: CGRect) {
+        guard quillCanDrawCurrentBitmap,
+              let bounds = quillPixelBounds(for: rect),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        let sourceAlpha = Self.quillClampedUnit(quillFillRGBA[3] * quillAlpha)
+        guard sourceAlpha > 0 else {
+            return
+        }
+
+        let inverseSourceAlpha = 1 - sourceAlpha
+        let sourceBlue = quillFillRGBA[2] * sourceAlpha
+        let sourceGreen = quillFillRGBA[1] * sourceAlpha
+        let sourceRed = quillFillRGBA[0] * sourceAlpha
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in bounds.minY..<bounds.maxY {
+                var offset = y * bytesPerRow + bounds.minX * 4
+                for _ in bounds.minX..<bounds.maxX {
+                    let destinationBlue = CGFloat(pixels[offset]) / 255
+                    let destinationGreen = CGFloat(pixels[offset + 1]) / 255
+                    let destinationRed = CGFloat(pixels[offset + 2]) / 255
+                    let destinationAlpha = CGFloat(pixels[offset + 3]) / 255
+
+                    pixels[offset] = Self.quillClampedByte(sourceBlue + destinationBlue * inverseSourceAlpha)
+                    pixels[offset + 1] = Self.quillClampedByte(sourceGreen + destinationGreen * inverseSourceAlpha)
+                    pixels[offset + 2] = Self.quillClampedByte(sourceRed + destinationRed * inverseSourceAlpha)
+                    pixels[offset + 3] = Self.quillClampedByte(sourceAlpha + destinationAlpha * inverseSourceAlpha)
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillClearBitmap(_ rect: CGRect) {
+        guard quillCanDrawCurrentBitmap,
+              let bounds = quillPixelBounds(for: rect),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in bounds.minY..<bounds.maxY {
+                let start = y * bytesPerRow + bounds.minX * 4
+                let end = y * bytesPerRow + bounds.maxX * 4
+                for index in start..<end {
+                    pixels[index] = 0
+                }
+            }
+        }
+    }
+
+    /// Bitmap-context initializer. The supplied pixels are retained so
+    /// `makeImage()` can return a CGImage instead of trapping callers that
+    /// force-unwrap it. Nil data creates a zero-filled 8-bit BGRA buffer when the
+    /// dimensions describe a supported 32-bpp bitmap.
     public convenience init?(
         data: UnsafeMutableRawPointer?,
         width: Int,
@@ -1460,12 +1644,27 @@ public final class CGContext {
         self.height = height
         self.bitsPerComponent = bitsPerComponent
         self.bitsPerPixel = bitsPerComponent * 4
-        self.bytesPerRow = bytesPerRow
+        self.bytesPerRow = Self.quillResolvedBytesPerRow(
+            width: width,
+            bitsPerComponent: bitsPerComponent,
+            bytesPerRow: bytesPerRow
+        ) ?? bytesPerRow
         self.colorSpace = space
         self.bitmapInfo = CGBitmapInfo(rawValue: bitmapInfo)
-        if let data, height > 0, bytesPerRow > 0 {
-            let count = height * bytesPerRow
+        guard width > 0, height > 0, self.bytesPerRow > 0,
+              let count = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: self.bytesPerRow)
+        else { return }
+
+        if let data {
             quillBitmapBytes = Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self), count: count))
+        } else if Self.quillSupportsDirectBitmapDrawing(
+            width: width,
+            height: height,
+            bitsPerComponent: bitsPerComponent,
+            bitsPerPixel: self.bitsPerPixel,
+            bytesPerRow: self.bytesPerRow
+        ) {
+            quillBitmapBytes = Array(repeating: 0, count: count)
         }
     }
 
@@ -1510,10 +1709,26 @@ public final class CGContext {
         quillCurrentPath.isEmpty ? nil : quillCurrentPath.copy()
     }
 
-    public func setFillColor(_ color: Any?) {}
-    public func setFillColor(_ color: RSCGColor) { quillBackend?.setFillColor(quillNormalizedRGBA(color)) }
-    public func setFillColor(_ color: RSCGColor?) { if let color { quillBackend?.setFillColor(quillNormalizedRGBA(color)) } }
-    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setFillColor([red, green, blue, alpha]) }
+    public func setFillColor(_ color: Any?) {
+        if let color = color as? RSCGColor {
+            setFillColor(color)
+        }
+    }
+    public func setFillColor(_ color: RSCGColor) {
+        let rgba = quillNormalizedRGBA(color)
+        quillFillRGBA = Self.quillNormalizedFillRGBA(rgba)
+        quillBackend?.setFillColor(rgba)
+    }
+    public func setFillColor(_ color: RSCGColor?) {
+        if let color {
+            setFillColor(color)
+        }
+    }
+    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        let rgba = [red, green, blue, alpha]
+        quillFillRGBA = Self.quillNormalizedFillRGBA(rgba)
+        quillBackend?.setFillColor(rgba)
+    }
     public func setStrokeColor(_ color: Any?) {}
     public func setStrokeColor(_ color: RSCGColor) { quillBackend?.setStrokeColor(quillNormalizedRGBA(color)) }
     public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setStrokeColor([red, green, blue, alpha]) }
@@ -1531,11 +1746,17 @@ public final class CGContext {
     public func setShouldSubpixelPositionFonts(_ shouldSubpixelPositionFonts: Bool) {}
     public func setAllowsFontSubpixelQuantization(_ allowsFontSubpixelQuantization: Bool) {}
     public func setShouldSubpixelQuantizeFonts(_ shouldSubpixelQuantizeFonts: Bool) {}
-    public func setAlpha(_ alpha: CGFloat) { quillBackend?.setAlpha(alpha) }
+    public func setAlpha(_ alpha: CGFloat) {
+        quillAlpha = Self.quillClampedUnit(alpha)
+        quillBackend?.setAlpha(alpha)
+    }
     public func setBlendMode(_ mode: CGBlendMode) {}
 
-    public func fill(_ rect: CGRect) { quillBackend?.fill(rect) }
-    public func fill(_ rects: [CGRect]) { for r in rects { quillBackend?.fill(r) } }
+    public func fill(_ rect: CGRect) {
+        quillBackend?.fill(rect)
+        quillFillBitmap(rect)
+    }
+    public func fill(_ rects: [CGRect]) { for r in rects { fill(r) } }
     public func fillEllipse(in rect: CGRect) { quillBackend?.fillEllipse(in: rect) }
     public func fillPath() {
         quillBackend?.fillPath()
@@ -1545,7 +1766,10 @@ public final class CGContext {
         quillBackend?.fillPath(using: rule)
         clearCurrentPath()
     }
-    public func clear(_ rect: CGRect) { quillBackend?.clear(rect) }
+    public func clear(_ rect: CGRect) {
+        quillBackend?.clear(rect)
+        quillClearBitmap(rect)
+    }
     public func stroke(_ rect: CGRect) { quillBackend?.stroke(rect) }
     public func strokeEllipse(in rect: CGRect) { quillBackend?.strokeEllipse(in: rect) }
     public func strokeLineSegments(between points: [CGPoint]) { quillBackend?.strokeLineSegments(between: points) }
@@ -1666,8 +1890,17 @@ public final class CGContext {
     // Linux (no real raster). SSK: AvatarBuilder masks a tinted icon.
     public func clip(to rect: CGRect, mask image: Any) {}
 
-    public func saveGState() { quillBackend?.saveGState() }
-    public func restoreGState() { quillBackend?.restoreGState() }
+    public func saveGState() {
+        quillStateStack.append(QuillGraphicsState(fillRGBA: quillFillRGBA, alpha: quillAlpha))
+        quillBackend?.saveGState()
+    }
+    public func restoreGState() {
+        if let state = quillStateStack.popLast() {
+            quillFillRGBA = state.fillRGBA
+            quillAlpha = state.alpha
+        }
+        quillBackend?.restoreGState()
+    }
     public func beginTransparencyLayer(auxiliaryInfo: Any?) {}
     public func endTransparencyLayer() {}
     public func endPage() {}
