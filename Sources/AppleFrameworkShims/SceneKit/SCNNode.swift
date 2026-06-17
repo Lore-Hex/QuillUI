@@ -66,6 +66,27 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         self.parent = nil
     }
 
+    public func removeAllChildNodes() {
+        for child in childNodes {
+            child.parent = nil
+        }
+        childNodes.removeAll()
+    }
+
+    public func replaceChildNode(_ oldChild: SCNNode, with newChild: SCNNode) {
+        guard oldChild !== newChild,
+              let index = childNodes.firstIndex(where: { $0 === oldChild }),
+              canAdopt(newChild)
+        else {
+            return
+        }
+
+        newChild.removeFromParentNode()
+        oldChild.parent = nil
+        newChild.parent = self
+        childNodes[index] = newChild
+    }
+
     public func childNode(withName name: String, recursively: Bool) -> SCNNode? {
         for child in childNodes {
             if child.name == name { return child }
@@ -74,6 +95,46 @@ public final class SCNNode: Equatable, @unchecked Sendable {
             }
         }
         return nil
+    }
+
+    public func childNodes(passingTest predicate: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Bool) -> [SCNNode] {
+        var matches: [SCNNode] = []
+        var stop = ObjCBool(false)
+        quillEnumerateDescendants(stop: &stop) { node, stopPointer in
+            if predicate(node, stopPointer) {
+                matches.append(node)
+            }
+        }
+        return matches
+    }
+
+    public func enumerateChildNodes(_ block: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Void) {
+        var stop = ObjCBool(false)
+        quillEnumerateDescendants(stop: &stop, block)
+    }
+
+    public func enumerateHierarchy(_ block: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Void) {
+        var stop = ObjCBool(false)
+        block(self, &stop)
+        guard !stop.boolValue else { return }
+        quillEnumerateDescendants(stop: &stop, block)
+    }
+
+    public func clone() -> SCNNode {
+        let node = SCNNode()
+        quillCopyProperties(to: node)
+        for child in childNodes {
+            node.addChildNode(child.clone())
+        }
+        return node
+    }
+
+    public func flattenedClone() -> SCNNode {
+        clone()
+    }
+
+    public func copy() -> Any {
+        clone()
     }
 
     public func runAction(_ action: SCNAction) {
@@ -188,6 +249,35 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         }
 
         return true
+    }
+
+    private func quillEnumerateDescendants(
+        stop: inout ObjCBool,
+        _ block: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
+        for child in childNodes {
+            guard !stop.boolValue else { return }
+            block(child, &stop)
+            guard !stop.boolValue else { return }
+            child.quillEnumerateDescendants(stop: &stop, block)
+        }
+    }
+
+    private func quillCopyProperties(to node: SCNNode) {
+        node.name = name
+        node.position = position
+        node.eulerAngles = eulerAngles
+        node.scale = scale
+        node.orientation = orientation
+        node.explicitTransform = explicitTransform
+        node.pivot = pivot
+        node.geometry = geometry
+        node.light = light
+        node.camera = camera
+        node.isHidden = isHidden
+        node.opacity = opacity
+        node.categoryBitMask = categoryBitMask
+        node.renderingOrder = renderingOrder
     }
 
     private func invalidateExplicitTransform() {
