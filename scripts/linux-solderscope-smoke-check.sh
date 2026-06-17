@@ -214,6 +214,70 @@ quillui_solderscope_snapshot_fallback_driver() {
   esac
 }
 
+quillui_solderscope_drive_recording_action() {
+  local recording_driver="$1"
+  local window_id="$2"
+  local window_x="$3"
+  local window_y="$4"
+  local window_width="$5"
+  local label="$6"
+  local recording_phase="$7"
+  local toolbar_y_offset
+
+  case "$recording_phase" in
+    start)
+      toolbar_y_offset="${QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
+      ;;
+    stop)
+      toolbar_y_offset="${QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
+      ;;
+    *)
+      echo "Unsupported recording phase '$recording_phase' (expected start or stop)" >&2
+      return 64
+      ;;
+  esac
+
+  case "$recording_driver" in
+    toolbar)
+      quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" \
+        "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" \
+        "$label" \
+        "$toolbar_y_offset"
+      ;;
+    shortcut)
+      echo "SolderScope interaction smoke: shortcut $label key r" >&2
+      quillui_solderscope_send_key "$window_id" r
+      ;;
+    none)
+      ;;
+    *)
+      echo "Unsupported recording driver '$recording_driver' (expected toolbar, shortcut, or none)" >&2
+      return 64
+      ;;
+  esac
+}
+
+quillui_solderscope_recording_stop_fallback_driver() {
+  local recording_stop_driver="$1"
+  local fallback_driver="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_DRIVER:-auto}"
+  case "$fallback_driver" in
+    auto|"")
+      case "$recording_stop_driver" in
+        toolbar) echo shortcut ;;
+        shortcut) echo toolbar ;;
+        *) echo none ;;
+      esac
+      ;;
+    toolbar|shortcut|none)
+      echo "$fallback_driver"
+      ;;
+    *)
+      echo "Unsupported QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_DRIVER='$fallback_driver' (expected auto, toolbar, shortcut, or none)" >&2
+      return 64
+      ;;
+  esac
+}
+
 quillui_solderscope_drive_freeze_once() {
   local freeze_driver="$1"
   local window_id="$2"
@@ -333,19 +397,20 @@ quillui_solderscope_wait_for_recording_idle() {
 quillui_solderscope_recording_indicator_visible() {
   local indicator_probe_path
   indicator_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-recording-indicator.XXXXXX.png")"
-  DISPLAY="$DISPLAY_ID" import -window root "$indicator_probe_path" 2>/dev/null || {
+  local indicator_probe_log="/tmp/quill-solderscope-recording-indicator-check.log"
+  timeout --kill-after=2s 5s env DISPLAY="$DISPLAY_ID" import -window root "$indicator_probe_path" 2>/dev/null || {
     rm -f "$indicator_probe_path"
     return 1
   }
 
-  if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$indicator_probe_path" quill-solderscope-interaction >/tmp/quill-solderscope-recording-indicator-check.log 2>&1; then
-    rm -f "$indicator_probe_path" /tmp/quill-solderscope-recording-indicator-check.log
+  if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$indicator_probe_path" quill-solderscope-interaction >"$indicator_probe_log" 2>&1; then
+    rm -f "$indicator_probe_path" "$indicator_probe_log"
     return 1
   fi
 
   local indicator_error
-  indicator_error="$(tail -n 1 /tmp/quill-solderscope-recording-indicator-check.log 2>/dev/null || true)"
-  rm -f "$indicator_probe_path" /tmp/quill-solderscope-recording-indicator-check.log
+  indicator_error="$(tail -n 1 "$indicator_probe_log" 2>/dev/null || true)"
+  rm -f "$indicator_probe_path" "$indicator_probe_log"
   [[ "$indicator_error" == *"recording indicator is still visible"* ]]
 }
 
@@ -587,6 +652,8 @@ quillui_drive_solderscope_interaction() {
     local recording_driver="${QUILLUI_SOLDERSCOPE_RECORDING_DRIVER:-shortcut}"
     local recording_start_driver="${QUILLUI_SOLDERSCOPE_RECORDING_START_DRIVER:-$recording_driver}"
     local recording_stop_driver="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_DRIVER:-$recording_driver}"
+    local recording_stop_fallback_driver
+    recording_stop_fallback_driver="$(quillui_solderscope_recording_stop_fallback_driver "$recording_stop_driver")" || return $?
     local recording_started_before
     local recording_saved_before
     recording_started_before="$(quillui_solderscope_recording_started_log_count)"
@@ -597,19 +664,7 @@ quillui_drive_solderscope_interaction() {
     # stop path succeeds, so the default retry is delayed.
     local recording_start_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_RETRY_INTERVAL_TICKS:-30}"
     sleep "${QUILLUI_SOLDERSCOPE_PRE_RECORDING_SETTLE_SECONDS:-0.5}"
-    case "$recording_start_driver" in
-      toolbar)
-        quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-start "${QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
-        ;;
-      shortcut)
-        echo "SolderScope interaction smoke: shortcut record-start key r" >&2
-        quillui_solderscope_send_key "$window_id" r
-        ;;
-      *)
-        echo "Unsupported QUILLUI_SOLDERSCOPE_RECORDING_START_DRIVER='$recording_start_driver' (expected toolbar or shortcut)" >&2
-        return 64
-        ;;
-    esac
+    quillui_solderscope_drive_recording_action "$recording_start_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-start start
     local recording_started_count="$recording_started_before"
     local recording_started=0
     for attempt in {1..80}; do
@@ -627,15 +682,7 @@ quillui_drive_solderscope_interaction() {
         should_retry_start=1
       fi
       if (( should_retry_start == 1 )); then
-        case "$recording_start_driver" in
-          toolbar)
-            quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-start-retry "${QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
-            ;;
-          shortcut)
-            echo "SolderScope interaction smoke: shortcut record-start-retry key r" >&2
-            quillui_solderscope_send_key "$window_id" r
-            ;;
-        esac
+        quillui_solderscope_drive_recording_action "$recording_start_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-start-retry start
       fi
       sleep 0.25
     done
@@ -644,19 +691,7 @@ quillui_drive_solderscope_interaction() {
       return 1
     fi
     sleep "${QUILLUI_SOLDERSCOPE_RECORDING_SECONDS:-2}"
-    case "$recording_stop_driver" in
-      toolbar)
-        quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-stop "${QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
-        ;;
-      shortcut)
-        echo "SolderScope interaction smoke: shortcut record-stop key r" >&2
-        quillui_solderscope_send_key "$window_id" r
-        ;;
-      *)
-        echo "Unsupported QUILLUI_SOLDERSCOPE_RECORDING_STOP_DRIVER='$recording_stop_driver' (expected toolbar or shortcut)" >&2
-        return 64
-        ;;
-    esac
+    quillui_solderscope_drive_recording_action "$recording_stop_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop stop
     local recording_count="$SOLDERSCOPE_RECORDING_BEFORE_COUNT"
     local recording_path=""
     local recording_saved_count="$recording_saved_before"
@@ -664,6 +699,9 @@ quillui_drive_solderscope_interaction() {
     local recording_save_attempts="${QUILLUI_SOLDERSCOPE_RECORDING_SAVE_ATTEMPTS:-120}"
     local recording_save_tick_seconds="${QUILLUI_SOLDERSCOPE_RECORDING_SAVE_TICK_SECONDS:-0.25}"
     local recording_stop_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-20}"
+    local recording_stop_fallback_sent=0
+    local recording_stop_fallback_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_TICK:-8}"
+    local recording_stop_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_RETRY_INTERVAL_TICKS:-12}"
     for ((attempt = 1; attempt <= recording_save_attempts; attempt += 1)); do
       recording_saved_count="$(quillui_solderscope_recording_saved_log_count)"
       recording_count="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
@@ -677,17 +715,24 @@ quillui_drive_solderscope_interaction() {
       fi
       if [[ -n "$recording_stop_retry_tick" ]] && (( recording_saved_count <= recording_saved_before && attempt == recording_stop_retry_tick )); then
         if quillui_solderscope_recording_indicator_visible; then
-          case "$recording_stop_driver" in
-            toolbar)
-              quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-stop-retry "${QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
-              ;;
-            shortcut)
-              echo "SolderScope interaction smoke: shortcut record-stop-retry key r" >&2
-              quillui_solderscope_send_key "$window_id" r
-              ;;
-          esac
+          quillui_solderscope_drive_recording_action "$recording_stop_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-retry stop
         else
           echo "SolderScope interaction smoke: stop retry skipped because recording indicator is not visible" >&2
+        fi
+      elif (( recording_saved_count <= recording_saved_before && recording_stop_fallback_tick > 0 )); then
+        if (( recording_stop_fallback_sent == 0 && attempt == recording_stop_fallback_tick )); then
+          if [[ "$recording_stop_fallback_driver" != "none" && "$recording_stop_fallback_driver" != "$recording_stop_driver" ]]; then
+            if quillui_solderscope_recording_indicator_visible; then
+              quillui_solderscope_drive_recording_action "$recording_stop_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-fallback stop
+              recording_stop_fallback_sent=1
+            else
+              echo "SolderScope interaction smoke: recording UI is idle; deferring stop fallback" >&2
+            fi
+          fi
+        elif (( recording_stop_fallback_sent == 1 && recording_stop_fallback_retry_interval > 0 && attempt > recording_stop_fallback_tick && (attempt - recording_stop_fallback_tick) % recording_stop_fallback_retry_interval == 0 )); then
+          if quillui_solderscope_recording_indicator_visible; then
+            quillui_solderscope_drive_recording_action "$recording_stop_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-fallback-retry stop
+          fi
         fi
       fi
       sleep "$recording_save_tick_seconds"
@@ -699,6 +744,7 @@ quillui_drive_solderscope_interaction() {
       if (( recording_saved_count <= recording_saved_before )); then
         echo "SolderScope interaction smoke did not observe the app-level Recording saved log after stop" >&2
       fi
+      timeout --kill-after=2s 5s env DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH" 2>/dev/null || true
       echo "SolderScope interaction smoke did not observe a finalized recording file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi
