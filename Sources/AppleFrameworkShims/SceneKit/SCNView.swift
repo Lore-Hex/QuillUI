@@ -272,6 +272,13 @@ public extension SCNCameraControllerDelegate {
         return scene.quillRenderImage(width: resolvedWidth, height: resolvedHeight, pointOfView: pointOfView)
     }
 
+    public func snapshot() -> UIImage {
+        guard let image = quillRenderImage() else {
+            return UIImage(size: bounds.size)
+        }
+        return UIImage(cgImage: image, size: bounds.size)
+    }
+
     open override func draw(_ rect: CGRect) {
         guard let context = NSGraphicsContext.current?.cgContext,
               let image = quillRenderImage(

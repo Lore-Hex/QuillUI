@@ -198,6 +198,37 @@ struct SceneKitRendererTests {
         #expect(stats.redDominantPixels > 900)
     }
 
+    @MainActor
+    @Test("SCNView snapshot returns rendered image pixels")
+    func viewSnapshotReturnsRenderedImagePixels() throws {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let view = SCNView()
+        view.bounds = CGRect(x: 0, y: 0, width: 80, height: 60)
+        view.scene = scene
+        view.pointOfView = cameraNode
+
+        let image = view.snapshot()
+        let cgImage = try #require(image.cgImage)
+        #expect(image.size == CGSize(width: 80, height: 60))
+        #expect(cgImage.width == 80)
+        #expect(cgImage.height == 60)
+
+        let stats = PixelStats(cgImage)
+        #expect(stats.nonBlackPixels > 250)
+        #expect(stats.redDominantPixels > 200)
+    }
+
     @Test("Software renderer applies public SCNMatrix4 node transforms")
     func rendererAppliesPublicNodeTransformMatrix() {
         let scene = SCNScene()
