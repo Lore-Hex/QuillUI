@@ -641,6 +641,26 @@ struct QuillUITests {
         #expect(sidebar.settingsFocusedValue == nil)
     }
 
+    @Test("QuillDesktopChatUtilitySidebar supports completion sheet startup automation")
+    func quillDesktopChatUtilitySidebarSupportsCompletionSheetStartupAutomation() {
+        #expect(!QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [:]))
+        #expect(!QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_CHAT_SHOW_COMPLETIONS_ON_START": "0"
+        ]))
+        #expect(QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_CHAT_SHOW_COMPLETIONS_ON_START": "  yes "
+        ]))
+        #expect(QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_QUILL_CHAT_SHOW_COMPLETIONS_ON_START": "TRUE"
+        ]))
+        #expect(QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_ENCHANTED_SHOW_COMPLETIONS_ON_START": "on"
+        ]))
+        #expect(QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_GTK_ENCHANTED_SHOW_COMPLETIONS_ON_START": "1"
+        ]))
+    }
+
     @Test("QuillDesktopChatConversationSidebar adapts model history into utility chrome")
     func quillDesktopChatConversationSidebarAdaptsModelHistory() {
         struct Conversation {

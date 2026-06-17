@@ -279,6 +279,7 @@ if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   case "$INTERACTION_MODE" in
     completions-panel|completions-new-sheet|completions-save|completions-edit-save|completions-delete)
       app_environment+=("QUILLUI_ACCESSIBILITY_TRUSTED=${QUILLUI_ACCESSIBILITY_TRUSTED:-1}")
+      app_environment+=("QUILLUI_CHAT_SHOW_COMPLETIONS_ON_START=${QUILLUI_CHAT_SHOW_COMPLETIONS_ON_START:-1}")
       ;;
   esac
 fi
