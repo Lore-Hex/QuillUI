@@ -533,8 +533,10 @@ quillui_drive_solderscope_interaction() {
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
   quillui_solderscope_converge_freeze "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"
-  quillui_solderscope_send_key "$window_id" b
-  quillui_solderscope_send_key "$window_id" Escape
+  if [[ "${QUILLUI_SOLDERSCOPE_DRIVE_CALIBRATION:-0}" == "1" ]]; then
+    quillui_solderscope_send_key "$window_id" b
+    quillui_solderscope_send_key "$window_id" Escape
+  fi
   sleep 1
 }
 
