@@ -267,6 +267,14 @@ struct CoreGraphicsPathTests {
         #expect(!context.isPathEmpty)
         context.clip(using: .evenOdd)
         #expect(context.isPathEmpty)
+
+        context.move(to: .zero)
+        context.addArc(tangent1End: CGPoint(x: 10, y: 0), tangent2End: CGPoint(x: 10, y: 10), radius: 2)
+        #expect(context.copyPath()?.quillElements.map(\.type) == [
+            .moveToPoint,
+            .addLineToPoint,
+            .addCurveToPoint,
+        ])
     }
 }
 

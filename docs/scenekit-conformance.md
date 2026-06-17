@@ -93,10 +93,11 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    point and tight path bounds, and winding/even-odd containment over flattened
    curves. The drawing shim now forwards `CGContext.addRects`,
    `CGContext.addPath`, direct quad/cubic curves, and fill-rule-aware fill/clip
-   operations into the Cairo-backed GTK drawing host, while `CGContext` itself
-   tracks `isPathEmpty`, `currentPointOfPath`, `pathBoundingBox`, and
-   `copyPath()` without requiring a backend. `CoreGraphicsTests` exercises the
-   value surface through a direct `import CoreGraphics` path.
+   operations plus tangent-arc line/cubic expansions into the Cairo-backed GTK
+   drawing host, while `CGContext` itself tracks `isPathEmpty`,
+   `currentPointOfPath`, `pathBoundingBox`, and `copyPath()` without requiring
+   a backend. `CoreGraphicsTests` exercises the value surface through a direct
+   `import CoreGraphics` path.
 
    This surface is now enabled by rung 2c. The key build gotcha remains:
    `canImport` state can look poisoned in a shared scratch, so use clean
