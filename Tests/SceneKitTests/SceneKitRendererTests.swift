@@ -759,6 +759,129 @@ struct SceneKitRendererTests {
         #expect(render(frontWritesDepth: true, rearReadsDepth: false) == .green)
     }
 
+    @Test("SCNScene write and SceneSource reload Quill scene archives")
+    func sceneWriteAndSceneSourceRoundTripQuillArchive() throws {
+        let scene = SCNScene()
+        scene.background.contents = CGColor(red: 0.02, green: 0.03, blue: 0.04, alpha: 1)
+        scene.fogColor = CGColor(gray: 0.5, alpha: 1)
+        scene.fogStartDistance = 3
+        scene.fogEndDistance = 30
+
+        let material = SCNMaterial()
+        material.name = "matte-green"
+        material.diffuse.contents = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
+        material.diffuse.intensity = 0.8
+        material.transparent.contents = CGColor(red: 1, green: 1, blue: 1, alpha: 0.9)
+        material.transparency = 0.75
+        material.readsFromDepthBuffer = false
+        material.writesToDepthBuffer = false
+        material.lightingModel = .constant
+        material.isDoubleSided = true
+        material.shininess = 0.25
+
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(-1, -1, 0),
+                SCNVector3(1, -1, 0),
+                SCNVector3(0, 1, 0),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt16(0), 1, 2], primitiveType: .triangles)]
+        )
+        geometry.name = "triangle-geometry"
+        geometry.materials = [material]
+        geometry.geometrySourceChannels = [2, 4]
+
+        let node = SCNNode(geometry: geometry)
+        node.name = "archived-triangle"
+        node.position = SCNVector3(0.5, 0.25, -0.5)
+        node.eulerAngles = SCNVector3(0, 0.15, 0)
+        node.scale = SCNVector3(1.2, 1.1, 1)
+        node.opacity = 0.8
+        node.categoryBitMask = 7
+        node.renderingOrder = 12
+        scene.rootNode.addChildNode(node)
+
+        let camera = SCNCamera()
+        camera.name = "archive-camera"
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 3.5
+        camera.zNear = 0.1
+        camera.zFar = 12
+        let cameraNode = SCNNode()
+        cameraNode.name = "camera-node"
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let light = SCNLight()
+        light.name = "key"
+        light.type = .directional
+        light.color = CGColor.white
+        light.castsShadow = true
+        let lightNode = SCNNode()
+        lightNode.name = "light-node"
+        lightNode.light = light
+        scene.rootNode.addChildNode(lightNode)
+
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("scene.quillscn")
+
+        var progressValues: [Float] = []
+        let wrote = scene.write(to: url) { progress, error, stop in
+            progressValues.append(progress)
+            #expect(error == nil)
+            #expect(!stop.pointee.boolValue)
+        }
+        #expect(wrote)
+        #expect(progressValues == [0, 1])
+
+        let loaded = try #require(SCNSceneSource(url: url).scene(options: nil))
+        let loadedNode = try #require(loaded.rootNode.childNode(withName: "archived-triangle", recursively: true))
+        #expect(loaded.fogStartDistance == 3)
+        #expect(loaded.fogEndDistance == 30)
+        #expect(loadedNode.position == SCNVector3(0.5, 0.25, -0.5))
+        #expect(loadedNode.eulerAngles == SCNVector3(0, 0.15, 0))
+        #expect(loadedNode.scale == SCNVector3(1.2, 1.1, 1))
+        #expect(abs(loadedNode.opacity - 0.8) < 0.0001)
+        #expect(loadedNode.categoryBitMask == 7)
+        #expect(loadedNode.renderingOrder == 12)
+
+        let loadedGeometry = try #require(loadedNode.geometry)
+        #expect(loadedGeometry.name == "triangle-geometry")
+        #expect(loadedGeometry.geometrySourceChannels?.map(\.intValue) == [2, 4])
+        #expect(loadedGeometry.sources(for: .vertex).first?.vectorCount == 3)
+        #expect(loadedGeometry.elements.first?.primitiveCount == 1)
+        #expect(loadedGeometry.elements.first?.bytesPerIndex == MemoryLayout<UInt16>.size)
+
+        let loadedMaterial = try #require(loadedGeometry.firstMaterial)
+        #expect(loadedMaterial.name == "matte-green")
+        #expect(abs(loadedMaterial.diffuse.intensity - 0.8) < 0.0001)
+        #expect(abs(loadedMaterial.transparency - 0.75) < 0.0001)
+        #expect(!loadedMaterial.readsFromDepthBuffer)
+        #expect(!loadedMaterial.writesToDepthBuffer)
+        #expect(loadedMaterial.lightingModel == .constant)
+        #expect(loadedMaterial.isDoubleSided)
+        #expect(abs(loadedMaterial.shininess - 0.25) < 0.0001)
+
+        let loadedCameraNode = try #require(loaded.rootNode.childNode(withName: "camera-node", recursively: true))
+        #expect(loadedCameraNode.camera?.name == "archive-camera")
+        #expect(loadedCameraNode.camera?.usesOrthographicProjection == true)
+        #expect(loadedCameraNode.camera?.orthographicScale == 3.5)
+
+        let loadedLightNode = try #require(loaded.rootNode.childNode(withName: "light-node", recursively: true))
+        #expect(loadedLightNode.light?.name == "key")
+        #expect(loadedLightNode.light?.type == .directional)
+        #expect(loadedLightNode.light?.castsShadow == true)
+
+        let loadedViaInitializer = try SCNScene(url: url)
+        #expect(loadedViaInitializer.rootNode.childNode(withName: "archived-triangle", recursively: true) != nil)
+
+        let image = loaded.quillRenderImage(width: 120, height: 90, pointOfView: loadedCameraNode)
+        #expect(PixelStats(image).greenDominantPixels > 300)
+    }
+
     @Test("Software renderer stays inside Apple SceneKit golden envelopes")
     func softwareRendererMatchesAppleGoldenEnvelopes() {
         let (sphereScene, sphereCamera) = makeCameraControlScene()

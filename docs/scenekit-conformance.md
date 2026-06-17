@@ -77,7 +77,8 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    in the shim: `SCNGeometrySource(vertices:/normals:/textureCoordinates:)`,
    `SCNGeometryElement(indices:primitiveType:)`, `SCNGeometry.boundingBox`/
    `copy()`, `SCNText`/`SCNShape`, `SCNMatrix4Invert`/`IsIdentity`,
-   `SCNMaterial: Hashable`, `SCNScene.write`. The CoreGraphics shim gained
+   `SCNMaterial: Hashable`, and `SCNScene.write`/`SCNSceneSource` for Quill's
+   deterministic scene archive format. The CoreGraphics shim gained
    the long-missing `CGPoint`/`CGSize`/`CGRect`/`CGFloat` re-export (real
    gap — pure-geometry `import CoreGraphics` files expect them) plus
    `CGPathElement`/`CGPathElementType` + a functional `CGPath.applyWithBlock`
@@ -158,12 +159,13 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    references for the canonical sphere, triangle, and side-camera scenes are
    pinned in `SceneKitRendererTests` and the runnable
    `quill-scenekit-render-smoke` executable. The software renderer now keeps a
-   per-pixel depth buffer for opaque overlap, and the source/smoke gates include
-   an intersecting-triangle scene with sampled pixels on both sides of the depth
-   crossover. The smoke gate checks rendered area, dominant color, screen
-   bounds, explicit clipping, camera control, hit-test checks, and z-buffered
-   overlap, plus `SCNAction` completion-handler delivery, then runs an Xvfb
-   GTK `SceneView` render smoke.
+   per-pixel depth buffer for opaque overlap, honors `SCNNode.renderingOrder`
+   plus `SCNMaterial.readsFromDepthBuffer`/`writesToDepthBuffer`, and the
+   source/smoke gates include an intersecting-triangle scene with sampled
+   pixels on both sides of the depth crossover. The smoke gate checks rendered
+   area, dominant color, screen bounds, explicit clipping, camera control,
+   hit-test checks, and z-buffered overlap, plus `SCNAction`
+   completion-handler delivery, then runs an Xvfb GTK `SceneView` render smoke.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
 existing 2D paint layer. That is enough for these apps' scene scale; a GL/
