@@ -1368,9 +1368,147 @@ public struct CGVector: Equatable, Sendable {
 }
 
 public final class CGGradient {
-    /// Inert: no color stops are retained (nothing is drawn on Linux).
-    public init?(colorsSpace space: Any?, colors: Any?, locations: Any?) {}
-    public init?(colorsSpace space: CGColorSpace?, colors: Any, locations: UnsafePointer<CGFloat>?) {}
+    fileprivate let quillStops: [QuillGradientStop]
+
+    public init?(colorsSpace space: Any?, colors: Any?, locations: Any?) {
+        _ = space
+        guard let parsedColors = Self.quillColors(from: colors), parsedColors.count >= 2 else {
+            return nil
+        }
+        self.quillStops = Self.quillStops(colors: parsedColors, locations: Self.quillLocations(from: locations, count: parsedColors.count))
+    }
+
+    public init?(colorsSpace space: CGColorSpace?, colors: Any, locations: UnsafePointer<CGFloat>?) {
+        _ = space
+        guard let parsedColors = Self.quillColors(from: colors), parsedColors.count >= 2 else {
+            return nil
+        }
+        let parsedLocations = locations.map { pointer in
+            (0..<parsedColors.count).map { pointer[$0] }
+        }
+        self.quillStops = Self.quillStops(colors: parsedColors, locations: parsedLocations)
+    }
+
+    fileprivate func quillRGBA(at location: CGFloat) -> [CGFloat] {
+        let location = Self.quillClampedUnit(location)
+        guard let first = quillStops.first else {
+            return [0, 0, 0, 1]
+        }
+        guard let last = quillStops.last else {
+            return first.rgba
+        }
+        if location <= first.location {
+            return first.rgba
+        }
+        if location >= last.location {
+            return last.rgba
+        }
+
+        for index in 0..<(quillStops.count - 1) {
+            let lower = quillStops[index]
+            let upper = quillStops[index + 1]
+            guard location >= lower.location, location <= upper.location else {
+                continue
+            }
+            let span = upper.location - lower.location
+            let amount = abs(span) <= 0.000001 ? 0 : (location - lower.location) / span
+            return zip(lower.rgba, upper.rgba).map { start, end in
+                start + (end - start) * amount
+            }
+        }
+
+        return last.rgba
+    }
+
+    private static func quillStops(colors: [RSCGColor], locations: [CGFloat]?) -> [QuillGradientStop] {
+        let resolvedLocations = locations?.count == colors.count
+            ? locations!
+            : quillEvenlySpacedLocations(count: colors.count)
+        return zip(colors, resolvedLocations)
+            .map { color, location in
+                QuillGradientStop(location: quillClampedUnit(location), rgba: quillNormalizedRGBA(color))
+            }
+            .sorted { $0.location < $1.location }
+    }
+
+    private static func quillColors(from colors: Any?) -> [RSCGColor]? {
+        switch colors {
+        case let colors as [RSCGColor]:
+            return colors
+        case let colors as [Any]:
+            let parsed = colors.compactMap { $0 as? RSCGColor }
+            return parsed.count == colors.count ? parsed : nil
+        case let colors as NSArray:
+            let parsed = colors.compactMap { $0 as? RSCGColor }
+            return parsed.count == colors.count ? parsed : nil
+        default:
+            return nil
+        }
+    }
+
+    private static func quillLocations(from locations: Any?, count: Int) -> [CGFloat]? {
+        switch locations {
+        case let locations as [CGFloat]:
+            return locations.count == count ? locations : nil
+        case let locations as [Double]:
+            return locations.count == count ? locations.map { CGFloat($0) } : nil
+        case let locations as [NSNumber]:
+            return locations.count == count ? locations.map { CGFloat(truncating: $0) } : nil
+        case let locations as [Any]:
+            let parsed = locations.compactMap { value -> CGFloat? in
+                switch value {
+                case let value as CGFloat:
+                    return value
+                case let value as Double:
+                    return CGFloat(value)
+                case let value as NSNumber:
+                    return CGFloat(truncating: value)
+                default:
+                    return nil
+                }
+            }
+            return parsed.count == count ? parsed : nil
+        case .none:
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private static func quillEvenlySpacedLocations(count: Int) -> [CGFloat] {
+        guard count > 1 else {
+            return [0]
+        }
+        return (0..<count).map { CGFloat($0) / CGFloat(count - 1) }
+    }
+
+    private static func quillNormalizedRGBA(_ color: RSCGColor) -> [CGFloat] {
+        let components = color.components ?? [0, 0, 0, 1]
+        let rgba: [CGFloat]
+        switch components.count {
+        case 1:
+            rgba = [components[0], components[0], components[0], 1]
+        case 2:
+            rgba = [components[0], components[0], components[0], components[1]]
+        case 3:
+            rgba = [components[0], components[1], components[2], 1]
+        default:
+            rgba = Array(components.prefix(4))
+        }
+        return rgba.map(quillClampedUnit)
+    }
+
+    private static func quillClampedUnit(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return 0
+        }
+        return Swift.max(0, Swift.min(1, value))
+    }
+}
+
+fileprivate struct QuillGradientStop {
+    var location: CGFloat
+    var rgba: [CGFloat]
 }
 
 // Pixel-format flags for a CGContext bitmap context. Raw values match Apple's
@@ -2124,6 +2262,142 @@ public final class CGContext {
         }
     }
 
+    private func quillDrawBitmapGradient(
+        _ gradient: CGGradient,
+        options: CGGradientDrawingOptions,
+        locationForUserPoint: (CGPoint) -> CGFloat?
+    ) {
+        guard quillCanDrawCurrentBitmap,
+              let inverseCTM = Self.quillInverse(quillCTM),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in 0..<height {
+                var offset = y * bytesPerRow
+                for x in 0..<width {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    guard quillBitmapClipAllows(devicePoint),
+                          let rawLocation = locationForUserPoint(devicePoint.applying(inverseCTM)),
+                          Self.quillGradientOptionsAllow(rawLocation, options: options),
+                          let source = quillPremultipliedColor(from: gradient.quillRGBA(at: rawLocation))
+                    else {
+                        offset += 4
+                        continue
+                    }
+
+                    Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillDrawBitmapLinearGradient(
+        _ gradient: CGGradient,
+        start: CGPoint,
+        end: CGPoint,
+        options: CGGradientDrawingOptions
+    ) {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let lengthSquared = dx * dx + dy * dy
+        guard lengthSquared > 0.000001 else {
+            return
+        }
+
+        quillDrawBitmapGradient(gradient, options: options) { point in
+            ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared
+        }
+    }
+
+    private func quillDrawBitmapRadialGradient(
+        _ gradient: CGGradient,
+        startCenter: CGPoint,
+        startRadius: CGFloat,
+        endCenter: CGPoint,
+        endRadius: CGFloat,
+        options: CGGradientDrawingOptions
+    ) {
+        guard startRadius.isFinite, endRadius.isFinite, startRadius >= 0, endRadius >= 0 else {
+            return
+        }
+
+        let centerDelta = CGPoint(x: endCenter.x - startCenter.x, y: endCenter.y - startCenter.y)
+        let radiusDelta = endRadius - startRadius
+        guard abs(centerDelta.x) > 0.000001 || abs(centerDelta.y) > 0.000001 || abs(radiusDelta) > 0.000001 else {
+            return
+        }
+
+        quillDrawBitmapGradient(gradient, options: options) { point in
+            Self.quillRadialGradientLocation(
+                for: point,
+                startCenter: startCenter,
+                startRadius: startRadius,
+                centerDelta: centerDelta,
+                radiusDelta: radiusDelta
+            )
+        }
+    }
+
+    private static func quillGradientOptionsAllow(
+        _ location: CGFloat,
+        options: CGGradientDrawingOptions
+    ) -> Bool {
+        if location < 0, !options.contains(.drawsBeforeStartLocation) {
+            return false
+        }
+        if location > 1, !options.contains(.drawsAfterEndLocation) {
+            return false
+        }
+        return true
+    }
+
+    private static func quillRadialGradientLocation(
+        for point: CGPoint,
+        startCenter: CGPoint,
+        startRadius: CGFloat,
+        centerDelta: CGPoint,
+        radiusDelta: CGFloat
+    ) -> CGFloat? {
+        let px = point.x - startCenter.x
+        let py = point.y - startCenter.y
+        let a = centerDelta.x * centerDelta.x + centerDelta.y * centerDelta.y - radiusDelta * radiusDelta
+        let b = -2 * (px * centerDelta.x + py * centerDelta.y + startRadius * radiusDelta)
+        let c = px * px + py * py - startRadius * startRadius
+
+        if abs(a) <= 0.000001 {
+            guard abs(b) > 0.000001 else {
+                return nil
+            }
+            return -c / b
+        }
+
+        let discriminant = b * b - 4 * a * c
+        guard discriminant >= 0 else {
+            return nil
+        }
+
+        let root = discriminant.squareRoot()
+        let first = (-b - root) / (2 * a)
+        let second = (-b + root) / (2 * a)
+        return quillPreferredGradientRoot(first, second)
+    }
+
+    private static func quillPreferredGradientRoot(_ first: CGFloat, _ second: CGFloat) -> CGFloat? {
+        let candidates = [first, second].filter(\.isFinite)
+        if let inRange = candidates.filter({ $0 >= 0 && $0 <= 1 }).min(by: { abs($0 - 0.5) < abs($1 - 0.5) }) {
+            return inRange
+        }
+        return candidates.min(by: { abs($0 - 0.5) < abs($1 - 0.5) })
+    }
+
     private func quillBitmapClipAllows(_ devicePoint: CGPoint) -> Bool {
         guard !quillClipRegions.isEmpty else {
             return true
@@ -2511,8 +2785,25 @@ public final class CGContext {
         quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality)
         quillDrawBitmapImage(image, in: rect)
     }
-    public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}
-    public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
+    public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {
+        guard let gradient = gradient as? CGGradient else {
+            return
+        }
+        quillDrawBitmapLinearGradient(gradient, start: start, end: end, options: options)
+    }
+    public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {
+        guard let gradient = gradient as? CGGradient else {
+            return
+        }
+        quillDrawBitmapRadialGradient(
+            gradient,
+            startCenter: startCenter,
+            startRadius: startRadius,
+            endCenter: endCenter,
+            endRadius: endRadius,
+            options: options
+        )
+    }
 
     private func clearCurrentPath() {
         quillCurrentPath = CGMutablePath()

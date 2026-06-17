@@ -724,6 +724,56 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGContext bitmap drawLinearGradient interpolates color stops")
+    func bitmapContextDrawLinearGradientInterpolatesColorStops() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        let gradient = try #require(CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: [
+                CGColor(red: 1, green: 0, blue: 0, alpha: 1),
+                CGColor(red: 0, green: 0, blue: 1, alpha: 1),
+            ],
+            locations: nil as UnsafePointer<CGFloat>?
+        ))
+
+        context.drawLinearGradient(
+            gradient,
+            start: CGPoint(x: 0.5, y: 0.5),
+            end: CGPoint(x: 3.5, y: 0.5),
+            options: []
+        )
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 255, 255, 85, 0, 170, 255, 170, 0, 85, 255, 255, 0, 0, 255,
+        ])
+    }
+
+    @Test("CGContext bitmap drawRadialGradient samples radial color stops")
+    func bitmapContextDrawRadialGradientSamplesRadialColorStops() throws {
+        let context = try makeBitmapContext(width: 3, height: 1)
+        let gradient = try #require(CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: [
+                CGColor(red: 1, green: 0, blue: 0, alpha: 1),
+                CGColor(red: 0, green: 0, blue: 1, alpha: 1),
+            ],
+            locations: nil as UnsafePointer<CGFloat>?
+        ))
+
+        context.drawRadialGradient(
+            gradient,
+            startCenter: CGPoint(x: 1.5, y: 0.5),
+            startRadius: 0,
+            endCenter: CGPoint(x: 1.5, y: 0.5),
+            endRadius: 1,
+            options: []
+        )
+
+        #expect(try bitmapPixels(in: context) == [
+            255, 0, 0, 255, 0, 0, 255, 255, 255, 0, 0, 255,
+        ])
+    }
+
     @Test("CGContext bitmap clip(using:) honors even-odd holes")
     func bitmapContextClipPathHonorsEvenOddHoles() throws {
         let context = try makeBitmapContext(width: 5, height: 5)
