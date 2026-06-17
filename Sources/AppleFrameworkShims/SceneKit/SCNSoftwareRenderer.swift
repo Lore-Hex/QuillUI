@@ -1366,12 +1366,12 @@ private func color(for geometry: SCNGeometry, elementIndex: Int) -> RGBA {
        emission != .black {
         return emission
             .scaled(max(0, material.emission.intensity))
-            .withAlphaMultiplier(material.transparency)
+            .withAlphaMultiplier(material.opacityMultiplier)
     }
     let diffuse = color(from: material?.diffuse.contents) ?? .neutral
     return diffuse
         .scaled(max(0, material?.diffuse.intensity ?? 1))
-        .withAlphaMultiplier(material?.transparency ?? 1)
+        .withAlphaMultiplier(material?.opacityMultiplier ?? 1)
 }
 
 private func color(from contents: Any?) -> RGBA? {
@@ -1384,6 +1384,29 @@ private func color(from contents: Any?) -> RGBA? {
         return RGBA(r: 210, g: 214, b: 218, a: 255)
     default:
         return nil
+    }
+}
+
+private extension SCNMaterial {
+    var opacityMultiplier: CGFloat {
+        max(0, min(1, transparency)) * transparentOpacityMultiplier
+    }
+
+    private var transparentOpacityMultiplier: CGFloat {
+        guard let transparentColor = color(from: transparent.contents) else {
+            return 1
+        }
+
+        let sampledOpacity: CGFloat
+        switch transparencyMode {
+        case .rgbZero:
+            sampledOpacity = transparentColor.luminance
+        case .aOne, .singleLayer, .dualLayer:
+            sampledOpacity = transparentColor.alpha
+        }
+
+        let intensity = max(0, min(1, transparent.intensity))
+        return 1 - (1 - sampledOpacity) * intensity
     }
 }
 
@@ -1407,4 +1430,14 @@ private func rgba(components: [CGFloat]?) -> RGBA? {
         b: UInt8(clamping: Int(max(0, min(1, b)) * 255)),
         a: UInt8(clamping: Int(max(0, min(1, a)) * 255))
     )
+}
+
+private extension RGBA {
+    var alpha: CGFloat {
+        CGFloat(a) / 255
+    }
+
+    var luminance: CGFloat {
+        (0.2126 * CGFloat(r) + 0.7152 * CGFloat(g) + 0.0722 * CGFloat(b)) / 255
+    }
 }

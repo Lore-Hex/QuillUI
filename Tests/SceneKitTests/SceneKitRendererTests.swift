@@ -373,6 +373,25 @@ struct SceneKitRendererTests {
         transparent.firstMaterial?.transparency = 0
         #expect(PixelStats(renderParametricGeometry(transparent)).nonBlackPixels == 0)
 
+        let transparentAOne = SCNSphere(radius: 1)
+        transparentAOne.firstMaterial?.transparent.contents = CGColor(red: 1, green: 1, blue: 1, alpha: 0)
+        #expect(PixelStats(renderParametricGeometry(transparentAOne)).nonBlackPixels == 0)
+
+        let transparentRGBZero = SCNSphere(radius: 1)
+        transparentRGBZero.firstMaterial?.transparencyMode = .rgbZero
+        transparentRGBZero.firstMaterial?.transparent.contents = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        #expect(PixelStats(renderParametricGeometry(transparentRGBZero)).nonBlackPixels == 0)
+
+        let opaqueRGBZero = SCNSphere(radius: 1)
+        opaqueRGBZero.firstMaterial?.transparencyMode = .rgbZero
+        opaqueRGBZero.firstMaterial?.transparent.contents = CGColor(red: 1, green: 1, blue: 1, alpha: 0)
+        #expect(PixelStats(renderParametricGeometry(opaqueRGBZero)).redDominantPixels > 900)
+
+        let disabledTransparentMap = SCNSphere(radius: 1)
+        disabledTransparentMap.firstMaterial?.transparent.contents = CGColor(red: 1, green: 1, blue: 1, alpha: 0)
+        disabledTransparentMap.firstMaterial?.transparent.intensity = 0
+        #expect(PixelStats(renderParametricGeometry(disabledTransparentMap)).redDominantPixels > 900)
+
         let zeroEmission = SCNSphere(radius: 1)
         zeroEmission.firstMaterial?.emission.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
         zeroEmission.firstMaterial?.emission.intensity = 0
