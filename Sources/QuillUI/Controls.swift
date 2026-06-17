@@ -1270,7 +1270,8 @@ public struct QuillDesktopSidebar<Content: View>: View {
                 .padding(.bottom, 24)
 
             QuillSidebarBottomNavigation(actions: bottomActions)
-                .frame(maxWidth: .infinity, minHeight: 146, alignment: .topLeading)
+                .frame(height: 146)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .padding(.horizontal, 18)
         .padding(.top, 88)
