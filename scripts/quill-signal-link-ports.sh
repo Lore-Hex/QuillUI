@@ -53,4 +53,354 @@ done
 
 "$SCRIPT_DIR/quill-signal-fix-ssk-concurrency.sh" "$ROOT"
 
+MAIN_THREAD_UTILS="$ROOT/Debugging/OWSSwiftUtils.swift"
+if [ -f "$MAIN_THREAD_UTILS" ]; then
+python3 - "$MAIN_THREAD_UTILS" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+helper_needle = '''public func assertOnQueue(_ queue: DispatchQueue) {
+    dispatchPrecondition(condition: .onQueue(queue))
+}
+'''
+helper_replacement = '''public func assertOnQueue(_ queue: DispatchQueue) {
+    dispatchPrecondition(condition: .onQueue(queue))
+}
+
+#if os(Linux)
+@usableFromInline let quillSignalLinuxMainDispatchQueueKey = DispatchSpecificKey<Bool>()
+@usableFromInline let quillSignalLinuxMainDispatchQueueInstalled: Bool = {
+    DispatchQueue.main.setSpecific(key: quillSignalLinuxMainDispatchQueueKey, value: true)
+    return true
+}()
+
+@usableFromInline
+func quillSignalIsMainThreadCompatible() -> Bool {
+    _ = quillSignalLinuxMainDispatchQueueInstalled
+    return Thread.isMainThread || DispatchQueue.getSpecific(key: quillSignalLinuxMainDispatchQueueKey) == true
+}
+#endif
+'''
+if "quillSignalLinuxMainDispatchQueueKey" not in text:
+    if helper_needle not in text:
+        raise SystemExit(f"error: main-thread helper insertion point not found in {path}")
+    text = text.replace(helper_needle, helper_replacement)
+
+assert_main_needle = '''@inlinable
+public func AssertIsOnMainThread(
+    logger: PrefixedLogger = .empty(),
+    file: String = #fileID,
+    function: String = #function,
+    line: Int = #line,
+) {
+    if !Thread.isMainThread {
+        owsFailDebug("Must be on main thread.", logger: logger, file: file, function: function, line: line)
+    }
+}
+'''
+assert_main_replacement = '''@inlinable
+public func AssertIsOnMainThread(
+    logger: PrefixedLogger = .empty(),
+    file: String = #fileID,
+    function: String = #function,
+    line: Int = #line,
+) {
+#if os(Linux)
+    if !quillSignalIsMainThreadCompatible() {
+        owsFailDebug("Must be on main thread.", logger: logger, file: file, function: function, line: line)
+    }
+#else
+    if !Thread.isMainThread {
+        owsFailDebug("Must be on main thread.", logger: logger, file: file, function: function, line: line)
+    }
+#endif
+}
+'''
+if "if !quillSignalIsMainThreadCompatible()" not in text:
+    if assert_main_needle not in text:
+        raise SystemExit(f"error: AssertIsOnMainThread hook not found in {path}")
+    text = text.replace(assert_main_needle, assert_main_replacement)
+
+assert_not_main_needle = '''@inlinable
+public func AssertNotOnMainThread(
+    logger: PrefixedLogger = .empty(),
+    file: String = #fileID,
+    function: String = #function,
+    line: Int = #line,
+) {
+    if Thread.isMainThread {
+        owsFailDebug("Must be off main thread.", logger: logger, file: file, function: function, line: line)
+    }
+}
+'''
+assert_not_main_replacement = '''@inlinable
+public func AssertNotOnMainThread(
+    logger: PrefixedLogger = .empty(),
+    file: String = #fileID,
+    function: String = #function,
+    line: Int = #line,
+) {
+#if os(Linux)
+    if quillSignalIsMainThreadCompatible() {
+        owsFailDebug("Must be off main thread.", logger: logger, file: file, function: function, line: line)
+    }
+#else
+    if Thread.isMainThread {
+        owsFailDebug("Must be off main thread.", logger: logger, file: file, function: function, line: line)
+    }
+#endif
+}
+'''
+if "if quillSignalIsMainThreadCompatible()" not in text:
+    if assert_not_main_needle not in text:
+        raise SystemExit(f"error: AssertNotOnMainThread hook not found in {path}")
+    text = text.replace(assert_not_main_needle, assert_not_main_replacement)
+
+path.write_text(text)
+PY
+fi
+
+THREADING="$ROOT/Concurrency/Threading.swift"
+if [ -f "$THREADING" ]; then
+python3 - "$THREADING" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+async_needle = '''public func DispatchMainThreadSafe(_ block: @escaping @MainActor () -> Void) {
+    if Thread.isMainThread {
+        MainActor.assumeIsolated(block)
+    } else {
+        DispatchQueue.main.async(execute: block)
+    }
+}
+'''
+async_replacement = '''public func DispatchMainThreadSafe(_ block: @escaping @MainActor () -> Void) {
+#if os(Linux)
+    if quillSignalIsMainThreadCompatible() {
+        MainActor.assumeIsolated(block)
+    } else {
+        DispatchQueue.main.async(execute: block)
+    }
+#else
+    if Thread.isMainThread {
+        MainActor.assumeIsolated(block)
+    } else {
+        DispatchQueue.main.async(execute: block)
+    }
+#endif
+}
+'''
+if "quillSignalIsMainThreadCompatible()" not in text:
+    if async_needle not in text:
+        raise SystemExit(f"error: DispatchMainThreadSafe hook not found in {path}")
+    text = text.replace(async_needle, async_replacement)
+
+sync_needle = '''public func DispatchSyncMainThreadSafe(_ block: @escaping @MainActor () -> Void) {
+    if Thread.isMainThread {
+        MainActor.assumeIsolated(block)
+    } else {
+        DispatchQueue.main.sync(execute: block)
+    }
+}
+'''
+sync_replacement = '''public func DispatchSyncMainThreadSafe(_ block: @escaping @MainActor () -> Void) {
+#if os(Linux)
+    if quillSignalIsMainThreadCompatible() {
+        MainActor.assumeIsolated(block)
+    } else {
+        DispatchQueue.main.sync(execute: block)
+    }
+#else
+    if Thread.isMainThread {
+        MainActor.assumeIsolated(block)
+    } else {
+        DispatchQueue.main.sync(execute: block)
+    }
+#endif
+}
+'''
+if "DispatchSyncMainThreadSafe" in text and "#if os(Linux)" not in text[text.find("public func DispatchSyncMainThreadSafe"):text.find("public func DispatchSyncMainThreadSafe") + 250]:
+    if sync_needle not in text:
+        raise SystemExit(f"error: DispatchSyncMainThreadSafe hook not found in {path}")
+    text = text.replace(sync_needle, sync_replacement)
+
+path.write_text(text)
+PY
+fi
+
+APP_VERSION="$ROOT/Util/AppVersion.swift"
+if [ -f "$APP_VERSION" ]; then
+python3 - "$APP_VERSION" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+needle = '''private extension Bundle {
+    func string(forInfoDictionaryKey key: String) -> String {
+        guard let result = object(forInfoDictionaryKey: key) as? String else {
+            owsFail("Couldn't fetch string from \\(key)")
+        }
+        if result.isEmpty {
+            owsFail("String is unexpectedly empty")
+        }
+        return result
+    }
+}
+'''
+replacement = '''private extension Bundle {
+    func string(forInfoDictionaryKey key: String) -> String {
+        guard let result = object(forInfoDictionaryKey: key) as? String else {
+#if os(Linux)
+            switch key {
+            case "CFBundleShortVersionString":
+                return "0.0.0"
+            case "CFBundleVersion":
+                return "1"
+            default:
+                break
+            }
+#endif
+            owsFail("Couldn't fetch string from \\(key)")
+        }
+        if result.isEmpty {
+            owsFail("String is unexpectedly empty")
+        }
+        return result
+    }
+}
+'''
+if "#if os(Linux)\n            switch key {" not in text:
+    if needle not in text:
+        raise SystemExit(f"error: AppVersion bundle-version hook not found in {path}")
+    path.write_text(text.replace(needle, replacement))
+PY
+fi
+
+CERTIFICATES="$ROOT/Security/Certificates.swift"
+if [ -f "$CERTIFICATES" ]; then
+python3 - "$CERTIFICATES" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+needle = '''    private static func dataFromCertificateFile(_ name: String, extension: String) -> Data {
+        let bundle = Bundle(for: SignalServiceKitBundleAnchor.self)
+        guard let url = bundle.url(forResource: name, withExtension: `extension`) else {
+            owsFail("missing X.509 certificate in SignalServiceKit \\(name).\\(`extension`)")
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            owsPrecondition(!data.isEmpty)
+            return data
+        } catch {
+            owsFail("error reading X.509 certificate in SignalServiceKit \\(name).\\(`extension`): \\(error)")
+        }
+    }
+'''
+replacement = '''    private static func dataFromCertificateFile(_ name: String, extension: String) -> Data {
+        let bundle = Bundle(for: SignalServiceKitBundleAnchor.self)
+        guard let url = bundle.url(forResource: name, withExtension: `extension`) else {
+#if os(Linux)
+            let relativePath = ".upstream/signal-ios/SignalServiceKit/Resources/Certificates/\\(name).\\(`extension`)"
+            let candidates = [
+                FileManager.default.currentDirectoryPath + "/" + relativePath,
+                relativePath,
+            ]
+            for path in candidates {
+                guard FileManager.default.fileExists(atPath: path) else { continue }
+                do {
+                    let data = try Data(contentsOf: URL(fileURLWithPath: path))
+                    owsPrecondition(!data.isEmpty)
+                    return data
+                } catch {
+                    owsFail("error reading X.509 certificate in SignalServiceKit \\(name).\\(`extension`): \\(error)")
+                }
+            }
+#endif
+            owsFail("missing X.509 certificate in SignalServiceKit \\(name).\\(`extension`)")
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            owsPrecondition(!data.isEmpty)
+            return data
+        } catch {
+            owsFail("error reading X.509 certificate in SignalServiceKit \\(name).\\(`extension`): \\(error)")
+        }
+    }
+'''
+if "Resources/Certificates/\\(name)" not in text:
+    if needle not in text:
+        raise SystemExit(f"error: Certificates Linux resource hook not found in {path}")
+    path.write_text(text.replace(needle, replacement))
+PY
+fi
+
+BACKGROUND_TASK="$ROOT/Util/OWSBackgroundTask.swift"
+if [ -f "$BACKGROUND_TASK" ]; then
+python3 - "$BACKGROUND_TASK" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+shared_needle = '''public class OWSBackgroundTaskManager {
+    public static let shared = {
+        if Thread.isMainThread {
+            return OWSBackgroundTaskManager()
+        } else {
+            return DispatchQueue.main.sync {
+                OWSBackgroundTaskManager()
+            }
+        }
+    }()
+'''
+shared_replacement = '''public class OWSBackgroundTaskManager {
+    public static let shared = {
+#if os(Linux)
+        return OWSBackgroundTaskManager()
+#else
+        if Thread.isMainThread {
+            return OWSBackgroundTaskManager()
+        } else {
+            return DispatchQueue.main.sync {
+                OWSBackgroundTaskManager()
+            }
+        }
+#endif
+    }()
+'''
+if "#if os(Linux)\n        return OWSBackgroundTaskManager()" not in text:
+    if shared_needle not in text:
+        raise SystemExit(f"error: OWSBackgroundTaskManager.shared hook not found in {path}")
+    text = text.replace(shared_needle, shared_replacement)
+
+init_needle = '''    private init() {
+        AssertIsOnMainThread()
+        SwiftSingletons.register(self)
+    }
+'''
+init_replacement = '''    private init() {
+#if !os(Linux)
+        AssertIsOnMainThread()
+#endif
+        SwiftSingletons.register(self)
+    }
+'''
+if "#if !os(Linux)\n        AssertIsOnMainThread()" not in text:
+    if init_needle not in text:
+        raise SystemExit(f"error: OWSBackgroundTaskManager init hook not found in {path}")
+    text = text.replace(init_needle, init_replacement)
+
+path.write_text(text)
+PY
+fi
+
 echo "quill-signal-link-ports: linked $linked port file(s) into $QUILLPORT_DIR"

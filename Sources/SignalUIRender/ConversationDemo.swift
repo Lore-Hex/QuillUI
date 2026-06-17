@@ -131,6 +131,39 @@ enum SignalConversationDemo {
         #endif
     }
 
+    static func makeSSKBootstrapProbeViewController() async -> UIViewController {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 620, height: 280))
+        root.backgroundColor = .white
+
+        let title = UILabel()
+        title.text = "Signal runtime bootstrap"
+        title.font = UIFont.systemFont(ofSize: 22, weight: .semibold)
+        title.textColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
+
+        let subtitle = UILabel()
+        subtitle.font = UIFont.systemFont(ofSize: 15)
+        subtitle.textColor = UIColor(red: 0.36, green: 0.36, blue: 0.39, alpha: 1)
+        subtitle.numberOfLines = 0
+
+        do {
+            let bootstrap = try await quillBootstrapSignalRenderEnvironment()
+            subtitle.text = "\(bootstrap.summary)\nSSKEnvironment and DependenciesBridge are initialized."
+        } catch {
+            subtitle.text = "Signal runtime bootstrap failed: \(error)"
+            subtitle.textColor = UIColor(red: 0.72, green: 0.07, blue: 0.10, alpha: 1)
+        }
+
+        let stack = UIStackView(arrangedSubviews: [title, subtitle])
+        stack.axis = .vertical
+        stack.spacing = 8
+        stack.frame = CGRect(x: 24, y: 32, width: 572, height: 190)
+        root.addSubview(stack)
+
+        let vc = UIViewController()
+        vc.view = root
+        return vc
+    }
+
     // MARK: - Pieces
 
     private static func makeHeader(name: String, subtitle: String, ink: UIColor, gray: UIColor) -> UIView {
