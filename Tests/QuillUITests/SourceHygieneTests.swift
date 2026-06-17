@@ -2366,6 +2366,7 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" verify_product"))
         #expect(backendScript.contains("cp -f \"$quill_chat_completions_panel_probe_path\" \"$SCREENSHOT_PATH\""))
         #expect(backendScript.contains("settled_capture_taken=1"))
+        #expect(screenshotVerifier.contains("minimum_row_dividers=1,\n        minimum_row_action_segments=1,\n        minimum_wordmark_pixels=350"))
         #expect(!backendScript.contains("settle_quill_chat_completion_capture_if_verified\n      return 0"))
         #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
         #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 410))}\""))

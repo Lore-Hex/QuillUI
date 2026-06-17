@@ -2055,6 +2055,8 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
 def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
+        minimum_row_dividers=1,
+        minimum_row_action_segments=1,
         minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
