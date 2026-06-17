@@ -800,7 +800,16 @@ if [[ "$SMOKE_MODE" == "interaction" ]]; then
   quillui_drive_solderscope_interaction
 fi
 
-DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
+if [[ "$SMOKE_MODE" == "interaction" && "$VERIFY_PRODUCT" == "quill-solderscope-freeze-interaction" ]]; then
+  freeze_attempt_screenshot="${SCREENSHOT_PATH%.png}-freeze-attempt.png"
+  if [[ -f "$freeze_attempt_screenshot" ]]; then
+    cp -f "$freeze_attempt_screenshot" "$SCREENSHOT_PATH"
+  else
+    DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
+  fi
+else
+  DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
+fi
 
 if ! kill -0 "$app_pid" >/dev/null 2>&1; then
   app_status=0
