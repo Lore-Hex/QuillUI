@@ -4326,6 +4326,32 @@ struct SourceHygieneTests {
         #expect(renderer.contains("gtk_widget_set_halign(widget, GTK_ALIGN_FILL)"))
     }
 
+    @Test("Vendored GTK renderer applies SwiftUI form row metadata")
+    func vendoredGTKRendererAppliesSwiftUIFormRowMetadata() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let rowModifiers = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ListRowModifiers.swift")
+        let designCompat = try packageSource("Sources/QuillSwiftUICompatibility/IceCubesDesignSystemModifiers.swift")
+        let quillCompat = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
+
+        #expect(rowModifiers.contains("public protocol ListRowInsetsProvider"))
+        #expect(rowModifiers.contains("public protocol ListRowSeparatorProvider"))
+        #expect(rowModifiers.contains("public struct ListRowInsetsView<Content: View>: View, ListRowInsetsProvider"))
+        #expect(rowModifiers.contains("public struct ListRowSeparatorView<Content: View>: View, ListRowSeparatorProvider"))
+        #expect(renderer.contains("private func gtkRowMetadata(from view: any View) -> GTKRowMetadata"))
+        #expect(renderer.contains("if let insetsProvider = value as? any ListRowInsetsProvider"))
+        #expect(renderer.contains("if let separatorProvider = value as? any ListRowSeparatorProvider"))
+        #expect(renderer.contains("private func gtkRenderRowContent("))
+        #expect(renderer.contains("gtk_widget_set_margin_start(child, gint(insets.leading))"))
+        #expect(renderer.contains("gtk_widget_set_margin_end(child, gint(insets.trailing))"))
+        #expect(renderer.contains("gtkAppendRows(gtkDirectChildViews(of: content), to: rows)"))
+        #expect(renderer.contains("if gtkIsSectionView(child)"))
+        #expect(renderer.contains(".swiftopenui-list row.separator-hidden { border-bottom: none; }"))
+        #expect(!designCompat.contains("func listRowInsets(_ insets: EdgeInsets?) -> Self"))
+        #expect(!designCompat.contains("func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self"))
+        #expect(quillCompat.contains("@_disfavoredOverload\n    func listRowInsets(_ insets: EdgeInsets?) -> SwiftOpenUI.ListRowInsetsView<Self>"))
+        #expect(quillCompat.contains("@_disfavoredOverload\n    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> SwiftOpenUI.ListRowSeparatorView<Self>"))
+    }
+
     @Test("Vendored GTK ScrollViewReader uses deferred ID adjustment scrolling")
     func vendoredGTKScrollViewReaderUsesDeferredIDAdjustmentScrolling() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")

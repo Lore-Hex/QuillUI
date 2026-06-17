@@ -255,3 +255,12 @@ estimates, not release claims.
   configured file and consume the newest callback URL line while ignoring stale
   contents present before the session starts. Verification: Docker/GTK
   `webAuthenticationSessionConsumesCallbackFileUpdates` passed.
+- 2026-06-16: Promoted SwiftUI `listRowInsets` and `listRowSeparator` from
+  inert compatibility no-ops into reusable SwiftOpenUI row metadata and taught
+  the GTK `List`/`Form`/`Section` renderers to consume it. Live IceCubes
+  Add Account captures now keep suggestion rows inset and separated instead of
+  painting form content flush to the left edge. Remaining visible gaps on this
+  screen include font fallback boxes for broader scripts and titlebar/control
+  chrome. Verification: `SourceHygieneTests` passed locally and the Docker/GTK
+  `icecubes-linux-app` product rebuilt successfully before the screenshot
+  capture script hit a missing `file` utility in the container.

@@ -6260,6 +6260,100 @@ private func gtkEscapeMarkup(_ s: String) -> String {
 
 // MARK: - List GTK extension
 
+private struct GTKRowMetadata {
+    var insets: EdgeInsets?
+    var separatorVisibility: Visibility = .automatic
+    var separatorEdges: Edge.Set = .all
+}
+
+private let gtkDefaultRowInsets = EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
+
+private func gtkDirectChildViews<V: View>(of view: V) -> [any View] {
+    if let multi = view as? MultiChildView {
+        return multi.children
+    }
+    return [view]
+}
+
+private func gtkRowMetadata(from view: any View) -> GTKRowMetadata {
+    var metadata = GTKRowMetadata()
+    gtkCollectRowMetadata(from: view, into: &metadata, depth: 0)
+    return metadata
+}
+
+private func gtkCollectRowMetadata(from value: Any, into metadata: inout GTKRowMetadata, depth: Int) {
+    guard depth < 24 else { return }
+
+    if let insetsProvider = value as? any ListRowInsetsProvider {
+        metadata.insets = insetsProvider.listRowInsets
+        gtkCollectRowMetadata(from: insetsProvider.listRowContent, into: &metadata, depth: depth + 1)
+        return
+    }
+
+    if let separatorProvider = value as? any ListRowSeparatorProvider {
+        metadata.separatorVisibility = separatorProvider.listRowSeparatorVisibility
+        metadata.separatorEdges = separatorProvider.listRowSeparatorEdges
+        gtkCollectRowMetadata(from: separatorProvider.listRowSeparatorContent, into: &metadata, depth: depth + 1)
+        return
+    }
+
+    let mirror = Mirror(reflecting: value)
+    for child in mirror.children {
+        guard child.label == "content" || child.label == "wrapped" || child.label == "base" else {
+            continue
+        }
+        if let nested = child.value as? any View {
+            gtkCollectRowMetadata(from: nested, into: &metadata, depth: depth + 1)
+            return
+        }
+    }
+}
+
+private func gtkRowInsets(_ metadata: GTKRowMetadata) -> EdgeInsets {
+    metadata.insets ?? gtkDefaultRowInsets
+}
+
+private func gtkSeparatorIsHidden(_ metadata: GTKRowMetadata) -> Bool {
+    metadata.separatorVisibility == .hidden || metadata.separatorVisibility == .never
+}
+
+private func gtkRenderRowContent(
+    _ view: any View,
+    metadata: GTKRowMetadata? = nil
+) -> UnsafeMutablePointer<GtkWidget> {
+    let resolvedMetadata = metadata ?? gtkRowMetadata(from: view)
+    let insets = gtkRowInsets(resolvedMetadata)
+    let child = widgetFromOpaque(gtkRenderAnyView(view))
+    gtk_widget_set_hexpand(child, 1)
+    gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+
+    let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtk_widget_set_hexpand(wrapper, 1)
+    gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+    gtk_widget_set_margin_top(child, gint(insets.top))
+    gtk_widget_set_margin_bottom(child, gint(insets.bottom))
+    gtk_widget_set_margin_start(child, gint(insets.leading))
+    gtk_widget_set_margin_end(child, gint(insets.trailing))
+    gtk_box_append(boxPointer(wrapper), child)
+    return wrapper
+}
+
+private func gtkAppendRows(
+    _ rows: [any View],
+    to box: UnsafeMutablePointer<GtkWidget>,
+    includeOuterSeparators: Bool = false
+) {
+    guard !rows.isEmpty else { return }
+    for (index, rowView) in rows.enumerated() {
+        let metadata = gtkRowMetadata(from: rowView)
+        gtk_box_append(boxPointer(box), gtkRenderRowContent(rowView, metadata: metadata))
+        let isLast = index == rows.count - 1
+        if (!isLast || includeOuterSeparators) && !gtkSeparatorIsHidden(metadata) {
+            gtk_box_append(boxPointer(box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL))
+        }
+    }
+}
+
 /// Track which GdkDisplays have had list CSS installed.
 private var listCSSDisplays: Set<ObjectIdentifier> = []
 
@@ -6272,7 +6366,8 @@ private func ensureListCSS(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let provider = gtk_css_provider_new()!
     let css = """
         .swiftopenui-list { background: @view_bg_color; border-radius: 10px; padding: 0; }
-        .swiftopenui-list row { border-bottom: 1px solid alpha(currentColor, 0.18); padding: 8px 16px; }
+        .swiftopenui-list row { border-bottom: 1px solid alpha(currentColor, 0.18); padding: 0; }
+        .swiftopenui-list row.separator-hidden { border-bottom: none; }
         .swiftopenui-list row:last-child { border-bottom: none; }
         """
     gtk_css_provider_load_from_string(provider, css)
@@ -6294,11 +6389,13 @@ extension List: GTKRenderable {
         ensureListCSS(listBox)
         gtk_widget_add_css_class(listBox, "swiftopenui-list")
 
-        for child in gtkRenderChildren(content) {
-            let widget = widgetFromOpaque(child)
-            gtk_widget_set_hexpand(widget, 1)
-            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        for child in gtkDirectChildViews(of: content) {
+            let metadata = gtkRowMetadata(from: child)
+            let widget = gtkRenderRowContent(child, metadata: metadata)
             let row = gtk_list_box_row_new()!
+            if gtkSeparatorIsHidden(metadata) {
+                gtk_widget_add_css_class(row, "separator-hidden")
+            }
             gtk_widget_set_hexpand(row, 1)
             gtk_widget_set_halign(row, GTK_ALIGN_FILL)
             gtk_list_box_row_set_child(
@@ -6798,19 +6895,34 @@ extension Form: GTKRenderable {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12)!
         let boxPtr = boxPointer(box)
 
-        for child in gtkRenderChildren(content) {
-            gtk_box_append(boxPtr, widgetFromOpaque(child))
+        for child in gtkDirectChildViews(of: content) {
+            if gtkIsSectionView(child) {
+                gtk_box_append(boxPtr, widgetFromOpaque(gtkRenderAnyView(child)))
+            } else {
+                let rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+                gtk_widget_set_hexpand(rows, 1)
+                gtk_widget_set_halign(rows, GTK_ALIGN_FILL)
+                gtkAppendRows([child], to: rows)
+                gtk_box_append(boxPtr, rows)
+            }
         }
 
         gtk_widget_set_hexpand(box, 1)
         gtk_widget_set_vexpand(box, 1)
-        applyCSSToWidget(box, properties: "padding: 16px;")
+        gtk_widget_set_margin_top(box, 16)
+        gtk_widget_set_margin_bottom(box, 16)
+        gtk_widget_set_margin_start(box, 16)
+        gtk_widget_set_margin_end(box, 16)
 
         return opaqueFromWidget(box)
     }
 }
 
 // MARK: - Section GTK extension
+
+private func gtkIsSectionView(_ view: any View) -> Bool {
+    String(describing: type(of: view)).hasPrefix("Section<")
+}
 
 extension Section: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
@@ -6828,8 +6940,11 @@ extension Section: GTKRenderable {
             gtk_box_append(boxPtr, label)
         }
 
-        let contentWidget = widgetFromOpaque(gtkRenderView(content))
-        gtk_box_append(boxPtr, contentWidget)
+        let rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_hexpand(rows, 1)
+        gtk_widget_set_halign(rows, GTK_ALIGN_FILL)
+        gtkAppendRows(gtkDirectChildViews(of: content), to: rows)
+        gtk_box_append(boxPtr, rows)
 
         if let footer = footer {
             let label = gtk_label_new(footer)!
@@ -6838,8 +6953,8 @@ extension Section: GTKRenderable {
             gtk_box_append(boxPtr, label)
         }
 
-        let sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL)!
-        gtk_box_append(boxPtr, sep)
+        gtk_widget_set_hexpand(box, 1)
+        gtk_widget_set_halign(box, GTK_ALIGN_FILL)
 
         return opaqueFromWidget(box)
     }

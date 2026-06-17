@@ -418,32 +418,6 @@ public struct SymbolRenderingModeView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct ListRowInsetsView<Content: View>: View {
-    public let content: Content
-    public let insets: EdgeInsets?
-
-    public init(content: Content, insets: EdgeInsets?) {
-        self.content = content
-        self.insets = insets
-    }
-
-    public var body: some View { content }
-}
-
-public struct ListRowSeparatorView<Content: View>: View {
-    public let content: Content
-    public let visibility: Visibility
-    public let edges: Edge.Set
-
-    public init(content: Content, visibility: Visibility, edges: Edge.Set) {
-        self.content = content
-        self.visibility = visibility
-        self.edges = edges
-    }
-
-    public var body: some View { content }
-}
-
 public struct ContentShapeView<Content: View, ShapeValue: Shape>: View {
     public let content: Content
     public let shape: ShapeValue
@@ -661,20 +635,22 @@ public extension View {
         padding(edges, Int(amount))
     }
 
-    func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
+    @_disfavoredOverload
+    func listRowInsets(_ insets: EdgeInsets?) -> SwiftOpenUI.ListRowInsetsView<Self> {
         recordQuillUIFallback(
             "listRowInsets",
             message: "listRowInsets is preserved as list row layout metadata on Linux."
         )
-        return ListRowInsetsView(content: self, insets: insets)
+        return SwiftOpenUI.ListRowInsetsView(content: self, insets: insets)
     }
 
-    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> ListRowSeparatorView<Self> {
+    @_disfavoredOverload
+    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> SwiftOpenUI.ListRowSeparatorView<Self> {
         recordQuillUIFallback(
             "listRowSeparator",
             message: "listRowSeparator is preserved as list row separator metadata on Linux."
         )
-        return ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
+        return SwiftOpenUI.ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
     }
 
     func focused<Value>(_ binding: Binding<Value>) -> FocusBindingView<Self, Value> {
@@ -1028,11 +1004,11 @@ extension SymbolRenderingModeView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
-extension ListRowInsetsView: QuillWrappedViewRepresentable {
+extension SwiftOpenUI.ListRowInsetsView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
-extension ListRowSeparatorView: QuillWrappedViewRepresentable {
+extension SwiftOpenUI.ListRowSeparatorView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

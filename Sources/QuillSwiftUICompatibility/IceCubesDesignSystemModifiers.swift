@@ -57,32 +57,12 @@ public extension View {
         return self
     }
 
-    /// List-row separator visibility (and which edges). Inert headless.
-    /// Disfavored: QuillUI declares a functional `listRowSeparator` returning
-    /// `ListRowSeparatorView`; callers that see both must bind to that one.
-    @_disfavoredOverload
-    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> Self {
-        _ = visibility
-        _ = edges
-        return self
-    }
-
     /// Whether the view participates in hit-testing. Inert headless.
     /// Disfavored so QuillUI's functional `allowsHitTesting` wins for callers
     /// that see both.
     @_disfavoredOverload
     func allowsHitTesting(_ enabled: Bool) -> Self {
         _ = enabled
-        return self
-    }
-
-    /// List-row content insets. Disfavored because QuillUI declares a
-    /// `listRowInsets` returning a `ListRowInsetsView`; shadow-only vendored
-    /// source (DesignSystem ScrollToView's `.listRowInsets(.init())`) uses this
-    /// inert fallback. (`EdgeInsets` comes from SwiftOpenUI.)
-    @_disfavoredOverload
-    func listRowInsets(_ insets: EdgeInsets?) -> Self {
-        _ = insets
         return self
     }
 
