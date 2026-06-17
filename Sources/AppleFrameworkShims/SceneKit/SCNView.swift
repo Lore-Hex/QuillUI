@@ -303,6 +303,34 @@ public extension SCNCameraControllerDelegate {
         )
     }
 
+    public func projectPoint(_ point: SCNVector3) -> SCNVector3 {
+        guard let scene,
+              let projected = scene.quillProjectPoint(
+                point,
+                width: QuillSceneKitRenderSupport.pixelCount(bounds.width),
+                height: QuillSceneKitRenderSupport.pixelCount(bounds.height),
+                pointOfView: pointOfView
+              )
+        else {
+            return SCNVector3()
+        }
+        return projected
+    }
+
+    public func unprojectPoint(_ point: SCNVector3) -> SCNVector3 {
+        guard let scene,
+              let unprojected = scene.quillUnprojectPoint(
+                point,
+                width: QuillSceneKitRenderSupport.pixelCount(bounds.width),
+                height: QuillSceneKitRenderSupport.pixelCount(bounds.height),
+                pointOfView: pointOfView
+              )
+        else {
+            return SCNVector3()
+        }
+        return unprojected
+    }
+
     private func syncDefaultCameraController() {
         defaultCameraController.attach(pointOfView: activeCameraNode)
     }

@@ -70,6 +70,26 @@ public extension SCNScene {
             .hitTest(point: point, width: width, height: height, searchMode: searchMode)
     }
     #endif
+
+    func quillProjectPoint(
+        _ point: SCNVector3,
+        width: Int,
+        height: Int,
+        pointOfView: SCNNode? = nil
+    ) -> SCNVector3? {
+        SCNSoftwareRenderer(scene: self, pointOfView: pointOfView)
+            .projectPoint(point, width: width, height: height)
+    }
+
+    func quillUnprojectPoint(
+        _ point: SCNVector3,
+        width: Int,
+        height: Int,
+        pointOfView: SCNNode? = nil
+    ) -> SCNVector3? {
+        SCNSoftwareRenderer(scene: self, pointOfView: pointOfView)
+            .unprojectPoint(point, width: width, height: height)
+    }
 }
 
 public struct SCNSoftwareRenderer {
@@ -113,7 +133,20 @@ public struct SCNSoftwareRenderer {
     }
     #endif
 
+    public func projectPoint(_ point: SCNVector3, width: Int, height: Int) -> SCNVector3? {
+        projectionContext(width: width, height: height).camera.projectWorldPoint(Vector3(point))
+    }
+
+    public func unprojectPoint(_ point: SCNVector3, width: Int, height: Int) -> SCNVector3? {
+        projectionContext(width: width, height: height).camera.unprojectScreenPoint(point)
+    }
+
     private func projectedPrimitives(width: Int, height: Int) -> [ProjectedPrimitive] {
+        let context = projectionContext(width: width, height: height)
+        return context.collector.primitives.flatMap { $0.projected(using: context.camera) }
+    }
+
+    private func projectionContext(width: Int, height: Int) -> ProjectionContext {
         let rootTransform = Matrix4.identity
         var collector = RenderCollector()
         collector.collect(node: scene.rootNode, parent: rootTransform)
@@ -129,8 +162,13 @@ public struct SCNSoftwareRenderer {
             height: max(1, height)
         )
 
-        return collector.primitives.flatMap { $0.projected(using: camera) }
+        return ProjectionContext(collector: collector, camera: camera)
     }
+}
+
+private struct ProjectionContext {
+    var collector: RenderCollector
+    var camera: CameraProjection
 }
 
 // MARK: - Scene collection
@@ -761,6 +799,40 @@ private struct CameraProjection {
         project(cameraSpaceVertex(for: point))
     }
 
+    func projectWorldPoint(_ point: Vector3) -> SCNVector3? {
+        guard let projected = project(point) else {
+            return nil
+        }
+
+        return SCNVector3(
+            projected.point.x,
+            projected.point.y,
+            normalizedDepth(for: projected.depth)
+        )
+    }
+
+    func unprojectScreenPoint(_ point: SCNVector3) -> SCNVector3? {
+        let depth = cameraDepth(forNormalizedDepth: point.z)
+        guard depth.isFinite, depth > 0 else {
+            return nil
+        }
+
+        let scale: CGFloat
+        if let orthographicScale {
+            scale = CGFloat(height) / orthographicScale
+        } else {
+            scale = focalLength / depth
+        }
+        guard scale.isFinite, abs(scale) > 0.000001 else {
+            return nil
+        }
+
+        let cameraX = (point.x - CGFloat(width) / 2) / scale
+        let cameraY = (CGFloat(height) / 2 - point.y) / scale
+        let world = position + right * cameraX + up * cameraY + forward * depth
+        return SCNVector3(world.x, world.y, world.z)
+    }
+
     func projectedLine(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
         var start = cameraSpaceVertex(for: a)
         var end = cameraSpaceVertex(for: b)
@@ -898,6 +970,20 @@ private struct CameraProjection {
             return length * CGFloat(height) / orthographicScale
         }
         return length * focalLength / max(0.001, depth)
+    }
+
+    private func normalizedDepth(for depth: CGFloat) -> CGFloat {
+        guard zFar < .greatestFiniteMagnitude / 2 else {
+            return depth
+        }
+        return (depth - zNear) / max(0.001, zFar - zNear)
+    }
+
+    private func cameraDepth(forNormalizedDepth depth: CGFloat) -> CGFloat {
+        guard zFar < .greatestFiniteMagnitude / 2 else {
+            return depth
+        }
+        return zNear + depth * max(0.001, zFar - zNear)
     }
 }
 

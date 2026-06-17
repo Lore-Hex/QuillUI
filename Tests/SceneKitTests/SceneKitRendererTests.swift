@@ -696,6 +696,27 @@ struct SceneKitRendererTests {
     }
 
     @MainActor
+    @Test("SCNView projects and unprojects scene points")
+    func scnViewProjectsAndUnprojectsScenePoints() {
+        let (scene, cameraNode) = makeCameraControlScene()
+        cameraNode.camera?.zNear = 1
+        cameraNode.camera?.zFar = 10
+        let view = makeCameraControlView(scene: scene, cameraNode: cameraNode)
+
+        let center = view.projectPoint(SCNVector3(0, 0, 0))
+        #expect(abs(center.x - 80) <= 0.0001)
+        #expect(abs(center.y - 60) <= 0.0001)
+        #expect(center.z > 0)
+        #expect(center.z < 1)
+
+        let right = view.projectPoint(SCNVector3(1, 0, 0))
+        #expect(right.x > center.x)
+        #expect(abs(right.y - center.y) <= 0.0001)
+
+        expectVector(view.unprojectPoint(center), closeTo: SCNVector3(0, 0, 0))
+    }
+
+    @MainActor
     @Test("SCNView camera controls create a moved point-of-view camera")
     func scnViewCameraControlsCreateMovedCamera() {
         let (scene, cameraNode) = makeCameraControlScene()
@@ -1088,6 +1109,12 @@ struct SceneKitRendererTests {
     private func expectBoundingBox(_ geometry: SCNGeometry, min: SCNVector3, max: SCNVector3) {
         #expect(geometry.boundingBox.min == min)
         #expect(geometry.boundingBox.max == max)
+    }
+
+    private func expectVector(_ actual: SCNVector3, closeTo expected: SCNVector3, tolerance: CGFloat = 0.0001) {
+        #expect(abs(actual.x - expected.x) <= tolerance)
+        #expect(abs(actual.y - expected.y) <= tolerance)
+        #expect(abs(actual.z - expected.z) <= tolerance)
     }
 
     private func expectMatrix(_ actual: SCNMatrix4, closeTo expected: SCNMatrix4, tolerance: CGFloat = 0.0001) {
