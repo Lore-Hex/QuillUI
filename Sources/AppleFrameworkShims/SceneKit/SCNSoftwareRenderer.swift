@@ -129,7 +129,7 @@ public struct SCNSoftwareRenderer {
             height: max(1, height)
         )
 
-        return collector.primitives.compactMap { $0.projected(using: camera) }
+        return collector.primitives.flatMap { $0.projected(using: camera) }
     }
 }
 
@@ -601,31 +601,19 @@ private enum WorldPrimitive {
     case line(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner)
     case triangle(a: Vector3, b: Vector3, c: Vector3, color: RGBA, owner: PrimitiveOwner)
 
-    func projected(using camera: CameraProjection) -> ProjectedPrimitive? {
+    func projected(using camera: CameraProjection) -> [ProjectedPrimitive] {
         switch self {
         case let .sphere(center, radius, color, owner):
-            guard let projectedCenter = camera.project(center) else { return nil }
+            guard let projectedCenter = camera.project(center) else { return [] }
             let projectedRadius = max(1.5, camera.projectedLength(radius, atDepth: projectedCenter.depth))
-            return .sphere(center: projectedCenter.point, radius: projectedRadius, depth: projectedCenter.depth, color: color, owner: owner)
+            return [.sphere(center: projectedCenter.point, radius: projectedRadius, depth: projectedCenter.depth, color: color, owner: owner)]
         case let .line(a, b, radius, color, owner):
-            guard let pa = camera.project(a), let pb = camera.project(b) else { return nil }
+            guard let pa = camera.project(a), let pb = camera.project(b) else { return [] }
             let depth = (pa.depth + pb.depth) / 2
             let projectedRadius = max(1, camera.projectedLength(radius, atDepth: depth))
-            return .line(a: pa.point, b: pb.point, radius: projectedRadius, depth: depth, color: color, owner: owner)
+            return [.line(a: pa.point, b: pb.point, radius: projectedRadius, depth: depth, color: color, owner: owner)]
         case let .triangle(a, b, c, color, owner):
-            guard let pa = camera.project(a), let pb = camera.project(b), let pc = camera.project(c) else { return nil }
-            let depth = (pa.depth + pb.depth + pc.depth) / 3
-            return .triangle(
-                a: pa.point,
-                b: pb.point,
-                c: pc.point,
-                depthA: pa.depth,
-                depthB: pb.depth,
-                depthC: pc.depth,
-                depth: depth,
-                color: color,
-                owner: owner
-            )
+            return camera.projectedTriangles(a: a, b: b, c: c, color: color, owner: owner)
         }
     }
 }
@@ -773,24 +761,97 @@ private struct CameraProjection {
     }
 
     func project(_ point: Vector3) -> (point: CGPoint, depth: CGFloat)? {
+        project(cameraSpaceVertex(for: point))
+    }
+
+    func projectedTriangles(a: Vector3, b: Vector3, c: Vector3, color: RGBA, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
+        var polygon = [
+            cameraSpaceVertex(for: a),
+            cameraSpaceVertex(for: b),
+            cameraSpaceVertex(for: c),
+        ]
+        polygon = clipped(polygon, atDepth: zNear, keeping: { $0.depth >= zNear })
+        if zFar < .greatestFiniteMagnitude / 2 {
+            polygon = clipped(polygon, atDepth: zFar, keeping: { $0.depth <= zFar })
+        }
+        guard polygon.count >= 3 else { return [] }
+
+        let projected = polygon.compactMap(project)
+        guard projected.count == polygon.count else { return [] }
+
+        var triangles: [ProjectedPrimitive] = []
+        triangles.reserveCapacity(projected.count - 2)
+        for index in 1..<(projected.count - 1) {
+            let pa = projected[0]
+            let pb = projected[index]
+            let pc = projected[index + 1]
+            let depth = (pa.depth + pb.depth + pc.depth) / 3
+            triangles.append(.triangle(
+                a: pa.point,
+                b: pb.point,
+                c: pc.point,
+                depthA: pa.depth,
+                depthB: pb.depth,
+                depthC: pc.depth,
+                depth: depth,
+                color: color,
+                owner: owner
+            ))
+        }
+        return triangles
+    }
+
+    private func cameraSpaceVertex(for point: Vector3) -> CameraSpaceVertex {
         let relative = point - position
-        let depth = relative.dot(forward)
-        guard depth >= zNear, depth <= zFar else { return nil }
-        let cameraX = relative.dot(right)
-        let cameraY = relative.dot(up)
+        return CameraSpaceVertex(
+            x: relative.dot(right),
+            y: relative.dot(up),
+            depth: relative.dot(forward)
+        )
+    }
+
+    private func project(_ vertex: CameraSpaceVertex) -> (point: CGPoint, depth: CGFloat)? {
+        guard vertex.depth >= zNear, vertex.depth <= zFar else { return nil }
         let scale: CGFloat
         if let orthographicScale {
             scale = CGFloat(height) / orthographicScale
         } else {
-            scale = focalLength / depth
+            scale = focalLength / vertex.depth
         }
         return (
             CGPoint(
-                x: CGFloat(width) / 2 + cameraX * scale,
-                y: CGFloat(height) / 2 - cameraY * scale
+                x: CGFloat(width) / 2 + vertex.x * scale,
+                y: CGFloat(height) / 2 - vertex.y * scale
             ),
-            depth
+            vertex.depth
         )
+    }
+
+    private func clipped(
+        _ input: [CameraSpaceVertex],
+        atDepth boundaryDepth: CGFloat,
+        keeping isInside: (CameraSpaceVertex) -> Bool
+    ) -> [CameraSpaceVertex] {
+        guard let last = input.last else { return [] }
+        var output: [CameraSpaceVertex] = []
+        output.reserveCapacity(input.count + 1)
+
+        var previous = last
+        var previousInside = isInside(previous)
+        for current in input {
+            let currentInside = isInside(current)
+            if currentInside {
+                if !previousInside {
+                    output.append(previous.interpolated(to: current, atDepth: boundaryDepth))
+                }
+                output.append(current)
+            } else if previousInside {
+                output.append(previous.interpolated(to: current, atDepth: boundaryDepth))
+            }
+            previous = current
+            previousInside = currentInside
+        }
+        return output
     }
 
     func projectedLength(_ length: CGFloat, atDepth depth: CGFloat) -> CGFloat {
@@ -798,6 +859,22 @@ private struct CameraProjection {
             return length * CGFloat(height) / orthographicScale
         }
         return length * focalLength / max(0.001, depth)
+    }
+}
+
+private struct CameraSpaceVertex {
+    var x: CGFloat
+    var y: CGFloat
+    var depth: CGFloat
+
+    func interpolated(to other: CameraSpaceVertex, atDepth targetDepth: CGFloat) -> CameraSpaceVertex {
+        let delta = other.depth - depth
+        let t = abs(delta) <= 0.000001 ? 0 : (targetDepth - depth) / delta
+        return CameraSpaceVertex(
+            x: x + (other.x - x) * t,
+            y: y + (other.y - y) * t,
+            depth: targetDepth
+        )
     }
 }
 
