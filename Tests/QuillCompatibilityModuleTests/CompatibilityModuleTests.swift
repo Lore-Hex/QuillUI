@@ -1470,6 +1470,51 @@ struct CompatibilityModuleTests {
         service.reset()
     }
 
+    @Test("UserNotifications scheduled time interval requests deliver through QuillKit")
+    func userNotificationsScheduledTimeIntervalRequestsDeliverThroughQuillKit() async throws {
+        let service = QuillNotificationService.shared
+        let center = UNUserNotificationCenter.current()
+        service.reset()
+        center.removeAllDeliveredNotifications()
+        center.removeAllPendingNotificationRequests()
+        let presentedNotifications = CompatibilityLockedValue<[QuillNotificationRequestRecord]>([])
+        service.installPresentationBackend(.init(name: "scheduled-usernotifications-test-present") { record in
+            presentedNotifications.update { $0.append(record) }
+            return true
+        })
+        defer {
+            center.removeAllDeliveredNotifications()
+            center.removeAllPendingNotificationRequests()
+            service.reset()
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Scheduled"
+        content.body = "Delivered after a timer"
+        try await center.add(UNNotificationRequest(
+            identifier: "scheduled-now",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        ))
+
+        #expect((await center.pendingNotificationRequests()).map(\.identifier) == ["scheduled-now"])
+        #expect((await center.deliveredNotifications()).isEmpty)
+
+        for _ in 0..<50 {
+            if (await center.deliveredNotifications()).map(\.request.identifier) == ["scheduled-now"] {
+                break
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        #expect((await center.deliveredNotifications()).map(\.request.identifier) == ["scheduled-now"])
+        #expect((await center.pendingNotificationRequests()).isEmpty)
+        #expect(service.deliveredNotificationRecords.map(\.identifier) == ["scheduled-now"])
+        #expect(service.pendingRequestRecords.isEmpty)
+        #expect(presentedNotifications.value.map(\.identifier) == ["scheduled-now"])
+        #expect(presentedNotifications.value.first?.body == "Delivered after a timer")
+    }
+
     @Test("SwiftUI quickLookPreview routes URLs through QuillKit")
     func swiftUIQuickLookPreviewRoutesThroughQuillKit() {
         let service = QuillQuickLookService.shared

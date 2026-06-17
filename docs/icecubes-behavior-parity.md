@@ -77,8 +77,11 @@ estimates, not release claims.
 - [x] `UserNotifications`: immediate local notification delivery routes through
       an injectable Linux desktop presentation backend, with a `notify-send`
       default when a desktop session is available.
-- [ ] `UserNotifications`: scheduled timer delivery and APNs-equivalent remote
-      push behavior.
+- [x] `UserNotifications`: non-repeating time-interval local notification
+      requests move from pending to delivered and route through the same desktop
+      presentation backend when their timer fires.
+- [ ] `UserNotifications`: durable OS-level scheduling and APNs-equivalent
+      remote push behavior.
 - [x] `ImageIO`: local file/data decode, dimensions metadata, thumbnail
       downsample, crop-preserving `CGImage` pixels, and JPEG/PNG/TIFF output
       through gdk-pixbuf.
@@ -190,9 +193,13 @@ estimates, not release claims.
   Linux-only compatibility test runs in the PR Linux graph.
 - 2026-06-16: Added an injectable QuillKit desktop notification presentation
   backend and Linux `notify-send` fallback for immediate
-  `UNUserNotificationCenter.add` deliveries. Scheduled notifications remain
-  queued-only. Verification: targeted QuillKit/UserNotifications tests were
-  added; Linux-only compatibility coverage runs in the PR Linux graph.
+  `UNUserNotificationCenter.add` deliveries. Verification: targeted
+  QuillKit/UserNotifications tests were added; Linux-only compatibility coverage
+  runs in the PR Linux graph.
+- 2026-06-16: Added Linux non-repeating `UNTimeIntervalNotificationTrigger`
+  delivery. Scheduled local notification requests now start as pending, move to
+  delivered when the timer fires, and present through the QuillKit desktop
+  backend. Durable OS scheduling and remote push remain incomplete.
 - 2026-06-16: Added `QuillQuickLookService` and routed SwiftUI
   `.quickLookPreview($url)` through it, clearing the binding after an attempt to
   avoid repeated preview launches during GTK/Qt rebuilds. This covers IceCubes'

@@ -282,7 +282,7 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | `UIControl.setTitle(_:for:)` and value/action helpers | Compile-only | Property shape only. |
 | `UIImageView`, `UILabel`, `UIKeyCommand` initializers | Compile-only | Source compatibility only. |
 | `UNUserNotificationCenter.requestAuthorization(...)` | Partial | Routes through `QuillNotificationService`; authorization status is configurable and process-local. |
-| `UNUserNotificationCenter.setNotificationCategories`, `add`, delivered/pending request lists, removal helpers | Partial-real | Tracks categories, immediate deliveries, scheduled pending requests, and removals; immediate deliveries route through QuillKit's injectable desktop presentation backend and Linux `notify-send` when available. |
+| `UNUserNotificationCenter.setNotificationCategories`, `add`, delivered/pending request lists, removal helpers | Partial-real | Tracks categories, immediate deliveries, non-repeating time-interval deliveries, scheduled pending requests, and removals; local deliveries route through QuillKit's injectable desktop presentation backend and Linux `notify-send` when available. |
 | UIKit layout engine, advanced rendering, event delivery, accessibility, text input, collection/table data-source parity | Incomplete | Required for UIKit Parity. |
 
 ## WebKit
