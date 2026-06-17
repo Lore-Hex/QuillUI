@@ -430,6 +430,13 @@ extension UIButton {
 
         // Configuration-driven buttons derive their content wholly from the
         // configuration, as on Apple. titleLabel is created by its accessor.
+        quillMeasuredContentInsets = QuillEdgeInsets(
+            top: configuration.contentInsets.top,
+            left: configuration.contentInsets.leading,
+            bottom: configuration.contentInsets.bottom,
+            right: configuration.contentInsets.trailing
+        )
+        quillMeasuredImagePadding = configuration.imagePadding
         titleLabel?.text = configuration.attributedTitle.map { String($0.characters) }
             ?? configuration.title
         titleLabel?.lineBreakMode = configuration.titleLineBreakMode
@@ -468,7 +475,10 @@ extension UIButton {
     /// `configuration.contentInsets`).
     public var contentEdgeInsets: UIEdgeInsets {
         get { quillConfigurationState.contentEdgeInsets }
-        set { quillConfigurationState.contentEdgeInsets = newValue }
+        set {
+            quillConfigurationState.contentEdgeInsets = newValue
+            quillMeasuredContentInsets = newValue
+        }
     }
 
     public var titleEdgeInsets: UIEdgeInsets {

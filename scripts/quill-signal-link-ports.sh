@@ -53,6 +53,32 @@ done
 
 "$SCRIPT_DIR/quill-signal-fix-ssk-concurrency.sh" "$ROOT"
 
+OWS_LOCALIZED_STRING="$ROOT/Util/OWSLocalizedString.swift"
+if [ -f "$OWS_LOCALIZED_STRING" ]; then
+python3 - "$OWS_LOCALIZED_STRING" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+if "import QuillFoundation" not in text:
+    text = text.replace("import Foundation\n", "import Foundation\nimport QuillFoundation\n", 1)
+needle = '''    return NSLocalizedString(key, tableName: tableName, bundle: .main.app, value: value, comment: comment)
+'''
+replacement = '''#if os(Linux)
+    return QuillResourceLookup.localizedString(forKey: key, tableName: tableName, value: value)
+#else
+    return NSLocalizedString(key, tableName: tableName, bundle: .main.app, value: value, comment: comment)
+#endif
+'''
+if "QuillResourceLookup.localizedString(forKey:" not in text:
+    if needle not in text:
+        raise SystemExit(f"error: OWSLocalizedString hook not found in {path}")
+    text = text.replace(needle, replacement, 1)
+path.write_text(text)
+PY
+fi
+
 MAIN_THREAD_UTILS="$ROOT/Debugging/OWSSwiftUtils.swift"
 if [ -f "$MAIN_THREAD_UTILS" ]; then
 python3 - "$MAIN_THREAD_UTILS" <<'PY'
@@ -291,6 +317,128 @@ if "SIGNAL_UI_RENDER_DEMO\"] == \"real-conversation\"" not in text:
     if needle not in text:
         raise SystemExit(f"error: DatabaseChangeObserver readiness hook not found in {path}")
     text = text.replace(needle, replacement)
+path.write_text(text)
+PY
+fi
+
+STRING_SSK="$ROOT/Util/String+SSK.swift"
+if [ -f "$STRING_SSK" ]; then
+python3 - "$STRING_SSK" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+needle = '''    /// Set a default value for the given attribute.  Preserves any existing ranges where the attribute
+    /// is already defined.
+    func addDefaultAttributeToEntireString(_ name: NSAttributedString.Key, value: Any) {
+        enumerateAttribute(name, in: entireRange) { existing, subrange, stop in
+            if existing == nil {
+                addAttribute(name, value: value, range: subrange)
+            }
+        }
+    }
+'''
+replacement = '''    /// Set a default value for the given attribute.  Preserves any existing ranges where the attribute
+    /// is already defined.
+    func addDefaultAttributeToEntireString(_ name: NSAttributedString.Key, value: Any) {
+#if os(Linux)
+        // swift-corelibs Foundation can trap while enumerating or adding
+        // UIKit/AppKit shim payloads such as UIFont/NSFont. Signal uses this
+        // helper mostly to install default fonts before TextKit measurement;
+        // Quill's TextKit shim already falls back to a deterministic metric.
+        if name == .font {
+            return
+        }
+        // Overriding the whole range is safer than aborting the Linux render
+        // process for attributes corelibs can store.
+        addAttribute(name, value: value, range: entireRange)
+#else
+        enumerateAttribute(name, in: entireRange) { existing, subrange, stop in
+            if existing == nil {
+                addAttribute(name, value: value, range: subrange)
+            }
+        }
+#endif
+    }
+'''
+if "swift-corelibs Foundation can trap while enumerating" not in text:
+    if needle not in text:
+        raise SystemExit(f"error: addDefaultAttributeToEntireString hook not found in {path}")
+    text = text.replace(needle, replacement)
+else:
+    text = text.replace(
+        '''        // swift-corelibs Foundation can trap while enumerating UIKit/AppKit shim
+        // attributed-string payloads such as UIFont/NSFont. Signal uses this
+        // helper mostly to install default fonts/colors before TextKit
+        // measurement; overriding the whole range is safer than aborting the
+        // Linux render process.
+        addAttribute(name, value: value, range: entireRange)
+''',
+        '''        // swift-corelibs Foundation can trap while enumerating or adding
+        // UIKit/AppKit shim payloads such as UIFont/NSFont. Signal uses this
+        // helper mostly to install default fonts before TextKit measurement;
+        // Quill's TextKit shim already falls back to a deterministic metric.
+        if name == .font {
+            return
+        }
+        // Overriding the whole range is safer than aborting the Linux render
+        // process for attributes corelibs can store.
+        addAttribute(name, value: value, range: entireRange)
+''',
+    )
+path.write_text(text)
+PY
+fi
+
+ATTRIBUTED_STRING_SSK="$ROOT/Util/NSAttributedString+SSK.swift"
+if [ -f "$ATTRIBUTED_STRING_SSK" ]; then
+python3 - "$ATTRIBUTED_STRING_SSK" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+if "quillSignalMissingPlaceholderFallbacks" not in text:
+    text = text.replace(
+        '''        let formattedCopyWithPlaceholders = String(
+            format: format,
+            locale: Locale.current,
+            arguments: formatArgs.map { arg -> CVarArg in
+''',
+        '''        var formattedCopyWithPlaceholders = String(
+            format: format,
+            locale: Locale.current,
+            arguments: formatArgs.map { arg -> CVarArg in
+''',
+    )
+    needle = '''        )
+
+        // Find the ranges of the placeholder values, in order
+'''
+    replacement = '''        )
+
+#if os(Linux)
+        // If localization resources are unavailable, NSLocalizedString returns
+        // the key (often with no %@ placeholder). Foundation then formats the
+        // string without consuming our generated placeholder argument, and the
+        // strict Signal assertion below aborts the render process. Preserve the
+        // attributed substitution by appending any missing placeholder tokens;
+        // callers still get readable fallback text instead of a crash.
+        let quillSignalMissingPlaceholderFallbacks = placeholders
+            .map(\\.value)
+            .filter { !formattedCopyWithPlaceholders.contains($0) }
+        if !quillSignalMissingPlaceholderFallbacks.isEmpty {
+            formattedCopyWithPlaceholders = ([formattedCopyWithPlaceholders] + quillSignalMissingPlaceholderFallbacks)
+                .joined(separator: " ")
+        }
+#endif
+
+        // Find the ranges of the placeholder values, in order
+'''
+    if needle not in text:
+        raise SystemExit(f"error: NSAttributedString placeholder hook not found in {path}")
+    text = text.replace(needle, replacement, 1)
 path.write_text(text)
 PY
 fi
