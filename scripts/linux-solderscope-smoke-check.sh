@@ -688,6 +688,11 @@ quillui_drive_solderscope_interaction() {
         should_retry_start=1
       fi
       if (( should_retry_start == 1 )); then
+        if quillui_solderscope_recording_indicator_visible; then
+          echo "SolderScope interaction smoke: start retry skipped because recording indicator is visible" >&2
+          recording_started=1
+          break
+        fi
         quillui_solderscope_drive_recording_action "$recording_start_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-start-retry start
       fi
       sleep 0.25

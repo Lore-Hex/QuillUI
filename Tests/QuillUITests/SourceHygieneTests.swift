@@ -2876,6 +2876,7 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-20"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_indicator_visible()"))
+        #expect(solderScopeSmoke.contains("start retry skipped because recording indicator is visible"))
         #expect(solderScopeSmoke.contains("stop retry skipped because recording indicator is not visible"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_DRIVER"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET"))
