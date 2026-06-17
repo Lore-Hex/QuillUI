@@ -2586,6 +2586,9 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 exclude: [
                     "Signal-Prefix.pch",
                 ],
+                resources: [
+                    .copy("Symbols.xcassets"),
+                ],
                 swiftSettings: [
                     .swiftLanguageMode(.v5),
                     .unsafeFlags(["-strict-concurrency=minimal"]),

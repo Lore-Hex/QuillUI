@@ -1653,7 +1653,7 @@ public func sysctlbyname(
 // SDWebImage's SDAnimatedImage: UIImage. On Apple, UIImage/NSImage are open too.
 public enum QuillResourceLookup {
     public static let commonImageExtensions: [String] = [
-        "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "svg"
+        "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "svg", "pdf"
     ]
 
     public static func path(
@@ -1678,10 +1678,21 @@ public enum QuillResourceLookup {
                         return url.path
                     }
                 }
+
+                if let assetPath = assetCatalogImagePath(for: name, under: directory) {
+                    return assetPath
+                }
             }
         }
 
         return nil
+    }
+
+    public static func imageSize(forResource name: String) -> CGSize? {
+        guard let path = path(forResource: name, candidateExtensions: commonImageExtensions) else {
+            return nil
+        }
+        return QuillImageMetadata.size(ofFileAt: path)
     }
 
     public static func data(
@@ -1694,6 +1705,31 @@ public enum QuillResourceLookup {
         return FileManager.default.contents(atPath: path)
     }
 
+    public static func localizedString(
+        forKey key: String,
+        tableName: String? = nil,
+        value: String = "",
+        preferredLocalizations: [String] = []
+    ) -> String {
+        guard !key.isEmpty else { return value }
+        let table = (tableName?.isEmpty == false ? tableName! : "Localizable")
+        let roots = localizationRoots() + resourceRoots()
+
+        for localization in localizationCandidates(preferredLocalizations) {
+            for root in roots {
+                for path in localizedStringTablePaths(tableName: table, localization: localization, under: root) {
+                    guard let strings = QuillLocalizedStringTables.table(at: path),
+                          let localized = strings[key] else {
+                        continue
+                    }
+                    return localized
+                }
+            }
+        }
+
+        return value.isEmpty ? key : value
+    }
+
     private static func candidateNames(for name: String, extensions: [String]) -> [String] {
         let url = URL(fileURLWithPath: name)
         guard url.pathExtension.isEmpty else { return [name] }
@@ -1703,6 +1739,151 @@ public enum QuillResourceLookup {
             candidates.append("\(name).\(ext)")
         }
         return candidates
+    }
+
+    private static func assetCatalogImagePath(for name: String, under directory: URL) -> String? {
+        let assetName = URL(fileURLWithPath: name).deletingPathExtension().lastPathComponent
+        guard !assetName.isEmpty else { return nil }
+
+        let catalogRoots = imageCatalogRoots(under: directory)
+        for catalogRoot in catalogRoots {
+            let direct = catalogRoot.appendingPathComponent("\(assetName).imageset", isDirectory: true)
+            if let path = imagePath(inImageset: direct) {
+                return path
+            }
+
+            guard let enumerator = FileManager.default.enumerator(
+                at: catalogRoot,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                continue
+            }
+            for case let url as URL in enumerator where url.lastPathComponent == "\(assetName).imageset" {
+                if let path = imagePath(inImageset: url) {
+                    return path
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func imageCatalogRoots(under directory: URL) -> [URL] {
+        let fileManager = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return []
+        }
+
+        if directory.pathExtension == "xcassets" || fileManager.fileExists(
+            atPath: directory.appendingPathComponent("Contents.json").path
+        ) {
+            return [directory]
+        }
+
+        let children = (try? fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        return children.filter { child in
+            child.pathExtension == "xcassets"
+        }
+    }
+
+    private static func imagePath(inImageset imageset: URL) -> String? {
+        let fileManager = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: imageset.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return nil
+        }
+        let contentsURL = imageset.appendingPathComponent("Contents.json")
+        guard let data = try? Data(contentsOf: contentsURL),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let images = json["images"] as? [[String: Any]] else {
+            return nil
+        }
+
+        for image in images {
+            guard let filename = image["filename"] as? String, !filename.isEmpty else {
+                continue
+            }
+            let imageURL = imageset.appendingPathComponent(filename)
+            var imageIsDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: imageURL.path, isDirectory: &imageIsDirectory),
+               !imageIsDirectory.boolValue {
+                return imageURL.path
+            }
+        }
+        return nil
+    }
+
+    private static func localizationCandidates(_ preferredLocalizations: [String]) -> [String] {
+        var rawCandidates = preferredLocalizations
+        let environment = ProcessInfo.processInfo.environment
+        if let override = environment["QUILLUI_LOCALE"], !override.isEmpty {
+            rawCandidates.append(override)
+        }
+        if let language = environment["LANGUAGE"], !language.isEmpty {
+            rawCandidates += language
+                .split(separator: ":", omittingEmptySubsequences: true)
+                .map(String.init)
+        }
+        if let lang = environment["LANG"], !lang.isEmpty {
+            rawCandidates.append(lang)
+        }
+        rawCandidates += Locale.preferredLanguages
+        rawCandidates += ["en", "Base"]
+
+        var result: [String] = []
+        var seen: Set<String> = []
+        func append(_ value: String) {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            let withoutEncoding = trimmed.split(separator: ".", maxSplits: 1).first.map(String.init) ?? trimmed
+            let withoutModifier = withoutEncoding.split(separator: "@", maxSplits: 1).first.map(String.init) ?? withoutEncoding
+            let normalized = withoutModifier.replacingOccurrences(of: "-", with: "_").lowercased()
+            guard !normalized.isEmpty, seen.insert(normalized).inserted else { return }
+            result.append(normalized)
+            if let language = normalized.split(separator: "_", maxSplits: 1).first,
+               language != normalized,
+               seen.insert(String(language)).inserted {
+                result.append(String(language))
+            }
+        }
+        for candidate in rawCandidates {
+            append(candidate)
+        }
+        return result
+    }
+
+    private static func localizedStringTablePaths(tableName: String, localization: String, under root: URL) -> [String] {
+        let filename = tableName.hasSuffix(".strings") ? tableName : "\(tableName).strings"
+        let lprojName = "\(localization).lproj"
+        var candidates: [URL] = []
+
+        if root.pathExtension.lowercased() == "lproj" {
+            candidates.append(root.appendingPathComponent(filename))
+        } else {
+            candidates.append(root.appendingPathComponent(lprojName, isDirectory: true).appendingPathComponent(filename))
+            candidates.append(root
+                .appendingPathComponent("translations", isDirectory: true)
+                .appendingPathComponent(lprojName, isDirectory: true)
+                .appendingPathComponent(filename))
+        }
+
+        return candidates.map(\.path)
+    }
+
+    private static func localizationRoots() -> [URL] {
+        guard let raw = ProcessInfo.processInfo.environment["QUILLUI_LOCALIZATION_DIRS"] else {
+            return []
+        }
+        return raw
+            .split(separator: ":", omittingEmptySubsequences: true)
+            .map { URL(fileURLWithPath: String($0), isDirectory: true) }
     }
 
     private static func resourceRoots() -> [URL] {
@@ -1760,6 +1941,184 @@ public enum QuillResourceLookup {
     }
 }
 
+private enum QuillLocalizedStringTables {
+    nonisolated(unsafe) private static var cachedTables: [String: [String: String]?] = [:]
+    private static let lock = NSLock()
+
+    static func table(at path: String) -> [String: String]? {
+        lock.lock()
+        if let cached = cachedTables[path] {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
+        let parsed = parseTable(at: path)
+
+        lock.lock()
+        cachedTables[path] = parsed
+        lock.unlock()
+        return parsed
+    }
+
+    private static func parseTable(at path: String) -> [String: String]? {
+        guard FileManager.default.fileExists(atPath: path),
+              let data = FileManager.default.contents(atPath: path) else {
+            return nil
+        }
+        if let plist = try? PropertyListSerialization.propertyList(
+            from: data,
+            options: [],
+            format: nil
+        ) as? [String: String] {
+            return plist
+        }
+        guard let text = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return parseLooseStrings(text)
+    }
+
+    private static func parseLooseStrings(_ text: String) -> [String: String] {
+        var result: [String: String] = [:]
+        var index = text.startIndex
+
+        func skipWhitespaceAndComments() {
+            while index < text.endIndex {
+                if text[index].isWhitespace {
+                    index = text.index(after: index)
+                    continue
+                }
+                if text[index] == "/" {
+                    let next = text.index(after: index)
+                    guard next < text.endIndex else { return }
+                    if text[next] == "/" {
+                        index = text.index(after: next)
+                        while index < text.endIndex, text[index] != "\n" {
+                            index = text.index(after: index)
+                        }
+                        continue
+                    }
+                    if text[next] == "*" {
+                        index = text.index(after: next)
+                        while index < text.endIndex {
+                            if text[index] == "*" {
+                                let slash = text.index(after: index)
+                                if slash < text.endIndex, text[slash] == "/" {
+                                    index = text.index(after: slash)
+                                    break
+                                }
+                            }
+                            index = text.index(after: index)
+                        }
+                        continue
+                    }
+                }
+                return
+            }
+        }
+
+        func parseQuotedString() -> String? {
+            skipWhitespaceAndComments()
+            guard index < text.endIndex, text[index] == "\"" else { return nil }
+            index = text.index(after: index)
+            var output = ""
+            while index < text.endIndex {
+                let character = text[index]
+                index = text.index(after: index)
+                if character == "\"" {
+                    return output
+                }
+                if character == "\\", index < text.endIndex {
+                    let escaped = text[index]
+                    index = text.index(after: index)
+                    switch escaped {
+                    case "n": output.append("\n")
+                    case "r": output.append("\r")
+                    case "t": output.append("\t")
+                    case "\"": output.append("\"")
+                    case "\\": output.append("\\")
+                    default: output.append(escaped)
+                    }
+                } else {
+                    output.append(character)
+                }
+            }
+            return nil
+        }
+
+        while index < text.endIndex {
+            skipWhitespaceAndComments()
+            guard let key = parseQuotedString() else { break }
+            skipWhitespaceAndComments()
+            guard index < text.endIndex, text[index] == "=" else { break }
+            index = text.index(after: index)
+            guard let value = parseQuotedString() else { break }
+            result[key] = value
+            skipWhitespaceAndComments()
+            if index < text.endIndex, text[index] == ";" {
+                index = text.index(after: index)
+            }
+        }
+
+        return result
+    }
+}
+
+private enum QuillImageMetadata {
+    static func size(ofFileAt path: String) -> CGSize? {
+        let url = URL(fileURLWithPath: path)
+        switch url.pathExtension.lowercased() {
+        case "pdf":
+            return pdfPageSize(at: url)
+        case "png":
+            return pngPixelSize(at: url)
+        default:
+            return nil
+        }
+    }
+
+    private static func pdfPageSize(at url: URL) -> CGSize? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let body = String(decoding: data, as: UTF8.self)
+        let pattern = #"/(?:MediaBox|CropBox)\s*\[\s*([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s*\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: body, range: NSRange(body.startIndex..., in: body)),
+              match.numberOfRanges == 5 else {
+            return nil
+        }
+
+        func number(_ index: Int) -> CGFloat? {
+            guard let range = Range(match.range(at: index), in: body) else { return nil }
+            guard let value = Double(String(body[range])) else { return nil }
+            return CGFloat(value)
+        }
+
+        guard let x0 = number(1), let y0 = number(2), let x1 = number(3), let y1 = number(4) else {
+            return nil
+        }
+        let width = abs(x1 - x0)
+        let height = abs(y1 - y0)
+        guard width > 0, height > 0 else { return nil }
+        return CGSize(width: width, height: height)
+    }
+
+    private static func pngPixelSize(at url: URL) -> CGSize? {
+        guard let data = try? Data(contentsOf: url), data.count >= 24 else { return nil }
+        let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        guard Array(data.prefix(signature.count)) == signature else { return nil }
+
+        func uint32(at offset: Int) -> UInt32 {
+            data[offset..<offset + 4].reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        }
+
+        let width = uint32(at: 16)
+        let height = uint32(at: 20)
+        guard width > 0, height > 0 else { return nil }
+        return CGSize(width: CGFloat(width), height: CGFloat(height))
+    }
+}
+
 public enum QuillImageCompositingOperation: Sendable {
     case copy
     case sourceOver
@@ -1794,6 +2153,9 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
             candidateExtensions: QuillResourceLookup.commonImageExtensions
         ) {
             self.data = data
+            if let size = QuillResourceLookup.imageSize(forResource: name) {
+                self.size = size
+            }
         } else {
             self.size = CGSize(width: 32, height: 32)
             QuillCompatibilityDiagnostics.shared.record(
@@ -2368,7 +2730,9 @@ public let MSEC_PER_SEC: UInt64 = 1_000
 // MARK: - Localization
 
 #if !os(macOS) && !os(iOS)
-public func NSLocalizedString(_ key: String, comment: String) -> String { key }
+public func NSLocalizedString(_ key: String, comment: String) -> String {
+    QuillResourceLookup.localizedString(forKey: key)
+}
 #endif
 
 // MARK: - SQL placeholder helper

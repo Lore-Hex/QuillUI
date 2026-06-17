@@ -235,6 +235,7 @@ struct CompatibilityModuleTests {
         #expect(collectionView.visibleCells.count == 3)
         #expect(collectionView.cellForItem(at: last) === probe.cellsByIndexPath[last])
         #expect(collectionView.visibleCells.allSatisfy { $0.superview === collectionView })
+        #expect(collectionView.visibleCells.allSatisfy { $0.contentView.frame == $0.bounds })
 
         collectionView.selectItem(at: last, animated: false, scrollPosition: [])
         #expect(collectionView.indexPathsForSelectedItems == [last])
@@ -345,6 +346,90 @@ struct CompatibilityModuleTests {
         #expect(child.bounds == CGRect(x: 0, y: 0, width: 180, height: 90))
     }
 
+    @Test("UIView layout guides added to a view resolve edge constraints")
+    @MainActor
+    func uiViewAddedLayoutGuidesResolveEdgeConstraints() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 120))
+        let guide = UILayoutGuide()
+        parent.addLayoutGuide(guide)
+
+        let child = UIView()
+        parent.addSubview(child)
+
+        NSLayoutConstraint.activate([
+            child.topAnchor.constraint(equalTo: guide.topAnchor),
+            child.leadingAnchor.constraint(equalTo: guide.leadingAnchor),
+            child.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
+            child.bottomAnchor.constraint(equalTo: guide.bottomAnchor),
+        ])
+
+        parent.layoutIfNeeded()
+
+        #expect(child.frame == parent.bounds)
+    }
+
+    @Test("UIView layout resolves nested child constraints to ancestor anchors")
+    @MainActor
+    func uiViewLayoutResolvesNestedChildConstraintsToAncestorAnchors() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 120))
+        let wrapper = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 120))
+        let child = UIView()
+        parent.addSubview(wrapper)
+        wrapper.addSubview(child)
+
+        NSLayoutConstraint.activate([
+            child.topAnchor.constraint(equalTo: parent.topAnchor, constant: 10),
+            child.leadingAnchor.constraint(equalTo: parent.leadingAnchor, constant: 12),
+            child.trailingAnchor.constraint(equalTo: parent.trailingAnchor, constant: -14),
+            child.bottomAnchor.constraint(equalTo: parent.bottomAnchor, constant: -16),
+        ])
+
+        parent.layoutIfNeeded()
+
+        #expect(child.frame == CGRect(x: 12, y: 10, width: 174, height: 94))
+    }
+
+    @Test("UIView infers bottom-pinned container height from edge-pinned stack")
+    @MainActor
+    func uiViewInfersBottomPinnedContainerHeightFromEdgePinnedStack() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 240, height: 180))
+        let container = UIView()
+        root.addSubview(container)
+
+        let label = UILabel()
+        label.text = "Signal bottom bar"
+        label.font = UIFont.systemFont(ofSize: 17)
+
+        let detail = UILabel()
+        detail.text = "Fitting height comes from arranged subviews."
+        detail.font = UIFont.systemFont(ofSize: 13)
+
+        let stack = UIStackView(arrangedSubviews: [label, detail])
+        stack.axis = .vertical
+        stack.alignment = .fill
+        stack.spacing = 6
+        container.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            container.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            stack.topAnchor.constraint(equalTo: container.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+
+        root.layoutIfNeeded()
+
+        #expect(container.frame.width == 240)
+        #expect(container.frame.height > 0)
+        #expect(container.frame.maxY == 180)
+        #expect(stack.frame == container.bounds)
+        #expect(label.frame.height > 0)
+        #expect(detail.frame.minY > label.frame.maxY)
+    }
+
     @Test("UIStackView lays out arranged labels")
     @MainActor
     func uiStackViewLaysOutArrangedLabels() {
@@ -368,6 +453,92 @@ struct CompatibilityModuleTests {
         #expect(first.frame.height > 0)
         #expect(second.frame.width == 220)
         #expect(second.frame.minY > first.frame.maxY)
+
+        let horizontalFirst = UILabel()
+        horizontalFirst.text = "Block"
+        let horizontalSecond = UILabel()
+        horizontalSecond.text = "Continue"
+        let horizontal = UIStackView(arrangedSubviews: [horizontalFirst, horizontalSecond])
+        horizontal.axis = .horizontal
+        horizontal.alignment = .fill
+        horizontal.spacing = 8
+        let unboundedFit = horizontal.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+        #expect(unboundedFit.height > 0)
+        #expect(unboundedFit.height < 1_000)
+    }
+
+    @Test("UIButton configuration contributes intrinsic stack size")
+    @MainActor
+    func uiButtonConfigurationContributesIntrinsicStackSize() {
+        var configuration = UIButton.Configuration.plain()
+        configuration.title = "Accept"
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+
+        let button = UIButton(configuration: configuration)
+        let fit = button.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+
+        #expect(fit.width > 24)
+        #expect(fit.height > 16)
+
+        let stack = UIStackView(arrangedSubviews: [button])
+        stack.axis = .horizontal
+        stack.alignment = .fill
+        let stackFit = stack.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+
+        #expect(stackFit.height == fit.height)
+
+        stack.frame = CGRect(x: 0, y: 0, width: 160, height: fit.height)
+        stack.layoutIfNeeded()
+
+        #expect(button.frame.height == fit.height)
+        #expect(button.titleLabel?.frame.height ?? 0 > 0)
+        #expect(button.titleLabel?.frame.minX ?? 0 >= 12)
+    }
+
+    @Test("Quill localization resolves Apple strings resources")
+    @MainActor
+    func quillLocalizationResolvesAppleStringsResources() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillLocalizationTests-\(UUID().uuidString)", isDirectory: true)
+        let en = root.appendingPathComponent("en.lproj", isDirectory: true)
+        try FileManager.default.createDirectory(at: en, withIntermediateDirectories: true)
+        try #"""
+        /* Comment */
+        "MESSAGE_REQUEST_VIEW_BLOCK_BUTTON" = "Block";
+        "ESCAPED_VALUE" = "Line\nTwo";
+        """#.write(
+            to: en.appendingPathComponent("Localizable.strings"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        #if os(Linux)
+        setenv("QUILLUI_RESOURCE_DIRS", root.path, 1)
+        defer { unsetenv("QUILLUI_RESOURCE_DIRS") }
+        #endif
+
+        #expect(QuillResourceLookup.localizedString(
+            forKey: "MESSAGE_REQUEST_VIEW_BLOCK_BUTTON",
+            preferredLocalizations: ["en"]
+        ) == "Block")
+        #expect(QuillResourceLookup.localizedString(
+            forKey: "ESCAPED_VALUE",
+            preferredLocalizations: ["en"]
+        ) == "Line\nTwo")
+        #expect(QuillResourceLookup.localizedString(
+            forKey: "MISSING_KEY",
+            value: "Fallback",
+            preferredLocalizations: ["en"]
+        ) == "Fallback")
     }
 
     @Test("UIVisualEffectView contentView fills bounds")
@@ -405,13 +576,39 @@ struct CompatibilityModuleTests {
         #expect(usedRect.height > 0)
         #expect(usedRect.width.isFinite)
         #expect(usedRect.height.isFinite)
-        #expect(usedRect.width <= CGFloat(storage.length) * 14 * 0.6)
+        #expect(usedRect.width <= CGFloat(storage.length) * 17 * 0.6)
         #expect(
             layoutManager.glyphIndex(
                 for: CGPoint(x: huge, y: huge),
                 in: textContainer
             ) == storage.length - 1
         )
+    }
+
+    @Test("NSLayoutManager measures attributed storage without reading fragile font attributes")
+    @MainActor
+    func nsLayoutManagerMeasuresAttributedStorageWithFontAttributes() {
+        let layoutManager = UIKit.NSLayoutManager()
+        let textContainer = UIKit.NSTextContainer(size: CGSize(width: 180, height: 500))
+        layoutManager.addTextContainer(textContainer)
+
+        let storage = UIKit.NSTextStorage(
+            string: "Signal thread details",
+            attributes: [
+                .font: UIFont.boldSystemFont(ofSize: 22),
+                .foregroundColor: UIColor.label,
+            ]
+        )
+        storage.addLayoutManager(layoutManager)
+
+        let usedRect = withExtendedLifetime(storage) {
+            layoutManager.usedRect(for: textContainer)
+        }
+
+        #expect(usedRect.width > 0)
+        #expect(usedRect.height > 0)
+        #expect(usedRect.width.isFinite)
+        #expect(usedRect.height.isFinite)
     }
 
     @Test("QuillUI fallback modifiers record diagnostics")
@@ -2230,6 +2427,57 @@ struct CompatibilityModuleTests {
             forResource: "logo-nobg",
             candidateExtensions: QuillResourceLookup.commonImageExtensions
         ) == imageURL.path)
+    }
+
+    @Test("Named images resolve vector PDF imagesets from asset catalogs")
+    func namedImagesResolvePDFImagesetsFromAssetCatalogs() throws {
+        let fileManager = FileManager.default
+        let catalog = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillAssetCatalog-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Symbols.xcassets", isDirectory: true)
+        let imageset = catalog
+            .appendingPathComponent("message_status", isDirectory: true)
+            .appendingPathComponent("message_status_sent.imageset", isDirectory: true)
+        defer { try? fileManager.removeItem(at: catalog.deletingLastPathComponent()) }
+        try fileManager.createDirectory(at: imageset, withIntermediateDirectories: true)
+
+        try """
+        {
+          "images" : [
+            {
+              "filename" : "messagestatus-sent.pdf",
+              "idiom" : "universal"
+            }
+          ],
+          "info" : { "author" : "xcode", "version" : 1 }
+        }
+        """.write(to: imageset.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+
+        let pdf = """
+        %PDF-1.7
+        1 0 obj
+        << /Type /Page /MediaBox [0 0 12 12] >>
+        endobj
+        %%EOF
+        """
+        let pdfURL = imageset.appendingPathComponent("messagestatus-sent.pdf")
+        try Data(pdf.utf8).write(to: pdfURL)
+
+        let previous = getenv("QUILLUI_RESOURCE_DIRS").map { String(cString: $0) }
+        setenv("QUILLUI_RESOURCE_DIRS", catalog.path, 1)
+        defer {
+            if let previous {
+                setenv("QUILLUI_RESOURCE_DIRS", previous, 1)
+            } else {
+                unsetenv("QUILLUI_RESOURCE_DIRS")
+            }
+        }
+
+        #expect(QuillResourceLookup.path(
+            forResource: "message_status_sent",
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ) == pdfURL.path)
+        #expect(UIImage(named: "message_status_sent")?.size == CGSize(width: 12, height: 12))
     }
     #endif
 

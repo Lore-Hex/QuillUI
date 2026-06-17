@@ -179,6 +179,51 @@ import QuillKit
         }
     }
 
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let views = arrangedSubviews.filter { !$0.isHidden }
+        guard !views.isEmpty else { return .zero }
+
+        func isConstrained(_ value: CGFloat) -> Bool {
+            value.isFinite && value > 0 && value < CGFloat.greatestFiniteMagnitude / 4
+        }
+
+        let margins = isLayoutMarginsRelativeArrangement ? quillLayoutMargins : .zero
+        let proposedWidth = isConstrained(size.width)
+            ? max(0, size.width - margins.left - margins.right)
+            : CGFloat.greatestFiniteMagnitude
+        let proposedHeight = isConstrained(size.height)
+            ? max(0, size.height - margins.top - margins.bottom)
+            : CGFloat.greatestFiniteMagnitude
+
+        let totalSpacing = spacing * CGFloat(max(0, views.count - 1))
+        switch axis {
+        case .vertical:
+            var width: CGFloat = 0
+            var height: CGFloat = totalSpacing
+            for view in views {
+                let measured = view.sizeThatFits(CGSize(width: proposedWidth, height: CGFloat.greatestFiniteMagnitude))
+                width = max(width, measured.width)
+                height += measured.height
+            }
+            if isConstrained(size.width), alignment == .fill {
+                width = proposedWidth
+            }
+            return CGSize(width: width + margins.left + margins.right, height: height + margins.top + margins.bottom)
+        case .horizontal:
+            var width: CGFloat = totalSpacing
+            var height: CGFloat = 0
+            for view in views {
+                let measured = view.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: proposedHeight))
+                width += measured.width
+                height = max(height, measured.height)
+            }
+            if isConstrained(size.height), alignment == .fill {
+                height = proposedHeight
+            }
+            return CGSize(width: width + margins.left + margins.right, height: height + margins.top + margins.bottom)
+        }
+    }
+
     // MARK: - Private
 
     private func layoutVerticalSubviews(_ views: [UIView], in rect: CGRect) {
