@@ -481,6 +481,41 @@ struct CoreGraphicsPathTests {
         #expect(try bitmapPixels(in: context) == [0, 0, 0, 255])
     }
 
+    @Test("CGContext bitmap non-separable blend modes use hue saturation color and luminosity")
+    func bitmapContextNonSeparableBlendModesAffectFills() throws {
+        let hueContext = try makeBitmapContext(width: 1, height: 1)
+        hueContext.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        hueContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        hueContext.setBlendMode(.hue)
+        hueContext.setFillColor(red: 0, green: 1, blue: 0, alpha: 1)
+        hueContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        #expect(try bitmapPixels(in: hueContext) == [0, 48, 0, 255])
+
+        let saturationContext = try makeBitmapContext(width: 1, height: 1)
+        saturationContext.setFillColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1)
+        saturationContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        saturationContext.setBlendMode(.saturation)
+        saturationContext.setFillColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1)
+        saturationContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        #expect(try bitmapPixels(in: saturationContext) == [92, 92, 92, 255])
+
+        let colorContext = try makeBitmapContext(width: 1, height: 1)
+        colorContext.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        colorContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        colorContext.setBlendMode(.color)
+        colorContext.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        colorContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        #expect(try bitmapPixels(in: colorContext) == [0, 0, 94, 255])
+
+        let luminosityContext = try makeBitmapContext(width: 1, height: 1)
+        luminosityContext.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        luminosityContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        luminosityContext.setBlendMode(.luminosity)
+        luminosityContext.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        luminosityContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        #expect(try bitmapPixels(in: luminosityContext) == [255, 54, 54, 255])
+    }
+
     @Test("CGContext bitmap setShadow(offset:blur:) uses black one-third alpha")
     func bitmapContextDefaultShadowUsesBlackOneThirdAlpha() throws {
         let context = try makeBitmapContext(width: 3, height: 1)

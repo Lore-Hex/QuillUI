@@ -1884,6 +1884,8 @@ public final class CGContext {
             )
         case .normal:
             return quillSourceOver(source: source, destination: destination)
+        case .hue, .saturation, .color, .luminosity:
+            return quillBlendNonSeparable(source: source, destination: destination, mode: mode)
         default:
             return quillBlendSeparable(source: source, destination: destination, mode: mode)
         }
@@ -1922,6 +1924,64 @@ public final class CGContext {
             alpha: 1
         )
 
+        return quillCompositeBlendedColor(
+            blended,
+            source: source,
+            destination: destination,
+            sourceAlpha: sourceAlpha,
+            destinationAlpha: destinationAlpha
+        )
+    }
+
+    private static func quillBlendNonSeparable(
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA,
+        mode: CGBlendMode
+    ) -> QuillPremultipliedBGRA {
+        let sourceAlpha = quillClampedUnit(source.alpha)
+        let destinationAlpha = quillClampedUnit(destination.alpha)
+        guard sourceAlpha > 0, destinationAlpha > 0 else {
+            return quillSourceOver(source: source, destination: destination)
+        }
+
+        let sourceColor = quillUnpremultiplied(source)
+        let destinationColor = quillUnpremultiplied(destination)
+        let blended: QuillPremultipliedBGRA
+        switch mode {
+        case .hue:
+            blended = quillSetLuminosity(
+                quillSetSaturation(sourceColor, to: quillSaturation(destinationColor)),
+                to: quillLuminosity(destinationColor)
+            )
+        case .saturation:
+            blended = quillSetLuminosity(
+                quillSetSaturation(destinationColor, to: quillSaturation(sourceColor)),
+                to: quillLuminosity(destinationColor)
+            )
+        case .color:
+            blended = quillSetLuminosity(sourceColor, to: quillLuminosity(destinationColor))
+        case .luminosity:
+            blended = quillSetLuminosity(destinationColor, to: quillLuminosity(sourceColor))
+        default:
+            blended = sourceColor
+        }
+
+        return quillCompositeBlendedColor(
+            blended,
+            source: source,
+            destination: destination,
+            sourceAlpha: sourceAlpha,
+            destinationAlpha: destinationAlpha
+        )
+    }
+
+    private static func quillCompositeBlendedColor(
+        _ blended: QuillPremultipliedBGRA,
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA,
+        sourceAlpha: CGFloat,
+        destinationAlpha: CGFloat
+    ) -> QuillPremultipliedBGRA {
         let sourceScale = sourceAlpha * destinationAlpha
         return QuillPremultipliedBGRA(
             blue: source.blue * (1 - destinationAlpha) + destination.blue * (1 - sourceAlpha) + blended.blue * sourceScale,
@@ -1968,6 +2028,81 @@ public final class CGContext {
         default:
             return source
         }
+    }
+
+    private static func quillLuminosity(_ color: QuillPremultipliedBGRA) -> CGFloat {
+        0.3 * color.red + 0.59 * color.green + 0.11 * color.blue
+    }
+
+    private static func quillSaturation(_ color: QuillPremultipliedBGRA) -> CGFloat {
+        Swift.max(color.red, color.green, color.blue) - Swift.min(color.red, color.green, color.blue)
+    }
+
+    private static func quillSetLuminosity(
+        _ color: QuillPremultipliedBGRA,
+        to luminosity: CGFloat
+    ) -> QuillPremultipliedBGRA {
+        let delta = luminosity - quillLuminosity(color)
+        return quillClipColor(QuillPremultipliedBGRA(
+            blue: color.blue + delta,
+            green: color.green + delta,
+            red: color.red + delta,
+            alpha: 1
+        ))
+    }
+
+    private static func quillClipColor(_ color: QuillPremultipliedBGRA) -> QuillPremultipliedBGRA {
+        let luminosity = quillLuminosity(color)
+        let minimum = Swift.min(color.red, color.green, color.blue)
+        let maximum = Swift.max(color.red, color.green, color.blue)
+        var red = color.red
+        var green = color.green
+        var blue = color.blue
+
+        if minimum < 0, luminosity != minimum {
+            red = luminosity + (red - luminosity) * luminosity / (luminosity - minimum)
+            green = luminosity + (green - luminosity) * luminosity / (luminosity - minimum)
+            blue = luminosity + (blue - luminosity) * luminosity / (luminosity - minimum)
+        }
+
+        if maximum > 1, maximum != luminosity {
+            red = luminosity + (red - luminosity) * (1 - luminosity) / (maximum - luminosity)
+            green = luminosity + (green - luminosity) * (1 - luminosity) / (maximum - luminosity)
+            blue = luminosity + (blue - luminosity) * (1 - luminosity) / (maximum - luminosity)
+        }
+
+        return QuillPremultipliedBGRA(
+            blue: quillClampedUnit(blue),
+            green: quillClampedUnit(green),
+            red: quillClampedUnit(red),
+            alpha: 1
+        )
+    }
+
+    private static func quillSetSaturation(
+        _ color: QuillPremultipliedBGRA,
+        to saturation: CGFloat
+    ) -> QuillPremultipliedBGRA {
+        var channels = [
+            (keyPath: \QuillPremultipliedBGRA.red, value: color.red),
+            (keyPath: \QuillPremultipliedBGRA.green, value: color.green),
+            (keyPath: \QuillPremultipliedBGRA.blue, value: color.blue),
+        ].sorted { lhs, rhs in lhs.value < rhs.value }
+
+        if channels[2].value > channels[0].value {
+            channels[1].value = (channels[1].value - channels[0].value) * saturation / (channels[2].value - channels[0].value)
+            channels[2].value = saturation
+        } else {
+            channels[1].value = 0
+            channels[2].value = 0
+        }
+        channels[0].value = 0
+
+        var result = QuillPremultipliedBGRA(blue: 0, green: 0, red: 0, alpha: 1)
+        for channel in channels {
+            result[keyPath: channel.keyPath] = channel.value
+        }
+        return result
     }
 
     private static func quillPremultiplied(
