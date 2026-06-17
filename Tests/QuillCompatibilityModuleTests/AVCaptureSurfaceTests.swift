@@ -268,6 +268,21 @@ struct AVCaptureSurfaceTests {
         #expect(context.createCGImage(CIImage(), from: .zero) == nil)
     }
 
+    @Test func cvPixelBufferBaseAddressMutatesStableStorage() throws {
+        let buffer = CVPixelBuffer(width: 2, height: 2, pixelFormatType: kCVPixelFormatType_32BGRA)
+        #expect(CVPixelBufferLockBaseAddress(buffer, []) == kCVReturnSuccess)
+        let base = try #require(CVPixelBufferGetBaseAddress(buffer))
+        let bytes = base.assumingMemoryBound(to: UInt8.self)
+        for index in 0..<16 {
+            bytes[index] = UInt8(240 - index)
+        }
+        #expect(CVPixelBufferUnlockBaseAddress(buffer, []) == kCVReturnSuccess)
+
+        let ciImage = CIImage(cvPixelBuffer: buffer)
+        let cgImage = CIContext().createCGImage(ciImage, from: ciImage.extent)
+        #expect(cgImage?.quillBGRAPixels?.prefix(8).map { Int($0) } == [240, 239, 238, 237, 236, 235, 234, 233])
+    }
+
     static var ffmpegPresent: Bool {
         if let override = ProcessInfo.processInfo.environment["QUILL_FFMPEG"],
            FileManager.default.isExecutableFile(atPath: override) {

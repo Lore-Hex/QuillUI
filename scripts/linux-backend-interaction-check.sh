@@ -1106,8 +1106,8 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
             endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}"
             endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}"
           else
-            endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-650}"
-            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-470}"
+            endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}"
+            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
