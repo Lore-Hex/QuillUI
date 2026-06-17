@@ -33,6 +33,8 @@ struct SceneKitRendererTests {
     func geometryCopyPreservesPrimitiveSubtypeParametersAndMetadata() throws {
         let material = SCNMaterial()
         material.name = "shared"
+        material.readsFromDepthBuffer = false
+        material.writesToDepthBuffer = false
 
         let sphere = SCNSphere(radius: 2.5)
         sphere.name = "planet"
@@ -49,6 +51,10 @@ struct SceneKitRendererTests {
         #expect(sphereCopy.name == "planet")
         #expect(sphereCopy.materials.first === material)
         #expect(sphereCopy.geometrySourceChannels?.map(\.intValue) == [3, 5])
+
+        let materialCopy = try #require(material.copy() as? SCNMaterial)
+        #expect(!materialCopy.readsFromDepthBuffer)
+        #expect(!materialCopy.writesToDepthBuffer)
 
         let text = SCNText(string: "Quill", extrusionDepth: 0.4)
         text.flatness = 0.2
@@ -712,6 +718,45 @@ struct SceneKitRendererTests {
         #expect(stats.greenDominantPixels > 400)
         #expect(PixelStats.dominantColor(atX: 80, y: 88, in: image) == .red)
         #expect(PixelStats.dominantColor(atX: 80, y: 42, in: image) == .green)
+    }
+
+    @Test("Software renderer honors rendering order and material depth flags")
+    func renderingOrderAndMaterialDepthFlagsAffectPixels() {
+        func render(frontWritesDepth: Bool, rearReadsDepth: Bool) -> DominantPixelColor? {
+            let scene = SCNScene()
+            scene.background.contents = CGColor.black
+
+            let frontPlane = SCNPlane(width: 2, height: 2)
+            frontPlane.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+            frontPlane.firstMaterial?.writesToDepthBuffer = frontWritesDepth
+            let frontNode = SCNNode(geometry: frontPlane)
+            frontNode.position = SCNVector3(0, 0, 0)
+            scene.rootNode.addChildNode(frontNode)
+
+            let rearPlane = SCNPlane(width: 2, height: 2)
+            rearPlane.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+            rearPlane.firstMaterial?.readsFromDepthBuffer = rearReadsDepth
+            let rearNode = SCNNode(geometry: rearPlane)
+            rearNode.position = SCNVector3(0, 0, -0.6)
+            rearNode.renderingOrder = 10
+            scene.rootNode.addChildNode(rearNode)
+
+            let camera = SCNCamera()
+            camera.usesOrthographicProjection = true
+            camera.orthographicScale = 3
+            camera.zFar = 10
+            let cameraNode = SCNNode()
+            cameraNode.camera = camera
+            cameraNode.position = SCNVector3(0, 0, 4)
+            scene.rootNode.addChildNode(cameraNode)
+
+            let image = scene.quillRenderImage(width: 120, height: 90, pointOfView: cameraNode)
+            return PixelStats.dominantColor(atX: 60, y: 45, in: image)
+        }
+
+        #expect(render(frontWritesDepth: true, rearReadsDepth: true) == .red)
+        #expect(render(frontWritesDepth: false, rearReadsDepth: true) == .green)
+        #expect(render(frontWritesDepth: true, rearReadsDepth: false) == .green)
     }
 
     @Test("Software renderer stays inside Apple SceneKit golden envelopes")

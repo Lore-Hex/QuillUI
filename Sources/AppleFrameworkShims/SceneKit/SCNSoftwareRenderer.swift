@@ -105,7 +105,7 @@ public struct SCNSoftwareRenderer {
         let width = QuillSceneKitRenderSupport.pixelCount(width)
         let height = QuillSceneKitRenderSupport.pixelCount(height)
         var surface = PixelSurface(width: width, height: height, background: color(from: scene.background.contents) ?? .black)
-        for primitive in projectedPrimitives(width: width, height: height).sorted(by: { $0.depth > $1.depth }) {
+        for primitive in projectedPrimitives(width: width, height: height).sorted(by: Self.renderOrder) {
             primitive.draw(into: &surface)
         }
 
@@ -144,6 +144,13 @@ public struct SCNSoftwareRenderer {
     private func projectedPrimitives(width: Int, height: Int) -> [ProjectedPrimitive] {
         let context = projectionContext(width: width, height: height)
         return context.collector.primitives.flatMap { $0.projected(using: context.camera) }
+    }
+
+    private static func renderOrder(_ lhs: ProjectedPrimitive, _ rhs: ProjectedPrimitive) -> Bool {
+        if lhs.renderingOrder != rhs.renderingOrder {
+            return lhs.renderingOrder < rhs.renderingOrder
+        }
+        return lhs.depth > rhs.depth
     }
 
     private func projectionContext(width: Int, height: Int) -> ProjectionContext {
@@ -632,6 +639,23 @@ private struct RenderCollector {
 private struct PrimitiveOwner {
     let node: SCNNode
     let geometryIndex: Int
+    let renderingOrder: Int
+    let readsFromDepthBuffer: Bool
+    let writesToDepthBuffer: Bool
+
+    init(node: SCNNode, geometryIndex: Int) {
+        self.node = node
+        self.geometryIndex = geometryIndex
+        self.renderingOrder = node.renderingOrder
+        let resolvedMaterial: SCNMaterial?
+        if let geometry = node.geometry {
+            resolvedMaterial = material(for: geometry, elementIndex: geometryIndex)
+        } else {
+            resolvedMaterial = nil
+        }
+        self.readsFromDepthBuffer = resolvedMaterial?.readsFromDepthBuffer ?? true
+        self.writesToDepthBuffer = resolvedMaterial?.writesToDepthBuffer ?? true
+    }
 }
 
 private enum WorldPrimitive {
@@ -675,6 +699,8 @@ private enum ProjectedPrimitive {
         }
     }
 
+    var renderingOrder: Int { owner.renderingOrder }
+
     private var owner: PrimitiveOwner {
         switch self {
         case let .sphere(_, _, _, _, owner), let .line(_, _, _, _, _, owner), let .triangle(_, _, _, _, _, _, _, _, owner):
@@ -690,12 +716,12 @@ private enum ProjectedPrimitive {
 
     func draw(into surface: inout PixelSurface) {
         switch self {
-        case let .sphere(center, radius, depth, color, _):
-            surface.fillCircle(center: center, radius: radius, depth: depth, color: color)
-        case let .line(a, b, radius, depth, color, _):
-            surface.strokeCapsule(from: a, to: b, radius: radius, depth: depth, color: color)
-        case let .triangle(a, b, c, depthA, depthB, depthC, _, color, _):
-            surface.fillTriangle(a, b, c, depths: (depthA, depthB, depthC), color: color)
+        case let .sphere(center, radius, depth, color, owner):
+            surface.fillCircle(center: center, radius: radius, depth: depth, color: color, owner: owner)
+        case let .line(a, b, radius, depth, color, owner):
+            surface.strokeCapsule(from: a, to: b, radius: radius, depth: depth, color: color, owner: owner)
+        case let .triangle(a, b, c, depthA, depthB, depthC, _, color, owner):
+            surface.fillTriangle(a, b, c, depths: (depthA, depthB, depthC), color: color, owner: owner)
         }
     }
 
@@ -1042,7 +1068,7 @@ private struct PixelSurface {
         }
     }
 
-    mutating func fillCircle(center: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA) {
+    mutating func fillCircle(center: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA, owner: PrimitiveOwner) {
         let minX = max(0, Int(floor(center.x - radius)))
         let maxX = min(width - 1, Int(ceil(center.x + radius)))
         let minY = max(0, Int(floor(center.y - radius)))
@@ -1057,12 +1083,12 @@ private struct PixelSurface {
                 guard d2 <= r2 else { continue }
                 let normalized = min(1, d2 / max(1, r2))
                 let highlight = 1.05 - 0.35 * normalized + 0.12 * max(0, (-dx - dy) / max(1, radius * 2))
-                blend(x: x, y: y, depth: depth, color: color.scaled(highlight))
+                blend(x: x, y: y, depth: depth, color: color.scaled(highlight), owner: owner)
             }
         }
     }
 
-    mutating func strokeCapsule(from a: CGPoint, to b: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA) {
+    mutating func strokeCapsule(from a: CGPoint, to b: CGPoint, radius: CGFloat, depth: CGFloat, color: RGBA, owner: PrimitiveOwner) {
         let minX = max(0, Int(floor(min(a.x, b.x) - radius)))
         let maxX = min(width - 1, Int(ceil(max(a.x, b.x) + radius)))
         let minY = max(0, Int(floor(min(a.y, b.y) - radius)))
@@ -1084,13 +1110,13 @@ private struct PixelSurface {
                 let dx = p.x - q.x
                 let dy = p.y - q.y
                 if dx * dx + dy * dy <= r2 {
-                    blend(x: x, y: y, depth: depth, color: color)
+                    blend(x: x, y: y, depth: depth, color: color, owner: owner)
                 }
             }
         }
     }
 
-    mutating func fillTriangle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, depths: (CGFloat, CGFloat, CGFloat), color: RGBA) {
+    mutating func fillTriangle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, depths: (CGFloat, CGFloat, CGFloat), color: RGBA, owner: PrimitiveOwner) {
         let minX = max(0, Int(floor(min(a.x, min(b.x, c.x)))))
         let maxX = min(width - 1, Int(ceil(max(a.x, max(b.x, c.x)))))
         let minY = max(0, Int(floor(min(a.y, min(b.y, c.y)))))
@@ -1109,7 +1135,7 @@ private struct PixelSurface {
                     let depth = depths.0 * w0 * barycentricScale
                         + depths.1 * w1 * barycentricScale
                         + depths.2 * w2 * barycentricScale
-                    blend(x: x, y: y, depth: depth, color: color.scaled(0.9))
+                    blend(x: x, y: y, depth: depth, color: color.scaled(0.9), owner: owner)
                 }
             }
         }
@@ -1127,11 +1153,15 @@ private struct PixelSurface {
         pixels[index + 3] = color.a
     }
 
-    private mutating func blend(x: Int, y: Int, depth: CGFloat, color: RGBA) {
+    private mutating func blend(x: Int, y: Int, depth: CGFloat, color: RGBA, owner: PrimitiveOwner) {
         guard x >= 0, x < width, y >= 0, y < height else { return }
         let pixelIndex = y * width + x
-        guard depth <= depthBuffer[pixelIndex] + Self.depthTolerance else { return }
-        depthBuffer[pixelIndex] = depth
+        if owner.readsFromDepthBuffer {
+            guard depth <= depthBuffer[pixelIndex] + Self.depthTolerance else { return }
+        }
+        if owner.writesToDepthBuffer {
+            depthBuffer[pixelIndex] = depth
+        }
         let index = pixelIndex * 4
         let alpha = CGFloat(color.a) / 255
         let inv = 1 - alpha
@@ -1354,12 +1384,7 @@ private struct RGBA: Equatable {
 }
 
 private func color(for geometry: SCNGeometry, elementIndex: Int) -> RGBA {
-    let material: SCNMaterial?
-    if geometry.materials.indices.contains(elementIndex) {
-        material = geometry.materials[elementIndex]
-    } else {
-        material = geometry.firstMaterial
-    }
+    let material = material(for: geometry, elementIndex: elementIndex)
     if let material,
        material.emission.intensity > 0,
        let emission = color(from: material.emission.contents),
@@ -1372,6 +1397,13 @@ private func color(for geometry: SCNGeometry, elementIndex: Int) -> RGBA {
     return diffuse
         .scaled(max(0, material?.diffuse.intensity ?? 1))
         .withAlphaMultiplier(material?.opacityMultiplier ?? 1)
+}
+
+private func material(for geometry: SCNGeometry, elementIndex: Int) -> SCNMaterial? {
+    if geometry.materials.indices.contains(elementIndex) {
+        return geometry.materials[elementIndex]
+    }
+    return geometry.firstMaterial
 }
 
 private func color(from contents: Any?) -> RGBA? {
