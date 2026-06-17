@@ -6,8 +6,10 @@ import UIKit
 
 @Suite("SceneKit renderer", .serialized)
 struct SceneKitRendererTests {
-    @Test("SCNVector make helpers return matching vector values")
-    func vectorMakeHelpersReturnMatchingVectorValues() {
+    @Test("SCNVector helpers and zero constants return matching vector values")
+    func vectorHelpersAndZeroConstantsReturnMatchingVectorValues() {
+        #expect(SCNVector3Zero == SCNVector3())
+        #expect(SCNVector4Zero == SCNVector4())
         #expect(SCNVector3Make(1, 2, 3) == SCNVector3(1, 2, 3))
         #expect(SCNVector4Make(4, 5, 6, 7) == SCNVector4(4, 5, 6, 7))
     }
