@@ -120,6 +120,8 @@ final class QuillV4L2SessionBridge: @unchecked Sendable {
     }
 
     private func deliver(_ pixelBuffer: CVPixelBuffer, at presentationTime: CMTime) {
+        QuillRealtimeMovieWriterRegistry.shared.appendCaptureFrame(pixelBuffer)
+
         let timing = CMSampleTimingInfo(
             duration: .invalid,
             presentationTimeStamp: presentationTime,

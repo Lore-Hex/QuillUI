@@ -12,7 +12,7 @@ parallelized to the swarm via the issues below.
 | 1. Compiles unmodified | **Build green when fetched** | Gated `QuillSolderScope` product builds from the upstream source after the generic fetch/patch step; the remaining work is fidelity, not the old compile-error burn-down. |
 | 2. Launches + renders + input | **GTK launch/input proven** (Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, deterministic synthetic camera frame smoke, real SolderScope command-menu extraction, and Tests/QuillUITests/SolderScopeChromeConformanceTests.swift) | remaining: mac-reference visual delta closure, broader real-device gesture coverage, and toolbar/menu behavior beyond the currently smoke-driven shortcuts |
 | 3. Live camera | partial | #515 V4L2 AVCaptureSession backend plus opt-in `QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1` fixture camera for deterministic CI/runtime smoke; remaining: real USB microscope/device matrix coverage |
-| 4. Recording/snapshots | partial-real | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. The interaction smoke now safely drives SolderScope's snapshot shortcut only when Foundation's desktop directory is disposable (`/root`, `/tmp`, or the checkout) or explicitly requested. Remaining: app-level recording verification, output-directory controls, and full snapshot/record UI parity. |
+| 4. Recording/snapshots | partial-real | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. The interaction smoke now safely drives SolderScope's snapshot shortcut and, when ffmpeg is available, the app-level recording shortcut only when Foundation's desktop directory is disposable (`/root`, `/tmp`, or the checkout) or explicitly requested. Remaining: output-directory controls and full snapshot/record UI parity. |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once 2–4 are real |
 
 Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderScope`
@@ -40,6 +40,18 @@ Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderSc
   `/tmp`, or the checkout). In that case it creates the directory, records the
   pre-run file count, presses `s`, and fails unless a new `SolderScope_*.png`
   appears.
+
+- **2026-06-16 — Recording smoke must prove the real app shortcut**:
+  The interaction smoke now applies the same disposable-Desktop policy to the
+  `r` shortcut. In auto mode it requires ffmpeg, starts recording through
+  SolderScope's command-menu shortcut, waits for synthetic capture frames,
+  stops recording through the same shortcut, and fails unless a new finalized
+  `SolderScope_*.mov` appears with a plausible QuickTime/MP4 `ftyp` box.
+  AVFoundation also has a narrow real-time writer fallback: active video
+  writers with `expectsMediaDataInRealTime` receive synthetic/V4L2 capture
+  frames until the app manually appends frames, which lets the unmodified
+  SolderScope checkout exercise its recording UI even though its
+  `CaptureManager` does not call `RecordingManager.writeFrame`.
 
 - **2026-06-16 — Hosted AppKit NSView input is backend-local, not app-local**:
   QuillAppKitGTK's custom `NSView` drawing host now installs GTK motion,
