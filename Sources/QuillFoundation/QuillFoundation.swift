@@ -1612,10 +1612,9 @@ public final class CGContext {
         var alpha: CGFloat
     }
 
-    private struct QuillClipRegion {
-        var path: CGPath
-        var rule: CGPathFillRule
-        var transform: CGAffineTransform
+    private enum QuillClipRegion {
+        case path(path: CGPath, rule: CGPathFillRule, transform: CGAffineTransform)
+        case mask(rect: CGRect, source: QuillBitmapImageSource, transform: CGAffineTransform)
     }
 
     private struct QuillStrokeSegment {
@@ -1789,6 +1788,25 @@ public final class CGContext {
         pixels[offset + 3] = quillClampedByte(sourceAlpha + destinationAlpha * inverseSourceAlpha)
     }
 
+    private static func quillPremultipliedColor(
+        _ source: QuillPremultipliedBGRA,
+        multipliedBy alpha: CGFloat
+    ) -> QuillPremultipliedBGRA? {
+        let alpha = quillClampedUnit(alpha)
+        guard alpha > 0 else {
+            return nil
+        }
+        guard alpha < 1 else {
+            return source
+        }
+        return QuillPremultipliedBGRA(
+            blue: source.blue * alpha,
+            green: source.green * alpha,
+            red: source.red * alpha,
+            alpha: source.alpha * alpha
+        )
+    }
+
     private static func quillNormalizedRect(_ rect: CGRect) -> CGRect? {
         guard rect.origin.x.isFinite, rect.origin.y.isFinite,
               rect.size.width.isFinite, rect.size.height.isFinite
@@ -1877,8 +1895,11 @@ public final class CGContext {
                 var offset = y * bytesPerRow + bounds.minX * 4
                 for x in bounds.minX..<bounds.maxX {
                     let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
-                    if quillBitmapClipAllows(devicePoint) {
-                        Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                    if let clippedSource = Self.quillPremultipliedColor(
+                        source,
+                        multipliedBy: quillBitmapClipAlpha(devicePoint)
+                    ) {
+                        Self.quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
                     }
                     offset += 4
                 }
@@ -1914,9 +1935,12 @@ public final class CGContext {
                 var offset = y * bytesPerRow + bounds.minX * 4
                 for x in bounds.minX..<bounds.maxX {
                     let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
-                    if quillBitmapClipAllows(devicePoint),
-                       path.contains(devicePoint.applying(inverseCTM), using: rule, transform: .identity) {
-                        Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                    if path.contains(devicePoint.applying(inverseCTM), using: rule, transform: .identity),
+                       let clippedSource = Self.quillPremultipliedColor(
+                        source,
+                        multipliedBy: quillBitmapClipAlpha(devicePoint)
+                       ) {
+                        Self.quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
                     }
                     offset += 4
                 }
@@ -2035,15 +2059,18 @@ public final class CGContext {
                 var offset = y * bytesPerRow + bounds.minX * 4
                 for x in bounds.minX..<bounds.maxX {
                     let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
-                    if quillBitmapClipAllows(devicePoint),
-                       Self.quillStrokeContains(
+                    if Self.quillStrokeContains(
                            devicePoint,
                            segments: drawableSegments,
                            halfWidth: halfWidth,
                            lineCap: lineCap,
                            lineJoin: lineJoin
+                       ),
+                       let clippedSource = Self.quillPremultipliedColor(
+                        source,
+                        multipliedBy: quillBitmapClipAlpha(devicePoint)
                        ) {
-                        Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                        Self.quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
                     }
                     offset += 4
                 }
@@ -2188,11 +2215,18 @@ public final class CGContext {
                 var offset = y * bytesPerRow + bounds.minX * 4
                 for x in bounds.minX..<bounds.maxX {
                     let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
-                    if quillBitmapClipAllows(devicePoint) {
+                    let clipAlpha = quillBitmapClipAlpha(devicePoint)
+                    if clipAlpha >= 0.999 {
                         pixels[offset] = 0
                         pixels[offset + 1] = 0
                         pixels[offset + 2] = 0
                         pixels[offset + 3] = 0
+                    } else if clipAlpha > 0 {
+                        let remainingAlpha = 1 - clipAlpha
+                        pixels[offset] = Self.quillClampedByte(CGFloat(pixels[offset]) / 255 * remainingAlpha)
+                        pixels[offset + 1] = Self.quillClampedByte(CGFloat(pixels[offset + 1]) / 255 * remainingAlpha)
+                        pixels[offset + 2] = Self.quillClampedByte(CGFloat(pixels[offset + 2]) / 255 * remainingAlpha)
+                        pixels[offset + 3] = Self.quillClampedByte(CGFloat(pixels[offset + 3]) / 255 * remainingAlpha)
                     }
                     offset += 4
                 }
@@ -2225,7 +2259,8 @@ public final class CGContext {
                 var destinationOffset = y * bytesPerRow + bounds.minX * 4
                 for x in bounds.minX..<bounds.maxX {
                     let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
-                    guard quillBitmapClipAllows(devicePoint) else {
+                    let clipAlpha = quillBitmapClipAlpha(devicePoint)
+                    guard clipAlpha > 0 else {
                         destinationOffset += 4
                         continue
                     }
@@ -2255,7 +2290,9 @@ public final class CGContext {
                         red: (CGFloat(source.pixels[sourceOffset + 2]) / 255) * globalAlpha,
                         alpha: (CGFloat(source.pixels[sourceOffset + 3]) / 255) * globalAlpha
                     )
-                    Self.quillCompositePremultipliedBGRA(sourceColor, into: destination, at: destinationOffset)
+                    if let clippedSource = Self.quillPremultipliedColor(sourceColor, multipliedBy: clipAlpha) {
+                        Self.quillCompositePremultipliedBGRA(clippedSource, into: destination, at: destinationOffset)
+                    }
                     destinationOffset += 4
                 }
             }
@@ -2283,16 +2320,18 @@ public final class CGContext {
                 var offset = y * bytesPerRow
                 for x in 0..<width {
                     let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
-                    guard quillBitmapClipAllows(devicePoint),
+                    let clipAlpha = quillBitmapClipAlpha(devicePoint)
+                    guard clipAlpha > 0,
                           let rawLocation = locationForUserPoint(devicePoint.applying(inverseCTM)),
                           Self.quillGradientOptionsAllow(rawLocation, options: options),
-                          let source = quillPremultipliedColor(from: gradient.quillRGBA(at: rawLocation))
+                          let source = quillPremultipliedColor(from: gradient.quillRGBA(at: rawLocation)),
+                          let clippedSource = Self.quillPremultipliedColor(source, multipliedBy: clipAlpha)
                     else {
                         offset += 4
                         continue
                     }
 
-                    Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                    Self.quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
                     offset += 4
                 }
             }
@@ -2398,13 +2437,45 @@ public final class CGContext {
         return candidates.min(by: { abs($0 - 0.5) < abs($1 - 0.5) })
     }
 
-    private func quillBitmapClipAllows(_ devicePoint: CGPoint) -> Bool {
+    private func quillBitmapClipAlpha(_ devicePoint: CGPoint) -> CGFloat {
         guard !quillClipRegions.isEmpty else {
-            return true
+            return 1
         }
 
-        return quillClipRegions.allSatisfy { region in
-            region.path.contains(devicePoint, using: region.rule, transform: region.transform)
+        var alpha: CGFloat = 1
+        for region in quillClipRegions {
+            alpha *= Self.quillClipAlpha(for: region, at: devicePoint)
+            if alpha <= 0 {
+                return 0
+            }
+        }
+        return Self.quillClampedUnit(alpha)
+    }
+
+    private static func quillClipAlpha(for region: QuillClipRegion, at devicePoint: CGPoint) -> CGFloat {
+        switch region {
+        case let .path(path, rule, transform):
+            return path.contains(devicePoint, using: rule, transform: transform) ? 1 : 0
+        case let .mask(rect, source, transform):
+            guard let inverse = quillInverse(transform) else {
+                return 0
+            }
+            let userPoint = devicePoint.applying(inverse)
+            guard userPoint.x >= rect.minX, userPoint.x < rect.maxX,
+                  userPoint.y >= rect.minY, userPoint.y < rect.maxY
+            else {
+                return 0
+            }
+
+            let unitX = (userPoint.x - rect.minX) / rect.width
+            let unitY = (userPoint.y - rect.minY) / rect.height
+            let sourceX = Swift.max(0, Swift.min(source.width - 1, Int((unitX * CGFloat(source.width)).rounded(.down))))
+            let sourceY = Swift.max(0, Swift.min(source.height - 1, Int((unitY * CGFloat(source.height)).rounded(.down))))
+            let sourceOffset = sourceY * source.bytesPerRow + sourceX * 4
+            guard sourceOffset + 3 < source.pixels.count else {
+                return 0
+            }
+            return CGFloat(source.pixels[sourceOffset + 3]) / 255
         }
     }
 
@@ -2413,7 +2484,15 @@ public final class CGContext {
             return
         }
 
-        quillClipRegions.append(QuillClipRegion(path: path, rule: rule, transform: quillCTM))
+        quillClipRegions.append(.path(path: path, rule: rule, transform: quillCTM))
+    }
+
+    private func quillAddMaskClip(rect: CGRect, source: QuillBitmapImageSource) {
+        guard let rect = Self.quillNormalizedRect(rect) else {
+            return
+        }
+
+        quillClipRegions.append(.mask(rect: rect, source: source, transform: quillCTM))
     }
 
     /// Bitmap-context initializer. The supplied pixels are retained so
@@ -2727,9 +2806,12 @@ public final class CGContext {
     public func resetClip() {
         quillClipRegions.removeAll()
     }
-    // CGContext.clip(to:mask:) — clips to a rect using an image mask. Inert on
-    // Linux (no real raster). SSK: AvatarBuilder masks a tinted icon.
-    public func clip(to rect: CGRect, mask image: Any) {}
+    public func clip(to rect: CGRect, mask image: Any) {
+        guard let source = Self.quillBitmapSource(from: image) else {
+            return
+        }
+        quillAddMaskClip(rect: rect, source: source)
+    }
 
     public func saveGState() {
         quillStateStack.append(QuillGraphicsState(

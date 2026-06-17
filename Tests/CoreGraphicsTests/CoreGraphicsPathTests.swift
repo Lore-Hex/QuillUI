@@ -699,6 +699,55 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGContext bitmap clip(to:mask:) applies mask alpha and resetClip clears it")
+    func bitmapContextClipToMaskAppliesAlphaAndResetClipClearsIt() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        let mask = makeMaskImage(width: 4, height: 1, alphas: [0, 128, 255, 0])
+        context.clip(to: CGRect(x: 0, y: 0, width: 4, height: 1), mask: mask)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 1))
+
+        context.resetClip()
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            255, 0, 0, 255, 0, 0, 128, 128, 0, 0, 255, 255, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap clip(to:mask:) captures the current transform")
+    func bitmapContextClipToMaskCapturesCurrentTransform() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.translateBy(x: 1, y: 0)
+        context.clip(to: CGRect(x: 0, y: 0, width: 2, height: 1), mask: makeMaskImage(width: 2, height: 1, alphas: [255, 255]))
+        context.translateBy(x: -1, y: 0)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 1))
+
+        #expect(try bitmapAlphas(in: context) == [0, 255, 255, 0])
+    }
+
+    @Test("CGContext bitmap clip(to:mask:) restricts clear and image draw")
+    func bitmapContextClipToMaskRestrictsClearAndImageDraw() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 1))
+        context.clip(to: CGRect(x: 0, y: 0, width: 4, height: 1), mask: makeMaskImage(width: 4, height: 1, alphas: [0, 255, 255, 0]))
+        context.clear(CGRect(x: 0, y: 0, width: 4, height: 1))
+
+        let source = CGImage()
+        source.width = 4
+        source.height = 1
+        source.quillBytesPerRow = 16
+        source.quillBGRAPixels = Array(repeating: [UInt8(255), 0, 0, 255], count: 4).flatMap { $0 }
+        context.draw(source, in: CGRect(x: 0, y: 0, width: 4, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 255, 255, 255, 0, 0, 255, 255, 0, 0, 255, 0, 0, 255, 255,
+        ])
+    }
+
     @Test("CGContext bitmap clipping restricts clear and image draw")
     func bitmapContextClipRestrictsClearAndImageDraw() throws {
         let context = try makeBitmapContext(width: 4, height: 1)
@@ -829,6 +878,15 @@ struct CoreGraphicsPathTests {
     private func pixelBGRA(in pixels: [UInt8], width: Int, x: Int, y: Int) -> [UInt8] {
         let offset = (y * width + x) * 4
         return Array(pixels[offset..<(offset + 4)])
+    }
+
+    private func makeMaskImage(width: Int, height: Int, alphas: [UInt8]) -> CGImage {
+        let image = CGImage()
+        image.width = width
+        image.height = height
+        image.quillBytesPerRow = width * 4
+        image.quillBGRAPixels = alphas.flatMap { [UInt8(255), 255, 255, $0] }
+        return image
     }
     #endif
 
