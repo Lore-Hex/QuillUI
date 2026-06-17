@@ -266,6 +266,12 @@ public struct AppKitLowering {
                 byType: collector.byType,
                 hierarchy: resolvedHierarchy
               ).rewrite(relocated)
+        // Pass 3b: `@NSApplicationDelegateAdaptor(Foo.self)` needs to construct
+        // `Foo` through a generic `init()` requirement on Linux. swift-corelibs
+        // `NSObject.init()` is not `required`, so app delegates opt into the
+        // existing QuillReusableView marker mechanically here.
+        let withAppDelegateConstruction = NSApplicationDelegateReusableConformanceRewriter()
+            .rewrite(withDispatch)
         // Pass 4: actor-isolation policy (see the type-level doc block). Always
         // `nonisolated`-annotates overrides of the genuinely-nonisolated NSObject
         // identity members (isEqual/hash/description/debugDescription); for inits
@@ -274,7 +280,7 @@ public struct AppKitLowering {
         // and synthesizes a `nonisolated override init()` into an NSObject-direct
         // `@MainActor` class that declares no initializer at all.
         let withIsolation = NonisolatedNSObjectMemberRewriter(hierarchy: resolvedHierarchy)
-            .rewrite(withDispatch)
+            .rewrite(withAppDelegateConstruction)
         // Pass 5: actor-isolation RIPPLE — `deinit`. Under `-default-isolation
         // MainActor` a `@MainActor` class has an ISOLATED deinit, so a subclass's
         // (nonisolated-by-default) deinit STRUCTURALLY mismatches it AND can't touch
@@ -1956,6 +1962,177 @@ private final class DispatchOverrideInjector: SyntaxRewriter {
             )
         }
         return copy
+    }
+}
+
+// MARK: - NSApplicationDelegateAdaptor construction support (Pass 3b)
+
+/// Makes `@NSApplicationDelegateAdaptor(AppDelegate.self)` usable for unmodified
+/// macOS app source. On Apple, the SwiftUI wrapper can instantiate an
+/// `NSObject & NSApplicationDelegate` via ObjC runtime conventions. On Linux,
+/// generic construction needs an explicit `init()` protocol requirement, so the
+/// SwiftUI shim constructs delegates that conform to `QuillReusableView`.
+///
+/// This pass is deliberately narrow: only classes that directly declare
+/// `NSApplicationDelegate` gain `QuillReusableView`, and only when the no-arg
+/// initializer either already exists or can be safely synthesized.
+private final class NSApplicationDelegateReusableConformanceRewriter: SyntaxRewriter {
+    private var classStack: [String] = []
+
+    override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
+        classStack.append(node.name.text)
+        let recursed = super.visit(node).cast(ClassDeclSyntax.self)
+        classStack.removeLast()
+
+        guard Self.inherits(recursed, "NSApplicationDelegate") else {
+            return DeclSyntax(recursed)
+        }
+
+        let hasNoArgInit = Self.hasNoArgInitializer(recursed)
+        guard hasNoArgInit || Self.canSynthesizeNoArgInitializer(recursed) else {
+            return DeclSyntax(recursed)
+        }
+
+        let memberIndent = String(repeating: "    ", count: classStack.count + 1)
+        var copy = Self.addingConformanceIfMissing(to: recursed, named: "QuillReusableView")
+        copy = Self.ensuringRequiredNoArgInitializer(on: copy, memberIndent: memberIndent)
+        return DeclSyntax(copy)
+    }
+
+    private static func inherits(_ node: ClassDeclSyntax, _ name: String) -> Bool {
+        node.inheritanceClause?.inheritedTypes.contains { inherited in
+            HierarchyMap.simpleName(inherited.type.trimmedDescription) == name
+        } ?? false
+    }
+
+    private static func hasNoArgInitializer(_ node: ClassDeclSyntax) -> Bool {
+        node.memberBlock.members.contains { item in
+            guard let initDecl = item.decl.as(InitializerDeclSyntax.self) else { return false }
+            return initDecl.signature.parameterClause.parameters.isEmpty
+        }
+    }
+
+    private static func canSynthesizeNoArgInitializer(_ node: ClassDeclSyntax) -> Bool {
+        !hasUninitializedStoredProperty(node)
+    }
+
+    private static func ensuringRequiredNoArgInitializer(
+        on node: ClassDeclSyntax,
+        memberIndent: String
+    ) -> ClassDeclSyntax {
+        var sawNoArgInit = false
+        var copy = node
+        copy.memberBlock.members = MemberBlockItemListSyntax(copy.memberBlock.members.map { item in
+            guard let initDecl = item.decl.as(InitializerDeclSyntax.self),
+                  initDecl.signature.parameterClause.parameters.isEmpty else {
+                return item
+            }
+            sawNoArgInit = true
+            var updated = item
+            updated.decl = DeclSyntax(addingRequiredIfMissing(to: initDecl))
+            return updated
+        })
+
+        guard !sawNoArgInit else { return copy }
+
+        let hasClassSuperclass = firstInheritedClassName(copy) != nil
+        let body = hasClassSuperclass ? " { super.init() }" : " {}"
+        let overrideModifier = hasClassSuperclass ? " override" : ""
+        let source = "\(memberIndent)// Auto-generated by AppKitLowering: constructible app delegate for @NSApplicationDelegateAdaptor"
+            + "\n\(memberIndent)required\(overrideModifier) init()\(body)"
+        let member = MemberBlockItemSyntax(decl: DeclSyntax("\n\n\(raw: source)\n"))
+        var members = copy.memberBlock.members
+        members.append(member)
+        copy.memberBlock.members = members
+        return copy
+    }
+
+    private static func addingRequiredIfMissing(to node: InitializerDeclSyntax) -> InitializerDeclSyntax {
+        guard !node.modifiers.contains(where: { $0.name.text == "required" }) else { return node }
+        var copy = node
+        let savedLeading = copy.leadingTrivia
+        copy.leadingTrivia = Trivia()
+        let required = DeclModifierSyntax(name: .keyword(.required), trailingTrivia: .space)
+        copy.modifiers = DeclModifierListSyntax([required] + Array(copy.modifiers))
+        copy.leadingTrivia = savedLeading
+        return copy
+    }
+
+    private static func addingConformanceIfMissing(
+        to node: ClassDeclSyntax,
+        named conformanceName: String
+    ) -> ClassDeclSyntax {
+        guard !inherits(node, conformanceName) else { return node }
+        var copy = node
+        if var clause = copy.inheritanceClause {
+            var types = clause.inheritedTypes
+            var newTrailing: Trivia = .space
+            if let lastIndex = types.indices.last {
+                var last = types[lastIndex]
+                newTrailing = last.trailingTrivia
+                last.trailingTrivia = Trivia()
+                last.trailingComma = .commaToken(trailingTrivia: .space)
+                types[lastIndex] = last
+            }
+            let conformance = InheritedTypeSyntax(
+                type: TypeSyntax(IdentifierTypeSyntax(name: .identifier(conformanceName))),
+                trailingTrivia: newTrailing
+            )
+            types.append(conformance)
+            clause.inheritedTypes = types
+            copy.inheritanceClause = clause
+        } else {
+            let nameTrailing = copy.name.trailingTrivia
+            copy.name.trailingTrivia = Trivia()
+            let conformance = InheritedTypeSyntax(
+                type: TypeSyntax(IdentifierTypeSyntax(name: .identifier(conformanceName))),
+                trailingTrivia: nameTrailing
+            )
+            copy.inheritanceClause = InheritanceClauseSyntax(
+                colon: .colonToken(trailingTrivia: .space),
+                inheritedTypes: InheritedTypeListSyntax([conformance])
+            )
+        }
+        return copy
+    }
+
+    private static func firstInheritedClassName(_ node: ClassDeclSyntax) -> String? {
+        guard let first = node.inheritanceClause?.inheritedTypes.first else { return nil }
+        let firstSimple = HierarchyMap.simpleName(first.type.trimmedDescription)
+        if HierarchyMap.isKnownInheritedProtocol(firstSimple) {
+            return nil
+        }
+        if ["NSApplicationDelegate", "QuillReusableView", "QuillSelectorDispatching"].contains(firstSimple) {
+            return nil
+        }
+        return firstSimple
+    }
+
+    private static func hasUninitializedStoredProperty(_ node: ClassDeclSyntax) -> Bool {
+        node.memberBlock.members.contains { item in
+            guard let varDecl = item.decl.as(VariableDeclSyntax.self) else { return false }
+            if varDecl.modifiers.contains(where: { ["static", "class", "lazy"].contains($0.name.text) }) {
+                return false
+            }
+            return varDecl.bindings.contains { binding in
+                if let accessors = binding.accessorBlock {
+                    if case .accessors(let list) = accessors.accessors {
+                        if list.contains(where: { $0.accessorSpecifier.text == "get" }) {
+                            return false
+                        }
+                    } else {
+                        return false
+                    }
+                }
+                if binding.initializer != nil { return false }
+                if varDecl.bindingSpecifier.text == "var",
+                   let type = binding.typeAnnotation?.type,
+                   type.is(OptionalTypeSyntax.self) || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
+                    return false
+                }
+                return true
+            }
+        }
     }
 }
 

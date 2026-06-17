@@ -50,6 +50,32 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Package manifest uses frontend-compatible default isolation flags")
+    func packageManifestUsesFrontendCompatibleDefaultIsolationFlags() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+
+        #expect(manifest.contains("#if compiler(>=6.2)"))
+        #expect(manifest.contains("let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = ["))
+        #expect(manifest.contains(".unsafeFlags([\"-Xfrontend\", \"-default-isolation\", \"-Xfrontend\", \"MainActor\"])"))
+        #expect(manifest.contains("#else\nlet quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = []\n#endif"))
+        #expect(manifest.contains("let quillMinimalConcurrencyMainActorSwiftSettings: [SwiftSetting] = ["))
+        #expect(!manifest.contains("\"-default-isolation\", \"MainActor\""))
+    }
+
+    @Test("WireGuard upstream fetch normalizes default isolation flags")
+    func wireGuardUpstreamFetchNormalizesDefaultIsolationFlags() throws {
+        let root = try packageRoot()
+        let script = try String(
+            contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
+            encoding: .utf8
+        )
+
+        #expect(script.contains("patching wireguard-apple Package.swift default-isolation flags"))
+        #expect(script.contains("[\"-Xfrontend\", \"-default-isolation\", \"-Xfrontend\", \"MainActor\"]"))
+        #expect(script.contains(#"r'\[\s*"-default-isolation"\s*,\s*"MainActor"\s*\]'"#))
+    }
+
     @Test("Qt manifest avoids pkg-config prohibited flag warnings")
     func qtManifestAvoidsPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()
@@ -74,7 +100,9 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsCxxFlags)"))
         #expect(manifest.contains(".unsafeFlags(qt6WidgetsLinkerFlags)"))
         #expect(manifest.contains("#if !os(Linux)\nproducts.append(.executable(name: \"quill-wireguard-qt\", targets: [\"QuillWireGuardQt\"]))"))
-        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))\n}"))
+        #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))"))
+        #expect(manifest.contains("if signalUpstreamPresent && libsignalUpstreamPresent {"))
+        #expect(manifest.contains("products.append(.executable(name: \"signal-ui-render\", targets: [\"SignalUIRender\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("enum QuillCanonicalLinuxAppQtRuntime"))
         #expect(manifest.contains("struct QuillCanonicalLinuxAppSpec"))
@@ -83,6 +111,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
         #expect(manifest.contains("products += ["))
         #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
+        #expect(manifest.contains(".library(name: \"UniformTypeIdentifiers\", targets: [\"UniformTypeIdentifiers\"]),\n            .library(name: \"CoreTransferable\", targets: [\"CoreTransferable\"]),"))
         #expect(manifest.contains(".library(name: \"QuillGenericQtNativeRuntime\", targets: [\"QuillGenericQtNativeRuntime\"])"))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("func quillCanonicalLinuxAppQtTarget(_ app: QuillCanonicalLinuxAppSpec) -> Target"))
@@ -99,6 +128,8 @@ struct SourceHygieneTests {
         // unused-dependency warning. See Package.swift `if signalUpstreamPresent`.
         #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
         #expect(manifest.contains("cSQLiteTarget,\n        cCairoTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
+        #expect(manifest.contains("name: \"UniformTypeIdentifiers\",\n            dependencies: [],\n            path: \"Sources/UniformTypeIdentifiersShim\""))
+        #expect(manifest.contains("name: \"CoreTransferable\",\n            dependencies: [\"UniformTypeIdentifiers\"],\n            path: \"Sources/CoreTransferable\""))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
@@ -300,6 +331,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/linux-swift-test.sh"),
             encoding: .utf8
         )
+        let gtkPatchScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/patch-swiftopenui-gtk-css.sh"),
+            encoding: .utf8
+        )
         let backendBuildScript = try String(
             contentsOf: root.appendingPathComponent("scripts/build-linux-backend-products.sh"),
             encoding: .utf8
@@ -325,6 +360,10 @@ struct SourceHygieneTests {
         #expect(linuxSwiftTest.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(linuxSwiftTest.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(!linuxSwiftTest.contains("patch-swiftopenui-gtk-css.sh"))
+        #expect(gtkPatchScript.contains("GRDB_SOURCE_DIR=\"$SCRATCH_PATH/checkouts/GRDB.swift/GRDB\""))
+        #expect(gtkPatchScript.contains("new = disable_can_import(text, \"Combine\")"))
+        #expect(gtkPatchScript.contains("QUILLUI_GRDB_SKIP_CGFLOAT_ON_LINUX"))
+        #expect(gtkPatchScript.contains("missing required module 'COpenCombineHelpers'"))
         #expect(backendBuildScript.contains("quillui_prepare_backend_once()"))
         #expect(backendBuildScript.contains("PREPARED_BACKENDS=$'\\n'"))
         #expect(backendBuildScript.contains("scripts/prepare-linux-build-backend.sh"))
@@ -560,17 +599,43 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKit.swift"),
             encoding: .utf8
         )
-        let gestureSource = try String(
+        let pasteboardAdditions = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUIKit/QuillUIKitMissingMembers+Pasteboard.swift"),
+            encoding: .utf8
+        )
+        let gestureRecognizers = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillUIKit/UIGestureRecognizers.swift"),
+            encoding: .utf8
+        )
+        let uiKitShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/UIKitShim/UIKit.swift"),
+            encoding: .utf8
+        )
+        let attributedStringSize = try String(
+            contentsOf: root.appendingPathComponent("Sources/UIKitShim/NSAttributedStringSize.swift"),
+            encoding: .utf8
+        )
+        let manifest = try String(
+            contentsOf: root.appendingPathComponent("Package.swift"),
             encoding: .utf8
         )
 
         #expect(source.contains("public enum UIUserInterfaceStyle: Int"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\n    \"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\",\n]"))
+        #expect(pasteboardAdditions.contains("import CoreGraphics"))
+        #expect(uiKitShim.contains("public typealias UIEdgeInsets = QuillEdgeInsets"))
+        #expect(uiKitShim.contains("public weak var layoutManager: NSLayoutManager?"))
+        #expect(uiKitShim.contains("public init(start: UITextPosition, end: UITextPosition)"))
+        #expect(!uiKitShim.contains("var safeAreaInsets: UIEdgeInsets { .zero }\n    @MainActor var windowScene"))
+        #expect(uiKitShim.contains("open override func sizeThatFits(_ size: CGSize) -> CGSize"))
+        #expect(uiKitShim.contains("public extension NSAttributedString {\n    func boundingRect(with size: CGSize,"))
+        #expect(attributedStringSize.contains("func size() -> CGSize"))
+        #expect(!attributedStringSize.contains("func boundingRect(with size: CGSize,"))
         #expect(source.contains("public typealias UserInterfaceStyle = UIUserInterfaceStyle"))
         #expect(source.contains("public struct AnimationOptions: OptionSet, Sendable"))
         #expect(source.contains("usingSpringWithDamping: CGFloat"))
         #expect(source.contains("public struct State: OptionSet, Sendable"))
-        #expect(gestureSource.contains("open class UIGestureRecognizer: NSObject"))
+        #expect(gestureRecognizers.contains("@MainActor open class UIGestureRecognizer: NSObject"))
         #expect(source.contains("public enum ContentInsetAdjustmentBehavior: Int"))
         #expect(source.contains("public enum DisplayModeButtonVisibility: Int"))
         #expect(source.contains("public enum SplitBehavior: Int"))
@@ -578,6 +643,21 @@ struct SourceHygieneTests {
         #expect(source.contains("public enum LayoutEnvironment: Int"))
         #expect(source.contains("case twoDisplaceSecondary"))
         #expect(source.contains("case inspector"))
+        #expect(source.contains("#if os(Linux)\n    open func forwardingTarget(for aSelector: Selector!) -> Any? { nil }\n    #else\n    open override func forwardingTarget(for aSelector: Selector!) -> Any? { nil }\n    #endif"))
+        #expect(pasteboardAdditions.contains("#if os(Linux)\n    func responds(to selector: Selector?) -> Bool {\n        false\n    }\n    #endif"))
+    }
+
+    @Test("QuartzCore layer tests match CALayer main-actor isolation")
+    func quartzCoreLayerTestsMatchCALayerMainActorIsolation() throws {
+        let manifest = try packageSource("Package.swift")
+        let modelTests = try packageSource("Tests/QuartzCoreTests/CALayerModelTests.swift")
+        let timingTests = try packageSource("Tests/QuartzCoreTests/CAAnimationTimingTests.swift")
+
+        #expect(manifest.contains("name: \"QuartzCoreTests\",\n        dependencies: [\"QuartzCore\"],\n        path: \"Tests/QuartzCoreTests\",\n        swiftSettings: [.swiftLanguageMode(.v5)]"))
+        #expect(!modelTests.contains("@MainActor\nfinal class CALayerModelTests: XCTestCase"))
+        #expect(!timingTests.contains("@MainActor\nfinal class CAAnimationTimingTests: XCTestCase"))
+        #expect(modelTests.contains("@preconcurrency import QuartzCore"))
+        #expect(timingTests.contains("@preconcurrency import QuartzCore"))
     }
 
     @Test("Semantic colors have a single platform-color owner")
@@ -662,8 +742,10 @@ struct SourceHygieneTests {
         #expect(host.contains("gtk_gesture_drag_new()"))
         #expect(host.contains("gtk_gesture_click_new()"))
         #expect(host.contains("gtk_swift_gesture_single_set_button(gesture, button.gtkButton)"))
-        #expect(host.contains("gtk_event_controller_motion_new()"))
-        #expect(host.contains("gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES)"))
+        #expect(host.contains("gtk_swift_motion_capture_controller()"))
+        #expect(host.contains("gtk_swift_scroll_capture_controller()"))
+        #expect(!host.contains("gtk_event_controller_motion_new()"))
+        #expect(!host.contains("gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES)"))
         #expect(host.contains("gtk_gesture_zoom_new()"))
         #expect(host.contains("gtk_swift_add_capture_multitouch_gesture(widget, gesture)"))
         #expect(host.contains("event.magnification = magnification"))
@@ -696,8 +778,12 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVFoundation.swift"),
             encoding: .utf8
         )
-        let captureSurface = try String(
+        let avCaptureSurface = try String(
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureSurface.swift"),
+            encoding: .utf8
+        )
+        let avCaptureExtras = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/AVCaptureExtras.swift"),
             encoding: .utf8
         )
         let syntheticCapture = try String(
@@ -712,16 +798,39 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/osShim/os.swift"),
             encoding: .utf8
         )
+        let attributedStringDocument = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillFoundation/NSAttributedStringDocument.swift"),
+            encoding: .utf8
+        )
 
         #expect(appKit.contains("@discardableResult\n    public func declareTypes(_ types: [PasteboardType], owner: Any?) -> Int"))
         #expect(avFoundation.contains("@discardableResult\n    public func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool"))
+        #expect(avCaptureSurface.contains("var quillV4L2Bridge: AnyObject?"))
+        #expect(avCaptureSurface.contains("public static let inputPriority = Preset(rawValue: \"AVCaptureSessionPresetInputPriority\")"))
+        #expect(avCaptureSurface.occurrences(of: "public static let inputPriority = Preset(rawValue: \"AVCaptureSessionPresetInputPriority\")") == 1)
+        #expect(avCaptureSurface.occurrences(of: "public enum InterruptionReason: Int, Sendable") == 1)
+        #expect(avCaptureSurface.occurrences(of: "public var isMultitaskingCameraAccessSupported: Bool { false }") == 1)
+        #expect(avCaptureSurface.occurrences(of: "public var isMultitaskingCameraAccessEnabled") == 1)
+        #expect(avCaptureSurface.contains("public enum AVCaptureVideoStabilizationMode"))
+        #expect(avCaptureSurface.contains("public var preferredVideoStabilizationMode: AVCaptureVideoStabilizationMode = .off"))
+        #expect(!avCaptureExtras.contains("public final class AVCaptureSession"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureInput"))
+        #expect(!avCaptureExtras.contains("open class AVCaptureOutput"))
+        #expect(!avCaptureExtras.contains("public final class AVCaptureDeviceInput"))
+        #expect(!avCaptureExtras.contains("public final class AVCaptureVideoDataOutput"))
+        #expect(!avCaptureExtras.contains("public protocol AVCaptureVideoDataOutputSampleBufferDelegate"))
+        #expect(!avCaptureExtras.contains("public final class AVCaptureConnection"))
+        #expect(!avCaptureExtras.contains("public enum AVAuthorizationStatus"))
+        #expect(!avCaptureExtras.contains("public var deviceType: DeviceType"))
+        #expect(!avCaptureExtras.contains("public func lockForConfiguration()"))
+        #expect(avCaptureExtras.contains("open class AVCaptureVideoPreviewLayer"))
         // V4L2 (#515): the capture backend's CV4L2 system library joins the
         // dependency list Linux-only via quillV4L2Dependencies.
         #expect(manifest.contains(".target(name: \"AVFoundation\", dependencies: [\"QuillKit\", \"QuillFoundation\", \"QuartzCore\", \"AudioToolbox\", \"CoreMedia\", \"CoreVideo\", \"CoreImage\"] + quillV4L2Dependencies, path: \"Sources/AVFoundation\")"))
         #expect(avFoundation.contains("self.devices = AVCaptureDevice.quillDiscoveredCaptureDevices()"))
-        #expect(captureSurface.contains("var quillSyntheticBridge: AnyObject?"))
-        #expect(captureSurface.contains("quillSyntheticStartIfAvailable()"))
-        #expect(captureSurface.contains("quillSyntheticStopIfAvailable()"))
+        #expect(avCaptureSurface.contains("var quillSyntheticBridge: AnyObject?"))
+        #expect(avCaptureSurface.contains("quillSyntheticStartIfAvailable()"))
+        #expect(avCaptureSurface.contains("quillSyntheticStopIfAvailable()"))
         #expect(syntheticCapture.contains("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA"))
         #expect(syntheticCapture.contains("static func quillDiscoveredCaptureDevices() -> [AVCaptureDevice]"))
         #expect(syntheticCapture.contains("static func deviceConfiguration(_ device: AVCaptureDevice)"))
@@ -731,6 +840,8 @@ struct SourceHygieneTests {
         #expect(captureTests.contains("syntheticCameraDiscoveryIsOptIn"))
         #expect(captureTests.contains("syntheticCaptureSessionDeliversFrames"))
         #expect(!osShim.contains("import os"))
+        #expect(attributedStringDocument.contains("#if os(Linux)\n// NSAttributedString document-conversion surface"))
+        #expect(attributedStringDocument.hasSuffix("#endif\n"))
     }
 
     @Test("Linux SwiftUI compatibility extensions have one canonical module")
@@ -778,8 +889,13 @@ struct SourceHygieneTests {
         #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
         #expect(swiftOpenUIControlStyles.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
+        #expect(designCompatibility.contains("@MainActor\n    static var circle: Circle { Circle() }"))
+        #expect(designCompatibility.contains("@MainActor\n    public init<Content: View>(_ column: TableColumn<RowValue, Content>)"))
+        #expect(designCompatibility.contains("@MainActor public static func buildExpression<Content: View>"))
         #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))
         #expect(!quillUpstreamCompatibility.contains("public struct PlainButtonStyle"))
+        #expect(!designCompatibility.contains("public protocol ButtonStyle"))
+        #expect(!designCompatibility.contains("public struct ButtonStyleConfiguration"))
         #expect(!designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(!quillUpstreamCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
@@ -804,7 +920,7 @@ struct SourceHygieneTests {
         #expect(rendererSource.contains("ImageRendererBackend.installViewRenderer"))
         #expect(compatibilitySource.contains("let renderer = SwiftOpenUI.OpenUIImageRenderer(content: self)"))
         #expect(compatibilitySource.contains("if let data = renderer.platformImage?.data"))
-        #expect(compatibilitySource.contains("let image = PlatformImage(data: data)"))
+        #expect(compatibilitySource.contains("let image = QuillPlatformImage(data: data)"))
         #expect(!compatibilitySource.contains("if let image = renderer.platformImage {\n            return image"))
         #expect(gtkSource.contains("gtk_widget_snapshot_child"))
         #expect(gtkSource.contains("cairo_surface_write_to_png_stream"))
@@ -831,9 +947,25 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/Components/InputFields_macOS.swift.pl"),
             encoding: .utf8
         )
+        let profileLowering = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/lower-profile-source.sh"),
+            encoding: .utf8
+        )
+        let controls = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillUI/Controls.swift"),
+            encoding: .utf8
+        )
+        let inputFieldsTemplate = root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/macOS/Chat/Components/InputFields_macOS.swift")
 
         #expect(inputFieldsRule.contains("\\n$1.frame(maxWidth: .infinity)\\n$1.overlay("))
         #expect(inputFieldsRule.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
+        #expect(profileLowering.contains("import QuillUI"))
+        #expect(profileLowering.contains("QuillChatComposer("))
+        #expect(controls.contains("public struct QuillChatComposer: View"))
+        #expect(controls.contains(".onSubmit"))
+        #expect(controls.contains("submitIfPossible()"))
+        #expect(controls.contains(".keyboardShortcut(.return, modifiers: [])"))
+        #expect(!FileManager.default.fileExists(atPath: inputFieldsTemplate.path))
     }
 
     @Test("Apple service aliases live in reusable compatibility modules")
@@ -2185,13 +2317,30 @@ struct SourceHygieneTests {
         #expect(!backendScript.contains("quill-gtk-interaction-smoke|quill-qt-interaction-smoke"))
         #expect(backendScript.contains("source \"$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh\""))
         #expect(backendScript.contains("verify-backend-screenshot.py"))
+        #expect(backendScript.contains("window_height - 80"))
+        #expect(!backendScript.contains("window_height - 115"))
+        #expect(!backendScript.contains("window_height - 76"))
         #expect(backendScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" VERIFY_PRODUCT"))
+        #expect(screenshotVerifier.contains("text_pixels >= 120"))
+        #expect(!screenshotVerifier.contains("text_pixels >= 25,\n        f\"Mac-reference typed composer text was not detected"))
+        #expect(backendScript.contains("quill_chat_completions_panel_probe_path=\"\""))
+        #expect(backendScript.contains("quill_chat_completion_interaction_needs_settled_capture()"))
+        #expect(backendScript.contains("completions-save|completions-edit-save|completions-delete"))
+        #expect(backendScript.contains("settle_quill_chat_completion_capture_if_verified()"))
+        #expect(backendScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" verify_product"))
+        #expect(backendScript.contains("cp -f \"$quill_chat_completions_panel_probe_path\" \"$SCREENSHOT_PATH\""))
+        #expect(backendScript.contains("settled_capture_taken=1"))
+        #expect(backendScript.contains("settle_quill_chat_completion_capture_if_verified\n      return 0"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_OPEN_ATTEMPTS:-3"))
+        #expect(backendScript.contains("for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_OPEN_RETRY_SLEEP:-0.8"))
         #expect(backendScript.contains("quillui_append_backend_selection_start_environment"))
         #expect(!backendScript.contains("app_environment+=(\"QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(!backendScript.contains("app_environment+=(\"QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6"))
+        #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_ESCAPE_SLEEP:-0.3"))
         #expect(backendScript.contains("reset_cancel_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}\""))
         #expect(backendScript.contains("reset_cancel_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}\""))
         #expect(backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}\""))
@@ -2201,8 +2350,8 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("instruction_x=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}\""))
         #expect(backendScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 548))}\""))
         #expect(backendScript.contains("Reply with a concise Linux validation response."))
-        #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}\""))
-        #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 407))}\""))
+        #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1522))}\""))
+        #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 383))}\""))
         #expect(!backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}\""))
         #expect(!backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
         #expect(backendScript.contains("run_list_selection_or_header_interaction()"))
@@ -2289,6 +2438,9 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
         #expect(smokeLib.contains("verify_product=\"$(quillui_backend_visual_verify_product_for_product \"$product\" \"$selected_backend\")\""))
         #expect(smokeLib.contains("quillui_backend_interaction_verify_product()"))
+        #expect(smokeLib.contains("local resolved_verify_product=\"$product\""))
+        #expect(smokeLib.contains("quillui_assign_output \"$output_var\" \"$resolved_verify_product\""))
+        #expect(!smokeLib.contains("local verify_product=\"$product\"\n  local app_verify_product"))
         #expect(smokeLib.contains("quillui_backend_list_selection_verify_product()"))
         #expect(smokeLib.contains("list_selection_verify_product=\"$(quillui_backend_list_selection_verify_product \"$product\" \"$selected_backend\")\""))
         #expect(smokeLib.contains("quillui_backend_app_interaction_verify_product_for_product \"$product\" \"$selected_backend\" \"$interaction_mode\""))
@@ -2629,9 +2781,10 @@ struct SourceHygieneTests {
         #expect(smokeMatrixRunner.contains("build_cache_key=\"$(quillui_smoke_build_cache_key \"$product\" \"$requested_backend\" \"$runtime_backend\")\""))
         #expect(smokeMatrixRunner.contains("printf '%s:%s\\n' \"$product\" \"$runtime_backend\""))
         #expect(smokeMatrixRunner.contains("quillui_smoke_visual_verify_product()"))
-        #expect(smokeMatrixRunner.contains("quillui_backend_visual_verify_product \"$product\" resolved_verify_product"))
+        #expect(smokeMatrixRunner.contains("quillui_runner_verify_product=\"\""))
+        #expect(smokeMatrixRunner.contains("quillui_backend_visual_verify_product \"$product\" quillui_runner_verify_product"))
         #expect(smokeMatrixRunner.contains("quillui_smoke_interaction_verify_product()"))
-        #expect(smokeMatrixRunner.contains("quillui_backend_interaction_verify_product \"$product\" \"$interaction_mode\" resolved_verify_product"))
+        #expect(smokeMatrixRunner.contains("quillui_backend_interaction_verify_product \"$product\" \"$interaction_mode\" quillui_runner_verify_product"))
         #expect(smokeMatrixRunner.contains("verify_product=\"$(quillui_smoke_visual_verify_product \"$product\" \"$requested_backend\")\""))
         #expect(smokeMatrixRunner.contains("dry_run_fields+=(\"$verify_product\")"))
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
@@ -2671,7 +2824,8 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" bracketright"))
         #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" 0"))
         #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" b"))
-        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" space"))
+        #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" b\n  sleep 0.2\n  DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" b"))
+        #expect(!solderScopeSmoke.contains("xdotool key --window \"$window_id\" space"))
         #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" Escape"))
         #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" r"))
         #expect(solderScopeSmoke.contains("DISPLAY=\"$DISPLAY_ID\" xdotool key --window \"$window_id\" s"))
@@ -2682,9 +2836,12 @@ struct SourceHygieneTests {
         #expect(solderScopeWorkflow.contains("SolderScope GTK launch and interaction"))
         #expect(solderScopeWorkflow.contains("scripts/fetch-upstream.sh solderscope"))
         #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter SolderScopeChromeConformanceTests"))
-        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-capture --filter AVCaptureSurfaceTests"))
-        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-v4l2 --filter V4L2ConversionTests"))
-        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-encode --filter BitmapAndMovieEncodeTests"))
+        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter AVCaptureSurfaceTests"))
+        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter V4L2ConversionTests"))
+        #expect(solderScopeWorkflow.contains("scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter BitmapAndMovieEncodeTests"))
+        #expect(!solderScopeWorkflow.contains(".build-solderscope-capture"))
+        #expect(!solderScopeWorkflow.contains(".build-solderscope-v4l2"))
+        #expect(!solderScopeWorkflow.contains(".build-solderscope-encode"))
         #expect(solderScopeWorkflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-visual.png visual"))
         #expect(solderScopeWorkflow.contains("QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction"))
         #expect(solderScopeWorkflow.contains("uses: actions/upload-artifact@v6"))

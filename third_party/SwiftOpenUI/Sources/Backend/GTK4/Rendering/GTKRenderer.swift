@@ -206,6 +206,63 @@ private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: Str
     }, nil)
 }
 
+private func gtkPerformSubmitAction(_ submitAction: SubmitAction) {
+    gtkFlushPendingTextBindingUpdate()
+    submitAction()
+}
+
+private let gtkTextInputSubmitActivateHandler: @convention(c) (gpointer?, gpointer?) -> Void = { _, userData in
+    guard let userData else { return }
+    Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+}
+
+private let gtkTextInputSubmitKeyPressedHandler: @convention(c) (OpaquePointer?, guint, guint, guint, gpointer?) -> gboolean = { _, keyval, _, _, userData in
+    switch keyval {
+    case 0xff0d, 0xff8d:
+        guard let userData else { return 0 }
+        Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        return 1
+    default:
+        return 0
+    }
+}
+
+private func gtkWireTextInputSubmit(
+    widget: UnsafeMutablePointer<GtkWidget>,
+    signalTarget: gpointer,
+    submitAction: SubmitAction
+) {
+    let submit = {
+        gtkPerformSubmitAction(submitAction)
+    }
+
+    let activateBox = Unmanaged.passRetained(ClosureBox(submit)).toOpaque()
+    g_signal_connect_data(
+        signalTarget, "activate",
+        unsafeBitCast(gtkTextInputSubmitActivateHandler, to: GCallback.self),
+        activateBox,
+        { data, _ in
+            guard let data else { return }
+            Unmanaged<ClosureBox>.fromOpaque(data).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    let keyController = gtk_swift_key_capture_controller()!
+    let keyBox = Unmanaged.passRetained(ClosureBox(submit)).toOpaque()
+    g_signal_connect_data(
+        gpointer(keyController), "key-pressed",
+        unsafeBitCast(gtkTextInputSubmitKeyPressedHandler, to: GCallback.self),
+        keyBox,
+        { data, _ in
+            guard let data else { return }
+            Unmanaged<ClosureBox>.fromOpaque(data).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(widget, keyController)
+}
+
 // MARK: - GTK rendering protocol
 
 /// Protocol that views implement (via extensions) to provide GTK widget creation.
@@ -632,24 +689,10 @@ extension TextField: GTKRenderable, GTKDescribable {
 
         // Wire onSubmit: GtkEntry fires "activate" on Enter key
         if let submitAction = getCurrentEnvironment().submitAction {
-            let submitBox = Unmanaged.passRetained(ClosureBox {
-                // Return-submit must observe the typed text: flush the
-                // debounced entry->binding write before the action runs.
-                gtkFlushPendingTextBindingUpdate()
-                submitAction()
-            }).toOpaque()
-            g_signal_connect_data(
-                gpointer(entry), "activate",
-                unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                    guard let userData else { return }
-                    Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
-                } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-                submitBox,
-                { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                    guard let data else { return }
-                    Unmanaged<ClosureBox>.fromOpaque(data).release()
-                },
-                GConnectFlags(rawValue: 0)
+            gtkWireTextInputSubmit(
+                widget: entry,
+                signalTarget: gpointer(entry),
+                submitAction: submitAction
             )
         }
 
@@ -5451,24 +5494,10 @@ extension SecureField: GTKRenderable, GTKDescribable {
 
         // Wire onSubmit action from environment (same as TextField)
         if let submitAction = getCurrentEnvironment().submitAction {
-            let submitBox = Unmanaged.passRetained(ClosureBox {
-                // Return-submit must observe the typed text: flush the
-                // debounced entry->binding write before the action runs.
-                gtkFlushPendingTextBindingUpdate()
-                submitAction()
-            }).toOpaque()
-            g_signal_connect_data(
-                gpointer(entry), "activate",
-                unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                    guard let userData else { return }
-                    Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
-                } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-                submitBox,
-                { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                    guard let data else { return }
-                    Unmanaged<ClosureBox>.fromOpaque(data).release()
-                },
-                GConnectFlags(rawValue: 0)
+            gtkWireTextInputSubmit(
+                widget: entry,
+                signalTarget: gpointer(entry),
+                submitAction: submitAction
             )
         }
 

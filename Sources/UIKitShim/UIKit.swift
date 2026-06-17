@@ -453,6 +453,8 @@ public class UITextRange: NSObject {
         self.end = end
         super.init()
     }
+
+    public var isEmpty: Bool { start.quillUTF16Offset == end.quillUTF16Offset }
 }
 
 @MainActor public protocol UITextViewDelegate: UIScrollViewDelegate {

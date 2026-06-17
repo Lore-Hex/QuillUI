@@ -569,6 +569,24 @@ struct QuillDataTests {
         #expect(parent.children.first === child)
     }
 
+    @Test("to-one assignment supports immediate SwiftData-style message history reads")
+    func relationshipInverseSupportsImmediatePromptHistoryReads() {
+        registerParentChildInverse()
+        let conversation = RelParent(name: "Prompt")
+
+        let systemMessage = RelChild(text: "system")
+        systemMessage.parent = conversation
+        let userMessage = RelChild(text: "user")
+        userMessage.parent = conversation
+        let assistantMessage = RelChild(text: "")
+        assistantMessage.parent = conversation
+
+        #expect(conversation.children.map(\.text) == ["system", "user", ""])
+        #expect(systemMessage.parent === conversation)
+        #expect(userMessage.parent === conversation)
+        #expect(assistantMessage.parent === conversation)
+    }
+
     @Test("assigning the to-many side immediately back-links each element")
     func relationshipInverseFromToManySide() {
         registerParentChildInverse()

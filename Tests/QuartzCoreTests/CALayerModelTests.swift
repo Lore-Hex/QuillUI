@@ -26,7 +26,7 @@
 //
 
 import XCTest
-import QuartzCore
+@preconcurrency import QuartzCore
 
 // MARK: - File-private helpers
 
@@ -115,122 +115,139 @@ final class CALayerModelTests: XCTestCase {
     // MARK: Geometry: frame is DERIVED from position/bounds/anchorPoint
 
     func testFrameIsDerivedFromPositionBoundsAndAnchorPoint() {
-        let layer = CALayer()
-        // Default anchor point is the center.
-        assertEqual(layer.anchorPoint, CGPoint(x: 0.5, y: 0.5), "default anchorPoint")
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            // Default anchor point is the center.
+            assertEqual(layer.anchorPoint, CGPoint(x: 0.5, y: 0.5), "default anchorPoint")
 
-        layer.bounds = CGRect(x: 0, y: 0, width: 100, height: 50)
-        layer.position = CGPoint(x: 50, y: 25)
-        assertEqual(layer.frame, CGRect(x: 0, y: 0, width: 100, height: 50),
-                    "frame must derive from position/bounds/anchorPoint")
+            layer.bounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+            layer.position = CGPoint(x: 50, y: 25)
+            assertEqual(layer.frame, CGRect(x: 0, y: 0, width: 100, height: 50),
+                        "frame must derive from position/bounds/anchorPoint")
+        }
     }
 
     func testSettingFrameUpdatesBoundsSizeAndPosition() {
-        let layer = CALayer()
-        layer.frame = CGRect(x: 10, y: 20, width: 200, height: 100)
-        assertEqual(layer.bounds.size, CGSize(width: 200, height: 100), "bounds.size after frame set")
-        assertEqual(layer.position, CGPoint(x: 110, y: 70), "position after frame set")
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            layer.frame = CGRect(x: 10, y: 20, width: 200, height: 100)
+            assertEqual(layer.bounds.size, CGSize(width: 200, height: 100), "bounds.size after frame set")
+            assertEqual(layer.position, CGPoint(x: 110, y: 70), "position after frame set")
+        }
     }
 
     func testChangingAnchorPointMovesFrameNotPosition() {
-        let layer = CALayer()
-        layer.frame = CGRect(x: 10, y: 20, width: 200, height: 100)
-        let positionBefore = layer.position // (110, 70) with default 0.5/0.5 anchor
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            layer.frame = CGRect(x: 10, y: 20, width: 200, height: 100)
+            let positionBefore = layer.position // (110, 70) with default 0.5/0.5 anchor
 
-        layer.anchorPoint = CGPoint(x: 0, y: 0)
+            layer.anchorPoint = CGPoint(x: 0, y: 0)
 
-        assertEqual(layer.position, positionBefore, "position must NOT move when anchorPoint changes")
-        assertEqual(layer.frame, CGRect(x: 110, y: 70, width: 200, height: 100),
-                    "frame MUST move when anchorPoint changes")
+            assertEqual(layer.position, positionBefore, "position must NOT move when anchorPoint changes")
+            assertEqual(layer.frame, CGRect(x: 110, y: 70, width: 200, height: 100),
+                        "frame MUST move when anchorPoint changes")
+        }
     }
 
     // MARK: Hierarchy
 
     func testAddSublayerSetsSuperlayer() {
-        let parent = CALayer()
-        let child = CALayer()
-        XCTAssertNil(child.superlayer)
+        MainActor.assumeIsolated {
+            let parent = CALayer()
+            let child = CALayer()
+            XCTAssertNil(child.superlayer)
 
-        parent.addSublayer(child)
+            parent.addSublayer(child)
 
-        XCTAssertTrue(child.superlayer === parent)
-        XCTAssertEqual(parent.sublayers?.count, 1)
-        XCTAssertTrue(parent.sublayers?.first === child)
+            XCTAssertTrue(child.superlayer === parent)
+            XCTAssertEqual(parent.sublayers?.count, 1)
+            XCTAssertTrue(parent.sublayers?.first === child)
+        }
     }
 
     func testInsertSublayerOrdering() {
-        let parent = CALayer()
-        let a = CALayer()
-        let b = CALayer()
-        let c = CALayer()
+        MainActor.assumeIsolated {
+            let parent = CALayer()
+            let a = CALayer()
+            let b = CALayer()
+            let c = CALayer()
 
-        parent.addSublayer(a)
-        parent.addSublayer(c)
-        parent.insertSublayer(b, at: 1)
-        XCTAssertEqual(ids(parent.sublayers), ids([a, b, c]), "insert(at: 1) lands between a and c")
+            parent.addSublayer(a)
+            parent.addSublayer(c)
+            parent.insertSublayer(b, at: 1)
+            XCTAssertEqual(ids(parent.sublayers), ids([a, b, c]), "insert(at: 1) lands between a and c")
 
-        let d = CALayer()
-        parent.insertSublayer(d, above: a)
-        XCTAssertEqual(ids(parent.sublayers), ids([a, d, b, c]), "insert(above: a) lands immediately after a")
-        XCTAssertTrue(d.superlayer === parent)
+            let d = CALayer()
+            parent.insertSublayer(d, above: a)
+            XCTAssertEqual(ids(parent.sublayers), ids([a, d, b, c]), "insert(above: a) lands immediately after a")
+            XCTAssertTrue(d.superlayer === parent)
 
-        let e = CALayer()
-        parent.insertSublayer(e, below: c)
-        XCTAssertEqual(ids(parent.sublayers), ids([a, d, b, e, c]), "insert(below: c) lands immediately before c")
+            let e = CALayer()
+            parent.insertSublayer(e, below: c)
+            XCTAssertEqual(ids(parent.sublayers), ids([a, d, b, e, c]), "insert(below: c) lands immediately before c")
 
-        let back = CALayer()
-        parent.insertSublayer(back, at: 0)
-        XCTAssertEqual(ids(parent.sublayers), ids([back, a, d, b, e, c]), "insert(at: 0) lands at the back")
+            let back = CALayer()
+            parent.insertSublayer(back, at: 0)
+            XCTAssertEqual(ids(parent.sublayers), ids([back, a, d, b, e, c]), "insert(at: 0) lands at the back")
+        }
     }
 
     func testRemoveFromSuperlayer() {
-        let parent = CALayer()
-        let a = CALayer()
-        let b = CALayer()
-        parent.addSublayer(a)
-        parent.addSublayer(b)
+        MainActor.assumeIsolated {
+            let parent = CALayer()
+            let a = CALayer()
+            let b = CALayer()
+            parent.addSublayer(a)
+            parent.addSublayer(b)
 
-        a.removeFromSuperlayer()
+            a.removeFromSuperlayer()
 
-        XCTAssertNil(a.superlayer)
-        XCTAssertEqual(ids(parent.sublayers), ids([b]))
+            XCTAssertNil(a.superlayer)
+            XCTAssertEqual(ids(parent.sublayers), ids([b]))
+        }
     }
 
     func testReplaceSublayer() {
-        let parent = CALayer()
-        let first = CALayer()
-        let old = CALayer()
-        let last = CALayer()
-        parent.addSublayer(first)
-        parent.addSublayer(old)
-        parent.addSublayer(last)
+        MainActor.assumeIsolated {
+            let parent = CALayer()
+            let first = CALayer()
+            let old = CALayer()
+            let last = CALayer()
+            parent.addSublayer(first)
+            parent.addSublayer(old)
+            parent.addSublayer(last)
 
-        let replacement = CALayer()
-        parent.replaceSublayer(old, with: replacement)
+            let replacement = CALayer()
+            parent.replaceSublayer(old, with: replacement)
 
-        XCTAssertNil(old.superlayer)
-        XCTAssertTrue(replacement.superlayer === parent)
-        XCTAssertEqual(ids(parent.sublayers), ids([first, replacement, last]),
-                       "replacement must occupy the old layer's slot")
+            XCTAssertNil(old.superlayer)
+            XCTAssertTrue(replacement.superlayer === parent)
+            XCTAssertEqual(ids(parent.sublayers), ids([first, replacement, last]),
+                           "replacement must occupy the old layer's slot")
+        }
     }
 
     func testReAddingALayerDetachesItFromItsOldParentFirst() {
-        let oldParent = CALayer()
-        let newParent = CALayer()
-        let child = CALayer()
+        MainActor.assumeIsolated {
+            let oldParent = CALayer()
+            let newParent = CALayer()
+            let child = CALayer()
 
-        oldParent.addSublayer(child)
-        newParent.addSublayer(child)
+            oldParent.addSublayer(child)
+            newParent.addSublayer(child)
 
-        XCTAssertTrue(child.superlayer === newParent)
-        XCTAssertTrue((oldParent.sublayers ?? []).isEmpty, "old parent must no longer list the child")
-        XCTAssertEqual(ids(newParent.sublayers), ids([child]))
+            XCTAssertTrue(child.superlayer === newParent)
+            XCTAssertTrue((oldParent.sublayers ?? []).isEmpty, "old parent must no longer list the child")
+            XCTAssertEqual(ids(newParent.sublayers), ids([child]))
+        }
     }
 
     // MARK: Coordinate-space conversion (3-layer tree with a scroll offset)
 
     /// root -> mid -> leaf. `mid` has a nonzero bounds.origin (a scroll
     /// offset), which must shift everything hosted inside it.
+    @MainActor
     private func makeConversionTree() -> (root: CALayer, mid: CALayer, leaf: CALayer) {
         let root = CALayer()
         root.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
@@ -250,210 +267,236 @@ final class CALayerModelTests: XCTestCase {
     }
 
     func testConvertPointAcrossTree() {
-        let (root, mid, leaf) = makeConversionTree()
+        MainActor.assumeIsolated {
+            let (root, mid, leaf) = makeConversionTree()
 
-        // leaf-origin in mid's space: leaf.frame.origin.
-        assertEqual(leaf.convert(CGPoint.zero, to: mid), CGPoint(x: 70, y: 80), "leaf -> mid")
+            // leaf-origin in mid's space: leaf.frame.origin.
+            assertEqual(leaf.convert(CGPoint.zero, to: mid), CGPoint(x: 70, y: 80), "leaf -> mid")
 
-        // leaf-origin in root's space: mid.frame.origin + (leaf.frame.origin - mid.bounds.origin)
-        //   = (20,30) + ((70,80) - (50,60)) = (40,50)
-        assertEqual(leaf.convert(CGPoint.zero, to: root), CGPoint(x: 40, y: 50), "leaf -> root (scroll offset applied)")
+            // leaf-origin in root's space: mid.frame.origin + (leaf.frame.origin - mid.bounds.origin)
+            //   = (20,30) + ((70,80) - (50,60)) = (40,50)
+            assertEqual(leaf.convert(CGPoint.zero, to: root), CGPoint(x: 40, y: 50), "leaf -> root (scroll offset applied)")
 
-        // Inverse direction, both spellings.
-        assertEqual(leaf.convert(CGPoint(x: 40, y: 50), from: root), CGPoint.zero, "root -> leaf via from:")
-        assertEqual(root.convert(CGPoint.zero, from: leaf), CGPoint(x: 40, y: 50), "leaf -> root via from:")
-        assertEqual(root.convert(CGPoint(x: 40, y: 50), to: leaf), CGPoint.zero, "root -> leaf via to:")
+            // Inverse direction, both spellings.
+            assertEqual(leaf.convert(CGPoint(x: 40, y: 50), from: root), CGPoint.zero, "root -> leaf via from:")
+            assertEqual(root.convert(CGPoint.zero, from: leaf), CGPoint(x: 40, y: 50), "leaf -> root via from:")
+            assertEqual(root.convert(CGPoint(x: 40, y: 50), to: leaf), CGPoint.zero, "root -> leaf via to:")
+        }
     }
 
     func testConvertRectAcrossTree() {
-        let (root, mid, leaf) = makeConversionTree()
+        MainActor.assumeIsolated {
+            let (root, mid, leaf) = makeConversionTree()
 
-        let local = CGRect(x: 0, y: 0, width: 10, height: 10)
+            let local = CGRect(x: 0, y: 0, width: 10, height: 10)
 
-        let inRoot = leaf.convert(local, to: root)
-        assertEqual(inRoot, CGRect(x: 40, y: 50, width: 10, height: 10), "rect leaf -> root")
+            let inRoot = leaf.convert(local, to: root)
+            assertEqual(inRoot, CGRect(x: 40, y: 50, width: 10, height: 10), "rect leaf -> root")
 
-        let roundTripped = root.convert(inRoot, to: leaf)
-        assertEqual(roundTripped, local, "rect root -> leaf round-trip")
+            let roundTripped = root.convert(inRoot, to: leaf)
+            assertEqual(roundTripped, local, "rect root -> leaf round-trip")
 
-        let inMid = mid.convert(local, from: leaf)
-        assertEqual(inMid, CGRect(x: 70, y: 80, width: 10, height: 10), "rect leaf -> mid via from:")
+            let inMid = mid.convert(local, from: leaf)
+            assertEqual(inMid, CGRect(x: 70, y: 80, width: 10, height: 10), "rect leaf -> mid via from:")
+        }
     }
 
     // MARK: contains + hitTest
 
     func testContains() {
-        let layer = CALayer()
-        layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
-        XCTAssertTrue(layer.contains(CGPoint(x: 50, y: 50)))
-        XCTAssertFalse(layer.contains(CGPoint(x: 150, y: 50)))
-        XCTAssertFalse(layer.contains(CGPoint(x: -1, y: 50)))
+            XCTAssertTrue(layer.contains(CGPoint(x: 50, y: 50)))
+            XCTAssertFalse(layer.contains(CGPoint(x: 150, y: 50)))
+            XCTAssertFalse(layer.contains(CGPoint(x: -1, y: 50)))
+        }
     }
 
     func testHitTestFindsDeepestLayerSkipsHiddenAndReturnsNilOutside() {
-        let parent = CALayer()
-        parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-        let child = CALayer()
-        child.frame = CGRect(x: 10, y: 10, width: 20, height: 20)
-        parent.addSublayer(child)
+        MainActor.assumeIsolated {
+            let parent = CALayer()
+            parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+            let child = CALayer()
+            child.frame = CGRect(x: 10, y: 10, width: 20, height: 20)
+            parent.addSublayer(child)
 
-        // Point is given in the parent's SUPERLAYER coordinate space.
-        XCTAssertTrue(parent.hitTest(CGPoint(x: 15, y: 15)) === child, "deepest hit wins")
-        XCTAssertTrue(parent.hitTest(CGPoint(x: 50, y: 50)) === parent, "parent itself when no child contains the point")
-        XCTAssertNil(parent.hitTest(CGPoint(x: 150, y: 150)), "outside everything -> nil")
+            // Point is given in the parent's SUPERLAYER coordinate space.
+            XCTAssertTrue(parent.hitTest(CGPoint(x: 15, y: 15)) === child, "deepest hit wins")
+            XCTAssertTrue(parent.hitTest(CGPoint(x: 50, y: 50)) === parent, "parent itself when no child contains the point")
+            XCTAssertNil(parent.hitTest(CGPoint(x: 150, y: 150)), "outside everything -> nil")
 
-        child.isHidden = true
-        XCTAssertTrue(parent.hitTest(CGPoint(x: 15, y: 15)) === parent, "hidden child must be skipped")
+            child.isHidden = true
+            XCTAssertTrue(parent.hitTest(CGPoint(x: 15, y: 15)) === parent, "hidden child must be skipped")
+        }
     }
 
     // MARK: maskedCorners / CACornerMask
 
     func testMaskedCornersDefaultsToAllFourCorners() {
-        let layer = CALayer()
-        let all: CACornerMask = [.layerMinXMinYCorner, .layerMaxXMinYCorner,
-                                 .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
-        XCTAssertEqual(layer.maskedCorners, all)
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            let all: CACornerMask = [.layerMinXMinYCorner, .layerMaxXMinYCorner,
+                                     .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+            XCTAssertEqual(layer.maskedCorners, all)
+        }
     }
 
     func testCACornerMaskBehavesAsAnOptionSet() {
-        var mask: CACornerMask = [.layerMinXMinYCorner]
-        XCTAssertTrue(mask.contains(.layerMinXMinYCorner))
-        XCTAssertFalse(mask.contains(.layerMaxXMaxYCorner))
+        MainActor.assumeIsolated {
+            var mask: CACornerMask = [.layerMinXMinYCorner]
+            XCTAssertTrue(mask.contains(.layerMinXMinYCorner))
+            XCTAssertFalse(mask.contains(.layerMaxXMaxYCorner))
 
-        mask.insert(.layerMaxXMaxYCorner)
-        XCTAssertTrue(mask.contains(.layerMaxXMaxYCorner))
+            mask.insert(.layerMaxXMaxYCorner)
+            XCTAssertTrue(mask.contains(.layerMaxXMaxYCorner))
 
-        let union = mask.union([.layerMaxXMinYCorner])
-        XCTAssertTrue(union.contains(.layerMaxXMinYCorner))
-        XCTAssertTrue(union.contains(.layerMinXMinYCorner))
+            let union = mask.union([.layerMaxXMinYCorner])
+            XCTAssertTrue(union.contains(.layerMaxXMinYCorner))
+            XCTAssertTrue(union.contains(.layerMinXMinYCorner))
 
-        mask.remove(.layerMinXMinYCorner)
-        XCTAssertFalse(mask.contains(.layerMinXMinYCorner))
+            mask.remove(.layerMinXMinYCorner)
+            XCTAssertFalse(mask.contains(.layerMinXMinYCorner))
 
-        XCTAssertEqual(CACornerMask().rawValue, 0, "empty mask has empty raw value")
+            XCTAssertEqual(CACornerMask().rawValue, 0, "empty mask has empty raw value")
+        }
     }
 
     // MARK: mini-KVC (no Objective-C runtime on Linux)
 
     func testMiniKVCOpacityRoundTrip() {
-        let layer = CALayer()
-        layer.setValue(0.5 as Float, forKeyPath: "opacity")
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            layer.setValue(0.5 as Float, forKeyPath: "opacity")
 
-        XCTAssertEqual(layer.opacity, 0.5, accuracy: 1e-6, "setValue must hit the real property")
+            XCTAssertEqual(layer.opacity, 0.5, accuracy: 1e-6, "setValue must hit the real property")
 
-        let boxed = layer.value(forKeyPath: "opacity")
-        XCTAssertNotNil(boxed)
-        XCTAssertEqual(scalar(boxed) ?? .nan, 0.5, accuracy: 1e-6, "value(forKeyPath:) must round-trip")
+            let boxed = layer.value(forKeyPath: "opacity")
+            XCTAssertNotNil(boxed)
+            XCTAssertEqual(scalar(boxed) ?? .nan, 0.5, accuracy: 1e-6, "value(forKeyPath:) must round-trip")
+        }
     }
 
     func testMiniKVCNestedKeyPath() {
-        let layer = CALayer()
-        layer.position = CGPoint(x: 12, y: 34)
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            layer.position = CGPoint(x: 12, y: 34)
 
-        let x = layer.value(forKeyPath: "position.x")
-        XCTAssertNotNil(x)
-        XCTAssertEqual(scalar(x) ?? .nan, 12, accuracy: 1e-9)
+            let x = layer.value(forKeyPath: "position.x")
+            XCTAssertNotNil(x)
+            XCTAssertEqual(scalar(x) ?? .nan, 12, accuracy: 1e-9)
 
-        let y = layer.value(forKeyPath: "position.y")
-        XCTAssertEqual(scalar(y) ?? .nan, 34, accuracy: 1e-9)
+            let y = layer.value(forKeyPath: "position.y")
+            XCTAssertEqual(scalar(y) ?? .nan, 34, accuracy: 1e-9)
+        }
     }
 
     func testMiniKVCUnknownKeyReturnsNilWithoutCrashing() {
-        let layer = CALayer()
-        XCTAssertNil(layer.value(forKeyPath: "definitelyNotARealKey"))
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            XCTAssertNil(layer.value(forKeyPath: "definitelyNotARealKey"))
+        }
     }
 
     // MARK: init(layer:) copies model values
 
     func testInitLayerCopiesModelValues() {
-        let original = CALayer()
-        original.bounds = CGRect(x: 1, y: 2, width: 30, height: 40)
-        original.position = CGPoint(x: 5, y: 6)
-        original.cornerRadius = 7
-        original.backgroundColor = CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1.0)
+        MainActor.assumeIsolated {
+            let original = CALayer()
+            original.bounds = CGRect(x: 1, y: 2, width: 30, height: 40)
+            original.position = CGPoint(x: 5, y: 6)
+            original.cornerRadius = 7
+            original.backgroundColor = CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1.0)
 
-        let copy = CALayer(layer: original)
+            let copy = CALayer(layer: original)
 
-        assertEqual(copy.bounds, original.bounds, "bounds copied")
-        assertEqual(copy.position, original.position, "position copied")
-        XCTAssertEqual(copy.cornerRadius, 7, accuracy: 1e-9)
-        // Default backgroundColor is nil, so non-nil here proves the copy
-        // carried the color over. (Value equality is not asserted: CGColor's
-        // comparison semantics live in QuillFoundation, not this module.)
-        XCTAssertNotNil(copy.backgroundColor, "backgroundColor copied")
+            assertEqual(copy.bounds, original.bounds, "bounds copied")
+            assertEqual(copy.position, original.position, "position copied")
+            XCTAssertEqual(copy.cornerRadius, 7, accuracy: 1e-9)
+            // Default backgroundColor is nil, so non-nil here proves the copy
+            // carried the color over. (Value equality is not asserted: CGColor's
+            // comparison semantics live in QuillFoundation, not this module.)
+            XCTAssertNotNil(copy.backgroundColor, "backgroundColor copied")
+        }
     }
 
     // MARK: Animation bookkeeping (synchronous only)
 
     func testAnimationKeysReflectAddAndRemoveSynchronously() {
-        let layer = CALayer()
-        // Empty state: Apple returns nil; an empty array is equally acceptable.
-        XCTAssertTrue((layer.animationKeys() ?? []).isEmpty)
+        MainActor.assumeIsolated {
+            let layer = CALayer()
+            // Empty state: Apple returns nil; an empty array is equally acceptable.
+            XCTAssertTrue((layer.animationKeys() ?? []).isEmpty)
 
-        // 60-second duration: the async engine cannot complete these during
-        // this purely synchronous test.
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 1.0
-        fade.toValue = 0.0
-        fade.duration = 60
-        layer.add(fade, forKey: "fade")
+            // 60-second duration: the async engine cannot complete these during
+            // this purely synchronous test.
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 1.0
+            fade.toValue = 0.0
+            fade.duration = 60
+            layer.add(fade, forKey: "fade")
 
-        XCTAssertEqual(layer.animationKeys(), ["fade"])
-        XCTAssertNotNil(layer.animation(forKey: "fade"))
-        XCTAssertEqual((layer.animation(forKey: "fade") as? CABasicAnimation)?.keyPath, "opacity")
+            XCTAssertEqual(layer.animationKeys(), ["fade"])
+            XCTAssertNotNil(layer.animation(forKey: "fade"))
+            XCTAssertEqual((layer.animation(forKey: "fade") as? CABasicAnimation)?.keyPath, "opacity")
 
-        let move = CABasicAnimation(keyPath: "position")
-        move.duration = 60
-        layer.add(move, forKey: "move")
-        XCTAssertEqual(Set(layer.animationKeys() ?? []), Set(["fade", "move"]))
+            let move = CABasicAnimation(keyPath: "position")
+            move.duration = 60
+            layer.add(move, forKey: "move")
+            XCTAssertEqual(Set(layer.animationKeys() ?? []), Set(["fade", "move"]))
 
-        layer.removeAnimation(forKey: "fade")
-        XCTAssertNil(layer.animation(forKey: "fade"))
-        XCTAssertEqual(layer.animationKeys() ?? [], ["move"])
+            layer.removeAnimation(forKey: "fade")
+            XCTAssertNil(layer.animation(forKey: "fade"))
+            XCTAssertEqual(layer.animationKeys() ?? [], ["move"])
 
-        layer.removeAllAnimations()
-        XCTAssertTrue((layer.animationKeys() ?? []).isEmpty)
-        XCTAssertNil(layer.animation(forKey: "move"))
+            layer.removeAllAnimations()
+            XCTAssertTrue((layer.animationKeys() ?? []).isEmpty)
+            XCTAssertNil(layer.animation(forKey: "move"))
+        }
     }
 
     // MARK: Actions
 
     func testActionLookupFollowsApplePrecedenceAndStyleFallback() {
-        let layer = DefaultActionLayer()
-        let styleAction = LayerTestAction("style")
-        let dictionaryAction = LayerTestAction("dictionary")
-        let delegateAction = LayerTestAction("delegate")
+        MainActor.assumeIsolated {
+            let layer = DefaultActionLayer()
+            let styleAction = LayerTestAction("style")
+            let dictionaryAction = LayerTestAction("dictionary")
+            let delegateAction = LayerTestAction("delegate")
 
-        assertAction(layer.action(forKey: "opacity"), hasID: "default")
+            assertAction(layer.action(forKey: "opacity"), hasID: "default")
 
-        layer.style = ["actions": ["opacity": styleAction as CAAction]]
-        assertAction(layer.action(forKey: "opacity"), hasID: "style")
+            layer.style = ["actions": ["opacity": styleAction as CAAction]]
+            assertAction(layer.action(forKey: "opacity"), hasID: "style")
 
-        layer.actions = ["opacity": dictionaryAction]
-        assertAction(layer.action(forKey: "opacity"), hasID: "dictionary")
+            layer.actions = ["opacity": dictionaryAction]
+            assertAction(layer.action(forKey: "opacity"), hasID: "dictionary")
 
-        let delegate = LayerActionDelegate(action: delegateAction)
-        layer.delegate = delegate
-        assertAction(layer.action(forKey: "opacity"), hasID: "delegate")
+            let delegate = LayerActionDelegate(action: delegateAction)
+            layer.delegate = delegate
+            assertAction(layer.action(forKey: "opacity"), hasID: "delegate")
+        }
     }
 
     func testNSNullSuppressesLowerPriorityLayerActions() {
-        let layer = DefaultActionLayer()
-        let styleAction = LayerTestAction("style")
+        MainActor.assumeIsolated {
+            let layer = DefaultActionLayer()
+            let styleAction = LayerTestAction("style")
 
-        layer.style = ["actions": ["opacity": styleAction as CAAction]]
-        layer.actions = ["opacity": NSNull()]
-        XCTAssertNil(layer.action(forKey: "opacity"), "actions NSNull suppresses style and defaults")
+            layer.style = ["actions": ["opacity": styleAction as CAAction]]
+            layer.actions = ["opacity": NSNull()]
+            XCTAssertNil(layer.action(forKey: "opacity"), "actions NSNull suppresses style and defaults")
 
-        layer.actions = nil
-        layer.style = ["actions": ["opacity": NSNull()]]
-        XCTAssertNil(layer.action(forKey: "opacity"), "style NSNull suppresses class defaults")
+            layer.actions = nil
+            layer.style = ["actions": ["opacity": NSNull()]]
+            XCTAssertNil(layer.action(forKey: "opacity"), "style NSNull suppresses class defaults")
 
-        let delegate = LayerActionDelegate(action: NSNull())
-        layer.delegate = delegate
-        layer.style = ["actions": ["opacity": styleAction as CAAction]]
-        XCTAssertNil(layer.action(forKey: "opacity"), "delegate NSNull suppresses every lower-priority action")
+            let delegate = LayerActionDelegate(action: NSNull())
+            layer.delegate = delegate
+            layer.style = ["actions": ["opacity": styleAction as CAAction]]
+            XCTAssertNil(layer.action(forKey: "opacity"), "delegate NSNull suppresses every lower-priority action")
+        }
     }
 }
 
@@ -489,80 +532,94 @@ final class CATransform3DTests: XCTestCase {
     }
 
     func testTranslationAndScaleComposeViaConcat() {
-        let translate = CATransform3DMakeTranslation(1, 2, 3)
-        let scale = CATransform3DMakeScale(2, 2, 2)
+        MainActor.assumeIsolated {
+            let translate = CATransform3DMakeTranslation(1, 2, 3)
+            let scale = CATransform3DMakeScale(2, 2, 2)
 
-        // Concat(a, b) applies a FIRST (row-vector convention):
-        // origin -> translate -> (1,2,3) -> scale -> (2,4,6)
-        let translateThenScale = CATransform3DConcat(translate, scale)
-        let p = apply(translateThenScale, 0, 0, 0)
-        XCTAssertEqual(p.x, 2, accuracy: 1e-12)
-        XCTAssertEqual(p.y, 4, accuracy: 1e-12)
-        XCTAssertEqual(p.z, 6, accuracy: 1e-12)
+            // Concat(a, b) applies a FIRST (row-vector convention):
+            // origin -> translate -> (1,2,3) -> scale -> (2,4,6)
+            let translateThenScale = CATransform3DConcat(translate, scale)
+            let p = apply(translateThenScale, 0, 0, 0)
+            XCTAssertEqual(p.x, 2, accuracy: 1e-12)
+            XCTAssertEqual(p.y, 4, accuracy: 1e-12)
+            XCTAssertEqual(p.z, 6, accuracy: 1e-12)
 
-        // Reversed order: (1,1,1) -> scale -> (2,2,2) -> translate -> (3,4,5)
-        let scaleThenTranslate = CATransform3DConcat(scale, translate)
-        let q = apply(scaleThenTranslate, 1, 1, 1)
-        XCTAssertEqual(q.x, 3, accuracy: 1e-12)
-        XCTAssertEqual(q.y, 4, accuracy: 1e-12)
-        XCTAssertEqual(q.z, 5, accuracy: 1e-12)
+            // Reversed order: (1,1,1) -> scale -> (2,2,2) -> translate -> (3,4,5)
+            let scaleThenTranslate = CATransform3DConcat(scale, translate)
+            let q = apply(scaleThenTranslate, 1, 1, 1)
+            XCTAssertEqual(q.x, 3, accuracy: 1e-12)
+            XCTAssertEqual(q.y, 4, accuracy: 1e-12)
+            XCTAssertEqual(q.z, 5, accuracy: 1e-12)
+        }
     }
 
     func testRotationUsesRowVectorConvention() {
-        // +90 degrees about z must take (1,0,0) to (0,1,0) for row vectors.
-        let r = CATransform3DMakeRotation(.pi / 2, 0, 0, 1)
-        let p = apply(r, 1, 0, 0)
-        XCTAssertEqual(p.x, 0, accuracy: 1e-9)
-        XCTAssertEqual(p.y, 1, accuracy: 1e-9)
-        XCTAssertEqual(p.z, 0, accuracy: 1e-9)
+        MainActor.assumeIsolated {
+            // +90 degrees about z must take (1,0,0) to (0,1,0) for row vectors.
+            let r = CATransform3DMakeRotation(.pi / 2, 0, 0, 1)
+            let p = apply(r, 1, 0, 0)
+            XCTAssertEqual(p.x, 0, accuracy: 1e-9)
+            XCTAssertEqual(p.y, 1, accuracy: 1e-9)
+            XCTAssertEqual(p.z, 0, accuracy: 1e-9)
+        }
     }
 
     func testInvertComposesToIdentity() {
-        let m = CATransform3DConcat(CATransform3DMakeRotation(0.7, 0, 0, 1),
-                                    CATransform3DMakeTranslation(3, -2, 5))
-        let inv = CATransform3DInvert(m)
-        assertTransformEqual(CATransform3DConcat(m, inv), CATransform3DIdentity, accuracy: 1e-9)
-        assertTransformEqual(CATransform3DConcat(inv, m), CATransform3DIdentity, accuracy: 1e-9)
+        MainActor.assumeIsolated {
+            let m = CATransform3DConcat(CATransform3DMakeRotation(0.7, 0, 0, 1),
+                                        CATransform3DMakeTranslation(3, -2, 5))
+            let inv = CATransform3DInvert(m)
+            assertTransformEqual(CATransform3DConcat(m, inv), CATransform3DIdentity, accuracy: 1e-9)
+            assertTransformEqual(CATransform3DConcat(inv, m), CATransform3DIdentity, accuracy: 1e-9)
+        }
     }
 
     func testIsIdentityAndEqualToTransform() {
-        XCTAssertTrue(CATransform3DIsIdentity(CATransform3DIdentity))
-        XCTAssertFalse(CATransform3DIsIdentity(CATransform3DMakeTranslation(1, 0, 0)))
+        MainActor.assumeIsolated {
+            XCTAssertTrue(CATransform3DIsIdentity(CATransform3DIdentity))
+            XCTAssertFalse(CATransform3DIsIdentity(CATransform3DMakeTranslation(1, 0, 0)))
 
-        XCTAssertTrue(CATransform3DEqualToTransform(CATransform3DMakeTranslation(1, 2, 3),
-                                                    CATransform3DMakeTranslation(1, 2, 3)))
-        XCTAssertFalse(CATransform3DEqualToTransform(CATransform3DMakeTranslation(1, 2, 3),
-                                                     CATransform3DMakeTranslation(1, 2, 4)))
+            XCTAssertTrue(CATransform3DEqualToTransform(CATransform3DMakeTranslation(1, 2, 3),
+                                                        CATransform3DMakeTranslation(1, 2, 3)))
+            XCTAssertFalse(CATransform3DEqualToTransform(CATransform3DMakeTranslation(1, 2, 3),
+                                                         CATransform3DMakeTranslation(1, 2, 4)))
+        }
     }
 
     func testIsAffine() {
-        XCTAssertTrue(CATransform3DIsAffine(CATransform3DMakeTranslation(1, 2, 0)))
+        MainActor.assumeIsolated {
+            XCTAssertTrue(CATransform3DIsAffine(CATransform3DMakeTranslation(1, 2, 0)))
 
-        var withPerspective = CATransform3DMakeTranslation(1, 2, 0)
-        withPerspective.m34 = -1.0 / 500.0
-        XCTAssertFalse(CATransform3DIsAffine(withPerspective))
+            var withPerspective = CATransform3DMakeTranslation(1, 2, 0)
+            withPerspective.m34 = -1.0 / 500.0
+            XCTAssertFalse(CATransform3DIsAffine(withPerspective))
+        }
     }
 
     func testAffineTransformRoundTrip() {
-        let affine = CGAffineTransform(a: 2, b: 0.5, c: -0.5, d: 2, tx: 10, ty: 20)
+        MainActor.assumeIsolated {
+            let affine = CGAffineTransform(a: 2, b: 0.5, c: -0.5, d: 2, tx: 10, ty: 20)
 
-        let t = CATransform3DMakeAffineTransform(affine)
-        XCTAssertTrue(CATransform3DIsAffine(t))
+            let t = CATransform3DMakeAffineTransform(affine)
+            XCTAssertTrue(CATransform3DIsAffine(t))
 
-        let back = CATransform3DGetAffineTransform(t)
-        XCTAssertEqual(back.a, affine.a, accuracy: 1e-12)
-        XCTAssertEqual(back.b, affine.b, accuracy: 1e-12)
-        XCTAssertEqual(back.c, affine.c, accuracy: 1e-12)
-        XCTAssertEqual(back.d, affine.d, accuracy: 1e-12)
-        XCTAssertEqual(back.tx, affine.tx, accuracy: 1e-12)
-        XCTAssertEqual(back.ty, affine.ty, accuracy: 1e-12)
+            let back = CATransform3DGetAffineTransform(t)
+            XCTAssertEqual(back.a, affine.a, accuracy: 1e-12)
+            XCTAssertEqual(back.b, affine.b, accuracy: 1e-12)
+            XCTAssertEqual(back.c, affine.c, accuracy: 1e-12)
+            XCTAssertEqual(back.d, affine.d, accuracy: 1e-12)
+            XCTAssertEqual(back.tx, affine.tx, accuracy: 1e-12)
+            XCTAssertEqual(back.ty, affine.ty, accuracy: 1e-12)
+        }
     }
 
     func testNSValueBoxingRoundTrip() {
-        let t = CATransform3DConcat(CATransform3DMakeRotation(1.0, 1, 0, 0),
-                                    CATransform3DMakeTranslation(7, 8, 9))
-        let boxed = NSValue(caTransform3D: t)
-        let unboxed = boxed.caTransform3DValue
-        XCTAssertTrue(CATransform3DEqualToTransform(t, unboxed))
+        MainActor.assumeIsolated {
+            let t = CATransform3DConcat(CATransform3DMakeRotation(1.0, 1, 0, 0),
+                                        CATransform3DMakeTranslation(7, 8, 9))
+            let boxed = NSValue(caTransform3D: t)
+            let unboxed = boxed.caTransform3DValue
+            XCTAssertTrue(CATransform3DEqualToTransform(t, unboxed))
+        }
     }
 }

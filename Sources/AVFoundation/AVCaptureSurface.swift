@@ -106,6 +106,15 @@ open class AVCaptureOutput: @unchecked Sendable {
     }
 }
 
+public enum AVCaptureVideoStabilizationMode: Int, Sendable {
+    case off = 0
+    case standard = 1
+    case cinematic = 2
+    case cinematicExtended = 3
+    case previewOptimized = 4
+    case auto = -1
+}
+
 public class AVCaptureConnection: @unchecked Sendable {
     public var isEnabled: Bool = true
     public var isVideoMirrored: Bool = false

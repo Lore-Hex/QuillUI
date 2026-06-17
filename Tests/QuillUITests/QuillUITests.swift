@@ -185,6 +185,24 @@ struct QuillUITests {
         #expect(sent.count == 1)
     }
 
+    @Test("QuillChatComposer exposes reusable chat composer state")
+    func quillChatComposerState() {
+        var draft = "Hello"
+        let composer = QuillChatComposer(
+            message: Binding(get: { draft }, set: { draft = $0 }),
+            isLoading: true,
+            supportsImages: true,
+            selectedImage: Image(systemName: "photo"),
+            onSend: {}
+        )
+
+        #expect(composer.message == "Hello")
+        #expect(composer.isLoading)
+        #expect(composer.supportsImages)
+        #expect(composer.showsRecording)
+        #expect(composer.selectedImage != nil)
+    }
+
     // MARK: - QuillMenuAction helpers
 
     @Test("QuillMenuAction builds disabled and selectable menu rows")
