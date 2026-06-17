@@ -308,6 +308,30 @@ quillui_solderscope_verify_freeze_attempt() {
     quill-solderscope-freeze-interaction >/dev/null 2>&1
 }
 
+quillui_solderscope_wait_for_recording_ui_settled() {
+  local probe_path
+  probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-recording-ui.XXXXXX.png")"
+  local check_log="/tmp/quill-solderscope-recording-ui-check.log"
+  local deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_RECORDING_UI_SETTLE_SECONDS:-8}))
+  local last_error=""
+
+  while (( SECONDS <= deadline )); do
+    DISPLAY="$DISPLAY_ID" import -window root "$probe_path" 2>/dev/null || true
+    if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" quill-solderscope-interaction >"$check_log" 2>&1; then
+      rm -f "$probe_path" "$check_log"
+      echo "SolderScope interaction smoke: recording UI settled after stop" >&2
+      return 0
+    fi
+    last_error="$(tail -n 1 "$check_log" 2>/dev/null || true)"
+    sleep "${QUILLUI_SOLDERSCOPE_RECORDING_UI_SETTLE_TICK_SECONDS:-0.5}"
+  done
+
+  cp "$probe_path" "${SCREENSHOT_PATH%.png}-recording-settle.png" 2>/dev/null || true
+  rm -f "$probe_path" "$check_log"
+  echo "SolderScope interaction smoke recording UI did not settle after stop: $last_error" >&2
+  return 1
+}
+
 quillui_solderscope_converge_freeze() {
   local freeze_driver="$1"
   local window_id="$2"
@@ -650,6 +674,7 @@ quillui_drive_solderscope_interaction() {
       echo "SolderScope interaction smoke did not observe a finalized recording file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi
+    quillui_solderscope_wait_for_recording_ui_settled || return $?
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
