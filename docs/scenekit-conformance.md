@@ -78,7 +78,8 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    `SCNGeometryElement(indices:primitiveType:)`, `SCNGeometry.boundingBox`/
    `copy()`, `SCNText`/`SCNShape`, `SCNMatrix4Invert`/`IsIdentity`,
    `SCNMaterial: Hashable`, and `SCNScene.write`/`SCNSceneSource` for Quill's
-   deterministic scene archive format. The CoreGraphics shim gained
+   deterministic scene archive format, including failable named archive lookup
+   and Apple-shaped scene-source option values. The CoreGraphics shim gained
    the long-missing `CGPoint`/`CGSize`/`CGRect`/`CGFloat` re-export (real
    gap — pure-geometry `import CoreGraphics` files expect them) plus
    `CGPathElement`/`CGPathElementType` + a functional `CGPath.applyWithBlock`

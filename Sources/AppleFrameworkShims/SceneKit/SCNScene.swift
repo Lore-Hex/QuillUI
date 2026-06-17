@@ -16,7 +16,7 @@ public final class SCNScene: @unchecked Sendable {
 
     public init(url: URL, options: [SCNSceneSource.LoadingOption: Any]? = nil) throws {
         do {
-            try QuillSceneArchiveCodec.load(Data(contentsOf: url), into: self)
+            try QuillSceneArchiveCodec.load(Data(contentsOf: url), sourceURL: url, into: self)
         } catch let error as SCNSceneShimError {
             throw error
         } catch {
@@ -24,8 +24,22 @@ public final class SCNScene: @unchecked Sendable {
         }
     }
 
-    public init(named name: String) {
-        // Empty scene; the named-asset catalog is not modeled on QuillOS yet.
+    public convenience init?(named name: String) {
+        self.init(named: name, inDirectory: nil, options: nil)
+    }
+
+    public convenience init?(
+        named name: String,
+        inDirectory directory: String?,
+        options: [SCNSceneSource.LoadingOption: Any]? = nil
+    ) {
+        guard let url = Self.quillNamedSceneURL(named: name, inDirectory: directory) else { return nil }
+        self.init()
+        do {
+            try QuillSceneArchiveCodec.load(Data(contentsOf: url), sourceURL: url, into: self)
+        } catch {
+            return nil
+        }
     }
 
     public func quillStepActions(by deltaTime: TimeInterval) {
@@ -57,6 +71,27 @@ public final class SCNScene: @unchecked Sendable {
             return false
         }
     }
+
+    private static func quillNamedSceneURL(named name: String, inDirectory directory: String?) -> URL? {
+        guard !name.isEmpty else { return nil }
+
+        var candidates: [URL] = []
+        if name.hasPrefix("/") {
+            candidates.append(URL(fileURLWithPath: name))
+        }
+        if let directory, !directory.isEmpty {
+            candidates.append(URL(fileURLWithPath: directory, isDirectory: true).appendingPathComponent(name))
+        }
+        if let resourceURL = Bundle.main.resourceURL {
+            candidates.append(resourceURL.appendingPathComponent(name))
+        }
+        candidates.append(URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(name))
+
+        return candidates.first { url in
+            var isDirectory = ObjCBool(false)
+            return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+        }
+    }
 }
 
 public enum SCNSceneShimError: Error, CustomStringConvertible {
@@ -66,7 +101,8 @@ public enum SCNSceneShimError: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case let .loadingUnsupported(url):
-            return "SCNScene(url:) is not yet supported on QuillOS (\(url.lastPathComponent))"
+            return "SCNScene(url:) cannot load unsupported SceneKit asset format \(url.lastPathComponent); "
+                + "QuillOS currently reads Quill scene archives written by SCNScene.write(to:)."
         case let .loadingFailed(url, error):
             return "SCNScene(url:) could not load \(url.lastPathComponent): \(error)"
         }
@@ -75,13 +111,20 @@ public enum SCNSceneShimError: Error, CustomStringConvertible {
 
 public final class SCNSceneSource: @unchecked Sendable {
     public enum LoadingOption: String, Hashable, Sendable {
-        case checkConsistency
-        case flattenScene
-        case createNormalsIfAbsent
-        case convertToYUp
-        case convertUnitsToMeters
-        case preserveOriginalTopology
-        case animationImportPolicy
+        case checkConsistency = "kSceneSourceCheckConsistency"
+        case flattenScene = "kSceneSourceFlattenScene"
+        case createNormalsIfAbsent = "kSceneSourceCreateNormalsIfAbsent"
+        case convertToYUp = "kSceneSourceConvertToYUpIfNeeded"
+        case convertUnitsToMeters = "kSceneSourceConvertToUnit"
+        case preserveOriginalTopology = "kSceneSourcePreserveOriginalTopology"
+        case animationImportPolicy = "kSceneSourceAnimationLoadingMode"
+    }
+
+    public enum AnimationImportPolicy: String, Hashable, Sendable {
+        case play = "playOnce"
+        case playRepeatedly
+        case doNotPlay = "keepSeparate"
+        case playUsingSceneTimeBase = "playUsingSceneTime"
     }
 
     public let url: URL?
@@ -92,6 +135,6 @@ public final class SCNSceneSource: @unchecked Sendable {
 
     public func scene(options: [LoadingOption: Any]? = nil) -> SCNScene? {
         guard let url, let data = try? Data(contentsOf: url) else { return nil }
-        return try? QuillSceneArchiveCodec.scene(from: data)
+        return try? QuillSceneArchiveCodec.scene(from: data, sourceURL: url)
     }
 }
