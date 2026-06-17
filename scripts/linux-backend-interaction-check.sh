@@ -231,6 +231,13 @@ fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "toolbar-model-selected" ]]; then
   app_environment+=("QUILLUI_BACKEND_SELECTED_MODEL_NAME=${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}")
 fi
+if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+  case "$INTERACTION_MODE" in
+    completions-panel|completions-new-sheet|completions-save|completions-edit-save|completions-delete)
+      app_environment+=("QUILLUI_ACCESSIBILITY_TRUSTED=${QUILLUI_ACCESSIBILITY_TRUSTED:-1}")
+      ;;
+  esac
+fi
 if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
   app_environment+=("QUILLUI_GTK_SHEET_PRESENTATION=${QUILLUI_GTK_SHEET_PRESENTATION:-window}")
 fi
@@ -683,7 +690,6 @@ ensure_quill_chat_completions_panel_open() {
   quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
   for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do
     if quill_chat_mac_reference_completions_panel_visible; then
-      settle_quill_chat_completion_capture_if_verified
       return 0
     fi
 
@@ -695,7 +701,7 @@ ensure_quill_chat_completions_panel_open() {
     sleep "${QUILLUI_BACKEND_COMPLETIONS_OPEN_RETRY_SLEEP:-0.8}"
   done
 
-  quill_chat_mac_reference_completions_panel_visible && settle_quill_chat_completion_capture_if_verified
+  quill_chat_mac_reference_completions_panel_visible
 }
 
 open_quill_chat_new_completion_sheet() {
@@ -751,7 +757,7 @@ save_quill_chat_new_completion() {
       name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}"
       instruction_x="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}"
       instruction_y="${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 548))}"
-      save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}"
+      save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}"
       save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 410))}"
     fi
   else
@@ -777,7 +783,9 @@ save_quill_chat_new_completion() {
   sleep 0.5
   click_at "$save_x" "$save_y"
   sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
+  quill_chat_completions_panel_probe_path=""
   ensure_quill_chat_completions_panel_open
+  settle_quill_chat_completion_capture_if_verified
 }
 
 edit_quill_chat_existing_completion() {
@@ -800,7 +808,7 @@ edit_quill_chat_existing_completion() {
     else
       name_x="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_X:-$((window_x + 720))}"
       name_y="${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}"
-      save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}"
+      save_x="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}"
       save_y="${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 410))}"
     fi
   else
@@ -823,7 +831,9 @@ edit_quill_chat_existing_completion() {
   sleep 0.5
   click_at "$save_x" "$save_y"
   sleep "${QUILLUI_BACKEND_COMPLETION_SAVE_SLEEP:-2}"
+  quill_chat_completions_panel_probe_path=""
   ensure_quill_chat_completions_panel_open
+  settle_quill_chat_completion_capture_if_verified
 }
 
 delete_quill_chat_completion() {
@@ -845,7 +855,9 @@ delete_quill_chat_completion() {
 
   click_at "$delete_x" "$delete_y"
   sleep "${QUILLUI_BACKEND_COMPLETION_DELETE_SLEEP:-2}"
+  quill_chat_completions_panel_probe_path=""
   ensure_quill_chat_completions_panel_open
+  settle_quill_chat_completion_capture_if_verified
 }
 
 select_quill_chat_markdown_transcript() {

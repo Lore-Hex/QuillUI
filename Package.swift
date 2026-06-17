@@ -3252,11 +3252,9 @@ if quillUILinuxBuildBackend == .qt {
         ),
         .target(
             name: "QuillFoundation",
-            dependencies: ["QuillKit", "CGdkPixbuf"],
+            dependencies: quillFoundationDependencies,
             path: "Sources/QuillFoundation",
-            swiftSettings: [
-                .unsafeFlags(gdkPixbufSwiftImporterFlags)
-            ]
+            swiftSettings: quillFoundationSwiftSettings
         ),
         .target(
             name: "UniformTypeIdentifiers",

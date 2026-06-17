@@ -128,6 +128,8 @@ struct SourceHygieneTests {
         // unused-dependency warning. See Package.swift `if signalUpstreamPresent`.
         #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
         #expect(manifest.contains("cSQLiteTarget,\n        cCairoTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
+        #expect(manifest.contains("name: \"QuillFoundation\",\n            dependencies: quillFoundationDependencies,\n            path: \"Sources/QuillFoundation\",\n            swiftSettings: quillFoundationSwiftSettings"))
+        #expect(manifest.contains("name: \"AppKit\",\n            dependencies: appKitShadowDependencies,\n            path: \"Sources/QuillAppKit\",\n            swiftSettings: [\n                .swiftLanguageMode(.v5),\n                .unsafeFlags([\"-strict-concurrency=minimal\"]),\n                .unsafeFlags(gdkPixbufSwiftImporterFlags)"))
         #expect(manifest.contains("name: \"UniformTypeIdentifiers\",\n            dependencies: [],\n            path: \"Sources/UniformTypeIdentifiersShim\""))
         #expect(manifest.contains("name: \"CoreTransferable\",\n            dependencies: [\"UniformTypeIdentifiers\"],\n            path: \"Sources/CoreTransferable\""))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
@@ -998,6 +1000,9 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillShims/QuillShims.swift"),
             encoding: .utf8
         )
+        #expect(quillKit.contains("ProcessInfo.processInfo.environment[\"QUILLUI_ACCESSIBILITY_TRUSTED\"]"))
+        #expect(quillKit.contains("return [\"1\", \"true\", \"yes\", \"on\"].contains(override.lowercased())"))
+        #expect(quillKit.contains("return false\n        #else\n        return true"))
         let swiftUILowering = try String(
             contentsOf: root.appendingPathComponent("scripts/lower-swiftui-source-for-linux.sh"),
             encoding: .utf8
@@ -2354,7 +2359,12 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" verify_product"))
         #expect(backendScript.contains("cp -f \"$quill_chat_completions_panel_probe_path\" \"$SCREENSHOT_PATH\""))
         #expect(backendScript.contains("settled_capture_taken=1"))
-        #expect(backendScript.contains("settle_quill_chat_completion_capture_if_verified\n      return 0"))
+        #expect(!backendScript.contains("settle_quill_chat_completion_capture_if_verified\n      return 0"))
+        #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
+        #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 410))}\""))
+        #expect(!backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1522))}\""))
+        #expect(!backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 383))}\""))
+        #expect(backendScript.contains("quill_chat_completions_panel_probe_path=\"\"\n  ensure_quill_chat_completions_panel_open\n  settle_quill_chat_completion_capture_if_verified"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_OPEN_ATTEMPTS:-3"))
         #expect(backendScript.contains("for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_OPEN_RETRY_SLEEP:-0.8"))
@@ -2365,6 +2375,7 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_ESCAPE_SLEEP:-0.3"))
+        #expect(backendScript.contains("QUILLUI_ACCESSIBILITY_TRUSTED=${QUILLUI_ACCESSIBILITY_TRUSTED:-1}"))
         #expect(backendScript.contains("reset_cancel_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}\""))
         #expect(backendScript.contains("reset_cancel_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}\""))
         #expect(backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}\""))
@@ -2374,8 +2385,6 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("instruction_x=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_X:-$((window_x + 720))}\""))
         #expect(backendScript.contains("instruction_y=\"${QUILLUI_BACKEND_COMPLETION_INSTRUCTION_CLICK_Y:-$((window_y + 548))}\""))
         #expect(backendScript.contains("Reply with a concise Linux validation response."))
-        #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1448))}\""))
-        #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 410))}\""))
         #expect(!backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 468))}\""))
         #expect(backendScript.contains("run_list_selection_or_header_interaction()"))
         #expect(backendScript.contains("unsupported_backend_interaction_mode()"))
