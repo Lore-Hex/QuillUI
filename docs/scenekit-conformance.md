@@ -2,9 +2,9 @@
 
 Goal: real SceneKit apps compile UNMODIFIED and render on QuillOS Linux,
 following the SolderScope playbook (docs/solderscope-conformance.md). The
-SceneKit shim today is inert (`Sources/AppleFrameworkShims/SceneKit` — one
-`import Foundation`); this campaign grows it into a functional surface, with
-each target app's compile errors as the work-list.
+SceneKit now has a functional Linux software-renderer compatibility lane under
+`Sources/AppleFrameworkShims/SceneKit`; this campaign keeps growing it with
+each target app's compile, render, and interaction gaps as the work-list.
 
 ## Target apps
 
@@ -89,9 +89,10 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    transform-aware (`CGPath(rect:transform:)`, `copy(using:)`, and
    `CGMutablePath.addPath(_:transform:)`) and records rounded rects/ellipses as
    cubic curve elements instead of plain rectangles. The path value surface now
-   includes emptiness/current-point accessors, point and tight path bounds, and
-   winding/even-odd containment over flattened curves. `CoreGraphicsTests`
-   exercises this through a direct `import CoreGraphics` path.
+   includes center/radius arcs, tangent arcs, emptiness/current-point accessors,
+   point and tight path bounds, and winding/even-odd containment over flattened
+   curves. `CoreGraphicsTests` exercises this through a direct
+   `import CoreGraphics` path.
 
    This surface is now enabled by rung 2c. The key build gotcha remains:
    `canImport` state can look poisoned in a shared scratch, so use clean
