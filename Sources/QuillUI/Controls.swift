@@ -1191,10 +1191,20 @@ public struct QuillSidebarNavigationAction: Identifiable {
         onSettings: @escaping () -> Void = {}
     ) -> [QuillSidebarNavigationAction] {
         desktopChatUtilities(
-            onCompletions: { showCompletions.wrappedValue.toggle() },
-            onShortcuts: { showShortcuts.wrappedValue.toggle() },
+            onCompletions: {
+                showShortcuts.wrappedValue = false
+                showSettings.wrappedValue = false
+                showCompletions.wrappedValue = true
+            },
+            onShortcuts: {
+                showCompletions.wrappedValue = false
+                showSettings.wrappedValue = false
+                showShortcuts.wrappedValue = true
+            },
             onSettings: {
-                showSettings.wrappedValue.toggle()
+                showCompletions.wrappedValue = false
+                showShortcuts.wrappedValue = false
+                showSettings.wrappedValue = true
                 onSettings()
             }
         )

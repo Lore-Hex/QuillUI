@@ -597,15 +597,32 @@ struct QuillUITests {
             onSettings: { tappedSettings = true }
         )
 
-        toggles.forEach { $0.perform() }
         #if os(macOS) || os(Linux)
+        toggles[0].perform()
         #expect(showCompletions)
+        #expect(!showShortcuts)
+        #expect(!showSettings)
+
+        toggles[0].perform()
+        #expect(showCompletions)
+        #expect(!showShortcuts)
+        #expect(!showSettings)
+
+        toggles[1].perform()
+        #expect(!showCompletions)
         #expect(showShortcuts)
-        #else
+        #expect(!showSettings)
+
+        toggles[2].perform()
         #expect(!showCompletions)
         #expect(!showShortcuts)
-        #endif
         #expect(showSettings)
+        #else
+        toggles.forEach { $0.perform() }
+        #expect(!showCompletions)
+        #expect(!showShortcuts)
+        #expect(showSettings)
+        #endif
         #expect(tappedSettings)
     }
 
