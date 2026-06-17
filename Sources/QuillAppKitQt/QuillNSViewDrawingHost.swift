@@ -47,38 +47,74 @@ public final class QtCairoCGContextBackend: QuillCGContextBackend {
                               Double(rgba[3] * state.alpha))
     }
 
-    private func applyShadowSource() -> Shadow? {
+    private func applyShadowSource(alphaScale: CGFloat = 1) -> Shadow? {
         guard let shadow = state.shadow else { return nil }
         let rgba = shadow.colorRGBA
         guard rgba.count >= 4 else { return nil }
+        let alpha = Self.clampedUnit(rgba[3] * state.alpha * alphaScale)
         cairo_set_source_rgba(cr,
                               Double(rgba[0]), Double(rgba[1]), Double(rgba[2]),
-                              Double(rgba[3] * state.alpha))
+                              Double(alpha))
         return shadow
     }
 
     private func withShadow(_ draw: () -> Void) {
         guard let shadow = state.shadow else { return }
-        cairo_save(cr)
-        cairo_translate(cr, Double(shadow.offset.width), Double(shadow.offset.height))
-        _ = applyShadowSource()
-        draw()
-        cairo_restore(cr)
+        let offsets = Self.shadowSampleOffsets(for: shadow.blur)
+        let alphaScale = 1 / CGFloat(offsets.count)
+        for offset in offsets {
+            cairo_save(cr)
+            cairo_translate(
+                cr,
+                Double(shadow.offset.width + offset.x),
+                Double(shadow.offset.height + offset.y)
+            )
+            _ = applyShadowSource(alphaScale: alphaScale)
+            draw()
+            cairo_restore(cr)
+        }
+    }
+
+    private static func shadowSampleOffsets(for blur: CGFloat) -> [CGPoint] {
+        let radius = shadowBlurRadius(blur)
+        guard radius > 0 else {
+            return [.zero]
+        }
+
+        var offsets: [CGPoint] = []
+        offsets.reserveCapacity((radius * 2 + 1) * (radius * 2 + 1))
+        for y in (-radius)...radius {
+            for x in (-radius)...radius {
+                offsets.append(CGPoint(x: CGFloat(x), y: CGFloat(y)))
+            }
+        }
+        return offsets
+    }
+
+    private static func shadowBlurRadius(_ blur: CGFloat) -> Int {
+        guard blur.isFinite, blur > 0 else {
+            return 0
+        }
+        return min(8, max(1, Int(blur.rounded(.up))))
+    }
+
+    private static func clampedUnit(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return 0
+        }
+        return min(1, max(0, value))
     }
 
     private func drawShadowForCurrentPath(stroke: Bool, rule: CGPathFillRule = .winding) {
         guard state.shadow != nil, let path = cairo_copy_path(cr) else { return }
         defer { cairo_path_destroy(path) }
-        cairo_save(cr)
-        cairo_new_path(cr)
-        if let shadow = applyShadowSource() {
-            cairo_translate(cr, Double(shadow.offset.width), Double(shadow.offset.height))
+        withShadow {
+            cairo_new_path(cr)
             cairo_append_path(cr, path)
             withFillRule(rule) {
                 stroke ? cairo_stroke(cr) : cairo_fill(cr)
             }
         }
-        cairo_restore(cr)
     }
 
     private func setOperator(for mode: CGBlendMode) {
@@ -379,14 +415,13 @@ public final class QtCairoCGContextBackend: QuillCGContextBackend {
             }
             defer { cairo_surface_destroy(surface) }
 
-            if let shadow = state.shadow {
-                cairo_save(cr)
-                cairo_translate(cr, Double(rect.origin.x + shadow.offset.width), Double(rect.maxY + shadow.offset.height))
-                cairo_scale(cr, Double(rect.size.width) / Double(width),
-                            -Double(rect.size.height) / Double(height))
-                _ = applyShadowSource()
-                cairo_mask_surface(cr, surface, 0, 0)
-                cairo_restore(cr)
+            if state.shadow != nil {
+                withShadow {
+                    cairo_translate(cr, Double(rect.origin.x), Double(rect.maxY))
+                    cairo_scale(cr, Double(rect.size.width) / Double(width),
+                                -Double(rect.size.height) / Double(height))
+                    cairo_mask_surface(cr, surface, 0, 0)
+                }
             }
 
             cairo_save(cr)
@@ -425,12 +460,9 @@ public final class QtCairoCGContextBackend: QuillCGContextBackend {
         guard let groupPattern = cairo_get_source(cr) else { return }
         let referencedPattern = cairo_pattern_reference(groupPattern)
         if state.shadow != nil {
-            cairo_save(cr)
-            if let shadow = applyShadowSource() {
-                cairo_translate(cr, Double(shadow.offset.width), Double(shadow.offset.height))
+            withShadow {
                 cairo_mask(cr, referencedPattern)
             }
-            cairo_restore(cr)
         }
 
         cairo_set_source(cr, referencedPattern)
