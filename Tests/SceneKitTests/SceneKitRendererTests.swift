@@ -305,6 +305,36 @@ struct SceneKitRendererTests {
         #expect(transform.m43 == 13)
     }
 
+    @Test("SCNNode SIMD vector properties bridge through SceneKit vectors")
+    func nodeSIMDVectorPropertiesBridgeThroughSceneKitVectors() {
+        let node = SCNNode()
+        node.simdPosition = SIMD3<Float>(1.25, -2, 3.5)
+        node.simdEulerAngles = SIMD3<Float>(0.1, 0.2, 0.3)
+        node.simdScale = SIMD3<Float>(2, 3, 4)
+
+        expectVector(node.position, closeTo: SCNVector3(1.25, -2, 3.5))
+        expectVector(node.eulerAngles, closeTo: SCNVector3(0.1, 0.2, 0.3))
+        expectVector(node.scale, closeTo: SCNVector3(2, 3, 4))
+        #expect(node.simdPosition == SIMD3<Float>(1.25, -2, 3.5))
+        #expect(node.simdScale == SIMD3<Float>(2, 3, 4))
+
+        node.simdEulerAngles = .zero
+        let parent = SCNNode()
+        parent.position = SCNVector3(10, 20, 30)
+        parent.scale = SCNVector3(2, 4, 5)
+        parent.addChildNode(node)
+
+        node.simdWorldPosition = SIMD3<Float>(14, 32, 50)
+        expectVector(node.position, closeTo: SCNVector3(2, 3, 4))
+        expectVector(node.worldPosition, closeTo: SCNVector3(14, 32, 50))
+        #expect(node.simdWorldPosition == SIMD3<Float>(14, 32, 50))
+
+        node.simdWorldScale = SIMD3<Float>(10, 12, 15)
+        expectVector(node.scale, closeTo: SCNVector3(5, 3, 3))
+        expectVector(node.worldScale, closeTo: SCNVector3(10, 12, 15))
+        #expect(node.simdWorldScale == SIMD3<Float>(10, 12, 15))
+    }
+
     @Test("SCNNode worldPosition and worldTransform resolve through parents")
     func nodeWorldPositionAndTransformResolveThroughParents() {
         let parent = SCNNode()

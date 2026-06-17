@@ -12,6 +12,18 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     public var eulerAngles = SCNVector3(0, 0, 0) { didSet { invalidateExplicitTransform() } }
     public var scale = SCNVector3(1, 1, 1) { didSet { invalidateExplicitTransform() } }
     public var orientation = SCNQuaternion(0, 0, 0, 1) { didSet { invalidateExplicitTransform() } }
+    public var simdPosition: SIMD3<Float> {
+        get { position.quillSIMD3 }
+        set { position = SCNVector3(newValue) }
+    }
+    public var simdEulerAngles: SIMD3<Float> {
+        get { eulerAngles.quillSIMD3 }
+        set { eulerAngles = SCNVector3(newValue) }
+    }
+    public var simdScale: SIMD3<Float> {
+        get { scale.quillSIMD3 }
+        set { scale = SCNVector3(newValue) }
+    }
     public var transform: SCNMatrix4 {
         get { explicitTransform ?? quillComposedTransform() }
         set {
@@ -27,6 +39,10 @@ public final class SCNNode: Equatable, @unchecked Sendable {
             let parentWorld = parent.map(Matrix4.worldTransform) ?? .identity
             position = SCNVector3(parentWorld.inverted().transformPoint(Vector3(newValue)))
         }
+    }
+    public var simdWorldPosition: SIMD3<Float> {
+        get { worldPosition.quillSIMD3 }
+        set { worldPosition = SCNVector3(newValue) }
     }
     public var worldOrientation: SCNQuaternion {
         get {
@@ -61,6 +77,10 @@ public final class SCNNode: Equatable, @unchecked Sendable {
                 Self.quillLocalScaleComponent(forWorldScale: newValue.z, parentScale: parentScale.z)
             )
         }
+    }
+    public var simdWorldScale: SIMD3<Float> {
+        get { worldScale.quillSIMD3 }
+        set { worldScale = SCNVector3(newValue) }
     }
     public var worldFront: SCNVector3 {
         quillWorldDirection(Vector3(0, 0, -1), fallback: Vector3(0, 0, -1))

@@ -26,6 +26,14 @@ public struct SCNVector3: Equatable, Sendable {
     public init(x: CGFloat, y: CGFloat, z: CGFloat) {
         self.init(x, y, z)
     }
+
+    public init(_ vector: SIMD3<Float>) {
+        self.init(CGFloat(vector.x), CGFloat(vector.y), CGFloat(vector.z))
+    }
+
+    var quillSIMD3: SIMD3<Float> {
+        SIMD3(Float(x), Float(y), Float(z))
+    }
 }
 
 public struct SCNVector4: Equatable, Sendable {
