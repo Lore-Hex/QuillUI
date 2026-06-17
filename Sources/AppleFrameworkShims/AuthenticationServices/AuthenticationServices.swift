@@ -24,6 +24,7 @@ public final class ASWebAuthenticationSession: @unchecked Sendable {
     private let lock = NSLock()
     private var active = false
     private var completed = false
+    private var callbackMonitorTask: Task<Void, Never>?
 
     public init(url: URL, callbackURLScheme: String?, completionHandler: @escaping CompletionHandler) {
         self.url = url
@@ -55,10 +56,13 @@ public final class ASWebAuthenticationSession: @unchecked Sendable {
             return true
         }
 
+        startCallbackFileMonitorIfConfigured()
+
         if QuillWorkspace.open(url) {
             return true
         }
 
+        cancelCallbackFileMonitor()
         Self.unregister(self)
         lock.withLock {
             active = false
@@ -83,6 +87,12 @@ public final class ASWebAuthenticationSession: @unchecked Sendable {
         return session.complete(callbackURL: url, error: nil)
     }
 
+    public static func setCallbackFileURLForTesting(_ url: URL?) {
+        registry.lock.withLock {
+            registry.callbackFileURLForTesting = url
+        }
+    }
+
     private func acceptsCallbackURL(_ url: URL) -> Bool {
         let isActive = lock.withLock { active }
         guard let callbackURLScheme else {
@@ -105,9 +115,48 @@ public final class ASWebAuthenticationSession: @unchecked Sendable {
             return false
         }
 
+        cancelCallbackFileMonitor()
         Self.unregister(self)
         completionHandler(callbackURL, error)
         return true
+    }
+
+    private func startCallbackFileMonitorIfConfigured() {
+        guard let callbackFileURL = Self.callbackFileURL() else { return }
+        let initialCallback = Self.latestCallbackString(in: callbackFileURL)
+
+        let task = Task.detached { [weak self] in
+            var lastCallback = initialCallback
+            while !Task.isCancelled {
+                guard let self else { return }
+                if let callback = Self.latestCallbackString(in: callbackFileURL) {
+                    if callback != lastCallback,
+                       let url = URL(string: callback),
+                       self.acceptsCallbackURL(url) {
+                        _ = self.complete(callbackURL: url, error: nil)
+                        return
+                    }
+                    lastCallback = callback
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+
+        let taskToCancel = lock.withLock { () -> Task<Void, Never>? in
+            let existing = callbackMonitorTask
+            callbackMonitorTask = task
+            return existing
+        }
+        taskToCancel?.cancel()
+    }
+
+    private func cancelCallbackFileMonitor() {
+        let task = lock.withLock { () -> Task<Void, Never>? in
+            let task = callbackMonitorTask
+            callbackMonitorTask = nil
+            return task
+        }
+        task?.cancel()
     }
 
     private static func injectedCallbackURL(matching callbackURLScheme: String?) -> URL? {
@@ -122,6 +171,32 @@ public final class ASWebAuthenticationSession: @unchecked Sendable {
             return url
         }
         return url.scheme?.lowercased() == callbackURLScheme ? url : nil
+    }
+
+    private static func callbackFileURL() -> URL? {
+        if let testingURL = registry.lock.withLock({ registry.callbackFileURLForTesting }) {
+            return testingURL
+        }
+
+        guard
+            let rawPath = ProcessInfo.processInfo.environment["QUILLUI_WEB_AUTH_CALLBACK_FILE"],
+            !rawPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+
+        return URL(fileURLWithPath: rawPath)
+    }
+
+    private static func latestCallbackString(in fileURL: URL) -> String? {
+        guard let contents = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            return nil
+        }
+        return contents
+            .split(whereSeparator: \.isNewline)
+            .last
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func register(_ session: ASWebAuthenticationSession) {
@@ -139,6 +214,7 @@ public final class ASWebAuthenticationSession: @unchecked Sendable {
     private final class Registry: @unchecked Sendable {
         let lock = NSLock()
         var sessions: [ASWebAuthenticationSession] = []
+        var callbackFileURLForTesting: URL?
     }
 
     private static let registry = Registry()

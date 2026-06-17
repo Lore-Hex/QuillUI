@@ -63,6 +63,9 @@ estimates, not release claims.
 - [x] `AuthenticationServices` / web auth session: open browser through the
       shared Linux URL opener, receive a delivered callback URL, and return it
       through SwiftUI's async `webAuthenticationSession` action.
+- [x] `AuthenticationServices`: active sessions can monitor a callback URL
+      bridge file, so desktop URL-scheme helper processes can hand OAuth
+      callbacks to the running app without app-source changes.
 - [x] SwiftUI `openURL` default handling uses the same shared Linux URL opener,
       so regular IceCubes links and OAuth browser launches share diagnostics,
       headless rejection, and injectable desktop/test backends.
@@ -223,3 +226,8 @@ estimates, not release claims.
   the same test/environment/desktop-command URL picker. Verification:
   Docker/GTK `fileImporterAndPhotosPickerUseSharedFileSelection` passed, and
   the same source compiles on macOS.
+- 2026-06-16: Added a Linux `ASWebAuthenticationSession` callback-file bridge
+  for desktop URL-scheme helper processes. The running app can monitor a
+  configured file and consume the newest callback URL line while ignoring stale
+  contents present before the session starts. Verification: Docker/GTK
+  `webAuthenticationSessionConsumesCallbackFileUpdates` passed.

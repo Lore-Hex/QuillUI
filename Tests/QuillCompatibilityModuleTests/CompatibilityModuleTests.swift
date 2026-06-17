@@ -2787,6 +2787,50 @@ struct CompatibilityModuleTests {
         #expect(error?.code.rawValue == ASWebAuthenticationSessionError.Code.canceledLogin.rawValue)
     }
 
+    @Test("ASWebAuthenticationSession consumes callback URLs written by desktop bridge file")
+    func webAuthenticationSessionConsumesCallbackFileUpdates() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillWebAuthCallbackTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let callbackFileURL = directory.appendingPathComponent("callback-url.txt")
+        let staleURL = URL(string: "icecubesapp://oauth?code=stale")!
+        try staleURL.absoluteString.write(to: callbackFileURL, atomically: true, encoding: .utf8)
+        defer {
+            ASWebAuthenticationSession.setCallbackFileURLForTesting(nil)
+            QuillWorkspace.installOpenBackend(nil)
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        ASWebAuthenticationSession.setCallbackFileURLForTesting(callbackFileURL)
+        QuillWorkspace.installOpenBackend(.init(name: "test-open") { _ in true })
+
+        let authURL = URL(string: "https://mastodon.social/oauth/authorize")!
+        let callbackURL = URL(string: "icecubesapp://oauth?code=file")!
+        let completed = CompatibilityLockedValue<(URL?, (any Error)?)?>(nil)
+
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "icecubesapp") { url, error in
+            completed.update { $0 = (url, error) }
+        }
+
+        #expect(session.start())
+        try await Task.sleep(nanoseconds: 150_000_000)
+        #expect(completed.value == nil)
+
+        try "\(staleURL.absoluteString)\n\(callbackURL.absoluteString)\n"
+            .write(to: callbackFileURL, atomically: true, encoding: .utf8)
+
+        for _ in 0..<50 {
+            if completed.value?.0 != nil {
+                break
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        #expect(completed.value?.0 == callbackURL)
+        #expect(completed.value?.1 == nil)
+        #expect(!ASWebAuthenticationSession.handleCallbackURL(callbackURL))
+    }
+
     @Test("SwiftUI webAuthenticationSession action awaits AS callback")
     func webAuthenticationSessionActionReturnsCallback() async throws {
         QuillWorkspace.installOpenBackend(.init(name: "test-open") { _ in true })
