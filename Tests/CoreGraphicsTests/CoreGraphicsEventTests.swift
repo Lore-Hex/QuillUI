@@ -2,6 +2,24 @@ import CoreGraphics
 import Testing
 
 struct CoreGraphicsEventTests {
+    @Test("CGEventFlags use Apple modifier raw masks")
+    func eventFlagsUseAppleModifierRawMasks() {
+        #expect(CGEventFlags.maskAlphaShift.rawValue == 1 << 16)
+        #expect(CGEventFlags.maskShift.rawValue == 1 << 17)
+        #expect(CGEventFlags.maskControl.rawValue == 1 << 18)
+        #expect(CGEventFlags.maskAlternate.rawValue == 1 << 19)
+        #expect(CGEventFlags.maskCommand.rawValue == 1 << 20)
+        #expect(CGEventFlags.maskNumericPad.rawValue == 1 << 21)
+        #expect(CGEventFlags.maskHelp.rawValue == 1 << 22)
+        #expect(CGEventFlags.maskSecondaryFn.rawValue == 1 << 23)
+
+        let shortcut: CGEventFlags = [.maskCommand, .maskShift]
+        #expect(shortcut.contains(.maskCommand))
+        #expect(shortcut.contains(.maskShift))
+        #expect(!shortcut.contains(.maskAlternate))
+        #expect(shortcut.rawValue == (1 << 20) | (1 << 17))
+    }
+
     @Test("CGEvent keyboard unicode strings round-trip and truncate")
     func keyboardUnicodeStringsRoundTripAndTruncate() throws {
         let source = try #require(CGEventSource(stateID: .combinedSessionState))
