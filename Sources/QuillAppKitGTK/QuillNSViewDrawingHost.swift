@@ -204,6 +204,16 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
     public func setStrokeColor(_ rgba: [CGFloat]) { state.stroke = rgba }
     public func setLineWidth(_ width: CGFloat) { cairo_set_line_width(cr, Double(width)) }
     public func setMiterLimit(_ limit: CGFloat) { cairo_set_miter_limit(cr, Double(limit)) }
+    public func setLineDash(phase: CGFloat, lengths: [CGFloat]) {
+        guard !lengths.isEmpty else {
+            cairo_set_dash(cr, nil, 0, 0)
+            return
+        }
+        let dashes = lengths.map(Double.init)
+        dashes.withUnsafeBufferPointer { buffer in
+            cairo_set_dash(cr, buffer.baseAddress, Int32(buffer.count), Double(phase))
+        }
+    }
     public func setShouldAntialias(_ shouldAntialias: Bool) {
         cairo_set_antialias(cr, shouldAntialias ? CAIRO_ANTIALIAS_DEFAULT : CAIRO_ANTIALIAS_NONE)
     }

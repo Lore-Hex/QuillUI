@@ -1582,6 +1582,8 @@ public final class CGContext {
     private var quillLineCap: CGLineCap = .butt
     private var quillLineJoin: CGLineJoin = .miter
     private var quillMiterLimit: CGFloat = 10
+    private var quillLineDashPhase: CGFloat = 0
+    private var quillLineDashLengths: [CGFloat] = []
     private var quillAllowsAntialiasing: Bool = true
     private var quillShouldAntialias: Bool = true
     private var quillAlpha: CGFloat = 1
@@ -1600,6 +1602,8 @@ public final class CGContext {
         var lineCap: CGLineCap
         var lineJoin: CGLineJoin
         var miterLimit: CGFloat
+        var lineDashPhase: CGFloat
+        var lineDashLengths: [CGFloat]
         var allowsAntialiasing: Bool
         var shouldAntialias: Bool
         var alpha: CGFloat
@@ -1647,6 +1651,19 @@ public final class CGContext {
     private struct QuillStrokeSegment {
         var start: CGPoint
         var end: CGPoint
+        var dashStart: CGFloat
+
+        var length: CGFloat {
+            let dx = end.x - start.x
+            let dy = end.y - start.y
+            return (dx * dx + dy * dy).squareRoot()
+        }
+    }
+
+    private struct QuillLineDash {
+        var phase: CGFloat
+        var lengths: [CGFloat]
+        var cycleLength: CGFloat
     }
 
     public init() {}
@@ -1728,6 +1745,14 @@ public final class CGContext {
             quillClampedUnit(blue),
             quillClampedUnit(alpha),
         ]
+    }
+
+    private static func quillNormalizedDashLengths(_ lengths: [CGFloat]) -> [CGFloat] {
+        guard !lengths.isEmpty,
+              lengths.allSatisfy({ $0.isFinite && $0 > 0 }) else {
+            return []
+        }
+        return lengths.count.isMultiple(of: 2) ? lengths : lengths + lengths
     }
 
     private static func quillBitmapSource(from image: Any) -> QuillBitmapImageSource? {
@@ -2606,9 +2631,18 @@ public final class CGContext {
             return []
         }
 
-        return (0..<(subpath.count - 1)).map { index in
-            QuillStrokeSegment(start: subpath[index], end: subpath[index + 1])
+        var segments: [QuillStrokeSegment] = []
+        var dashStart: CGFloat = 0
+        for index in 0..<(subpath.count - 1) {
+            let segment = QuillStrokeSegment(
+                start: subpath[index],
+                end: subpath[index + 1],
+                dashStart: dashStart
+            )
+            segments.append(segment)
+            dashStart += segment.length
         }
+        return segments
     }
 
     private static func quillStrokeSegments(
@@ -2623,7 +2657,8 @@ public final class CGContext {
         for index in stride(from: 0, to: points.count - 1, by: 2) {
             segments.append(QuillStrokeSegment(
                 start: points[index].applying(transform),
-                end: points[index + 1].applying(transform)
+                end: points[index + 1].applying(transform),
+                dashStart: 0
             ))
         }
         return segments
@@ -2649,13 +2684,15 @@ public final class CGContext {
 
         let lineCap = quillLineCap
         let lineJoin = quillLineJoin
+        let lineDash = quillDeviceLineDash()
         quillDrawBitmapShadow(sourceBounds: bounds) { devicePoint in
             Self.quillStrokeContains(
                 devicePoint,
                 segments: drawableSegments,
                 halfWidth: halfWidth,
                 lineCap: lineCap,
-                lineJoin: lineJoin
+                lineJoin: lineJoin,
+                lineDash: lineDash
             ) ? source.alpha : 0
         }
 
@@ -2672,7 +2709,8 @@ public final class CGContext {
                            segments: drawableSegments,
                            halfWidth: halfWidth,
                            lineCap: lineCap,
-                           lineJoin: lineJoin
+                           lineJoin: lineJoin,
+                           lineDash: lineDash
                        ),
                        let clippedSource = Self.quillPremultipliedColor(
                         source,
@@ -2691,13 +2729,33 @@ public final class CGContext {
             return nil
         }
 
+        guard let scale = quillDeviceStrokeScale() else {
+            return nil
+        }
+        return quillLineWidth * scale
+    }
+
+    private func quillDeviceLineDash() -> QuillLineDash? {
+        guard !quillLineDashLengths.isEmpty,
+              let scale = quillDeviceStrokeScale() else {
+            return nil
+        }
+        let lengths = quillLineDashLengths.map { $0 * scale }
+        let cycleLength = lengths.reduce(0, +)
+        guard cycleLength > 0 else {
+            return nil
+        }
+        return QuillLineDash(phase: quillLineDashPhase * scale, lengths: lengths, cycleLength: cycleLength)
+    }
+
+    private func quillDeviceStrokeScale() -> CGFloat? {
         let xScale = hypot(quillCTM.a, quillCTM.b)
         let yScale = hypot(quillCTM.c, quillCTM.d)
         let scale = Swift.max(xScale, yScale)
         guard scale.isFinite, scale > 0 else {
             return nil
         }
-        return quillLineWidth * scale
+        return scale
     }
 
     private static func quillStrokeSegmentIsFinite(_ segment: QuillStrokeSegment) -> Bool {
@@ -2742,13 +2800,20 @@ public final class CGContext {
         segments: [QuillStrokeSegment],
         halfWidth: CGFloat,
         lineCap: CGLineCap,
-        lineJoin: CGLineJoin
+        lineJoin: CGLineJoin,
+        lineDash: QuillLineDash?
     ) -> Bool {
-        for segment in segments where quillStrokeContains(point, segment: segment, halfWidth: halfWidth, lineCap: lineCap) {
+        for segment in segments where quillStrokeContains(
+            point,
+            segment: segment,
+            halfWidth: halfWidth,
+            lineCap: lineCap,
+            lineDash: lineDash
+        ) {
             return true
         }
 
-        guard lineJoin == .round else {
+        guard lineDash == nil, lineJoin == .round else {
             return false
         }
 
@@ -2763,7 +2828,8 @@ public final class CGContext {
         _ point: CGPoint,
         segment: QuillStrokeSegment,
         halfWidth: CGFloat,
-        lineCap: CGLineCap
+        lineCap: CGLineCap,
+        lineDash: QuillLineDash?
     ) -> Bool {
         let dx = segment.end.x - segment.start.x
         let dy = segment.end.y - segment.start.y
@@ -2786,10 +2852,21 @@ public final class CGContext {
             }
         case .round:
             if projection < 0 {
-                return quillDistanceSquared(point, segment.start) <= halfWidthSquared
+                return quillDashAllowsEndpoint(segment.dashStart, lineDash: lineDash) &&
+                    quillDistanceSquared(point, segment.start) <= halfWidthSquared
             }
             if projection > 1 {
-                return quillDistanceSquared(point, segment.end) <= halfWidthSquared
+                return quillDashAllowsEndpoint(segment.dashStart + segment.length, lineDash: lineDash) &&
+                    quillDistanceSquared(point, segment.end) <= halfWidthSquared
+            }
+        }
+
+        if let lineDash {
+            let length = sqrt(lengthSquared)
+            let clampedProjection = Swift.max(0, Swift.min(1, projection))
+            let distanceAlongStroke = segment.dashStart + clampedProjection * length
+            guard quillDashIsVisible(at: distanceAlongStroke, lineDash: lineDash) else {
+                return false
             }
         }
 
@@ -2798,6 +2875,30 @@ public final class CGContext {
             y: segment.start.y + projection * dy
         )
         return quillDistanceSquared(point, closest) <= halfWidthSquared
+    }
+
+    private static func quillDashAllowsEndpoint(_ distance: CGFloat, lineDash: QuillLineDash?) -> Bool {
+        guard let lineDash else {
+            return true
+        }
+        return quillDashIsVisible(at: distance, lineDash: lineDash)
+    }
+
+    private static func quillDashIsVisible(at distance: CGFloat, lineDash: QuillLineDash) -> Bool {
+        var position = (distance + lineDash.phase).truncatingRemainder(dividingBy: lineDash.cycleLength)
+        if position < 0 {
+            position += lineDash.cycleLength
+        }
+
+        var isVisible = true
+        for length in lineDash.lengths {
+            if position < length {
+                return isVisible
+            }
+            position -= length
+            isVisible.toggle()
+        }
+        return isVisible
     }
 
     private static func quillDistanceSquared(_ lhs: CGPoint, _ rhs: CGPoint) -> CGFloat {
@@ -3271,6 +3372,12 @@ public final class CGContext {
         quillMiterLimit = sanitizedLimit
         quillBackend?.setMiterLimit(sanitizedLimit)
     }
+    public func setLineDash(phase: CGFloat, lengths: [CGFloat]) {
+        let sanitizedLengths = Self.quillNormalizedDashLengths(lengths)
+        quillLineDashPhase = phase.isFinite ? phase : 0
+        quillLineDashLengths = sanitizedLengths
+        quillBackend?.setLineDash(phase: quillLineDashPhase, lengths: sanitizedLengths)
+    }
     public func setShadow(offset: CGSize, blur: CGFloat) {
         let colorRGBA: [CGFloat] = [0, 0, 0, CGFloat(1) / 3]
         quillShadow = QuillShadow(
@@ -3499,6 +3606,8 @@ public final class CGContext {
             lineCap: quillLineCap,
             lineJoin: quillLineJoin,
             miterLimit: quillMiterLimit,
+            lineDashPhase: quillLineDashPhase,
+            lineDashLengths: quillLineDashLengths,
             allowsAntialiasing: quillAllowsAntialiasing,
             shouldAntialias: quillShouldAntialias,
             alpha: quillAlpha,
@@ -3517,6 +3626,8 @@ public final class CGContext {
             quillLineCap = state.lineCap
             quillLineJoin = state.lineJoin
             quillMiterLimit = state.miterLimit
+            quillLineDashPhase = state.lineDashPhase
+            quillLineDashLengths = state.lineDashLengths
             quillAllowsAntialiasing = state.allowsAntialiasing
             quillShouldAntialias = state.shouldAntialias
             quillAlpha = state.alpha

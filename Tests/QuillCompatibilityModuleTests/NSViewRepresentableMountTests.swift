@@ -26,6 +26,9 @@ private final class RecordingBackend: QuillCGContextBackend {
     func setLineCap(_ cap: CGLineCap) { rec("lineCap") }
     func setLineJoin(_ join: CGLineJoin) { rec("lineJoin") }
     func setMiterLimit(_ limit: CGFloat) { rec("miter(\(Int(limit)))") }
+    func setLineDash(phase: CGFloat, lengths: [CGFloat]) {
+        rec("dash(\(Int(phase)):\(lengths.map { Int($0) }))")
+    }
     func setShouldAntialias(_ shouldAntialias: Bool) { rec("antialias(\(shouldAntialias))") }
     func setAlpha(_ alpha: CGFloat) { rec("alpha(\(alpha))") }
     func setBlendMode(_ mode: CGBlendMode) { rec("blend(\(mode))") }
@@ -75,6 +78,7 @@ struct NSViewRepresentableMountTests {
         ctx.concatenate(CGAffineTransform(a: 2, b: 0, c: 0, d: 3, tx: 4, ty: 5))
         ctx.restoreGState()
         ctx.setMiterLimit(7)
+        ctx.setLineDash(phase: 1, lengths: [2, 3])
         ctx.setAllowsAntialiasing(false)
         ctx.setShouldAntialias(true)
         ctx.setAllowsAntialiasing(true)
@@ -93,6 +97,7 @@ struct NSViewRepresentableMountTests {
             "concat(2,3,4,5)",
             "restore",
             "miter(7)",
+            "dash(1:[2, 3])",
             "antialias(false)",
             "antialias(false)",
             "antialias(true)",
