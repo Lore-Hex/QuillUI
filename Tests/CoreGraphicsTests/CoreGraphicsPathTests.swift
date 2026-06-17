@@ -448,6 +448,39 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGContext bitmap graphics state restores blend mode")
+    func bitmapContextRestoreGraphicsStateRestoresBlendMode() throws {
+        let context = try makeBitmapContext(width: 3, height: 1)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 3, height: 1))
+
+        context.saveGState()
+        context.setBlendMode(.copy)
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 0.5)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.restoreGState()
+
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 0.5)
+        context.fill(CGRect(x: 1, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            128, 0, 0, 128, 128, 0, 128, 255, 0, 0, 255, 255,
+        ])
+    }
+
+    @Test("CGContext bitmap multiply blend mode affects fills")
+    func bitmapContextMultiplyBlendModeAffectsFills() throws {
+        let context = try makeBitmapContext(width: 1, height: 1)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        context.setBlendMode(.multiply)
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [0, 0, 0, 255])
+    }
+
     @Test("CGContext bitmap draw composites CGImage pixels")
     func bitmapContextDrawCompositesImagePixels() throws {
         let context = try #require(CGContext(
@@ -508,6 +541,24 @@ struct CoreGraphicsPathTests {
         #expect(image.quillBGRAPixels == [
             0, 0, 255, 255, 128, 0, 128, 255, 0, 0, 255, 255,
         ])
+    }
+
+    @Test("CGContext bitmap screen blend mode affects image draws")
+    func bitmapContextScreenBlendModeAffectsImageDraws() throws {
+        let context = try makeBitmapContext(width: 1, height: 1)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        let source = CGImage()
+        source.width = 1
+        source.height = 1
+        source.quillBytesPerRow = 4
+        source.quillBGRAPixels = [255, 0, 0, 255]
+
+        context.setBlendMode(.screen)
+        context.draw(source, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [255, 0, 255, 255])
     }
 
     @Test("CGContext bitmap fillPath rasterizes the current path and clears it")

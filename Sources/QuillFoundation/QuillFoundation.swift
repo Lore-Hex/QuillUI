@@ -1582,6 +1582,7 @@ public final class CGContext {
     private var quillLineCap: CGLineCap = .butt
     private var quillLineJoin: CGLineJoin = .miter
     private var quillAlpha: CGFloat = 1
+    private var quillBlendMode: CGBlendMode = .normal
     private var quillCTM: CGAffineTransform = .identity
     private var quillClipRegions: [QuillClipRegion] = []
     private var quillStateStack: [QuillGraphicsState] = []
@@ -1594,6 +1595,7 @@ public final class CGContext {
         var lineCap: CGLineCap
         var lineJoin: CGLineJoin
         var alpha: CGFloat
+        var blendMode: CGBlendMode
         var ctm: CGAffineTransform
         var clipRegions: [QuillClipRegion]
     }
@@ -1763,29 +1765,221 @@ public final class CGContext {
         quillPremultipliedColor(from: quillStrokeRGBA)
     }
 
-    private static func quillCompositePremultipliedBGRA(
+    private func quillCompositePremultipliedBGRA(
         _ source: QuillPremultipliedBGRA,
         into pixels: UnsafeMutableBufferPointer<UInt8>,
         at offset: Int
+    ) {
+        Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset, blendMode: quillBlendMode)
+    }
+
+    private static func quillCompositePremultipliedBGRA(
+        _ source: QuillPremultipliedBGRA,
+        into pixels: UnsafeMutableBufferPointer<UInt8>,
+        at offset: Int,
+        blendMode: CGBlendMode = .normal
     ) {
         guard offset >= 0, offset + 3 < pixels.count else {
             return
         }
         let sourceAlpha = quillClampedUnit(source.alpha)
-        guard sourceAlpha > 0 else {
+        if sourceAlpha <= 0, blendMode != .clear {
             return
         }
 
-        let inverseSourceAlpha = 1 - sourceAlpha
-        let destinationBlue = CGFloat(pixels[offset]) / 255
-        let destinationGreen = CGFloat(pixels[offset + 1]) / 255
-        let destinationRed = CGFloat(pixels[offset + 2]) / 255
-        let destinationAlpha = CGFloat(pixels[offset + 3]) / 255
+        let destination = QuillPremultipliedBGRA(
+            blue: CGFloat(pixels[offset]) / 255,
+            green: CGFloat(pixels[offset + 1]) / 255,
+            red: CGFloat(pixels[offset + 2]) / 255,
+            alpha: CGFloat(pixels[offset + 3]) / 255
+        )
+        let result = quillBlendedPremultipliedBGRA(source: source, destination: destination, mode: blendMode)
 
-        pixels[offset] = quillClampedByte(source.blue + destinationBlue * inverseSourceAlpha)
-        pixels[offset + 1] = quillClampedByte(source.green + destinationGreen * inverseSourceAlpha)
-        pixels[offset + 2] = quillClampedByte(source.red + destinationRed * inverseSourceAlpha)
-        pixels[offset + 3] = quillClampedByte(sourceAlpha + destinationAlpha * inverseSourceAlpha)
+        pixels[offset] = quillClampedByte(result.blue)
+        pixels[offset + 1] = quillClampedByte(result.green)
+        pixels[offset + 2] = quillClampedByte(result.red)
+        pixels[offset + 3] = quillClampedByte(result.alpha)
+    }
+
+    private static func quillBlendedPremultipliedBGRA(
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA,
+        mode: CGBlendMode
+    ) -> QuillPremultipliedBGRA {
+        let sourceAlpha = quillClampedUnit(source.alpha)
+        let destinationAlpha = quillClampedUnit(destination.alpha)
+
+        switch mode {
+        case .clear:
+            return QuillPremultipliedBGRA(blue: 0, green: 0, red: 0, alpha: 0)
+        case .copy:
+            return source
+        case .sourceIn:
+            return quillPremultiplied(source, multipliedBy: destinationAlpha)
+        case .sourceOut:
+            return quillPremultiplied(source, multipliedBy: 1 - destinationAlpha)
+        case .sourceAtop:
+            return quillAdd(
+                quillPremultiplied(source, multipliedBy: destinationAlpha),
+                quillPremultiplied(destination, multipliedBy: 1 - sourceAlpha)
+            )
+        case .destinationOver:
+            return quillAdd(
+                quillPremultiplied(source, multipliedBy: 1 - destinationAlpha),
+                destination
+            )
+        case .destinationIn:
+            return quillPremultiplied(destination, multipliedBy: sourceAlpha)
+        case .destinationOut:
+            return quillPremultiplied(destination, multipliedBy: 1 - sourceAlpha)
+        case .destinationAtop:
+            return quillAdd(
+                quillPremultiplied(destination, multipliedBy: sourceAlpha),
+                quillPremultiplied(source, multipliedBy: 1 - destinationAlpha)
+            )
+        case .xor:
+            return quillAdd(
+                quillPremultiplied(source, multipliedBy: 1 - destinationAlpha),
+                quillPremultiplied(destination, multipliedBy: 1 - sourceAlpha)
+            )
+        case .plusLighter:
+            return QuillPremultipliedBGRA(
+                blue: Swift.min(1, source.blue + destination.blue),
+                green: Swift.min(1, source.green + destination.green),
+                red: Swift.min(1, source.red + destination.red),
+                alpha: Swift.min(1, sourceAlpha + destinationAlpha)
+            )
+        case .plusDarker:
+            return QuillPremultipliedBGRA(
+                blue: Swift.max(0, source.blue + destination.blue - 1),
+                green: Swift.max(0, source.green + destination.green - 1),
+                red: Swift.max(0, source.red + destination.red - 1),
+                alpha: Swift.max(0, sourceAlpha + destinationAlpha - 1)
+            )
+        case .normal:
+            return quillSourceOver(source: source, destination: destination)
+        default:
+            return quillBlendSeparable(source: source, destination: destination, mode: mode)
+        }
+    }
+
+    private static func quillSourceOver(
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA
+    ) -> QuillPremultipliedBGRA {
+        let inverseSourceAlpha = 1 - quillClampedUnit(source.alpha)
+        return QuillPremultipliedBGRA(
+            blue: source.blue + destination.blue * inverseSourceAlpha,
+            green: source.green + destination.green * inverseSourceAlpha,
+            red: source.red + destination.red * inverseSourceAlpha,
+            alpha: source.alpha + destination.alpha * inverseSourceAlpha
+        )
+    }
+
+    private static func quillBlendSeparable(
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA,
+        mode: CGBlendMode
+    ) -> QuillPremultipliedBGRA {
+        let sourceAlpha = quillClampedUnit(source.alpha)
+        let destinationAlpha = quillClampedUnit(destination.alpha)
+        guard sourceAlpha > 0, destinationAlpha > 0 else {
+            return quillSourceOver(source: source, destination: destination)
+        }
+
+        let sourceColor = quillUnpremultiplied(source)
+        let destinationColor = quillUnpremultiplied(destination)
+        let blended = QuillPremultipliedBGRA(
+            blue: quillBlendChannel(source: sourceColor.blue, destination: destinationColor.blue, mode: mode),
+            green: quillBlendChannel(source: sourceColor.green, destination: destinationColor.green, mode: mode),
+            red: quillBlendChannel(source: sourceColor.red, destination: destinationColor.red, mode: mode),
+            alpha: 1
+        )
+
+        let sourceScale = sourceAlpha * destinationAlpha
+        return QuillPremultipliedBGRA(
+            blue: source.blue * (1 - destinationAlpha) + destination.blue * (1 - sourceAlpha) + blended.blue * sourceScale,
+            green: source.green * (1 - destinationAlpha) + destination.green * (1 - sourceAlpha) + blended.green * sourceScale,
+            red: source.red * (1 - destinationAlpha) + destination.red * (1 - sourceAlpha) + blended.red * sourceScale,
+            alpha: sourceAlpha + destinationAlpha * (1 - sourceAlpha)
+        )
+    }
+
+    private static func quillBlendChannel(source: CGFloat, destination: CGFloat, mode: CGBlendMode) -> CGFloat {
+        switch mode {
+        case .multiply:
+            return source * destination
+        case .screen:
+            return source + destination - source * destination
+        case .overlay:
+            return destination <= 0.5
+                ? 2 * source * destination
+                : 1 - 2 * (1 - source) * (1 - destination)
+        case .darken:
+            return Swift.min(source, destination)
+        case .lighten:
+            return Swift.max(source, destination)
+        case .colorDodge:
+            return source >= 1 ? 1 : Swift.min(1, destination / (1 - source))
+        case .colorBurn:
+            return source <= 0 ? 0 : 1 - Swift.min(1, (1 - destination) / source)
+        case .softLight:
+            if source <= 0.5 {
+                return destination - (1 - 2 * source) * destination * (1 - destination)
+            }
+            let d = destination <= 0.25
+                ? ((16 * destination - 12) * destination + 4) * destination
+                : destination.squareRoot()
+            return destination + (2 * source - 1) * (d - destination)
+        case .hardLight:
+            return source <= 0.5
+                ? 2 * source * destination
+                : 1 - 2 * (1 - source) * (1 - destination)
+        case .difference:
+            return abs(destination - source)
+        case .exclusion:
+            return source + destination - 2 * source * destination
+        default:
+            return source
+        }
+    }
+
+    private static func quillPremultiplied(
+        _ color: QuillPremultipliedBGRA,
+        multipliedBy alpha: CGFloat
+    ) -> QuillPremultipliedBGRA {
+        let alpha = quillClampedUnit(alpha)
+        return QuillPremultipliedBGRA(
+            blue: color.blue * alpha,
+            green: color.green * alpha,
+            red: color.red * alpha,
+            alpha: color.alpha * alpha
+        )
+    }
+
+    private static func quillAdd(
+        _ lhs: QuillPremultipliedBGRA,
+        _ rhs: QuillPremultipliedBGRA
+    ) -> QuillPremultipliedBGRA {
+        QuillPremultipliedBGRA(
+            blue: lhs.blue + rhs.blue,
+            green: lhs.green + rhs.green,
+            red: lhs.red + rhs.red,
+            alpha: lhs.alpha + rhs.alpha
+        )
+    }
+
+    private static func quillUnpremultiplied(_ color: QuillPremultipliedBGRA) -> QuillPremultipliedBGRA {
+        let alpha = quillClampedUnit(color.alpha)
+        guard alpha > 0 else {
+            return QuillPremultipliedBGRA(blue: 0, green: 0, red: 0, alpha: 0)
+        }
+        return QuillPremultipliedBGRA(
+            blue: quillClampedUnit(color.blue / alpha),
+            green: quillClampedUnit(color.green / alpha),
+            red: quillClampedUnit(color.red / alpha),
+            alpha: alpha
+        )
     }
 
     private static func quillPremultipliedColor(
@@ -1899,7 +2093,7 @@ public final class CGContext {
                         source,
                         multipliedBy: quillBitmapClipAlpha(devicePoint)
                     ) {
-                        Self.quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
+                        quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
                     }
                     offset += 4
                 }
@@ -1940,7 +2134,7 @@ public final class CGContext {
                         source,
                         multipliedBy: quillBitmapClipAlpha(devicePoint)
                        ) {
-                        Self.quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
+                        quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
                     }
                     offset += 4
                 }
@@ -2070,7 +2264,7 @@ public final class CGContext {
                         source,
                         multipliedBy: quillBitmapClipAlpha(devicePoint)
                        ) {
-                        Self.quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
+                        quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
                     }
                     offset += 4
                 }
@@ -2291,7 +2485,7 @@ public final class CGContext {
                         alpha: (CGFloat(source.pixels[sourceOffset + 3]) / 255) * globalAlpha
                     )
                     if let clippedSource = Self.quillPremultipliedColor(sourceColor, multipliedBy: clipAlpha) {
-                        Self.quillCompositePremultipliedBGRA(clippedSource, into: destination, at: destinationOffset)
+                        quillCompositePremultipliedBGRA(clippedSource, into: destination, at: destinationOffset)
                     }
                     destinationOffset += 4
                 }
@@ -2331,7 +2525,7 @@ public final class CGContext {
                         continue
                     }
 
-                    Self.quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
+                    quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
                     offset += 4
                 }
             }
@@ -2640,7 +2834,9 @@ public final class CGContext {
         quillAlpha = Self.quillClampedUnit(alpha)
         quillBackend?.setAlpha(alpha)
     }
-    public func setBlendMode(_ mode: CGBlendMode) {}
+    public func setBlendMode(_ mode: CGBlendMode) {
+        quillBlendMode = mode
+    }
 
     public func fill(_ rect: CGRect) {
         quillBackend?.fill(rect)
@@ -2821,6 +3017,7 @@ public final class CGContext {
             lineCap: quillLineCap,
             lineJoin: quillLineJoin,
             alpha: quillAlpha,
+            blendMode: quillBlendMode,
             ctm: quillCTM,
             clipRegions: quillClipRegions
         ))
@@ -2834,6 +3031,7 @@ public final class CGContext {
             quillLineCap = state.lineCap
             quillLineJoin = state.lineJoin
             quillAlpha = state.alpha
+            quillBlendMode = state.blendMode
             quillCTM = state.ctm
             quillClipRegions = state.clipRegions
         }
