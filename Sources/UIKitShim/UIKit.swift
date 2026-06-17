@@ -939,13 +939,13 @@ public enum UIDeviceOrientation: Int, Sendable {
     public var isValidInterfaceOrientation: Bool { isPortrait || isLandscape }
 }
 
-// MARK: - UIGraphicsImageRenderer (Linux: placeholder images)
+// MARK: - UIGraphicsImageRenderer (Linux bitmap subset)
 //
-// SignalServiceKit renders avatars/thumbnails into a renderer context. On Linux
-// nothing is rasterized: the context's CGContext is the inert no-op from
-// QuillFoundation and `.image{}` returns a blank placeholder UIImage of the
-// requested size. Faithful image generation needs a real raster backend
-// (Cairo/Skia) -- deferred. HONEST STATUS: produced images are blank.
+// SignalServiceKit renders avatars/thumbnails into a renderer context. Linux now
+// supports the direct bitmap subset backed by QuillFoundation's 8-bit BGRA
+// CGContext: solid rect fills, clears, and callers that draw through
+// `context.cgContext`. Text and path rasterization still need a richer paint
+// backend.
 //
 // Gated to Linux: macOS has no UIGraphicsImageRenderer and a real CGContext
 // (no `init()`), so this block must not compile there -- keeps the package green
@@ -1014,11 +1014,27 @@ public final class UIGraphicsImageRendererContext {
         self.cgContext = cgContext
         self.format = format
     }
-    public func fill(_ rect: CGRect) {}
-    public func fill(_ rect: CGRect, blendMode: CGBlendMode) {}
-    public func stroke(_ rect: CGRect) {}
-    public func stroke(_ rect: CGRect, blendMode: CGBlendMode) {}
-    public func clip(to rect: CGRect) {}
+    public func fill(_ rect: CGRect) {
+        cgContext.fill(rect)
+    }
+    public func fill(_ rect: CGRect, blendMode: CGBlendMode) {
+        cgContext.saveGState()
+        cgContext.setBlendMode(blendMode)
+        cgContext.fill(rect)
+        cgContext.restoreGState()
+    }
+    public func stroke(_ rect: CGRect) {
+        cgContext.stroke(rect)
+    }
+    public func stroke(_ rect: CGRect, blendMode: CGBlendMode) {
+        cgContext.saveGState()
+        cgContext.setBlendMode(blendMode)
+        cgContext.stroke(rect)
+        cgContext.restoreGState()
+    }
+    public func clip(to rect: CGRect) {
+        cgContext.clip(to: rect)
+    }
 }
 
 public final class UIGraphicsImageRenderer {
@@ -1033,21 +1049,34 @@ public final class UIGraphicsImageRenderer {
         self.init(size: bounds.size, format: format)
     }
 
-    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) {
-        actions(UIGraphicsImageRendererContext(cgContext: CGContext(), format: format))
+    private var resolvedScale: CGFloat {
+        quillResolvedUIGraphicsScale(format.scale)
     }
 
-    /// Returns a blank placeholder image of `size` (nothing is rasterized).
+    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) -> CGContext? {
+        guard let context = quillMakeUIGraphicsBitmapContext(size: size, scale: resolvedScale) else {
+            actions(UIGraphicsImageRendererContext(cgContext: CGContext(), format: format))
+            return nil
+        }
+        actions(UIGraphicsImageRendererContext(cgContext: context, format: format))
+        return context
+    }
+
     public func image(_ actions: (UIGraphicsImageRendererContext) -> Void) -> UIImage {
-        runActions(actions)
-        return UIImage(size: size)
+        guard let context = runActions(actions), let cgImage = context.makeImage() else {
+            return UIImage(size: size)
+        }
+        let image = UIImage(cgImage: cgImage, scale: resolvedScale, orientation: .up)
+        image.size = size
+        return image
     }
     public func pngData(_ actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
-        runActions(actions)
+        _ = runActions(actions)
         return Data()
     }
     public func jpegData(withCompressionQuality quality: CGFloat, actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
-        runActions(actions)
+        _ = quality
+        _ = runActions(actions)
         return Data()
     }
 }
@@ -1055,29 +1084,78 @@ public final class UIGraphicsImageRenderer {
 // MARK: - Imperative UIGraphics* C-API (the pre-UIGraphicsImageRenderer style)
 //
 // AvatarBuilder still uses the old Begin/GetCurrentContext/GetImage/End flow. A
-// minimal current-context stack backs it: the inert CGContext records nothing and
-// the produced image is a blank placeholder of the begun size. Inert -- gated to
-// Linux (these don't exist on macOS, and CGContext() is Linux-only).
-nonisolated(unsafe) private var _uiGraphicsContextStack: [(context: CGContext, size: CGSize)] = []
+// minimal current-context stack backs it. Gated to Linux (these don't exist on
+// macOS, and CGContext() is Linux-only).
+nonisolated(unsafe) private var _uiGraphicsContextStack: [(context: CGContext, size: CGSize, scale: CGFloat)] = []
+
+private func quillResolvedUIGraphicsScale(_ scale: CGFloat) -> CGFloat {
+    scale.isFinite && scale > 0 ? scale : 1
+}
+
+private func quillUIGraphicsPixelDimension(_ value: CGFloat, scale: CGFloat) -> Int? {
+    guard value.isFinite, value > 0 else {
+        return nil
+    }
+    let scaled = (value * scale).rounded(.up)
+    guard scaled.isFinite, scaled > 0, scaled <= CGFloat(Int.max) else {
+        return nil
+    }
+    return Int(scaled)
+}
+
+private func quillMakeUIGraphicsBitmapContext(size: CGSize, scale: CGFloat) -> CGContext? {
+    let resolvedScale = quillResolvedUIGraphicsScale(scale)
+    guard let width = quillUIGraphicsPixelDimension(size.width, scale: resolvedScale),
+          let height = quillUIGraphicsPixelDimension(size.height, scale: resolvedScale)
+    else {
+        return nil
+    }
+    guard let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else {
+        return nil
+    }
+    context.scaleBy(x: resolvedScale, y: resolvedScale)
+    return context
+}
 
 public func UIGraphicsBeginImageContextWithOptions(_ size: CGSize, _ opaque: Bool, _ scale: CGFloat) {
-    _uiGraphicsContextStack.append((CGContext(), size))
+    _ = opaque
+    let resolvedScale = quillResolvedUIGraphicsScale(scale)
+    let context = quillMakeUIGraphicsBitmapContext(size: size, scale: resolvedScale) ?? CGContext()
+    _uiGraphicsContextStack.append((context, size, resolvedScale))
 }
 public func UIGraphicsBeginImageContext(_ size: CGSize) {
-    _uiGraphicsContextStack.append((CGContext(), size))
+    UIGraphicsBeginImageContextWithOptions(size, false, 1)
 }
 public func UIGraphicsGetCurrentContext() -> CGContext? {
     _uiGraphicsContextStack.last?.context
 }
 public func UIGraphicsGetImageFromCurrentImageContext() -> UIImage? {
     guard let top = _uiGraphicsContextStack.last else { return nil }
-    return UIImage(size: top.size)
+    guard let cgImage = top.context.makeImage() else {
+        return UIImage(size: top.size)
+    }
+    let image = UIImage(cgImage: cgImage, scale: top.scale, orientation: .up)
+    image.size = top.size
+    return image
 }
 public func UIGraphicsEndImageContext() {
     if !_uiGraphicsContextStack.isEmpty { _uiGraphicsContextStack.removeLast() }
 }
-public func UIGraphicsPushContext(_ context: CGContext) {}
-public func UIGraphicsPopContext() {}
+public func UIGraphicsPushContext(_ context: CGContext) {
+    let size = CGSize(width: CGFloat(context.width), height: CGFloat(context.height))
+    _uiGraphicsContextStack.append((context, size, 1))
+}
+public func UIGraphicsPopContext() {
+    if !_uiGraphicsContextStack.isEmpty { _uiGraphicsContextStack.removeLast() }
+}
 #endif
 
 // MARK: - NSTextStorage (TextKit)

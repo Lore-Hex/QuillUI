@@ -1440,12 +1440,14 @@ public final class CGContext {
     private var quillBitmapBytes: [UInt8]?
     private var quillFillRGBA: [CGFloat] = [0, 0, 0, 1]
     private var quillAlpha: CGFloat = 1
+    private var quillCTM: CGAffineTransform = .identity
     private var quillStateStack: [QuillGraphicsState] = []
     private var quillCurrentPath = CGMutablePath()
 
     private struct QuillGraphicsState {
         var fillRGBA: [CGFloat]
         var alpha: CGFloat
+        var ctm: CGAffineTransform
     }
 
     public init() {}
@@ -1564,7 +1566,7 @@ public final class CGContext {
 
     private func quillFillBitmap(_ rect: CGRect) {
         guard quillCanDrawCurrentBitmap,
-              let bounds = quillPixelBounds(for: rect),
+              let bounds = quillPixelBounds(for: rect.applying(quillCTM)),
               let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
               quillBitmapBytes != nil
         else {
@@ -1605,7 +1607,7 @@ public final class CGContext {
 
     private func quillClearBitmap(_ rect: CGRect) {
         guard quillCanDrawCurrentBitmap,
-              let bounds = quillPixelBounds(for: rect),
+              let bounds = quillPixelBounds(for: rect.applying(quillCTM)),
               let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
               quillBitmapBytes != nil
         else {
@@ -1891,23 +1893,36 @@ public final class CGContext {
     public func clip(to rect: CGRect, mask image: Any) {}
 
     public func saveGState() {
-        quillStateStack.append(QuillGraphicsState(fillRGBA: quillFillRGBA, alpha: quillAlpha))
+        quillStateStack.append(QuillGraphicsState(fillRGBA: quillFillRGBA, alpha: quillAlpha, ctm: quillCTM))
         quillBackend?.saveGState()
     }
     public func restoreGState() {
         if let state = quillStateStack.popLast() {
             quillFillRGBA = state.fillRGBA
             quillAlpha = state.alpha
+            quillCTM = state.ctm
         }
         quillBackend?.restoreGState()
     }
     public func beginTransparencyLayer(auxiliaryInfo: Any?) {}
     public func endTransparencyLayer() {}
     public func endPage() {}
-    public func translateBy(x: CGFloat, y: CGFloat) { quillBackend?.translateBy(x: x, y: y) }
-    public func scaleBy(x: CGFloat, y: CGFloat) { quillBackend?.scaleBy(x: x, y: y) }
-    public func rotate(by angle: CGFloat) { quillBackend?.rotate(by: angle) }
-    public func concatenate(_ transform: CGAffineTransform) { quillBackend?.concatenate(transform) }
+    public func translateBy(x: CGFloat, y: CGFloat) {
+        quillCTM = quillCTM.translatedBy(x: x, y: y)
+        quillBackend?.translateBy(x: x, y: y)
+    }
+    public func scaleBy(x: CGFloat, y: CGFloat) {
+        quillCTM = quillCTM.scaledBy(x: x, y: y)
+        quillBackend?.scaleBy(x: x, y: y)
+    }
+    public func rotate(by angle: CGFloat) {
+        quillCTM = quillCTM.rotated(by: angle)
+        quillBackend?.rotate(by: angle)
+    }
+    public func concatenate(_ transform: CGAffineTransform) {
+        quillCTM = quillCTM.concatenating(transform)
+        quillBackend?.concatenate(transform)
+    }
     public func concatenate(_ transform: Any) {
         guard let transform = transform as? CGAffineTransform else { return }
         concatenate(transform)
@@ -2507,6 +2522,8 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     /// compatibility shape — readers reach back to the original
     /// bytes for re-encoding (e.g. `tiffRepresentation`).
     public var data: Data?
+    private var quillBackingCGImage: CGImage?
+    private var quillImageScale: CGFloat = 1
     public var capInsets: NSEdgeInsets = NSEdgeInsets()
     public var resizingMode: ResizingMode = .tile
     public func pngData() -> Data? { data }
@@ -2533,6 +2550,8 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
 
     open override func copy() -> Any {
         let image = data.flatMap { RSImage(data: $0) } ?? RSImage()
+        image.quillBackingCGImage = quillBackingCGImage
+        image.quillImageScale = quillImageScale
         image.size = size
         image.capInsets = capInsets
         image.resizingMode = resizingMode
@@ -2588,12 +2607,12 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         _ = source
     }
     public func jpegData(compressionQuality: CGFloat) -> Data? { data }
-    public var cgImage: CGImage? { nil }
+    public var cgImage: CGImage? { quillBackingCGImage }
     public func cgImage(forProposedRect rect: UnsafeMutablePointer<CGRect>?, context: Any?, hints: [AnyHashable: Any]?) -> CGImage? {
         _ = (rect, context, hints)
         return cgImage
     }
-    public var scale: CGFloat { 1 }
+    public var scale: CGFloat { quillImageScale }
 
     public enum Orientation: Int, Sendable {
         case up, down, left, right, upMirrored, downMirrored, leftMirrored, rightMirrored
@@ -2615,15 +2634,22 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     public func draw(at point: CGPoint) {}
 
     /// `UIImage(cgImage:scale:orientation:)` source-compat. On Linux the backing
-    /// CGImage is opaque (no raster), so this records the requested scale but
-    /// holds a placeholder size; callers that re-encode get an empty image.
+    /// CGImage carries Quill's raw BGRA backing when available.
     public convenience init(cgImage: CGImage, scale: CGFloat = 1, orientation: Orientation = .up) {
         self.init()
-        self.size = CGSize(width: 0, height: 0)
+        let resolvedScale = scale.isFinite && scale > 0 ? scale : 1
+        self.quillBackingCGImage = cgImage
+        self.quillImageScale = resolvedScale
+        self.size = CGSize(
+            width: CGFloat(cgImage.width) / resolvedScale,
+            height: CGFloat(cgImage.height) / resolvedScale
+        )
+        _ = orientation
     }
 
     public convenience init(cgImage: CGImage, size: CGSize) {
         self.init()
+        self.quillBackingCGImage = cgImage
         self.size = size
     }
 }
