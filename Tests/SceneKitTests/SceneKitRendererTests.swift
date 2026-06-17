@@ -421,6 +421,36 @@ struct SceneKitRendererTests {
         #expect(!scene.quillHitTest(CGPoint(x: 80, y: 80), width: 160, height: 120, pointOfView: cameraNode).isEmpty)
     }
 
+    @Test("Software renderer clips partially visible line primitives")
+    func partiallyClippedLinesRemainVisible() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(0, -1, 0),
+                SCNVector3(0, 1, 3.5),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1], primitiveType: .line)]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.zNear = 1
+        camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 40)
+        #expect(stats.greenDominantPixels > 40)
+        #expect(!scene.quillHitTest(CGPoint(x: 80, y: 60), width: 160, height: 120, pointOfView: cameraNode).isEmpty)
+    }
+
     @Test("Software renderer resolves intersecting triangles with per-pixel depth")
     func intersectingTrianglesUseZBuffer() {
         let scene = SCNScene()

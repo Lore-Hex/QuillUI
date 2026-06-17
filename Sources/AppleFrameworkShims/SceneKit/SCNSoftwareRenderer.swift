@@ -608,10 +608,7 @@ private enum WorldPrimitive {
             let projectedRadius = max(1.5, camera.projectedLength(radius, atDepth: projectedCenter.depth))
             return [.sphere(center: projectedCenter.point, radius: projectedRadius, depth: projectedCenter.depth, color: color, owner: owner)]
         case let .line(a, b, radius, color, owner):
-            guard let pa = camera.project(a), let pb = camera.project(b) else { return [] }
-            let depth = (pa.depth + pb.depth) / 2
-            let projectedRadius = max(1, camera.projectedLength(radius, atDepth: depth))
-            return [.line(a: pa.point, b: pb.point, radius: projectedRadius, depth: depth, color: color, owner: owner)]
+            return camera.projectedLine(a: a, b: b, radius: radius, color: color, owner: owner)
         case let .triangle(a, b, c, color, owner):
             return camera.projectedTriangles(a: a, b: b, c: c, color: color, owner: owner)
         }
@@ -764,6 +761,26 @@ private struct CameraProjection {
         project(cameraSpaceVertex(for: point))
     }
 
+    func projectedLine(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
+        var start = cameraSpaceVertex(for: a)
+        var end = cameraSpaceVertex(for: b)
+        guard clipSegment(&start, &end, atDepth: zNear, keeping: { $0.depth >= zNear }) else { return [] }
+        if zFar < .greatestFiniteMagnitude / 2 {
+            guard clipSegment(&start, &end, atDepth: zFar, keeping: { $0.depth <= zFar }) else { return [] }
+        }
+        guard let projectedStart = project(start), let projectedEnd = project(end) else { return [] }
+        let depth = (projectedStart.depth + projectedEnd.depth) / 2
+        let projectedRadius = max(1, projectedLength(radius, atDepth: depth))
+        return [.line(
+            a: projectedStart.point,
+            b: projectedEnd.point,
+            radius: projectedRadius,
+            depth: depth,
+            color: color,
+            owner: owner
+        )]
+    }
+
     func projectedTriangles(a: Vector3, b: Vector3, c: Vector3, color: RGBA, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
         var polygon = [
             cameraSpaceVertex(for: a),
@@ -852,6 +869,28 @@ private struct CameraProjection {
             previousInside = currentInside
         }
         return output
+    }
+
+    private func clipSegment(
+        _ start: inout CameraSpaceVertex,
+        _ end: inout CameraSpaceVertex,
+        atDepth boundaryDepth: CGFloat,
+        keeping isInside: (CameraSpaceVertex) -> Bool
+    ) -> Bool {
+        let startInside = isInside(start)
+        let endInside = isInside(end)
+        switch (startInside, endInside) {
+        case (true, true):
+            return true
+        case (false, false):
+            return false
+        case (true, false):
+            end = start.interpolated(to: end, atDepth: boundaryDepth)
+            return true
+        case (false, true):
+            start = start.interpolated(to: end, atDepth: boundaryDepth)
+            return true
+        }
     }
 
     func projectedLength(_ length: CGFloat, atDepth depth: CGFloat) -> CGFloat {

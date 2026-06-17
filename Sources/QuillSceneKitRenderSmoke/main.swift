@@ -63,6 +63,12 @@ struct QuillSceneKitRenderSmoke {
             "near-clipped triangle did not render visible green pixels: \(nearClippedTriangleStats)"
         )
 
+        let nearClippedLineStats = PixelStats(renderNearClippedLineScene())
+        try require(
+            nearClippedLineStats.greenDominantPixels > 40,
+            "near-clipped line did not render visible green pixels: \(nearClippedLineStats)"
+        )
+
         let intersectingTriangleImage = renderIntersectingTriangleScene()
         let intersectingTriangleStats = PixelStats(intersectingTriangleImage)
         try require(intersectingTriangleStats.redDominantPixels > 400, "z-buffer scene lost near red pixels: \(intersectingTriangleStats)")
@@ -90,6 +96,7 @@ struct QuillSceneKitRenderSmoke {
         log("away camera: \(awayCameraStats)")
         log("clipped camera: \(clippedCameraStats)")
         log("near-clipped triangle: \(nearClippedTriangleStats)")
+        log("near-clipped line: \(nearClippedLineStats)")
         log("intersecting triangles: \(intersectingTriangleStats)")
 
         if ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_GTK_SMOKE"] == "1" {
@@ -218,6 +225,31 @@ struct QuillSceneKitRenderSmoke {
                 SCNVector3(0, 1.2, 3.5),
             ])],
             elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.zNear = 1
+        camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func renderNearClippedLineScene() -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(0, -1, 0),
+                SCNVector3(0, 1, 3.5),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1], primitiveType: .line)]
         )
         geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
         scene.rootNode.addChildNode(SCNNode(geometry: geometry))
