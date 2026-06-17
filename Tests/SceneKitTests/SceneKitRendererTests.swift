@@ -6,6 +6,12 @@ import UIKit
 
 @Suite("SceneKit renderer", .serialized)
 struct SceneKitRendererTests {
+    @Test("SCNVector make helpers return matching vector values")
+    func vectorMakeHelpersReturnMatchingVectorValues() {
+        #expect(SCNVector3Make(1, 2, 3) == SCNVector3(1, 2, 3))
+        #expect(SCNVector4Make(4, 5, 6, 7) == SCNVector4(4, 5, 6, 7))
+    }
+
     @Test("Scene graph parenting rejects cycles")
     func sceneGraphParentingRejectsCycles() {
         let root = SCNNode()

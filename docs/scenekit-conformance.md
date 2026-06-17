@@ -57,7 +57,7 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    rendering surface.
 2. **SCN scene-graph shim authored; fixtures compile** — ✅ DONE for the
    fixtures. The SceneKit shim (`Sources/AppleFrameworkShims/SceneKit`) now
-   models the scene-graph surface: `SCNVector3/4`, `SCNQuaternion`,
+   models the scene-graph surface: `SCNVector3/4` value and make helpers, `SCNQuaternion`,
    `SCNMatrix4`, `SCNNode` (position/eulerAngles/scale/orientation/geometry/
    light/camera/parenting/traversal/replacement/cloning/local and world transforms/scale/orientation/SIMD vector and direction aliases/direction vectors/presentation/bounding boxes/runAction/`look(at:)`), `SCNGeometry` + the
    parametric primitives (`SCNSphere`/`SCNCylinder`/`SCNBox`/`SCNCone`/…) +
@@ -179,7 +179,7 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Fixtures authored (faithful macOS SwiftUI+SceneKit source)
 - [x] Inert RealityKit shim module (Euclid Example's RealityKitViewController)
 - [x] Rung 1: Euclid + ShapeScript lib/CLI green on Linux (CLI renders .shape → .stl)
-- [x] Rung 2 (fixtures): SceneKit scene-graph shim authored with node parenting/traversal/replacement/cloning/local and world transforms/scale/orientation/SIMD vector and direction aliases/direction vectors/presentation/bounding boxes; QuillSolarSystem + QuillMoleculeViewer compile
+- [x] Rung 2 (fixtures): SceneKit scene-graph shim authored with vector value/make helpers, node parenting/traversal/replacement/cloning/local and world transforms/scale/orientation/SIMD vector and direction aliases/direction vectors/presentation/bounding boxes; QuillSolarSystem + QuillMoleculeViewer compile
 - [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0; CGPath transform/curve recording, bounds/current-point accessors, containment, CGContext current-path introspection, and CGContext path forwarding now directly tested
 - [x] Rung 2c (app-tier enablement): enable Euclid interop + fix ShapeScript interop + QuillEuclidExample + QuillShapeScriptViewer compile (all-at-once)
 - [x] Rung 3: fixtures render (GTK screenshot gate)

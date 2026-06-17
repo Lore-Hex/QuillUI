@@ -36,6 +36,10 @@ public struct SCNVector3: Equatable, Sendable {
     }
 }
 
+public func SCNVector3Make(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> SCNVector3 {
+    SCNVector3(x, y, z)
+}
+
 public struct SCNVector4: Equatable, Sendable {
     public var x: CGFloat
     public var y: CGFloat
@@ -56,6 +60,10 @@ public struct SCNVector4: Equatable, Sendable {
     public init(x: CGFloat, y: CGFloat, z: CGFloat, w: CGFloat) {
         self.init(x, y, z, w)
     }
+}
+
+public func SCNVector4Make(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat, _ w: CGFloat) -> SCNVector4 {
+    SCNVector4(x, y, z, w)
 }
 
 /// On Apple platforms `SCNQuaternion` is a typealias for `SCNVector4`; matching
