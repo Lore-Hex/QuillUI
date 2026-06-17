@@ -122,6 +122,27 @@ private func gtkBackendDebugLog(_ message: String) {
     }
 }
 
+private func gtkShortcutDebugText(_ shortcut: KeyboardShortcut) -> String {
+    var parts: [String] = []
+    if shortcut.modifiers.contains(.command) { parts.append("command") }
+    if shortcut.modifiers.contains(.shift) { parts.append("shift") }
+    if shortcut.modifiers.contains(.option) { parts.append("option") }
+    if shortcut.modifiers.contains(.control) { parts.append("control") }
+    if shortcut.modifiers.contains(.capsLock) { parts.append("capsLock") }
+    if parts.isEmpty { parts.append("none") }
+
+    let keyText: String
+    switch shortcut.key {
+    case .return: keyText = "return"
+    case .escape: keyText = "escape"
+    case .delete: keyText = "delete"
+    case .tab: keyText = "tab"
+    case .space: keyText = "space"
+    default: keyText = String(shortcut.key.character)
+    }
+    return "\(parts.joined(separator: "+"))+\(keyText)"
+}
+
 extension WindowGroup: GTKWindowRenderable {
     func gtkResolvedDefaultWindowSize() -> (width: Double, height: Double)? {
         switch windowSizing ?? .automatic {
@@ -271,6 +292,7 @@ extension WindowGroup: GTKWindowRenderable {
 /// The window pointer is passed as user_data so the handler can scope dispatch.
 func gtkAttachKeyboardShortcutController(to window: UnsafeMutablePointer<GtkWidget>) {
     let controller = gtk_event_controller_key_new()!
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)
     let windowUD = gpointer(window)
 
     g_signal_connect_data(
@@ -299,12 +321,15 @@ private let gtkKeyPressedHandler: @convention(c) (OpaquePointer?, guint, guint, 
     if state & 2 != 0 { modifiers.insert(.capsLock) }
 
     guard let key = gtkKeyEquivalentFromKeyval(keyval) else {
+        gtkBackendDebugLog("key ignored keyval=\(keyval) state=\(state)")
         return 0
     }
 
     let windowID = Int(bitPattern: userData)
     let shortcut = KeyboardShortcut(key, modifiers: modifiers)
-    return KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID) ? 1 : 0
+    let handled = KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID)
+    gtkBackendDebugLog("key shortcut=\(gtkShortcutDebugText(shortcut)) keyval=\(keyval) state=\(state) windowID=\(windowID) handled=\(handled)")
+    return handled ? 1 : 0
 }
 
 /// Maps a GDK keyval to a KeyEquivalent.
@@ -737,7 +762,9 @@ final class GTK4CommandShortcutHost {
                 action: item.action
             )
             shortcutRegIDs.append(regID)
+            gtkBackendDebugLog("registered command shortcut label='\(item.label)' shortcut=\(gtkShortcutDebugText(shortcut)) windowID=\(windowID)")
         }
+        gtkBackendDebugLog("registered \(shortcutRegIDs.count) command shortcuts for windowID=\(windowID)")
     }
 
     func destroy() {

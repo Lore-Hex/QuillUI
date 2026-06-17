@@ -49,7 +49,7 @@ private struct PressOpacityButtonStyle: SwiftOpenUI.ButtonStyle {
 }
 
 @MainActor
-private final class SolderScopeCommandProbeState {
+private final class SolderScopeCommandProbeState: ObservableObject {
     var selectedCameraExists = false
     var isFrozen = false
     var isRecording = false
@@ -79,7 +79,7 @@ private final class SolderScopeCommandProbeState {
 /// surface, dynamic Capture labels, disabled Recalibrate item, and all
 /// keyboard shortcuts from the upstream app.
 private struct SolderScopeCommandProbe: Commands {
-    let state: SolderScopeCommandProbeState
+    @ObservedObject var state: SolderScopeCommandProbeState
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) { }
@@ -471,6 +471,20 @@ struct SolderScopeChromeConformanceTests {
         let nativeSections = commandMenuSections(from: groups)
         #expect(nativeSections.map(\.title) == ["View", "Capture", "Help"])
         #expect(nativeSections.flatMap { $0.items }.count == 12)
+
+        let previousFactory = globalCommandsFactory
+        defer { globalCommandsFactory = previousFactory }
+        _ = WindowGroup { Text("SolderScope") }
+            .commands {
+                SolderScopeCommandProbe(state: state)
+            }
+        let factoryGroups = globalCommandsFactory?() ?? [:]
+        #expect(factoryGroups[.menu("View")]?.count == viewItems.count)
+        #expect(factoryGroups[.menu("Capture")]?.map(\.shortcut) == [
+            KeyboardShortcut(.space, modifiers: []),
+            KeyboardShortcut("s", modifiers: []),
+            KeyboardShortcut("r", modifiers: [])
+        ])
 
         viewItems[0].action()
         viewItems[1].action()
