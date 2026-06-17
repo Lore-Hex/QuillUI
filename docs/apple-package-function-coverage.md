@@ -370,10 +370,12 @@ subset lives in `QuillUIKit`.
 | `CGContext` bitmap/state drawing (`fill`, `stroke`, `draw`, gradients, masks, blend modes, shadows, transparency layers, interpolation quality, miter limit, antialias/font toggles) | Usable | Direct bitmap contexts now cover current app/image-rendering needs, including separable/non-separable blend modes, alpha masks, blurred shadows, transparency-layer compositing, nearest/bilinear image sampling through interpolation quality, and saved/restored font smoothing/subpixel/interpolation state. GTK and Qt Cairo backends receive fill/stroke/path/image drawing state, including blend mode, shadow, miter limit, and effective antialiasing. Cairo shadow blur remains approximate/no-blur in the toolkit backend. |
 | `CGEventSource.init?(stateID:)` | Usable value surface | Source objects retain the requested state identifier. |
 | `CGEventSource.keyState(_:key:)` | Fallback | Records diagnostic and returns false. |
-| `CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)` | Usable value surface | Keyboard events retain source, virtual key, key-down state, flags, and unicode keyboard payloads. |
+| `CGEventType`, `CGMouseButton`, and `CGEventField` | Usable value surface | Apple-raw event type, mouse button, and common mouse/keyboard/scroll field constants are pinned by CoreGraphics tests. |
+| `CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)` | Usable value surface | Keyboard events retain source, virtual key, key-down state, flags, Apple-shaped type, keycode field, and unicode keyboard payloads. |
+| `CGEvent.init?(mouseEventSource:mouseType:mouseCursorPosition:mouseButton:)`, `type`, `location`, `getIntegerValueField(_:)`, `setIntegerValueField(_:value:)` | Usable value surface | Mouse events retain source, event type, cursor location, and mutable integer fields such as button number/click/delta values. This is object-level value storage only, not native pointer injection. |
 | `CGEvent.post(tap:)` | Fallback | Records diagnostic, no synthetic input. |
 | `CGEvent.keyboardSetUnicodeString(stringLength:unicodeString:)`, `keyboardGetUnicodeString(maxStringLength:actualStringLength:unicodeString:)` | Usable value surface | Unicode payloads round-trip on the event object with Apple-shaped truncation/readback semantics; no native event posting. |
-| Real event taps, keyboard state, pointer events, and broad drawing APIs beyond focused geometry/path/context forwarding | Incomplete | Required for CoreGraphics Parity. |
+| Real event taps, keyboard state, native pointer/keyboard injection, and broad drawing APIs beyond focused geometry/path/context forwarding | Incomplete | Required for CoreGraphics Parity. |
 
 ## Security
 
