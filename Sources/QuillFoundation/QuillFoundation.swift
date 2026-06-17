@@ -578,7 +578,7 @@ public class CGPath: Hashable, @unchecked Sendable {
         }
     }
 
-    private func flattenedSubpaths(transform: CGAffineTransform?) -> [[CGPoint]] {
+    fileprivate func flattenedSubpaths(transform: CGAffineTransform?) -> [[CGPoint]] {
         let transformPoint: (CGPoint) -> CGPoint = { point in
             guard let transform else { return point }
             return point.applying(transform)
@@ -1441,6 +1441,8 @@ public final class CGContext {
     private var quillFillRGBA: [CGFloat] = [0, 0, 0, 1]
     private var quillStrokeRGBA: [CGFloat] = [0, 0, 0, 1]
     private var quillLineWidth: CGFloat = 1
+    private var quillLineCap: CGLineCap = .butt
+    private var quillLineJoin: CGLineJoin = .miter
     private var quillAlpha: CGFloat = 1
     private var quillCTM: CGAffineTransform = .identity
     private var quillClipRegions: [QuillClipRegion] = []
@@ -1451,6 +1453,8 @@ public final class CGContext {
         var fillRGBA: [CGFloat]
         var strokeRGBA: [CGFloat]
         var lineWidth: CGFloat
+        var lineCap: CGLineCap
+        var lineJoin: CGLineJoin
         var alpha: CGFloat
         var ctm: CGAffineTransform
         var clipRegions: [QuillClipRegion]
@@ -1474,6 +1478,11 @@ public final class CGContext {
         var path: CGPath
         var rule: CGPathFillRule
         var transform: CGAffineTransform
+    }
+
+    private struct QuillStrokeSegment {
+        var start: CGPoint
+        var end: CGPoint
     }
 
     public init() {}
@@ -1821,6 +1830,209 @@ public final class CGContext {
         }
     }
 
+    private func quillStrokeBitmapPath(_ path: CGPath) {
+        let segments = path
+            .flattenedSubpaths(transform: quillCTM)
+            .flatMap(Self.quillStrokeSegments(in:))
+        quillStrokeBitmapSegments(segments)
+    }
+
+    private func quillStrokeBitmapLineSegments(between points: [CGPoint]) {
+        quillStrokeBitmapSegments(Self.quillStrokeSegments(betweenPairsIn: points, transform: quillCTM))
+    }
+
+    private static func quillStrokeSegments(in subpath: [CGPoint]) -> [QuillStrokeSegment] {
+        guard subpath.count >= 2 else {
+            return []
+        }
+
+        return (0..<(subpath.count - 1)).map { index in
+            QuillStrokeSegment(start: subpath[index], end: subpath[index + 1])
+        }
+    }
+
+    private static func quillStrokeSegments(
+        betweenPairsIn points: [CGPoint],
+        transform: CGAffineTransform
+    ) -> [QuillStrokeSegment] {
+        guard points.count >= 2 else {
+            return []
+        }
+
+        var segments: [QuillStrokeSegment] = []
+        for index in stride(from: 0, to: points.count - 1, by: 2) {
+            segments.append(QuillStrokeSegment(
+                start: points[index].applying(transform),
+                end: points[index + 1].applying(transform)
+            ))
+        }
+        return segments
+    }
+
+    private func quillStrokeBitmapSegments(_ segments: [QuillStrokeSegment]) {
+        guard quillCanDrawCurrentBitmap,
+              let source = quillPremultipliedStrokeColor(),
+              let lineWidth = quillDeviceLineWidth(),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        let drawableSegments = segments.filter(Self.quillStrokeSegmentIsFinite)
+        let halfWidth = lineWidth / 2
+        guard let strokeBounds = Self.quillBounds(for: drawableSegments, expandedBy: halfWidth),
+              let bounds = quillPixelBounds(for: strokeBounds)
+        else {
+            return
+        }
+
+        let lineCap = quillLineCap
+        let lineJoin = quillLineJoin
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in bounds.minY..<bounds.maxY {
+                var offset = y * bytesPerRow + bounds.minX * 4
+                for x in bounds.minX..<bounds.maxX {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    if quillBitmapClipAllows(devicePoint),
+                       Self.quillStrokeContains(
+                           devicePoint,
+                           segments: drawableSegments,
+                           halfWidth: halfWidth,
+                           lineCap: lineCap,
+                           lineJoin: lineJoin
+                       ) {
+                        Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                    }
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillDeviceLineWidth() -> CGFloat? {
+        guard quillLineWidth.isFinite, quillLineWidth > 0 else {
+            return nil
+        }
+
+        let xScale = hypot(quillCTM.a, quillCTM.b)
+        let yScale = hypot(quillCTM.c, quillCTM.d)
+        let scale = Swift.max(xScale, yScale)
+        guard scale.isFinite, scale > 0 else {
+            return nil
+        }
+        return quillLineWidth * scale
+    }
+
+    private static func quillStrokeSegmentIsFinite(_ segment: QuillStrokeSegment) -> Bool {
+        segment.start.x.isFinite && segment.start.y.isFinite &&
+            segment.end.x.isFinite && segment.end.y.isFinite
+    }
+
+    private static func quillBounds(
+        for segments: [QuillStrokeSegment],
+        expandedBy expansion: CGFloat
+    ) -> CGRect? {
+        guard expansion.isFinite else {
+            return nil
+        }
+
+        var minX = CGFloat.infinity
+        var minY = CGFloat.infinity
+        var maxX = -CGFloat.infinity
+        var maxY = -CGFloat.infinity
+
+        for segment in segments {
+            minX = Swift.min(minX, Swift.min(segment.start.x, segment.end.x))
+            minY = Swift.min(minY, Swift.min(segment.start.y, segment.end.y))
+            maxX = Swift.max(maxX, Swift.max(segment.start.x, segment.end.x))
+            maxY = Swift.max(maxY, Swift.max(segment.start.y, segment.end.y))
+        }
+
+        guard minX.isFinite, minY.isFinite, maxX.isFinite, maxY.isFinite else {
+            return nil
+        }
+
+        return CGRect(
+            x: minX - expansion,
+            y: minY - expansion,
+            width: maxX - minX + expansion * 2,
+            height: maxY - minY + expansion * 2
+        )
+    }
+
+    private static func quillStrokeContains(
+        _ point: CGPoint,
+        segments: [QuillStrokeSegment],
+        halfWidth: CGFloat,
+        lineCap: CGLineCap,
+        lineJoin: CGLineJoin
+    ) -> Bool {
+        for segment in segments where quillStrokeContains(point, segment: segment, halfWidth: halfWidth, lineCap: lineCap) {
+            return true
+        }
+
+        guard lineJoin == .round else {
+            return false
+        }
+
+        let halfWidthSquared = halfWidth * halfWidth
+        return segments.contains { segment in
+            quillDistanceSquared(point, segment.start) <= halfWidthSquared ||
+                quillDistanceSquared(point, segment.end) <= halfWidthSquared
+        }
+    }
+
+    private static func quillStrokeContains(
+        _ point: CGPoint,
+        segment: QuillStrokeSegment,
+        halfWidth: CGFloat,
+        lineCap: CGLineCap
+    ) -> Bool {
+        let dx = segment.end.x - segment.start.x
+        let dy = segment.end.y - segment.start.y
+        let lengthSquared = dx * dx + dy * dy
+        let halfWidthSquared = halfWidth * halfWidth
+        guard lengthSquared > 0.000001 else {
+            return lineCap == .round && quillDistanceSquared(point, segment.start) <= halfWidthSquared
+        }
+
+        let projection = ((point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy) / lengthSquared
+        switch lineCap {
+        case .butt:
+            guard projection >= 0, projection <= 1 else {
+                return false
+            }
+        case .square:
+            let capExtension = halfWidth / sqrt(lengthSquared)
+            guard projection >= -capExtension, projection <= 1 + capExtension else {
+                return false
+            }
+        case .round:
+            if projection < 0 {
+                return quillDistanceSquared(point, segment.start) <= halfWidthSquared
+            }
+            if projection > 1 {
+                return quillDistanceSquared(point, segment.end) <= halfWidthSquared
+            }
+        }
+
+        let closest = CGPoint(
+            x: segment.start.x + projection * dx,
+            y: segment.start.y + projection * dy
+        )
+        return quillDistanceSquared(point, closest) <= halfWidthSquared
+    }
+
+    private static func quillDistanceSquared(_ lhs: CGPoint, _ rhs: CGPoint) -> CGFloat {
+        let dx = lhs.x - rhs.x
+        let dy = lhs.y - rhs.y
+        return dx * dx + dy * dy
+    }
+
     private func quillClearBitmap(_ rect: CGRect) {
         guard quillCanDrawCurrentBitmap,
               let bounds = quillPixelBounds(for: rect.applying(quillCTM)),
@@ -2052,8 +2264,14 @@ public final class CGContext {
         quillLineWidth = width.isFinite ? Swift.max(0, width) : 0
         quillBackend?.setLineWidth(width)
     }
-    public func setLineCap(_ cap: CGLineCap) { quillBackend?.setLineCap(cap) }
-    public func setLineJoin(_ join: CGLineJoin) { quillBackend?.setLineJoin(join) }
+    public func setLineCap(_ cap: CGLineCap) {
+        quillLineCap = cap
+        quillBackend?.setLineCap(cap)
+    }
+    public func setLineJoin(_ join: CGLineJoin) {
+        quillLineJoin = join
+        quillBackend?.setLineJoin(join)
+    }
     public func setMiterLimit(_ limit: CGFloat) {}
     public func setShadow(offset: CGSize, blur: CGFloat) {}
     public func setShadow(offset: CGSize, blur: CGFloat, color: CGColor?) {}
@@ -2102,9 +2320,13 @@ public final class CGContext {
         quillBackend?.strokeEllipse(in: rect)
         quillStrokeBitmapEllipse(rect)
     }
-    public func strokeLineSegments(between points: [CGPoint]) { quillBackend?.strokeLineSegments(between: points) }
+    public func strokeLineSegments(between points: [CGPoint]) {
+        quillBackend?.strokeLineSegments(between: points)
+        quillStrokeBitmapLineSegments(between: points)
+    }
     public func strokePath() {
         quillBackend?.strokePath()
+        quillStrokeBitmapPath(quillCurrentPath)
         clearCurrentPath()
     }
 
@@ -2240,6 +2462,8 @@ public final class CGContext {
             fillRGBA: quillFillRGBA,
             strokeRGBA: quillStrokeRGBA,
             lineWidth: quillLineWidth,
+            lineCap: quillLineCap,
+            lineJoin: quillLineJoin,
             alpha: quillAlpha,
             ctm: quillCTM,
             clipRegions: quillClipRegions
@@ -2251,6 +2475,8 @@ public final class CGContext {
             quillFillRGBA = state.fillRGBA
             quillStrokeRGBA = state.strokeRGBA
             quillLineWidth = state.lineWidth
+            quillLineCap = state.lineCap
+            quillLineJoin = state.lineJoin
             quillAlpha = state.alpha
             quillCTM = state.ctm
             quillClipRegions = state.clipRegions

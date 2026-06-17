@@ -617,6 +617,72 @@ struct CoreGraphicsPathTests {
         #expect(pixelBGRA(in: pixels, width: 5, x: 0, y: 0) == [0, 0, 0, 0])
     }
 
+    @Test("CGContext bitmap strokePath rasterizes line paths and clears them")
+    func bitmapContextStrokePathRasterizesLinePathsAndClearsThem() throws {
+        let context = try makeBitmapContext(width: 5, height: 3)
+        context.setStrokeColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.setLineWidth(1)
+        context.move(to: CGPoint(x: 1, y: 1.5))
+        context.addLine(to: CGPoint(x: 4, y: 1.5))
+        context.strokePath()
+
+        #expect(context.isPathEmpty)
+        #expect(try bitmapAlphas(in: context) == [
+            0, 0, 0, 0, 0,
+            0, 255, 255, 255, 0,
+            0, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap strokeLineSegments uses point pairs without mutating the current path")
+    func bitmapContextStrokeLineSegmentsUsesPairsWithoutMutatingPath() throws {
+        let context = try makeBitmapContext(width: 5, height: 2)
+        context.addRect(CGRect(x: 4, y: 1, width: 1, height: 1))
+        context.setStrokeColor(red: 0, green: 1, blue: 0, alpha: 1)
+        context.setLineWidth(1)
+        context.strokeLineSegments(between: [
+            CGPoint(x: 0, y: 0.5),
+            CGPoint(x: 2, y: 0.5),
+            CGPoint(x: 4, y: 0.5),
+        ])
+
+        #expect(!context.isPathEmpty)
+        #expect(try bitmapAlphas(in: context) == [
+            255, 255, 0, 0, 0,
+            0, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap strokePath samples through transforms and clips")
+    func bitmapContextStrokePathSamplesThroughTransformsAndClips() throws {
+        let context = try makeBitmapContext(width: 5, height: 1)
+        context.clip(to: CGRect(x: 2, y: 0, width: 2, height: 1))
+        context.translateBy(x: 1, y: 0)
+        context.setStrokeColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.setLineWidth(1)
+        context.move(to: CGPoint(x: 0, y: 0.5))
+        context.addLine(to: CGPoint(x: 4, y: 0.5))
+        context.strokePath()
+
+        #expect(try bitmapAlphas(in: context) == [0, 0, 255, 255, 0])
+    }
+
+    @Test("CGContext bitmap strokePath saves and restores line cap")
+    func bitmapContextStrokePathSavesAndRestoresLineCap() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.setStrokeColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.setLineWidth(1)
+        context.setLineCap(.butt)
+        context.saveGState()
+        context.setLineCap(.round)
+        context.restoreGState()
+        context.move(to: CGPoint(x: 1, y: 0.5))
+        context.addLine(to: CGPoint(x: 2, y: 0.5))
+        context.strokePath()
+
+        #expect(try bitmapAlphas(in: context) == [0, 255, 0, 0])
+    }
+
     @Test("CGContext bitmap clip(to:) restricts fill and resetClip clears it")
     func bitmapContextClipToRectRestrictsFillAndResetClipClearsIt() throws {
         let context = try makeBitmapContext(width: 4, height: 1)
