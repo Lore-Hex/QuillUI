@@ -971,10 +971,12 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
             let fitted = subview.quillEstimatedFittingSize(
                 proposed: CGSize(width: CGFloat.greatestFiniteMagnitude, height: max(bounds.height, 1))
             )
-            if fitted.width > 0, fitted.width.isFinite {
-                nextFrame.size.width = fitted.width
+            let pinnedSize = quillSizeContributionFromEdgePinnedChild(subview, childSize: fitted)
+            let width = pinnedSize.width > 0 ? pinnedSize.width : fitted.width
+            if width > 0, width.isFinite {
+                nextFrame.size.width = width
                 if let trailing = quillResolvedOwnConstraintValue(for: .trailing) ?? quillResolvedOwnConstraintValue(for: .right) {
-                    nextFrame.origin.x = trailing - fitted.width
+                    nextFrame.origin.x = trailing - width
                 }
                 changed = true
             }
@@ -985,10 +987,12 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
             let fitted = subview.quillEstimatedFittingSize(
                 proposed: CGSize(width: proposedWidth, height: CGFloat.greatestFiniteMagnitude)
             )
-            if fitted.height > 0, fitted.height.isFinite {
-                nextFrame.size.height = fitted.height
+            let pinnedSize = quillSizeContributionFromEdgePinnedChild(subview, childSize: fitted)
+            let height = pinnedSize.height > 0 ? pinnedSize.height : fitted.height
+            if height > 0, height.isFinite {
+                nextFrame.size.height = height
                 if let bottom = quillResolvedOwnConstraintValue(for: .bottom) {
-                    nextFrame.origin.y = bottom - fitted.height
+                    nextFrame.origin.y = bottom - height
                 }
                 changed = true
             }
