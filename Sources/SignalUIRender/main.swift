@@ -55,6 +55,7 @@ func dumpViewTree(_ view: UIView, depth: Int) {
     let f = view.frame
     var line = "\(indent)\(type(of: view)) frame=(\(Int(f.origin.x)),\(Int(f.origin.y)),\(Int(f.width))x\(Int(f.height))) subviews=\(view.subviews.count)"
     if let label = view as? UILabel { line += " label=\"\(label.text ?? "")\"" }
+    if let renderedText = view.quillRenderedText { line += " renderedText=\"\(renderedText)\"" }
     if let tv = view as? UITableView {
         let ds = tv.dataSource
         let secs = ds?.numberOfSections(in: tv) ?? -1
