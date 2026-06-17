@@ -26,6 +26,7 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     public var isHidden = false
     public var opacity: CGFloat = 1
     public var categoryBitMask: Int = 1
+    public var renderingOrder: Int = 0
 
     public private(set) weak var parent: SCNNode?
     public private(set) var childNodes: [SCNNode] = []

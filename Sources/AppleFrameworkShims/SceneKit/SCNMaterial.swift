@@ -81,6 +81,8 @@ public final class SCNMaterial: Hashable, @unchecked Sendable {
     public let transparent = SCNMaterialProperty()
     public var transparency: CGFloat = 1
     public var transparencyMode: SCNTransparencyMode = .aOne
+    public var readsFromDepthBuffer: Bool = true
+    public var writesToDepthBuffer: Bool = true
     public var lightingModel: SCNLightingModel = .blinn
     public var isDoubleSided: Bool = false
     public var shininess: CGFloat = 1
@@ -101,6 +103,8 @@ public final class SCNMaterial: Hashable, @unchecked Sendable {
         transparent.copySettings(to: material.transparent)
         material.transparency = transparency
         material.transparencyMode = transparencyMode
+        material.readsFromDepthBuffer = readsFromDepthBuffer
+        material.writesToDepthBuffer = writesToDepthBuffer
         material.lightingModel = lightingModel
         material.isDoubleSided = isDoubleSided
         material.shininess = shininess
