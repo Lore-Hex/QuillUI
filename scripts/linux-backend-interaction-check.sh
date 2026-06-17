@@ -902,7 +902,7 @@ delete_quill_chat_completion() {
   local delete_x
   local delete_y
 
-  open_quill_chat_completions_panel
+  open_quill_chat_completions_panel 1
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1618))}"

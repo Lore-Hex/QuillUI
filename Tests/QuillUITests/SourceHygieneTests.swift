@@ -2384,6 +2384,8 @@ struct SourceHygieneTests {
         #expect(!backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1522))}\""))
         #expect(!backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 383))}\""))
         #expect(backendScript.contains("if quill_chat_completion_save_uses_seed_fixture; then\n    quill_chat_completions_panel_probe_path=\"\"\n    ensure_quill_chat_completions_panel_open\n    settle_quill_chat_completion_capture_if_verified\n    return\n  fi"))
+        #expect(backendScript.contains("delete_quill_chat_completion() {\n  local delete_x\n  local delete_y\n\n  open_quill_chat_completions_panel 1"))
+        #expect(!backendScript.contains("delete_quill_chat_completion() {\n  local delete_x\n  local delete_y\n\n  open_quill_chat_completions_panel\n"))
         #expect(backendScript.contains("quill_chat_completions_panel_probe_path=\"\"\n  ensure_quill_chat_completions_panel_open\n  settle_quill_chat_completion_capture_if_verified"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_OPEN_ATTEMPTS:-3"))
         #expect(backendScript.contains("for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do"))
