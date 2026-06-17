@@ -29,6 +29,7 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     public private(set) var runningActions: [SCNAction] = []
     private var runningActionStates: [SCNActionRuntime.State] = []
     private var runningActionKeys: [String?] = []
+    private var runningActionCompletions: [(() -> Void)?] = []
 
     public init() {}
 
@@ -65,14 +66,22 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     }
 
     public func runAction(_ action: SCNAction) {
-        appendAction(action, key: nil)
+        appendAction(action, key: nil, completionHandler: nil)
+    }
+
+    public func runAction(_ action: SCNAction, completionHandler block: @escaping () -> Void) {
+        appendAction(action, key: nil, completionHandler: block)
     }
 
     public func runAction(_ action: SCNAction, forKey key: String?) {
+        runAction(action, forKey: key, completionHandler: nil)
+    }
+
+    public func runAction(_ action: SCNAction, forKey key: String?, completionHandler block: (() -> Void)?) {
         if let key {
             removeAction(forKey: key)
         }
-        appendAction(action, key: key)
+        appendAction(action, key: key, completionHandler: block)
     }
 
     public func action(forKey key: String) -> SCNAction? {
@@ -94,6 +103,7 @@ public final class SCNNode: Equatable, @unchecked Sendable {
                 runningActions.remove(at: index)
                 runningActionStates.remove(at: index)
                 runningActionKeys.remove(at: index)
+                runningActionCompletions.remove(at: index)
             }
         }
     }
@@ -102,6 +112,7 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         runningActions.removeAll()
         runningActionStates.removeAll()
         runningActionKeys.removeAll()
+        runningActionCompletions.removeAll()
     }
 
     public func quillStepActions(by deltaTime: TimeInterval) {
@@ -125,10 +136,11 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         eulerAngles = SCNVector3(pitch, yaw, 0)
     }
 
-    private func appendAction(_ action: SCNAction, key: String?) {
+    private func appendAction(_ action: SCNAction, key: String?, completionHandler: (() -> Void)?) {
         runningActions.append(action)
         runningActionStates.append(SCNActionRuntime.State(baseline: SCNActionRuntime.Baseline(node: self)))
         runningActionKeys.append(key)
+        runningActionCompletions.append(completionHandler)
     }
 
     private func stepOwnActions(by deltaTime: TimeInterval) {
@@ -138,6 +150,8 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         var nextActions: [SCNAction] = []
         var nextStates: [SCNActionRuntime.State] = []
         var nextKeys: [String?] = []
+        var nextCompletions: [(() -> Void)?] = []
+        var completions: [() -> Void] = []
 
         for index in runningActions.indices {
             let action = runningActions[index]
@@ -151,21 +165,32 @@ public final class SCNNode: Equatable, @unchecked Sendable {
                 nextActions.append(action)
                 nextStates.append(state)
                 nextKeys.append(runningActionKeys[index])
+                nextCompletions.append(runningActionCompletions[index])
+            } else if let completion = runningActionCompletions[index] {
+                completions.append(completion)
             }
         }
 
         runningActions = nextActions
         runningActionStates = nextStates
         runningActionKeys = nextKeys
+        runningActionCompletions = nextCompletions
+
+        for completion in completions {
+            completion()
+        }
     }
 
     private func synchronizeActionRuntimeStorage() {
-        guard runningActionStates.count != runningActions.count || runningActionKeys.count != runningActions.count else {
+        guard runningActionStates.count != runningActions.count ||
+                runningActionKeys.count != runningActions.count ||
+                runningActionCompletions.count != runningActions.count else {
             return
         }
         runningActionStates = runningActions.map { _ in
             SCNActionRuntime.State(baseline: SCNActionRuntime.Baseline(node: self))
         }
         runningActionKeys = Array(repeating: nil, count: runningActions.count)
+        runningActionCompletions = Array(repeating: nil, count: runningActions.count)
     }
 }

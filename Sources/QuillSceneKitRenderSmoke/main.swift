@@ -322,21 +322,26 @@ struct QuillSceneKitRenderSmoke {
         let scene = SCNScene()
         let movingNode = SCNNode()
         scene.rootNode.addChildNode(movingNode)
+        var sequenceCompletions = 0
         movingNode.runAction(.sequence([
             .move(by: SCNVector3(1, 0, 0), duration: 1),
             .rotateBy(x: 0, y: .pi, z: 0, duration: 1),
             .scale(by: 2, duration: 1),
-        ]))
+        ])) {
+            sequenceCompletions += 1
+        }
 
         scene.quillStepActions(by: 1.5)
         try require(abs(movingNode.position.x - 1) < 0.0001, "sequence action lost completed move")
         try require(abs(movingNode.eulerAngles.y - .pi / 2) < 0.0001, "sequence action did not sample partial rotation")
         try require(movingNode.scale == SCNVector3(1, 1, 1), "sequence action scaled before reaching scale step")
+        try require(sequenceCompletions == 0, "sequence action completed before its final step")
 
         scene.quillStepActions(by: 1.5)
         try require(abs(movingNode.eulerAngles.y - .pi) < 0.0001, "sequence action did not finish rotation")
         try require(movingNode.scale == SCNVector3(2, 2, 2), "sequence action did not finish scale")
         try require(!movingNode.hasActions, "sequence action did not clear when complete")
+        try require(sequenceCompletions == 1, "sequence action completion did not fire once")
 
         let groupNode = SCNNode()
         groupNode.runAction(.group([
