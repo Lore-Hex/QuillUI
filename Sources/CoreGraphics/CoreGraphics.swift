@@ -34,7 +34,11 @@ public enum CGEventSourceStateID: Sendable {
 }
 
 public final class CGEventSource: @unchecked Sendable {
-    public init?(stateID: CGEventSourceStateID) {}
+    public let stateID: CGEventSourceStateID
+
+    public init?(stateID: CGEventSourceStateID) {
+        self.stateID = stateID
+    }
 
     public static func keyState(_ stateID: CGEventSourceStateID, key: CGKeyCode) -> Bool {
         QuillCompatibilityDiagnostics.shared.record(
@@ -51,9 +55,17 @@ public enum CGEventTapLocation: Sendable {
 }
 
 public final class CGEvent: @unchecked Sendable {
+    public let source: CGEventSource?
+    public let virtualKey: CGKeyCode
+    public let keyDown: Bool
     public var flags: CGEventFlags = []
+    private var keyboardUnicodeString: [UInt16] = []
 
-    public init?(keyboardEventSource source: CGEventSource?, virtualKey: CGKeyCode, keyDown: Bool) {}
+    public init?(keyboardEventSource source: CGEventSource?, virtualKey: CGKeyCode, keyDown: Bool) {
+        self.source = source
+        self.virtualKey = virtualKey
+        self.keyDown = keyDown
+    }
 
     public func post(tap: CGEventTapLocation) {
         QuillCompatibilityDiagnostics.shared.record(
@@ -62,5 +74,28 @@ public final class CGEvent: @unchecked Sendable {
             message: "Synthetic input is unavailable until a native Linux backend is attached."
         )
     }
-    public func keyboardSetUnicodeString(stringLength: Int, unicodeString: UnsafePointer<UInt16>) {}
+
+    public func keyboardSetUnicodeString(stringLength: Int, unicodeString: UnsafePointer<UInt16>?) {
+        guard stringLength > 0, let unicodeString else {
+            keyboardUnicodeString = []
+            return
+        }
+
+        keyboardUnicodeString = Array(UnsafeBufferPointer(start: unicodeString, count: stringLength))
+    }
+
+    public func keyboardGetUnicodeString(
+        maxStringLength: Int,
+        actualStringLength: UnsafeMutablePointer<Int>?,
+        unicodeString: UnsafeMutablePointer<UInt16>?
+    ) {
+        actualStringLength?.pointee = keyboardUnicodeString.count
+        guard maxStringLength > 0, let unicodeString else {
+            return
+        }
+
+        for index in 0..<Swift.min(maxStringLength, keyboardUnicodeString.count) {
+            unicodeString.advanced(by: index).pointee = keyboardUnicodeString[index]
+        }
+    }
 }

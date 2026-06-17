@@ -368,11 +368,11 @@ subset lives in `QuillUIKit`.
 | `CGContext.isPathEmpty`, `currentPointOfPath`, `pathBoundingBox`, `copyPath()` | Usable | The Linux context keeps an inspectable current path even without a drawing backend; path-consuming `fillPath`, `strokePath`, and path-based `clip` clear it. |
 | `CGContext.addRects`, `addPath`, `addQuadCurve`, `addCurve`, `addArc(tangent1End:tangent2End:radius:)`, `fillPath(using:)`, `clip(using:)` | Usable | The Linux drawing shim forwards rect lists, path element streams, direct quad/cubic curves, and tangent-arc line/cubic expansions into the pluggable Cairo backend, including even-odd/winding fill-rule selection for fill and clip. These calls also update the context's shadow current path for source-compatible introspection. This is scoped backend forwarding, not full CoreGraphics raster parity. |
 | `CGContext` bitmap/state drawing (`fill`, `stroke`, `draw`, gradients, masks, blend modes, shadows, transparency layers, interpolation quality, miter limit, antialias/font toggles) | Usable | Direct bitmap contexts now cover current app/image-rendering needs, including separable/non-separable blend modes, alpha masks, blurred shadows, transparency-layer compositing, nearest/bilinear image sampling through interpolation quality, and saved/restored font smoothing/subpixel/interpolation state. GTK and Qt Cairo backends receive fill/stroke/path/image drawing state, including blend mode, shadow, miter limit, and effective antialiasing. Cairo shadow blur remains approximate/no-blur in the toolkit backend. |
-| `CGEventSource.init?(stateID:)` | Compile-only | Source object shape only. |
+| `CGEventSource.init?(stateID:)` | Usable value surface | Source objects retain the requested state identifier. |
 | `CGEventSource.keyState(_:key:)` | Fallback | Records diagnostic and returns false. |
-| `CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)` | Compile-only | Event object shape only. |
+| `CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)` | Usable value surface | Keyboard events retain source, virtual key, key-down state, flags, and unicode keyboard payloads. |
 | `CGEvent.post(tap:)` | Fallback | Records diagnostic, no synthetic input. |
-| `CGEvent.keyboardSetUnicodeString(stringLength:unicodeString:)` | Compile-only | No-op. |
+| `CGEvent.keyboardSetUnicodeString(stringLength:unicodeString:)`, `keyboardGetUnicodeString(maxStringLength:actualStringLength:unicodeString:)` | Usable value surface | Unicode payloads round-trip on the event object with Apple-shaped truncation/readback semantics; no native event posting. |
 | Real event taps, keyboard state, pointer events, and broad drawing APIs beyond focused geometry/path/context forwarding | Incomplete | Required for CoreGraphics Parity. |
 
 ## Security
