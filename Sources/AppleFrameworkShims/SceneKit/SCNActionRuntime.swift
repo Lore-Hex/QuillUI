@@ -75,10 +75,18 @@ enum SCNActionRuntime {
             let t = timedProgress(for: action, at: localElapsed)
             return Sample(position: baseline.position.adding(x: x * t, y: y * t, z: z * t))
 
+        case let .moveTo(x, y, z):
+            let t = timedProgress(for: action, at: localElapsed)
+            return Sample(position: baseline.position.interpolated(to: SCNVector3(x, y, z), progress: t))
+
         case let .scaleBy(factor):
             let t = timedProgress(for: action, at: localElapsed)
             let target = baseline.scale.scaled(by: factor)
             return Sample(scale: baseline.scale.interpolated(to: target, progress: t))
+
+        case let .scaleTo(factor):
+            let t = timedProgress(for: action, at: localElapsed)
+            return Sample(scale: baseline.scale.interpolated(to: SCNVector3(factor, factor, factor), progress: t))
 
         case let .fadeOpacity(to):
             let t = timedProgress(for: action, at: localElapsed)

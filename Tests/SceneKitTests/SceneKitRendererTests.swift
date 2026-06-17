@@ -1453,6 +1453,47 @@ struct SceneKitRendererTests {
         #expect(node.hasActions)
     }
 
+    @Test("SCNAction Apple convenience constructors sample deterministic targets")
+    func actionConvenienceConstructorsSampleDeterministicTargets() {
+        let grouped = SCNNode()
+        grouped.position = SCNVector3(10, 0, 0)
+        grouped.scale = SCNVector3(1, 2, 3)
+        grouped.opacity = 0.5
+        grouped.runAction(.group([
+            .moveBy(x: 2, y: -4, z: 6, duration: 2),
+            .scale(to: 3, duration: 2),
+            .fadeOut(duration: 2),
+        ]))
+
+        grouped.quillStepActions(by: 1)
+        expectVector(grouped.position, closeTo: SCNVector3(11, -2, 3))
+        expectVector(grouped.scale, closeTo: SCNVector3(2, 2.5, 3))
+        #expect(abs(grouped.opacity - 0.25) < 0.0001)
+
+        grouped.quillStepActions(by: 1)
+        expectVector(grouped.position, closeTo: SCNVector3(12, -4, 6))
+        expectVector(grouped.scale, closeTo: SCNVector3(3, 3, 3))
+        #expect(abs(grouped.opacity) < 0.0001)
+        #expect(!grouped.hasActions)
+
+        let absolute = SCNNode()
+        absolute.position = SCNVector3(5, 0, 0)
+        absolute.opacity = 0.2
+        absolute.runAction(.group([
+            .move(to: SCNVector3(1, 2, 3), duration: 2),
+            .fadeIn(duration: 2),
+        ]))
+
+        absolute.quillStepActions(by: 1)
+        expectVector(absolute.position, closeTo: SCNVector3(3, 1, 1.5))
+        #expect(abs(absolute.opacity - 0.6) < 0.0001)
+
+        absolute.quillStepActions(by: 1)
+        expectVector(absolute.position, closeTo: SCNVector3(1, 2, 3))
+        #expect(abs(absolute.opacity - 1) < 0.0001)
+        #expect(!absolute.hasActions)
+    }
+
     @Test("SCNAction repeatForever keeps running and keyed actions replace prior actions")
     func repeatingActionsAdvanceAndKeyedActionsReplace() {
         let node = SCNNode()

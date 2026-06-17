@@ -18,7 +18,9 @@ public final class SCNAction: @unchecked Sendable {
         case rotateBy(x: CGFloat, y: CGFloat, z: CGFloat)
         case rotateTo(x: CGFloat, y: CGFloat, z: CGFloat)
         case moveBy(x: CGFloat, y: CGFloat, z: CGFloat)
+        case moveTo(x: CGFloat, y: CGFloat, z: CGFloat)
         case scaleBy(CGFloat)
+        case scaleTo(CGFloat)
         case fadeOpacity(to: CGFloat)
         case wait
         case repeatForever(SCNAction)
@@ -49,12 +51,32 @@ public final class SCNAction: @unchecked Sendable {
         SCNAction(kind: .moveBy(x: delta.x, y: delta.y, z: delta.z), duration: duration)
     }
 
+    public static func moveBy(x: CGFloat, y: CGFloat, z: CGFloat, duration: TimeInterval) -> SCNAction {
+        SCNAction(kind: .moveBy(x: x, y: y, z: z), duration: duration)
+    }
+
+    public static func move(to location: SCNVector3, duration: TimeInterval) -> SCNAction {
+        SCNAction(kind: .moveTo(x: location.x, y: location.y, z: location.z), duration: duration)
+    }
+
     public static func scale(by scale: CGFloat, duration: TimeInterval) -> SCNAction {
         SCNAction(kind: .scaleBy(scale), duration: duration)
     }
 
+    public static func scale(to scale: CGFloat, duration: TimeInterval) -> SCNAction {
+        SCNAction(kind: .scaleTo(scale), duration: duration)
+    }
+
     public static func fadeOpacity(to opacity: CGFloat, duration: TimeInterval) -> SCNAction {
         SCNAction(kind: .fadeOpacity(to: opacity), duration: duration)
+    }
+
+    public static func fadeIn(duration: TimeInterval) -> SCNAction {
+        fadeOpacity(to: 1, duration: duration)
+    }
+
+    public static func fadeOut(duration: TimeInterval) -> SCNAction {
+        fadeOpacity(to: 0, duration: duration)
     }
 
     public static func wait(duration: TimeInterval) -> SCNAction {
