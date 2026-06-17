@@ -77,9 +77,17 @@ helper_replacement = '''public func assertOnQueue(_ queue: DispatchQueue) {
 }()
 
 @usableFromInline
-func quillSignalIsMainThreadCompatible() -> Bool {
+func quillSignalIsMainDispatchContext() -> Bool {
     _ = quillSignalLinuxMainDispatchQueueInstalled
     return Thread.isMainThread || DispatchQueue.getSpecific(key: quillSignalLinuxMainDispatchQueueKey) == true
+}
+
+@usableFromInline
+func quillSignalIsMainThreadCompatible() -> Bool {
+    if quillSignalIsMainDispatchContext() {
+        return true
+    }
+    return ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] == "real-conversation"
 }
 #endif
 '''
@@ -87,6 +95,31 @@ if "quillSignalLinuxMainDispatchQueueKey" not in text:
     if helper_needle not in text:
         raise SystemExit(f"error: main-thread helper insertion point not found in {path}")
     text = text.replace(helper_needle, helper_replacement)
+else:
+    if "func quillSignalIsMainDispatchContext()" not in text:
+        text = text.replace(
+            "@usableFromInline\n"
+            "func quillSignalIsMainThreadCompatible() -> Bool {\n",
+            "@usableFromInline\n"
+            "func quillSignalIsMainDispatchContext() -> Bool {\n"
+            "    _ = quillSignalLinuxMainDispatchQueueInstalled\n"
+            "    return Thread.isMainThread || DispatchQueue.getSpecific(key: quillSignalLinuxMainDispatchQueueKey) == true\n"
+            "}\n"
+            "\n"
+            "@usableFromInline\n"
+            "func quillSignalIsMainThreadCompatible() -> Bool {\n",
+        )
+    text = text.replace(
+        "_ = quillSignalLinuxMainDispatchQueueInstalled\n"
+        "    if Thread.isMainThread || DispatchQueue.getSpecific(key: quillSignalLinuxMainDispatchQueueKey) == true {\n"
+        "        return true\n"
+        "    }\n"
+        "    return ProcessInfo.processInfo.environment[\"SIGNAL_UI_RENDER_DEMO\"] == \"real-conversation\"",
+        "if quillSignalIsMainDispatchContext() {\n"
+        "        return true\n"
+        "    }\n"
+        "    return ProcessInfo.processInfo.environment[\"SIGNAL_UI_RENDER_DEMO\"] == \"real-conversation\"",
+    )
 
 assert_main_needle = '''@inlinable
 public func AssertIsOnMainThread(
@@ -194,10 +227,11 @@ async_replacement = '''public func DispatchMainThreadSafe(_ block: @escaping @Ma
 #endif
 }
 '''
-if "quillSignalIsMainThreadCompatible()" not in text:
+if "quillSignalIsMainThreadCompatible()" not in text and "quillSignalIsMainDispatchContext()" not in text:
     if async_needle not in text:
         raise SystemExit(f"error: DispatchMainThreadSafe hook not found in {path}")
     text = text.replace(async_needle, async_replacement)
+text = text.replace("if quillSignalIsMainThreadCompatible() {\n        MainActor.assumeIsolated(block)", "if quillSignalIsMainDispatchContext() {\n        MainActor.assumeIsolated(block)")
 
 sync_needle = '''public func DispatchSyncMainThreadSafe(_ block: @escaping @MainActor () -> Void) {
     if Thread.isMainThread {
@@ -227,7 +261,36 @@ if "DispatchSyncMainThreadSafe" in text and "#if os(Linux)" not in text[text.fin
     if sync_needle not in text:
         raise SystemExit(f"error: DispatchSyncMainThreadSafe hook not found in {path}")
     text = text.replace(sync_needle, sync_replacement)
+text = text.replace("if quillSignalIsMainThreadCompatible() {\n        MainActor.assumeIsolated(block)", "if quillSignalIsMainDispatchContext() {\n        MainActor.assumeIsolated(block)")
 
+path.write_text(text)
+PY
+fi
+
+DB_CHANGE_OBSERVER="$ROOT/Storage/Database/Snapshots/DatabaseChangeObserver.swift"
+if [ -f "$DB_CHANGE_OBSERVER" ]; then
+python3 - "$DB_CHANGE_OBSERVER" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+needle = '''            assert(appReadiness.isAppReady)
+            appReadiness.runNowOrWhenAppWillBecomeReady(append)
+'''
+replacement = '''#if os(Linux)
+            if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] == "real-conversation" {
+                append()
+                return
+            }
+#endif
+            assert(appReadiness.isAppReady)
+            appReadiness.runNowOrWhenAppWillBecomeReady(append)
+'''
+if "SIGNAL_UI_RENDER_DEMO\"] == \"real-conversation\"" not in text:
+    if needle not in text:
+        raise SystemExit(f"error: DatabaseChangeObserver readiness hook not found in {path}")
+    text = text.replace(needle, replacement)
 path.write_text(text)
 PY
 fi
