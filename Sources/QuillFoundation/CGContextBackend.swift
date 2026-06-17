@@ -26,6 +26,7 @@ public protocol QuillCGContextBackend: AnyObject {
     func setLineCap(_ cap: CGLineCap)
     func setLineJoin(_ join: CGLineJoin)
     func setMiterLimit(_ limit: CGFloat)
+    func setLineDash(phase: CGFloat, lengths: [CGFloat])
     func setShouldAntialias(_ shouldAntialias: Bool)
     func setAlpha(_ alpha: CGFloat)
     func setBlendMode(_ mode: CGBlendMode)
@@ -70,6 +71,10 @@ public extension QuillCGContextBackend {
 
     func setMiterLimit(_ limit: CGFloat) {
         _ = limit
+    }
+
+    func setLineDash(phase: CGFloat, lengths: [CGFloat]) {
+        _ = (phase, lengths)
     }
 
     func setShouldAntialias(_ shouldAntialias: Bool) {

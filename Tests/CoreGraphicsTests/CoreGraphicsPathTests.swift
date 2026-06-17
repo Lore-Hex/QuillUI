@@ -893,6 +893,32 @@ struct CoreGraphicsPathTests {
         #expect(try bitmapAlphas(in: context) == [0, 255, 0, 0])
     }
 
+    @Test("CGContext bitmap strokePath honors line dash and restores it")
+    func bitmapContextStrokePathHonorsLineDashAndRestore() throws {
+        let dashed = try makeBitmapContext(width: 8, height: 1)
+        dashed.setStrokeColor(red: 1, green: 0, blue: 0, alpha: 1)
+        dashed.setLineWidth(1)
+        dashed.setLineDash(phase: 0, lengths: [2, 1])
+        dashed.move(to: CGPoint(x: 0, y: 0.5))
+        dashed.addLine(to: CGPoint(x: 8, y: 0.5))
+        dashed.strokePath()
+
+        #expect(try bitmapAlphas(in: dashed) == [255, 255, 0, 255, 255, 0, 255, 255])
+
+        let restored = try makeBitmapContext(width: 4, height: 1)
+        restored.setStrokeColor(red: 1, green: 0, blue: 0, alpha: 1)
+        restored.setLineWidth(1)
+        restored.setLineDash(phase: 0, lengths: [1, 1])
+        restored.saveGState()
+        restored.setLineDash(phase: 0, lengths: [])
+        restored.restoreGState()
+        restored.move(to: CGPoint(x: 0, y: 0.5))
+        restored.addLine(to: CGPoint(x: 4, y: 0.5))
+        restored.strokePath()
+
+        #expect(try bitmapAlphas(in: restored) == [255, 0, 255, 0])
+    }
+
     @Test("CGContext bitmap clip(to:) restricts fill and resetClip clears it")
     func bitmapContextClipToRectRestrictsFillAndResetClipClearsIt() throws {
         let context = try makeBitmapContext(width: 4, height: 1)
