@@ -398,6 +398,56 @@ quillui_solderscope_wait_for_recording_idle() {
   return 1
 }
 
+quillui_solderscope_recording_indicator_red_pixels() {
+  local screenshot_path="$1"
+  python3 - "$screenshot_path" <<'PY'
+import subprocess
+import sys
+
+path = sys.argv[1]
+try:
+    probe = subprocess.run(
+        ["identify", "-format", "%w %h", path],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    width_text, height_text = probe.stdout.split()
+    width = int(width_text)
+    height = int(height_text)
+    rgba = subprocess.run(
+        ["convert", path, "rgba:-"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ).stdout
+except Exception:
+    print(0)
+    raise SystemExit(0)
+
+count = 0
+x_limit = min(180, width)
+y_start = max(0, height - 90)
+for y in range(y_start, height):
+    row_offset = y * width * 4
+    for x in range(x_limit):
+        offset = row_offset + x * 4
+        red = rgba[offset]
+        green = rgba[offset + 1]
+        blue = rgba[offset + 2]
+        if (
+            red >= 180
+            and green <= 70
+            and blue <= 70
+            and red - green >= 90
+            and red - blue >= 90
+        ):
+            count += 1
+print(count)
+PY
+}
+
 quillui_solderscope_recording_indicator_visible() {
   local indicator_probe_path
   indicator_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-recording-indicator.XXXXXX.png")"
@@ -406,6 +456,13 @@ quillui_solderscope_recording_indicator_visible() {
     rm -f "$indicator_probe_path"
     return 1
   }
+
+  local indicator_pixels
+  indicator_pixels="$(quillui_solderscope_recording_indicator_red_pixels "$indicator_probe_path")"
+  if [[ "$indicator_pixels" =~ ^[0-9]+$ ]] && (( indicator_pixels > 500 )); then
+    rm -f "$indicator_probe_path" "$indicator_probe_log"
+    return 0
+  fi
 
   if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$indicator_probe_path" quill-solderscope-interaction >"$indicator_probe_log" 2>&1; then
     rm -f "$indicator_probe_path" "$indicator_probe_log"

@@ -2924,6 +2924,8 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_started_log_count()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_saved_log_count()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_recording_idle()"))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_recording_indicator_red_pixels()"))
+        #expect(solderScopeSmoke.contains("indicator_pixels > 500"))
         #expect(solderScopeSmoke.contains("local settled_screenshot_path=\"${1:-}\""))
         #expect(solderScopeSmoke.contains("cp -f \"$idle_probe_path\" \"$settled_screenshot_path\""))
         #expect(solderScopeSmoke.contains("local settled_recording_screenshot=\"${SCREENSHOT_PATH%.png}-recording-idle.png\""))
