@@ -624,7 +624,7 @@ open_quill_chat_completions_panel() {
       # Settings opens as a sheet in the Mac-reference build. Dismiss it before
       # the Completions click, otherwise the click lands behind the modal and
       # follow-up edit/delete interactions exercise the wrong screen.
-      reset_cancel_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 455))}}"
+      reset_cancel_x="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 610))}}"
       reset_cancel_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 410))}}"
       click_at "$reset_cancel_x" "$reset_cancel_y"
       sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6}"
