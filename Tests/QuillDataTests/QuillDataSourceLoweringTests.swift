@@ -498,6 +498,9 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(verifier.contains("validate_quill_chat_mac_reference"))
+        #expect(verifier.contains("require_sidebar_footer_navigation: bool = True"))
+        #expect(verifier.contains("def validate_quill_chat_mac_reference_new_chat"))
+        #expect(verifier.contains("validate_quill_chat_mac_reference(image, require_sidebar_footer_navigation=False)"))
         #expect(verifier.contains("Mac-reference prompt card row was not detected"))
         #expect(verifier.contains("prompt_card_fill_height"))
         #expect(verifier.contains("Mac-reference prompt cards are too short"))
@@ -582,6 +585,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("validate_quill_chat_mac_reference_toolbar_model_selected"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-toolbar-model-selected"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-new-chat"))
+        #expect(verifier.contains("print(validate_quill_chat_mac_reference_new_chat(image))"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-copy-chat"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-copy-chat-json"))
         #expect(verifier.contains("validate_quill_chat_functional_transcript"))

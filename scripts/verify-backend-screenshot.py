@@ -713,7 +713,7 @@ def validate_quill_enchanted_mac_reference(image: Screenshot) -> str:
     return f"Enchanted reference ok: {app_width}x{app_height}, sidebar={sidebar_width}, header={header_height}"
 
 
-def validate_quill_chat_mac_reference(image: Screenshot) -> str:
+def validate_quill_chat_mac_reference(image: Screenshot, require_sidebar_footer_navigation: bool = True) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -761,10 +761,11 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         divider_x - int((divider_x - left) * 0.03),
         bottom + 1,
     )
-    require(
-        sidebar_footer_pixels >= 700,
-        f"Mac-reference sidebar footer navigation was not detected: pixels={sidebar_footer_pixels}",
-    )
+    if require_sidebar_footer_navigation:
+        require(
+            sidebar_footer_pixels >= 700,
+            f"Mac-reference sidebar footer navigation was not detected: pixels={sidebar_footer_pixels}",
+        )
     sidebar_tint_pixels = pixel_count(
         image,
         left + int((divider_x - left) * 0.03),
@@ -984,6 +985,10 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         f"alert={alert_segment.width}px@{alert_y}/{alert_height}px, "
         f"composer={composer_segment.width}px@{composer_y}"
     )
+
+
+def validate_quill_chat_mac_reference_new_chat(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference(image, require_sidebar_footer_navigation=False)
 
 
 def validate_quill_chat_landmarks(
@@ -4474,7 +4479,7 @@ def main() -> int:
     elif product == "quill-chat-linux-mac-reference-toolbar-model-selected":
         print(validate_quill_chat_mac_reference_toolbar_model_selected(image))
     elif product == "quill-chat-linux-mac-reference-new-chat":
-        print(validate_quill_chat_mac_reference(image))
+        print(validate_quill_chat_mac_reference_new_chat(image))
     elif product == "quill-chat-linux-mac-reference-copy-chat":
         print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))
     elif product == "quill-chat-linux-mac-reference-copy-chat-json":

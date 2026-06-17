@@ -4499,6 +4499,10 @@ struct SourceHygieneTests {
     func completionsScreenshotVerifierRequiresTrailingControls() throws {
         let verifier = try packageSource("scripts/verify-backend-screenshot.py")
 
+        #expect(verifier.contains("require_sidebar_footer_navigation: bool = True"))
+        #expect(verifier.contains("def validate_quill_chat_mac_reference_new_chat"))
+        #expect(verifier.contains("validate_quill_chat_mac_reference(image, require_sidebar_footer_navigation=False)"))
+        #expect(verifier.contains("print(validate_quill_chat_mac_reference_new_chat(image))"))
         #expect(verifier.contains("def mac_reference_completion_action_pixel"))
         #expect(verifier.contains("def dark_row_segment_count"))
         #expect(verifier.contains("Mac-reference completions Close control was not detected"))
