@@ -739,6 +739,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("save_quill_chat_new_completion()"))
         #expect(interactionScript.contains("edit_quill_chat_existing_completion()"))
         #expect(interactionScript.contains("delete_quill_chat_completion()"))
+        #expect(interactionScript.contains("delete_quill_chat_completion() {\n  local delete_x\n  local delete_y\n\n  open_quill_chat_completions_panel 1"))
+        #expect(!interactionScript.contains("delete_quill_chat_completion() {\n  local delete_x\n  local delete_y\n\n  open_quill_chat_completions_panel\n"))
         #expect(interactionScript.contains("quill_chat_mac_reference_completions_panel_visible()"))
         #expect(interactionScript.contains("ensure_quill_chat_completions_panel_open()"))
         #expect(interactionScript.contains("python3 \"$ROOT_DIR/scripts/verify-backend-screenshot.py\""))
