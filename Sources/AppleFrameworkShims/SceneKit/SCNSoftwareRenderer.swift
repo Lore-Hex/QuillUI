@@ -196,21 +196,59 @@ private struct RenderCollector {
             let hx = box.width / 2
             let hy = box.height / 2
             let hz = box.length / 2
-            let corners = [
-                Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz),
-                Vector3(hx, hy, -hz), Vector3(-hx, hy, -hz),
-                Vector3(-hx, -hy, hz), Vector3(hx, -hy, hz),
-                Vector3(hx, hy, hz), Vector3(-hx, hy, hz),
-            ].map(world.transformPoint)
-            for corner in corners { include(corner) }
-            let faces = [
-                (0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6),
-                (0, 4, 5), (0, 5, 1), (1, 5, 6), (1, 6, 2),
-                (2, 6, 7), (2, 7, 3), (3, 7, 4), (3, 4, 0),
-            ]
-            for (i0, i1, i2) in faces {
-                primitives.append(.triangle(a: corners[i0], b: corners[i1], c: corners[i2], color: baseColor, owner: owner))
-            }
+            appendSurface(
+                localVertices: [
+                    Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz),
+                    Vector3(hx, hy, -hz), Vector3(-hx, hy, -hz),
+                    Vector3(-hx, -hy, hz), Vector3(hx, -hy, hz),
+                    Vector3(hx, hy, hz), Vector3(-hx, hy, hz),
+                ],
+                faces: [
+                    (0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6),
+                    (0, 4, 5), (0, 5, 1), (1, 5, 6), (1, 6, 2),
+                    (2, 6, 7), (2, 7, 3), (3, 7, 4), (3, 4, 0),
+                ],
+                world: world,
+                color: baseColor,
+                owner: owner
+            )
+            return
+
+        case let plane as SCNPlane:
+            let owner = PrimitiveOwner(node: node, geometryIndex: 0)
+            let hx = plane.width / 2
+            let hy = plane.height / 2
+            appendSurface(
+                localVertices: [
+                    Vector3(-hx, -hy, 0), Vector3(hx, -hy, 0),
+                    Vector3(hx, hy, 0), Vector3(-hx, hy, 0),
+                ],
+                faces: [(0, 1, 2), (0, 2, 3)],
+                world: world,
+                color: baseColor,
+                owner: owner
+            )
+            return
+
+        case let pyramid as SCNPyramid:
+            let owner = PrimitiveOwner(node: node, geometryIndex: 0)
+            let hx = pyramid.width / 2
+            let hy = pyramid.height / 2
+            let hz = pyramid.length / 2
+            appendSurface(
+                localVertices: [
+                    Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz),
+                    Vector3(hx, -hy, hz), Vector3(-hx, -hy, hz),
+                    Vector3(0, hy, 0),
+                ],
+                faces: [
+                    (0, 2, 1), (0, 3, 2),
+                    (0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4),
+                ],
+                world: world,
+                color: baseColor,
+                owner: owner
+            )
             return
 
         default:
@@ -218,6 +256,20 @@ private struct RenderCollector {
         }
 
         collectBufferedGeometry(geometry, node: node, world: world, opacity: opacity)
+    }
+
+    private mutating func appendSurface(
+        localVertices: [Vector3],
+        faces: [(Int, Int, Int)],
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let vertices = localVertices.map(world.transformPoint)
+        for vertex in vertices { include(vertex) }
+        for (i0, i1, i2) in faces {
+            appendTriangle(i0, i1, i2, vertices: vertices, color: color, owner: owner)
+        }
     }
 
     private mutating func collectBufferedGeometry(_ geometry: SCNGeometry, node: SCNNode, world: Matrix4, opacity: CGFloat) {

@@ -430,6 +430,11 @@ public class CGPath: Hashable, @unchecked Sendable {
         elements = Self.applying(transform?.pointee, to: Self.rectElements(rect))
     }
 
+    public convenience init(ellipseIn rect: CGRect, transform: UnsafePointer<CGAffineTransform>?) {
+        self.init()
+        elements = Self.applying(transform?.pointee, to: Self.ellipseElements(in: rect))
+    }
+
     public convenience init(
         roundedRect rect: CGRect,
         cornerWidth: CGFloat,

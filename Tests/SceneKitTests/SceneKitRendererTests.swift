@@ -109,6 +109,61 @@ struct SceneKitRendererTests {
         #expect(stats.greenDominantPixels > 1_400)
     }
 
+    @Test("Software renderer draws parametric planes")
+    func rendersParametricPlaneGeometry() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let plane = SCNPlane(width: 2.0, height: 1.2)
+        plane.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        let planeNode = SCNNode(geometry: plane)
+        scene.rootNode.addChildNode(planeNode)
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(stats.greenDominantPixels > 900)
+        #expect(scene.quillHitTest(
+            CGPoint(x: 80, y: 60),
+            width: 160,
+            height: 120,
+            pointOfView: cameraNode
+        ).first?.node === planeNode)
+    }
+
+    @Test("Software renderer draws parametric pyramids")
+    func rendersParametricPyramidGeometry() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let pyramid = SCNPyramid(width: 2.0, height: 1.8, length: 1.4)
+        pyramid.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        let pyramidNode = SCNNode(geometry: pyramid)
+        pyramidNode.eulerAngles = SCNVector3(-0.2, 0.35, 0)
+        scene.rootNode.addChildNode(pyramidNode)
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 700)
+        #expect(stats.redDominantPixels > 650)
+        #expect(scene.quillHitTest(
+            CGPoint(x: 80, y: 60),
+            width: 160,
+            height: 120,
+            pointOfView: cameraNode
+        ).first?.node === pyramidNode)
+    }
+
     @Test("Software renderer resolves point-of-view camera transforms through parent nodes")
     func rendersWithNestedPointOfViewCamera() {
         let scene = SCNScene()

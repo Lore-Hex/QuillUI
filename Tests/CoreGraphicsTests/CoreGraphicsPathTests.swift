@@ -108,6 +108,23 @@ struct CoreGraphicsPathTests {
         #expect(path.quillElements.dropFirst().prefix(4).allSatisfy { $0.points.count == 3 })
     }
 
+    @Test("CGPath ellipse constructor applies the supplied affine transform")
+    func ellipseConstructorAppliesTransform() {
+        var transform = CGAffineTransform(translationX: 10, y: -2)
+        let path = CGPath(ellipseIn: CGRect(x: 2, y: 4, width: 6, height: 10), transform: &transform)
+
+        #expect(path.quillElements.map(\.type) == [
+            .moveToPoint,
+            .addCurveToPoint,
+            .addCurveToPoint,
+            .addCurveToPoint,
+            .addCurveToPoint,
+            .closeSubpath,
+        ])
+        #expect(path.quillElements.first?.points == [CGPoint(x: 15, y: 2)])
+        #expect(path.boundingBox == CGRect(x: 12, y: 2, width: 6, height: 10))
+    }
+
     @Test("CGMutablePath addArc records cubic arc segments")
     func addArcRecordsCubicSegments() {
         let path = CGMutablePath()
