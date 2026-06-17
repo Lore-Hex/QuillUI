@@ -910,6 +910,29 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
                 nextFrame.size.height = max(0, height)
             }
 
+            if resolved.width == nil, !(resolved.left != nil && resolved.right != nil), nextFrame.width == 0 {
+                let fitted = subview.quillImplicitLayoutSize(
+                    proposed: CGSize(
+                        width: CGFloat.greatestFiniteMagnitude,
+                        height: nextFrame.height > 0 ? nextFrame.height : CGFloat.greatestFiniteMagnitude
+                    )
+                )
+                if fitted.width > 0, fitted.width.isFinite {
+                    nextFrame.size.width = fitted.width
+                }
+            }
+            if resolved.height == nil, !(resolved.top != nil && resolved.bottom != nil), nextFrame.height == 0 {
+                let fitted = subview.quillImplicitLayoutSize(
+                    proposed: CGSize(
+                        width: nextFrame.width > 0 ? nextFrame.width : CGFloat.greatestFiniteMagnitude,
+                        height: CGFloat.greatestFiniteMagnitude
+                    )
+                )
+                if fitted.height > 0, fitted.height.isFinite {
+                    nextFrame.size.height = fitted.height
+                }
+            }
+
             if let left = resolved.left, let right = resolved.right {
                 nextFrame.origin.x = left
                 nextFrame.size.width = max(0, right - left)
@@ -1000,6 +1023,30 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         }
 
         return union.isNull ? .zero : CGSize(width: union.maxX, height: union.maxY)
+    }
+
+    private func quillImplicitLayoutSize(proposed: CGSize) -> CGSize {
+        let intrinsic = intrinsicContentSize
+        var size = CGSize.zero
+
+        if intrinsic.width != UIView.noIntrinsicMetric, intrinsic.width > 0, intrinsic.width.isFinite {
+            size.width = intrinsic.width
+        }
+        if intrinsic.height != UIView.noIntrinsicMetric, intrinsic.height > 0, intrinsic.height.isFinite {
+            size.height = intrinsic.height
+        }
+
+        if size.width == 0 || size.height == 0 {
+            let fitted = sizeThatFits(proposed)
+            if size.width == 0, fitted.width > 0, fitted.width.isFinite {
+                size.width = fitted.width
+            }
+            if size.height == 0, fitted.height > 0, fitted.height.isFinite {
+                size.height = fitted.height
+            }
+        }
+
+        return size
     }
 
     private func quillResolvedConstraintFrame(for subview: UIView) -> QuillConstraintFrame {
