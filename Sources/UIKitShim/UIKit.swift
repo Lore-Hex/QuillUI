@@ -1101,6 +1101,27 @@ open class NSTextStorage: NSMutableAttributedString {
 
     public weak var delegate: AnyObject?
     public private(set) var layoutManagers: [NSLayoutManager] = []
+    public internal(set) var quillUniformFontPointSize: CGFloat?
+
+    public override init(string str: String) {
+        self.quillUniformFontPointSize = nil
+        super.init(string: str)
+    }
+
+    public override init(string str: String, attributes attrs: [NSAttributedString.Key: Any]? = nil) {
+        self.quillUniformFontPointSize = (attrs?[.font] as? UIFont)?.pointSize
+        super.init(string: str, attributes: attrs)
+    }
+
+    public override init(attributedString attrStr: NSAttributedString) {
+        self.quillUniformFontPointSize = nil
+        super.init(attributedString: attrStr)
+    }
+
+    public required init?(coder: NSCoder) {
+        self.quillUniformFontPointSize = nil
+        super.init(coder: coder)
+    }
 
     public func addLayoutManager(_ layoutManager: NSLayoutManager) {
         if !layoutManagers.contains(where: { $0 === layoutManager }) {

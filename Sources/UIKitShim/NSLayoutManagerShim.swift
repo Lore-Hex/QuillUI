@@ -272,7 +272,7 @@ open class NSLayoutManager: NSObject, @unchecked Sendable {
         // attribute payloads such as UIFont/NSFont while Signal is measuring
         // attributed thread-details text. A uniform fallback is preferable to a
         // process abort; future text shaping can replace this model outright.
-        let rawPointSize: CGFloat = 17
+        let rawPointSize = textStorage?.quillUniformFontPointSize ?? 17
         let pointSize = rawPointSize > 0 && rawPointSize.isFinite ? rawPointSize : 17
         let charWidth = pointSize * 0.6
         let lineHeight = pointSize * 1.2
