@@ -128,6 +128,8 @@ struct SourceHygieneTests {
         // unused-dependency warning. See Package.swift `if signalUpstreamPresent`.
         #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
         #expect(manifest.contains("cSQLiteTarget,\n        cCairoTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
+        #expect(manifest.contains("name: \"QuillFoundation\",\n            dependencies: quillFoundationDependencies,\n            path: \"Sources/QuillFoundation\",\n            swiftSettings: quillFoundationSwiftSettings"))
+        #expect(manifest.contains("name: \"AppKit\",\n            dependencies: appKitShadowDependencies,\n            path: \"Sources/QuillAppKit\",\n            swiftSettings: [\n                .swiftLanguageMode(.v5),\n                .unsafeFlags([\"-strict-concurrency=minimal\"]),\n                .unsafeFlags(gdkPixbufSwiftImporterFlags)"))
         #expect(manifest.contains("name: \"UniformTypeIdentifiers\",\n            dependencies: [],\n            path: \"Sources/UniformTypeIdentifiersShim\""))
         #expect(manifest.contains("name: \"CoreTransferable\",\n            dependencies: [\"UniformTypeIdentifiers\"],\n            path: \"Sources/CoreTransferable\""))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
@@ -992,6 +994,7 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillShims/QuillShims.swift"),
             encoding: .utf8
         )
+        #expect(quillKit.contains("ProcessInfo.processInfo.environment[\"QUILLUI_ACCESSIBILITY_TRUSTED\"]"))
         let swiftUILowering = try String(
             contentsOf: root.appendingPathComponent("scripts/lower-swiftui-source-for-linux.sh"),
             encoding: .utf8
@@ -2359,6 +2362,7 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_RESET_ESCAPE_SLEEP:-0.3"))
+        #expect(backendScript.contains("QUILLUI_ACCESSIBILITY_TRUSTED=${QUILLUI_ACCESSIBILITY_TRUSTED:-1}"))
         #expect(backendScript.contains("reset_cancel_x=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_X:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_X:-$((window_x + 570))}}\""))
         #expect(backendScript.contains("reset_cancel_y=\"${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}\""))
         #expect(backendScript.contains("name_y=\"${QUILLUI_BACKEND_COMPLETION_NAME_CLICK_Y:-$((window_y + 462))}\""))
