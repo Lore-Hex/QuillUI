@@ -617,6 +617,77 @@ struct CoreGraphicsPathTests {
         #expect(pixelBGRA(in: pixels, width: 5, x: 0, y: 0) == [0, 0, 0, 0])
     }
 
+    @Test("CGContext bitmap clip(to:) restricts fill and resetClip clears it")
+    func bitmapContextClipToRectRestrictsFillAndResetClipClearsIt() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.clip(to: CGRect(x: 1, y: 0, width: 2, height: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 1))
+
+        context.resetClip()
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            255, 0, 0, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 0, 0,
+        ])
+    }
+
+    @Test("CGContext bitmap clipping restricts clear and image draw")
+    func bitmapContextClipRestrictsClearAndImageDraw() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 1))
+        context.clip(to: CGRect(x: 1, y: 0, width: 2, height: 1))
+        context.clear(CGRect(x: 0, y: 0, width: 4, height: 1))
+
+        let source = CGImage()
+        source.width = 4
+        source.height = 1
+        source.quillBytesPerRow = 16
+        source.quillBGRAPixels = [
+            255, 0, 0, 255,
+            0, 255, 0, 255,
+            255, 0, 0, 255,
+            0, 255, 0, 255,
+        ]
+        context.draw(source, in: CGRect(x: 0, y: 0, width: 4, height: 1))
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255, 0, 0, 255, 255,
+        ])
+    }
+
+    @Test("CGContext bitmap clip(using:) honors even-odd holes")
+    func bitmapContextClipPathHonorsEvenOddHoles() throws {
+        let context = try makeBitmapContext(width: 5, height: 5)
+        context.addRect(CGRect(x: 0, y: 0, width: 5, height: 5))
+        context.addRect(CGRect(x: 1, y: 1, width: 3, height: 3))
+        context.clip(using: .evenOdd)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 5, height: 5))
+
+        #expect(try bitmapAlphas(in: context) == [
+            255, 255, 255, 255, 255,
+            255, 0, 0, 0, 255,
+            255, 0, 0, 0, 255,
+            255, 0, 0, 0, 255,
+            255, 255, 255, 255, 255,
+        ])
+    }
+
+    @Test("CGContext bitmap clips are captured in device space")
+    func bitmapContextClipTransformIsCapturedInDeviceSpace() throws {
+        let context = try makeBitmapContext(width: 4, height: 1)
+        context.translateBy(x: 1, y: 0)
+        context.clip(to: CGRect(x: 0, y: 0, width: 2, height: 1))
+        context.translateBy(x: -1, y: 0)
+        context.setFillColor(red: 0, green: 1, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 4, height: 1))
+
+        #expect(try bitmapAlphas(in: context) == [0, 255, 255, 0])
+    }
+
     private func makeBitmapContext(width: Int, height: Int) throws -> CGContext {
         try #require(CGContext(
             data: nil,
