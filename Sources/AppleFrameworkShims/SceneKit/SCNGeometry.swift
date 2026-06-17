@@ -152,23 +152,41 @@ public class SCNGeometry: @unchecked Sendable {
 
 extension SCNGeometrySource {
     func quillVector3Values() -> [SCNVector3] {
-        guard usesFloatComponents,
-              vectorCount > 0,
-              componentsPerVector > 0,
-              bytesPerComponent > 0,
-              dataOffset >= 0 else { return [] }
-        let stride = dataStride > 0 ? dataStride : componentsPerVector * bytesPerComponent
+        guard let stride = quillValidatedVectorStride() else { return [] }
         return data.withUnsafeBytes { raw in
             (0..<vectorCount).compactMap { i in
                 let base = dataOffset + i * stride
-                let requiredBytes = componentsPerVector * bytesPerComponent
-                guard base >= 0, requiredBytes > 0, base + requiredBytes <= raw.count else { return nil }
                 guard let x = component(at: base, in: raw) else { return nil }
                 let y = componentsPerVector > 1 ? component(at: base + bytesPerComponent, in: raw) ?? 0 : 0
                 let z = componentsPerVector > 2 ? component(at: base + 2 * bytesPerComponent, in: raw) ?? 0 : 0
                 return SCNVector3(x, y, z)
             }
         }
+    }
+
+    private func quillValidatedVectorStride() -> Int? {
+        guard usesFloatComponents,
+              vectorCount > 0,
+              componentsPerVector > 0,
+              dataOffset >= 0,
+              (bytesPerComponent == MemoryLayout<Float>.size || bytesPerComponent == MemoryLayout<Double>.size) else {
+            return nil
+        }
+
+        let requiredBytesResult = componentsPerVector.multipliedReportingOverflow(by: bytesPerComponent)
+        guard !requiredBytesResult.overflow, requiredBytesResult.partialValue > 0 else { return nil }
+        let requiredBytes = requiredBytesResult.partialValue
+        let stride = dataStride > 0 ? dataStride : requiredBytes
+        guard stride >= requiredBytes else { return nil }
+
+        let lastIndex = vectorCount - 1
+        let lastStrideResult = lastIndex.multipliedReportingOverflow(by: stride)
+        guard !lastStrideResult.overflow else { return nil }
+        let lastBaseResult = dataOffset.addingReportingOverflow(lastStrideResult.partialValue)
+        guard !lastBaseResult.overflow else { return nil }
+        let lastEndResult = lastBaseResult.partialValue.addingReportingOverflow(requiredBytes)
+        guard !lastEndResult.overflow, lastEndResult.partialValue <= data.count else { return nil }
+        return stride
     }
 
     private func component(at offset: Int, in raw: UnsafeRawBufferPointer) -> CGFloat? {

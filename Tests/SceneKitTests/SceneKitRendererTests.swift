@@ -137,6 +137,30 @@ struct SceneKitRendererTests {
             dataStride: 0
         )
         #expect(negativeOffsetSource.quillVector3Values().isEmpty)
+
+        let shortStrideSource = SCNGeometrySource(
+            data: data,
+            semantic: .vertex,
+            vectorCount: 1,
+            usesFloatComponents: true,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: MemoryLayout<Float>.size * 2
+        )
+        #expect(shortStrideSource.quillVector3Values().isEmpty)
+
+        let overflowingSource = SCNGeometrySource(
+            data: data,
+            semantic: .vertex,
+            vectorCount: Int.max,
+            usesFloatComponents: true,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: Int.max
+        )
+        #expect(overflowingSource.quillVector3Values().isEmpty)
     }
 
     @Test("Software renderer applies material intensity and transparency")
