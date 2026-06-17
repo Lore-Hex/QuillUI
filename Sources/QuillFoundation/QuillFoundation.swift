@@ -4348,6 +4348,12 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         }
 
         context.saveGState()
+        switch operation {
+        case .copy:
+            context.setBlendMode(.copy)
+        case .sourceOver:
+            context.setBlendMode(.normal)
+        }
         context.setAlpha(CGFloat(fraction))
         context.draw(imageToDraw, in: destinationRect)
         context.restoreGState()

@@ -834,6 +834,7 @@ struct CompatibilityModuleTests {
         let result = try AppleCompatibilitySmoke.runAppKitImageSmoke()
         #expect(result.sizeRoundTrip)
         #expect(result.focusBitmapCreated)
+        #expect(result.copyDrawReplacesDestination)
         #expect(result.namedImagePlaceholder)
         #expect(result.systemImagePlaceholder)
         #expect(result.workspaceFileIconPlaceholder)
