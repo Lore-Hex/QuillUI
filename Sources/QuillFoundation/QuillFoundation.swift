@@ -1439,6 +1439,8 @@ public final class CGContext {
     public var textPosition: CGPoint = .zero
     private var quillBitmapBytes: [UInt8]?
     private var quillFillRGBA: [CGFloat] = [0, 0, 0, 1]
+    private var quillStrokeRGBA: [CGFloat] = [0, 0, 0, 1]
+    private var quillLineWidth: CGFloat = 1
     private var quillAlpha: CGFloat = 1
     private var quillCTM: CGAffineTransform = .identity
     private var quillStateStack: [QuillGraphicsState] = []
@@ -1446,6 +1448,8 @@ public final class CGContext {
 
     private struct QuillGraphicsState {
         var fillRGBA: [CGFloat]
+        var strokeRGBA: [CGFloat]
+        var lineWidth: CGFloat
         var alpha: CGFloat
         var ctm: CGAffineTransform
     }
@@ -1579,18 +1583,30 @@ public final class CGContext {
         )
     }
 
-    private func quillPremultipliedFillColor() -> QuillPremultipliedBGRA? {
-        let sourceAlpha = Self.quillClampedUnit(quillFillRGBA[3] * quillAlpha)
+    private func quillPremultipliedColor(from rgba: [CGFloat]) -> QuillPremultipliedBGRA? {
+        let red = rgba.indices.contains(0) ? rgba[0] : 0
+        let green = rgba.indices.contains(1) ? rgba[1] : 0
+        let blue = rgba.indices.contains(2) ? rgba[2] : 0
+        let alpha = rgba.indices.contains(3) ? rgba[3] : 1
+        let sourceAlpha = Self.quillClampedUnit(alpha * quillAlpha)
         guard sourceAlpha > 0 else {
             return nil
         }
 
         return QuillPremultipliedBGRA(
-            blue: quillFillRGBA[2] * sourceAlpha,
-            green: quillFillRGBA[1] * sourceAlpha,
-            red: quillFillRGBA[0] * sourceAlpha,
+            blue: blue * sourceAlpha,
+            green: green * sourceAlpha,
+            red: red * sourceAlpha,
             alpha: sourceAlpha
         )
+    }
+
+    private func quillPremultipliedFillColor() -> QuillPremultipliedBGRA? {
+        quillPremultipliedColor(from: quillFillRGBA)
+    }
+
+    private func quillPremultipliedStrokeColor() -> QuillPremultipliedBGRA? {
+        quillPremultipliedColor(from: quillStrokeRGBA)
     }
 
     private static func quillCompositePremultipliedBGRA(
@@ -1683,10 +1699,16 @@ public final class CGContext {
     }
 
     private func quillFillBitmap(_ rect: CGRect) {
+        guard let source = quillPremultipliedFillColor() else {
+            return
+        }
+        quillFillBitmap(rect, source: source)
+    }
+
+    private func quillFillBitmap(_ rect: CGRect, source: QuillPremultipliedBGRA) {
         guard quillCanDrawCurrentBitmap,
               let bounds = quillPixelBounds(for: rect.applying(quillCTM)),
               let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
-              let source = quillPremultipliedFillColor(),
               quillBitmapBytes != nil
         else {
             return
@@ -1707,6 +1729,13 @@ public final class CGContext {
     }
 
     private func quillFillBitmapPath(_ path: CGPath, using rule: CGPathFillRule) {
+        guard let source = quillPremultipliedFillColor() else {
+            return
+        }
+        quillFillBitmapPath(path, using: rule, source: source)
+    }
+
+    private func quillFillBitmapPath(_ path: CGPath, using rule: CGPathFillRule, source: QuillPremultipliedBGRA) {
         let userBounds = path.boundingBoxOfPath
         guard quillCanDrawCurrentBitmap,
               !path.isEmpty,
@@ -1714,7 +1743,6 @@ public final class CGContext {
               let bounds = quillPixelBounds(for: userBounds.applying(quillCTM)),
               let inverseCTM = Self.quillInverse(quillCTM),
               let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
-              let source = quillPremultipliedFillColor(),
               quillBitmapBytes != nil
         else {
             return
@@ -1734,6 +1762,50 @@ public final class CGContext {
                     offset += 4
                 }
             }
+        }
+    }
+
+    private func quillStrokeBitmapShape(_ rect: CGRect, addShape: (CGMutablePath, CGRect) -> Void) {
+        guard let userRect = Self.quillNormalizedRect(rect),
+              quillLineWidth.isFinite,
+              quillLineWidth > 0,
+              let source = quillPremultipliedStrokeColor()
+        else {
+            return
+        }
+
+        let halfWidth = quillLineWidth / 2
+        let path = CGMutablePath()
+        addShape(path, CGRect(
+            x: userRect.minX - halfWidth,
+            y: userRect.minY - halfWidth,
+            width: userRect.width + quillLineWidth,
+            height: userRect.height + quillLineWidth
+        ))
+
+        let innerWidth = userRect.width - quillLineWidth
+        let innerHeight = userRect.height - quillLineWidth
+        if innerWidth > 0, innerHeight > 0 {
+            addShape(path, CGRect(
+                x: userRect.minX + halfWidth,
+                y: userRect.minY + halfWidth,
+                width: innerWidth,
+                height: innerHeight
+            ))
+        }
+
+        quillFillBitmapPath(path, using: .evenOdd, source: source)
+    }
+
+    private func quillStrokeBitmapRect(_ rect: CGRect) {
+        quillStrokeBitmapShape(rect) { path, shapeRect in
+            path.addRect(shapeRect)
+        }
+    }
+
+    private func quillStrokeBitmapEllipse(_ rect: CGRect) {
+        quillStrokeBitmapShape(rect) { path, shapeRect in
+            path.addEllipse(in: shapeRect)
         }
     }
 
@@ -1920,10 +1992,25 @@ public final class CGContext {
         quillFillRGBA = Self.quillNormalizedFillRGBA(rgba)
         quillBackend?.setFillColor(rgba)
     }
-    public func setStrokeColor(_ color: Any?) {}
-    public func setStrokeColor(_ color: RSCGColor) { quillBackend?.setStrokeColor(quillNormalizedRGBA(color)) }
-    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setStrokeColor([red, green, blue, alpha]) }
-    public func setLineWidth(_ width: CGFloat) { quillBackend?.setLineWidth(width) }
+    public func setStrokeColor(_ color: Any?) {
+        if let color = color as? RSCGColor {
+            setStrokeColor(color)
+        }
+    }
+    public func setStrokeColor(_ color: RSCGColor) {
+        let rgba = quillNormalizedRGBA(color)
+        quillStrokeRGBA = Self.quillNormalizedFillRGBA(rgba)
+        quillBackend?.setStrokeColor(rgba)
+    }
+    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        let rgba = [red, green, blue, alpha]
+        quillStrokeRGBA = Self.quillNormalizedFillRGBA(rgba)
+        quillBackend?.setStrokeColor(rgba)
+    }
+    public func setLineWidth(_ width: CGFloat) {
+        quillLineWidth = width.isFinite ? Swift.max(0, width) : 0
+        quillBackend?.setLineWidth(width)
+    }
     public func setLineCap(_ cap: CGLineCap) { quillBackend?.setLineCap(cap) }
     public func setLineJoin(_ join: CGLineJoin) { quillBackend?.setLineJoin(join) }
     public func setMiterLimit(_ limit: CGFloat) {}
@@ -1966,8 +2053,14 @@ public final class CGContext {
         quillBackend?.clear(rect)
         quillClearBitmap(rect)
     }
-    public func stroke(_ rect: CGRect) { quillBackend?.stroke(rect) }
-    public func strokeEllipse(in rect: CGRect) { quillBackend?.strokeEllipse(in: rect) }
+    public func stroke(_ rect: CGRect) {
+        quillBackend?.stroke(rect)
+        quillStrokeBitmapRect(rect)
+    }
+    public func strokeEllipse(in rect: CGRect) {
+        quillBackend?.strokeEllipse(in: rect)
+        quillStrokeBitmapEllipse(rect)
+    }
     public func strokeLineSegments(between points: [CGPoint]) { quillBackend?.strokeLineSegments(between: points) }
     public func strokePath() {
         quillBackend?.strokePath()
@@ -2087,12 +2180,20 @@ public final class CGContext {
     public func clip(to rect: CGRect, mask image: Any) {}
 
     public func saveGState() {
-        quillStateStack.append(QuillGraphicsState(fillRGBA: quillFillRGBA, alpha: quillAlpha, ctm: quillCTM))
+        quillStateStack.append(QuillGraphicsState(
+            fillRGBA: quillFillRGBA,
+            strokeRGBA: quillStrokeRGBA,
+            lineWidth: quillLineWidth,
+            alpha: quillAlpha,
+            ctm: quillCTM
+        ))
         quillBackend?.saveGState()
     }
     public func restoreGState() {
         if let state = quillStateStack.popLast() {
             quillFillRGBA = state.fillRGBA
+            quillStrokeRGBA = state.strokeRGBA
+            quillLineWidth = state.lineWidth
             quillAlpha = state.alpha
             quillCTM = state.ctm
         }

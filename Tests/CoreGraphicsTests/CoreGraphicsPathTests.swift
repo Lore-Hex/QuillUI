@@ -568,6 +568,55 @@ struct CoreGraphicsPathTests {
         #expect(!context.isPathEmpty)
     }
 
+    @Test("CGContext bitmap stroke uses stroke color and line width")
+    func bitmapContextStrokeRectUsesStrokeColorAndLineWidth() throws {
+        let context = try makeBitmapContext(width: 5, height: 5)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.setStrokeColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.setLineWidth(1)
+        context.stroke(CGRect(x: 1.5, y: 1.5, width: 2, height: 2))
+
+        let pixels = try bitmapPixels(in: context)
+        #expect(try bitmapAlphas(in: context) == [
+            0, 0, 0, 0, 0,
+            0, 255, 255, 255, 0,
+            0, 255, 0, 255, 0,
+            0, 255, 255, 255, 0,
+            0, 0, 0, 0, 0,
+        ])
+        #expect(pixelBGRA(in: pixels, width: 5, x: 1, y: 1) == [255, 0, 0, 255])
+        #expect(pixelBGRA(in: pixels, width: 5, x: 2, y: 2) == [0, 0, 0, 0])
+    }
+
+    @Test("CGContext bitmap graphics state restores stroke color and width")
+    func bitmapContextRestoreGraphicsStateRestoresStrokeColorAndWidth() throws {
+        let context = try makeBitmapContext(width: 5, height: 5)
+        context.setStrokeColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.setLineWidth(1)
+        context.saveGState()
+        context.setStrokeColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.setLineWidth(3)
+        context.restoreGState()
+        context.stroke(CGRect(x: 1.5, y: 1.5, width: 2, height: 2))
+
+        let pixels = try bitmapPixels(in: context)
+        #expect(pixelBGRA(in: pixels, width: 5, x: 1, y: 1) == [0, 0, 255, 255])
+        #expect(pixelBGRA(in: pixels, width: 5, x: 2, y: 2) == [0, 0, 0, 0])
+    }
+
+    @Test("CGContext bitmap strokeEllipse rasterizes a stroked ring")
+    func bitmapContextStrokeEllipseRasterizesRing() throws {
+        let context = try makeBitmapContext(width: 5, height: 5)
+        context.setStrokeColor(red: 0, green: 1, blue: 0, alpha: 1)
+        context.setLineWidth(1)
+        context.strokeEllipse(in: CGRect(x: 1.5, y: 1.5, width: 2, height: 2))
+
+        let pixels = try bitmapPixels(in: context)
+        #expect(pixelBGRA(in: pixels, width: 5, x: 2, y: 1) == [0, 255, 0, 255])
+        #expect(pixelBGRA(in: pixels, width: 5, x: 2, y: 2) == [0, 0, 0, 0])
+        #expect(pixelBGRA(in: pixels, width: 5, x: 0, y: 0) == [0, 0, 0, 0])
+    }
+
     private func makeBitmapContext(width: Int, height: Int) throws -> CGContext {
         try #require(CGContext(
             data: nil,
@@ -588,6 +637,11 @@ struct CoreGraphicsPathTests {
     private func bitmapAlphas(in context: CGContext) throws -> [UInt8] {
         let pixels = try bitmapPixels(in: context)
         return stride(from: 3, to: pixels.count, by: 4).map { pixels[$0] }
+    }
+
+    private func pixelBGRA(in pixels: [UInt8], width: Int, x: Int, y: Int) -> [UInt8] {
+        let offset = (y * width + x) * 4
+        return Array(pixels[offset..<(offset + 4)])
     }
     #endif
 
