@@ -2882,6 +2882,7 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_DRIVER"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_START_DRIVER"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_STOP_DRIVER"))
+        #expect(solderScopeSmoke.contains("local recording_stop_driver=\"${QUILLUI_SOLDERSCOPE_RECORDING_STOP_DRIVER:-toolbar}\""))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET"))

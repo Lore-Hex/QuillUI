@@ -714,7 +714,7 @@ quillui_drive_solderscope_interaction() {
   if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
     local recording_driver="${QUILLUI_SOLDERSCOPE_RECORDING_DRIVER:-shortcut}"
     local recording_start_driver="${QUILLUI_SOLDERSCOPE_RECORDING_START_DRIVER:-$recording_driver}"
-    local recording_stop_driver="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_DRIVER:-$recording_driver}"
+    local recording_stop_driver="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_DRIVER:-toolbar}"
     local recording_stop_fallback_driver
     recording_stop_fallback_driver="$(quillui_solderscope_recording_stop_fallback_driver "$recording_stop_driver")" || return $?
     local recording_started_before
