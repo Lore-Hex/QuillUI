@@ -423,6 +423,9 @@ struct SceneKitRendererTests {
         expectVector(child.worldFront, closeTo: SCNVector3(-1, 0, 0))
         expectVector(child.worldRight, closeTo: SCNVector3(0, 0, -1))
         expectVector(child.worldUp, closeTo: SCNVector3(0, 1, 0))
+        expectSIMD3(child.simdWorldFront, closeTo: SIMD3<Float>(-1, 0, 0))
+        expectSIMD3(child.simdWorldRight, closeTo: SIMD3<Float>(0, 0, -1))
+        expectSIMD3(child.simdWorldUp, closeTo: SIMD3<Float>(0, 1, 0))
     }
 
     @Test("SCNNode converts positions and vectors across coordinate spaces")
@@ -1567,6 +1570,12 @@ struct SceneKitRendererTests {
     }
 
     private func expectVector(_ actual: SCNVector3, closeTo expected: SCNVector3, tolerance: CGFloat = 0.0001) {
+        #expect(abs(actual.x - expected.x) <= tolerance)
+        #expect(abs(actual.y - expected.y) <= tolerance)
+        #expect(abs(actual.z - expected.z) <= tolerance)
+    }
+
+    private func expectSIMD3(_ actual: SIMD3<Float>, closeTo expected: SIMD3<Float>, tolerance: Float = 0.0001) {
         #expect(abs(actual.x - expected.x) <= tolerance)
         #expect(abs(actual.y - expected.y) <= tolerance)
         #expect(abs(actual.z - expected.z) <= tolerance)

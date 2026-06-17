@@ -85,12 +85,15 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     public var worldFront: SCNVector3 {
         quillWorldDirection(Vector3(0, 0, -1), fallback: Vector3(0, 0, -1))
     }
+    public var simdWorldFront: SIMD3<Float> { worldFront.quillSIMD3 }
     public var worldRight: SCNVector3 {
         quillWorldDirection(Vector3(1, 0, 0), fallback: Vector3(1, 0, 0))
     }
+    public var simdWorldRight: SIMD3<Float> { worldRight.quillSIMD3 }
     public var worldUp: SCNVector3 {
         quillWorldDirection(Vector3(0, 1, 0), fallback: Vector3(0, 1, 0))
     }
+    public var simdWorldUp: SIMD3<Float> { worldUp.quillSIMD3 }
     public var worldTransform: SCNMatrix4 {
         get { Matrix4.worldTransform(for: self).scnMatrix }
         set {
