@@ -72,6 +72,7 @@ struct QuillSceneKitRenderSmoke {
 
         try runCameraControlSmoke()
         try runHitTestSmoke()
+        try runActionSmoke()
 
         log("SceneKit render smoke passed")
         log("sphere: \(sphereStats)")
@@ -315,6 +316,49 @@ struct QuillSceneKitRenderSmoke {
         )
         try require(miss.isEmpty, "corner hit unexpectedly returned \(miss.count) node(s)")
         log("hitTest smoke passed hits=\(hits.count)")
+    }
+
+    private static func runActionSmoke() throws {
+        let scene = SCNScene()
+        let movingNode = SCNNode()
+        scene.rootNode.addChildNode(movingNode)
+        movingNode.runAction(.sequence([
+            .move(by: SCNVector3(1, 0, 0), duration: 1),
+            .rotateBy(x: 0, y: .pi, z: 0, duration: 1),
+            .scale(by: 2, duration: 1),
+        ]))
+
+        scene.quillStepActions(by: 1.5)
+        try require(abs(movingNode.position.x - 1) < 0.0001, "sequence action lost completed move")
+        try require(abs(movingNode.eulerAngles.y - .pi / 2) < 0.0001, "sequence action did not sample partial rotation")
+        try require(movingNode.scale == SCNVector3(1, 1, 1), "sequence action scaled before reaching scale step")
+
+        scene.quillStepActions(by: 1.5)
+        try require(abs(movingNode.eulerAngles.y - .pi) < 0.0001, "sequence action did not finish rotation")
+        try require(movingNode.scale == SCNVector3(2, 2, 2), "sequence action did not finish scale")
+        try require(!movingNode.hasActions, "sequence action did not clear when complete")
+
+        let groupNode = SCNNode()
+        groupNode.runAction(.group([
+            .move(by: SCNVector3(4, 0, 0), duration: 2),
+            .fadeOpacity(to: 0.25, duration: 1),
+        ]))
+        groupNode.quillStepActions(by: 1)
+        try require(abs(groupNode.position.x - 2) < 0.0001, "group action did not sample partial move")
+        try require(abs(groupNode.opacity - 0.25) < 0.0001, "group action did not complete short fade")
+        try require(groupNode.hasActions, "group action cleared before longest child completed")
+
+        let repeated = SCNNode()
+        let pattern = SCNAction.sequence([
+            .move(by: SCNVector3(1, 0, 0), duration: 0.01),
+            .rotateBy(x: 0, y: 0.5, z: 0, duration: 0.01),
+        ])
+        repeated.runAction(SCNAction.repeat(pattern, count: 300))
+        repeated.quillStepActions(by: pattern.duration * 300)
+        try require(abs(repeated.position.x - 300) < 0.0001, "composite repeat did not apply all completed move cycles")
+        try require(abs(repeated.eulerAngles.y - 150) < 0.0001, "composite repeat did not apply all completed rotate cycles")
+        try require(!repeated.hasActions, "finite repeat did not clear when complete")
+        log("action smoke passed")
     }
 
     @MainActor

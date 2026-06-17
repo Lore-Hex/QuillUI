@@ -39,6 +39,18 @@ public final class QtCairoCGContextBackend: QuillCGContextBackend {
                               Double(rgba[3] * state.alpha))
     }
 
+    private func withFillRule(_ rule: CGPathFillRule, _ body: () -> Void) {
+        let previous = cairo_get_fill_rule(cr)
+        switch rule {
+        case .winding:
+            cairo_set_fill_rule(cr, CAIRO_FILL_RULE_WINDING)
+        case .evenOdd:
+            cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD)
+        }
+        body()
+        cairo_set_fill_rule(cr, previous)
+    }
+
     public func saveGState() {
         cairo_save(cr)
         stack.append(state)
@@ -141,6 +153,31 @@ public final class QtCairoCGContextBackend: QuillCGContextBackend {
 
     public func addEllipse(in rect: CGRect) { appendEllipsePath(in: rect) }
 
+    public func addQuadCurve(to end: CGPoint, control: CGPoint) {
+        var currentX = 0.0
+        var currentY = 0.0
+        cairo_get_current_point(cr, &currentX, &currentY)
+        let current = CGPoint(x: currentX, y: currentY)
+        let control1 = CGPoint(
+            x: current.x + (control.x - current.x) * 2 / 3,
+            y: current.y + (control.y - current.y) * 2 / 3
+        )
+        let control2 = CGPoint(
+            x: end.x + (control.x - end.x) * 2 / 3,
+            y: end.y + (control.y - end.y) * 2 / 3
+        )
+        addCurve(to: end, control1: control1, control2: control2)
+    }
+
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {
+        cairo_curve_to(
+            cr,
+            Double(control1.x), Double(control1.y),
+            Double(control2.x), Double(control2.y),
+            Double(end.x), Double(end.y)
+        )
+    }
+
     public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat,
                        endAngle: CGFloat, clockwise: Bool) {
         if clockwise {
@@ -157,12 +194,24 @@ public final class QtCairoCGContextBackend: QuillCGContextBackend {
         cairo_fill(cr)
     }
 
+    public func fillPath(using rule: CGPathFillRule) {
+        withFillRule(rule) {
+            fillPath()
+        }
+    }
+
     public func strokePath() {
         applySource(state.stroke)
         cairo_stroke(cr)
     }
 
     public func clip() { cairo_clip(cr) }
+
+    public func clip(using rule: CGPathFillRule) {
+        withFillRule(rule) {
+            cairo_clip(cr)
+        }
+    }
 
     public func clip(to rect: CGRect) {
         cairo_rectangle(cr, Double(rect.origin.x), Double(rect.origin.y),

@@ -25,6 +25,11 @@ public final class SCNScene: @unchecked Sendable {
         // Empty scene; the named-asset catalog is not modeled on QuillOS yet.
     }
 
+    public func quillStepActions(by deltaTime: TimeInterval) {
+        guard !isPaused else { return }
+        rootNode.quillStepActions(by: deltaTime)
+    }
+
     /// Exporting a scene to a model file (.scn/.dae/.obj/…) is a rung-4
     /// concern (it needs the exporters). The API shape matches macOS so
     /// callers — e.g. Euclid's `Mesh` writers — compile unmodified; it

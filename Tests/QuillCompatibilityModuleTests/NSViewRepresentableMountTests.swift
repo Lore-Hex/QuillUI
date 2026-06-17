@@ -35,11 +35,15 @@ private final class RecordingBackend: QuillCGContextBackend {
     func addLine(to point: CGPoint) { rec("line") }
     func addRect(_ rect: CGRect) { rec("addRect") }
     func addEllipse(in rect: CGRect) { rec("addEllipse") }
+    func addQuadCurve(to end: CGPoint, control: CGPoint) { rec("quad") }
+    func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) { rec("curve") }
     func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat,
                 endAngle: CGFloat, clockwise: Bool) { rec("arc") }
     func fillPath() { rec("fillPath") }
+    func fillPath(using rule: CGPathFillRule) { rec("fillPath(\(rule))") }
     func strokePath() { rec("strokePath") }
     func clip() { rec("clip") }
+    func clip(using rule: CGPathFillRule) { rec("clip(\(rule))") }
     func clip(to rect: CGRect) { rec("clipRect") }
     func draw(_ image: Any, in rect: CGRect, interpolationQuality: CGInterpolationQuality) { rec("drawImage") }
 }
@@ -66,6 +70,46 @@ struct NSViewRepresentableMountTests {
             "translate(160,120)",
             "rotate",
             "restore",
+        ])
+    }
+
+    @Test func cgContextForwardsPathCurvesToBackend() {
+        let backend = RecordingBackend()
+        let ctx = CGContext(quillBackend: backend)
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: 2, y: 0))
+        path.addQuadCurve(to: CGPoint(x: 4, y: 0), control: CGPoint(x: 3, y: 1))
+        path.addCurve(
+            to: CGPoint(x: 8, y: 0),
+            control1: CGPoint(x: 5, y: 2),
+            control2: CGPoint(x: 7, y: 2)
+        )
+        path.closeSubpath()
+
+        ctx.addRects([
+            CGRect(x: 0, y: 0, width: 1, height: 1),
+            CGRect(x: 1, y: 1, width: 2, height: 2),
+        ])
+        ctx.addPath(path)
+        ctx.addQuadCurve(to: CGPoint(x: 1, y: 1), control: CGPoint(x: 0, y: 1))
+        ctx.addCurve(to: CGPoint(x: 3, y: 1), control1: CGPoint(x: 1, y: 2), control2: CGPoint(x: 2, y: 2))
+        ctx.fillPath(using: .evenOdd)
+        ctx.clip(using: .evenOdd)
+
+        #expect(backend.ops == [
+            "addRect",
+            "addRect",
+            "move",
+            "line",
+            "quad",
+            "curve",
+            "closePath",
+            "quad",
+            "curve",
+            "fillPath(evenOdd)",
+            "clip(evenOdd)",
         ])
     }
 
