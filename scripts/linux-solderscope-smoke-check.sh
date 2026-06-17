@@ -308,27 +308,25 @@ quillui_solderscope_verify_freeze_attempt() {
     quill-solderscope-freeze-interaction >/dev/null 2>&1
 }
 
-quillui_solderscope_wait_for_recording_ui_settled() {
-  local probe_path
-  probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-recording-ui.XXXXXX.png")"
-  local check_log="/tmp/quill-solderscope-recording-ui-check.log"
-  local deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_RECORDING_UI_SETTLE_SECONDS:-8}))
+quillui_solderscope_wait_for_recording_idle() {
+  local idle_probe_path
+  idle_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-recording-idle.XXXXXX.png")"
+  local idle_deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_RECORDING_IDLE_WAIT_SECONDS:-8}))
   local last_error=""
-
-  while (( SECONDS <= deadline )); do
-    DISPLAY="$DISPLAY_ID" import -window root "$probe_path" 2>/dev/null || true
-    if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" quill-solderscope-interaction >"$check_log" 2>&1; then
-      rm -f "$probe_path" "$check_log"
-      echo "SolderScope interaction smoke: recording UI settled after stop" >&2
+  while (( SECONDS <= idle_deadline )); do
+    DISPLAY="$DISPLAY_ID" import -window root "$idle_probe_path" 2>/dev/null || true
+    if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$idle_probe_path" quill-solderscope-interaction >/tmp/quill-solderscope-recording-idle-check.log 2>&1; then
+      rm -f "$idle_probe_path" /tmp/quill-solderscope-recording-idle-check.log
+      echo "SolderScope interaction smoke: recording indicator cleared" >&2
       return 0
     fi
-    last_error="$(tail -n 1 "$check_log" 2>/dev/null || true)"
-    sleep "${QUILLUI_SOLDERSCOPE_RECORDING_UI_SETTLE_TICK_SECONDS:-0.5}"
+    last_error="$(tail -n 1 /tmp/quill-solderscope-recording-idle-check.log 2>/dev/null || true)"
+    sleep "${QUILLUI_SOLDERSCOPE_RECORDING_IDLE_TICK_SECONDS:-0.5}"
   done
 
-  cp "$probe_path" "${SCREENSHOT_PATH%.png}-recording-settle.png" 2>/dev/null || true
-  rm -f "$probe_path" "$check_log"
-  echo "SolderScope interaction smoke recording UI did not settle after stop: $last_error" >&2
+  echo "SolderScope interaction smoke did not observe recording UI return to idle: $last_error" >&2
+  cp -f "$idle_probe_path" "$SCREENSHOT_PATH" 2>/dev/null || true
+  rm -f "$idle_probe_path" /tmp/quill-solderscope-recording-idle-check.log
   return 1
 }
 
@@ -585,6 +583,7 @@ quillui_drive_solderscope_interaction() {
         quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-start "${QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
         ;;
       shortcut)
+        echo "SolderScope interaction smoke: shortcut record-start key r" >&2
         quillui_solderscope_send_key "$window_id" r
         ;;
       *)
@@ -614,6 +613,7 @@ quillui_drive_solderscope_interaction() {
             quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-start-retry "${QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
             ;;
           shortcut)
+            echo "SolderScope interaction smoke: shortcut record-start-retry key r" >&2
             quillui_solderscope_send_key "$window_id" r
             ;;
         esac
@@ -630,6 +630,7 @@ quillui_drive_solderscope_interaction() {
         quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-stop "${QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
         ;;
       shortcut)
+        echo "SolderScope interaction smoke: shortcut record-stop key r" >&2
         quillui_solderscope_send_key "$window_id" r
         ;;
       *)
@@ -641,6 +642,7 @@ quillui_drive_solderscope_interaction() {
     local recording_path=""
     local recording_saved_count="$recording_saved_before"
     local recording_verified=0
+    local recording_stop_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-}"
     for attempt in {1..40}; do
       recording_saved_count="$(quillui_solderscope_recording_saved_log_count)"
       recording_count="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
@@ -652,12 +654,13 @@ quillui_drive_solderscope_interaction() {
           break
         fi
       fi
-      if (( attempt == ${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-20} )); then
+      if [[ -n "$recording_stop_retry_tick" ]] && (( recording_saved_count <= recording_saved_before && attempt == recording_stop_retry_tick )); then
         case "$recording_stop_driver" in
           toolbar)
             quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-stop-retry "${QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
             ;;
           shortcut)
+            echo "SolderScope interaction smoke: shortcut record-stop-retry key r" >&2
             quillui_solderscope_send_key "$window_id" r
             ;;
         esac
@@ -674,7 +677,7 @@ quillui_drive_solderscope_interaction() {
       echo "SolderScope interaction smoke did not observe a finalized recording file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi
-    quillui_solderscope_wait_for_recording_ui_settled || return $?
+    quillui_solderscope_wait_for_recording_idle
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
