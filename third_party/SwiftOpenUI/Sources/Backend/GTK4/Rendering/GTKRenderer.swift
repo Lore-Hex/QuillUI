@@ -147,6 +147,7 @@ public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) ->
 public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
 public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil
 public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
+public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil
 
 private final class GTKTextBindingIdleUpdate {
     let binding: Binding<String>
@@ -1104,6 +1105,13 @@ extension Button: GTKRenderable, GTKDescribable {
                 handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), true) ?? false
             case .quillPaintMacBordered:
                 handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+            case let .quillPaintMacListRow(isSelected, drawsIdleBackground):
+                handledByQuillPaint = quill_gtk_list_row_paint_hook?(
+                    OpaquePointer(button),
+                    OpaquePointer(childWidget),
+                    isSelected,
+                    drawsIdleBackground
+                ) ?? false
             default:
                 handledByQuillPaint = false
             }
@@ -1195,7 +1203,7 @@ extension Button: GTKRenderable, GTKDescribable {
                     border: 1px solid @borders; border-radius: 6px;
                     padding: 6px 12px;
                     """)
-            case .automatic:
+            case .automatic, .quillPaintMacListRow(_, _):
                 break // default GTK button styling
             }
         }

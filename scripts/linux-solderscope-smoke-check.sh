@@ -120,8 +120,20 @@ quillui_solderscope_focus_window() {
 quillui_solderscope_send_key() {
   local window_id="$1"
   local key="$2"
+  local key_driver="${QUILLUI_SOLDERSCOPE_KEY_DRIVER:-window}"
   quillui_solderscope_focus_window "$window_id"
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" "$key"
+  case "$key_driver" in
+    active)
+      DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers "$key"
+      ;;
+    window)
+      DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" --clearmodifiers "$key"
+      ;;
+    *)
+      echo "Unsupported QUILLUI_SOLDERSCOPE_KEY_DRIVER='$key_driver' (expected active or window)" >&2
+      return 64
+      ;;
+  esac
   sleep "${QUILLUI_SOLDERSCOPE_KEY_SETTLE_SECONDS:-0.05}"
 }
 
@@ -215,6 +227,11 @@ if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
   fi
   mkdir -p "$SOLDERSCOPE_DESKTOP_DIR"
   SOLDERSCOPE_RECORDING_BEFORE_COUNT="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
+fi
+
+SOLDERSCOPE_FREEZE_DRIVER="${QUILLUI_SOLDERSCOPE_FREEZE_DRIVER:-shortcut}"
+if [[ "$SMOKE_MODE" == "interaction" && "$SOLDERSCOPE_FREEZE_DRIVER" != "none" ]]; then
+  VERIFY_PRODUCT="quill-solderscope-freeze-interaction"
 fi
 
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
@@ -347,7 +364,10 @@ quillui_drive_solderscope_interaction() {
     recording_started_before="$(quillui_solderscope_recording_started_log_count)"
     recording_saved_before="$(quillui_solderscope_recording_saved_log_count)"
     local recording_start_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_START_RETRY_TICK:-}"
-    local recording_start_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_RETRY_INTERVAL_TICKS:-10}"
+    # Starting the ffmpeg-backed writer is asynchronous. Re-sending "r" too
+    # quickly can queue a second start and leave the UI recording after the
+    # stop path succeeds, so the default retry is delayed.
+    local recording_start_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_RETRY_INTERVAL_TICKS:-30}"
     sleep "${QUILLUI_SOLDERSCOPE_PRE_RECORDING_SETTLE_SECONDS:-0.5}"
     case "$recording_start_driver" in
       toolbar)
@@ -363,7 +383,7 @@ quillui_drive_solderscope_interaction() {
     esac
     local recording_started_count="$recording_started_before"
     local recording_started=0
-    for attempt in {1..40}; do
+    for attempt in {1..80}; do
       recording_started_count="$(quillui_solderscope_recording_started_log_count)"
       if (( recording_started_count > recording_started_before )); then
         recording_started=1
@@ -445,7 +465,7 @@ quillui_drive_solderscope_interaction() {
     fi
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
-  local freeze_driver="${QUILLUI_SOLDERSCOPE_FREEZE_DRIVER:-none}"
+  local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
   case "$freeze_driver" in
     toolbar)
       quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-235}" freeze "${QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET:-46}"

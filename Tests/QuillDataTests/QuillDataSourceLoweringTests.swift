@@ -2452,6 +2452,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
         #expect(patchScript.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
         #expect(patchScript.contains("gtk_editable_get_text(OpaquePointer(editable))"))
+        #expect(patchScript.contains("case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)"))
+        #expect(patchScript.contains("quill_gtk_list_row_paint_hook"))
 
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
@@ -2501,6 +2503,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil"))
         #expect(patchedRenderer.contains("public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil"))
         #expect(patchedRenderer.contains("public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil"))
+        #expect(patchedRenderer.contains("public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil"))
+        #expect(patchedRenderer.contains("case let .quillPaintMacListRow(isSelected, drawsIdleBackground):"))
+        #expect(patchedRenderer.contains("quill_gtk_list_row_paint_hook?("))
         #expect(patchedRenderer.contains("var useQuillPaintTextField = false"))
         #expect(patchedRenderer.contains("quill_gtk_text_field_paint_hook?("))
         #expect(patchedRenderer.contains("extension SecureField: GTKRenderable"))

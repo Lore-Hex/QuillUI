@@ -284,11 +284,21 @@ replacement = """    /// Filled/prominent background.
     case quillPaintMacDefault
     /// QuillPaint macOS bordered button chrome.
     case quillPaintMacBordered
+    /// QuillPaint macOS sidebar/list-row chrome.
+    case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)
 """
 if "case quillPaintMacDefault" not in text:
     if needle not in text:
         raise SystemExit("SwiftOpenUI ButtonStyleType shape was not recognized")
     text = text.replace(needle, replacement, 1)
+elif "case quillPaintMacListRow" not in text:
+    text = text.replace(
+        "    /// QuillPaint macOS bordered button chrome.\n    case quillPaintMacBordered\n",
+        "    /// QuillPaint macOS bordered button chrome.\n    case quillPaintMacBordered\n"
+        "    /// QuillPaint macOS sidebar/list-row chrome.\n"
+        "    case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)\n",
+        1,
+    )
 path.write_text(text)
 PY
 fi
@@ -5949,7 +5959,8 @@ hook_decl = (
     "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
     "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
     "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
-    "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n\n"
+    "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n"
+    "public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil\n\n"
 )
 if "quill_gtk_button_paint_hook" not in text:
     marker = "// MARK: - GTK rendering protocol\n"
@@ -5975,6 +5986,13 @@ if "quill_gtk_toggle_paint_hook" not in text:
         "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
         "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
         "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
+        1,
+    )
+if "quill_gtk_list_row_paint_hook" not in text:
+    text = text.replace(
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n"
+        "public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil\n",
         1,
     )
 
@@ -6165,6 +6183,13 @@ if "case .quillPaintMacDefault:" not in text:
             handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), true) ?? false
         case .quillPaintMacBordered:
             handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+        case let .quillPaintMacListRow(isSelected, drawsIdleBackground):
+            handledByQuillPaint = quill_gtk_list_row_paint_hook?(
+                OpaquePointer(button),
+                OpaquePointer(childWidget),
+                isSelected,
+                drawsIdleBackground
+            ) ?? false
         default:
             handledByQuillPaint = false
         }
@@ -6225,7 +6250,7 @@ if "case .quillPaintMacDefault:" not in text:
                     border: 1px solid @borders; border-radius: 6px;
                     padding: 6px 12px;
                     """)
-            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered:
+            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered, .quillPaintMacListRow(_, _):
                 break
             }
         }
@@ -6237,6 +6262,40 @@ if "case .quillPaintMacDefault:" not in text:
 
 '''
     text = text[:start] + replacement + text[end:]
+
+if "case let .quillPaintMacListRow(isSelected, drawsIdleBackground):" not in text:
+    bordered_case = '''            case .quillPaintMacBordered:
+                handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+'''
+    list_row_case = '''            case .quillPaintMacBordered:
+                handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+            case let .quillPaintMacListRow(isSelected, drawsIdleBackground):
+                handledByQuillPaint = quill_gtk_list_row_paint_hook?(
+                    OpaquePointer(button),
+                    OpaquePointer(childWidget),
+                    isSelected,
+                    drawsIdleBackground
+                ) ?? false
+'''
+    if bordered_case not in text:
+        raise SystemExit("SwiftOpenUI Button QuillPaint bordered case was not recognized")
+    text = text.replace(bordered_case, list_row_case, 1)
+
+if ".quillPaintMacListRow(_, _)" not in text:
+    if "            case .automatic:\n                break // default GTK button styling\n" in text:
+        text = text.replace(
+            "            case .automatic:\n                break // default GTK button styling\n",
+            "            case .automatic, .quillPaintMacListRow(_, _):\n                break // default GTK button styling\n",
+            1,
+        )
+    elif "            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered:\n                break\n" in text:
+        text = text.replace(
+            "            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered:\n                break\n",
+            "            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered, .quillPaintMacListRow(_, _):\n                break\n",
+            1,
+        )
+    else:
+        raise SystemExit("SwiftOpenUI Button fallback style case was not recognized")
 
 button_extension_index = text.find("extension Button: GTKRenderable")
 if button_extension_index == -1:
