@@ -1231,6 +1231,24 @@ public struct QuillSidebarBottomNavigation: View {
     }
 }
 
+enum QuillDesktopChatInitialUtilitySheet {
+    static let showCompletionsEnvironmentKeys = [
+        "QUILLUI_CHAT_SHOW_COMPLETIONS_ON_START",
+        "QUILLUI_QUILL_CHAT_SHOW_COMPLETIONS_ON_START",
+        "QUILLUI_ENCHANTED_SHOW_COMPLETIONS_ON_START",
+        "QUILLUI_GTK_ENCHANTED_SHOW_COMPLETIONS_ON_START"
+    ]
+
+    static func showCompletions(environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        showCompletionsEnvironmentKeys.contains { key in
+            guard let rawValue = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+                return false
+            }
+            return ["1", "true", "yes", "on"].contains(rawValue)
+        }
+    }
+}
+
 public struct QuillDesktopSidebar<Content: View>: View {
     public var bottomActions: [QuillSidebarNavigationAction]
     private var content: Content
@@ -1273,7 +1291,7 @@ public struct QuillDesktopChatUtilitySidebar<
     private var completionsContent: CompletionsContent
     private var shortcutsContent: ShortcutsContent
     @State private var showSettings = false
-    @State private var showCompletions = false
+    @State private var showCompletions: Bool
     @State private var showShortcuts = false
 
     public init(
@@ -1290,6 +1308,7 @@ public struct QuillDesktopChatUtilitySidebar<
         self.settingsContent = settings()
         self.completionsContent = completions()
         self.shortcutsContent = shortcuts()
+        self._showCompletions = State(wrappedValue: QuillDesktopChatInitialUtilitySheet.showCompletions())
     }
 
     public var body: some View {
