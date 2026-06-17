@@ -6,6 +6,14 @@ import UIKit
 
 @Suite("SceneKit renderer", .serialized)
 struct SceneKitRendererTests {
+    @Test("SCNVector helpers and zero constants return matching vector values")
+    func vectorHelpersAndZeroConstantsReturnMatchingVectorValues() {
+        #expect(SCNVector3Zero == SCNVector3())
+        #expect(SCNVector4Zero == SCNVector4())
+        #expect(SCNVector3Make(1, 2, 3) == SCNVector3(1, 2, 3))
+        #expect(SCNVector4Make(4, 5, 6, 7) == SCNVector4(4, 5, 6, 7))
+    }
+
     @Test("Scene graph parenting rejects cycles")
     func sceneGraphParentingRejectsCycles() {
         let root = SCNNode()
@@ -423,6 +431,9 @@ struct SceneKitRendererTests {
         expectVector(child.worldFront, closeTo: SCNVector3(-1, 0, 0))
         expectVector(child.worldRight, closeTo: SCNVector3(0, 0, -1))
         expectVector(child.worldUp, closeTo: SCNVector3(0, 1, 0))
+        expectSIMD3(child.simdWorldFront, closeTo: SIMD3<Float>(-1, 0, 0))
+        expectSIMD3(child.simdWorldRight, closeTo: SIMD3<Float>(0, 0, -1))
+        expectSIMD3(child.simdWorldUp, closeTo: SIMD3<Float>(0, 1, 0))
     }
 
     @Test("SCNNode converts positions and vectors across coordinate spaces")
@@ -1353,6 +1364,55 @@ struct SceneKitRendererTests {
         #expect(miss.isEmpty)
     }
 
+    @MainActor
+    @Test("SCNView hitTest filters category bit masks and root nodes")
+    func scnViewHitTestFiltersCategoryBitMasksAndRootNodes() {
+        let scene = SCNScene()
+
+        let frontParent = SCNNode()
+        let front = SCNNode(geometry: SCNSphere(radius: 0.65))
+        front.categoryBitMask = 0b0010
+        frontParent.addChildNode(front)
+        scene.rootNode.addChildNode(frontParent)
+
+        let backParent = SCNNode()
+        let back = SCNNode(geometry: SCNSphere(radius: 0.65))
+        back.categoryBitMask = 0b0100
+        back.position = SCNVector3(0, 0, -0.8)
+        backParent.addChildNode(back)
+        scene.rootNode.addChildNode(backParent)
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let view = SCNView()
+        view.bounds = CGRect(x: 0, y: 0, width: 160, height: 120)
+        view.scene = scene
+        view.pointOfView = cameraNode
+
+        let center = CGPoint(x: 80, y: 60)
+        let allHits = view.hitTest(center, options: [.searchMode: SCNHitTestSearchMode.all])
+        #expect(allHits.first?.node === front)
+        #expect(allHits.contains { $0.node === back })
+
+        let maskedHits = view.hitTest(center, options: [
+            .searchMode: SCNHitTestSearchMode.all,
+            .categoryBitMask: 0b0100,
+        ])
+        #expect(maskedHits.map(\.node) == [back])
+
+        let rootedHits = view.hitTest(center, options: [
+            .searchMode: SCNHitTestSearchMode.all,
+            .rootNode: backParent,
+        ])
+        #expect(rootedHits.map(\.node) == [back])
+
+        let maskedMiss = view.hitTest(center, options: [.categoryBitMask: 0b1000])
+        #expect(maskedMiss.isEmpty)
+    }
+
     @Test("SCNAction stepping advances primitives and clears completed actions")
     func actionSteppingAdvancesPrimitiveActions() {
         let node = SCNNode()
@@ -1391,6 +1451,47 @@ struct SceneKitRendererTests {
         scene.quillStepActions(by: 1)
         #expect(abs(node.position.x - 2) < 0.0001)
         #expect(node.hasActions)
+    }
+
+    @Test("SCNAction Apple convenience constructors sample deterministic targets")
+    func actionConvenienceConstructorsSampleDeterministicTargets() {
+        let grouped = SCNNode()
+        grouped.position = SCNVector3(10, 0, 0)
+        grouped.scale = SCNVector3(1, 2, 3)
+        grouped.opacity = 0.5
+        grouped.runAction(.group([
+            .moveBy(x: 2, y: -4, z: 6, duration: 2),
+            .scale(to: 3, duration: 2),
+            .fadeOut(duration: 2),
+        ]))
+
+        grouped.quillStepActions(by: 1)
+        expectVector(grouped.position, closeTo: SCNVector3(11, -2, 3))
+        expectVector(grouped.scale, closeTo: SCNVector3(2, 2.5, 3))
+        #expect(abs(grouped.opacity - 0.25) < 0.0001)
+
+        grouped.quillStepActions(by: 1)
+        expectVector(grouped.position, closeTo: SCNVector3(12, -4, 6))
+        expectVector(grouped.scale, closeTo: SCNVector3(3, 3, 3))
+        #expect(abs(grouped.opacity) < 0.0001)
+        #expect(!grouped.hasActions)
+
+        let absolute = SCNNode()
+        absolute.position = SCNVector3(5, 0, 0)
+        absolute.opacity = 0.2
+        absolute.runAction(.group([
+            .move(to: SCNVector3(1, 2, 3), duration: 2),
+            .fadeIn(duration: 2),
+        ]))
+
+        absolute.quillStepActions(by: 1)
+        expectVector(absolute.position, closeTo: SCNVector3(3, 1, 1.5))
+        #expect(abs(absolute.opacity - 0.6) < 0.0001)
+
+        absolute.quillStepActions(by: 1)
+        expectVector(absolute.position, closeTo: SCNVector3(1, 2, 3))
+        #expect(abs(absolute.opacity - 1) < 0.0001)
+        #expect(!absolute.hasActions)
     }
 
     @Test("SCNAction repeatForever keeps running and keyed actions replace prior actions")
@@ -1567,6 +1668,12 @@ struct SceneKitRendererTests {
     }
 
     private func expectVector(_ actual: SCNVector3, closeTo expected: SCNVector3, tolerance: CGFloat = 0.0001) {
+        #expect(abs(actual.x - expected.x) <= tolerance)
+        #expect(abs(actual.y - expected.y) <= tolerance)
+        #expect(abs(actual.z - expected.z) <= tolerance)
+    }
+
+    private func expectSIMD3(_ actual: SIMD3<Float>, closeTo expected: SIMD3<Float>, tolerance: Float = 0.0001) {
         #expect(abs(actual.x - expected.x) <= tolerance)
         #expect(abs(actual.y - expected.y) <= tolerance)
         #expect(abs(actual.z - expected.z) <= tolerance)

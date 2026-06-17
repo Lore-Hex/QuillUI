@@ -2,6 +2,36 @@ import CoreGraphics
 import Testing
 
 struct CoreGraphicsEventTests {
+    @Test("CGEvent source state and tap enums use Apple raw values")
+    func eventSourceStateAndTapEnumsUseAppleRawValues() {
+        #expect(CGEventSourceStateID.privateState.rawValue == -1)
+        #expect(CGEventSourceStateID.combinedSessionState.rawValue == 0)
+        #expect(CGEventSourceStateID.hidSystemState.rawValue == 1)
+
+        #expect(CGEventTapLocation.cghidEventTap.rawValue == 0)
+        #expect(CGEventTapLocation.cgSessionEventTap.rawValue == 1)
+        #expect(CGEventTapLocation.cgAnnotatedSessionEventTap.rawValue == 2)
+    }
+
+    @Test("CGEventFlags use Apple event and modifier raw masks")
+    func eventFlagsUseAppleEventAndModifierRawMasks() {
+        #expect(CGEventFlags.maskNonCoalesced.rawValue == 1 << 8)
+        #expect(CGEventFlags.maskAlphaShift.rawValue == 1 << 16)
+        #expect(CGEventFlags.maskShift.rawValue == 1 << 17)
+        #expect(CGEventFlags.maskControl.rawValue == 1 << 18)
+        #expect(CGEventFlags.maskAlternate.rawValue == 1 << 19)
+        #expect(CGEventFlags.maskCommand.rawValue == 1 << 20)
+        #expect(CGEventFlags.maskNumericPad.rawValue == 1 << 21)
+        #expect(CGEventFlags.maskHelp.rawValue == 1 << 22)
+        #expect(CGEventFlags.maskSecondaryFn.rawValue == 1 << 23)
+
+        let shortcut: CGEventFlags = [.maskCommand, .maskShift]
+        #expect(shortcut.contains(.maskCommand))
+        #expect(shortcut.contains(.maskShift))
+        #expect(!shortcut.contains(.maskAlternate))
+        #expect(shortcut.rawValue == (1 << 20) | (1 << 17))
+    }
+
     @Test("CGEvent keyboard unicode strings round-trip and truncate")
     func keyboardUnicodeStringsRoundTripAndTruncate() throws {
         let source = try #require(CGEventSource(stateID: .combinedSessionState))

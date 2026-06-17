@@ -291,6 +291,27 @@ if [[ -n "$window_id" ]]; then
     esac
   done < <(DISPLAY="$DISPLAY_ID" xdotool getwindowgeometry --shell "$window_id")
 fi
+
+capture_backend_screenshot() {
+  local path="$1"
+  local capture_status=0
+  local capture_timeout="${QUILLUI_BACKEND_SCREENSHOT_TIMEOUT:-15s}"
+  local capture_kill_after="${QUILLUI_BACKEND_SCREENSHOT_KILL_AFTER:-2s}"
+
+  if timeout --kill-after="$capture_kill_after" "$capture_timeout" \
+      env DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$path"; then
+    return 0
+  fi
+
+  capture_status=$?
+  if [[ -s "$path" ]]; then
+    echo "interaction-check: screenshot import returned $capture_status after writing $path; continuing" >&2
+    return 0
+  fi
+
+  return "$capture_status"
+}
+
 # Diagnostics: make the click-target window explicit in the step log so a
 # wrong-window/stale-geometry interaction failure is self-explaining from CI
 # output alone (this race previously produced healthy-looking screenshots
@@ -299,8 +320,7 @@ echo "interaction-check: window='${window_id:-none}'" \
   "geometry=${window_x},${window_y} ${window_width}x${window_height}" \
   "capture='$capture_window' mode='$INTERACTION_MODE'" >&2
 if [[ -n "$window_id" && "${QUILLUI_BACKEND_PRECLICK_SCREENSHOT:-1}" == "1" ]]; then
-  DISPLAY="$DISPLAY_ID" import -window "$capture_window" \
-    "${SCREENSHOT_PATH%.png}-preclick.png" 2>/dev/null || true
+  capture_backend_screenshot "${SCREENSHOT_PATH%.png}-preclick.png" >/dev/null 2>&1 || true
 fi
 
 click_at() {
@@ -617,7 +637,7 @@ quill_chat_mac_reference_completions_panel_visible() {
 
   quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 1
   probe_path="$OUTPUT_DIR/quill-chat-completions-panel-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}.png"
-  DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" >/dev/null 2>&1 || return 1
+  capture_backend_screenshot "$probe_path" >/dev/null 2>&1 || return 1
   if python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
     "$probe_path" \
     quill-chat-linux-mac-reference-completions-panel \
@@ -1556,7 +1576,7 @@ elif quillui_is_backend_smoke_product "$PRODUCT"; then
         quillui_wait_for_window_geometry_change "$DISPLAY_ID" "$capture_window" \
           "$window_width" "$window_height" "${QUILLUI_BACKEND_SHEET_WAIT_SECONDS:-8}" || true
       fi
-      DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$smoke_attempt_screenshot" 2>/dev/null || true
+      capture_backend_screenshot "$smoke_attempt_screenshot" >/dev/null 2>&1 || true
       if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$smoke_attempt_screenshot" "$smoke_verify_product" >/dev/null 2>&1; then
         mv -f "$smoke_attempt_screenshot" "$SCREENSHOT_PATH"
         settled_capture_taken=1
@@ -1575,7 +1595,7 @@ else
     click_backend_header_action
 fi
 if [[ "$settled_capture_taken" != "1" ]]; then
-  DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
+  capture_backend_screenshot "$SCREENSHOT_PATH"
 fi
 
 verify_quill_chat_copy_clipboard_if_needed() {

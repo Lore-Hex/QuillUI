@@ -22,15 +22,21 @@ public struct CGEventFlags: OptionSet, Sendable {
         self.rawValue = rawValue
     }
 
-    public static let maskCommand = CGEventFlags(rawValue: 1 << 0)
-    public static let maskShift = CGEventFlags(rawValue: 1 << 1)
-    public static let maskAlternate = CGEventFlags(rawValue: 1 << 2)
-    public static let maskControl = CGEventFlags(rawValue: 1 << 3)
+    public static let maskNonCoalesced = CGEventFlags(rawValue: 1 << 8)
+    public static let maskAlphaShift = CGEventFlags(rawValue: 1 << 16)
+    public static let maskShift = CGEventFlags(rawValue: 1 << 17)
+    public static let maskControl = CGEventFlags(rawValue: 1 << 18)
+    public static let maskAlternate = CGEventFlags(rawValue: 1 << 19)
+    public static let maskCommand = CGEventFlags(rawValue: 1 << 20)
+    public static let maskNumericPad = CGEventFlags(rawValue: 1 << 21)
+    public static let maskHelp = CGEventFlags(rawValue: 1 << 22)
+    public static let maskSecondaryFn = CGEventFlags(rawValue: 1 << 23)
 }
 
-public enum CGEventSourceStateID: Sendable {
-    case hidSystemState
-    case combinedSessionState
+public enum CGEventSourceStateID: Int32, Sendable {
+    case privateState = -1
+    case combinedSessionState = 0
+    case hidSystemState = 1
 }
 
 public final class CGEventSource: @unchecked Sendable {
@@ -50,8 +56,10 @@ public final class CGEventSource: @unchecked Sendable {
     }
 }
 
-public enum CGEventTapLocation: Sendable {
-    case cghidEventTap
+public enum CGEventTapLocation: Int32, Sendable {
+    case cghidEventTap = 0
+    case cgSessionEventTap = 1
+    case cgAnnotatedSessionEventTap = 2
 }
 
 public final class CGEvent: @unchecked Sendable {
