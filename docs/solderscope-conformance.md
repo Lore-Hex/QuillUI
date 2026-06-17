@@ -12,7 +12,7 @@ parallelized to the swarm via the issues below.
 | 1. Compiles unmodified | **Build green when fetched** | Gated `QuillSolderScope` product builds from the upstream source after the generic fetch/patch step; the remaining work is fidelity, not the old compile-error burn-down. |
 | 2. Launches + renders + input | **GTK launch/input proven** (Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, deterministic synthetic camera frame smoke, real SolderScope command-menu extraction, and Tests/QuillUITests/SolderScopeChromeConformanceTests.swift) | remaining: mac-reference visual delta closure, broader real-device gesture coverage, and toolbar/menu behavior beyond the currently smoke-driven shortcuts |
 | 3. Live camera | partial | #515 V4L2 AVCaptureSession backend plus opt-in `QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1` fixture camera for deterministic CI/runtime smoke; remaining: real USB microscope/device matrix coverage |
-| 4. Recording/snapshots | partial-real | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. The interaction smoke now safely drives SolderScope's snapshot shortcut and, when ffmpeg is available, the app-level recording shortcut only when Foundation's desktop directory is disposable (`/root`, `/tmp`, or the checkout) or explicitly requested. Remaining: output-directory controls and full snapshot/record UI parity. |
+| 4. Recording/snapshots | partial-real | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. CI now splits capture into a snapshot smoke and a recording-only smoke; the recording pass uses shortcut start/stop with bounded retries, waits for SolderScope's app-level `Recording started`/`Recording saved` logs, and rejects a lingering `REC` badge. Freeze and toolbar recording drivers remain opt-in diagnostics because freeze currently blacks the hosted camera view and rebuilt toolbar buttons can still miss synthetic pointer activation. Remaining: output-directory controls, freeze rendering, and full snapshot/record toolbar parity. |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once 2–4 are real |
 
 Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderScope`
@@ -20,6 +20,16 @@ Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderSc
 --target QuillSolderScope`.
 
 ## Decisions log
+
+- **2026-06-17 — Capture smoke must reject half-stopped recordings**:
+  CI now runs snapshot and recording as separate interaction passes. The
+  recording pass uses shortcut start/stop with bounded retries, waits for
+  app-level `Recording started` and `Recording saved` logs before accepting the
+  `.mov`, and rejects a lingering lower-left `REC` badge so an early `.mov`
+  header can no longer masquerade as a completed stop/finalize path. Toolbar
+  recording drivers remain opt-in diagnostics until rebuilt toolbar hit-testing
+  is fixed in SwiftOpenUI GTK; freeze is also opt-in until its frozen hosted
+  camera view keeps the current frame instead of rendering black.
 
 - **2026-06-16 — Runtime smoke needs frames, not just a surviving no-camera UI**:
   SolderScope ignores zoom/pan until its hosted microscope view has an image

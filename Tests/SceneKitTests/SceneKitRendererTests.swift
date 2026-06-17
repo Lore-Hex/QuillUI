@@ -6,6 +6,203 @@ import UIKit
 
 @Suite("SceneKit renderer", .serialized)
 struct SceneKitRendererTests {
+    @Test("Scene graph parenting rejects cycles")
+    func sceneGraphParentingRejectsCycles() {
+        let root = SCNNode()
+        let child = SCNNode()
+        let grandchild = SCNNode()
+        root.addChildNode(child)
+        child.addChildNode(grandchild)
+
+        root.addChildNode(root)
+        #expect(root.parent == nil)
+        #expect(root.childNodes == [child])
+
+        grandchild.addChildNode(root)
+        #expect(root.parent == nil)
+        #expect(child.parent === root)
+        #expect(grandchild.parent === child)
+        #expect(grandchild.childNodes.isEmpty)
+
+        grandchild.insertChildNode(child, at: 0)
+        #expect(child.parent === root)
+        #expect(grandchild.childNodes.isEmpty)
+    }
+
+    @Test("SCNGeometry copy preserves primitive subtype parameters and metadata")
+    func geometryCopyPreservesPrimitiveSubtypeParametersAndMetadata() throws {
+        let material = SCNMaterial()
+        material.name = "shared"
+
+        let sphere = SCNSphere(radius: 2.5)
+        sphere.name = "planet"
+        sphere.materials = [material]
+        sphere.geometrySourceChannels = [3, 5]
+        sphere.isGeodesic = true
+        sphere.segmentCount = 24
+
+        let sphereCopy = try #require(sphere.copy() as? SCNSphere)
+        #expect(sphereCopy !== sphere)
+        #expect(sphereCopy.radius == 2.5)
+        #expect(sphereCopy.isGeodesic)
+        #expect(sphereCopy.segmentCount == 24)
+        #expect(sphereCopy.name == "planet")
+        #expect(sphereCopy.materials.first === material)
+        #expect(sphereCopy.geometrySourceChannels?.map(\.intValue) == [3, 5])
+
+        let text = SCNText(string: "Quill", extrusionDepth: 0.4)
+        text.flatness = 0.2
+        text.chamferRadius = 0.1
+        let textCopy = try #require(text.copy() as? SCNText)
+        #expect(textCopy.string as? String == "Quill")
+        #expect(textCopy.extrusionDepth == 0.4)
+        #expect(textCopy.flatness == 0.2)
+        #expect(textCopy.chamferRadius == 0.1)
+    }
+
+    @Test("Parametric geometry bounding boxes reflect primitive dimensions")
+    func parametricGeometryBoundingBoxesReflectDimensions() {
+        expectBoundingBox(SCNSphere(radius: 2), min: SCNVector3(-2, -2, -2), max: SCNVector3(2, 2, 2))
+        expectBoundingBox(
+            SCNBox(width: 2, height: 4, length: 6, chamferRadius: 0),
+            min: SCNVector3(-1, -2, -3),
+            max: SCNVector3(1, 2, 3)
+        )
+        expectBoundingBox(
+            SCNCylinder(radius: 1.5, height: 5),
+            min: SCNVector3(-1.5, -2.5, -1.5),
+            max: SCNVector3(1.5, 2.5, 1.5)
+        )
+        expectBoundingBox(
+            SCNCone(topRadius: 0.25, bottomRadius: 1.25, height: 4),
+            min: SCNVector3(-1.25, -2, -1.25),
+            max: SCNVector3(1.25, 2, 1.25)
+        )
+        expectBoundingBox(
+            SCNCapsule(capRadius: 0.75, height: 1),
+            min: SCNVector3(-0.75, -0.75, -0.75),
+            max: SCNVector3(0.75, 0.75, 0.75)
+        )
+        expectBoundingBox(
+            SCNTube(innerRadius: 0.25, outerRadius: 1.5, height: 3),
+            min: SCNVector3(-1.5, -1.5, -1.5),
+            max: SCNVector3(1.5, 1.5, 1.5)
+        )
+        expectBoundingBox(
+            SCNTorus(ringRadius: 2, pipeRadius: 0.5),
+            min: SCNVector3(-2.5, -2.5, -0.5),
+            max: SCNVector3(2.5, 2.5, 0.5)
+        )
+        expectBoundingBox(
+            SCNPlane(width: 8, height: 4),
+            min: SCNVector3(-4, -2, 0),
+            max: SCNVector3(4, 2, 0)
+        )
+        expectBoundingBox(
+            SCNPyramid(width: 2, height: 4, length: 6),
+            min: SCNVector3(-1, -2, -3),
+            max: SCNVector3(1, 2, 3)
+        )
+    }
+
+    @Test("SCNMatrix4 helpers use SceneKit public matrix layout")
+    func matrixHelpersUseSceneKitLayout() {
+        let translation = SCNMatrix4MakeTranslation(1, 2, 3)
+        #expect(translation.m14 == 0)
+        #expect(translation.m24 == 0)
+        #expect(translation.m34 == 0)
+        #expect(translation.m41 == 1)
+        #expect(translation.m42 == 2)
+        #expect(translation.m43 == 3)
+
+        let scale = SCNMatrix4MakeScale(2, 3, 4)
+        #expect(scale.m11 == 2)
+        #expect(scale.m22 == 3)
+        #expect(scale.m33 == 4)
+
+        #expect(SCNMatrix4Translate(scale, 5, 6, 7).m41 == 5)
+        #expect(SCNMatrix4Translate(scale, 5, 6, 7).m42 == 6)
+        #expect(SCNMatrix4Translate(scale, 5, 6, 7).m43 == 7)
+
+        expectMatrix(SCNMatrix4Invert(translation), closeTo: SCNMatrix4MakeTranslation(-1, -2, -3))
+        expectMatrix(
+            SCNMatrix4Mult(SCNMatrix4MakeScale(2, 3, 4), SCNMatrix4MakeTranslation(5, 6, 7)),
+            closeTo: SCNMatrix4(
+                m11: 2, m12: 0, m13: 0, m14: 0,
+                m21: 0, m22: 3, m23: 0, m24: 0,
+                m31: 0, m32: 0, m33: 4, m34: 0,
+                m41: 5, m42: 6, m43: 7, m44: 1
+            )
+        )
+
+        let zRotation = SCNMatrix4MakeRotation(.pi / 2, 0, 0, 1)
+        #expect(abs(zRotation.m11) < 0.0001)
+        #expect(abs(zRotation.m12 - 1) < 0.0001)
+        #expect(abs(zRotation.m21 + 1) < 0.0001)
+        #expect(abs(zRotation.m22) < 0.0001)
+    }
+
+    @Test("SCNNode transform synchronizes with transform components")
+    func nodeTransformSynchronizesWithComponents() {
+        let node = SCNNode()
+        node.position = SCNVector3(1, 2, 3)
+        node.scale = SCNVector3(2, 3, 4)
+
+        var transform = node.transform
+        #expect(transform.m11 == 2)
+        #expect(transform.m22 == 3)
+        #expect(transform.m33 == 4)
+        #expect(transform.m41 == 1)
+        #expect(transform.m42 == 2)
+        #expect(transform.m43 == 3)
+
+        node.transform = SCNMatrix4MakeTranslation(5, 6, 7)
+        #expect(node.position == SCNVector3(5, 6, 7))
+        #expect(node.scale == SCNVector3(1, 1, 1))
+        #expect(node.eulerAngles == SCNVector3(0, 0, 0))
+
+        node.transform = SCNMatrix4MakeScale(8, 9, 10)
+        #expect(node.position == SCNVector3(0, 0, 0))
+        #expect(node.scale == SCNVector3(8, 9, 10))
+
+        node.transform = SCNMatrix4MakeRotation(.pi / 2, 0, 1, 0)
+        let quarterTurn = CGFloat(2).squareRoot() / 2
+        #expect(abs(abs(node.orientation.y) - quarterTurn) < 0.0001)
+        #expect(abs(abs(node.orientation.w) - quarterTurn) < 0.0001)
+
+        node.position = SCNVector3(11, 12, 13)
+        transform = node.transform
+        #expect(transform.m41 == 11)
+        #expect(transform.m42 == 12)
+        #expect(transform.m43 == 13)
+    }
+
+    @Test("SCNNode converts positions and vectors across coordinate spaces")
+    func nodeConvertsPositionsAndVectorsAcrossCoordinateSpaces() {
+        let root = SCNNode()
+        root.position = SCNVector3(10, 0, 0)
+
+        let child = SCNNode()
+        child.position = SCNVector3(0, 2, 0)
+        root.addChildNode(child)
+
+        let sibling = SCNNode()
+        sibling.position = SCNVector3(5, 0, 0)
+        root.addChildNode(sibling)
+
+        expectVector(child.convertPosition(SCNVector3(1, 0, 0), to: nil), closeTo: SCNVector3(11, 2, 0))
+        expectVector(child.convertPosition(SCNVector3(1, 0, 0), to: sibling), closeTo: SCNVector3(-4, 2, 0))
+        expectVector(child.convertPosition(SCNVector3(11, 2, 0), from: nil), closeTo: SCNVector3(1, 0, 0))
+        expectVector(sibling.convertPosition(SCNVector3(1, 0, 0), from: child), closeTo: SCNVector3(-4, 2, 0))
+
+        let scaled = SCNNode()
+        scaled.scale = SCNVector3(2, 3, 4)
+        root.addChildNode(scaled)
+
+        expectVector(scaled.convertVector(SCNVector3(1, 1, 0), to: nil), closeTo: SCNVector3(2, 3, 0))
+        expectVector(root.convertVector(SCNVector3(1, 1, 0), from: scaled), closeTo: SCNVector3(2, 3, 0))
+    }
+
     @Test("Software renderer draws colored sphere pixels")
     func rendersSpherePixels() {
         let scene = SCNScene()
@@ -25,6 +222,63 @@ struct SceneKitRendererTests {
         let stats = PixelStats(image)
         #expect(stats.nonBlackPixels > 1_000)
         #expect(stats.redDominantPixels > 900)
+    }
+
+    @MainActor
+    @Test("SCNView snapshot returns rendered image pixels")
+    func viewSnapshotReturnsRenderedImagePixels() throws {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let view = SCNView()
+        view.bounds = CGRect(x: 0, y: 0, width: 80, height: 60)
+        view.scene = scene
+        view.pointOfView = cameraNode
+
+        let image = view.snapshot()
+        let cgImage = try #require(image.cgImage)
+        #expect(image.size == CGSize(width: 80, height: 60))
+        #expect(cgImage.width == 80)
+        #expect(cgImage.height == 60)
+
+        let stats = PixelStats(cgImage)
+        #expect(stats.nonBlackPixels > 250)
+        #expect(stats.redDominantPixels > 200)
+    }
+
+    @Test("Software renderer applies public SCNMatrix4 node transforms")
+    func rendererAppliesPublicNodeTransformMatrix() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 0.35)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        let sphereNode = SCNNode(geometry: sphere)
+        sphereNode.transform = SCNMatrix4MakeTranslation(1, 0, 0)
+        scene.rootNode.addChildNode(sphereNode)
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 4
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.redDominantPixels > 200)
+        #expect(stats.bounds.minX > 95)
+        #expect(stats.bounds.maxX > 110)
     }
 
     @Test("Software renderer draws SCNGeometry source/element triangles")
@@ -53,6 +307,209 @@ struct SceneKitRendererTests {
         let stats = PixelStats(image)
         #expect(stats.nonBlackPixels > 1_500)
         #expect(stats.greenDominantPixels > 1_400)
+    }
+
+    @Test("SCNGeometrySource decoder rejects unsupported or malformed vertex layouts")
+    func geometrySourceDecoderRejectsMalformedLayouts() {
+        let floats: [Float] = [1, 2, 3]
+        let data = Data(bytes: floats, count: floats.count * MemoryLayout<Float>.size)
+
+        let integerSource = SCNGeometrySource(
+            data: data,
+            semantic: .vertex,
+            vectorCount: 1,
+            usesFloatComponents: false,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: 0
+        )
+        #expect(integerSource.quillVector3Values().isEmpty)
+
+        let negativeOffsetSource = SCNGeometrySource(
+            data: data,
+            semantic: .vertex,
+            vectorCount: 1,
+            usesFloatComponents: true,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: -1,
+            dataStride: 0
+        )
+        #expect(negativeOffsetSource.quillVector3Values().isEmpty)
+
+        let shortStrideSource = SCNGeometrySource(
+            data: data,
+            semantic: .vertex,
+            vectorCount: 1,
+            usesFloatComponents: true,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: MemoryLayout<Float>.size * 2
+        )
+        #expect(shortStrideSource.quillVector3Values().isEmpty)
+
+        let overflowingSource = SCNGeometrySource(
+            data: data,
+            semantic: .vertex,
+            vectorCount: Int.max,
+            usesFloatComponents: true,
+            componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: Int.max
+        )
+        #expect(overflowingSource.quillVector3Values().isEmpty)
+    }
+
+    @Test("Software renderer applies material intensity and transparency")
+    func rendererAppliesMaterialIntensityAndTransparency() {
+        let zeroIntensity = SCNSphere(radius: 1)
+        zeroIntensity.firstMaterial?.diffuse.intensity = 0
+        #expect(PixelStats(renderParametricGeometry(zeroIntensity)).nonBlackPixels == 0)
+
+        let transparent = SCNSphere(radius: 1)
+        transparent.firstMaterial?.transparency = 0
+        #expect(PixelStats(renderParametricGeometry(transparent)).nonBlackPixels == 0)
+
+        let transparentAOne = SCNSphere(radius: 1)
+        transparentAOne.firstMaterial?.transparent.contents = CGColor(red: 1, green: 1, blue: 1, alpha: 0)
+        #expect(PixelStats(renderParametricGeometry(transparentAOne)).nonBlackPixels == 0)
+
+        let transparentRGBZero = SCNSphere(radius: 1)
+        transparentRGBZero.firstMaterial?.transparencyMode = .rgbZero
+        transparentRGBZero.firstMaterial?.transparent.contents = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+        #expect(PixelStats(renderParametricGeometry(transparentRGBZero)).nonBlackPixels == 0)
+
+        let opaqueRGBZero = SCNSphere(radius: 1)
+        opaqueRGBZero.firstMaterial?.transparencyMode = .rgbZero
+        opaqueRGBZero.firstMaterial?.transparent.contents = CGColor(red: 1, green: 1, blue: 1, alpha: 0)
+        #expect(PixelStats(renderParametricGeometry(opaqueRGBZero)).redDominantPixels > 900)
+
+        let disabledTransparentMap = SCNSphere(radius: 1)
+        disabledTransparentMap.firstMaterial?.transparent.contents = CGColor(red: 1, green: 1, blue: 1, alpha: 0)
+        disabledTransparentMap.firstMaterial?.transparent.intensity = 0
+        #expect(PixelStats(renderParametricGeometry(disabledTransparentMap)).redDominantPixels > 900)
+
+        let zeroEmission = SCNSphere(radius: 1)
+        zeroEmission.firstMaterial?.emission.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        zeroEmission.firstMaterial?.emission.intensity = 0
+        let stats = PixelStats(renderParametricGeometry(zeroEmission))
+        #expect(stats.redDominantPixels > 900)
+        #expect(stats.greenDominantPixels == 0)
+    }
+
+    @Test("Software renderer draws parametric planes")
+    func rendersParametricPlaneGeometry() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let plane = SCNPlane(width: 2.0, height: 1.2)
+        plane.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        let planeNode = SCNNode(geometry: plane)
+        scene.rootNode.addChildNode(planeNode)
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(stats.greenDominantPixels > 900)
+        #expect(scene.quillHitTest(
+            CGPoint(x: 80, y: 60),
+            width: 160,
+            height: 120,
+            pointOfView: cameraNode
+        ).first?.node === planeNode)
+    }
+
+    @Test("Software renderer draws parametric pyramids")
+    func rendersParametricPyramidGeometry() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let pyramid = SCNPyramid(width: 2.0, height: 1.8, length: 1.4)
+        pyramid.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        let pyramidNode = SCNNode(geometry: pyramid)
+        pyramidNode.eulerAngles = SCNVector3(-0.2, 0.35, 0)
+        scene.rootNode.addChildNode(pyramidNode)
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 700)
+        #expect(stats.redDominantPixels > 650)
+        #expect(scene.quillHitTest(
+            CGPoint(x: 80, y: 60),
+            width: 160,
+            height: 120,
+            pointOfView: cameraNode
+        ).first?.node === pyramidNode)
+    }
+
+    @Test("Software renderer draws additional parametric primitives")
+    func rendersAdditionalParametricGeometry() {
+        let coneStats = PixelStats(renderParametricGeometry(SCNCone(topRadius: 0.15, bottomRadius: 0.9, height: 1.7)))
+        #expect(coneStats.nonBlackPixels > 550)
+        #expect(coneStats.redDominantPixels > 500)
+
+        let capsuleStats = PixelStats(renderParametricGeometry(SCNCapsule(capRadius: 0.45, height: 1.8)))
+        #expect(capsuleStats.nonBlackPixels > 500)
+        #expect(capsuleStats.redDominantPixels > 450)
+
+        let tubeStats = PixelStats(renderParametricGeometry(SCNTube(innerRadius: 0.35, outerRadius: 0.8, height: 1.5)))
+        #expect(tubeStats.nonBlackPixels > 450)
+        #expect(tubeStats.redDominantPixels > 400)
+
+        let torusStats = PixelStats(renderParametricGeometry(SCNTorus(ringRadius: 0.65, pipeRadius: 0.25)))
+        #expect(torusStats.nonBlackPixels > 600)
+        #expect(torusStats.redDominantPixels > 550)
+    }
+
+    @Test("Polygon primitives advance past degenerate entries")
+    func polygonPrimitiveDecoderAdvancesPastDegenerateEntries() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let vertices = [
+            SCNVector3(-1.1, -0.9, 0),
+            SCNVector3(1.1, -0.9, 0),
+            SCNVector3(0, 0.95, 0),
+        ]
+        let rawIndices: [UInt32] = [
+            2, 3,
+            0, 1,
+            0, 1, 2,
+        ]
+        let element = SCNGeometryElement(
+            data: Data(bytes: rawIndices, count: rawIndices.count * MemoryLayout<UInt32>.size),
+            primitiveType: .polygon,
+            primitiveCount: 2,
+            bytesPerIndex: MemoryLayout<UInt32>.size
+        )
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: vertices)],
+            elements: [element]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(stats.greenDominantPixels > 900)
     }
 
     @Test("Software renderer resolves point-of-view camera transforms through parent nodes")
@@ -152,6 +609,67 @@ struct SceneKitRendererTests {
         #expect(stats.nonBlackPixels > 1_000)
     }
 
+    @Test("Software renderer clips partially visible triangles")
+    func partiallyClippedTrianglesRemainVisible() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(-1.2, -0.9, 0),
+                SCNVector3(1.2, -0.9, 0),
+                SCNVector3(0, 1.2, 3.5),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.zNear = 1
+        camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(stats.greenDominantPixels > 900)
+        #expect(!scene.quillHitTest(CGPoint(x: 80, y: 80), width: 160, height: 120, pointOfView: cameraNode).isEmpty)
+    }
+
+    @Test("Software renderer clips partially visible line primitives")
+    func partiallyClippedLinesRemainVisible() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(0, -1, 0),
+                SCNVector3(0, 1, 3.5),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1], primitiveType: .line)]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.zNear = 1
+        camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.nonBlackPixels > 40)
+        #expect(stats.greenDominantPixels > 40)
+        #expect(!scene.quillHitTest(CGPoint(x: 80, y: 60), width: 160, height: 120, pointOfView: cameraNode).isEmpty)
+    }
+
     @Test("Software renderer resolves intersecting triangles with per-pixel depth")
     func intersectingTrianglesUseZBuffer() {
         let scene = SCNScene()
@@ -220,6 +738,27 @@ struct SceneKitRendererTests {
             PixelStats(sideScene.quillRenderImage(width: 160, height: 120, pointOfView: sideCamera)),
             matches: .sphere
         )
+    }
+
+    @MainActor
+    @Test("SCNView projects and unprojects scene points")
+    func scnViewProjectsAndUnprojectsScenePoints() {
+        let (scene, cameraNode) = makeCameraControlScene()
+        cameraNode.camera?.zNear = 1
+        cameraNode.camera?.zFar = 10
+        let view = makeCameraControlView(scene: scene, cameraNode: cameraNode)
+
+        let center = view.projectPoint(SCNVector3(0, 0, 0))
+        #expect(abs(center.x - 80) <= 0.0001)
+        #expect(abs(center.y - 60) <= 0.0001)
+        #expect(center.z > 0)
+        #expect(center.z < 1)
+
+        let right = view.projectPoint(SCNVector3(1, 0, 0))
+        #expect(right.x > center.x)
+        #expect(abs(right.y - center.y) <= 0.0001)
+
+        expectVector(view.unprojectPoint(center), closeTo: SCNVector3(0, 0, 0))
     }
 
     @MainActor
@@ -562,6 +1101,21 @@ struct SceneKitRendererTests {
         return (scene, cameraNode)
     }
 
+    private func renderParametricGeometry(_ geometry: SCNGeometry) -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
     @MainActor
     private func makeCameraControlView(scene: SCNScene, cameraNode: SCNNode) -> SCNView {
         let view = SCNView()
@@ -595,6 +1149,36 @@ struct SceneKitRendererTests {
         #expect(abs(stats.bounds.minY - reference.bounds.minY) <= 8)
         #expect(abs(stats.bounds.maxX - reference.bounds.maxX) <= 8)
         #expect(abs(stats.bounds.maxY - reference.bounds.maxY) <= 8)
+    }
+
+    private func expectBoundingBox(_ geometry: SCNGeometry, min: SCNVector3, max: SCNVector3) {
+        #expect(geometry.boundingBox.min == min)
+        #expect(geometry.boundingBox.max == max)
+    }
+
+    private func expectVector(_ actual: SCNVector3, closeTo expected: SCNVector3, tolerance: CGFloat = 0.0001) {
+        #expect(abs(actual.x - expected.x) <= tolerance)
+        #expect(abs(actual.y - expected.y) <= tolerance)
+        #expect(abs(actual.z - expected.z) <= tolerance)
+    }
+
+    private func expectMatrix(_ actual: SCNMatrix4, closeTo expected: SCNMatrix4, tolerance: CGFloat = 0.0001) {
+        #expect(abs(actual.m11 - expected.m11) <= tolerance)
+        #expect(abs(actual.m12 - expected.m12) <= tolerance)
+        #expect(abs(actual.m13 - expected.m13) <= tolerance)
+        #expect(abs(actual.m14 - expected.m14) <= tolerance)
+        #expect(abs(actual.m21 - expected.m21) <= tolerance)
+        #expect(abs(actual.m22 - expected.m22) <= tolerance)
+        #expect(abs(actual.m23 - expected.m23) <= tolerance)
+        #expect(abs(actual.m24 - expected.m24) <= tolerance)
+        #expect(abs(actual.m31 - expected.m31) <= tolerance)
+        #expect(abs(actual.m32 - expected.m32) <= tolerance)
+        #expect(abs(actual.m33 - expected.m33) <= tolerance)
+        #expect(abs(actual.m34 - expected.m34) <= tolerance)
+        #expect(abs(actual.m41 - expected.m41) <= tolerance)
+        #expect(abs(actual.m42 - expected.m42) <= tolerance)
+        #expect(abs(actual.m43 - expected.m43) <= tolerance)
+        #expect(abs(actual.m44 - expected.m44) <= tolerance)
     }
 }
 

@@ -4266,6 +4266,18 @@ def validate_quill_solderscope_interaction(image: Screenshot) -> str:
         (image.height * 4) // 5,
         lambda rgb: sum(rgb) >= 160 and max(rgb) - min(rgb) >= 48,
     )
+    lower_left_recording_pixels = pixel_count(
+        image,
+        0,
+        max(0, image.height - 90),
+        min(180, image.width),
+        image.height,
+        lambda rgb: rgb[0] >= 180
+        and rgb[1] <= 70
+        and rgb[2] <= 70
+        and rgb[0] - rgb[1] >= 90
+        and rgb[0] - rgb[2] >= 90,
+    )
     require(
         toolbar_pixels >= 1_500,
         f"SolderScope dark toolbar pixels were not detected near the top: pixels={toolbar_pixels}",
@@ -4278,12 +4290,18 @@ def validate_quill_solderscope_interaction(image: Screenshot) -> str:
         frame_pixels >= 20_000,
         f"SolderScope synthetic camera frame was not detected: frame_pixels={frame_pixels}",
     )
+    require(
+        lower_left_recording_pixels <= 500,
+        "SolderScope recording indicator is still visible after the stop action: "
+        f"pixels={lower_left_recording_pixels}",
+    )
 
     return (
         "Quill SolderScope interaction: "
         f"toolbar_pixels={toolbar_pixels}, "
         f"top_nonblack_pixels={top_nonblack_pixels}, "
-        f"frame_pixels={frame_pixels}"
+        f"frame_pixels={frame_pixels}, "
+        f"recording_indicator_pixels={lower_left_recording_pixels}"
     )
 
 

@@ -20,11 +20,11 @@ public enum QuillSignalRealConversationProbe {
     private static let contactE164 = E164("+15555550111")!
     private static let contactAddress = SignalServiceAddress(serviceId: contactAci, e164: contactE164)
 
-    public static func makeViewController() async throws -> UIViewController {
+    public static func makeViewController(width: CGFloat = 760, height: CGFloat = 720) async throws -> UIViewController {
         let bootstrap = try await quillBootstrapSignalRenderEnvironment()
         try await seedConversationIfNeeded(bootstrap: bootstrap)
 
-        let vc = try bootstrap.databaseStorage.read { tx throws(QuillSignalRealConversationProbeError) in
+        let cvc = try bootstrap.databaseStorage.read { tx throws(QuillSignalRealConversationProbeError) in
             guard let thread = TSContactThread.getWithContactAddress(contactAddress, transaction: tx) else {
                 throw .missingSeedThread
             }
@@ -37,10 +37,11 @@ public enum QuillSignalRealConversationProbe {
                 tx: tx,
             )
             cvc.previewSetup()
-            return cvc as UIViewController
+            return cvc
         }
 
-        return vc
+        try await prepareForRender(cvc: cvc, width: width, height: height)
+        return cvc as UIViewController
     }
 
     private static func seedConversationIfNeeded(bootstrap: QuillSignalRenderBootstrap) async throws {
@@ -103,11 +104,50 @@ public enum QuillSignalRealConversationProbe {
             bootstrap.dependenciesBridge.tsAccountManager.warmCaches(tx: tx)
         }
     }
+
+    private static func prepareForRender(cvc: ConversationViewController, width: CGFloat, height: CGFloat) async throws {
+        if !cvc.isViewLoaded {
+            cvc.loadView()
+            if cvc.viewIfLoaded == nil {
+                cvc.view = UIView()
+            }
+            cvc.viewIfLoaded?.frame = CGRect(x: 0, y: 0, width: width, height: height)
+            cvc.viewDidLoad()
+        }
+
+        cvc.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
+        cvc.collectionView.frame = cvc.view.bounds
+        cvc.view.layoutIfNeeded()
+
+        _ = cvc.updateConversationStyle()
+        cvc.viewWillAppearDidBegin()
+        cvc.isViewVisible = true
+        cvc.viewWillAppearForLoad()
+        cvc.viewWillAppearDidComplete()
+
+        for _ in 0..<80 {
+            cvc.view.layoutIfNeeded()
+            if !cvc.renderItems.isEmpty {
+                cvc.collectionView.reloadData()
+                if !cvc.collectionView.visibleCells.isEmpty {
+                    return
+                }
+            }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        throw QuillSignalRealConversationProbeError.initialRenderDidNotProduceCells(
+            renderItems: cvc.renderItems.count,
+            visibleCells: cvc.collectionView.visibleCells.count,
+            shouldHideContent: cvc.loadCoordinator.shouldHideCollectionViewContent,
+        )
+    }
 }
 
 public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertible {
     case missingLocalIdentifiersSetter
     case missingSeedThread
+    case initialRenderDidNotProduceCells(renderItems: Int, visibleCells: Int, shouldHideContent: Bool)
 
     public var description: String {
         switch self {
@@ -115,6 +155,8 @@ public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertibl
             return "TSAccountManager does not expose LocalIdentifiersSetter."
         case .missingSeedThread:
             return "Seeded Signal contact thread could not be reloaded."
+        case let .initialRenderDidNotProduceCells(renderItems, visibleCells, shouldHideContent):
+            return "Real ConversationViewController did not produce visible cells after its initial load (renderItems=\(renderItems), visibleCells=\(visibleCells), shouldHideContent=\(shouldHideContent))."
         }
     }
 }

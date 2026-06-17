@@ -773,12 +773,13 @@
 <br>
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>CGContext</code> geometry, bitmap drawing, blend/shadow/layer state, and Cairo path/state forwarding</td><td>Usable</td><td>Focused coverage for SceneKit/CoreGraphics interop and custom-view drawing; not full CoreGraphics parity.</td></tr>
 <tr><td><code>CGEventSource.init?(stateID:)</code></td><td>Compile-only</td><td>Source object shape only.</td></tr>
 <tr><td><code>CGEventSource.keyState(_:key:)</code></td><td>Fallback</td><td>Records diagnostic and returns false.</td></tr>
 <tr><td><code>CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)</code></td><td>Compile-only</td><td>Event object shape only.</td></tr>
 <tr><td><code>CGEvent.post(tap:)</code></td><td>Fallback</td><td>Records diagnostic, no synthetic input.</td></tr>
 <tr><td><code>CGEvent.keyboardSetUnicodeString(stringLength:unicodeString:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
-<tr><td>Real event taps, keyboard state, pointer events, drawing APIs beyond imported Foundation/CoreFoundation geometry</td><td>Incomplete</td><td>Required for CoreGraphics Parity.</td></tr>
+<tr><td>Real event taps, keyboard state, pointer events, and broad drawing APIs beyond the focused bitmap/Cairo drawing surface</td><td>Incomplete</td><td>Required for CoreGraphics Parity.</td></tr>
 </table>
 <br>
 <h2 id="security">Security</h2>

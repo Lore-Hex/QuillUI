@@ -651,7 +651,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("xdotool key --clearmodifiers Escape"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP"))
         #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}\""))
-        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-990}\""))
+        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-997}\""))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
         // No capture==root gate on the child-window refresh (smoke sheets
         // present as separate toplevels); IM popups are filtered by the
@@ -699,8 +699,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("new_x=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}\""))
         #expect(interactionScript.contains("new_y=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 458))}\""))
         #expect(interactionScript.contains("new_x=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1487))}\""))
-        #expect(interactionScript.contains("new_y=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 477))}\""))
-        #expect(!interactionScript.contains("new_y=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 498))}\""))
+        #expect(interactionScript.contains("new_y=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 505))}\""))
+        #expect(!interactionScript.contains("new_y=\"${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 477))}\""))
         #expect(interactionScript.contains("window_x + 90"))
         #expect(interactionScript.contains("window_height - 136"))
         #expect(interactionScript.contains("completions-new-sheet"))

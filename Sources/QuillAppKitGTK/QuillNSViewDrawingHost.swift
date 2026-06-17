@@ -30,9 +30,17 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
         var fill: [CGFloat] = [0, 0, 0, 1]
         var stroke: [CGFloat] = [0, 0, 0, 1]
         var alpha: CGFloat = 1
+        var blendMode: CGBlendMode = .normal
+        var shadow: Shadow?
+    }
+    private struct Shadow {
+        var offset: CGSize
+        var blur: CGFloat
+        var colorRGBA: [CGFloat]
     }
     private var state = State()
     private var stack: [State] = []
+    private var transparencyLayerStack: [State] = []
 
     public init(cr: OpaquePointer) {
         self.cr = cr
@@ -42,6 +50,112 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
         cairo_set_source_rgba(cr,
                               Double(rgba[0]), Double(rgba[1]), Double(rgba[2]),
                               Double(rgba[3] * state.alpha))
+    }
+
+    private func applyShadowSource(alphaScale: CGFloat = 1) -> Shadow? {
+        guard let shadow = state.shadow else { return nil }
+        let rgba = shadow.colorRGBA
+        guard rgba.count >= 4 else { return nil }
+        let alpha = Self.clampedUnit(rgba[3] * state.alpha * alphaScale)
+        cairo_set_source_rgba(cr,
+                              Double(rgba[0]), Double(rgba[1]), Double(rgba[2]),
+                              Double(alpha))
+        return shadow
+    }
+
+    private func withShadow(_ draw: () -> Void) {
+        guard let shadow = state.shadow else { return }
+        let offsets = Self.shadowSampleOffsets(for: shadow.blur)
+        let alphaScale = 1 / CGFloat(offsets.count)
+        for offset in offsets {
+            cairo_save(cr)
+            cairo_translate(
+                cr,
+                Double(shadow.offset.width + offset.x),
+                Double(shadow.offset.height + offset.y)
+            )
+            _ = applyShadowSource(alphaScale: alphaScale)
+            draw()
+            cairo_restore(cr)
+        }
+    }
+
+    private static func shadowSampleOffsets(for blur: CGFloat) -> [CGPoint] {
+        let radius = shadowBlurRadius(blur)
+        guard radius > 0 else {
+            return [.zero]
+        }
+
+        var offsets: [CGPoint] = []
+        offsets.reserveCapacity((radius * 2 + 1) * (radius * 2 + 1))
+        for y in (-radius)...radius {
+            for x in (-radius)...radius {
+                offsets.append(CGPoint(x: CGFloat(x), y: CGFloat(y)))
+            }
+        }
+        return offsets
+    }
+
+    private static func shadowBlurRadius(_ blur: CGFloat) -> Int {
+        guard blur.isFinite, blur > 0 else {
+            return 0
+        }
+        return min(8, max(1, Int(blur.rounded(.up))))
+    }
+
+    private static func clampedUnit(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return 0
+        }
+        return min(1, max(0, value))
+    }
+
+    private func drawShadowForCurrentPath(stroke: Bool, rule: CGPathFillRule = .winding) {
+        guard state.shadow != nil, let path = cairo_copy_path(cr) else { return }
+        defer { cairo_path_destroy(path) }
+        withShadow {
+            cairo_new_path(cr)
+            cairo_append_path(cr, path)
+            withFillRule(rule) {
+                stroke ? cairo_stroke(cr) : cairo_fill(cr)
+            }
+        }
+    }
+
+    private func setOperator(for mode: CGBlendMode) {
+        cairo_set_operator(cr, Self.cairoOperator(for: mode))
+    }
+
+    private static func cairoOperator(for mode: CGBlendMode) -> cairo_operator_t {
+        switch mode {
+        case .clear: return CAIRO_OPERATOR_CLEAR
+        case .copy: return CAIRO_OPERATOR_SOURCE
+        case .sourceIn: return CAIRO_OPERATOR_IN
+        case .sourceOut: return CAIRO_OPERATOR_OUT
+        case .sourceAtop: return CAIRO_OPERATOR_ATOP
+        case .destinationOver: return CAIRO_OPERATOR_DEST_OVER
+        case .destinationIn: return CAIRO_OPERATOR_DEST_IN
+        case .destinationOut: return CAIRO_OPERATOR_DEST_OUT
+        case .destinationAtop: return CAIRO_OPERATOR_DEST_ATOP
+        case .xor: return CAIRO_OPERATOR_XOR
+        case .plusLighter: return CAIRO_OPERATOR_ADD
+        case .multiply: return CAIRO_OPERATOR_MULTIPLY
+        case .screen: return CAIRO_OPERATOR_SCREEN
+        case .overlay: return CAIRO_OPERATOR_OVERLAY
+        case .darken: return CAIRO_OPERATOR_DARKEN
+        case .lighten: return CAIRO_OPERATOR_LIGHTEN
+        case .colorDodge: return CAIRO_OPERATOR_COLOR_DODGE
+        case .colorBurn: return CAIRO_OPERATOR_COLOR_BURN
+        case .softLight: return CAIRO_OPERATOR_SOFT_LIGHT
+        case .hardLight: return CAIRO_OPERATOR_HARD_LIGHT
+        case .difference: return CAIRO_OPERATOR_DIFFERENCE
+        case .exclusion: return CAIRO_OPERATOR_EXCLUSION
+        case .hue: return CAIRO_OPERATOR_HSL_HUE
+        case .saturation: return CAIRO_OPERATOR_HSL_SATURATION
+        case .color: return CAIRO_OPERATOR_HSL_COLOR
+        case .luminosity: return CAIRO_OPERATOR_HSL_LUMINOSITY
+        case .normal, .plusDarker: return CAIRO_OPERATOR_OVER
+        }
     }
 
     private func withFillRule(_ rule: CGPathFillRule, _ body: () -> Void) {
@@ -63,17 +177,48 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
 
     public func restoreGState() {
         cairo_restore(cr)
-        if let prev = stack.popLast() { state = prev }
+        if let prev = stack.popLast() {
+            state = prev
+            setOperator(for: state.blendMode)
+        }
     }
 
     public func translateBy(x: CGFloat, y: CGFloat) { cairo_translate(cr, Double(x), Double(y)) }
     public func scaleBy(x: CGFloat, y: CGFloat) { cairo_scale(cr, Double(x), Double(y)) }
     public func rotate(by angle: CGFloat) { cairo_rotate(cr, Double(angle)) }
+    public func concatenate(_ transform: CGAffineTransform) {
+        var matrix = cairo_matrix_t()
+        cairo_matrix_init(
+            &matrix,
+            Double(transform.a),
+            Double(transform.b),
+            Double(transform.c),
+            Double(transform.d),
+            Double(transform.tx),
+            Double(transform.ty)
+        )
+        cairo_transform(cr, &matrix)
+    }
 
     public func setFillColor(_ rgba: [CGFloat]) { state.fill = rgba }
     public func setStrokeColor(_ rgba: [CGFloat]) { state.stroke = rgba }
     public func setLineWidth(_ width: CGFloat) { cairo_set_line_width(cr, Double(width)) }
+    public func setMiterLimit(_ limit: CGFloat) { cairo_set_miter_limit(cr, Double(limit)) }
+    public func setShouldAntialias(_ shouldAntialias: Bool) {
+        cairo_set_antialias(cr, shouldAntialias ? CAIRO_ANTIALIAS_DEFAULT : CAIRO_ANTIALIAS_NONE)
+    }
     public func setAlpha(_ alpha: CGFloat) { state.alpha = alpha }
+    public func setBlendMode(_ mode: CGBlendMode) {
+        state.blendMode = mode
+        setOperator(for: mode)
+    }
+    public func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?) {
+        guard let colorRGBA else {
+            state.shadow = nil
+            return
+        }
+        state.shadow = Shadow(offset: offset, blur: blur, colorRGBA: colorRGBA)
+    }
 
     public func setLineCap(_ cap: CGLineCap) {
         switch cap {
@@ -92,6 +237,11 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
     }
 
     public func fill(_ rect: CGRect) {
+        withShadow {
+            cairo_rectangle(cr, Double(rect.origin.x), Double(rect.origin.y),
+                            Double(rect.size.width), Double(rect.size.height))
+            cairo_fill(cr)
+        }
         applySource(state.fill)
         cairo_rectangle(cr, Double(rect.origin.x), Double(rect.origin.y),
                         Double(rect.size.width), Double(rect.size.height))
@@ -99,6 +249,11 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
     }
 
     public func stroke(_ rect: CGRect) {
+        withShadow {
+            cairo_rectangle(cr, Double(rect.origin.x), Double(rect.origin.y),
+                            Double(rect.size.width), Double(rect.size.height))
+            cairo_stroke(cr)
+        }
         applySource(state.stroke)
         cairo_rectangle(cr, Double(rect.origin.x), Double(rect.origin.y),
                         Double(rect.size.width), Double(rect.size.height))
@@ -117,12 +272,20 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
     }
 
     public func fillEllipse(in rect: CGRect) {
+        withShadow {
+            appendEllipsePath(in: rect)
+            cairo_fill(cr)
+        }
         applySource(state.fill)
         appendEllipsePath(in: rect)
         cairo_fill(cr)
     }
 
     public func strokeEllipse(in rect: CGRect) {
+        withShadow {
+            appendEllipsePath(in: rect)
+            cairo_stroke(cr)
+        }
         applySource(state.stroke)
         appendEllipsePath(in: rect)
         cairo_stroke(cr)
@@ -138,6 +301,15 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
     }
 
     public func strokeLineSegments(between points: [CGPoint]) {
+        withShadow {
+            var i = 0
+            while i + 1 < points.count {
+                cairo_move_to(cr, Double(points[i].x), Double(points[i].y))
+                cairo_line_to(cr, Double(points[i + 1].x), Double(points[i + 1].y))
+                i += 2
+            }
+            cairo_stroke(cr)
+        }
         applySource(state.stroke)
         var i = 0
         while i + 1 < points.count {
@@ -197,17 +369,19 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
     }
 
     public func fillPath() {
+        drawShadowForCurrentPath(stroke: false)
         applySource(state.fill)
         cairo_fill(cr)
     }
 
     public func fillPath(using rule: CGPathFillRule) {
-        withFillRule(rule) {
-            fillPath()
-        }
+        drawShadowForCurrentPath(stroke: false, rule: rule)
+        applySource(state.fill)
+        withFillRule(rule) { cairo_fill(cr) }
     }
 
     public func strokePath() {
+        drawShadowForCurrentPath(stroke: true)
         applySource(state.stroke)
         cairo_stroke(cr)
     }
@@ -254,6 +428,15 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
             }
             defer { cairo_surface_destroy(surface) }
 
+            if state.shadow != nil {
+                withShadow {
+                    cairo_translate(cr, Double(rect.origin.x), Double(rect.maxY))
+                    cairo_scale(cr, Double(rect.size.width) / Double(width),
+                                -Double(rect.size.height) / Double(height))
+                    cairo_mask_surface(cr, surface, 0, 0)
+                }
+            }
+
             cairo_save(cr)
             // CG semantics: image row 0 maps to the rect's MAX-Y edge in the
             // CURRENT user space (which is why raw CGContext.draw renders
@@ -273,6 +456,35 @@ public final class CairoCGContextBackend: QuillCGContextBackend {
             cairo_paint_with_alpha(cr, Double(state.alpha))
             cairo_restore(cr)
         }
+    }
+
+    public func beginTransparencyLayer(auxiliaryInfo: Any?) {
+        _ = auxiliaryInfo
+        transparencyLayerStack.append(state)
+        cairo_push_group(cr)
+        state.alpha = 1
+        state.blendMode = .normal
+        state.shadow = nil
+        setOperator(for: .normal)
+    }
+
+    public func endTransparencyLayer() {
+        guard let layerState = transparencyLayerStack.popLast() else { return }
+        cairo_pop_group_to_source(cr)
+        state = layerState
+        setOperator(for: state.blendMode)
+
+        guard let groupPattern = cairo_get_source(cr) else { return }
+        let referencedPattern = cairo_pattern_reference(groupPattern)
+        if state.shadow != nil {
+            withShadow {
+                cairo_mask(cr, referencedPattern)
+            }
+        }
+
+        cairo_set_source(cr, referencedPattern)
+        cairo_paint_with_alpha(cr, Double(state.alpha))
+        cairo_pattern_destroy(referencedPattern)
     }
 }
 

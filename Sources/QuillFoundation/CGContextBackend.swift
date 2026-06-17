@@ -18,13 +18,18 @@ public protocol QuillCGContextBackend: AnyObject {
     func translateBy(x: CGFloat, y: CGFloat)
     func scaleBy(x: CGFloat, y: CGFloat)
     func rotate(by angle: CGFloat)
+    func concatenate(_ transform: CGAffineTransform)
 
     func setFillColor(_ rgba: [CGFloat])
     func setStrokeColor(_ rgba: [CGFloat])
     func setLineWidth(_ width: CGFloat)
     func setLineCap(_ cap: CGLineCap)
     func setLineJoin(_ join: CGLineJoin)
+    func setMiterLimit(_ limit: CGFloat)
+    func setShouldAntialias(_ shouldAntialias: Bool)
     func setAlpha(_ alpha: CGFloat)
+    func setBlendMode(_ mode: CGBlendMode)
+    func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?)
 
     func fill(_ rect: CGRect)
     func fillEllipse(in rect: CGRect)
@@ -53,6 +58,37 @@ public protocol QuillCGContextBackend: AnyObject {
     /// `image` is the CGContext.draw(_:in:) argument (typed Any in the shadow);
     /// implementations downcast to CGImage and draw `quillBGRAPixels` if set.
     func draw(_ image: Any, in rect: CGRect, interpolationQuality: CGInterpolationQuality)
+
+    func beginTransparencyLayer(auxiliaryInfo: Any?)
+    func endTransparencyLayer()
+}
+
+public extension QuillCGContextBackend {
+    func concatenate(_ transform: CGAffineTransform) {
+        _ = transform
+    }
+
+    func setMiterLimit(_ limit: CGFloat) {
+        _ = limit
+    }
+
+    func setShouldAntialias(_ shouldAntialias: Bool) {
+        _ = shouldAntialias
+    }
+
+    func setBlendMode(_ mode: CGBlendMode) {
+        _ = mode
+    }
+
+    func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?) {
+        _ = (offset, blur, colorRGBA)
+    }
+
+    func beginTransparencyLayer(auxiliaryInfo: Any?) {
+        _ = auxiliaryInfo
+    }
+
+    func endTransparencyLayer() {}
 }
 
 extension CGContext {

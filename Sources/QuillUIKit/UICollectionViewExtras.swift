@@ -645,6 +645,7 @@ extension UICollectionView {
                     cell.frame = CGRect(x: 0, y: fallbackY, width: fallbackSize.width, height: fallbackSize.height)
                     fallbackY += fallbackSize.height
                 }
+                cell.layoutIfNeeded()
 
                 addSubview(cell)
                 (delegate as? UICollectionViewDelegate)?.collectionView(self, willDisplay: cell, forItemAt: indexPath)

@@ -8,11 +8,17 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     }
 
     public var name: String?
-    public var position = SCNVector3(0, 0, 0)
-    public var eulerAngles = SCNVector3(0, 0, 0)
-    public var scale = SCNVector3(1, 1, 1)
-    public var orientation = SCNQuaternion(0, 0, 0, 1)
-    public var transform = SCNMatrix4Identity
+    public var position = SCNVector3(0, 0, 0) { didSet { invalidateExplicitTransform() } }
+    public var eulerAngles = SCNVector3(0, 0, 0) { didSet { invalidateExplicitTransform() } }
+    public var scale = SCNVector3(1, 1, 1) { didSet { invalidateExplicitTransform() } }
+    public var orientation = SCNQuaternion(0, 0, 0, 1) { didSet { invalidateExplicitTransform() } }
+    public var transform: SCNMatrix4 {
+        get { explicitTransform ?? quillComposedTransform() }
+        set {
+            explicitTransform = newValue
+            applyTransformComponents(newValue)
+        }
+    }
     public var pivot = SCNMatrix4Identity
     public var geometry: SCNGeometry?
     public var light: SCNLight?
@@ -30,6 +36,8 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     private var runningActionStates: [SCNActionRuntime.State] = []
     private var runningActionKeys: [String?] = []
     private var runningActionCompletions: [(() -> Void)?] = []
+    private var explicitTransform: SCNMatrix4?
+    private var isApplyingTransform = false
 
     public init() {}
 
@@ -38,12 +46,14 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     }
 
     public func addChildNode(_ child: SCNNode) {
+        guard canAdopt(child) else { return }
         child.removeFromParentNode()
         child.parent = self
         childNodes.append(child)
     }
 
     public func insertChildNode(_ child: SCNNode, at index: Int) {
+        guard canAdopt(child) else { return }
         child.removeFromParentNode()
         child.parent = self
         childNodes.insert(child, at: Swift.max(0, Swift.min(index, childNodes.count)))
@@ -136,11 +146,76 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         eulerAngles = SCNVector3(pitch, yaw, 0)
     }
 
+    public func convertPosition(_ position: SCNVector3, to node: SCNNode?) -> SCNVector3 {
+        let worldPosition = Matrix4.worldTransform(for: self).transformPoint(Vector3(position))
+        let destination = Self.quillWorldTransform(for: node).inverted()
+        return SCNVector3(destination.transformPoint(worldPosition))
+    }
+
+    public func convertPosition(_ position: SCNVector3, from node: SCNNode?) -> SCNVector3 {
+        let worldPosition = Self.quillWorldTransform(for: node).transformPoint(Vector3(position))
+        let local = Matrix4.worldTransform(for: self).inverted()
+        return SCNVector3(local.transformPoint(worldPosition))
+    }
+
+    public func convertVector(_ vector: SCNVector3, to node: SCNNode?) -> SCNVector3 {
+        let worldVector = Matrix4.worldTransform(for: self).transformDirection(Vector3(vector))
+        let destination = Self.quillWorldTransform(for: node).inverted()
+        return SCNVector3(destination.transformDirection(worldVector))
+    }
+
+    public func convertVector(_ vector: SCNVector3, from node: SCNNode?) -> SCNVector3 {
+        let worldVector = Self.quillWorldTransform(for: node).transformDirection(Vector3(vector))
+        let local = Matrix4.worldTransform(for: self).inverted()
+        return SCNVector3(local.transformDirection(worldVector))
+    }
+
     private func appendAction(_ action: SCNAction, key: String?, completionHandler: (() -> Void)?) {
         runningActions.append(action)
         runningActionStates.append(SCNActionRuntime.State(baseline: SCNActionRuntime.Baseline(node: self)))
         runningActionKeys.append(key)
         runningActionCompletions.append(completionHandler)
+    }
+
+    private func canAdopt(_ child: SCNNode) -> Bool {
+        guard child !== self else { return false }
+
+        var ancestor = parent
+        while let node = ancestor {
+            if node === child { return false }
+            ancestor = node.parent
+        }
+
+        return true
+    }
+
+    private func invalidateExplicitTransform() {
+        if !isApplyingTransform {
+            explicitTransform = nil
+        }
+    }
+
+    private static func quillWorldTransform(for node: SCNNode?) -> Matrix4 {
+        node.map(Matrix4.worldTransform) ?? .identity
+    }
+
+    private func applyTransformComponents(_ transform: SCNMatrix4) {
+        isApplyingTransform = true
+        defer { isApplyingTransform = false }
+
+        position = SCNVector3(transform.m41, transform.m42, transform.m43)
+        scale = transform.quillScale
+        orientation = transform.quillOrientation(scale: scale)
+        eulerAngles = SCNVector3(0, 0, 0)
+    }
+
+    private func quillComposedTransform() -> SCNMatrix4 {
+        let scaled = SCNMatrix4MakeScale(scale.x, scale.y, scale.z)
+        let oriented = SCNMatrix4Mult(scaled, SCNMatrix4(quillQuaternion: orientation))
+        let pitched = SCNMatrix4Mult(oriented, SCNMatrix4MakeRotation(eulerAngles.x, 1, 0, 0))
+        let yawed = SCNMatrix4Mult(pitched, SCNMatrix4MakeRotation(eulerAngles.y, 0, 1, 0))
+        let rolled = SCNMatrix4Mult(yawed, SCNMatrix4MakeRotation(eulerAngles.z, 0, 0, 1))
+        return SCNMatrix4Mult(rolled, SCNMatrix4MakeTranslation(position.x, position.y, position.z))
     }
 
     private func stepOwnActions(by deltaTime: TimeInterval) {
@@ -192,5 +267,111 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         }
         runningActionKeys = Array(repeating: nil, count: runningActions.count)
         runningActionCompletions = Array(repeating: nil, count: runningActions.count)
+    }
+}
+
+private extension SCNMatrix4 {
+    init(quillQuaternion q: SCNQuaternion) {
+        let length = (q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w).squareRoot()
+        guard length > 0 else {
+            self = SCNMatrix4Identity
+            return
+        }
+
+        let x = q.x / length
+        let y = q.y / length
+        let z = q.z / length
+        let w = q.w / length
+        let xx = x * x
+        let yy = y * y
+        let zz = z * z
+        let xy = x * y
+        let xz = x * z
+        let yz = y * z
+        let wx = w * x
+        let wy = w * y
+        let wz = w * z
+
+        self.init(
+            m11: 1 - 2 * (yy + zz),
+            m12: 2 * (xy + wz),
+            m13: 2 * (xz - wy),
+            m14: 0,
+            m21: 2 * (xy - wz),
+            m22: 1 - 2 * (xx + zz),
+            m23: 2 * (yz + wx),
+            m24: 0,
+            m31: 2 * (xz + wy),
+            m32: 2 * (yz - wx),
+            m33: 1 - 2 * (xx + yy),
+            m34: 0,
+            m41: 0,
+            m42: 0,
+            m43: 0,
+            m44: 1
+        )
+    }
+
+    var quillScale: SCNVector3 {
+        SCNVector3(
+            (m11 * m11 + m12 * m12 + m13 * m13).squareRoot(),
+            (m21 * m21 + m22 * m22 + m23 * m23).squareRoot(),
+            (m31 * m31 + m32 * m32 + m33 * m33).squareRoot()
+        )
+    }
+
+    func quillOrientation(scale: SCNVector3) -> SCNQuaternion {
+        let sx = max(scale.x, 0.000001)
+        let sy = max(scale.y, 0.000001)
+        let sz = max(scale.z, 0.000001)
+
+        let r00 = m11 / sx
+        let r01 = m21 / sy
+        let r02 = m31 / sz
+        let r10 = m12 / sx
+        let r11 = m22 / sy
+        let r12 = m32 / sz
+        let r20 = m13 / sx
+        let r21 = m23 / sy
+        let r22 = m33 / sz
+
+        let trace = r00 + r11 + r22
+        let x: CGFloat
+        let y: CGFloat
+        let z: CGFloat
+        let w: CGFloat
+        if trace > 0 {
+            let s = (trace + 1).squareRoot() * 2
+            w = 0.25 * s
+            x = (r21 - r12) / s
+            y = (r02 - r20) / s
+            z = (r10 - r01) / s
+        } else if r00 > r11, r00 > r22 {
+            let s = (1 + r00 - r11 - r22).squareRoot() * 2
+            w = (r21 - r12) / s
+            x = 0.25 * s
+            y = (r01 + r10) / s
+            z = (r02 + r20) / s
+        } else if r11 > r22 {
+            let s = (1 + r11 - r00 - r22).squareRoot() * 2
+            w = (r02 - r20) / s
+            x = (r01 + r10) / s
+            y = 0.25 * s
+            z = (r12 + r21) / s
+        } else {
+            let s = (1 + r22 - r00 - r11).squareRoot() * 2
+            w = (r10 - r01) / s
+            x = (r02 + r20) / s
+            y = (r12 + r21) / s
+            z = 0.25 * s
+        }
+
+        return SCNQuaternion(x, y, z, w)
+    }
+}
+
+private extension SCNVector3 {
+    init(_ vector: Vector3) {
+        self.init(vector.x, vector.y, vector.z)
     }
 }

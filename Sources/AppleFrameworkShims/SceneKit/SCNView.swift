@@ -272,6 +272,13 @@ public extension SCNCameraControllerDelegate {
         return scene.quillRenderImage(width: resolvedWidth, height: resolvedHeight, pointOfView: pointOfView)
     }
 
+    public func snapshot() -> UIImage {
+        guard let image = quillRenderImage() else {
+            return UIImage(size: bounds.size)
+        }
+        return UIImage(cgImage: image, size: bounds.size)
+    }
+
     open override func draw(_ rect: CGRect) {
         guard let context = NSGraphicsContext.current?.cgContext,
               let image = quillRenderImage(
@@ -294,6 +301,34 @@ public extension SCNCameraControllerDelegate {
             pointOfView: pointOfView,
             searchMode: searchMode
         )
+    }
+
+    public func projectPoint(_ point: SCNVector3) -> SCNVector3 {
+        guard let scene,
+              let projected = scene.quillProjectPoint(
+                point,
+                width: QuillSceneKitRenderSupport.pixelCount(bounds.width),
+                height: QuillSceneKitRenderSupport.pixelCount(bounds.height),
+                pointOfView: pointOfView
+              )
+        else {
+            return SCNVector3()
+        }
+        return projected
+    }
+
+    public func unprojectPoint(_ point: SCNVector3) -> SCNVector3 {
+        guard let scene,
+              let unprojected = scene.quillUnprojectPoint(
+                point,
+                width: QuillSceneKitRenderSupport.pixelCount(bounds.width),
+                height: QuillSceneKitRenderSupport.pixelCount(bounds.height),
+                pointOfView: pointOfView
+              )
+        else {
+            return SCNVector3()
+        }
+        return unprojected
     }
 
     private func syncDefaultCameraController() {

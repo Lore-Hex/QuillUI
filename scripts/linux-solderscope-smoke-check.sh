@@ -111,6 +111,48 @@ quillui_solderscope_safe_snapshot_desktop() {
   [[ "$desktop_dir" == /root/* || "$desktop_dir" == /tmp/* || "$desktop_dir" == "$ROOT_DIR"/* ]]
 }
 
+quillui_solderscope_focus_window() {
+  local window_id="$1"
+  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+}
+
+quillui_solderscope_send_key() {
+  local window_id="$1"
+  local key="$2"
+  quillui_solderscope_focus_window "$window_id"
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" "$key"
+  sleep "${QUILLUI_SOLDERSCOPE_KEY_SETTLE_SECONDS:-0.05}"
+}
+
+quillui_solderscope_recording_saved_log_count() {
+  grep -c "Recording saved:" "$APP_LOG_PATH" 2>/dev/null || true
+}
+
+quillui_solderscope_recording_started_log_count() {
+  grep -c "Recording started:" "$APP_LOG_PATH" 2>/dev/null || true
+}
+
+quillui_solderscope_click_toolbar_button() {
+  local window_x="$1"
+  local window_y="$2"
+  local window_width="$3"
+  local right_offset="$4"
+  local label="$5"
+  local toolbar_y_offset="${6:-${QUILLUI_SOLDERSCOPE_TOOLBAR_Y_OFFSET:-38}}"
+  local button_x=$((window_x + window_width - right_offset))
+  local button_y=$((window_y + toolbar_y_offset))
+  local reset_y=$((button_y + ${QUILLUI_SOLDERSCOPE_TOOLBAR_RETARGET_DELTA_Y:-90}))
+
+  echo "SolderScope interaction smoke: toolbar $label click at ${button_x},${button_y}" >&2
+  if [[ -n "${window_id:-}" ]]; then
+    quillui_solderscope_focus_window "$window_id"
+  fi
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$button_x" "$reset_y"
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$button_x" "$button_y" click 1
+  sleep "${QUILLUI_SOLDERSCOPE_TOOLBAR_SETTLE_SECONDS:-0.2}"
+}
+
 SOLDERSCOPE_DESKTOP_DIR="$(quillui_solderscope_resolve_desktop_dir)"
 SOLDERSCOPE_DRIVE_SNAPSHOT=0
 case "${QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT:-auto}" in
@@ -150,6 +192,7 @@ case "${QUILLUI_SOLDERSCOPE_DRIVE_RECORDING:-auto}" in
     ;;
   auto|"")
     if [[ "$SMOKE_MODE" == "interaction" ]] \
+      && [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" != "1" ]] \
       && quillui_solderscope_safe_snapshot_desktop "$SOLDERSCOPE_DESKTOP_DIR" \
       && command -v ffmpeg >/dev/null 2>&1; then
       SOLDERSCOPE_DRIVE_RECORDING=1
@@ -228,8 +271,7 @@ quillui_drive_solderscope_interaction() {
   fi
 
   quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
-  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
-  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  quillui_solderscope_focus_window "$window_id"
   while IFS='=' read -r key value; do
     case "$key" in
       X) window_x="$value" ;;
@@ -253,50 +295,41 @@ quillui_drive_solderscope_interaction() {
   for _ in 1 2 3 4 5 6; do
     DISPLAY="$DISPLAY_ID" xdotool click 4
   done
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" i
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" h
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" v
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" bracketright
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" 0
-  if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
-    sleep "${QUILLUI_SOLDERSCOPE_PRE_RECORDING_SETTLE_SECONDS:-0.5}"
-    DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" r
-    sleep "${QUILLUI_SOLDERSCOPE_RECORDING_SECONDS:-2}"
-    DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" r
-    local recording_count="$SOLDERSCOPE_RECORDING_BEFORE_COUNT"
-    local recording_path=""
-    local recording_verified=0
-    for _ in {1..40}; do
-      recording_count="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
-      if (( recording_count > SOLDERSCOPE_RECORDING_BEFORE_COUNT )); then
-        recording_path="$(quillui_solderscope_latest_recording "$SOLDERSCOPE_DESKTOP_DIR")"
-        if quillui_solderscope_verify_recording_file "$recording_path" >/dev/null 2>&1; then
-          recording_verified=1
-          echo "SolderScope interaction smoke: recording saved to $recording_path" >&2
-          break
-        fi
-      fi
-      sleep 0.25
-    done
-    if [[ "$recording_verified" != "1" ]]; then
-      if [[ -n "$recording_path" ]]; then
-        quillui_solderscope_verify_recording_file "$recording_path" || true
-      fi
-      echo "SolderScope interaction smoke did not observe a finalized recording file in $SOLDERSCOPE_DESKTOP_DIR" >&2
-      return 1
-    fi
-  fi
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" b
-  sleep 0.2
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" b
+  quillui_solderscope_send_key "$window_id" i
+  quillui_solderscope_send_key "$window_id" h
+  quillui_solderscope_send_key "$window_id" v
+  quillui_solderscope_send_key "$window_id" bracketright
+  quillui_solderscope_send_key "$window_id" 0
   if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
-    DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" s
+    local snapshot_driver="${QUILLUI_SOLDERSCOPE_SNAPSHOT_DRIVER:-shortcut}"
+    case "$snapshot_driver" in
+      toolbar)
+        quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_SNAPSHOT_BUTTON_RIGHT_OFFSET:-181}" snapshot "${QUILLUI_SOLDERSCOPE_SNAPSHOT_TOOLBAR_Y_OFFSET:-38}"
+        ;;
+      shortcut)
+        quillui_solderscope_send_key "$window_id" s
+        ;;
+      *)
+        echo "Unsupported QUILLUI_SOLDERSCOPE_SNAPSHOT_DRIVER='$snapshot_driver' (expected toolbar or shortcut)" >&2
+        return 64
+        ;;
+    esac
     local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
       snapshot_count="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
       if (( snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
         echo "SolderScope interaction smoke: snapshot saved to $SOLDERSCOPE_DESKTOP_DIR" >&2
         break
+      fi
+      if (( attempt == ${QUILLUI_SOLDERSCOPE_SNAPSHOT_RETRY_TICK:-5} )); then
+        case "$snapshot_driver" in
+          toolbar)
+            quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_SNAPSHOT_BUTTON_RIGHT_OFFSET:-181}" snapshot-retry "${QUILLUI_SOLDERSCOPE_SNAPSHOT_TOOLBAR_Y_OFFSET:-38}"
+            ;;
+          shortcut)
+            quillui_solderscope_send_key "$window_id" s
+            ;;
+        esac
       fi
       sleep 0.2
     done
@@ -305,7 +338,131 @@ quillui_drive_solderscope_interaction() {
       return 1
     fi
   fi
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" Escape
+  if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
+    local recording_driver="${QUILLUI_SOLDERSCOPE_RECORDING_DRIVER:-shortcut}"
+    local recording_start_driver="${QUILLUI_SOLDERSCOPE_RECORDING_START_DRIVER:-$recording_driver}"
+    local recording_stop_driver="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_DRIVER:-$recording_driver}"
+    local recording_started_before
+    local recording_saved_before
+    recording_started_before="$(quillui_solderscope_recording_started_log_count)"
+    recording_saved_before="$(quillui_solderscope_recording_saved_log_count)"
+    local recording_start_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_START_RETRY_TICK:-}"
+    local recording_start_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_RETRY_INTERVAL_TICKS:-10}"
+    sleep "${QUILLUI_SOLDERSCOPE_PRE_RECORDING_SETTLE_SECONDS:-0.5}"
+    case "$recording_start_driver" in
+      toolbar)
+        quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-start "${QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
+        ;;
+      shortcut)
+        quillui_solderscope_send_key "$window_id" r
+        ;;
+      *)
+        echo "Unsupported QUILLUI_SOLDERSCOPE_RECORDING_START_DRIVER='$recording_start_driver' (expected toolbar or shortcut)" >&2
+        return 64
+        ;;
+    esac
+    local recording_started_count="$recording_started_before"
+    local recording_started=0
+    for attempt in {1..40}; do
+      recording_started_count="$(quillui_solderscope_recording_started_log_count)"
+      if (( recording_started_count > recording_started_before )); then
+        recording_started=1
+        break
+      fi
+      local should_retry_start=0
+      if [[ -n "$recording_start_retry_tick" ]]; then
+        if (( attempt == recording_start_retry_tick )); then
+          should_retry_start=1
+        fi
+      elif (( recording_start_retry_interval > 0 && attempt % recording_start_retry_interval == 0 )); then
+        should_retry_start=1
+      fi
+      if (( should_retry_start == 1 )); then
+        case "$recording_start_driver" in
+          toolbar)
+            quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-start-retry "${QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
+            ;;
+          shortcut)
+            quillui_solderscope_send_key "$window_id" r
+            ;;
+        esac
+      fi
+      sleep 0.25
+    done
+    if [[ "$recording_started" != "1" ]]; then
+      echo "SolderScope interaction smoke did not observe the app-level Recording started log" >&2
+      return 1
+    fi
+    sleep "${QUILLUI_SOLDERSCOPE_RECORDING_SECONDS:-2}"
+    case "$recording_stop_driver" in
+      toolbar)
+        quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-stop "${QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
+        ;;
+      shortcut)
+        quillui_solderscope_send_key "$window_id" r
+        ;;
+      *)
+        echo "Unsupported QUILLUI_SOLDERSCOPE_RECORDING_STOP_DRIVER='$recording_stop_driver' (expected toolbar or shortcut)" >&2
+        return 64
+        ;;
+    esac
+    local recording_count="$SOLDERSCOPE_RECORDING_BEFORE_COUNT"
+    local recording_path=""
+    local recording_saved_count="$recording_saved_before"
+    local recording_verified=0
+    for attempt in {1..40}; do
+      recording_saved_count="$(quillui_solderscope_recording_saved_log_count)"
+      recording_count="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
+      if (( recording_saved_count > recording_saved_before && recording_count > SOLDERSCOPE_RECORDING_BEFORE_COUNT )); then
+        recording_path="$(quillui_solderscope_latest_recording "$SOLDERSCOPE_DESKTOP_DIR")"
+        if quillui_solderscope_verify_recording_file "$recording_path" >/dev/null 2>&1; then
+          recording_verified=1
+          echo "SolderScope interaction smoke: recording saved to $recording_path" >&2
+          break
+        fi
+      fi
+      if (( attempt == ${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-20} )); then
+        case "$recording_stop_driver" in
+          toolbar)
+            quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-stop-retry "${QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
+            ;;
+          shortcut)
+            quillui_solderscope_send_key "$window_id" r
+            ;;
+        esac
+      fi
+      sleep 0.25
+    done
+    if [[ "$recording_verified" != "1" ]]; then
+      if [[ -n "$recording_path" ]]; then
+        quillui_solderscope_verify_recording_file "$recording_path" || true
+      fi
+      if (( recording_saved_count <= recording_saved_before )); then
+        echo "SolderScope interaction smoke did not observe the app-level Recording saved log after stop" >&2
+      fi
+      echo "SolderScope interaction smoke did not observe a finalized recording file in $SOLDERSCOPE_DESKTOP_DIR" >&2
+      return 1
+    fi
+    sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
+  fi
+  local freeze_driver="${QUILLUI_SOLDERSCOPE_FREEZE_DRIVER:-none}"
+  case "$freeze_driver" in
+    toolbar)
+      quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-235}" freeze "${QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET:-46}"
+      ;;
+    shortcut)
+      quillui_solderscope_send_key "$window_id" space
+      ;;
+    none)
+      echo "SolderScope interaction smoke: freeze skipped" >&2
+      ;;
+    *)
+      echo "Unsupported QUILLUI_SOLDERSCOPE_FREEZE_DRIVER='$freeze_driver' (expected toolbar, shortcut, or none)" >&2
+      return 64
+      ;;
+  esac
+  quillui_solderscope_send_key "$window_id" b
+  quillui_solderscope_send_key "$window_id" Escape
   sleep 1
 }
 

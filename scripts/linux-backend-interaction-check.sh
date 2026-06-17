@@ -677,7 +677,7 @@ open_quill_chat_new_completion_sheet() {
       new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 458))}"
     else
       new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1487))}"
-      new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 477))}"
+      new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 505))}"
     fi
   else
     new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + window_width - 210))}"
@@ -977,7 +977,7 @@ open_quill_chat_settings_delete_confirmation() {
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-948}"
     else
-      clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-990}"
+      clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-997}"
     fi
   else
     settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"

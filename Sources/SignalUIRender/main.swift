@@ -54,7 +54,14 @@ final class FirstLightViewController: UIViewController {
 func dumpViewTree(_ view: UIView, depth: Int) {
     let indent = String(repeating: "  ", count: depth)
     let f = view.frame
-    var line = "\(indent)\(type(of: view)) frame=(\(Int(f.origin.x)),\(Int(f.origin.y)),\(Int(f.width))x\(Int(f.height))) subviews=\(view.subviews.count)"
+    func safeFrameValue(_ value: CGFloat) -> String {
+        guard value.isFinite else { return String(describing: value) }
+        guard value <= CGFloat(Int.max), value >= CGFloat(Int.min) else {
+            return String(format: "%.3g", Double(value))
+        }
+        return String(Int(value.rounded()))
+    }
+    var line = "\(indent)\(type(of: view)) frame=(\(safeFrameValue(f.origin.x)),\(safeFrameValue(f.origin.y)),\(safeFrameValue(f.width))x\(safeFrameValue(f.height))) subviews=\(view.subviews.count)"
     if let label = view as? UILabel { line += " label=\"\(label.text ?? "")\"" }
     if let renderedText = view.quillRenderedText { line += " renderedText=\"\(renderedText)\"" }
     if let tv = view as? UITableView {
@@ -113,9 +120,20 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
                              windowBackground: String = "#EFEFF4") {
     installBaseCSS(windowBackground: windowBackground)
 
-    // Force the view to load + lay out.
-    vc.loadViewIfNeeded()
-    vc.viewDidLoad()
+    // Force the view to load + lay out. `loadViewIfNeeded()` already calls
+    // `viewDidLoad()` in QuillUIKit, but it also hides the chance to size the
+    // root view before first-load code runs. Size first for unloaded controllers
+    // so UIKit-style layout gates see the host window dimensions.
+    if vc.isViewLoaded {
+        vc.view.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+    } else {
+        vc.loadView()
+        if vc.viewIfLoaded == nil {
+            vc.view = UIView()
+        }
+        vc.viewIfLoaded?.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+        vc.viewDidLoad()
+    }
     vc.view.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
     vc.view.layoutIfNeeded()
 

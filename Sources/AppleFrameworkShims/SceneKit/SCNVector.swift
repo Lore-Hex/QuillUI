@@ -54,8 +54,8 @@ public struct SCNVector4: Equatable, Sendable {
 /// that keeps Euclid's `init(_ rotation: Rotation)` extension unambiguous.
 public typealias SCNQuaternion = SCNVector4
 
-/// A 4x4 column-major transform matrix (row-vector layout matching SceneKit's
-/// `SCNMatrix4`: m11…m44). Identity by default.
+/// A 4x4 transform matrix matching SceneKit/CATransform3D's public field
+/// layout: translation lives in m41/m42/m43. Identity by default.
 public struct SCNMatrix4: Equatable, Sendable {
     public var m11: CGFloat, m12: CGFloat, m13: CGFloat, m14: CGFloat
     public var m21: CGFloat, m22: CGFloat, m23: CGFloat, m24: CGFloat
@@ -92,6 +92,92 @@ public func SCNMatrix4IsIdentity(_ m: SCNMatrix4) -> Bool {
 
 public func SCNMatrix4EqualToMatrix4(_ a: SCNMatrix4, _ b: SCNMatrix4) -> Bool {
     a == b
+}
+
+public func SCNMatrix4MakeTranslation(_ tx: CGFloat, _ ty: CGFloat, _ tz: CGFloat) -> SCNMatrix4 {
+    SCNMatrix4(
+        m11: 1, m12: 0, m13: 0, m14: 0,
+        m21: 0, m22: 1, m23: 0, m24: 0,
+        m31: 0, m32: 0, m33: 1, m34: 0,
+        m41: tx, m42: ty, m43: tz, m44: 1
+    )
+}
+
+public func SCNMatrix4MakeScale(_ sx: CGFloat, _ sy: CGFloat, _ sz: CGFloat) -> SCNMatrix4 {
+    SCNMatrix4(
+        m11: sx, m12: 0, m13: 0, m14: 0,
+        m21: 0, m22: sy, m23: 0, m24: 0,
+        m31: 0, m32: 0, m33: sz, m34: 0,
+        m41: 0, m42: 0, m43: 0, m44: 1
+    )
+}
+
+public func SCNMatrix4MakeRotation(_ angle: CGFloat, _ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> SCNMatrix4 {
+    let length = (x * x + y * y + z * z).squareRoot()
+    guard length > 0 else { return SCNMatrix4Identity }
+
+    let x = x / length
+    let y = y / length
+    let z = z / length
+    let c = cos(angle)
+    let s = sin(angle)
+    let t = 1 - c
+
+    return SCNMatrix4(
+        m11: t * x * x + c,
+        m12: t * x * y + z * s,
+        m13: t * x * z - y * s,
+        m14: 0,
+        m21: t * x * y - z * s,
+        m22: t * y * y + c,
+        m23: t * y * z + x * s,
+        m24: 0,
+        m31: t * x * z + y * s,
+        m32: t * y * z - x * s,
+        m33: t * z * z + c,
+        m34: 0,
+        m41: 0,
+        m42: 0,
+        m43: 0,
+        m44: 1
+    )
+}
+
+public func SCNMatrix4Translate(_ m: SCNMatrix4, _ tx: CGFloat, _ ty: CGFloat, _ tz: CGFloat) -> SCNMatrix4 {
+    var translated = m
+    translated.m41 += tx
+    translated.m42 += ty
+    translated.m43 += tz
+    return translated
+}
+
+public func SCNMatrix4Scale(_ m: SCNMatrix4, _ sx: CGFloat, _ sy: CGFloat, _ sz: CGFloat) -> SCNMatrix4 {
+    SCNMatrix4Mult(SCNMatrix4MakeScale(sx, sy, sz), m)
+}
+
+public func SCNMatrix4Rotate(_ m: SCNMatrix4, _ angle: CGFloat, _ x: CGFloat, _ y: CGFloat, _ z: CGFloat) -> SCNMatrix4 {
+    SCNMatrix4Mult(SCNMatrix4MakeRotation(angle, x, y, z), m)
+}
+
+public func SCNMatrix4Mult(_ a: SCNMatrix4, _ b: SCNMatrix4) -> SCNMatrix4 {
+    SCNMatrix4(
+        m11: a.m11 * b.m11 + a.m12 * b.m21 + a.m13 * b.m31 + a.m14 * b.m41,
+        m12: a.m11 * b.m12 + a.m12 * b.m22 + a.m13 * b.m32 + a.m14 * b.m42,
+        m13: a.m11 * b.m13 + a.m12 * b.m23 + a.m13 * b.m33 + a.m14 * b.m43,
+        m14: a.m11 * b.m14 + a.m12 * b.m24 + a.m13 * b.m34 + a.m14 * b.m44,
+        m21: a.m21 * b.m11 + a.m22 * b.m21 + a.m23 * b.m31 + a.m24 * b.m41,
+        m22: a.m21 * b.m12 + a.m22 * b.m22 + a.m23 * b.m32 + a.m24 * b.m42,
+        m23: a.m21 * b.m13 + a.m22 * b.m23 + a.m23 * b.m33 + a.m24 * b.m43,
+        m24: a.m21 * b.m14 + a.m22 * b.m24 + a.m23 * b.m34 + a.m24 * b.m44,
+        m31: a.m31 * b.m11 + a.m32 * b.m21 + a.m33 * b.m31 + a.m34 * b.m41,
+        m32: a.m31 * b.m12 + a.m32 * b.m22 + a.m33 * b.m32 + a.m34 * b.m42,
+        m33: a.m31 * b.m13 + a.m32 * b.m23 + a.m33 * b.m33 + a.m34 * b.m43,
+        m34: a.m31 * b.m14 + a.m32 * b.m24 + a.m33 * b.m34 + a.m34 * b.m44,
+        m41: a.m41 * b.m11 + a.m42 * b.m21 + a.m43 * b.m31 + a.m44 * b.m41,
+        m42: a.m41 * b.m12 + a.m42 * b.m22 + a.m43 * b.m32 + a.m44 * b.m42,
+        m43: a.m41 * b.m13 + a.m42 * b.m23 + a.m43 * b.m33 + a.m44 * b.m43,
+        m44: a.m41 * b.m14 + a.m42 * b.m24 + a.m43 * b.m34 + a.m44 * b.m44
+    )
 }
 
 /// Full 4x4 inverse (cofactor / adjugate method), matching `SCNMatrix4Invert`.

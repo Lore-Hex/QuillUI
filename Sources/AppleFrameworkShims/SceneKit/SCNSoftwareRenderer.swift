@@ -70,6 +70,26 @@ public extension SCNScene {
             .hitTest(point: point, width: width, height: height, searchMode: searchMode)
     }
     #endif
+
+    func quillProjectPoint(
+        _ point: SCNVector3,
+        width: Int,
+        height: Int,
+        pointOfView: SCNNode? = nil
+    ) -> SCNVector3? {
+        SCNSoftwareRenderer(scene: self, pointOfView: pointOfView)
+            .projectPoint(point, width: width, height: height)
+    }
+
+    func quillUnprojectPoint(
+        _ point: SCNVector3,
+        width: Int,
+        height: Int,
+        pointOfView: SCNNode? = nil
+    ) -> SCNVector3? {
+        SCNSoftwareRenderer(scene: self, pointOfView: pointOfView)
+            .unprojectPoint(point, width: width, height: height)
+    }
 }
 
 public struct SCNSoftwareRenderer {
@@ -113,7 +133,20 @@ public struct SCNSoftwareRenderer {
     }
     #endif
 
+    public func projectPoint(_ point: SCNVector3, width: Int, height: Int) -> SCNVector3? {
+        projectionContext(width: width, height: height).camera.projectWorldPoint(Vector3(point))
+    }
+
+    public func unprojectPoint(_ point: SCNVector3, width: Int, height: Int) -> SCNVector3? {
+        projectionContext(width: width, height: height).camera.unprojectScreenPoint(point)
+    }
+
     private func projectedPrimitives(width: Int, height: Int) -> [ProjectedPrimitive] {
+        let context = projectionContext(width: width, height: height)
+        return context.collector.primitives.flatMap { $0.projected(using: context.camera) }
+    }
+
+    private func projectionContext(width: Int, height: Int) -> ProjectionContext {
         let rootTransform = Matrix4.identity
         var collector = RenderCollector()
         collector.collect(node: scene.rootNode, parent: rootTransform)
@@ -129,8 +162,13 @@ public struct SCNSoftwareRenderer {
             height: max(1, height)
         )
 
-        return collector.primitives.compactMap { $0.projected(using: camera) }
+        return ProjectionContext(collector: collector, camera: camera)
     }
+}
+
+private struct ProjectionContext {
+    var collector: RenderCollector
+    var camera: CameraProjection
 }
 
 // MARK: - Scene collection
@@ -191,26 +229,106 @@ private struct RenderCollector {
             primitives.append(.line(a: a, b: b, radius: radius, color: baseColor, owner: owner))
             return
 
+        case let cone as SCNCone:
+            appendFrustumSurface(
+                bottomRadius: cone.bottomRadius,
+                topRadius: cone.topRadius,
+                height: cone.height,
+                world: world,
+                color: baseColor,
+                owner: PrimitiveOwner(node: node, geometryIndex: 0)
+            )
+            return
+
+        case let capsule as SCNCapsule:
+            appendCapsule(
+                capRadius: capsule.capRadius,
+                height: capsule.height,
+                world: world,
+                color: baseColor,
+                owner: PrimitiveOwner(node: node, geometryIndex: 0)
+            )
+            return
+
+        case let tube as SCNTube:
+            appendTubeSurface(
+                innerRadius: tube.innerRadius,
+                outerRadius: tube.outerRadius,
+                height: tube.height,
+                world: world,
+                color: baseColor,
+                owner: PrimitiveOwner(node: node, geometryIndex: 0)
+            )
+            return
+
+        case let torus as SCNTorus:
+            appendTorusSurface(
+                ringRadius: torus.ringRadius,
+                pipeRadius: torus.pipeRadius,
+                world: world,
+                color: baseColor,
+                owner: PrimitiveOwner(node: node, geometryIndex: 0)
+            )
+            return
+
         case let box as SCNBox:
             let owner = PrimitiveOwner(node: node, geometryIndex: 0)
             let hx = box.width / 2
             let hy = box.height / 2
             let hz = box.length / 2
-            let corners = [
-                Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz),
-                Vector3(hx, hy, -hz), Vector3(-hx, hy, -hz),
-                Vector3(-hx, -hy, hz), Vector3(hx, -hy, hz),
-                Vector3(hx, hy, hz), Vector3(-hx, hy, hz),
-            ].map(world.transformPoint)
-            for corner in corners { include(corner) }
-            let faces = [
-                (0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6),
-                (0, 4, 5), (0, 5, 1), (1, 5, 6), (1, 6, 2),
-                (2, 6, 7), (2, 7, 3), (3, 7, 4), (3, 4, 0),
-            ]
-            for (i0, i1, i2) in faces {
-                primitives.append(.triangle(a: corners[i0], b: corners[i1], c: corners[i2], color: baseColor, owner: owner))
-            }
+            appendSurface(
+                localVertices: [
+                    Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz),
+                    Vector3(hx, hy, -hz), Vector3(-hx, hy, -hz),
+                    Vector3(-hx, -hy, hz), Vector3(hx, -hy, hz),
+                    Vector3(hx, hy, hz), Vector3(-hx, hy, hz),
+                ],
+                faces: [
+                    (0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6),
+                    (0, 4, 5), (0, 5, 1), (1, 5, 6), (1, 6, 2),
+                    (2, 6, 7), (2, 7, 3), (3, 7, 4), (3, 4, 0),
+                ],
+                world: world,
+                color: baseColor,
+                owner: owner
+            )
+            return
+
+        case let plane as SCNPlane:
+            let owner = PrimitiveOwner(node: node, geometryIndex: 0)
+            let hx = plane.width / 2
+            let hy = plane.height / 2
+            appendSurface(
+                localVertices: [
+                    Vector3(-hx, -hy, 0), Vector3(hx, -hy, 0),
+                    Vector3(hx, hy, 0), Vector3(-hx, hy, 0),
+                ],
+                faces: [(0, 1, 2), (0, 2, 3)],
+                world: world,
+                color: baseColor,
+                owner: owner
+            )
+            return
+
+        case let pyramid as SCNPyramid:
+            let owner = PrimitiveOwner(node: node, geometryIndex: 0)
+            let hx = pyramid.width / 2
+            let hy = pyramid.height / 2
+            let hz = pyramid.length / 2
+            appendSurface(
+                localVertices: [
+                    Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz),
+                    Vector3(hx, -hy, hz), Vector3(-hx, -hy, hz),
+                    Vector3(0, hy, 0),
+                ],
+                faces: [
+                    (0, 2, 1), (0, 3, 2),
+                    (0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4),
+                ],
+                world: world,
+                color: baseColor,
+                owner: owner
+            )
             return
 
         default:
@@ -218,6 +336,224 @@ private struct RenderCollector {
         }
 
         collectBufferedGeometry(geometry, node: node, world: world, opacity: opacity)
+    }
+
+    private mutating func appendCapsule(
+        capRadius: CGFloat,
+        height: CGFloat,
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let capRadius = max(0, capRadius)
+        let height = max(0, height)
+        let radius = max(0.001, world.approximateScale * capRadius)
+        let halfCylinder = max(0, height / 2 - capRadius)
+        let a = world.transformPoint(Vector3(0, -halfCylinder, 0))
+        let b = world.transformPoint(Vector3(0, halfCylinder, 0))
+        include(a - Vector3(radius, radius, radius))
+        include(a + Vector3(radius, radius, radius))
+        include(b - Vector3(radius, radius, radius))
+        include(b + Vector3(radius, radius, radius))
+        if halfCylinder <= 0.0001 {
+            primitives.append(.sphere(center: world.transformPoint(.zero), radius: radius, color: color, owner: owner))
+        } else {
+            primitives.append(.line(a: a, b: b, radius: radius, color: color, owner: owner))
+        }
+    }
+
+    private mutating func appendFrustumSurface(
+        bottomRadius: CGFloat,
+        topRadius: CGFloat,
+        height: CGFloat,
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let bottomRadius = max(0, bottomRadius)
+        let topRadius = max(0, topRadius)
+        let height = max(0.001, height)
+        guard bottomRadius > 0 || topRadius > 0 else { return }
+
+        let segmentCount = 32
+        let bottomY = -height / 2
+        let topY = height / 2
+        var vertices: [Vector3] = []
+        var faces: [(Int, Int, Int)] = []
+
+        func appendVertex(_ vertex: Vector3) -> Int {
+            vertices.append(vertex)
+            return vertices.count - 1
+        }
+
+        func appendRing(radius: CGFloat, y: CGFloat) -> [Int] {
+            (0..<segmentCount).map { segment in
+                let angle = CGFloat(segment) * 2 * .pi / CGFloat(segmentCount)
+                return appendVertex(Vector3(cos(angle) * radius, y, sin(angle) * radius))
+            }
+        }
+
+        let bottomRing = bottomRadius > 0 ? appendRing(radius: bottomRadius, y: bottomY) : []
+        let topRing = topRadius > 0 ? appendRing(radius: topRadius, y: topY) : []
+        let bottomApex = bottomRing.isEmpty ? appendVertex(Vector3(0, bottomY, 0)) : nil
+        let topApex = topRing.isEmpty ? appendVertex(Vector3(0, topY, 0)) : nil
+
+        for segment in 0..<segmentCount {
+            let next = (segment + 1) % segmentCount
+            switch (bottomRing.isEmpty, topRing.isEmpty) {
+            case (false, false):
+                faces.append((bottomRing[segment], bottomRing[next], topRing[next]))
+                faces.append((bottomRing[segment], topRing[next], topRing[segment]))
+            case (false, true):
+                if let topApex {
+                    faces.append((bottomRing[segment], bottomRing[next], topApex))
+                }
+            case (true, false):
+                if let bottomApex {
+                    faces.append((bottomApex, topRing[next], topRing[segment]))
+                }
+            case (true, true):
+                break
+            }
+        }
+
+        if !bottomRing.isEmpty {
+            let center = appendVertex(Vector3(0, bottomY, 0))
+            for segment in 0..<segmentCount {
+                faces.append((center, bottomRing[(segment + 1) % segmentCount], bottomRing[segment]))
+            }
+        }
+        if !topRing.isEmpty {
+            let center = appendVertex(Vector3(0, topY, 0))
+            for segment in 0..<segmentCount {
+                faces.append((center, topRing[segment], topRing[(segment + 1) % segmentCount]))
+            }
+        }
+
+        appendSurface(localVertices: vertices, faces: faces, world: world, color: color, owner: owner)
+    }
+
+    private mutating func appendTubeSurface(
+        innerRadius: CGFloat,
+        outerRadius: CGFloat,
+        height: CGFloat,
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let outerRadius = max(0, outerRadius)
+        guard outerRadius > 0 else { return }
+        let innerRadius = max(0, min(innerRadius, outerRadius * 0.95))
+        let height = max(0.001, height)
+        guard innerRadius > 0 else {
+            appendFrustumSurface(
+                bottomRadius: outerRadius,
+                topRadius: outerRadius,
+                height: height,
+                world: world,
+                color: color,
+                owner: owner
+            )
+            return
+        }
+
+        let segmentCount = 32
+        let bottomY = -height / 2
+        let topY = height / 2
+        var vertices: [Vector3] = []
+        var faces: [(Int, Int, Int)] = []
+
+        func appendRing(radius: CGFloat, y: CGFloat) -> [Int] {
+            (0..<segmentCount).map { segment in
+                let angle = CGFloat(segment) * 2 * .pi / CGFloat(segmentCount)
+                vertices.append(Vector3(cos(angle) * radius, y, sin(angle) * radius))
+                return vertices.count - 1
+            }
+        }
+
+        let outerBottom = appendRing(radius: outerRadius, y: bottomY)
+        let outerTop = appendRing(radius: outerRadius, y: topY)
+        let innerBottom = appendRing(radius: innerRadius, y: bottomY)
+        let innerTop = appendRing(radius: innerRadius, y: topY)
+
+        for segment in 0..<segmentCount {
+            let next = (segment + 1) % segmentCount
+            faces.append((outerBottom[segment], outerBottom[next], outerTop[next]))
+            faces.append((outerBottom[segment], outerTop[next], outerTop[segment]))
+            faces.append((innerBottom[segment], innerTop[next], innerBottom[next]))
+            faces.append((innerBottom[segment], innerTop[segment], innerTop[next]))
+            faces.append((outerTop[segment], outerTop[next], innerTop[next]))
+            faces.append((outerTop[segment], innerTop[next], innerTop[segment]))
+            faces.append((outerBottom[next], outerBottom[segment], innerBottom[segment]))
+            faces.append((outerBottom[next], innerBottom[segment], innerBottom[next]))
+        }
+
+        appendSurface(localVertices: vertices, faces: faces, world: world, color: color, owner: owner)
+    }
+
+    private mutating func appendTorusSurface(
+        ringRadius: CGFloat,
+        pipeRadius: CGFloat,
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let ringRadius = max(0, ringRadius)
+        let pipeRadius = max(0, pipeRadius)
+        guard ringRadius > 0, pipeRadius > 0 else { return }
+
+        let ringSegments = 32
+        let pipeSegments = 16
+        var vertices: [Vector3] = []
+        var faces: [(Int, Int, Int)] = []
+
+        func vertexIndex(ring: Int, pipe: Int) -> Int {
+            ring * pipeSegments + pipe
+        }
+
+        for ring in 0..<ringSegments {
+            let ringAngle = CGFloat(ring) * 2 * .pi / CGFloat(ringSegments)
+            let radialX = cos(ringAngle)
+            let radialY = sin(ringAngle)
+            for pipe in 0..<pipeSegments {
+                let pipeAngle = CGFloat(pipe) * 2 * .pi / CGFloat(pipeSegments)
+                let radialDistance = ringRadius + pipeRadius * cos(pipeAngle)
+                vertices.append(Vector3(
+                    radialX * radialDistance,
+                    radialY * radialDistance,
+                    pipeRadius * sin(pipeAngle)
+                ))
+            }
+        }
+
+        for ring in 0..<ringSegments {
+            let nextRing = (ring + 1) % ringSegments
+            for pipe in 0..<pipeSegments {
+                let nextPipe = (pipe + 1) % pipeSegments
+                let a = vertexIndex(ring: ring, pipe: pipe)
+                let b = vertexIndex(ring: nextRing, pipe: pipe)
+                let c = vertexIndex(ring: nextRing, pipe: nextPipe)
+                let d = vertexIndex(ring: ring, pipe: nextPipe)
+                faces.append((a, b, c))
+                faces.append((a, c, d))
+            }
+        }
+
+        appendSurface(localVertices: vertices, faces: faces, world: world, color: color, owner: owner)
+    }
+
+    private mutating func appendSurface(
+        localVertices: [Vector3],
+        faces: [(Int, Int, Int)],
+        world: Matrix4,
+        color: RGBA,
+        owner: PrimitiveOwner
+    ) {
+        let vertices = localVertices.map(world.transformPoint)
+        for vertex in vertices { include(vertex) }
+        for (i0, i1, i2) in faces {
+            appendTriangle(i0, i1, i2, vertices: vertices, color: color, owner: owner)
+        }
     }
 
     private mutating func collectBufferedGeometry(_ geometry: SCNGeometry, node: SCNNode, world: Matrix4, opacity: CGFloat) {
@@ -279,12 +615,13 @@ private struct RenderCollector {
         guard element.primitiveCount > 0, raw.count >= element.primitiveCount else { return }
         let counts = Array(raw.prefix(element.primitiveCount))
         var offset = element.primitiveCount
-        for count in counts where count >= 3 {
+        for count in counts {
             guard offset + count <= raw.count else { return }
             let polygon = Array(raw[offset..<(offset + count)])
             offset += count
-            for i in 1..<(polygon.count - 1) {
-                appendTriangle(polygon[0], polygon[i], polygon[i + 1], vertices: vertices, color: color, owner: owner)
+            guard count >= 3 else { continue }
+            for index in 1..<(polygon.count - 1) {
+                appendTriangle(polygon[0], polygon[index], polygon[index + 1], vertices: vertices, color: color, owner: owner)
             }
         }
     }
@@ -302,31 +639,16 @@ private enum WorldPrimitive {
     case line(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner)
     case triangle(a: Vector3, b: Vector3, c: Vector3, color: RGBA, owner: PrimitiveOwner)
 
-    func projected(using camera: CameraProjection) -> ProjectedPrimitive? {
+    func projected(using camera: CameraProjection) -> [ProjectedPrimitive] {
         switch self {
         case let .sphere(center, radius, color, owner):
-            guard let projectedCenter = camera.project(center) else { return nil }
+            guard let projectedCenter = camera.project(center) else { return [] }
             let projectedRadius = max(1.5, camera.projectedLength(radius, atDepth: projectedCenter.depth))
-            return .sphere(center: projectedCenter.point, radius: projectedRadius, depth: projectedCenter.depth, color: color, owner: owner)
+            return [.sphere(center: projectedCenter.point, radius: projectedRadius, depth: projectedCenter.depth, color: color, owner: owner)]
         case let .line(a, b, radius, color, owner):
-            guard let pa = camera.project(a), let pb = camera.project(b) else { return nil }
-            let depth = (pa.depth + pb.depth) / 2
-            let projectedRadius = max(1, camera.projectedLength(radius, atDepth: depth))
-            return .line(a: pa.point, b: pb.point, radius: projectedRadius, depth: depth, color: color, owner: owner)
+            return camera.projectedLine(a: a, b: b, radius: radius, color: color, owner: owner)
         case let .triangle(a, b, c, color, owner):
-            guard let pa = camera.project(a), let pb = camera.project(b), let pc = camera.project(c) else { return nil }
-            let depth = (pa.depth + pb.depth + pc.depth) / 3
-            return .triangle(
-                a: pa.point,
-                b: pb.point,
-                c: pc.point,
-                depthA: pa.depth,
-                depthB: pb.depth,
-                depthC: pc.depth,
-                depth: depth,
-                color: color,
-                owner: owner
-            )
+            return camera.projectedTriangles(a: a, b: b, c: c, color: color, owner: owner)
         }
     }
 }
@@ -474,24 +796,173 @@ private struct CameraProjection {
     }
 
     func project(_ point: Vector3) -> (point: CGPoint, depth: CGFloat)? {
-        let relative = point - position
-        let depth = relative.dot(forward)
-        guard depth >= zNear, depth <= zFar else { return nil }
-        let cameraX = relative.dot(right)
-        let cameraY = relative.dot(up)
+        project(cameraSpaceVertex(for: point))
+    }
+
+    func projectWorldPoint(_ point: Vector3) -> SCNVector3? {
+        guard let projected = project(point) else {
+            return nil
+        }
+
+        return SCNVector3(
+            projected.point.x,
+            projected.point.y,
+            normalizedDepth(for: projected.depth)
+        )
+    }
+
+    func unprojectScreenPoint(_ point: SCNVector3) -> SCNVector3? {
+        let depth = cameraDepth(forNormalizedDepth: point.z)
+        guard depth.isFinite, depth > 0 else {
+            return nil
+        }
+
         let scale: CGFloat
         if let orthographicScale {
             scale = CGFloat(height) / orthographicScale
         } else {
             scale = focalLength / depth
         }
+        guard scale.isFinite, abs(scale) > 0.000001 else {
+            return nil
+        }
+
+        let cameraX = (point.x - CGFloat(width) / 2) / scale
+        let cameraY = (CGFloat(height) / 2 - point.y) / scale
+        let world = position + right * cameraX + up * cameraY + forward * depth
+        return SCNVector3(world.x, world.y, world.z)
+    }
+
+    func projectedLine(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
+        var start = cameraSpaceVertex(for: a)
+        var end = cameraSpaceVertex(for: b)
+        guard clipSegment(&start, &end, atDepth: zNear, keeping: { $0.depth >= zNear }) else { return [] }
+        if zFar < .greatestFiniteMagnitude / 2 {
+            guard clipSegment(&start, &end, atDepth: zFar, keeping: { $0.depth <= zFar }) else { return [] }
+        }
+        guard let projectedStart = project(start), let projectedEnd = project(end) else { return [] }
+        let depth = (projectedStart.depth + projectedEnd.depth) / 2
+        let projectedRadius = max(1, projectedLength(radius, atDepth: depth))
+        return [.line(
+            a: projectedStart.point,
+            b: projectedEnd.point,
+            radius: projectedRadius,
+            depth: depth,
+            color: color,
+            owner: owner
+        )]
+    }
+
+    func projectedTriangles(a: Vector3, b: Vector3, c: Vector3, color: RGBA, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
+        var polygon = [
+            cameraSpaceVertex(for: a),
+            cameraSpaceVertex(for: b),
+            cameraSpaceVertex(for: c),
+        ]
+        polygon = clipped(polygon, atDepth: zNear, keeping: { $0.depth >= zNear })
+        if zFar < .greatestFiniteMagnitude / 2 {
+            polygon = clipped(polygon, atDepth: zFar, keeping: { $0.depth <= zFar })
+        }
+        guard polygon.count >= 3 else { return [] }
+
+        let projected = polygon.compactMap(project)
+        guard projected.count == polygon.count else { return [] }
+
+        var triangles: [ProjectedPrimitive] = []
+        triangles.reserveCapacity(projected.count - 2)
+        for index in 1..<(projected.count - 1) {
+            let pa = projected[0]
+            let pb = projected[index]
+            let pc = projected[index + 1]
+            let depth = (pa.depth + pb.depth + pc.depth) / 3
+            triangles.append(.triangle(
+                a: pa.point,
+                b: pb.point,
+                c: pc.point,
+                depthA: pa.depth,
+                depthB: pb.depth,
+                depthC: pc.depth,
+                depth: depth,
+                color: color,
+                owner: owner
+            ))
+        }
+        return triangles
+    }
+
+    private func cameraSpaceVertex(for point: Vector3) -> CameraSpaceVertex {
+        let relative = point - position
+        return CameraSpaceVertex(
+            x: relative.dot(right),
+            y: relative.dot(up),
+            depth: relative.dot(forward)
+        )
+    }
+
+    private func project(_ vertex: CameraSpaceVertex) -> (point: CGPoint, depth: CGFloat)? {
+        guard vertex.depth >= zNear, vertex.depth <= zFar else { return nil }
+        let scale: CGFloat
+        if let orthographicScale {
+            scale = CGFloat(height) / orthographicScale
+        } else {
+            scale = focalLength / vertex.depth
+        }
         return (
             CGPoint(
-                x: CGFloat(width) / 2 + cameraX * scale,
-                y: CGFloat(height) / 2 - cameraY * scale
+                x: CGFloat(width) / 2 + vertex.x * scale,
+                y: CGFloat(height) / 2 - vertex.y * scale
             ),
-            depth
+            vertex.depth
         )
+    }
+
+    private func clipped(
+        _ input: [CameraSpaceVertex],
+        atDepth boundaryDepth: CGFloat,
+        keeping isInside: (CameraSpaceVertex) -> Bool
+    ) -> [CameraSpaceVertex] {
+        guard let last = input.last else { return [] }
+        var output: [CameraSpaceVertex] = []
+        output.reserveCapacity(input.count + 1)
+
+        var previous = last
+        var previousInside = isInside(previous)
+        for current in input {
+            let currentInside = isInside(current)
+            if currentInside {
+                if !previousInside {
+                    output.append(previous.interpolated(to: current, atDepth: boundaryDepth))
+                }
+                output.append(current)
+            } else if previousInside {
+                output.append(previous.interpolated(to: current, atDepth: boundaryDepth))
+            }
+            previous = current
+            previousInside = currentInside
+        }
+        return output
+    }
+
+    private func clipSegment(
+        _ start: inout CameraSpaceVertex,
+        _ end: inout CameraSpaceVertex,
+        atDepth boundaryDepth: CGFloat,
+        keeping isInside: (CameraSpaceVertex) -> Bool
+    ) -> Bool {
+        let startInside = isInside(start)
+        let endInside = isInside(end)
+        switch (startInside, endInside) {
+        case (true, true):
+            return true
+        case (false, false):
+            return false
+        case (true, false):
+            end = start.interpolated(to: end, atDepth: boundaryDepth)
+            return true
+        case (false, true):
+            start = start.interpolated(to: end, atDepth: boundaryDepth)
+            return true
+        }
     }
 
     func projectedLength(_ length: CGFloat, atDepth depth: CGFloat) -> CGFloat {
@@ -499,6 +970,36 @@ private struct CameraProjection {
             return length * CGFloat(height) / orthographicScale
         }
         return length * focalLength / max(0.001, depth)
+    }
+
+    private func normalizedDepth(for depth: CGFloat) -> CGFloat {
+        guard zFar < .greatestFiniteMagnitude / 2 else {
+            return depth
+        }
+        return (depth - zNear) / max(0.001, zFar - zNear)
+    }
+
+    private func cameraDepth(forNormalizedDepth depth: CGFloat) -> CGFloat {
+        guard zFar < .greatestFiniteMagnitude / 2 else {
+            return depth
+        }
+        return zNear + depth * max(0.001, zFar - zNear)
+    }
+}
+
+private struct CameraSpaceVertex {
+    var x: CGFloat
+    var y: CGFloat
+    var depth: CGFloat
+
+    func interpolated(to other: CameraSpaceVertex, atDepth targetDepth: CGFloat) -> CameraSpaceVertex {
+        let delta = other.depth - depth
+        let t = abs(delta) <= 0.000001 ? 0 : (targetDepth - depth) / delta
+        return CameraSpaceVertex(
+            x: x + (other.x - x) * t,
+            y: y + (other.y - y) * t,
+            depth: targetDepth
+        )
     }
 }
 
@@ -645,10 +1146,10 @@ private struct PixelSurface {
 
 private extension SCNGeometryElement {
     func quillIndices() -> [Int] {
-        guard bytesPerIndex > 0, !data.isEmpty else { return [] }
+        guard [1, 2, 4, 8].contains(bytesPerIndex), !data.isEmpty else { return [] }
         let count = data.count / bytesPerIndex
         return data.withUnsafeBytes { raw in
-            (0..<count).map { i in
+            (0..<count).compactMap { i in
                 let offset = i * bytesPerIndex
                 switch bytesPerIndex {
                 case 1:
@@ -658,9 +1159,10 @@ private extension SCNGeometryElement {
                 case 4:
                     return Int(raw.loadUnaligned(fromByteOffset: offset, as: UInt32.self))
                 case 8:
-                    return Int(raw.loadUnaligned(fromByteOffset: offset, as: UInt64.self))
+                    let value = raw.loadUnaligned(fromByteOffset: offset, as: UInt64.self)
+                    return value <= UInt64(Int.max) ? Int(value) : nil
                 default:
-                    return 0
+                    return nil
                 }
             }
         }
@@ -746,14 +1248,12 @@ struct Matrix4 {
         self.m = m
     }
 
+    init(_ matrix: SCNMatrix4) {
+        self = Self.matrix(matrix)
+    }
+
     static func localTransform(for node: SCNNode) -> Matrix4 {
-        let s = scale(node.scale)
-        let q = quaternion(node.orientation)
-        let r = rotation(euler: node.eulerAngles)
-        let t = translation(node.position)
-        let raw = matrix(node.transform)
-        let local = t * r * q * s
-        return SCNMatrix4IsIdentity(node.transform) ? local : raw * local
+        matrix(node.transform)
     }
 
     static func worldTransform(for node: SCNNode) -> Matrix4 {
@@ -791,6 +1291,10 @@ struct Matrix4 {
         )
     }
 
+    func inverted() -> Matrix4 {
+        Matrix4(SCNMatrix4Invert(scnMatrix))
+    }
+
     static func * (lhs: Matrix4, rhs: Matrix4) -> Matrix4 {
         var out = [CGFloat](repeating: 0, count: 16)
         for row in 0..<4 {
@@ -805,77 +1309,21 @@ struct Matrix4 {
         return Matrix4(out)
     }
 
-    private static func translation(_ v: SCNVector3) -> Matrix4 {
-        Matrix4([
-            1, 0, 0, v.x,
-            0, 1, 0, v.y,
-            0, 0, 1, v.z,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func scale(_ v: SCNVector3) -> Matrix4 {
-        Matrix4([
-            v.x, 0, 0, 0,
-            0, v.y, 0, 0,
-            0, 0, v.z, 0,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func rotation(euler: SCNVector3) -> Matrix4 {
-        rotationY(euler.y) * rotationX(euler.x) * rotationZ(euler.z)
-    }
-
-    private static func rotationX(_ a: CGFloat) -> Matrix4 {
-        let c = cos(a), s = sin(a)
-        return Matrix4([
-            1, 0, 0, 0,
-            0, c, -s, 0,
-            0, s, c, 0,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func rotationY(_ a: CGFloat) -> Matrix4 {
-        let c = cos(a), s = sin(a)
-        return Matrix4([
-            c, 0, s, 0,
-            0, 1, 0, 0,
-            -s, 0, c, 0,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func rotationZ(_ a: CGFloat) -> Matrix4 {
-        let c = cos(a), s = sin(a)
-        return Matrix4([
-            c, -s, 0, 0,
-            s, c, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1,
-        ])
-    }
-
-    private static func quaternion(_ q: SCNQuaternion) -> Matrix4 {
-        let x = q.x, y = q.y, z = q.z, w = q.w
-        let xx = x * x, yy = y * y, zz = z * z
-        let xy = x * y, xz = x * z, yz = y * z
-        let wx = w * x, wy = w * y, wz = w * z
-        return Matrix4([
-            1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy), 0,
-            2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx), 0,
-            2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy), 0,
-            0, 0, 0, 1,
-        ])
+    var scnMatrix: SCNMatrix4 {
+        SCNMatrix4(
+            m11: m[0], m12: m[4], m13: m[8], m14: m[12],
+            m21: m[1], m22: m[5], m23: m[9], m24: m[13],
+            m31: m[2], m32: m[6], m33: m[10], m34: m[14],
+            m41: m[3], m42: m[7], m43: m[11], m44: m[15]
+        )
     }
 
     private static func matrix(_ m: SCNMatrix4) -> Matrix4 {
         Matrix4([
-            m.m11, m.m12, m.m13, m.m14,
-            m.m21, m.m22, m.m23, m.m24,
-            m.m31, m.m32, m.m33, m.m34,
-            m.m41, m.m42, m.m43, m.m44,
+            m.m11, m.m21, m.m31, m.m41,
+            m.m12, m.m22, m.m32, m.m42,
+            m.m13, m.m23, m.m33, m.m43,
+            m.m14, m.m24, m.m34, m.m44,
         ])
     }
 }
@@ -912,10 +1360,18 @@ private func color(for geometry: SCNGeometry, elementIndex: Int) -> RGBA {
     } else {
         material = geometry.firstMaterial
     }
-    if let emission = color(from: material?.emission.contents), emission != .black {
+    if let material,
+       material.emission.intensity > 0,
+       let emission = color(from: material.emission.contents),
+       emission != .black {
         return emission
+            .scaled(max(0, material.emission.intensity))
+            .withAlphaMultiplier(material.opacityMultiplier)
     }
-    return color(from: material?.diffuse.contents) ?? .neutral
+    let diffuse = color(from: material?.diffuse.contents) ?? .neutral
+    return diffuse
+        .scaled(max(0, material?.diffuse.intensity ?? 1))
+        .withAlphaMultiplier(material?.opacityMultiplier ?? 1)
 }
 
 private func color(from contents: Any?) -> RGBA? {
@@ -928,6 +1384,29 @@ private func color(from contents: Any?) -> RGBA? {
         return RGBA(r: 210, g: 214, b: 218, a: 255)
     default:
         return nil
+    }
+}
+
+private extension SCNMaterial {
+    var opacityMultiplier: CGFloat {
+        max(0, min(1, transparency)) * transparentOpacityMultiplier
+    }
+
+    private var transparentOpacityMultiplier: CGFloat {
+        guard let transparentColor = color(from: transparent.contents) else {
+            return 1
+        }
+
+        let sampledOpacity: CGFloat
+        switch transparencyMode {
+        case .rgbZero:
+            sampledOpacity = transparentColor.luminance
+        case .aOne, .singleLayer, .dualLayer:
+            sampledOpacity = transparentColor.alpha
+        }
+
+        let intensity = max(0, min(1, transparent.intensity))
+        return 1 - (1 - sampledOpacity) * intensity
     }
 }
 
@@ -951,4 +1430,14 @@ private func rgba(components: [CGFloat]?) -> RGBA? {
         b: UInt8(clamping: Int(max(0, min(1, b)) * 255)),
         a: UInt8(clamping: Int(max(0, min(1, a)) * 255))
     )
+}
+
+private extension RGBA {
+    var alpha: CGFloat {
+        CGFloat(a) / 255
+    }
+
+    var luminance: CGFloat {
+        (0.2126 * CGFloat(r) + 0.7152 * CGFloat(g) + 0.0722 * CGFloat(b)) / 255
+    }
 }

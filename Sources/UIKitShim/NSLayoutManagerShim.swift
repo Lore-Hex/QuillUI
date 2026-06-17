@@ -266,13 +266,13 @@ open class NSLayoutManager: NSObject, @unchecked Sendable {
 
     private func lineGrid(for container: NSTextContainer?) -> LineGrid {
         // Default 17pt mirrors UITextView.sizeThatFits's fallback in UIKit.swift.
-        let rawPointSize: CGFloat
-        if let storage = textStorage, storage.length > 0,
-           let font = storage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont {
-            rawPointSize = font.pointSize
-        } else {
-            rawPointSize = 17
-        }
+        //
+        // Do not call NSAttributedString.attribute(_:at:...) here. On
+        // swift-corelibs Foundation that path can trap for UIKit/AppKit shim
+        // attribute payloads such as UIFont/NSFont while Signal is measuring
+        // attributed thread-details text. A uniform fallback is preferable to a
+        // process abort; future text shaping can replace this model outright.
+        let rawPointSize = textStorage?.quillUniformFontPointSize ?? 17
         let pointSize = rawPointSize > 0 && rawPointSize.isFinite ? rawPointSize : 17
         let charWidth = pointSize * 0.6
         let lineHeight = pointSize * 1.2
