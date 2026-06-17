@@ -108,6 +108,45 @@ struct CoreGraphicsPathTests {
         #expect(path.quillElements.dropFirst().prefix(4).allSatisfy { $0.points.count == 3 })
     }
 
+    @Test("CGMutablePath addArc records cubic arc segments")
+    func addArcRecordsCubicSegments() {
+        let path = CGMutablePath()
+        path.addArc(center: .zero, radius: 2, startAngle: 0, endAngle: .pi / 2, clockwise: false)
+
+        let elements = path.quillElements
+        #expect(elements.map(\.type) == [.moveToPoint, .addCurveToPoint])
+        #expect(elements[0].points[0].isClose(to: CGPoint(x: 2, y: 0)))
+        #expect(elements[1].points[2].isClose(to: CGPoint(x: 0, y: 2)))
+        #expect(path.currentPoint.isClose(to: CGPoint(x: 0, y: 2)))
+        #expect(abs(path.boundingBoxOfPath.width - 2) < 0.0001)
+        #expect(abs(path.boundingBoxOfPath.height - 2) < 0.0001)
+
+        let connected = CGMutablePath()
+        connected.move(to: CGPoint(x: -1, y: 0))
+        connected.addArc(center: .zero, radius: 2, startAngle: 0, endAngle: .pi / 2, clockwise: false)
+        #expect(connected.quillElements.map(\.type) == [.moveToPoint, .addLineToPoint, .addCurveToPoint])
+        #expect(connected.quillElements[1].points[0].isClose(to: CGPoint(x: 2, y: 0)))
+    }
+
+    @Test("CGMutablePath tangent arcs join two line directions")
+    func addTangentArcRecordsLineAndArc() {
+        let path = CGMutablePath()
+        path.move(to: .zero)
+        path.addArc(
+            tangent1End: CGPoint(x: 10, y: 0),
+            tangent2End: CGPoint(x: 10, y: 10),
+            radius: 2
+        )
+
+        let elements = path.quillElements
+        #expect(elements.map(\.type) == [.moveToPoint, .addLineToPoint, .addCurveToPoint])
+        #expect(elements[1].points[0].isClose(to: CGPoint(x: 8, y: 0)))
+        #expect(elements[2].points[2].isClose(to: CGPoint(x: 10, y: 2)))
+        #expect(path.currentPoint.isClose(to: CGPoint(x: 10, y: 2)))
+        #expect(abs(path.boundingBoxOfPath.maxX - 10) < 0.0001)
+        #expect(abs(path.boundingBoxOfPath.maxY - 2) < 0.0001)
+    }
+
     @Test("CGPath exposes emptiness, current point, and point bounds")
     func pathAccessorsReflectRecordedElements() {
         let empty = CGMutablePath()
@@ -190,11 +229,64 @@ struct CoreGraphicsPathTests {
         #expect(path.contains(CGPoint(x: 5, y: 9)))
         #expect(!path.contains(CGPoint(x: 5, y: 2)))
     }
+
+    @Test("CGContext tracks current path without a backend")
+    func contextTracksCurrentPathWithoutBackend() throws {
+        let context = CGContext()
+        #expect(context.isPathEmpty)
+        #expect(context.currentPointOfPath == .zero)
+        #expect(context.copyPath() == nil)
+
+        context.move(to: CGPoint(x: 0, y: 0))
+        context.addLine(to: CGPoint(x: 2, y: 0))
+        context.addQuadCurve(to: CGPoint(x: 4, y: 0), control: CGPoint(x: 3, y: 1))
+        context.addCurve(
+            to: CGPoint(x: 8, y: 0),
+            control1: CGPoint(x: 5, y: 2),
+            control2: CGPoint(x: 7, y: 2)
+        )
+
+        #expect(!context.isPathEmpty)
+        #expect(context.currentPointOfPath == CGPoint(x: 8, y: 0))
+        #expect(context.pathBoundingBox.minX == 0)
+        #expect(context.pathBoundingBox.maxX == 8)
+
+        let copy = try #require(context.copyPath())
+        #expect(copy.quillElements.map(\.type) == [
+            .moveToPoint,
+            .addLineToPoint,
+            .addQuadCurveToPoint,
+            .addCurveToPoint,
+        ])
+
+        context.strokePath()
+        #expect(context.isPathEmpty)
+        #expect(context.copyPath() == nil)
+
+        context.addRect(CGRect(x: 1, y: 2, width: 3, height: 4))
+        #expect(!context.isPathEmpty)
+        context.clip(using: .evenOdd)
+        #expect(context.isPathEmpty)
+
+        context.move(to: .zero)
+        context.addArc(tangent1End: CGPoint(x: 10, y: 0), tangent2End: CGPoint(x: 10, y: 10), radius: 2)
+        #expect(context.copyPath()?.quillElements.map(\.type) == [
+            .moveToPoint,
+            .addLineToPoint,
+            .addCurveToPoint,
+        ])
+    }
 }
 
 private struct PathElementSnapshot: Equatable {
     var type: CGPathElementType
     var points: [CGPoint]
+}
+
+private extension CGPoint {
+    func isClose(to other: CGPoint, tolerance: CGFloat = 0.0001) -> Bool {
+        abs(x - other.x) <= tolerance && abs(y - other.y) <= tolerance
+    }
 }
 
 private extension CGPath {

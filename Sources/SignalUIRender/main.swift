@@ -151,14 +151,29 @@ guard gtk_init_check() != 0 else {
 //   realapp-link → proves the GTK renderer links SignalApp / ConversationViewController
 //   real-components → real CVItemModel/CVRootComponent/CVCellView render path
 //   ssk-bootstrap → initializes real SSK globals + on-disk SDSDatabaseStorage
+//   real-conversation → seeds storage + launches real ConversationViewController
 //   (default)    → Signal's REAL OWSTableViewController2 (Settings)
 let selectedDemo = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"]
-if selectedDemo == "ssk-bootstrap" {
+if selectedDemo == "ssk-bootstrap" || selectedDemo == "real-conversation" {
     DispatchQueue.main.async {
         Task { @MainActor in
-            let vc = await SignalConversationDemo.makeSSKBootstrapProbeViewController()
-            renderRootViewController(vc, title: "Signal Runtime Bootstrap", width: 620, height: 280,
-                                     windowBackground: "#FFFFFF")
+            let vc: UIViewController
+            let title: String
+            let width: Int
+            let height: Int
+            switch selectedDemo {
+            case "real-conversation":
+                vc = await SignalConversationDemo.makeRealConversationViewController()
+                title = "Signal Real Conversation"
+                width = 760
+                height = 720
+            default:
+                vc = await SignalConversationDemo.makeSSKBootstrapProbeViewController()
+                title = "Signal Runtime Bootstrap"
+                width = 620
+                height = 280
+            }
+            renderRootViewController(vc, title: title, width: width, height: height, windowBackground: "#FFFFFF")
             let loop = g_main_loop_new(nil, 0)
             g_main_loop_run(loop)
             g_main_loop_unref(loop)

@@ -630,11 +630,16 @@ public class CGPath: Hashable, @unchecked Sendable {
     }
 
     private static func pointIsOnSegment(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> Bool {
+        let lengthSquared = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
+        if lengthSquared <= geometryTolerance * geometryTolerance {
+            let dx = point.x - a.x
+            let dy = point.y - a.y
+            return dx * dx + dy * dy <= geometryTolerance * geometryTolerance
+        }
         let cross = (point.y - a.y) * (b.x - a.x) - (point.x - a.x) * (b.y - a.y)
         guard abs(cross) <= geometryTolerance else { return false }
         let dot = (point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)
         guard dot >= -geometryTolerance else { return false }
-        let lengthSquared = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
         return dot <= lengthSquared + geometryTolerance
     }
 
@@ -804,6 +809,76 @@ public class CGPath: Hashable, @unchecked Sendable {
             .filter { $0 > 0 && $0 < 1 }
     }
 
+    fileprivate static func arcCurveElements(
+        center: CGPoint,
+        radius: CGFloat,
+        startAngle: CGFloat,
+        endAngle: CGFloat,
+        clockwise: Bool
+    ) -> [CGPathStorageElement] {
+        guard radius > 0, radius.isFinite else { return [] }
+        let rawDelta = endAngle - startAngle
+        var delta = rawDelta
+        let fullTurn = CGFloat.pi * 2
+
+        if abs(rawDelta) >= fullTurn {
+            delta = clockwise ? -fullTurn : fullTurn
+        } else if clockwise {
+            while delta > 0 {
+                delta -= fullTurn
+            }
+        } else {
+            while delta < 0 {
+                delta += fullTurn
+            }
+        }
+
+        guard abs(delta) > geometryTolerance else { return [] }
+        let segmentCount = max(1, Int(ceil(max(0, abs(delta) - geometryTolerance) / (CGFloat.pi / 2))))
+        let segmentDelta = delta / CGFloat(segmentCount)
+        var elements: [CGPathStorageElement] = []
+
+        for segment in 0..<segmentCount {
+            let a0 = startAngle + CGFloat(segment) * segmentDelta
+            let a1 = a0 + segmentDelta
+            let p0 = arcPoint(center: center, radius: radius, angle: a0)
+            let p3 = arcPoint(center: center, radius: radius, angle: a1)
+            let k = CGFloat(4.0 / 3.0) * tan(segmentDelta / 4)
+            let c1 = CGPoint(
+                x: p0.x - sin(a0) * radius * k,
+                y: p0.y + cos(a0) * radius * k
+            )
+            let c2 = CGPoint(
+                x: p3.x + sin(a1) * radius * k,
+                y: p3.y - cos(a1) * radius * k
+            )
+            elements.append((.addCurveToPoint, [c1, c2, p3]))
+        }
+
+        return elements
+    }
+
+    fileprivate static func arcPoint(center: CGPoint, radius: CGFloat, angle: CGFloat) -> CGPoint {
+        CGPoint(
+            x: center.x + cos(angle) * radius,
+            y: center.y + sin(angle) * radius
+        )
+    }
+
+    fileprivate static func pointsAreClose(_ a: CGPoint, _ b: CGPoint) -> Bool {
+        abs(a.x - b.x) <= geometryTolerance && abs(a.y - b.y) <= geometryTolerance
+    }
+
+    fileprivate static func normalizedVector(from start: CGPoint, to end: CGPoint) -> (x: CGFloat, y: CGFloat)? {
+        normalizedVector(dx: end.x - start.x, dy: end.y - start.y)
+    }
+
+    fileprivate static func normalizedVector(dx: CGFloat, dy: CGFloat) -> (x: CGFloat, y: CGFloat)? {
+        let length = (dx * dx + dy * dy).squareRoot()
+        guard length > geometryTolerance else { return nil }
+        return (dx / length, dy / length)
+    }
+
     fileprivate static func rectElements(_ rect: CGRect) -> [CGPathStorageElement] {
         [
             (.moveToPoint, [CGPoint(x: rect.minX, y: rect.minY)]),
@@ -967,10 +1042,86 @@ public final class CGMutablePath: CGPath, @unchecked Sendable {
         elements.append((.addQuadCurveToPoint, [control, end]))
     }
     public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
-        _ = (center, radius, startAngle, endAngle, clockwise)
+        guard radius > 0, radius.isFinite else { return }
+        let start = Self.arcPoint(center: center, radius: radius, angle: startAngle)
+        if isEmpty {
+            move(to: start)
+        } else if !Self.pointsAreClose(currentPoint, start) {
+            addLine(to: start)
+        }
+        elements.append(contentsOf: Self.arcCurveElements(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        ))
     }
     public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
-        _ = (tangent1End, tangent2End, radius)
+        guard radius > 0, radius.isFinite else { return }
+        guard !isEmpty else {
+            move(to: tangent1End)
+            return
+        }
+
+        let current = currentPoint
+        let incoming = Self.normalizedVector(from: tangent1End, to: current)
+        let outgoing = Self.normalizedVector(from: tangent1End, to: tangent2End)
+        guard let incoming, let outgoing else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let dot = max(-1, min(1, incoming.x * outgoing.x + incoming.y * outgoing.y))
+        let angle = acos(dot)
+        guard angle > 0.0001, abs(CGFloat.pi - angle) > 0.0001 else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let tangentDistance = radius / tan(angle / 2)
+        guard tangentDistance.isFinite else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let tangentStart = CGPoint(
+            x: tangent1End.x + incoming.x * tangentDistance,
+            y: tangent1End.y + incoming.y * tangentDistance
+        )
+        let tangentEnd = CGPoint(
+            x: tangent1End.x + outgoing.x * tangentDistance,
+            y: tangent1End.y + outgoing.y * tangentDistance
+        )
+
+        let bisector = Self.normalizedVector(
+            dx: incoming.x + outgoing.x,
+            dy: incoming.y + outgoing.y
+        )
+        guard let bisector else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let centerDistance = radius / sin(angle / 2)
+        let center = CGPoint(
+            x: tangent1End.x + bisector.x * centerDistance,
+            y: tangent1End.y + bisector.y * centerDistance
+        )
+        let startAngle = atan2(tangentStart.y - center.y, tangentStart.x - center.x)
+        let endAngle = atan2(tangentEnd.y - center.y, tangentEnd.x - center.x)
+        let clockwise = incoming.x * outgoing.y - incoming.y * outgoing.x > 0
+
+        if !Self.pointsAreClose(current, tangentStart) {
+            addLine(to: tangentStart)
+        }
+        elements.append(contentsOf: Self.arcCurveElements(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        ))
     }
     public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
         elements.append(contentsOf: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight))
@@ -1211,6 +1362,7 @@ public final class CGContext {
     public var textMatrix: CGAffineTransform = .identity
     public var textPosition: CGPoint = .zero
     private var quillBitmapBytes: [UInt8]?
+    private var quillCurrentPath = CGMutablePath()
 
     public init() {}
 
@@ -1274,6 +1426,13 @@ public final class CGContext {
 
     public var interpolationQuality: CGInterpolationQuality = .default
 
+    public var isPathEmpty: Bool { quillCurrentPath.isEmpty }
+    public var currentPointOfPath: CGPoint { quillCurrentPath.currentPoint }
+    public var pathBoundingBox: CGRect { quillCurrentPath.boundingBoxOfPath }
+    public func copyPath() -> CGPath? {
+        quillCurrentPath.isEmpty ? nil : quillCurrentPath.copy()
+    }
+
     public func setFillColor(_ color: Any?) {}
     public func setFillColor(_ color: RSCGColor) { quillBackend?.setFillColor(quillNormalizedRGBA(color)) }
     public func setFillColor(_ color: RSCGColor?) { if let color { quillBackend?.setFillColor(quillNormalizedRGBA(color)) } }
@@ -1301,20 +1460,48 @@ public final class CGContext {
     public func fill(_ rect: CGRect) { quillBackend?.fill(rect) }
     public func fill(_ rects: [CGRect]) { for r in rects { quillBackend?.fill(r) } }
     public func fillEllipse(in rect: CGRect) { quillBackend?.fillEllipse(in: rect) }
-    public func fillPath() { quillBackend?.fillPath() }
-    public func fillPath(using rule: CGPathFillRule) { _ = rule }
+    public func fillPath() {
+        quillBackend?.fillPath()
+        clearCurrentPath()
+    }
+    public func fillPath(using rule: CGPathFillRule) {
+        quillBackend?.fillPath(using: rule)
+        clearCurrentPath()
+    }
     public func clear(_ rect: CGRect) { quillBackend?.clear(rect) }
     public func stroke(_ rect: CGRect) { quillBackend?.stroke(rect) }
     public func strokeEllipse(in rect: CGRect) { quillBackend?.strokeEllipse(in: rect) }
     public func strokeLineSegments(between points: [CGPoint]) { quillBackend?.strokeLineSegments(between: points) }
-    public func strokePath() { quillBackend?.strokePath() }
+    public func strokePath() {
+        quillBackend?.strokePath()
+        clearCurrentPath()
+    }
 
-    public func beginPath() { quillBackend?.beginPath() }
-    public func closePath() { quillBackend?.closePath() }
-    public func move(to point: CGPoint) { quillBackend?.move(to: point) }
-    public func addLine(to point: CGPoint) { quillBackend?.addLine(to: point) }
-    public func addRect(_ rect: CGRect) { quillBackend?.addRect(rect) }
-    public func addRects(_ rects: [CGRect]) {}
+    public func beginPath() {
+        quillCurrentPath = CGMutablePath()
+        quillBackend?.beginPath()
+    }
+    public func closePath() {
+        quillCurrentPath.closeSubpath()
+        quillBackend?.closePath()
+    }
+    public func move(to point: CGPoint) {
+        quillCurrentPath.move(to: point)
+        quillBackend?.move(to: point)
+    }
+    public func addLine(to point: CGPoint) {
+        quillCurrentPath.addLine(to: point)
+        quillBackend?.addLine(to: point)
+    }
+    public func addRect(_ rect: CGRect) {
+        quillCurrentPath.addRect(rect)
+        quillBackend?.addRect(rect)
+    }
+    public func addRects(_ rects: [CGRect]) {
+        for rect in rects {
+            addRect(rect)
+        }
+    }
     public func addLines(between points: [CGPoint]) {
         guard let first = points.first else { return }
         move(to: first)
@@ -1322,14 +1509,80 @@ public final class CGContext {
             addLine(to: point)
         }
     }
-    public func addEllipse(in rect: CGRect) { quillBackend?.addEllipse(in: rect) }
-    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {}
-    public func addQuadCurve(to end: CGPoint, control: CGPoint) {}
-    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) { quillBackend?.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise) }
-    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {}
-    public func addPath(_ path: Any?) {}
-    public func clip() { quillBackend?.clip() }
-    public func clip(using rule: CGPathFillRule) { _ = rule }
+    public func addEllipse(in rect: CGRect) {
+        quillCurrentPath.addEllipse(in: rect)
+        quillBackend?.addEllipse(in: rect)
+    }
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {
+        quillCurrentPath.addCurve(to: end, control1: control1, control2: control2)
+        quillBackend?.addCurve(to: end, control1: control1, control2: control2)
+    }
+    public func addQuadCurve(to end: CGPoint, control: CGPoint) {
+        quillCurrentPath.addQuadCurve(to: end, control: control)
+        quillBackend?.addQuadCurve(to: end, control: control)
+    }
+    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
+        quillCurrentPath.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise)
+        quillBackend?.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise)
+    }
+    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
+        let previousCount = quillCurrentPath.elements.count
+        quillCurrentPath.addArc(tangent1End: tangent1End, tangent2End: tangent2End, radius: radius)
+        for element in quillCurrentPath.elements.dropFirst(previousCount) {
+            appendPathElementToBackend(element)
+        }
+    }
+    public func addPath(_ path: CGPath) {
+        appendPath(path)
+    }
+    public func addPath(_ path: Any?) {
+        guard let path = path as? CGPath else { return }
+        appendPath(path)
+    }
+    private func appendPath(_ path: CGPath) {
+        path.applyWithBlock { elementPointer in
+            let element = elementPointer.pointee
+            switch element.type {
+            case .moveToPoint:
+                move(to: element.points[0])
+            case .addLineToPoint:
+                addLine(to: element.points[0])
+            case .addQuadCurveToPoint:
+                addQuadCurve(to: element.points[1], control: element.points[0])
+            case .addCurveToPoint:
+                addCurve(to: element.points[2], control1: element.points[0], control2: element.points[1])
+            case .closeSubpath:
+                closePath()
+            }
+        }
+    }
+
+    private func appendPathElementToBackend(_ element: CGPathStorageElement) {
+        switch element.type {
+        case .moveToPoint:
+            guard let point = element.points.first else { return }
+            quillBackend?.move(to: point)
+        case .addLineToPoint:
+            guard let point = element.points.first else { return }
+            quillBackend?.addLine(to: point)
+        case .addQuadCurveToPoint:
+            guard element.points.count >= 2 else { return }
+            quillBackend?.addQuadCurve(to: element.points[1], control: element.points[0])
+        case .addCurveToPoint:
+            guard element.points.count >= 3 else { return }
+            quillBackend?.addCurve(to: element.points[2], control1: element.points[0], control2: element.points[1])
+        case .closeSubpath:
+            quillBackend?.closePath()
+        }
+    }
+    public func clip() {
+        quillBackend?.clip()
+        clearCurrentPath()
+    }
+    public func clip(using rule: CGPathFillRule) {
+        quillBackend?.clip(using: rule)
+        clearCurrentPath()
+    }
     public func clip(to rect: CGRect) { quillBackend?.clip(to: rect) }
     public func resetClip() {}
     // CGContext.clip(to:mask:) — clips to a rect using an image mask. Inert on
@@ -1351,6 +1604,10 @@ public final class CGContext {
     public func draw(_ image: Any, in rect: CGRect) { quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality) }
     public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}
     public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
+
+    private func clearCurrentPath() {
+        quillCurrentPath = CGMutablePath()
+    }
 }
 
 public typealias CGWindowID = UInt32

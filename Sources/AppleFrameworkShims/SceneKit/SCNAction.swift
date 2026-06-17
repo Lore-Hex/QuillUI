@@ -66,7 +66,8 @@ public final class SCNAction: @unchecked Sendable {
     }
 
     public static func `repeat`(_ action: SCNAction, count: Int) -> SCNAction {
-        SCNAction(kind: .repeatCount(action, count: count), duration: action.duration * Double(count))
+        let count = max(0, count)
+        return SCNAction(kind: .repeatCount(action, count: count), duration: action.duration * Double(count))
     }
 
     public static func sequence(_ actions: [SCNAction]) -> SCNAction {
