@@ -2879,15 +2879,27 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         )
     }
 
+    private func quillRecordImageDrawFallback(_ message: String) {
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSImage.draw",
+            severity: .warning,
+            message: message
+        )
+    }
+
     public func draw(
         in destinationRect: CGRect,
         from sourceRect: CGRect,
         operation: QuillImageCompositingOperation,
         fraction: Double
     ) {
-        guard let context = QuillGraphicsContextState.currentContext,
-              let sourceImage = cgImage
-        else {
+        guard let context = QuillGraphicsContextState.currentContext else {
+            quillRecordImageDrawFallback("NSImage.draw skipped because no current bitmap graphics context is active on Linux.")
+            return
+        }
+        guard let sourceImage = cgImage else {
+            quillRecordImageDrawFallback("NSImage.draw skipped because the image has no CGImage bitmap backing on Linux.")
             return
         }
 
