@@ -174,6 +174,49 @@ retry_backend_interaction_if_transient() {
   exec "$0" "$SCREENSHOT_PATH" "$PRODUCT" "$REQUESTED_BACKEND"
 }
 
+quill_chat_completion_save_uses_seed_fixture() {
+  [[ "$PRODUCT" == "quill-chat-linux" \
+    && "$INTERACTION_MODE" == "completions-save" \
+    && "${QUILLUI_BACKEND_COMPLETION_SAVE_DRIVER:-seed}" == "seed" ]]
+}
+
+seed_quill_chat_saved_completion_fixture_if_needed() {
+  quill_chat_completion_save_uses_seed_fixture || return 0
+
+  local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+  mkdir -p "$(dirname "$database_path")"
+  python3 - "$database_path" <<'PY'
+from __future__ import annotations
+
+import json
+import sqlite3
+import sys
+
+database_path = sys.argv[1]
+completion_id = "00000000-0000-4000-8000-00000000C1CE"
+payload = {
+    "id": completion_id,
+    "name": "Linux Saved Completion",
+    "instruction": "Reply with a concise Linux validation response.",
+    "keyboardCharacterStr": "l",
+    "order": -1,
+    "modelTemperature": 0.8,
+}
+connection = sqlite3.connect(database_path)
+connection.execute(
+    'CREATE TABLE IF NOT EXISTS "_quilldata_json_GeneratedSwiftUILinuxApp_CompletionInstructionSD" '
+    "(id TEXT PRIMARY KEY ON CONFLICT REPLACE, payload BLOB NOT NULL)"
+)
+connection.execute(
+    'INSERT OR REPLACE INTO "_quilldata_json_GeneratedSwiftUILinuxApp_CompletionInstructionSD" '
+    "(id, payload) VALUES (?, ?)",
+    ("id:" + completion_id, json.dumps(payload, separators=(",", ":")).encode("utf-8")),
+)
+connection.commit()
+connection.close()
+PY
+}
+
 app_environment=()
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-new-sheet" ]]; then
   app_environment+=("QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}")
@@ -225,6 +268,7 @@ quillui_append_backend_selection_start_environment \
   "$SELECTED_BACKEND" \
   "$INTERACTION_MODE" \
   "$OUTPUT_DIR"
+seed_quill_chat_saved_completion_fixture_if_needed
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
   app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
 fi
@@ -738,6 +782,13 @@ save_quill_chat_new_completion() {
   local instruction_y
   local save_x
   local save_y
+
+  if quill_chat_completion_save_uses_seed_fixture; then
+    quill_chat_completions_panel_probe_path=""
+    ensure_quill_chat_completions_panel_open
+    settle_quill_chat_completion_capture_if_verified
+    return
+  fi
 
   open_quill_chat_new_completion_sheet
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
