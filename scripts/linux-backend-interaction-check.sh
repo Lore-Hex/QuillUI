@@ -1775,6 +1775,64 @@ verify_quill_chat_delete_confirmed_if_needed() {
   return 65
 }
 
+quill_chat_completion_seed_records_deleted() {
+  local database_path="$1"
+
+  python3 - "$database_path" <<'PY'
+import json
+import sqlite3
+import sys
+
+database_path = sys.argv[1]
+target_names = {"Linux Saved Completion", "Linux Edited Completion"}
+connection = sqlite3.connect(database_path)
+matches = []
+completion_table_seen = False
+for (table,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'"):
+    if not table.endswith("_CompletionInstructionSD"):
+        continue
+    completion_table_seen = True
+    for row in connection.execute(f'SELECT payload FROM "{table}"'):
+        payload = row[0]
+        if isinstance(payload, bytes):
+            payload = payload.decode("utf-8")
+        item = json.loads(payload)
+        name = item.get("name")
+        if name in target_names:
+            matches.append((table, name))
+connection.close()
+if not completion_table_seen:
+    print("No CompletionInstructionSD table was found")
+    raise SystemExit(1)
+if matches:
+    print(matches)
+    raise SystemExit(1)
+PY
+}
+
+verify_quill_chat_completion_deleted_if_needed() {
+  [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-delete" ]] || return 0
+
+  local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+  if [[ ! -f "$database_path" ]]; then
+    echo "QuillData database for completion deletion was not found: $database_path" >&2
+    return 65
+  fi
+
+  local attempt
+  for attempt in {1..20}; do
+    if quill_chat_completion_seed_records_deleted "$database_path" >/tmp/quill-chat-completion-delete-records.txt 2>&1; then
+      printf 'Completions delete removed seeded completion records: %s\n' "$database_path"
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "Completions delete left seeded completion records in QuillData." >&2
+  cat /tmp/quill-chat-completion-delete-records.txt >&2 || true
+  return 65
+}
+
 quill_chat_latest_conversation_uses_model() {
   local database_path="$1"
   local expected_model="$2"
@@ -1842,6 +1900,11 @@ if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_
     delete_status=$?
     quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
     exit "$delete_status"
+  }
+  verify_quill_chat_completion_deleted_if_needed || {
+    completion_delete_status=$?
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_BACKEND_INTERACTION_APP_LOG_LINES:-80}"
+    exit "$completion_delete_status"
   }
   verify_quill_chat_toolbar_model_selected_if_needed || {
     model_status=$?

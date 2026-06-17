@@ -2135,6 +2135,17 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
         left + int(app_width * 0.79),
         top + int(app_height * 0.53),
     )
+    dismissed_sheet_fields_roi = (
+        left + int(app_width * 0.36),
+        top + int(app_height * 0.30),
+        left + int(app_width * 0.78),
+        top + int(app_height * 0.44),
+    )
+    dismissed_sheet_field_pixels = pixel_count(
+        image,
+        *dismissed_sheet_fields_roi,
+        completions_upsert_form_field_pixel,
+    )
     deleted_row_action_segments = dark_row_segment_count(
         image,
         *row_action_roi,
@@ -2142,13 +2153,14 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
         min_height=4,
     )
     require(
-        deleted_row_action_segments <= 3,
-        "Deleted completion row still appears to be present: "
-        f"segments={deleted_row_action_segments}, roi={row_action_roi}",
+        dismissed_sheet_field_pixels <= 12_000,
+        "Completions sheet still appears to be visible after Delete: "
+        f"pixels={dismissed_sheet_field_pixels}, roi={dismissed_sheet_fields_roi}",
     )
 
     return (
         "Quill Chat Mac-reference completions deleted: "
+        f"dismissed_sheet_field_pixels={dismissed_sheet_field_pixels}, "
         f"row_action_segments={deleted_row_action_segments}; "
         f"{panel_summary}"
     )
