@@ -9,10 +9,10 @@ parallelized to the swarm via the issues below.
 
 | Rung | State | Work |
 |---|---|---|
-| 1. Compiles unmodified | ~80% (152 → ~124 unique errors) | #506 AVFoundation surface, #507 AppKit members, #508 SwiftUI chrome, #512 @MainActor AppKit tree, #513 @MainActor View.body |
-| 2. Launches + renders + input | **GTK launch/input proven** (Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, deterministic synthetic camera frame smoke, and Tests/QuillUITests/SolderScopeChromeConformanceTests.swift) | remaining: mac-reference visual delta closure, full toolbar/menu interaction parity, and broader real-device gesture coverage |
+| 1. Compiles unmodified | **Build green when fetched** | Gated `QuillSolderScope` product builds from the upstream source after the generic fetch/patch step; the remaining work is fidelity, not the old compile-error burn-down. |
+| 2. Launches + renders + input | **GTK launch/input proven** (Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, deterministic synthetic camera frame smoke, real SolderScope command-menu extraction, and Tests/QuillUITests/SolderScopeChromeConformanceTests.swift) | remaining: mac-reference visual delta closure, broader real-device gesture coverage, and toolbar/menu behavior beyond the currently smoke-driven shortcuts |
 | 3. Live camera | partial | #515 V4L2 AVCaptureSession backend plus opt-in `QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1` fixture camera for deterministic CI/runtime smoke; remaining: real USB microscope/device matrix coverage |
-| 4. Recording/snapshots | queued | AVAssetWriter→encoder; NSBitmapImageRep→PNG (part of #507 acceptance) |
+| 4. Recording/snapshots | partial-real | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. The interaction smoke now safely drives SolderScope's snapshot shortcut only when Foundation's desktop directory is disposable (`/root`, `/tmp`, or the checkout) or explicitly requested. Remaining: app-level recording verification, output-directory controls, and full snapshot/record UI parity. |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once 2–4 are real |
 
 Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderScope`
@@ -31,6 +31,15 @@ Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderSc
   microscope frame pixels after scroll/drag/double-click gestures. This is a
   deterministic runtime-fidelity fixture, not a substitute for the real USB
   camera matrix.
+
+- **2026-06-16 — Snapshot smoke must not write to a developer Desktop**:
+  Upstream SolderScope resolves snapshot output through
+  `FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)`.
+  On Linux corelibs this follows the passwd home, not `HOME`, so the smoke now
+  auto-drives the `s` shortcut only when that Desktop is disposable (`/root`,
+  `/tmp`, or the checkout). In that case it creates the directory, records the
+  pre-run file count, presses `s`, and fails unless a new `SolderScope_*.png`
+  appears.
 
 - **2026-06-16 — Hosted AppKit NSView input is backend-local, not app-local**:
   QuillAppKitGTK's custom `NSView` drawing host now installs GTK motion,
