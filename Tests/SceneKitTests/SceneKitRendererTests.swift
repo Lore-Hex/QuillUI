@@ -60,6 +60,51 @@ struct SceneKitRendererTests {
         #expect(textCopy.chamferRadius == 0.1)
     }
 
+    @Test("Parametric geometry bounding boxes reflect primitive dimensions")
+    func parametricGeometryBoundingBoxesReflectDimensions() {
+        expectBoundingBox(SCNSphere(radius: 2), min: SCNVector3(-2, -2, -2), max: SCNVector3(2, 2, 2))
+        expectBoundingBox(
+            SCNBox(width: 2, height: 4, length: 6, chamferRadius: 0),
+            min: SCNVector3(-1, -2, -3),
+            max: SCNVector3(1, 2, 3)
+        )
+        expectBoundingBox(
+            SCNCylinder(radius: 1.5, height: 5),
+            min: SCNVector3(-1.5, -2.5, -1.5),
+            max: SCNVector3(1.5, 2.5, 1.5)
+        )
+        expectBoundingBox(
+            SCNCone(topRadius: 0.25, bottomRadius: 1.25, height: 4),
+            min: SCNVector3(-1.25, -2, -1.25),
+            max: SCNVector3(1.25, 2, 1.25)
+        )
+        expectBoundingBox(
+            SCNCapsule(capRadius: 0.75, height: 1),
+            min: SCNVector3(-0.75, -0.75, -0.75),
+            max: SCNVector3(0.75, 0.75, 0.75)
+        )
+        expectBoundingBox(
+            SCNTube(innerRadius: 0.25, outerRadius: 1.5, height: 3),
+            min: SCNVector3(-1.5, -1.5, -1.5),
+            max: SCNVector3(1.5, 1.5, 1.5)
+        )
+        expectBoundingBox(
+            SCNTorus(ringRadius: 2, pipeRadius: 0.5),
+            min: SCNVector3(-2.5, -2.5, -0.5),
+            max: SCNVector3(2.5, 2.5, 0.5)
+        )
+        expectBoundingBox(
+            SCNPlane(width: 8, height: 4),
+            min: SCNVector3(-4, -2, 0),
+            max: SCNVector3(4, 2, 0)
+        )
+        expectBoundingBox(
+            SCNPyramid(width: 2, height: 4, length: 6),
+            min: SCNVector3(-1, -2, -3),
+            max: SCNVector3(1, 2, 3)
+        )
+    }
+
     @Test("Software renderer draws colored sphere pixels")
     func rendersSpherePixels() {
         let scene = SCNScene()
@@ -909,6 +954,11 @@ struct SceneKitRendererTests {
         #expect(abs(stats.bounds.minY - reference.bounds.minY) <= 8)
         #expect(abs(stats.bounds.maxX - reference.bounds.maxX) <= 8)
         #expect(abs(stats.bounds.maxY - reference.bounds.maxY) <= 8)
+    }
+
+    private func expectBoundingBox(_ geometry: SCNGeometry, min: SCNVector3, max: SCNVector3) {
+        #expect(geometry.boundingBox.min == min)
+        #expect(geometry.boundingBox.max == max)
     }
 }
 
