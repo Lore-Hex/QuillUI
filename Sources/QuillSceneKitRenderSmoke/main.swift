@@ -54,6 +54,9 @@ struct QuillSceneKitRenderSmoke {
         let awayCameraStats = PixelStats(renderAwayCameraScene())
         try require(awayCameraStats.nonBlackPixels == 0, "away-camera render unexpectedly produced pixels: \(awayCameraStats)")
 
+        let clippedCameraStats = PixelStats(renderClippedCameraScene())
+        try require(clippedCameraStats.nonBlackPixels == 0, "clipped-camera render unexpectedly produced pixels: \(clippedCameraStats)")
+
         try runCameraControlSmoke()
         try runHitTestSmoke()
 
@@ -63,6 +66,7 @@ struct QuillSceneKitRenderSmoke {
         log("nested camera: \(nestedCameraStats)")
         log("side camera: \(sideCameraStats)")
         log("away camera: \(awayCameraStats)")
+        log("clipped camera: \(clippedCameraStats)")
 
         if ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_GTK_SMOKE"] == "1" {
             try runGTKSceneViewSmoke()
@@ -164,6 +168,17 @@ struct QuillSceneKitRenderSmoke {
         cameraNode.camera = SCNCamera()
         cameraNode.position = SCNVector3(0, 0, 4)
         cameraNode.eulerAngles = SCNVector3(0, .pi, 0)
+        scene.rootNode.addChildNode(cameraNode)
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func renderClippedCameraScene() -> CGImage {
+        let scene = makeSphereScene()
+        let cameraNode = SCNNode()
+        let camera = SCNCamera()
+        camera.zNear = 4.5
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
         scene.rootNode.addChildNode(cameraNode)
         return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
     }

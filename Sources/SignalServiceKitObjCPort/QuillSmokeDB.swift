@@ -31,7 +31,7 @@ public func quillSmokeGRDBRoundtrip() throws -> String {
 
 // Run Signal's full SCHEMA migration on a plain in-memory DB (needs AppContext set).
 public func quillSmokeSchemaMigration() throws -> String {
-    if !quillAppContextInstalled { SetCurrentAppContext(QuillSmokeAppContext(), isRunningTests: false); quillAppContextInstalled = true }
+    _ = quillInstallSmokeAppContextIfNeeded()
     var c = GRDB.Configuration(); c.acceptsDoubleQuotedStringLiterals = true
     let q = try DatabaseQueue(configuration: c)
     try GRDBSchemaMigrator.quillRunSchemaMigrations(on: q)
@@ -39,6 +39,126 @@ public func quillSmokeSchemaMigration() throws -> String {
     return "Signal schema migrated: \(n) tables"
 }
 private var quillAppContextInstalled = false
+private var quillInstalledSmokeAppContext: QuillSmokeAppContext?
+
+@discardableResult
+public func quillInstallSmokeAppContextIfNeeded() -> QuillSmokeAppContext {
+    if let context = quillInstalledSmokeAppContext {
+        return context
+    }
+    let context = QuillSmokeAppContext()
+    SetCurrentAppContext(context, isRunningTests: false)
+    quillInstalledSmokeAppContext = context
+    quillAppContextInstalled = true
+    return context
+}
+
+@MainActor
+public final class QuillSignalRenderBootstrap {
+    public let appContext: QuillSmokeAppContext
+    public let appReadiness: AppReadinessImpl
+    public let databaseStorage: SDSDatabaseStorage
+    public let dependenciesBridge: DependenciesBridge
+    public let sskEnvironment: SSKEnvironment
+    public let databasePath: String
+    public let tableCount: Int
+
+    private let finalContinuation: AppSetup.FinalContinuation
+
+    fileprivate init(
+        appContext: QuillSmokeAppContext,
+        appReadiness: AppReadinessImpl,
+        databaseStorage: SDSDatabaseStorage,
+        dependenciesBridge: DependenciesBridge,
+        sskEnvironment: SSKEnvironment,
+        finalContinuation: AppSetup.FinalContinuation,
+        tableCount: Int
+    ) {
+        self.appContext = appContext
+        self.appReadiness = appReadiness
+        self.databaseStorage = databaseStorage
+        self.dependenciesBridge = dependenciesBridge
+        self.sskEnvironment = sskEnvironment
+        self.finalContinuation = finalContinuation
+        self.databasePath = databaseStorage.databaseFileUrl.path
+        self.tableCount = tableCount
+    }
+
+    public var summary: String {
+        "Signal render bootstrap OK: \(tableCount) tables at \(databasePath)"
+    }
+
+    public func runLaunchTasksIfNeededAndReloadCaches() {
+        finalContinuation.runLaunchTasksIfNeededAndReloadCaches()
+    }
+}
+
+@MainActor private var quillSignalRenderBootstrap: QuillSignalRenderBootstrap?
+
+private final class QuillRenderReachabilityManager: SSKReachabilityManager {
+    var isReachable: Bool { true }
+
+    func isReachable(via reachabilityType: ReachabilityType) -> Bool {
+        switch reachabilityType {
+        case .any, .wifi:
+            return true
+        case .cellular:
+            return false
+        }
+    }
+}
+
+@MainActor
+public func quillBootstrapSignalRenderEnvironment() async throws -> QuillSignalRenderBootstrap {
+    if let bootstrap = quillSignalRenderBootstrap {
+        return bootstrap
+    }
+
+    let appContext = quillInstallSmokeAppContextIfNeeded()
+    let appReadiness = AppReadinessImpl()
+    let databaseURL = SDSDatabaseStorage.grdbDatabaseFileUrl
+    let databaseStorage = try SDSDatabaseStorage(
+        appReadiness: appReadiness,
+        databaseFileUrl: databaseURL,
+        keychainStorage: KeychainStorageImpl(isUsingProductionService: false)
+    )
+
+    let schemaContinuation = AppSetup().start(
+        appContext: appContext,
+        databaseStorage: databaseStorage
+    )
+    let globalsContinuation = await schemaContinuation.migrateDatabaseSchema()
+    let dataMigrationContinuation = globalsContinuation.initGlobals(
+        appContext: appContext,
+        appReadiness: appReadiness,
+        deviceBatteryLevelManager: nil,
+        deviceSleepManager: nil,
+        paymentsEvents: PaymentsEventsNoop(),
+        mobileCoinHelper: MobileCoinHelperMock(),
+        callMessageHandler: NoopCallMessageHandler(),
+        currentCallProvider: CurrentCallNoOpProvider(),
+        notificationPresenter: NoopNotificationPresenterImpl(),
+        testDependencies: AppSetup.TestDependencies(
+            reachabilityManager: QuillRenderReachabilityManager()
+        )
+    )
+    let finalContinuation = await dataMigrationContinuation.migrateDatabaseData()
+    let tableCount = databaseStorage.read { tx in
+        (try? Int.fetchOne(tx.database, sql: "SELECT COUNT(*) FROM sqlite_master WHERE type='table'")) ?? 0
+    }
+
+    let bootstrap = QuillSignalRenderBootstrap(
+        appContext: appContext,
+        appReadiness: appReadiness,
+        databaseStorage: databaseStorage,
+        dependenciesBridge: dataMigrationContinuation.dependenciesBridge,
+        sskEnvironment: dataMigrationContinuation.sskEnvironment,
+        finalContinuation: finalContinuation,
+        tableCount: tableCount
+    )
+    quillSignalRenderBootstrap = bootstrap
+    return bootstrap
+}
 
 // On-disk persistence round-trip: write account state + an identity ECKeyPair to a
 // real DB file via the SAME KeyValueStore path the account/identity managers use,

@@ -54,6 +54,53 @@ for required_command in swift Xvfb import identify convert xdotool; do
   fi
 done
 
+quillui_solderscope_resolve_desktop_dir() {
+  swift -e 'import Foundation; print(FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first?.path ?? "")' 2>/dev/null || true
+}
+
+quillui_solderscope_count_snapshots() {
+  local desktop_dir="$1"
+  if [[ -z "$desktop_dir" || ! -d "$desktop_dir" ]]; then
+    echo 0
+    return
+  fi
+  find "$desktop_dir" -maxdepth 1 -type f -name 'SolderScope_*.png' 2>/dev/null | wc -l | tr -d '[:space:]'
+}
+
+quillui_solderscope_safe_snapshot_desktop() {
+  local desktop_dir="$1"
+  [[ "$desktop_dir" == /root/* || "$desktop_dir" == /tmp/* || "$desktop_dir" == "$ROOT_DIR"/* ]]
+}
+
+SOLDERSCOPE_DESKTOP_DIR="$(quillui_solderscope_resolve_desktop_dir)"
+SOLDERSCOPE_DRIVE_SNAPSHOT=0
+case "${QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT:-auto}" in
+  1|true|TRUE|yes|YES)
+    SOLDERSCOPE_DRIVE_SNAPSHOT=1
+    ;;
+  0|false|FALSE|no|NO)
+    SOLDERSCOPE_DRIVE_SNAPSHOT=0
+    ;;
+  auto|"")
+    if [[ "$SMOKE_MODE" == "interaction" ]] && quillui_solderscope_safe_snapshot_desktop "$SOLDERSCOPE_DESKTOP_DIR"; then
+      SOLDERSCOPE_DRIVE_SNAPSHOT=1
+    fi
+    ;;
+  *)
+    echo "Unsupported QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT='${QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT}' (expected auto, 1, or 0)" >&2
+    exit 64
+    ;;
+esac
+SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT=0
+if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
+  if [[ -z "$SOLDERSCOPE_DESKTOP_DIR" ]]; then
+    echo "Cannot drive SolderScope snapshot: desktop directory could not be resolved" >&2
+    exit 66
+  fi
+  mkdir -p "$SOLDERSCOPE_DESKTOP_DIR"
+  SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
+fi
+
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 
 if [[ "${QUILLUI_SOLDERSCOPE_SKIP_BUILD:-0}" != "1" ]]; then
@@ -133,18 +180,34 @@ quillui_drive_solderscope_interaction() {
   for _ in 1 2 3 4 5 6; do
     DISPLAY="$DISPLAY_ID" xdotool click 4
   done
-  DISPLAY="$DISPLAY_ID" xdotool key i
-  DISPLAY="$DISPLAY_ID" xdotool key h
-  DISPLAY="$DISPLAY_ID" xdotool key v
-  DISPLAY="$DISPLAY_ID" xdotool key bracketright
-  DISPLAY="$DISPLAY_ID" xdotool key 0
-  DISPLAY="$DISPLAY_ID" xdotool key b
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" i
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" h
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" v
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" bracketright
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" 0
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" b
   sleep 0.2
-  DISPLAY="$DISPLAY_ID" xdotool key b
-  DISPLAY="$DISPLAY_ID" xdotool key space
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" b
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" space
   sleep 0.2
-  DISPLAY="$DISPLAY_ID" xdotool key space
-  DISPLAY="$DISPLAY_ID" xdotool key Escape
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" space
+  if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
+    DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" s
+    local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      snapshot_count="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
+      if (( snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
+        echo "SolderScope interaction smoke: snapshot saved to $SOLDERSCOPE_DESKTOP_DIR" >&2
+        break
+      fi
+      sleep 0.2
+    done
+    if (( snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
+      echo "SolderScope interaction smoke did not observe a snapshot file in $SOLDERSCOPE_DESKTOP_DIR" >&2
+      return 1
+    fi
+  fi
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" Escape
   sleep 1
 }
 

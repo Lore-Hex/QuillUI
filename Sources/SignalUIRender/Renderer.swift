@@ -47,6 +47,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     /// frame-positioned `UIView` fallback (handles == true) must be LAST.
     static let mappers: [UIViewGtkMapper.Type] = [
         UILabelGtkMapper.self,
+        CustomDrawnTextGtkMapper.self,
         UIImageViewGtkMapper.self,
         UISwitchGtkMapper.self,
         UITableViewGtkMapper.self,

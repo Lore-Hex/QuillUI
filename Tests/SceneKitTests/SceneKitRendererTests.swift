@@ -118,6 +118,40 @@ struct SceneKitRendererTests {
         #expect(stats.nonBlackPixels == 0)
     }
 
+    @Test("Software renderer respects explicit camera clipping planes")
+    func cameraClippingPlanesCullRenderAndHitTest() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 1)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: sphere))
+
+        let camera = SCNCamera()
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        var stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels > 1_000)
+        #expect(!scene.quillHitTest(CGPoint(x: 80, y: 60), width: 160, height: 120, pointOfView: cameraNode).isEmpty)
+
+        camera.zNear = 4.5
+        stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels == 0)
+        #expect(scene.quillHitTest(CGPoint(x: 80, y: 60), width: 160, height: 120, pointOfView: cameraNode).isEmpty)
+
+        camera.zNear = 0.1
+        camera.zFar = 3
+        stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels == 0)
+
+        camera.zFar = 10
+        stats = PixelStats(scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode))
+        #expect(stats.nonBlackPixels > 1_000)
+    }
+
     @Test("Software renderer stays inside Apple SceneKit golden envelopes")
     func softwareRendererMatchesAppleGoldenEnvelopes() {
         let (sphereScene, sphereCamera) = makeCameraControlScene()

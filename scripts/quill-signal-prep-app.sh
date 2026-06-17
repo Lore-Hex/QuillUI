@@ -197,10 +197,53 @@ else
     echo "quill-signal-prep-app: no SignalApp build log at $BUILD_LOG; log-driven app fixes skipped"
 fi
 
-# (8d) Add tiny same-file Linux factories for CVComponentState. Signal keeps the
-#      designated initializer + Builder fileprivate inside CVComponentState.swift;
+# (8d) Standalone render previews run without a full SignalServiceKit app
+#      environment. Avoid forcing TSIncomingMessage.authorAddress just to fill
+#      CVRenderItem's clustering cache; nil falls back to default spacing.
+RENDER_ITEM_FILE="$APP/ConversationView/Loading/CVRenderItem.swift"
+if [ -f "$RENDER_ITEM_FILE" ]; then
+    python3 - "$RENDER_ITEM_FILE" <<'PY'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text(errors="replace")
+text = text.replace(
+    "if let incomingMessage = itemModel.interaction as? TSIncomingMessage {\n"
+    "            self.incomingMessageAuthorAddress = incomingMessage.authorAddress\n"
+    "        } else {",
+    "if let incomingMessage = itemModel.interaction as? TSIncomingMessage, SSKEnvironment.hasShared {\n"
+    "            self.incomingMessageAuthorAddress = incomingMessage.authorAddress\n"
+    "        } else {",
+)
+path.write_text(text)
+PY
+fi
+
+# (8e) Add tiny same-file Linux factories for Signal conversation preview types.
+#      Signal keeps a few constructors fileprivate/private to their source file;
 #      app-port files are same module but not same file, so they cannot construct
-#      real render items for smoke previews without this disposable helper.
+#      real render items for smoke previews without these disposable helpers.
+DISPLAYABLE_TEXT_FILE="$APP/util/DisplayableText.swift"
+if [ -f "$DISPLAYABLE_TEXT_FILE" ] && ! grep -q "QuillSignal DisplayableText preview factories" "$DISPLAYABLE_TEXT_FILE"; then
+    cat >> "$DISPLAYABLE_TEXT_FILE" <<'SWIFT'
+
+#if os(Linux)
+// QuillSignal DisplayableText preview factories. Generated into the disposable
+// Signal app slice so Linux renderer checks can build real text message
+// component state without a database transaction.
+extension DisplayableText {
+    static func quillPreviewPlainText(_ text: String) -> DisplayableText {
+        let textValue = CVTextValue.text(text)
+        return DisplayableText(
+            fullContent: .init(textValue: textValue, naturalAlignment: textValue.naturalTextAligment),
+            truncatedContent: nil,
+        )
+    }
+}
+#endif
+SWIFT
+fi
+
 STATE_FILE="$APP/ConversationView/Components/CVComponentState.swift"
 if [ -f "$STATE_FILE" ] && ! grep -q "QuillSignal CVComponentState preview factories" "$STATE_FILE"; then
     cat >> "$STATE_FILE" <<'SWIFT'
@@ -268,6 +311,43 @@ extension CVComponentState {
             systemMessage: nil,
             dateHeader: nil,
             unreadIndicator: UnreadIndicator(),
+            reactions: nil,
+            typingIndicator: nil,
+            threadDetails: nil,
+            unknownThreadWarning: nil,
+            defaultDisappearingMessageTimer: nil,
+            collapseSet: nil,
+            bottomButtons: nil,
+            bottomLabel: nil,
+            skippedDownloads: nil,
+            sendFailureBadge: nil,
+            messageHasBodyAttachments: false,
+            hasRenderableContent: true,
+            poll: nil,
+        )
+    }
+
+    static func quillPreviewTextMessageState(displayableText: DisplayableText) -> CVComponentState {
+        CVComponentState(
+            messageCellType: .textOnlyMessage,
+            senderName: nil,
+            senderAvatar: nil,
+            bodyText: .bodyText(displayableText: displayableText, hasTapForMore: false),
+            bodyMedia: nil,
+            genericAttachment: nil,
+            paymentAttachment: nil,
+            archivedPaymentAttachment: nil,
+            audioAttachment: nil,
+            viewOnce: nil,
+            quotedReply: nil,
+            sticker: nil,
+            undownloadableAttachment: nil,
+            contactShare: nil,
+            linkPreview: nil,
+            giftBadge: nil,
+            systemMessage: nil,
+            dateHeader: nil,
+            unreadIndicator: nil,
             reactions: nil,
             typingIndicator: nil,
             threadDetails: nil,

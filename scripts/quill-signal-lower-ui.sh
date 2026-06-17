@@ -125,6 +125,49 @@ for filename in sys.argv[1:]:
         path.write_text(updated)
 PY
 
+# (3d) Signal's CVTextLabel body text is a custom UIView that draws text in
+#      draw(_:) instead of being a UILabel. Publish generic renderer metadata
+#      from its real config so GTK/Qt renderers can display the same text without
+#      knowing SignalUI's fileprivate Label type.
+python3 - "$SUI/ConversationView/CVTextLabel.swift" <<'PY'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+if not path.exists():
+    raise SystemExit(0)
+
+text = path.read_text(errors="replace")
+text = text.replace(
+    """            guard config.text.isEmpty.negated else {
+                reset()
+                textStorage.setAttributedString(NSAttributedString(string: ""))
+                setNeedsDisplay()
+                return
+            }
+
+            let attributedString = Self.formatAttributedString(config: config)
+            textStorage.setAttributedString(attributedString)
+""",
+    """            guard config.text.isEmpty.negated else {
+                reset()
+                quillRenderedText = nil
+                textStorage.setAttributedString(NSAttributedString(string: ""))
+                setNeedsDisplay()
+                return
+            }
+
+            let attributedString = Self.formatAttributedString(config: config)
+            quillRenderedText = attributedString.string
+            quillRenderedTextColor = config.textColor
+            quillRenderedTextPointSize = config.font.pointSize
+            quillRenderedTextAlignment = config.textAlignment
+            quillRenderedTextNumberOfLines = config.numberOfLines
+            textStorage.setAttributedString(attributedString)
+""",
+)
+path.write_text(text)
+PY
+
 # (4) Same-module Swift ports for small ObjC categories that SignalUI excludes
 # on Linux. Keep these as symlinks into the disposable upstream tree so the
 # canonical Signal source remains untouched and the extension members are

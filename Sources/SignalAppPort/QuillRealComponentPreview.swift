@@ -7,6 +7,7 @@
 // conversation mock.
 
 public import Foundation
+public import LibSignalClient
 public import SignalServiceKit
 public import SignalUI
 public import UIKit
@@ -53,7 +54,9 @@ public enum QuillSignalRealComponentPreview {
         root.backgroundColor = .white
         root.addSubview(header)
         stack.frame.origin.y = 96
+        stack.frame.size.height = 320
         root.addSubview(stack)
+        root.frame.size.height = 460
 
         let vc = UIViewController()
         vc.view = root
@@ -119,6 +122,14 @@ private final class QuillSignalRealComponentBuilder {
 
         return [
             makeDateHeader(interaction: dateInteraction),
+            makeTextMessage(
+                text: "Hey, can you check the Linux render pass? The bubble should wrap like Signal.",
+                incoming: true,
+            ),
+            makeTextMessage(
+                text: "On it. This is a real CVComponentMessage, not a handmade preview row.",
+                incoming: false,
+            ),
             makeUnreadIndicator(interaction: unreadInteraction),
         ]
     }
@@ -146,6 +157,44 @@ private final class QuillSignalRealComponentBuilder {
         return makeRenderItem(itemModel: itemModel, rootComponent: component)
     }
 
+    private func makeTextMessage(text: String, incoming: Bool) -> CVRenderItem {
+        let messageBody = QuillSignalPreviewValidatedMessageBody(text)
+        let interaction: TSInteraction = if incoming {
+            MockIncomingMessage(
+                messageBody: messageBody,
+                thread: thread,
+                authorAci: Aci(fromUUID: UUID(uuidString: "00000000-0000-4000-8000-000000000111")!),
+            )
+        } else {
+            MockOutgoingMessage(messageBody: messageBody, thread: thread)
+        }
+
+        let displayableText = DisplayableText.quillPreviewPlainText(text)
+        let componentState = CVComponentState.quillPreviewTextMessageState(displayableText: displayableText)
+        let snapshot = CVViewStateSnapshot.mockSnapshotForStandaloneItems(
+            coreState: coreState,
+            spoilerReveal: SpoilerRevealState(),
+        )
+        let itemViewState = CVItemViewState.Builder()
+        itemViewState.accessibilityAuthorName = incoming ? "Quill Preview" : nil
+        itemViewState.shouldHideFooter = true
+        itemViewState.isFirstInCluster = true
+        itemViewState.isLastInCluster = true
+        itemViewState.bodyTextState = CVComponentBodyText.buildState(
+            interaction: interaction,
+            bodyText: componentState.bodyText!,
+            viewStateSnapshot: snapshot,
+            hasPendingMessageRequest: false,
+        )
+        let itemModel = makeItemModel(
+            interaction: interaction,
+            componentState: componentState,
+            itemViewState: itemViewState.build(),
+        )
+        let component = CVComponentMessage(itemModel: itemModel)
+        return makeRenderItem(itemModel: itemModel, rootComponent: component)
+    }
+
     private func makeItemModel(
         interaction: TSInteraction,
         componentState: CVComponentState,
@@ -157,8 +206,12 @@ private final class QuillSignalRealComponentBuilder {
             threadAssociatedData: associatedData,
             componentState: componentState,
             itemViewState: itemViewState,
-            coreState: CVCoreState(conversationStyle: conversationStyle, mediaCache: mediaCache),
+            coreState: coreState,
         )
+    }
+
+    private var coreState: CVCoreState {
+        CVCoreState(conversationStyle: conversationStyle, mediaCache: mediaCache)
     }
 
     private func makeRenderItem(itemModel: CVItemModel, rootComponent: CVRootComponent) -> CVRenderItem {
@@ -169,5 +222,13 @@ private final class QuillSignalRealComponentBuilder {
             rootComponent: rootComponent,
             cellMeasurement: measurement.build(),
         )
+    }
+}
+
+private struct QuillSignalPreviewValidatedMessageBody: ValidatedInlineMessageBody {
+    let inlinedBody: MessageBody
+
+    init(_ text: String) {
+        self.inlinedBody = MessageBody(text: text, ranges: .empty)
     }
 }
