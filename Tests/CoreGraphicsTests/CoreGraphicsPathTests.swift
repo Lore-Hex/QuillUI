@@ -468,6 +468,52 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGContext font rendering flags are stateful and restored")
+    func contextFontRenderingFlagsAreStatefulAndRestored() {
+        let context = CGContext()
+
+        #expect(context.quillEffectiveFontSmoothing)
+        context.setAllowsFontSmoothing(false)
+        #expect(!context.quillEffectiveFontSmoothing)
+        context.setAllowsFontSmoothing(true)
+        context.setShouldSmoothFonts(false)
+        #expect(!context.quillEffectiveFontSmoothing)
+        context.setShouldSmoothFonts(true)
+        #expect(context.quillEffectiveFontSmoothing)
+
+        #expect(context.quillEffectiveFontSubpixelPositioning)
+        context.setAllowsFontSubpixelPositioning(false)
+        #expect(!context.quillEffectiveFontSubpixelPositioning)
+        context.setAllowsFontSubpixelPositioning(true)
+        context.setShouldSubpixelPositionFonts(false)
+        #expect(!context.quillEffectiveFontSubpixelPositioning)
+        context.setShouldSubpixelPositionFonts(true)
+        #expect(context.quillEffectiveFontSubpixelPositioning)
+
+        #expect(context.quillEffectiveFontSubpixelQuantization)
+        context.setAllowsFontSubpixelQuantization(false)
+        #expect(!context.quillEffectiveFontSubpixelQuantization)
+        context.setAllowsFontSubpixelQuantization(true)
+        context.setShouldSubpixelQuantizeFonts(false)
+        #expect(!context.quillEffectiveFontSubpixelQuantization)
+        context.setShouldSubpixelQuantizeFonts(true)
+        #expect(context.quillEffectiveFontSubpixelQuantization)
+
+        context.setAllowsFontSmoothing(false)
+        context.setShouldSubpixelPositionFonts(false)
+        context.setAllowsFontSubpixelQuantization(false)
+        context.saveGState()
+
+        context.setAllowsFontSmoothing(true)
+        context.setShouldSubpixelPositionFonts(true)
+        context.setAllowsFontSubpixelQuantization(true)
+        context.restoreGState()
+
+        #expect(!context.quillEffectiveFontSmoothing)
+        #expect(!context.quillEffectiveFontSubpixelPositioning)
+        #expect(!context.quillEffectiveFontSubpixelQuantization)
+    }
+
     @Test("CGContext bitmap multiply blend mode affects fills")
     func bitmapContextMultiplyBlendModeAffectsFills() throws {
         let context = try makeBitmapContext(width: 1, height: 1)

@@ -110,6 +110,31 @@ struct SceneKitRendererTests {
         #expect(replacement.parent == nil)
     }
 
+    @Test("SCNNode boundingBox aggregates own and transformed child geometry")
+    func sceneNodeBoundingBoxAggregatesOwnAndTransformedChildGeometry() {
+        let root = SCNNode(geometry: SCNSphere(radius: 1))
+
+        let child = SCNNode(geometry: SCNBox(width: 2, height: 4, length: 6, chamferRadius: 0))
+        child.position = SCNVector3(5, 0, 0)
+        child.scale = SCNVector3(2, 1, 1)
+        root.addChildNode(child)
+
+        let box = root.boundingBox
+        #expect(box.min == SCNVector3(-1, -2, -3))
+        #expect(box.max == SCNVector3(7, 2, 3))
+
+        var min = SCNVector3()
+        var max = SCNVector3()
+        #expect(root.getBoundingBoxMin(&min, max: &max))
+        #expect(min == box.min)
+        #expect(max == box.max)
+
+        let empty = SCNNode()
+        #expect(!empty.getBoundingBoxMin(&min, max: &max))
+        #expect(empty.boundingBox.min == SCNVector3())
+        #expect(empty.boundingBox.max == SCNVector3())
+    }
+
     @Test("SCNGeometry copy preserves primitive subtype parameters and metadata")
     func geometryCopyPreservesPrimitiveSubtypeParametersAndMetadata() throws {
         let material = SCNMaterial()
@@ -262,6 +287,75 @@ struct SceneKitRendererTests {
         #expect(transform.m41 == 11)
         #expect(transform.m42 == 12)
         #expect(transform.m43 == 13)
+    }
+
+    @Test("SCNNode worldPosition and worldTransform resolve through parents")
+    func nodeWorldPositionAndTransformResolveThroughParents() {
+        let parent = SCNNode()
+        parent.position = SCNVector3(10, 20, 30)
+        parent.scale = SCNVector3(2, 4, 5)
+
+        let child = SCNNode()
+        child.position = SCNVector3(1, 2, 3)
+        parent.addChildNode(child)
+
+        expectVector(child.worldPosition, closeTo: SCNVector3(12, 28, 45))
+        expectMatrix(
+            child.worldTransform,
+            closeTo: SCNMatrix4(
+                m11: 2, m12: 0, m13: 0, m14: 0,
+                m21: 0, m22: 4, m23: 0, m24: 0,
+                m31: 0, m32: 0, m33: 5, m34: 0,
+                m41: 12, m42: 28, m43: 45, m44: 1
+            )
+        )
+
+        child.worldPosition = SCNVector3(14, 32, 50)
+        expectVector(child.position, closeTo: SCNVector3(2, 3, 4))
+        expectVector(child.worldPosition, closeTo: SCNVector3(14, 32, 50))
+
+        child.worldTransform = SCNMatrix4MakeTranslation(30, 44, 55)
+        expectVector(child.position, closeTo: SCNVector3(10, 6, 5))
+        expectVector(child.worldPosition, closeTo: SCNVector3(30, 44, 55))
+        expectMatrix(child.worldTransform, closeTo: SCNMatrix4MakeTranslation(30, 44, 55))
+    }
+
+    @Test("SCNNode worldOrientation composes and sets through parents")
+    func nodeWorldOrientationComposesAndSetsThroughParents() {
+        let quarterTurn = CGFloat(0.5).squareRoot()
+        let parent = SCNNode()
+        parent.orientation = SCNQuaternion(0, quarterTurn, 0, quarterTurn)
+
+        let child = SCNNode()
+        child.orientation = SCNQuaternion(0, quarterTurn, 0, quarterTurn)
+        parent.addChildNode(child)
+
+        #expect(abs(abs(child.worldOrientation.y) - 1) <= 0.0001)
+        #expect(abs(child.worldOrientation.w) <= 0.0001)
+
+        child.worldOrientation = SCNQuaternion(0, 0, 0, 1)
+
+        #expect(abs(abs(child.worldOrientation.w) - 1) <= 0.0001)
+        #expect(abs(child.worldOrientation.x) <= 0.0001)
+        #expect(abs(child.worldOrientation.y) <= 0.0001)
+        #expect(abs(child.worldOrientation.z) <= 0.0001)
+        #expect(abs(child.orientation.y + quarterTurn) <= 0.0001)
+        #expect(abs(child.orientation.w - quarterTurn) <= 0.0001)
+    }
+
+    @Test("SCNNode world direction vectors resolve through parent orientation")
+    func nodeWorldDirectionVectorsResolveThroughParentOrientation() {
+        let quarterTurn = CGFloat(0.5).squareRoot()
+        let parent = SCNNode()
+        parent.scale = SCNVector3(3, 4, 5)
+        parent.orientation = SCNQuaternion(0, quarterTurn, 0, quarterTurn)
+
+        let child = SCNNode()
+        parent.addChildNode(child)
+
+        expectVector(child.worldFront, closeTo: SCNVector3(-1, 0, 0))
+        expectVector(child.worldRight, closeTo: SCNVector3(0, 0, -1))
+        expectVector(child.worldUp, closeTo: SCNVector3(0, 1, 0))
     }
 
     @Test("SCNNode converts positions and vectors across coordinate spaces")

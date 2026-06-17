@@ -1586,6 +1586,12 @@ public final class CGContext {
     private var quillLineDashLengths: [CGFloat] = []
     private var quillAllowsAntialiasing: Bool = true
     private var quillShouldAntialias: Bool = true
+    private var quillAllowsFontSmoothingState: Bool = true
+    private var quillShouldSmoothFontsState: Bool = true
+    private var quillAllowsFontSubpixelPositioningState: Bool = true
+    private var quillShouldSubpixelPositionFontsState: Bool = true
+    private var quillAllowsFontSubpixelQuantizationState: Bool = true
+    private var quillShouldSubpixelQuantizeFontsState: Bool = true
     private var quillAlpha: CGFloat = 1
     private var quillBlendMode: CGBlendMode = .normal
     private var quillShadow: QuillShadow?
@@ -1606,6 +1612,12 @@ public final class CGContext {
         var lineDashLengths: [CGFloat]
         var allowsAntialiasing: Bool
         var shouldAntialias: Bool
+        var allowsFontSmoothing: Bool
+        var shouldSmoothFonts: Bool
+        var allowsFontSubpixelPositioning: Bool
+        var shouldSubpixelPositionFonts: Bool
+        var allowsFontSubpixelQuantization: Bool
+        var shouldSubpixelQuantizeFonts: Bool
         var alpha: CGFloat
         var blendMode: CGBlendMode
         var shadow: QuillShadow?
@@ -3570,6 +3582,15 @@ public final class CGContext {
     private var quillEffectiveAntialiasing: Bool {
         quillAllowsAntialiasing && quillShouldAntialias
     }
+    public var quillEffectiveFontSmoothing: Bool {
+        quillAllowsFontSmoothingState && quillShouldSmoothFontsState
+    }
+    public var quillEffectiveFontSubpixelPositioning: Bool {
+        quillAllowsFontSubpixelPositioningState && quillShouldSubpixelPositionFontsState
+    }
+    public var quillEffectiveFontSubpixelQuantization: Bool {
+        quillAllowsFontSubpixelQuantizationState && quillShouldSubpixelQuantizeFontsState
+    }
     public func setAllowsAntialiasing(_ allowsAntialiasing: Bool) {
         quillAllowsAntialiasing = allowsAntialiasing
         quillBackend?.setShouldAntialias(quillEffectiveAntialiasing)
@@ -3578,12 +3599,24 @@ public final class CGContext {
         quillShouldAntialias = shouldAntialias
         quillBackend?.setShouldAntialias(quillEffectiveAntialiasing)
     }
-    public func setAllowsFontSmoothing(_ allowsFontSmoothing: Bool) {}
-    public func setShouldSmoothFonts(_ shouldSmoothFonts: Bool) {}
-    public func setAllowsFontSubpixelPositioning(_ allowsFontSubpixelPositioning: Bool) {}
-    public func setShouldSubpixelPositionFonts(_ shouldSubpixelPositionFonts: Bool) {}
-    public func setAllowsFontSubpixelQuantization(_ allowsFontSubpixelQuantization: Bool) {}
-    public func setShouldSubpixelQuantizeFonts(_ shouldSubpixelQuantizeFonts: Bool) {}
+    public func setAllowsFontSmoothing(_ allowsFontSmoothing: Bool) {
+        quillAllowsFontSmoothingState = allowsFontSmoothing
+    }
+    public func setShouldSmoothFonts(_ shouldSmoothFonts: Bool) {
+        quillShouldSmoothFontsState = shouldSmoothFonts
+    }
+    public func setAllowsFontSubpixelPositioning(_ allowsFontSubpixelPositioning: Bool) {
+        quillAllowsFontSubpixelPositioningState = allowsFontSubpixelPositioning
+    }
+    public func setShouldSubpixelPositionFonts(_ shouldSubpixelPositionFonts: Bool) {
+        quillShouldSubpixelPositionFontsState = shouldSubpixelPositionFonts
+    }
+    public func setAllowsFontSubpixelQuantization(_ allowsFontSubpixelQuantization: Bool) {
+        quillAllowsFontSubpixelQuantizationState = allowsFontSubpixelQuantization
+    }
+    public func setShouldSubpixelQuantizeFonts(_ shouldSubpixelQuantizeFonts: Bool) {
+        quillShouldSubpixelQuantizeFontsState = shouldSubpixelQuantizeFonts
+    }
     public func setAlpha(_ alpha: CGFloat) {
         quillAlpha = Self.quillClampedUnit(alpha)
         quillBackend?.setAlpha(alpha)
@@ -3776,6 +3809,12 @@ public final class CGContext {
             lineDashLengths: quillLineDashLengths,
             allowsAntialiasing: quillAllowsAntialiasing,
             shouldAntialias: quillShouldAntialias,
+            allowsFontSmoothing: quillAllowsFontSmoothingState,
+            shouldSmoothFonts: quillShouldSmoothFontsState,
+            allowsFontSubpixelPositioning: quillAllowsFontSubpixelPositioningState,
+            shouldSubpixelPositionFonts: quillShouldSubpixelPositionFontsState,
+            allowsFontSubpixelQuantization: quillAllowsFontSubpixelQuantizationState,
+            shouldSubpixelQuantizeFonts: quillShouldSubpixelQuantizeFontsState,
             alpha: quillAlpha,
             blendMode: quillBlendMode,
             shadow: quillShadow,
@@ -3796,6 +3835,12 @@ public final class CGContext {
             quillLineDashLengths = state.lineDashLengths
             quillAllowsAntialiasing = state.allowsAntialiasing
             quillShouldAntialias = state.shouldAntialias
+            quillAllowsFontSmoothingState = state.allowsFontSmoothing
+            quillShouldSmoothFontsState = state.shouldSmoothFonts
+            quillAllowsFontSubpixelPositioningState = state.allowsFontSubpixelPositioning
+            quillShouldSubpixelPositionFontsState = state.shouldSubpixelPositionFonts
+            quillAllowsFontSubpixelQuantizationState = state.allowsFontSubpixelQuantization
+            quillShouldSubpixelQuantizeFontsState = state.shouldSubpixelQuantizeFonts
             quillAlpha = state.alpha
             quillBlendMode = state.blendMode
             quillShadow = state.shadow

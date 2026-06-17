@@ -19,8 +19,8 @@ public extension UIView {
     /// UIKit's layoutMargins, layered over QuillUIKit's `quillLayoutMargins`
     /// storage (8pt on every edge by default, matching UIKit). Setting margins
     /// marks the view for relayout, as UIKit does.
-    /// MODEL HONESTY (same caveat as the storage): margins are recorded, but
-    /// the native layout pass does not yet inset layoutMarginsGuide by them.
+    /// MODEL HONESTY (same caveat as the storage): margins are recorded and
+    /// consumed by QuillUIKit's lightweight layout pass for layoutMarginsGuide.
     var layoutMargins: UIEdgeInsets {
         get {
             let stored = quillLayoutMargins

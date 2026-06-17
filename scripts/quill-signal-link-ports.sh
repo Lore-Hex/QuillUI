@@ -113,7 +113,7 @@ func quillSignalIsMainThreadCompatible() -> Bool {
     if quillSignalIsMainDispatchContext() {
         return true
     }
-    return ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] == "real-conversation"
+    return ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"]?.hasPrefix("real-conversation") == true
 }
 #endif
 '''
@@ -144,7 +144,7 @@ else:
         "if quillSignalIsMainDispatchContext() {\n"
         "        return true\n"
         "    }\n"
-        "    return ProcessInfo.processInfo.environment[\"SIGNAL_UI_RENDER_DEMO\"] == \"real-conversation\"",
+        "    return ProcessInfo.processInfo.environment[\"SIGNAL_UI_RENDER_DEMO\"]?.hasPrefix(\"real-conversation\") == true",
     )
 
 assert_main_needle = '''@inlinable
@@ -305,7 +305,7 @@ needle = '''            assert(appReadiness.isAppReady)
             appReadiness.runNowOrWhenAppWillBecomeReady(append)
 '''
 replacement = '''#if os(Linux)
-            if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] == "real-conversation" {
+            if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"]?.hasPrefix("real-conversation") == true {
                 append()
                 return
             }
@@ -313,7 +313,7 @@ replacement = '''#if os(Linux)
             assert(appReadiness.isAppReady)
             appReadiness.runNowOrWhenAppWillBecomeReady(append)
 '''
-if "SIGNAL_UI_RENDER_DEMO\"] == \"real-conversation\"" not in text:
+if "SIGNAL_UI_RENDER_DEMO\"]?.hasPrefix(\"real-conversation\") == true" not in text:
     if needle not in text:
         raise SystemExit(f"error: DatabaseChangeObserver readiness hook not found in {path}")
     text = text.replace(needle, replacement)
@@ -610,6 +610,31 @@ if "#if !os(Linux)\n        AssertIsOnMainThread()" not in text:
         raise SystemExit(f"error: OWSBackgroundTaskManager init hook not found in {path}")
     text = text.replace(init_needle, init_replacement)
 
+path.write_text(text)
+PY
+fi
+
+SUI_ENVIRONMENT="$ROOT/../SignalUI/AppLaunch/SUIEnvironment.swift"
+if [ -f "$SUI_ENVIRONMENT" ]; then
+python3 - "$SUI_ENVIRONMENT" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+needle = '    public private(set) var linkPreviewFetcher: (any LinkPreviewFetcher)!\n'
+replacement = '''    public private(set) var linkPreviewFetcher: (any LinkPreviewFetcher)!
+
+#if os(Linux)
+    public func quillInstallRenderLinkPreviewFetcher(_ fetcher: any LinkPreviewFetcher) {
+        self.linkPreviewFetcher = fetcher
+    }
+#endif
+'''
+if "quillInstallRenderLinkPreviewFetcher" not in text:
+    if needle not in text:
+        raise SystemExit(f"error: SUIEnvironment linkPreviewFetcher hook not found in {path}")
+    text = text.replace(needle, replacement)
 path.write_text(text)
 PY
 fi
