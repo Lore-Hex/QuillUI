@@ -22,6 +22,7 @@ public struct CGEventFlags: OptionSet, Sendable {
         self.rawValue = rawValue
     }
 
+    public static let maskNonCoalesced = CGEventFlags(rawValue: 1 << 8)
     public static let maskAlphaShift = CGEventFlags(rawValue: 1 << 16)
     public static let maskShift = CGEventFlags(rawValue: 1 << 17)
     public static let maskControl = CGEventFlags(rawValue: 1 << 18)

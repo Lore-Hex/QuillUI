@@ -2,8 +2,9 @@ import CoreGraphics
 import Testing
 
 struct CoreGraphicsEventTests {
-    @Test("CGEventFlags use Apple modifier raw masks")
-    func eventFlagsUseAppleModifierRawMasks() {
+    @Test("CGEventFlags use Apple event and modifier raw masks")
+    func eventFlagsUseAppleEventAndModifierRawMasks() {
+        #expect(CGEventFlags.maskNonCoalesced.rawValue == 1 << 8)
         #expect(CGEventFlags.maskAlphaShift.rawValue == 1 << 16)
         #expect(CGEventFlags.maskShift.rawValue == 1 << 17)
         #expect(CGEventFlags.maskControl.rawValue == 1 << 18)
