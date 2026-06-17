@@ -67,6 +67,29 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGAffineTransform applies scale, rotation, and composition to CGRect")
+    func affineTransformAppliesToCGRect() {
+        #expect(CGRect(x: 1, y: 2, width: 3, height: 4).applying(
+            CGAffineTransform(scaleX: 2, y: 3)
+        ) == CGRect(x: 2, y: 6, width: 6, height: 12))
+
+        #expect(CGRect(x: 1, y: 2, width: 3, height: 4).applying(
+            CGAffineTransform(translationX: 10, y: 20)
+        ) == CGRect(x: 11, y: 22, width: 3, height: 4))
+
+        let rotated = CGRect(x: 0, y: 0, width: 2, height: 1).applying(
+            CGAffineTransform(rotationAngle: .pi / 2)
+        )
+        #expect(rotated.isClose(to: CGRect(x: -1, y: 0, width: 1, height: 2)))
+
+        let point = CGPoint(x: 1, y: 1)
+        let translateThenScale = CGAffineTransform(translationX: 10, y: 20)
+            .concatenating(CGAffineTransform(scaleX: 2, y: 3))
+        #expect(point.applying(translateThenScale) == CGPoint(x: 22, y: 63))
+        #expect(point.applying(CGAffineTransform(translationX: 10, y: 20).scaledBy(x: 2, y: 3)) == CGPoint(x: 12, y: 23))
+        #expect(point.applying(CGAffineTransform(scaleX: 2, y: 3).translatedBy(x: 10, y: 20)) == CGPoint(x: 22, y: 63))
+    }
+
     @Test("CGPath roundedRect records cubic corner curves")
     func roundedRectRecordsCubicCorners() {
         let path = CGPath(
@@ -391,6 +414,15 @@ private struct PathElementSnapshot: Equatable {
 private extension CGPoint {
     func isClose(to other: CGPoint, tolerance: CGFloat = 0.0001) -> Bool {
         abs(x - other.x) <= tolerance && abs(y - other.y) <= tolerance
+    }
+}
+
+private extension CGRect {
+    func isClose(to other: CGRect, tolerance: CGFloat = 0.0001) -> Bool {
+        abs(origin.x - other.origin.x) <= tolerance &&
+            abs(origin.y - other.origin.y) <= tolerance &&
+            abs(size.width - other.size.width) <= tolerance &&
+            abs(size.height - other.size.height) <= tolerance
     }
 }
 

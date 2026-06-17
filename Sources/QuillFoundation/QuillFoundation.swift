@@ -2690,7 +2690,19 @@ public extension CGRect {
     func equalTo(_ other: CGRect) -> Bool { self == other }
 
     func applying(_ transform: CGAffineTransform) -> CGRect {
-        offsetBy(dx: transform.tx, dy: transform.ty)
+        guard !isNull else { return self }
+        let points = [
+            CGPoint(x: minX, y: minY).applying(transform),
+            CGPoint(x: maxX, y: minY).applying(transform),
+            CGPoint(x: minX, y: maxY).applying(transform),
+            CGPoint(x: maxX, y: maxY).applying(transform),
+        ]
+        guard let first = points.first else { return self }
+        let minX = points.dropFirst().reduce(first.x) { Swift.min($0, $1.x) }
+        let minY = points.dropFirst().reduce(first.y) { Swift.min($0, $1.y) }
+        let maxX = points.dropFirst().reduce(first.x) { Swift.max($0, $1.x) }
+        let maxY = points.dropFirst().reduce(first.y) { Swift.max($0, $1.y) }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
     func fill() {}
