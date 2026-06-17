@@ -558,6 +558,53 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGContext bitmap transparency layer applies alpha to the composited group")
+    func bitmapContextTransparencyLayerAppliesGroupAlpha() throws {
+        let context = try makeBitmapContext(width: 1, height: 1)
+        context.setAlpha(0.5)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.endTransparencyLayer()
+
+        #expect(try bitmapPixels(in: context) == [128, 0, 0, 128])
+    }
+
+    @Test("CGContext bitmap transparency layer composites with saved blend mode")
+    func bitmapContextTransparencyLayerUsesSavedBlendModeAtEnd() throws {
+        let context = try makeBitmapContext(width: 1, height: 1)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        context.setBlendMode(.multiply)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.endTransparencyLayer()
+
+        #expect(try bitmapPixels(in: context) == [0, 0, 0, 255])
+    }
+
+    @Test("CGContext bitmap transparency layer applies saved shadow at end")
+    func bitmapContextTransparencyLayerAppliesSavedShadowAtEnd() throws {
+        let context = try makeBitmapContext(width: 3, height: 1)
+        context.setShadow(
+            offset: CGSize(width: 1, height: 0),
+            blur: 0,
+            color: CGColor(red: 0, green: 1, blue: 0, alpha: 0.5)
+        )
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.endTransparencyLayer()
+
+        #expect(try bitmapPixels(in: context) == [
+            0, 0, 255, 255, 0, 128, 0, 128, 0, 0, 0, 0,
+        ])
+    }
+
     @Test("CGContext bitmap draw composites CGImage pixels")
     func bitmapContextDrawCompositesImagePixels() throws {
         let context = try #require(CGContext(

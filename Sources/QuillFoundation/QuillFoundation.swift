@@ -1587,6 +1587,7 @@ public final class CGContext {
     private var quillCTM: CGAffineTransform = .identity
     private var quillClipRegions: [QuillClipRegion] = []
     private var quillStateStack: [QuillGraphicsState] = []
+    private var quillTransparencyLayerStack: [QuillTransparencyLayer] = []
     private var quillCurrentPath = CGMutablePath()
 
     private struct QuillGraphicsState {
@@ -1622,6 +1623,14 @@ public final class CGContext {
         var offset: CGSize
         var blur: CGFloat
         var colorRGBA: [CGFloat]
+    }
+
+    private struct QuillTransparencyLayer {
+        var parentBytes: [UInt8]
+        var alpha: CGFloat
+        var blendMode: CGBlendMode
+        var shadow: QuillShadow?
+        var clipRegions: [QuillClipRegion]
     }
 
     private enum QuillClipRegion {
@@ -2246,6 +2255,69 @@ public final class CGContext {
         }
 
         return blurred
+    }
+
+    private func quillCompositeTransparencyLayer(
+        _ layerPixels: [UInt8],
+        using layer: QuillTransparencyLayer
+    ) {
+        guard quillCanDrawCurrentBitmap,
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              layer.parentBytes.count >= requiredByteCount,
+              layerPixels.count >= requiredByteCount
+        else {
+            quillBitmapBytes = layer.parentBytes
+            return
+        }
+
+        quillBitmapBytes = layer.parentBytes
+        quillAlpha = layer.alpha
+        quillBlendMode = layer.blendMode
+        quillShadow = layer.shadow
+        quillClipRegions = layer.clipRegions
+
+        let sourceBounds: QuillPixelBounds = (0, 0, width, height)
+        quillDrawBitmapShadow(sourceBounds: sourceBounds) { devicePoint in
+            let x = Int(devicePoint.x.rounded(.down))
+            let y = Int(devicePoint.y.rounded(.down))
+            guard x >= 0, x < width, y >= 0, y < height else {
+                return 0
+            }
+            let offset = y * bytesPerRow + x * 4
+            guard offset + 3 < layerPixels.count else {
+                return 0
+            }
+            return (CGFloat(layerPixels[offset + 3]) / 255) * layer.alpha
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { destination in
+            guard destination.count >= requiredByteCount else {
+                return
+            }
+
+            for y in 0..<height {
+                var offset = y * bytesPerRow
+                for x in 0..<width {
+                    let sourceAlpha = CGFloat(layerPixels[offset + 3]) / 255
+                    if sourceAlpha > 0 {
+                        let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                        let layerSource = QuillPremultipliedBGRA(
+                            blue: CGFloat(layerPixels[offset]) / 255,
+                            green: CGFloat(layerPixels[offset + 1]) / 255,
+                            red: CGFloat(layerPixels[offset + 2]) / 255,
+                            alpha: sourceAlpha
+                        )
+                        if let source = Self.quillPremultipliedColor(
+                            layerSource,
+                            multipliedBy: layer.alpha * quillBitmapClipAlpha(devicePoint)
+                        ) {
+                            quillCompositePremultipliedBGRA(source, into: destination, at: offset)
+                        }
+                    }
+                    offset += 4
+                }
+            }
+        }
     }
 
     private func quillFillBitmap(_ rect: CGRect) {
@@ -3289,8 +3361,36 @@ public final class CGContext {
         }
         quillBackend?.restoreGState()
     }
-    public func beginTransparencyLayer(auxiliaryInfo: Any?) {}
-    public func endTransparencyLayer() {}
+    public func beginTransparencyLayer(auxiliaryInfo: Any?) {
+        _ = auxiliaryInfo
+        guard quillCanDrawCurrentBitmap,
+              let currentBytes = quillBitmapBytes,
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              currentBytes.count >= requiredByteCount
+        else {
+            return
+        }
+
+        quillTransparencyLayerStack.append(QuillTransparencyLayer(
+            parentBytes: currentBytes,
+            alpha: quillAlpha,
+            blendMode: quillBlendMode,
+            shadow: quillShadow,
+            clipRegions: quillClipRegions
+        ))
+        quillBitmapBytes = Array(repeating: 0, count: requiredByteCount)
+        quillAlpha = 1
+        quillBlendMode = .normal
+        quillShadow = nil
+    }
+    public func endTransparencyLayer() {
+        guard let layer = quillTransparencyLayerStack.popLast(),
+              let layerPixels = quillBitmapBytes
+        else {
+            return
+        }
+        quillCompositeTransparencyLayer(layerPixels, using: layer)
+    }
     public func endPage() {}
     public func translateBy(x: CGFloat, y: CGFloat) {
         quillCTM = quillCTM.translatedBy(x: x, y: y)
