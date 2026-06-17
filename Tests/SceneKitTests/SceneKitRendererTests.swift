@@ -6,6 +6,29 @@ import UIKit
 
 @Suite("SceneKit renderer", .serialized)
 struct SceneKitRendererTests {
+    @Test("Scene graph parenting rejects cycles")
+    func sceneGraphParentingRejectsCycles() {
+        let root = SCNNode()
+        let child = SCNNode()
+        let grandchild = SCNNode()
+        root.addChildNode(child)
+        child.addChildNode(grandchild)
+
+        root.addChildNode(root)
+        #expect(root.parent == nil)
+        #expect(root.childNodes == [child])
+
+        grandchild.addChildNode(root)
+        #expect(root.parent == nil)
+        #expect(child.parent === root)
+        #expect(grandchild.parent === child)
+        #expect(grandchild.childNodes.isEmpty)
+
+        grandchild.insertChildNode(child, at: 0)
+        #expect(child.parent === root)
+        #expect(grandchild.childNodes.isEmpty)
+    }
+
     @Test("Software renderer draws colored sphere pixels")
     func rendersSpherePixels() {
         let scene = SCNScene()
