@@ -391,6 +391,8 @@ public struct CGPathElement {
     }
 }
 
+public typealias CGPathApplierFunction = (UnsafeMutableRawPointer?, UnsafePointer<CGPathElement>) -> Void
+
 fileprivate typealias CGPathStorageElement = (type: CGPathElementType, points: [CGPoint])
 
 public class CGPath: Hashable, @unchecked Sendable {
@@ -488,6 +490,12 @@ public class CGPath: Hashable, @unchecked Sendable {
                 var element = CGPathElement(type: entry.type, points: buf.baseAddress!)
                 withUnsafePointer(to: &element) { block($0) }
             }
+        }
+    }
+
+    public func apply(info: UnsafeMutableRawPointer?, function: CGPathApplierFunction) {
+        applyWithBlock { elementPointer in
+            function(info, elementPointer)
         }
     }
 

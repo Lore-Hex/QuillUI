@@ -90,8 +90,7 @@ public class SCNGeometry: @unchecked Sendable {
     /// `geometry.copy() as! SCNGeometry` before reading sources/elements.
     public func copy() -> Any {
         let g = SCNGeometry(sources: sources, elements: elements)
-        g.name = name
-        g.materials = materials
+        copyCommonProperties(to: g)
         return g
     }
 
@@ -119,6 +118,12 @@ public class SCNGeometry: @unchecked Sendable {
 
     public func sources(for semantic: SCNGeometrySourceSemantic) -> [SCNGeometrySource] {
         sources.filter { $0.semantic == semantic }
+    }
+
+    fileprivate func copyCommonProperties(to geometry: SCNGeometry) {
+        geometry.name = name
+        geometry.materials = materials
+        geometry.geometrySourceChannels = geometrySourceChannels
     }
 
     /// Axis-aligned bounds (min, max) computed from the vertex source, matching
@@ -255,6 +260,14 @@ public final class SCNSphere: SCNGeometry, @unchecked Sendable {
         self.radius = radius
         super.init()
     }
+
+    public override func copy() -> Any {
+        let geometry = SCNSphere(radius: radius)
+        geometry.isGeodesic = isGeodesic
+        geometry.segmentCount = segmentCount
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNBox: SCNGeometry, @unchecked Sendable {
@@ -270,6 +283,12 @@ public final class SCNBox: SCNGeometry, @unchecked Sendable {
         self.chamferRadius = chamferRadius
         super.init()
     }
+
+    public override func copy() -> Any {
+        let geometry = SCNBox(width: width, height: height, length: length, chamferRadius: chamferRadius)
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNCylinder: SCNGeometry, @unchecked Sendable {
@@ -280,6 +299,12 @@ public final class SCNCylinder: SCNGeometry, @unchecked Sendable {
         self.radius = radius
         self.height = height
         super.init()
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNCylinder(radius: radius, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
 
@@ -294,6 +319,12 @@ public final class SCNCone: SCNGeometry, @unchecked Sendable {
         self.height = height
         super.init()
     }
+
+    public override func copy() -> Any {
+        let geometry = SCNCone(topRadius: topRadius, bottomRadius: bottomRadius, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNCapsule: SCNGeometry, @unchecked Sendable {
@@ -304,6 +335,12 @@ public final class SCNCapsule: SCNGeometry, @unchecked Sendable {
         self.capRadius = capRadius
         self.height = height
         super.init()
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNCapsule(capRadius: capRadius, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
 
@@ -318,6 +355,12 @@ public final class SCNTube: SCNGeometry, @unchecked Sendable {
         self.height = height
         super.init()
     }
+
+    public override func copy() -> Any {
+        let geometry = SCNTube(innerRadius: innerRadius, outerRadius: outerRadius, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNTorus: SCNGeometry, @unchecked Sendable {
@@ -329,6 +372,12 @@ public final class SCNTorus: SCNGeometry, @unchecked Sendable {
         self.pipeRadius = pipeRadius
         super.init()
     }
+
+    public override func copy() -> Any {
+        let geometry = SCNTorus(ringRadius: ringRadius, pipeRadius: pipeRadius)
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNPlane: SCNGeometry, @unchecked Sendable {
@@ -339,6 +388,12 @@ public final class SCNPlane: SCNGeometry, @unchecked Sendable {
         self.width = width
         self.height = height
         super.init()
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNPlane(width: width, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
 
@@ -352,6 +407,12 @@ public final class SCNPyramid: SCNGeometry, @unchecked Sendable {
         self.height = height
         self.length = length
         super.init()
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNPyramid(width: width, height: height, length: length)
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
 
@@ -369,6 +430,15 @@ public final class SCNText: SCNGeometry, @unchecked Sendable {
         self.extrusionDepth = extrusionDepth
         super.init()
     }
+
+    public override func copy() -> Any {
+        let geometry = SCNText(string: string, extrusionDepth: extrusionDepth)
+        geometry.font = font
+        geometry.flatness = flatness
+        geometry.chamferRadius = chamferRadius
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 /// Extruded 2D shape from a path.
@@ -381,5 +451,12 @@ public final class SCNShape: SCNGeometry, @unchecked Sendable {
         self.path = path
         self.extrusionDepth = extrusionDepth
         super.init()
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNShape(path: path, extrusionDepth: extrusionDepth)
+        geometry.chamferRadius = chamferRadius
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }

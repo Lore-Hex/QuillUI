@@ -173,6 +173,31 @@ struct CoreGraphicsPathTests {
         #expect(closed.currentPoint == CGPoint(x: 3, y: 4))
     }
 
+    @Test("CGPath C callback apply enumerates path elements with caller info")
+    func pathApplyCFunctionEnumeratesElements() {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 1, y: 2))
+        path.addLine(to: CGPoint(x: 3, y: 4))
+        path.closeSubpath()
+
+        var snapshots: [PathElementSnapshot] = []
+        withUnsafeMutablePointer(to: &snapshots) { snapshotsPointer in
+            path.apply(info: UnsafeMutableRawPointer(snapshotsPointer)) { info, elementPointer in
+                guard let info else { return }
+                let snapshots = info.assumingMemoryBound(to: [PathElementSnapshot].self)
+                let element = elementPointer.pointee
+                let points = (0..<element.type.quillPointCount).map { element.points[$0] }
+                snapshots.pointee.append(PathElementSnapshot(type: element.type, points: points))
+            }
+        }
+
+        #expect(snapshots == [
+            PathElementSnapshot(type: .moveToPoint, points: [CGPoint(x: 1, y: 2)]),
+            PathElementSnapshot(type: .addLineToPoint, points: [CGPoint(x: 3, y: 4)]),
+            PathElementSnapshot(type: .closeSubpath, points: []),
+        ])
+    }
+
     @Test("CGPath path bounds use curve extrema instead of control-point bounds")
     func pathBoundingBoxOfPathUsesCurveExtrema() {
         let quadratic = CGMutablePath()
