@@ -709,10 +709,10 @@ quillui_drive_solderscope_interaction() {
     local recording_verified=0
     local recording_save_attempts="${QUILLUI_SOLDERSCOPE_RECORDING_SAVE_ATTEMPTS:-120}"
     local recording_save_tick_seconds="${QUILLUI_SOLDERSCOPE_RECORDING_SAVE_TICK_SECONDS:-0.25}"
-    local recording_stop_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-40}"
+    local recording_stop_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-8}"
     local recording_stop_fallback_sent=0
-    local recording_stop_fallback_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_TICK:-48}"
-    local recording_stop_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_RETRY_INTERVAL_TICKS:-0}"
+    local recording_stop_fallback_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_TICK:-12}"
+    local recording_stop_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_RETRY_INTERVAL_TICKS:-8}"
     for ((attempt = 1; attempt <= recording_save_attempts; attempt += 1)); do
       recording_saved_count="$(quillui_solderscope_recording_saved_log_count)"
       recording_count="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
