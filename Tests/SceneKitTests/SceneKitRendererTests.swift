@@ -110,6 +110,22 @@ struct SceneKitRendererTests {
         #expect(replacement.parent == nil)
     }
 
+    @Test("SCNNode presentation reflects current deterministic node state")
+    func sceneNodePresentationReflectsCurrentDeterministicState() {
+        let node = SCNNode()
+        node.position = SCNVector3(1, 2, 3)
+        node.opacity = 0.75
+
+        let presentation = node.presentation
+        #expect(presentation === node)
+        #expect(presentation.position == SCNVector3(1, 2, 3))
+        #expect(presentation.opacity == 0.75)
+
+        node.runAction(.move(by: SCNVector3(4, 0, 0), duration: 1))
+        node.quillStepActions(by: 0.5)
+        expectVector(presentation.position, closeTo: SCNVector3(3, 2, 3))
+    }
+
     @Test("SCNNode boundingBox aggregates own and transformed child geometry")
     func sceneNodeBoundingBoxAggregatesOwnAndTransformedChildGeometry() {
         let root = SCNNode(geometry: SCNSphere(radius: 1))
