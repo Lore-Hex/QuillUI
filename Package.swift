@@ -1116,7 +1116,10 @@ var targets: [Target] = [
     .target(
         name: "QuillWebKit",
         dependencies: quillWebKitDependencies,
-        path: "Sources/QuillWebKit"
+        path: "Sources/QuillWebKit",
+        swiftSettings: [
+            .unsafeFlags(gdkPixbufSwiftImporterFlags)
+        ]
     ),
     .target(
         name: "WebKit",
