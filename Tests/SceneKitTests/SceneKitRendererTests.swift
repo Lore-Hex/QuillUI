@@ -289,6 +289,37 @@ struct SceneKitRendererTests {
         #expect(transform.m43 == 13)
     }
 
+    @Test("SCNNode worldPosition and worldTransform resolve through parents")
+    func nodeWorldPositionAndTransformResolveThroughParents() {
+        let parent = SCNNode()
+        parent.position = SCNVector3(10, 20, 30)
+        parent.scale = SCNVector3(2, 4, 5)
+
+        let child = SCNNode()
+        child.position = SCNVector3(1, 2, 3)
+        parent.addChildNode(child)
+
+        expectVector(child.worldPosition, closeTo: SCNVector3(12, 28, 45))
+        expectMatrix(
+            child.worldTransform,
+            closeTo: SCNMatrix4(
+                m11: 2, m12: 0, m13: 0, m14: 0,
+                m21: 0, m22: 4, m23: 0, m24: 0,
+                m31: 0, m32: 0, m33: 5, m34: 0,
+                m41: 12, m42: 28, m43: 45, m44: 1
+            )
+        )
+
+        child.worldPosition = SCNVector3(14, 32, 50)
+        expectVector(child.position, closeTo: SCNVector3(2, 3, 4))
+        expectVector(child.worldPosition, closeTo: SCNVector3(14, 32, 50))
+
+        child.worldTransform = SCNMatrix4MakeTranslation(30, 44, 55)
+        expectVector(child.position, closeTo: SCNVector3(10, 6, 5))
+        expectVector(child.worldPosition, closeTo: SCNVector3(30, 44, 55))
+        expectMatrix(child.worldTransform, closeTo: SCNMatrix4MakeTranslation(30, 44, 55))
+    }
+
     @Test("SCNNode converts positions and vectors across coordinate spaces")
     func nodeConvertsPositionsAndVectorsAcrossCoordinateSpaces() {
         let root = SCNNode()

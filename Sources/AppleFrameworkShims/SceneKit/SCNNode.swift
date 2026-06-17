@@ -19,6 +19,22 @@ public final class SCNNode: Equatable, @unchecked Sendable {
             applyTransformComponents(newValue)
         }
     }
+    public var worldPosition: SCNVector3 {
+        get {
+            SCNVector3(Matrix4.worldTransform(for: self).transformPoint(.zero))
+        }
+        set {
+            let parentWorld = parent.map(Matrix4.worldTransform) ?? .identity
+            position = SCNVector3(parentWorld.inverted().transformPoint(Vector3(newValue)))
+        }
+    }
+    public var worldTransform: SCNMatrix4 {
+        get { Matrix4.worldTransform(for: self).scnMatrix }
+        set {
+            let parentWorld = parent.map(Matrix4.worldTransform) ?? .identity
+            transform = (parentWorld.inverted() * Matrix4(newValue)).scnMatrix
+        }
+    }
     public var pivot = SCNMatrix4Identity
     public var geometry: SCNGeometry?
     public var light: SCNLight?
