@@ -13,6 +13,7 @@ import QuillUIKit
 import UIKit
 import QuillFoundation
 import Foundation
+import Dispatch
 
 // MARK: - First-light demo view controller (trivial; no SignalUI dependency)
 
@@ -149,9 +150,24 @@ guard gtk_init_check() != 0 else {
 //   conversation → a chat styled by Signal's REAL ConversationStyle
 //   realapp-link → proves the GTK renderer links SignalApp / ConversationViewController
 //   real-components → real CVItemModel/CVRootComponent/CVCellView render path
+//   ssk-bootstrap → initializes real SSK globals + on-disk SDSDatabaseStorage
 //   (default)    → Signal's REAL OWSTableViewController2 (Settings)
-MainActor.assumeIsolated {
-    switch ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] {
+let selectedDemo = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"]
+if selectedDemo == "ssk-bootstrap" {
+    DispatchQueue.main.async {
+        Task { @MainActor in
+            let vc = await SignalConversationDemo.makeSSKBootstrapProbeViewController()
+            renderRootViewController(vc, title: "Signal Runtime Bootstrap", width: 620, height: 280,
+                                     windowBackground: "#FFFFFF")
+            let loop = g_main_loop_new(nil, 0)
+            g_main_loop_run(loop)
+            g_main_loop_unref(loop)
+        }
+    }
+    dispatchMain()
+} else {
+    MainActor.assumeIsolated {
+        switch selectedDemo {
     case "firstlight":
         renderRootViewController(FirstLightViewController(), title: "Signal UI on Linux", width: 390, height: 600)
     case "conversation":
@@ -172,6 +188,7 @@ MainActor.assumeIsolated {
     default:
         renderRootViewController(SignalSettingsDemo.makeSettingsViewController(),
                                  title: "Signal Settings on Linux", width: 390, height: 720)
+        }
     }
 }
 
