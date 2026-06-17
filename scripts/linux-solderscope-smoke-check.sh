@@ -394,22 +394,24 @@ quillui_solderscope_wait_for_recording_idle() {
   return 1
 }
 
-quillui_solderscope_recording_ui_is_active() {
-  local recording_probe_path
-  recording_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-recording-active.XXXXXX.png")"
-  local recording_probe_log="/tmp/quill-solderscope-recording-active-check.log"
+quillui_solderscope_recording_indicator_visible() {
+  local indicator_probe_path
+  indicator_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-recording-indicator.XXXXXX.png")"
+  local indicator_probe_log="/tmp/quill-solderscope-recording-indicator-check.log"
+  timeout --kill-after=2s 5s env DISPLAY="$DISPLAY_ID" import -window root "$indicator_probe_path" 2>/dev/null || {
+    rm -f "$indicator_probe_path"
+    return 1
+  }
 
-  timeout --kill-after=2s 5s env DISPLAY="$DISPLAY_ID" import -window root "$recording_probe_path" 2>/dev/null || true
-  if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$recording_probe_path" quill-solderscope-interaction >"$recording_probe_log" 2>&1; then
-    rm -f "$recording_probe_path" "$recording_probe_log"
+  if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$indicator_probe_path" quill-solderscope-interaction >"$indicator_probe_log" 2>&1; then
+    rm -f "$indicator_probe_path" "$indicator_probe_log"
     return 1
   fi
-  if grep -q "SolderScope recording indicator is still visible" "$recording_probe_log" 2>/dev/null; then
-    rm -f "$recording_probe_path" "$recording_probe_log"
-    return 0
-  fi
-  rm -f "$recording_probe_path" "$recording_probe_log"
-  return 1
+
+  local indicator_error
+  indicator_error="$(tail -n 1 "$indicator_probe_log" 2>/dev/null || true)"
+  rm -f "$indicator_probe_path" "$indicator_probe_log"
+  [[ "$indicator_error" == *"recording indicator is still visible"* ]]
 }
 
 quillui_solderscope_converge_freeze() {
@@ -694,7 +696,7 @@ quillui_drive_solderscope_interaction() {
     local recording_path=""
     local recording_saved_count="$recording_saved_before"
     local recording_verified=0
-    local recording_stop_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-}"
+    local recording_stop_retry_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-20}"
     local recording_stop_fallback_sent=0
     local recording_stop_fallback_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_TICK:-8}"
     local recording_stop_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_RETRY_INTERVAL_TICKS:-12}"
@@ -710,12 +712,15 @@ quillui_drive_solderscope_interaction() {
         fi
       fi
       if [[ -n "$recording_stop_retry_tick" ]] && (( recording_saved_count <= recording_saved_before && attempt == recording_stop_retry_tick )); then
-        quillui_solderscope_drive_recording_action "$recording_stop_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-retry stop
-      fi
-      if (( recording_saved_count <= recording_saved_before && recording_stop_fallback_tick > 0 )); then
+        if quillui_solderscope_recording_indicator_visible; then
+          quillui_solderscope_drive_recording_action "$recording_stop_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-retry stop
+        else
+          echo "SolderScope interaction smoke: stop retry skipped because recording indicator is not visible" >&2
+        fi
+      elif (( recording_saved_count <= recording_saved_before && recording_stop_fallback_tick > 0 )); then
         if (( recording_stop_fallback_sent == 0 && attempt == recording_stop_fallback_tick )); then
           if [[ "$recording_stop_fallback_driver" != "none" && "$recording_stop_fallback_driver" != "$recording_stop_driver" ]]; then
-            if quillui_solderscope_recording_ui_is_active; then
+            if quillui_solderscope_recording_indicator_visible; then
               quillui_solderscope_drive_recording_action "$recording_stop_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-fallback stop
               recording_stop_fallback_sent=1
             else
@@ -723,7 +728,7 @@ quillui_drive_solderscope_interaction() {
             fi
           fi
         elif (( recording_stop_fallback_sent == 1 && recording_stop_fallback_retry_interval > 0 && attempt > recording_stop_fallback_tick && (attempt - recording_stop_fallback_tick) % recording_stop_fallback_retry_interval == 0 )); then
-          if quillui_solderscope_recording_ui_is_active; then
+          if quillui_solderscope_recording_indicator_visible; then
             quillui_solderscope_drive_recording_action "$recording_stop_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-stop-fallback-retry stop
           fi
         fi
