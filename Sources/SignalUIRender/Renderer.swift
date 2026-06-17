@@ -47,6 +47,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     /// frame-positioned `UIView` fallback (handles == true) must be LAST.
     static let mappers: [UIViewGtkMapper.Type] = [
         UILabelGtkMapper.self,
+        CustomDrawnTextGtkMapper.self,
         UIImageViewGtkMapper.self,
         UISwitchGtkMapper.self,
         UITableViewGtkMapper.self,
@@ -60,6 +61,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     /// Render a full UIView tree to a GtkWidget. Returns nil for hidden views.
     public static func render(_ view: UIView) -> GtkWidgetPtr? {
         if view.isHidden { return nil }
+        view.layoutIfNeeded()
         let ctx = UIKitGtkRenderContext(
             render: { Self.render($0) },
             applyLayerStyle: { Self.applyLayerStyle($0, $1) },

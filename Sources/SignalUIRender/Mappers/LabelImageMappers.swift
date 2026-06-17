@@ -128,6 +128,71 @@ public enum UILabelGtkMapper: UIViewGtkMapper {
     }
 }
 
+// MARK: - Custom-Drawn Text UIView
+
+/// Maps custom `UIView.draw(_:)` text views that publish generic Quill renderer
+/// metadata. Signal's `CVTextLabel.Label` uses this path: it is fileprivate and
+/// draws from TextKit, so the renderer cannot name the type or read its private
+/// storage directly.
+public enum CustomDrawnTextGtkMapper: UIViewGtkMapper {
+    public static func handles(_ view: UIView) -> Bool {
+        view.quillRenderedText != nil
+    }
+
+    public static func make(_ view: UIView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
+        let widget: GtkWidgetPtr = gtk_label_new(nil)
+        let labelPtr = OpaquePointer(widget)
+        let text = view.quillRenderedText ?? ""
+
+        if let markup = pangoMarkup(
+            for: text,
+            pointSize: view.quillRenderedTextPointSize,
+            color: view.quillRenderedTextColor,
+        ) {
+            markup.withCString { gtk_label_set_markup(labelPtr, $0) }
+        } else {
+            text.withCString { gtk_label_set_text(labelPtr, $0) }
+        }
+
+        applyLineWrapping(labelPtr, numberOfLines: view.quillRenderedTextNumberOfLines)
+        applyAlignment(labelPtr, alignment: view.quillRenderedTextAlignment)
+        ctx.applyLayerStyle(widget, view)
+        return widget
+    }
+
+    private static func applyLineWrapping(_ labelPtr: OpaquePointer, numberOfLines: Int) {
+        if numberOfLines == 1 {
+            gtk_label_set_wrap(labelPtr, 0)
+            gtk_label_set_lines(labelPtr, 1)
+            return
+        }
+
+        gtk_label_set_wrap(labelPtr, 1)
+        gtk_label_set_wrap_mode(labelPtr, PANGO_WRAP_WORD_CHAR)
+        gtk_label_set_lines(labelPtr, numberOfLines == 0 ? -1 : gint(numberOfLines))
+    }
+
+    private static func applyAlignment(_ labelPtr: OpaquePointer, alignment: NSTextAlignment) {
+        switch alignment {
+        case .center:
+            gtk_label_set_xalign(labelPtr, 0.5)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_CENTER)
+        case .right:
+            gtk_label_set_xalign(labelPtr, 1.0)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_RIGHT)
+        case .justified:
+            gtk_label_set_xalign(labelPtr, 0.0)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_FILL)
+        case .left, .natural:
+            gtk_label_set_xalign(labelPtr, 0.0)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_LEFT)
+        @unknown default:
+            gtk_label_set_xalign(labelPtr, 0.0)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_LEFT)
+        }
+    }
+}
+
 // MARK: - UIImageView
 
 /// Maps `UIImageView` to a `GtkPicture` (GTK4's scalable image widget — it honors
@@ -276,6 +341,15 @@ private func pangoMarkup(for text: String, font: UIFont?, color: UIColor?) -> St
     var attrs = ""
     if let hex { attrs += " foreground='\(hex)'" }
     if let fontDesc { attrs += " font='\(fontDesc)'" }
+    return "<span\(attrs)>\(escaped)</span>"
+}
+
+private func pangoMarkup(for text: String, pointSize: CGFloat, color: UIColor?) -> String? {
+    let hex = color.flatMap(hexString(from:))
+    let fontDesc = "Sans \(Int(pointSize.rounded()))"
+    let escaped = escapeMarkup(text)
+    var attrs = " font='\(fontDesc)'"
+    if let hex { attrs += " foreground='\(hex)'" }
     return "<span\(attrs)>\(escaped)</span>"
 }
 

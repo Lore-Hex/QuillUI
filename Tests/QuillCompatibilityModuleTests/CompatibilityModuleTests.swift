@@ -294,6 +294,126 @@ struct CompatibilityModuleTests {
         #expect(collectionView.cellForItem(at: IndexPath(item: 2, section: 0)) != nil)
     }
 
+    @Test("UIView frame keeps bounds size and invalidates manual layout")
+    @MainActor
+    func uiViewFrameKeepsBoundsSizeAndInvalidatesManualLayout() {
+        final class LayoutProbeView: UIView {
+            var layoutSizes: [CGSize] = []
+
+            override func layoutSubviews() {
+                layoutSizes.append(bounds.size)
+            }
+        }
+
+        let view = LayoutProbeView(frame: CGRect(x: 10, y: 20, width: 120, height: 40))
+        #expect(view.bounds.origin == .zero)
+        #expect(view.bounds.size == CGSize(width: 120, height: 40))
+
+        view.layoutIfNeeded()
+        #expect(view.layoutSizes == [CGSize(width: 120, height: 40)])
+
+        view.bounds.origin = CGPoint(x: 7, y: 9)
+        view.frame = CGRect(x: 1, y: 2, width: 200, height: 64)
+
+        #expect(view.bounds.origin == CGPoint(x: 7, y: 9))
+        #expect(view.bounds.size == CGSize(width: 200, height: 64))
+
+        view.layoutIfNeeded()
+        #expect(view.layoutSizes == [
+            CGSize(width: 120, height: 40),
+            CGSize(width: 200, height: 64),
+        ])
+    }
+
+    @Test("UIView layoutIfNeeded applies direct edge constraints")
+    @MainActor
+    func uiViewLayoutIfNeededAppliesDirectEdgeConstraints() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 120))
+        let child = UIView()
+        parent.addSubview(child)
+
+        NSLayoutConstraint.activate([
+            child.topAnchor.constraint(equalTo: parent.topAnchor, constant: 10),
+            child.leadingAnchor.constraint(equalTo: parent.leadingAnchor, constant: 5),
+            child.bottomAnchor.constraint(equalTo: parent.bottomAnchor, constant: -20),
+            child.trailingAnchor.constraint(equalTo: parent.trailingAnchor, constant: -15),
+        ])
+
+        parent.layoutIfNeeded()
+
+        #expect(child.frame == CGRect(x: 5, y: 10, width: 180, height: 90))
+        #expect(child.bounds == CGRect(x: 0, y: 0, width: 180, height: 90))
+    }
+
+    @Test("UIStackView lays out arranged labels")
+    @MainActor
+    func uiStackViewLaysOutArrangedLabels() {
+        let first = UILabel()
+        first.text = "Signal"
+        first.font = UIFont.systemFont(ofSize: 18)
+
+        let second = UILabel()
+        second.text = "Linux renderer"
+        second.font = UIFont.systemFont(ofSize: 13)
+
+        let stack = UIStackView(arrangedSubviews: [first, second])
+        stack.axis = .vertical
+        stack.alignment = .fill
+        stack.spacing = 4
+        stack.frame = CGRect(x: 0, y: 0, width: 220, height: 80)
+
+        stack.layoutIfNeeded()
+
+        #expect(first.frame.width == 220)
+        #expect(first.frame.height > 0)
+        #expect(second.frame.width == 220)
+        #expect(second.frame.minY > first.frame.maxY)
+    }
+
+    @Test("UIVisualEffectView contentView fills bounds")
+    @MainActor
+    func uiVisualEffectViewContentViewFillsBounds() {
+        let effectView = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+        effectView.frame = CGRect(x: 0, y: 0, width: 180, height: 44)
+
+        effectView.layoutIfNeeded()
+
+        #expect(effectView.contentView.frame == CGRect(x: 0, y: 0, width: 180, height: 44))
+    }
+
+    @Test("NSLayoutManager treats huge text container widths as unconstrained")
+    @MainActor
+    func nsLayoutManagerTreatsHugeTextContainerWidthsAsUnconstrained() {
+        let huge = Foundation.CGFloat.greatestFiniteMagnitude
+        let layoutManager = UIKit.NSLayoutManager()
+        let textContainer = UIKit.NSTextContainer(
+            size: CGSize(width: huge, height: huge)
+        )
+        layoutManager.addTextContainer(textContainer)
+
+        let storage = UIKit.NSTextStorage(
+            string: "Signal date header",
+            attributes: [.font: UIFont.systemFont(ofSize: 14)]
+        )
+        storage.addLayoutManager(layoutManager)
+
+        let usedRect = withExtendedLifetime(storage) {
+            layoutManager.usedRect(for: textContainer)
+        }
+
+        #expect(usedRect.width > 0)
+        #expect(usedRect.height > 0)
+        #expect(usedRect.width.isFinite)
+        #expect(usedRect.height.isFinite)
+        #expect(usedRect.width <= CGFloat(storage.length) * 14 * 0.6)
+        #expect(
+            layoutManager.glyphIndex(
+                for: CGPoint(x: huge, y: huge),
+                in: textContainer
+            ) == storage.length - 1
+        )
+    }
+
     @Test("QuillUI fallback modifiers record diagnostics")
     @MainActor
     func quillUIFallbackModifiersRecordDiagnostics() {
