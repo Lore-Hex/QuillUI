@@ -95,6 +95,8 @@ struct NSViewRepresentableMountTests {
         ctx.addPath(path)
         ctx.addQuadCurve(to: CGPoint(x: 1, y: 1), control: CGPoint(x: 0, y: 1))
         ctx.addCurve(to: CGPoint(x: 3, y: 1), control1: CGPoint(x: 1, y: 2), control2: CGPoint(x: 2, y: 2))
+        ctx.move(to: .zero)
+        ctx.addArc(tangent1End: CGPoint(x: 10, y: 0), tangent2End: CGPoint(x: 10, y: 10), radius: 2)
         ctx.fillPath(using: .evenOdd)
         ctx.clip(using: .evenOdd)
 
@@ -107,6 +109,9 @@ struct NSViewRepresentableMountTests {
             "curve",
             "closePath",
             "quad",
+            "curve",
+            "move",
+            "line",
             "curve",
             "fillPath(evenOdd)",
             "clip(evenOdd)",

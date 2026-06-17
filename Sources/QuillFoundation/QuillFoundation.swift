@@ -1521,7 +1521,11 @@ public final class CGContext {
         quillBackend?.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise)
     }
     public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
+        let previousCount = quillCurrentPath.elements.count
         quillCurrentPath.addArc(tangent1End: tangent1End, tangent2End: tangent2End, radius: radius)
+        for element in quillCurrentPath.elements.dropFirst(previousCount) {
+            appendPathElementToBackend(element)
+        }
     }
     public func addPath(_ path: CGPath) {
         appendPath(path)
@@ -1545,6 +1549,25 @@ public final class CGContext {
             case .closeSubpath:
                 closePath()
             }
+        }
+    }
+
+    private func appendPathElementToBackend(_ element: CGPathStorageElement) {
+        switch element.type {
+        case .moveToPoint:
+            guard let point = element.points.first else { return }
+            quillBackend?.move(to: point)
+        case .addLineToPoint:
+            guard let point = element.points.first else { return }
+            quillBackend?.addLine(to: point)
+        case .addQuadCurveToPoint:
+            guard element.points.count >= 2 else { return }
+            quillBackend?.addQuadCurve(to: element.points[1], control: element.points[0])
+        case .addCurveToPoint:
+            guard element.points.count >= 3 else { return }
+            quillBackend?.addCurve(to: element.points[2], control1: element.points[0], control2: element.points[1])
+        case .closeSubpath:
+            quillBackend?.closePath()
         }
     }
     public func clip() {
