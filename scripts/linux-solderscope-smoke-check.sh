@@ -373,6 +373,7 @@ quillui_solderscope_verify_freeze_attempt() {
 }
 
 quillui_solderscope_wait_for_recording_idle() {
+  local settled_screenshot_path="${1:-}"
   local idle_probe_path
   idle_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-recording-idle.XXXXXX.png")"
   local idle_deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_RECORDING_IDLE_WAIT_SECONDS:-8}))
@@ -380,6 +381,9 @@ quillui_solderscope_wait_for_recording_idle() {
   while (( SECONDS <= idle_deadline )); do
     DISPLAY="$DISPLAY_ID" import -window root "$idle_probe_path" 2>/dev/null || true
     if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$idle_probe_path" quill-solderscope-interaction >/tmp/quill-solderscope-recording-idle-check.log 2>&1; then
+      if [[ -n "$settled_screenshot_path" ]]; then
+        cp -f "$idle_probe_path" "$settled_screenshot_path"
+      fi
       rm -f "$idle_probe_path" /tmp/quill-solderscope-recording-idle-check.log
       echo "SolderScope interaction smoke: recording indicator cleared" >&2
       return 0
@@ -528,6 +532,7 @@ if [[ "$SMOKE_MODE" == "interaction" && "$SOLDERSCOPE_FREEZE_DRIVER" != "none" ]
 fi
 
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
+rm -f "${SCREENSHOT_PATH%.png}-recording-idle.png"
 
 if [[ "${QUILLUI_SOLDERSCOPE_SKIP_BUILD:-0}" != "1" ]]; then
   "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
@@ -573,6 +578,7 @@ quillui_drive_solderscope_interaction() {
   local click_y=380
   local drag_end_x=650
   local drag_end_y=420
+  local settled_recording_screenshot="${SCREENSHOT_PATH%.png}-recording-idle.png"
 
   window_id="$(quillui_wait_for_app_window_for_pid "$DISPLAY_ID" "$app_pid" "${QUILLUI_SOLDERSCOPE_WINDOW_WAIT_SECONDS:-20}")" || window_id=""
   if [[ -z "$window_id" ]]; then
@@ -748,7 +754,7 @@ quillui_drive_solderscope_interaction() {
       echo "SolderScope interaction smoke did not observe a finalized recording file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi
-    quillui_solderscope_wait_for_recording_idle
+    quillui_solderscope_wait_for_recording_idle "$settled_recording_screenshot"
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
@@ -807,6 +813,8 @@ if [[ "$SMOKE_MODE" == "interaction" && "$VERIFY_PRODUCT" == "quill-solderscope-
   else
     DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
   fi
+elif [[ "$SMOKE_MODE" == "interaction" && -f "${SCREENSHOT_PATH%.png}-recording-idle.png" ]]; then
+  cp -f "${SCREENSHOT_PATH%.png}-recording-idle.png" "$SCREENSHOT_PATH"
 else
   DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
 fi
