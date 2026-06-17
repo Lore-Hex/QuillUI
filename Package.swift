@@ -1813,7 +1813,11 @@ if wireguardUpstreamPresent {
             exclude: wireGuardKitExcludes,
             swiftSettings: [
                 .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(
+                    ["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"],
+                    .when(platforms: [.linux])
+                )
             ]
         ),
         // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
@@ -2541,7 +2545,14 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "UIKitExtensions/UIStackView+SignalUITest.swift",
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
-            swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(
+                    ["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"],
+                    .when(platforms: [.linux])
+                )
+            ]
         ),
         .testTarget(
             name: "SignalServiceKitObjCPortTests",
@@ -2578,7 +2589,14 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 resources: [
                     .copy("Symbols.xcassets"),
                 ],
-                swiftSettings: [.swiftLanguageMode(.v5), .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])]
+                swiftSettings: [
+                    .swiftLanguageMode(.v5),
+                    .unsafeFlags(["-strict-concurrency=minimal"]),
+                    .unsafeFlags(
+                        ["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"],
+                        .when(platforms: [.linux])
+                    )
+                ]
             )
         ]
     }

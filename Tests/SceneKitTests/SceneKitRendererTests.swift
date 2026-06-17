@@ -404,6 +404,125 @@ struct SceneKitRendererTests {
         #expect(miss.isEmpty)
     }
 
+    @Test("SCNAction stepping advances primitives and clears completed actions")
+    func actionSteppingAdvancesPrimitiveActions() {
+        let node = SCNNode()
+        var completions = 0
+        node.runAction(.rotateBy(x: 0, y: .pi, z: 0, duration: 2)) {
+            completions += 1
+        }
+
+        node.quillStepActions(by: 1)
+        #expect(abs(node.eulerAngles.y - .pi / 2) < 0.0001)
+        #expect(node.hasActions)
+        #expect(completions == 0)
+
+        node.quillStepActions(by: 1)
+        #expect(abs(node.eulerAngles.y - .pi) < 0.0001)
+        #expect(!node.hasActions)
+        #expect(completions == 1)
+
+        node.quillStepActions(by: 1)
+        #expect(completions == 1)
+    }
+
+    @Test("Scene action stepping respects scene pause")
+    func sceneActionSteppingRespectsPause() {
+        let scene = SCNScene()
+        let node = SCNNode()
+        scene.rootNode.addChildNode(node)
+        node.runAction(.move(by: SCNVector3(4, 0, 0), duration: 2))
+
+        scene.isPaused = true
+        scene.quillStepActions(by: 1)
+        #expect(node.position.x == 0)
+        #expect(node.hasActions)
+
+        scene.isPaused = false
+        scene.quillStepActions(by: 1)
+        #expect(abs(node.position.x - 2) < 0.0001)
+        #expect(node.hasActions)
+    }
+
+    @Test("SCNAction repeatForever keeps running and keyed actions replace prior actions")
+    func repeatingActionsAdvanceAndKeyedActionsReplace() {
+        let node = SCNNode()
+        node.runAction(.repeatForever(.rotateBy(x: 0, y: .pi, z: 0, duration: 2)), forKey: "spin")
+
+        node.quillStepActions(by: 1)
+        #expect(abs(node.eulerAngles.y - .pi / 2) < 0.0001)
+        node.quillStepActions(by: 2)
+        #expect(abs(node.eulerAngles.y - .pi * 1.5) < 0.0001)
+        #expect(node.hasActions)
+
+        var replacedCompletionRan = false
+        node.runAction(.wait(duration: 1), forKey: "spin") {
+            replacedCompletionRan = true
+        }
+
+        let move = SCNAction.move(by: SCNVector3(4, 0, 0), duration: 2)
+        node.runAction(move, forKey: "spin")
+        #expect(node.runningActions.count == 1)
+        #expect(node.action(forKey: "spin") === move)
+        #expect(!replacedCompletionRan)
+
+        node.quillStepActions(by: 1)
+        #expect(abs(node.position.x - 2) < 0.0001)
+        #expect(abs(node.eulerAngles.y - .pi * 1.5) < 0.0001)
+
+        node.removeAction(forKey: "spin")
+        #expect(!node.hasActions)
+
+        let finite = SCNNode()
+        finite.runAction(SCNAction.repeat(.move(by: SCNVector3(2, 0, 0), duration: 1), count: 2))
+        finite.quillStepActions(by: 3)
+        #expect(abs(finite.position.x - 4) < 0.0001)
+        #expect(!finite.hasActions)
+    }
+
+    @Test("SCNAction sequence, group, and long composite repeats sample deterministically")
+    func compositeActionsSampleDeterministically() {
+        let sequenceNode = SCNNode()
+        sequenceNode.runAction(.sequence([
+            .move(by: SCNVector3(1, 0, 0), duration: 1),
+            .rotateBy(x: 0, y: .pi, z: 0, duration: 1),
+            .scale(by: 2, duration: 1),
+        ]))
+
+        sequenceNode.quillStepActions(by: 1.5)
+        #expect(abs(sequenceNode.position.x - 1) < 0.0001)
+        #expect(abs(sequenceNode.eulerAngles.y - .pi / 2) < 0.0001)
+        #expect(sequenceNode.scale == SCNVector3(1, 1, 1))
+        #expect(sequenceNode.hasActions)
+
+        sequenceNode.quillStepActions(by: 1.5)
+        #expect(abs(sequenceNode.eulerAngles.y - .pi) < 0.0001)
+        #expect(sequenceNode.scale == SCNVector3(2, 2, 2))
+        #expect(!sequenceNode.hasActions)
+
+        let groupNode = SCNNode()
+        groupNode.runAction(.group([
+            .move(by: SCNVector3(4, 0, 0), duration: 2),
+            .fadeOpacity(to: 0.25, duration: 1),
+        ]))
+
+        groupNode.quillStepActions(by: 1)
+        #expect(abs(groupNode.position.x - 2) < 0.0001)
+        #expect(abs(groupNode.opacity - 0.25) < 0.0001)
+        #expect(groupNode.hasActions)
+
+        let repeated = SCNNode()
+        let pattern = SCNAction.sequence([
+            .move(by: SCNVector3(1, 0, 0), duration: 0.01),
+            .rotateBy(x: 0, y: 0.5, z: 0, duration: 0.01),
+        ])
+        repeated.runAction(SCNAction.repeat(pattern, count: 300))
+        repeated.quillStepActions(by: pattern.duration * 300)
+        #expect(abs(repeated.position.x - 300) < 0.0001)
+        #expect(abs(repeated.eulerAngles.y - 150) < 0.0001)
+        #expect(!repeated.hasActions)
+    }
+
     private func makeCameraControlScene() -> (scene: SCNScene, cameraNode: SCNNode) {
         let scene = SCNScene()
         scene.background.contents = CGColor.black

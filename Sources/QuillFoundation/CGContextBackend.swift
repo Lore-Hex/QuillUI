@@ -39,11 +39,15 @@ public protocol QuillCGContextBackend: AnyObject {
     func addLine(to point: CGPoint)
     func addRect(_ rect: CGRect)
     func addEllipse(in rect: CGRect)
+    func addQuadCurve(to end: CGPoint, control: CGPoint)
+    func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint)
     func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat,
                 endAngle: CGFloat, clockwise: Bool)
     func fillPath()
+    func fillPath(using rule: CGPathFillRule)
     func strokePath()
     func clip()
+    func clip(using rule: CGPathFillRule)
     func clip(to rect: CGRect)
 
     /// `image` is the CGContext.draw(_:in:) argument (typed Any in the shadow);

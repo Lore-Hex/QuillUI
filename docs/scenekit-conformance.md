@@ -91,7 +91,12 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    cubic curve elements instead of plain rectangles. The path value surface now
    includes center/radius arcs, tangent arcs, emptiness/current-point accessors,
    point and tight path bounds, and winding/even-odd containment over flattened
-   curves. `CoreGraphicsTests` exercises this through a direct
+   curves. The drawing shim now forwards `CGContext.addRects`,
+   `CGContext.addPath`, direct quad/cubic curves, and fill-rule-aware fill/clip
+   operations plus tangent-arc line/cubic expansions into the Cairo-backed GTK
+   drawing host, while `CGContext` itself tracks `isPathEmpty`,
+   `currentPointOfPath`, `pathBoundingBox`, and `copyPath()` without requiring
+   a backend. `CoreGraphicsTests` exercises the value surface through a direct
    `import CoreGraphics` path.
 
    This surface is now enabled by rung 2c. The key build gotcha remains:
@@ -157,7 +162,8 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    an intersecting-triangle scene with sampled pixels on both sides of the depth
    crossover. The smoke gate checks rendered area, dominant color, screen
    bounds, explicit clipping, camera control, hit-test checks, and z-buffered
-   overlap, then runs an Xvfb GTK `SceneView` render smoke.
+   overlap, plus `SCNAction` completion-handler delivery, then runs an Xvfb
+   GTK `SceneView` render smoke.
 
 GPU honesty: SceneKit on QuillOS starts as a software rasterizer over the
 existing 2D paint layer. That is enough for these apps' scene scale; a GL/
@@ -170,9 +176,9 @@ Vulkan backend is a later, separate decision — do not promise GPU parity.
 - [x] Inert RealityKit shim module (Euclid Example's RealityKitViewController)
 - [x] Rung 1: Euclid + ShapeScript lib/CLI green on Linux (CLI renders .shape → .stl)
 - [x] Rung 2 (fixtures): SceneKit scene-graph shim authored; QuillSolarSystem + QuillMoleculeViewer compile
-- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0; CGPath transform/curve recording, bounds/current-point accessors, and containment now directly tested
+- [x] Rung 2b (interop surface): Mesh⇄SCNGeometry marshalling + CoreGraphics CGPoint/CGSize/CGPath/CF surface authored; Euclid's full interop verified 727→0; CGPath transform/curve recording, bounds/current-point accessors, containment, CGContext current-path introspection, and CGContext path forwarding now directly tested
 - [x] Rung 2c (app-tier enablement): enable Euclid interop + fix ShapeScript interop + QuillEuclidExample + QuillShapeScriptViewer compile (all-at-once)
 - [x] Rung 3: fixtures render (GTK screenshot gate)
 - [x] Rung 4: QuillEuclidExample renders real Euclid mesh data
 - [x] Rung 5: QuillShapeScriptViewer builds and launch-smokes
-- [x] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, explicit camera clipping, per-pixel z-buffered intersecting geometry, deterministic camera movement, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)
+- [x] Rung 6: pixel parity / live camera controls (hit-testing, camera orientation, explicit camera clipping, per-pixel z-buffered intersecting geometry, deterministic camera movement, primitive/sequence/group/repeating action stepping, AppKit-pump-dispatched camera movement, GTK pointer/drag/scroll/magnify delivery, and Apple SceneKit software-renderer golden envelopes are smoke/source-gated)

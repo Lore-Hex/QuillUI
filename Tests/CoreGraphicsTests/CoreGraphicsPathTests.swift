@@ -229,6 +229,53 @@ struct CoreGraphicsPathTests {
         #expect(path.contains(CGPoint(x: 5, y: 9)))
         #expect(!path.contains(CGPoint(x: 5, y: 2)))
     }
+
+    @Test("CGContext tracks current path without a backend")
+    func contextTracksCurrentPathWithoutBackend() throws {
+        let context = CGContext()
+        #expect(context.isPathEmpty)
+        #expect(context.currentPointOfPath == .zero)
+        #expect(context.copyPath() == nil)
+
+        context.move(to: CGPoint(x: 0, y: 0))
+        context.addLine(to: CGPoint(x: 2, y: 0))
+        context.addQuadCurve(to: CGPoint(x: 4, y: 0), control: CGPoint(x: 3, y: 1))
+        context.addCurve(
+            to: CGPoint(x: 8, y: 0),
+            control1: CGPoint(x: 5, y: 2),
+            control2: CGPoint(x: 7, y: 2)
+        )
+
+        #expect(!context.isPathEmpty)
+        #expect(context.currentPointOfPath == CGPoint(x: 8, y: 0))
+        #expect(context.pathBoundingBox.minX == 0)
+        #expect(context.pathBoundingBox.maxX == 8)
+
+        let copy = try #require(context.copyPath())
+        #expect(copy.quillElements.map(\.type) == [
+            .moveToPoint,
+            .addLineToPoint,
+            .addQuadCurveToPoint,
+            .addCurveToPoint,
+        ])
+
+        context.strokePath()
+        #expect(context.isPathEmpty)
+        #expect(context.copyPath() == nil)
+
+        context.addRect(CGRect(x: 1, y: 2, width: 3, height: 4))
+        #expect(!context.isPathEmpty)
+        context.clip(using: .evenOdd)
+        #expect(context.isPathEmpty)
+
+        context.move(to: .zero)
+        context.addArc(tangent1End: CGPoint(x: 10, y: 0), tangent2End: CGPoint(x: 10, y: 10), radius: 2)
+        #expect(context.copyPath()?.quillElements.map(\.type) == [
+            .moveToPoint,
+            .addLineToPoint,
+            .addCurveToPoint,
+        ])
+    }
 }
 
 private struct PathElementSnapshot: Equatable {
