@@ -608,7 +608,10 @@ let standardSwiftSettings: [SwiftSetting] = [
 let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = [
     // `-default-isolation MainActor` landed with newer Swift 6 toolchains.
     // Keep the flag out of Swift 6.1 Apple CI, where the frontend rejects it.
-    .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])
+    .unsafeFlags(
+        ["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"],
+        .when(platforms: [.linux])
+    )
 ]
 #else
 let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = []
