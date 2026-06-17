@@ -53,6 +53,9 @@ struct CoreGraphicsEventTests {
 
     @Test("CGEvent source state and tap enums use Apple raw values")
     func eventSourceStateAndTapEnumsUseAppleRawValues() {
+        let allEventsMask: CGEventMask = .max
+        #expect(allEventsMask == UInt64.max)
+
         #expect(CGEventSourceStateID.privateState.rawValue == -1)
         #expect(CGEventSourceStateID.combinedSessionState.rawValue == 0)
         #expect(CGEventSourceStateID.hidSystemState.rawValue == 1)
@@ -60,6 +63,12 @@ struct CoreGraphicsEventTests {
         #expect(CGEventTapLocation.cghidEventTap.rawValue == 0)
         #expect(CGEventTapLocation.cgSessionEventTap.rawValue == 1)
         #expect(CGEventTapLocation.cgAnnotatedSessionEventTap.rawValue == 2)
+
+        #expect(CGEventTapPlacement.headInsertEventTap.rawValue == 0)
+        #expect(CGEventTapPlacement.tailAppendEventTap.rawValue == 1)
+
+        #expect(CGEventTapOptions.defaultTap.rawValue == 0)
+        #expect(CGEventTapOptions.listenOnly.rawValue == 1)
     }
 
     @Test("CGEventFlags use Apple event and modifier raw masks")

@@ -15,6 +15,8 @@ public extension CGKeyCode {
     static let kVK_ANSI_V: CGKeyCode = 0x09
 }
 
+public typealias CGEventMask = UInt64
+
 public struct CGEventFlags: OptionSet, Sendable {
     public var rawValue: UInt64
 
@@ -109,6 +111,16 @@ public enum CGEventTapLocation: Int32, Sendable {
     case cghidEventTap = 0
     case cgSessionEventTap = 1
     case cgAnnotatedSessionEventTap = 2
+}
+
+public enum CGEventTapPlacement: UInt32, Sendable {
+    case headInsertEventTap = 0
+    case tailAppendEventTap = 1
+}
+
+public enum CGEventTapOptions: UInt32, Sendable {
+    case defaultTap = 0
+    case listenOnly = 1
 }
 
 public final class CGEvent: @unchecked Sendable {
