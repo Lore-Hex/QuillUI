@@ -630,11 +630,12 @@ public class CGPath: Hashable, @unchecked Sendable {
     }
 
     private static func pointIsOnSegment(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> Bool {
+        let lengthSquared = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
+        guard lengthSquared > geometryTolerance * geometryTolerance else { return false }
         let cross = (point.y - a.y) * (b.x - a.x) - (point.x - a.x) * (b.y - a.y)
         guard abs(cross) <= geometryTolerance else { return false }
         let dot = (point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)
         guard dot >= -geometryTolerance else { return false }
-        let lengthSquared = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
         return dot <= lengthSquared + geometryTolerance
     }
 
@@ -829,7 +830,8 @@ public class CGPath: Hashable, @unchecked Sendable {
         }
 
         guard abs(delta) > geometryTolerance else { return [] }
-        let segmentCount = max(1, Int(ceil(abs(delta) / (CGFloat.pi / 2))))
+        let quadrant = CGFloat.pi / 2
+        let segmentCount = max(1, Int(ceil((abs(delta) - geometryTolerance) / quadrant)))
         let segmentDelta = delta / CGFloat(segmentCount)
         var elements: [CGPathStorageElement] = []
 
