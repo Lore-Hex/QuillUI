@@ -165,6 +165,154 @@ quillui_solderscope_click_toolbar_button() {
   sleep "${QUILLUI_SOLDERSCOPE_TOOLBAR_SETTLE_SECONDS:-0.2}"
 }
 
+quillui_solderscope_drive_snapshot_action() {
+  local snapshot_driver="$1"
+  local window_id="$2"
+  local window_x="$3"
+  local window_y="$4"
+  local window_width="$5"
+  local label="$6"
+
+  case "$snapshot_driver" in
+    toolbar)
+      quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_SNAPSHOT_BUTTON_RIGHT_OFFSET:-181}" "$label" "${QUILLUI_SOLDERSCOPE_SNAPSHOT_TOOLBAR_Y_OFFSET:-38}"
+      ;;
+    shortcut)
+      quillui_solderscope_send_key "$window_id" s
+      ;;
+    none)
+      ;;
+    *)
+      echo "Unsupported snapshot driver '$snapshot_driver' (expected toolbar, shortcut, or none)" >&2
+      return 64
+      ;;
+  esac
+}
+
+quillui_solderscope_snapshot_fallback_driver() {
+  local snapshot_driver="$1"
+  local fallback_driver="${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_DRIVER:-auto}"
+  case "$fallback_driver" in
+    auto|"")
+      case "$snapshot_driver" in
+        toolbar) echo shortcut ;;
+        shortcut) echo toolbar ;;
+        *) echo none ;;
+      esac
+      ;;
+    toolbar|shortcut|none)
+      echo "$fallback_driver"
+      ;;
+    *)
+      echo "Unsupported QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_DRIVER='$fallback_driver' (expected auto, toolbar, shortcut, or none)" >&2
+      return 64
+      ;;
+  esac
+}
+
+quillui_solderscope_drive_freeze_action() {
+  local freeze_driver="$1"
+  local window_id="$2"
+  local window_x="$3"
+  local window_y="$4"
+  local window_width="$5"
+  local label="$6"
+
+  case "$freeze_driver" in
+    toolbar)
+      quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-235}" "$label" "${QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET:-46}"
+      ;;
+    shortcut)
+      quillui_solderscope_send_key "$window_id" space
+      ;;
+    none)
+      ;;
+    *)
+      echo "Unsupported freeze driver '$freeze_driver' (expected toolbar, shortcut, or none)" >&2
+      return 64
+      ;;
+  esac
+}
+
+quillui_solderscope_freeze_fallback_driver() {
+  local freeze_driver="$1"
+  local fallback_driver="${QUILLUI_SOLDERSCOPE_FREEZE_FALLBACK_DRIVER:-auto}"
+  case "$fallback_driver" in
+    auto|"")
+      case "$freeze_driver" in
+        toolbar) echo shortcut ;;
+        shortcut) echo toolbar ;;
+        *) echo none ;;
+      esac
+      ;;
+    toolbar|shortcut|none)
+      echo "$fallback_driver"
+      ;;
+    *)
+      echo "Unsupported QUILLUI_SOLDERSCOPE_FREEZE_FALLBACK_DRIVER='$fallback_driver' (expected auto, toolbar, shortcut, or none)" >&2
+      return 64
+      ;;
+  esac
+}
+
+quillui_solderscope_wait_for_frozen_indicator() {
+  local freeze_probe_path
+  freeze_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-freeze.XXXXXX.png")"
+  local freeze_wait_deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_FREEZE_VERIFY_SECONDS:-4}))
+  local last_error=""
+  while (( SECONDS <= freeze_wait_deadline )); do
+    DISPLAY="$DISPLAY_ID" import -window root "$freeze_probe_path" 2>/dev/null || true
+    if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$freeze_probe_path" quill-solderscope-freeze-interaction >/tmp/quill-solderscope-freeze-check.log 2>&1; then
+      rm -f "$freeze_probe_path" /tmp/quill-solderscope-freeze-check.log
+      echo "SolderScope interaction smoke: frozen indicator is visible" >&2
+      return 0
+    fi
+    last_error="$(tail -n 1 /tmp/quill-solderscope-freeze-check.log 2>/dev/null || true)"
+    sleep "${QUILLUI_SOLDERSCOPE_FREEZE_VERIFY_TICK_SECONDS:-0.25}"
+  done
+
+  echo "SolderScope interaction smoke did not observe the frozen indicator yet: $last_error" >&2
+  rm -f "$freeze_probe_path" /tmp/quill-solderscope-freeze-check.log
+  return 1
+}
+
+quillui_solderscope_wait_for_visible_frame() {
+  local wait_mode="${QUILLUI_SOLDERSCOPE_WAIT_FOR_FRAME:-auto}"
+  case "$wait_mode" in
+    1|true|TRUE|yes|YES|auto|"")
+      ;;
+    0|false|FALSE|no|NO)
+      return 0
+      ;;
+    *)
+      echo "Unsupported QUILLUI_SOLDERSCOPE_WAIT_FOR_FRAME='$wait_mode' (expected auto, 1, or 0)" >&2
+      return 64
+      ;;
+  esac
+
+  local frame_probe_path
+  frame_probe_path="$(mktemp "${TMPDIR:-/tmp}/quill-solderscope-frame.XXXXXX.png")"
+  local frame_wait_deadline=$((SECONDS + ${QUILLUI_SOLDERSCOPE_FRAME_WAIT_SECONDS:-18}))
+  local last_error=""
+  while (( SECONDS <= frame_wait_deadline )); do
+    DISPLAY="$DISPLAY_ID" import -window root "$frame_probe_path" 2>/dev/null || true
+    if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$frame_probe_path" quill-solderscope-interaction >/tmp/quill-solderscope-frame-check.log 2>&1; then
+      rm -f "$frame_probe_path" /tmp/quill-solderscope-frame-check.log
+      echo "SolderScope interaction smoke: synthetic frame is visible before interaction" >&2
+      return 0
+    fi
+    last_error="$(tail -n 1 /tmp/quill-solderscope-frame-check.log 2>/dev/null || true)"
+    sleep "${QUILLUI_SOLDERSCOPE_FRAME_WAIT_TICK_SECONDS:-0.5}"
+  done
+
+  echo "SolderScope interaction smoke did not observe a visible synthetic frame before interaction: $last_error" >&2
+  if [[ -n "${QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT:-}" ]]; then
+    cp "$frame_probe_path" "$QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT" 2>/dev/null || true
+  fi
+  rm -f "$frame_probe_path" /tmp/quill-solderscope-frame-check.log
+  return 1
+}
+
 SOLDERSCOPE_DESKTOP_DIR="$(quillui_solderscope_resolve_desktop_dir)"
 SOLDERSCOPE_DRIVE_SNAPSHOT=0
 case "${QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT:-auto}" in
@@ -303,6 +451,7 @@ quillui_drive_solderscope_interaction() {
   drag_end_x=$((click_x + 80))
   drag_end_y=$((click_y + 55))
   echo "SolderScope interaction smoke: window=$window_id geometry=${window_x},${window_y} ${window_width}x${window_height}" >&2
+  quillui_solderscope_wait_for_visible_frame
   DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y"
   for _ in 1 2 3 4 5 6 7 8; do
     DISPLAY="$DISPLAY_ID" xdotool click 4
@@ -319,18 +468,10 @@ quillui_drive_solderscope_interaction() {
   quillui_solderscope_send_key "$window_id" 0
   if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
     local snapshot_driver="${QUILLUI_SOLDERSCOPE_SNAPSHOT_DRIVER:-shortcut}"
-    case "$snapshot_driver" in
-      toolbar)
-        quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_SNAPSHOT_BUTTON_RIGHT_OFFSET:-181}" snapshot "${QUILLUI_SOLDERSCOPE_SNAPSHOT_TOOLBAR_Y_OFFSET:-38}"
-        ;;
-      shortcut)
-        quillui_solderscope_send_key "$window_id" s
-        ;;
-      *)
-        echo "Unsupported QUILLUI_SOLDERSCOPE_SNAPSHOT_DRIVER='$snapshot_driver' (expected toolbar or shortcut)" >&2
-        return 64
-        ;;
-    esac
+    local snapshot_fallback_driver
+    snapshot_fallback_driver="$(quillui_solderscope_snapshot_fallback_driver "$snapshot_driver")" || return $?
+    local snapshot_fallback_sent=0
+    quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot
     local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
     for attempt in 1 2 3 4 5 6 7 8 9 10; do
       snapshot_count="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
@@ -339,14 +480,13 @@ quillui_drive_solderscope_interaction() {
         break
       fi
       if (( attempt == ${QUILLUI_SOLDERSCOPE_SNAPSHOT_RETRY_TICK:-5} )); then
-        case "$snapshot_driver" in
-          toolbar)
-            quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_SNAPSHOT_BUTTON_RIGHT_OFFSET:-181}" snapshot-retry "${QUILLUI_SOLDERSCOPE_SNAPSHOT_TOOLBAR_Y_OFFSET:-38}"
-            ;;
-          shortcut)
-            quillui_solderscope_send_key "$window_id" s
-            ;;
-        esac
+        quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot-retry
+      fi
+      if (( snapshot_fallback_sent == 0 && attempt == ${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_TICK:-8} )); then
+        if [[ "$snapshot_fallback_driver" != "none" && "$snapshot_fallback_driver" != "$snapshot_driver" ]]; then
+          quillui_solderscope_drive_snapshot_action "$snapshot_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot-fallback
+          snapshot_fallback_sent=1
+        fi
       fi
       sleep 0.2
     done
@@ -467,11 +607,18 @@ quillui_drive_solderscope_interaction() {
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
   case "$freeze_driver" in
-    toolbar)
-      quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-235}" freeze "${QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET:-46}"
-      ;;
-    shortcut)
-      quillui_solderscope_send_key "$window_id" space
+    toolbar|shortcut)
+      local freeze_fallback_driver
+      freeze_fallback_driver="$(quillui_solderscope_freeze_fallback_driver "$freeze_driver")" || return $?
+      quillui_solderscope_drive_freeze_action "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width" freeze
+      if ! quillui_solderscope_wait_for_frozen_indicator; then
+        if [[ "$freeze_fallback_driver" != "none" && "$freeze_fallback_driver" != "$freeze_driver" ]]; then
+          quillui_solderscope_drive_freeze_action "$freeze_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" freeze-fallback
+          quillui_solderscope_wait_for_frozen_indicator
+        else
+          return 1
+        fi
+      fi
       ;;
     none)
       echo "SolderScope interaction smoke: freeze skipped" >&2
