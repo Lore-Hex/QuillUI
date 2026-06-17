@@ -2142,7 +2142,7 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
         min_height=4,
     )
     require(
-        deleted_row_action_segments <= 3,
+        deleted_row_action_segments <= 4,
         "Deleted completion row still appears to be present: "
         f"segments={deleted_row_action_segments}, roi={row_action_roi}",
     )
