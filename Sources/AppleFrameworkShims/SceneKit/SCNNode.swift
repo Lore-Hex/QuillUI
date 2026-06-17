@@ -44,6 +44,24 @@ public final class SCNNode: Equatable, @unchecked Sendable {
             eulerAngles = SCNVector3(0, 0, 0)
         }
     }
+    public var worldScale: SCNVector3 {
+        get {
+            Matrix4.worldTransform(for: self).scnMatrix.quillScale
+        }
+        set {
+            guard let parent else {
+                scale = newValue
+                return
+            }
+
+            let parentScale = Matrix4.worldTransform(for: parent).scnMatrix.quillScale
+            scale = SCNVector3(
+                Self.quillLocalScaleComponent(forWorldScale: newValue.x, parentScale: parentScale.x),
+                Self.quillLocalScaleComponent(forWorldScale: newValue.y, parentScale: parentScale.y),
+                Self.quillLocalScaleComponent(forWorldScale: newValue.z, parentScale: parentScale.z)
+            )
+        }
+    }
     public var worldFront: SCNVector3 {
         quillWorldDirection(Vector3(0, 0, -1), fallback: Vector3(0, 0, -1))
     }
@@ -363,6 +381,10 @@ public final class SCNNode: Equatable, @unchecked Sendable {
 
     private static func quillWorldTransform(for node: SCNNode?) -> Matrix4 {
         node.map(Matrix4.worldTransform) ?? .identity
+    }
+
+    private static func quillLocalScaleComponent(forWorldScale worldScale: CGFloat, parentScale: CGFloat) -> CGFloat {
+        abs(parentScale) > 0.000001 ? worldScale / parentScale : worldScale
     }
 
     private func quillWorldDirection(_ direction: Vector3, fallback: Vector3) -> SCNVector3 {

@@ -320,6 +320,27 @@ struct SceneKitRendererTests {
         expectMatrix(child.worldTransform, closeTo: SCNMatrix4MakeTranslation(30, 44, 55))
     }
 
+    @Test("SCNNode worldScale composes and sets through parents")
+    func nodeWorldScaleComposesAndSetsThroughParents() {
+        let parent = SCNNode()
+        parent.scale = SCNVector3(2, 4, 5)
+
+        let child = SCNNode()
+        child.scale = SCNVector3(3, 2, 0.5)
+        parent.addChildNode(child)
+
+        expectVector(child.worldScale, closeTo: SCNVector3(6, 8, 2.5))
+
+        child.worldScale = SCNVector3(10, 12, 15)
+        expectVector(child.scale, closeTo: SCNVector3(5, 3, 3))
+        expectVector(child.worldScale, closeTo: SCNVector3(10, 12, 15))
+
+        child.removeFromParentNode()
+        child.worldScale = SCNVector3(1.5, 2.5, 3.5)
+        expectVector(child.scale, closeTo: SCNVector3(1.5, 2.5, 3.5))
+        expectVector(child.worldScale, closeTo: SCNVector3(1.5, 2.5, 3.5))
+    }
+
     @Test("SCNNode worldOrientation composes and sets through parents")
     func nodeWorldOrientationComposesAndSetsThroughParents() {
         let quarterTurn = CGFloat(0.5).squareRoot()
