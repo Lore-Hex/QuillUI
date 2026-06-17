@@ -293,6 +293,45 @@ struct CoreGraphicsPathTests {
             13, 14, 15, 255, 16, 17, 18, 255,
         ])
         #expect(image.cropping(to: CGRect(x: 4, y: 0, width: 1, height: 1)) == nil)
+
+        let blank = CGImage()
+        blank.width = 4
+        blank.height = 3
+        let blankCrop = try #require(blank.cropping(to: CGRect(x: 1.2, y: 0.2, width: 1.4, height: 1.4)))
+        #expect(blankCrop.width == 2)
+        #expect(blankCrop.height == 2)
+        #expect(blankCrop.quillBytesPerRow == 8)
+        #expect(blankCrop.quillBGRAPixels == nil)
+
+        let padded = CGImage()
+        padded.width = 2
+        padded.height = 2
+        padded.quillBytesPerRow = 12
+        padded.quillBGRAPixels = [
+            1, 2, 3, 255, 4, 5, 6, 255, 90, 91, 92, 93,
+            7, 8, 9, 255, 10, 11, 12, 255, 94, 95, 96, 97,
+        ]
+        let paddedCrop = try #require(padded.cropping(to: CGRect(x: 0, y: 1, width: 2, height: 1)))
+        #expect(paddedCrop.width == 2)
+        #expect(paddedCrop.height == 1)
+        #expect(paddedCrop.quillBytesPerRow == 8)
+        #expect(paddedCrop.quillBGRAPixels == [
+            7, 8, 9, 255, 10, 11, 12, 255,
+        ])
+
+        let corrupt = CGImage()
+        corrupt.width = 2
+        corrupt.height = 2
+        corrupt.quillBytesPerRow = 8
+        corrupt.quillBGRAPixels = [1, 2, 3, 255]
+        #expect(corrupt.cropping(to: CGRect(x: 0, y: 0, width: 1, height: 1)) == nil)
+
+        let shortStride = CGImage()
+        shortStride.width = 3
+        shortStride.height = 1
+        shortStride.quillBytesPerRow = 8
+        shortStride.quillBGRAPixels = Array(repeating: 0, count: 12)
+        #expect(shortStride.cropping(to: CGRect(x: 0, y: 0, width: 1, height: 1)) == nil)
     }
     #endif
 

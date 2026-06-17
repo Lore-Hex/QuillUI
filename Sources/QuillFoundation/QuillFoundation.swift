@@ -229,40 +229,76 @@ public class CGImage: Hashable, @unchecked Sendable {
     public var height: Int = 0
     public var bytesPerRow: Int { quillBytesPerRow }
     public func cropping(to rect: CGRect) -> CGImage? {
-        guard width > 0, height > 0,
+        guard let crop = Self.pixelCropBounds(for: rect, imageWidth: width, imageHeight: height),
+              let croppedBytesPerRow = Self.bytesPerRow(forPixelWidth: crop.width),
+              let croppedPixelCount = Self.byteCount(height: crop.height, bytesPerRow: croppedBytesPerRow) else {
+            return nil
+        }
+
+        let cropped = CGImage()
+        cropped.width = crop.width
+        cropped.height = crop.height
+        cropped.quillBytesPerRow = croppedBytesPerRow
+        guard let sourcePixels = quillBGRAPixels else { return cropped }
+        guard let sourceBytesPerRow = quillResolvedBytesPerRow,
+              let sourcePixelCount = Self.byteCount(height: height, bytesPerRow: sourceBytesPerRow),
+              sourcePixels.count >= sourcePixelCount else {
+            return nil
+        }
+
+        var croppedPixels = [UInt8](repeating: 0, count: croppedPixelCount)
+        let rowByteCount = croppedBytesPerRow
+        for y in 0..<crop.height {
+            let sourceOffset = (crop.y + y) * sourceBytesPerRow + crop.x * Self.bytesPerPixel
+            let destinationOffset = y * croppedBytesPerRow
+            guard sourceOffset >= 0, sourceOffset + rowByteCount <= sourcePixels.count else { return nil }
+            croppedPixels.replaceSubrange(
+                destinationOffset..<(destinationOffset + rowByteCount),
+                with: sourcePixels[sourceOffset..<(sourceOffset + rowByteCount)]
+            )
+        }
+        cropped.quillBGRAPixels = croppedPixels
+        return cropped
+    }
+
+    private static let bytesPerPixel = 4
+
+    private var quillResolvedBytesPerRow: Int? {
+        guard let minimumBytesPerRow = Self.bytesPerRow(forPixelWidth: width) else { return nil }
+        let rowBytes = quillBytesPerRow > 0 ? quillBytesPerRow : minimumBytesPerRow
+        guard rowBytes >= minimumBytesPerRow else { return nil }
+        return rowBytes
+    }
+
+    private static func pixelCropBounds(
+        for rect: CGRect,
+        imageWidth: Int,
+        imageHeight: Int
+    ) -> (x: Int, y: Int, width: Int, height: Int)? {
+        guard imageWidth > 0, imageHeight > 0,
               rect.minX.isFinite, rect.minY.isFinite,
               rect.maxX.isFinite, rect.maxY.isFinite else {
             return nil
         }
 
-        let minX = max(0, Int(floor(rect.minX)))
-        let minY = max(0, Int(floor(rect.minY)))
-        let maxX = min(width, Int(ceil(rect.maxX)))
-        let maxY = min(height, Int(ceil(rect.maxY)))
+        let minX = Int(max(0, min(CGFloat(imageWidth), floor(rect.minX))))
+        let minY = Int(max(0, min(CGFloat(imageHeight), floor(rect.minY))))
+        let maxX = Int(max(0, min(CGFloat(imageWidth), ceil(rect.maxX))))
+        let maxY = Int(max(0, min(CGFloat(imageHeight), ceil(rect.maxY))))
         guard minX < maxX, minY < maxY else { return nil }
+        return (minX, minY, maxX - minX, maxY - minY)
+    }
 
-        let cropped = CGImage()
-        cropped.width = maxX - minX
-        cropped.height = maxY - minY
-        cropped.quillBytesPerRow = cropped.width * 4
-        guard let sourcePixels = quillBGRAPixels else { return cropped }
+    private static func bytesPerRow(forPixelWidth width: Int) -> Int? {
+        guard width >= 0 else { return nil }
+        let result = width.multipliedReportingOverflow(by: bytesPerPixel)
+        return result.overflow ? nil : result.partialValue
+    }
 
-        let sourceBytesPerRow = quillBytesPerRow > 0 ? quillBytesPerRow : width * 4
-        guard sourceBytesPerRow >= width * 4 else { return cropped }
-
-        var croppedPixels = [UInt8](repeating: 0, count: cropped.height * cropped.quillBytesPerRow)
-        for y in 0..<cropped.height {
-            let sourceOffset = (minY + y) * sourceBytesPerRow + minX * 4
-            let destinationOffset = y * cropped.quillBytesPerRow
-            let byteCount = cropped.width * 4
-            guard sourceOffset >= 0, sourceOffset + byteCount <= sourcePixels.count else { return cropped }
-            croppedPixels.replaceSubrange(
-                destinationOffset..<(destinationOffset + byteCount),
-                with: sourcePixels[sourceOffset..<(sourceOffset + byteCount)]
-            )
-        }
-        cropped.quillBGRAPixels = croppedPixels
-        return cropped
+    private static func byteCount(height: Int, bytesPerRow: Int) -> Int? {
+        guard height >= 0, bytesPerRow >= 0 else { return nil }
+        let result = height.multipliedReportingOverflow(by: bytesPerRow)
+        return result.overflow ? nil : result.partialValue
     }
 
     public static func == (lhs: CGImage, rhs: CGImage) -> Bool {
