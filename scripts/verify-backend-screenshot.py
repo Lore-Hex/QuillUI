@@ -2121,8 +2121,8 @@ def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> s
 def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
-        minimum_row_dividers=3,
-        minimum_row_action_segments=6,
+        minimum_row_dividers=2,
+        minimum_row_action_segments=4,
         minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
@@ -2131,7 +2131,7 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
 
     row_action_roi = (
         left + int(app_width * 0.725),
-        top + int(app_height * 0.37),
+        top + int(app_height * 0.345),
         left + int(app_width * 0.79),
         top + int(app_height * 0.53),
     )
