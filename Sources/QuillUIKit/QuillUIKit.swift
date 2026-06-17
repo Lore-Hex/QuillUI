@@ -462,6 +462,15 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     /// UIView.draw on Linux yet; subclass implementations run when a
     /// future compositor calls them.
     open func draw(_ rect: CGRect) { _ = rect }
+    /// Optional renderer metadata for custom-drawn text views. Some upstream
+    /// UIKit components draw text from `draw(_:)` instead of using `UILabel`;
+    /// render backends can consume these fields without knowing app-private
+    /// view subclasses.
+    public var quillRenderedText: String?
+    public var quillRenderedTextColor: UIColor?
+    public var quillRenderedTextPointSize: CGFloat = 17
+    public var quillRenderedTextAlignment: QuillFoundation.NSTextAlignment = .natural
+    public var quillRenderedTextNumberOfLines: Int = 0
     /// Trait-change override point (ContactCell etc.); never fired (traits
     /// are static on Linux).
     open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
