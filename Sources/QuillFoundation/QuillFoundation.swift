@@ -1581,6 +1581,9 @@ public final class CGContext {
     private var quillLineWidth: CGFloat = 1
     private var quillLineCap: CGLineCap = .butt
     private var quillLineJoin: CGLineJoin = .miter
+    private var quillMiterLimit: CGFloat = 10
+    private var quillAllowsAntialiasing: Bool = true
+    private var quillShouldAntialias: Bool = true
     private var quillAlpha: CGFloat = 1
     private var quillBlendMode: CGBlendMode = .normal
     private var quillShadow: QuillShadow?
@@ -1596,6 +1599,9 @@ public final class CGContext {
         var lineWidth: CGFloat
         var lineCap: CGLineCap
         var lineJoin: CGLineJoin
+        var miterLimit: CGFloat
+        var allowsAntialiasing: Bool
+        var shouldAntialias: Bool
         var alpha: CGFloat
         var blendMode: CGBlendMode
         var shadow: QuillShadow?
@@ -3260,7 +3266,11 @@ public final class CGContext {
         quillLineJoin = join
         quillBackend?.setLineJoin(join)
     }
-    public func setMiterLimit(_ limit: CGFloat) {}
+    public func setMiterLimit(_ limit: CGFloat) {
+        let sanitizedLimit = limit.isFinite ? Swift.max(0, limit) : 0
+        quillMiterLimit = sanitizedLimit
+        quillBackend?.setMiterLimit(sanitizedLimit)
+    }
     public func setShadow(offset: CGSize, blur: CGFloat) {
         let colorRGBA: [CGFloat] = [0, 0, 0, CGFloat(1) / 3]
         quillShadow = QuillShadow(
@@ -3284,8 +3294,17 @@ public final class CGContext {
         )
         quillBackend?.setShadow(offset: offset, blur: blur, colorRGBA: colorRGBA)
     }
-    public func setAllowsAntialiasing(_ allowsAntialiasing: Bool) {}
-    public func setShouldAntialias(_ shouldAntialias: Bool) {}
+    private var quillEffectiveAntialiasing: Bool {
+        quillAllowsAntialiasing && quillShouldAntialias
+    }
+    public func setAllowsAntialiasing(_ allowsAntialiasing: Bool) {
+        quillAllowsAntialiasing = allowsAntialiasing
+        quillBackend?.setShouldAntialias(quillEffectiveAntialiasing)
+    }
+    public func setShouldAntialias(_ shouldAntialias: Bool) {
+        quillShouldAntialias = shouldAntialias
+        quillBackend?.setShouldAntialias(quillEffectiveAntialiasing)
+    }
     public func setAllowsFontSmoothing(_ allowsFontSmoothing: Bool) {}
     public func setShouldSmoothFonts(_ shouldSmoothFonts: Bool) {}
     public func setAllowsFontSubpixelPositioning(_ allowsFontSubpixelPositioning: Bool) {}
@@ -3479,6 +3498,9 @@ public final class CGContext {
             lineWidth: quillLineWidth,
             lineCap: quillLineCap,
             lineJoin: quillLineJoin,
+            miterLimit: quillMiterLimit,
+            allowsAntialiasing: quillAllowsAntialiasing,
+            shouldAntialias: quillShouldAntialias,
             alpha: quillAlpha,
             blendMode: quillBlendMode,
             shadow: quillShadow,
@@ -3494,6 +3516,9 @@ public final class CGContext {
             quillLineWidth = state.lineWidth
             quillLineCap = state.lineCap
             quillLineJoin = state.lineJoin
+            quillMiterLimit = state.miterLimit
+            quillAllowsAntialiasing = state.allowsAntialiasing
+            quillShouldAntialias = state.shouldAntialias
             quillAlpha = state.alpha
             quillBlendMode = state.blendMode
             quillShadow = state.shadow

@@ -162,6 +162,10 @@ public final class QtCairoCGContextBackend: QuillCGContextBackend {
     public func setFillColor(_ rgba: [CGFloat]) { state.fill = rgba }
     public func setStrokeColor(_ rgba: [CGFloat]) { state.stroke = rgba }
     public func setLineWidth(_ width: CGFloat) { cairo_set_line_width(cr, Double(width)) }
+    public func setMiterLimit(_ limit: CGFloat) { cairo_set_miter_limit(cr, Double(limit)) }
+    public func setShouldAntialias(_ shouldAntialias: Bool) {
+        cairo_set_antialias(cr, shouldAntialias ? CAIRO_ANTIALIAS_DEFAULT : CAIRO_ANTIALIAS_NONE)
+    }
     public func setAlpha(_ alpha: CGFloat) { state.alpha = alpha }
     public func setBlendMode(_ mode: CGBlendMode) {
         state.blendMode = mode

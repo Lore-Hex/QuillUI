@@ -25,6 +25,8 @@ public protocol QuillCGContextBackend: AnyObject {
     func setLineWidth(_ width: CGFloat)
     func setLineCap(_ cap: CGLineCap)
     func setLineJoin(_ join: CGLineJoin)
+    func setMiterLimit(_ limit: CGFloat)
+    func setShouldAntialias(_ shouldAntialias: Bool)
     func setAlpha(_ alpha: CGFloat)
     func setBlendMode(_ mode: CGBlendMode)
     func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?)
@@ -64,6 +66,14 @@ public protocol QuillCGContextBackend: AnyObject {
 public extension QuillCGContextBackend {
     func concatenate(_ transform: CGAffineTransform) {
         _ = transform
+    }
+
+    func setMiterLimit(_ limit: CGFloat) {
+        _ = limit
+    }
+
+    func setShouldAntialias(_ shouldAntialias: Bool) {
+        _ = shouldAntialias
     }
 
     func setBlendMode(_ mode: CGBlendMode) {

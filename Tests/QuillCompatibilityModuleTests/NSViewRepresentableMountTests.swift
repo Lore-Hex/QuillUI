@@ -25,6 +25,8 @@ private final class RecordingBackend: QuillCGContextBackend {
     func setLineWidth(_ width: CGFloat) { rec("lineWidth(\(Int(width)))") }
     func setLineCap(_ cap: CGLineCap) { rec("lineCap") }
     func setLineJoin(_ join: CGLineJoin) { rec("lineJoin") }
+    func setMiterLimit(_ limit: CGFloat) { rec("miter(\(Int(limit)))") }
+    func setShouldAntialias(_ shouldAntialias: Bool) { rec("antialias(\(shouldAntialias))") }
     func setAlpha(_ alpha: CGFloat) { rec("alpha(\(alpha))") }
     func setBlendMode(_ mode: CGBlendMode) { rec("blend(\(mode))") }
     func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?) {
@@ -72,6 +74,10 @@ struct NSViewRepresentableMountTests {
         ctx.rotate(by: 0.5)
         ctx.concatenate(CGAffineTransform(a: 2, b: 0, c: 0, d: 3, tx: 4, ty: 5))
         ctx.restoreGState()
+        ctx.setMiterLimit(7)
+        ctx.setAllowsAntialiasing(false)
+        ctx.setShouldAntialias(true)
+        ctx.setAllowsAntialiasing(true)
         ctx.setBlendMode(.multiply)
         ctx.setShadow(offset: CGSize(width: 3, height: 4), blur: 0)
         ctx.beginTransparencyLayer(auxiliaryInfo: nil)
@@ -86,6 +92,10 @@ struct NSViewRepresentableMountTests {
             "rotate",
             "concat(2,3,4,5)",
             "restore",
+            "miter(7)",
+            "antialias(false)",
+            "antialias(false)",
+            "antialias(true)",
             "blend(multiply)",
             "shadow(3,4)",
             "beginLayer",
