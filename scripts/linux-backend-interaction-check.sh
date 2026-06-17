@@ -584,6 +584,8 @@ open_quill_chat_completions_panel() {
       reset_cancel_y="${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_CLICK_Y:-${QUILLUI_BACKEND_SETTINGS_CANCEL_CLICK_Y:-$((window_y + 382))}}"
       click_at "$reset_cancel_x" "$reset_cancel_y"
       sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_CANCEL_SLEEP:-0.6}"
+      DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape
+      sleep "${QUILLUI_BACKEND_COMPLETIONS_RESET_ESCAPE_SLEEP:-0.3}"
     fi
   else
     click_x="${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_completions_click_x)}"
@@ -664,7 +666,7 @@ open_quill_chat_new_completion_sheet() {
   local new_y
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    open_quill_chat_completions_panel 1
+    ensure_quill_chat_completions_panel_open
   else
     open_quill_chat_completions_panel
   fi
