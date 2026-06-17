@@ -628,7 +628,7 @@ quillui_drive_solderscope_interaction() {
           break
         fi
       fi
-      if (( attempt == ${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-20} )); then
+      if (( recording_saved_count <= recording_saved_before && attempt == ${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK:-20} )); then
         case "$recording_stop_driver" in
           toolbar)
             quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" "${QUILLUI_SOLDERSCOPE_RECORD_BUTTON_RIGHT_OFFSET:-128}" record-stop-retry "${QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET:-${QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET:-38}}"
