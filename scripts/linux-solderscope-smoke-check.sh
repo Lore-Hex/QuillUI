@@ -181,6 +181,7 @@ quillui_solderscope_drive_snapshot_action() {
         "${QUILLUI_SOLDERSCOPE_SNAPSHOT_TOOLBAR_Y_OFFSET:-38}"
       ;;
     shortcut)
+      echo "SolderScope interaction smoke: shortcut $label key s" >&2
       quillui_solderscope_send_key "$window_id" s
       ;;
     none)
@@ -512,20 +513,27 @@ quillui_drive_solderscope_interaction() {
     local snapshot_fallback_sent=0
     quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot
     local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
-    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    local snapshot_attempts="${QUILLUI_SOLDERSCOPE_SNAPSHOT_ATTEMPTS:-40}"
+    local snapshot_retry_tick="${QUILLUI_SOLDERSCOPE_SNAPSHOT_RETRY_TICK:-5}"
+    local snapshot_fallback_tick="${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_TICK:-8}"
+    local snapshot_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_RETRY_INTERVAL_TICKS:-10}"
+    local attempt
+    for ((attempt = 1; attempt <= snapshot_attempts; attempt += 1)); do
       snapshot_count="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
       if (( snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
         echo "SolderScope interaction smoke: snapshot saved to $SOLDERSCOPE_DESKTOP_DIR" >&2
         break
       fi
-      if (( attempt == ${QUILLUI_SOLDERSCOPE_SNAPSHOT_RETRY_TICK:-5} )); then
+      if (( attempt == snapshot_retry_tick )); then
         quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot-retry
       fi
-      if (( snapshot_fallback_sent == 0 && attempt == ${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_TICK:-8} )); then
+      if (( snapshot_fallback_sent == 0 && attempt == snapshot_fallback_tick )); then
         if [[ "$snapshot_fallback_driver" != "none" && "$snapshot_fallback_driver" != "$snapshot_driver" ]]; then
           quillui_solderscope_drive_snapshot_action "$snapshot_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot-fallback
           snapshot_fallback_sent=1
         fi
+      elif (( snapshot_fallback_sent == 1 && snapshot_fallback_retry_interval > 0 && attempt > snapshot_fallback_tick && (attempt - snapshot_fallback_tick) % snapshot_fallback_retry_interval == 0 )); then
+        quillui_solderscope_drive_snapshot_action "$snapshot_fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot-fallback-retry
       fi
       sleep 0.2
     done
