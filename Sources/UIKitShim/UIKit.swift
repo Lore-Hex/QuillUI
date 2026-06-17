@@ -928,7 +928,15 @@ public final class UIBezierPath: NSObject, NSCopying {
 }
 
 public func UIRectFill(_ rect: CGRect) {
+    #if os(Linux)
+    guard let context = UIGraphicsGetCurrentContext() ?? QuillGraphicsContextState.currentContext else {
+        return
+    }
+    context.setFillColor(QuillGraphicsContextState.currentFillColor)
+    context.fill(rect)
+    #else
     _ = rect
+    #endif
 }
 
 public enum UIDeviceOrientation: Int, Sendable {
@@ -1055,9 +1063,14 @@ public final class UIGraphicsImageRenderer {
 
     private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) -> CGContext? {
         guard let context = quillMakeUIGraphicsBitmapContext(size: size, scale: resolvedScale) else {
-            actions(UIGraphicsImageRendererContext(cgContext: CGContext(), format: format))
+            let fallback = CGContext()
+            quillPushUIGraphicsContext(fallback, size: size, scale: resolvedScale)
+            defer { quillPopUIGraphicsContext() }
+            actions(UIGraphicsImageRendererContext(cgContext: fallback, format: format))
             return nil
         }
+        quillPushUIGraphicsContext(context, size: size, scale: resolvedScale)
+        defer { quillPopUIGraphicsContext() }
         actions(UIGraphicsImageRendererContext(cgContext: context, format: format))
         return context
     }
@@ -1087,6 +1100,18 @@ public final class UIGraphicsImageRenderer {
 // minimal current-context stack backs it. Gated to Linux (these don't exist on
 // macOS, and CGContext() is Linux-only).
 nonisolated(unsafe) private var _uiGraphicsContextStack: [(context: CGContext, size: CGSize, scale: CGFloat)] = []
+
+private func quillPushUIGraphicsContext(_ context: CGContext, size: CGSize, scale: CGFloat) {
+    _uiGraphicsContextStack.append((context, size, scale))
+    QuillGraphicsContextState.pushContext(context)
+}
+
+private func quillPopUIGraphicsContext() {
+    if !_uiGraphicsContextStack.isEmpty {
+        _uiGraphicsContextStack.removeLast()
+    }
+    QuillGraphicsContextState.popContext()
+}
 
 private func quillResolvedUIGraphicsScale(_ scale: CGFloat) -> CGFloat {
     scale.isFinite && scale > 0 ? scale : 1
@@ -1129,7 +1154,7 @@ public func UIGraphicsBeginImageContextWithOptions(_ size: CGSize, _ opaque: Boo
     _ = opaque
     let resolvedScale = quillResolvedUIGraphicsScale(scale)
     let context = quillMakeUIGraphicsBitmapContext(size: size, scale: resolvedScale) ?? CGContext()
-    _uiGraphicsContextStack.append((context, size, resolvedScale))
+    quillPushUIGraphicsContext(context, size: size, scale: resolvedScale)
 }
 public func UIGraphicsBeginImageContext(_ size: CGSize) {
     UIGraphicsBeginImageContextWithOptions(size, false, 1)
@@ -1147,14 +1172,14 @@ public func UIGraphicsGetImageFromCurrentImageContext() -> UIImage? {
     return image
 }
 public func UIGraphicsEndImageContext() {
-    if !_uiGraphicsContextStack.isEmpty { _uiGraphicsContextStack.removeLast() }
+    quillPopUIGraphicsContext()
 }
 public func UIGraphicsPushContext(_ context: CGContext) {
     let size = CGSize(width: CGFloat(context.width), height: CGFloat(context.height))
-    _uiGraphicsContextStack.append((context, size, 1))
+    quillPushUIGraphicsContext(context, size: size, scale: 1)
 }
 public func UIGraphicsPopContext() {
-    if !_uiGraphicsContextStack.isEmpty { _uiGraphicsContextStack.removeLast() }
+    quillPopUIGraphicsContext()
 }
 #endif
 

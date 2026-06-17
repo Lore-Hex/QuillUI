@@ -69,6 +69,28 @@ struct UIKitRenderedTextMetadataTests {
         #expect(pixel(in: cgImage, x: 1, y: 0) == [0, 0, 255, 255])
     }
 
+    @Test func imageRendererSupportsUIKitFillAndImageDraw() throws {
+        let sourceCGImage = CGImage()
+        sourceCGImage.width = 1
+        sourceCGImage.height = 1
+        sourceCGImage.quillBytesPerRow = 4
+        sourceCGImage.quillBGRAPixels = [255, 0, 0, 255]
+        let sourceImage = UIImage(cgImage: sourceCGImage, size: CGSize(width: 1, height: 1))
+
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 3, height: 1))
+        let image = renderer.image { _ in
+            UIColor.red.setFill()
+            UIRectFill(CGRect(x: 0, y: 0, width: 3, height: 1))
+            sourceImage.draw(in: CGRect(x: 1, y: 0, width: 1, height: 1))
+        }
+
+        let cgImage = try #require(image.cgImage)
+        #expect(UIGraphicsGetCurrentContext() == nil)
+        #expect(pixel(in: cgImage, x: 0, y: 0) == [0, 0, 255, 255])
+        #expect(pixel(in: cgImage, x: 1, y: 0) == [255, 0, 0, 255])
+        #expect(pixel(in: cgImage, x: 2, y: 0) == [0, 0, 255, 255])
+    }
+
     private func pixel(in image: CGImage, x: Int, y: Int) -> [UInt8]? {
         guard let pixels = image.quillBGRAPixels,
               x >= 0, y >= 0, x < image.width, y < image.height,

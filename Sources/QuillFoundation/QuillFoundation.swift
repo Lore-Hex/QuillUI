@@ -2731,12 +2731,23 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         operation: QuillImageCompositingOperation,
         fraction: Double
     ) {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "QuillFoundation",
-            operation: "NSImage.draw",
-            severity: .warning,
-            message: "NSImage.draw is currently a no-op on Linux; image compositing needs a real bitmap backend."
-        )
+        guard let context = QuillGraphicsContextState.currentContext,
+              let sourceImage = cgImage
+        else {
+            return
+        }
+
+        let imageToDraw: CGImage
+        if sourceRect.width > 0, sourceRect.height > 0, let cropped = sourceImage.cropping(to: sourceRect) {
+            imageToDraw = cropped
+        } else {
+            imageToDraw = sourceImage
+        }
+
+        context.saveGState()
+        context.setAlpha(CGFloat(fraction))
+        context.draw(imageToDraw, in: destinationRect)
+        context.restoreGState()
     }
 
     // MARK: UIImage source-compat surface (Linux placeholders)
@@ -2774,8 +2785,17 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     // contextual base. SSK: AvatarBuilder.releaseNotesIcon does
     // `UIImage(named:)!.withTintColor(.white)`. Inert (returns self).
     public func withTintColor(_ color: RSColor) -> RSImage { self }
-    public func draw(in rect: CGRect) {}
-    public func draw(at point: CGPoint) {}
+    public func draw(in rect: CGRect) {
+        guard let context = QuillGraphicsContextState.currentContext,
+              let cgImage
+        else {
+            return
+        }
+        context.draw(cgImage, in: rect)
+    }
+    public func draw(at point: CGPoint) {
+        draw(in: CGRect(origin: point, size: size))
+    }
 
     /// `UIImage(cgImage:scale:orientation:)` source-compat. On Linux the backing
     /// CGImage carries Quill's raw BGRA backing when available.
@@ -2824,6 +2844,39 @@ public struct RSCGColor: Equatable, Sendable {
     }
 }
 public typealias CGColor = RSCGColor
+
+public enum QuillGraphicsContextState {
+    nonisolated(unsafe) private static var contextStack: [CGContext] = []
+    nonisolated(unsafe) private static var fillColorStack: [RSCGColor] = []
+    nonisolated(unsafe) private static var activeFillColor: RSCGColor = .black
+
+    public static var currentContext: CGContext? {
+        contextStack.last
+    }
+
+    public static var currentFillColor: RSCGColor {
+        activeFillColor
+    }
+
+    public static func pushContext(_ context: CGContext) {
+        contextStack.append(context)
+        fillColorStack.append(activeFillColor)
+        activeFillColor = .black
+        context.setFillColor(RSCGColor.black)
+    }
+
+    public static func popContext() {
+        if !contextStack.isEmpty {
+            contextStack.removeLast()
+        }
+        activeFillColor = fillColorStack.popLast() ?? .black
+    }
+
+    public static func setFillColor(_ color: RSCGColor) {
+        activeFillColor = color
+        currentContext?.setFillColor(color)
+    }
+}
 
 public class RSColor: NSObject, @unchecked Sendable {
     // Phase B: real RGBA storage so callers get sensible values back
@@ -2874,10 +2927,10 @@ public class RSColor: NSObject, @unchecked Sendable {
     }
 
     /// UIColor.setFill() sets this color as the fill color in the current UIKit
-    /// graphics context. There is no graphics context on Linux (UIGraphicsImageRenderer
-    /// is inert), so this is a no-op — UIImage+OWS's solid-color image render degrades
-    /// to a blank image. HONEST STATUS: no rasterized fills on Linux.
-    public func setFill() {}
+    /// graphics context when a UIGraphics renderer or image context is active.
+    public func setFill() {
+        QuillGraphicsContextState.setFillColor(cgColor)
+    }
 
     public static let clear = RSColor(red: 0, green: 0, blue: 0, alpha: 0)
     public static let white = RSColor(red: 1, green: 1, blue: 1, alpha: 1)
@@ -2901,7 +2954,9 @@ public class RSColor: NSObject, @unchecked Sendable {
 
     /// Returns a 4-tuple [R, G, B, A]. Matches the CGColor.components shape.
     public var cgColor: RSCGColor { RSCGColor(components: [_red, _green, _blue, _alpha]) }
-    public func set() {}
+    public func set() {
+        setFill()
+    }
     public var components: [CGFloat]? { [_red, _green, _blue, _alpha] }
     public var numberOfComponents: Int { 4 }
 
