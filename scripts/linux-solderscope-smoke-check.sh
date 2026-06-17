@@ -510,9 +510,12 @@ quillui_drive_solderscope_interaction() {
     local snapshot_fallback_driver
     snapshot_fallback_driver="$(quillui_solderscope_snapshot_fallback_driver "$snapshot_driver")" || return $?
     local snapshot_fallback_sent=0
+    local snapshot_attempts="${QUILLUI_SOLDERSCOPE_SNAPSHOT_ATTEMPTS:-40}"
+    local snapshot_tick_seconds="${QUILLUI_SOLDERSCOPE_SNAPSHOT_TICK_SECONDS:-0.25}"
     quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot
     local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
-    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    local attempt
+    for ((attempt = 1; attempt <= snapshot_attempts; attempt += 1)); do
       snapshot_count="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
       if (( snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
         echo "SolderScope interaction smoke: snapshot saved to $SOLDERSCOPE_DESKTOP_DIR" >&2
@@ -527,7 +530,7 @@ quillui_drive_solderscope_interaction() {
           snapshot_fallback_sent=1
         fi
       fi
-      sleep 0.2
+      sleep "$snapshot_tick_seconds"
     done
     if (( snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
       echo "SolderScope interaction smoke did not observe a snapshot file in $SOLDERSCOPE_DESKTOP_DIR" >&2

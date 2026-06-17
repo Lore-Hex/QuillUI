@@ -2858,6 +2858,8 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_BUTTON_RIGHT_OFFSET"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_TOOLBAR_Y_OFFSET"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_RETRY_TICK"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_ATTEMPTS:-40"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_TICK_SECONDS:-0.25"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_started_log_count()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_saved_log_count()"))
