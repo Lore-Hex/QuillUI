@@ -3563,16 +3563,6 @@ let packageTestTargets: [Target] = {
             swiftSettings: appSwiftSettings
         ),
         .testTarget(
-            name: "SceneKitTests",
-            dependencies: ["SceneKit", "AppKit", "UIKit", "QuillFoundation"],
-            swiftSettings: appSwiftSettings
-        ),
-        .testTarget(
-            name: "CoreGraphicsTests",
-            dependencies: ["CoreGraphics"],
-            swiftSettings: appSwiftSettings
-        ),
-        .testTarget(
             name: "QuillDoctorTests",
             dependencies: ["QuillDoctor"],
             swiftSettings: appSwiftSettings
@@ -3803,6 +3793,16 @@ let packageTestTargets: [Target] = {
     tests.append(.testTarget(
         name: "OllamaKitTests",
         dependencies: ["OllamaKit"],
+        swiftSettings: appSwiftSettings
+    ))
+    tests.append(.testTarget(
+        name: "SceneKitTests",
+        dependencies: ["SceneKit", "AppKit", "UIKit", "QuillFoundation"],
+        swiftSettings: appSwiftSettings
+    ))
+    tests.append(.testTarget(
+        name: "CoreGraphicsTests",
+        dependencies: ["CoreGraphics"],
         swiftSettings: appSwiftSettings
     ))
     #endif

@@ -168,6 +168,8 @@ private final class QuillSyntheticCaptureBridge: @unchecked Sendable {
     }
 
     private func deliver(_ pixelBuffer: CVPixelBuffer, at presentationTime: CMTime) {
+        QuillRealtimeMovieWriterRegistry.shared.appendCaptureFrame(pixelBuffer)
+
         let timing = CMSampleTimingInfo(
             duration: CMTime(value: 1, timescale: CMTimeScale(configuration.framesPerSecond)),
             presentationTimeStamp: presentationTime,

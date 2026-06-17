@@ -394,6 +394,8 @@ public struct CGPathElement {
 fileprivate typealias CGPathStorageElement = (type: CGPathElementType, points: [CGPoint])
 
 public class CGPath: Hashable, @unchecked Sendable {
+    private static let geometryTolerance: CGFloat = 0.0001
+
     /// Recorded path elements (type + its points), so the path is iterable.
     fileprivate var elements: [CGPathStorageElement] = []
 
@@ -405,6 +407,20 @@ public class CGPath: Hashable, @unchecked Sendable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(ObjectIdentifier(self))
+    }
+
+    public var isEmpty: Bool { elements.isEmpty }
+
+    public var currentPoint: CGPoint {
+        Self.currentPoint(in: elements) ?? .zero
+    }
+
+    public var boundingBox: CGRect {
+        Self.boundingBox(for: elements.flatMap(\.points))
+    }
+
+    public var boundingBoxOfPath: CGRect {
+        Self.boundingBox(for: Self.pathBoundingPoints(in: elements))
     }
 
     public convenience init(rect: CGRect, transform: UnsafePointer<CGAffineTransform>?) {
@@ -435,9 +451,31 @@ public class CGPath: Hashable, @unchecked Sendable {
         p.elements = Self.applying(transform?.pointee, to: elements)
         return p
     }
+
     public func contains(_ point: CGPoint) -> Bool {
-        _ = point
-        return false
+        contains(point, using: .winding, transform: .identity)
+    }
+
+    public func contains(
+        _ point: CGPoint,
+        using rule: CGPathFillRule = .winding,
+        transform: CGAffineTransform = .identity
+    ) -> Bool {
+        let subpaths = flattenedSubpaths(transform: transform)
+        if Self.pointIsOnBoundary(point, subpaths: subpaths) {
+            return true
+        }
+
+        switch rule {
+        case .evenOdd:
+            return subpaths.reduce(false) { inside, subpath in
+                inside != Self.subpathContainsEvenOdd(point, subpath: subpath)
+            }
+        case .winding:
+            return subpaths.reduce(0) { winding, subpath in
+                winding + Self.windingNumber(for: point, subpath: subpath)
+            } != 0
+        }
     }
 
     /// Iterate path elements (CGPath's `apply(info:function:)` / Swift's
@@ -461,6 +499,379 @@ public class CGPath: Hashable, @unchecked Sendable {
         return elements.map { element in
             (element.type, element.points.map { $0.applying(transform) })
         }
+    }
+
+    private func flattenedSubpaths(transform: CGAffineTransform?) -> [[CGPoint]] {
+        let transformPoint: (CGPoint) -> CGPoint = { point in
+            guard let transform else { return point }
+            return point.applying(transform)
+        }
+        var subpaths: [[CGPoint]] = []
+        var current: [CGPoint] = []
+        var currentPoint: CGPoint?
+        var startPoint: CGPoint?
+
+        func finishSubpath(closing: Bool) {
+            if closing, let startPoint, current.last != startPoint {
+                current.append(startPoint)
+            }
+            if !current.isEmpty {
+                subpaths.append(current)
+            }
+            current = []
+            currentPoint = nil
+            startPoint = nil
+        }
+
+        for element in elements {
+            switch element.type {
+            case .moveToPoint:
+                finishSubpath(closing: false)
+                guard let point = element.points.first.map(transformPoint) else { continue }
+                current = [point]
+                currentPoint = point
+                startPoint = point
+
+            case .addLineToPoint:
+                guard let point = element.points.first.map(transformPoint) else { continue }
+                if current.isEmpty {
+                    current = [point]
+                    startPoint = point
+                } else {
+                    current.append(point)
+                }
+                currentPoint = point
+
+            case .addQuadCurveToPoint:
+                guard let from = currentPoint, element.points.count >= 2 else { continue }
+                let control = transformPoint(element.points[0])
+                let end = transformPoint(element.points[1])
+                for step in 1...12 {
+                    current.append(Self.quadPoint(from: from, control: control, end: end, t: CGFloat(step) / 12))
+                }
+                currentPoint = end
+
+            case .addCurveToPoint:
+                guard let from = currentPoint, element.points.count >= 3 else { continue }
+                let control1 = transformPoint(element.points[0])
+                let control2 = transformPoint(element.points[1])
+                let end = transformPoint(element.points[2])
+                for step in 1...16 {
+                    current.append(Self.cubicPoint(from: from, control1: control1, control2: control2, end: end, t: CGFloat(step) / 16))
+                }
+                currentPoint = end
+
+            case .closeSubpath:
+                finishSubpath(closing: true)
+            }
+        }
+
+        finishSubpath(closing: false)
+        return subpaths
+    }
+
+    private static func boundingBox(for points: [CGPoint]) -> CGRect {
+        guard let first = points.first else { return .null }
+        var minX = first.x
+        var minY = first.y
+        var maxX = first.x
+        var maxY = first.y
+        for point in points.dropFirst() {
+            minX = Swift.min(minX, point.x)
+            minY = Swift.min(minY, point.y)
+            maxX = Swift.max(maxX, point.x)
+            maxY = Swift.max(maxY, point.y)
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    private static func subpathContainsEvenOdd(_ point: CGPoint, subpath: [CGPoint]) -> Bool {
+        guard subpath.count >= 3 else { return false }
+        let segments = segments(in: subpath)
+        var inside = false
+        for (a, b) in segments {
+            if (a.y > point.y) != (b.y > point.y) {
+                let x = a.x + (point.y - a.y) * (b.x - a.x) / (b.y - a.y)
+                if x > point.x {
+                    inside.toggle()
+                }
+            }
+        }
+        return inside
+    }
+
+    private static func windingNumber(for point: CGPoint, subpath: [CGPoint]) -> Int {
+        guard subpath.count >= 3 else { return 0 }
+        let segments = segments(in: subpath)
+        var winding = 0
+        for (a, b) in segments {
+            if a.y <= point.y {
+                if b.y > point.y, isLeft(a, b, point) > 0 {
+                    winding += 1
+                }
+            } else if b.y <= point.y, isLeft(a, b, point) < 0 {
+                winding -= 1
+            }
+        }
+        return winding
+    }
+
+    private static func pointIsOnBoundary(_ point: CGPoint, subpaths: [[CGPoint]]) -> Bool {
+        subpaths.contains { subpath in
+            segments(in: subpath).contains { pointIsOnSegment(point, $0.0, $0.1) }
+        }
+    }
+
+    private static func segments(in subpath: [CGPoint]) -> [(CGPoint, CGPoint)] {
+        guard subpath.count >= 2 else { return [] }
+        return (0..<subpath.count).map { index in
+            (subpath[index], subpath[(index + 1) % subpath.count])
+        }
+    }
+
+    private static func pointIsOnSegment(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> Bool {
+        let cross = (point.y - a.y) * (b.x - a.x) - (point.x - a.x) * (b.y - a.y)
+        guard abs(cross) <= geometryTolerance else { return false }
+        let dot = (point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)
+        guard dot >= -geometryTolerance else { return false }
+        let lengthSquared = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
+        return dot <= lengthSquared + geometryTolerance
+    }
+
+    private static func isLeft(_ a: CGPoint, _ b: CGPoint, _ point: CGPoint) -> CGFloat {
+        (b.x - a.x) * (point.y - a.y) - (point.x - a.x) * (b.y - a.y)
+    }
+
+    private static func quadPoint(from: CGPoint, control: CGPoint, end: CGPoint, t: CGFloat) -> CGPoint {
+        let mt = 1 - t
+        return CGPoint(
+            x: mt * mt * from.x + 2 * mt * t * control.x + t * t * end.x,
+            y: mt * mt * from.y + 2 * mt * t * control.y + t * t * end.y
+        )
+    }
+
+    private static func cubicPoint(from: CGPoint, control1: CGPoint, control2: CGPoint, end: CGPoint, t: CGFloat) -> CGPoint {
+        let mt = 1 - t
+        return CGPoint(
+            x: mt * mt * mt * from.x + 3 * mt * mt * t * control1.x + 3 * mt * t * t * control2.x + t * t * t * end.x,
+            y: mt * mt * mt * from.y + 3 * mt * mt * t * control1.y + 3 * mt * t * t * control2.y + t * t * t * end.y
+        )
+    }
+
+    private static func currentPoint(in elements: [CGPathStorageElement]) -> CGPoint? {
+        var current: CGPoint?
+        var subpathStart: CGPoint?
+
+        for element in elements {
+            switch element.type {
+            case .moveToPoint:
+                guard let point = element.points.first else { continue }
+                current = point
+                subpathStart = point
+
+            case .addLineToPoint:
+                guard let point = element.points.first else { continue }
+                current = point
+                if subpathStart == nil {
+                    subpathStart = point
+                }
+
+            case .addQuadCurveToPoint:
+                guard element.points.count >= 2 else { continue }
+                current = element.points[1]
+                if subpathStart == nil {
+                    subpathStart = current
+                }
+
+            case .addCurveToPoint:
+                guard element.points.count >= 3 else { continue }
+                current = element.points[2]
+                if subpathStart == nil {
+                    subpathStart = current
+                }
+
+            case .closeSubpath:
+                if let start = subpathStart {
+                    current = start
+                }
+                subpathStart = current
+            }
+        }
+
+        return current
+    }
+
+    private static func pathBoundingPoints(in elements: [CGPathStorageElement]) -> [CGPoint] {
+        var points: [CGPoint] = []
+        var current: CGPoint?
+        var subpathStart: CGPoint?
+
+        func include(_ point: CGPoint) {
+            points.append(point)
+        }
+
+        for element in elements {
+            switch element.type {
+            case .moveToPoint:
+                guard let point = element.points.first else { continue }
+                include(point)
+                current = point
+                subpathStart = point
+
+            case .addLineToPoint:
+                guard let point = element.points.first else { continue }
+                if let current {
+                    include(current)
+                }
+                include(point)
+                current = point
+                if subpathStart == nil {
+                    subpathStart = point
+                }
+
+            case .addQuadCurveToPoint:
+                guard let from = current, element.points.count >= 2 else { continue }
+                let control = element.points[0]
+                let end = element.points[1]
+                include(from)
+                include(end)
+                for t in quadraticExtrema(from: from, control: control, end: end) {
+                    include(quadPoint(from: from, control: control, end: end, t: t))
+                }
+                current = end
+
+            case .addCurveToPoint:
+                guard let from = current, element.points.count >= 3 else { continue }
+                let control1 = element.points[0]
+                let control2 = element.points[1]
+                let end = element.points[2]
+                include(from)
+                include(end)
+                for t in cubicExtrema(from: from, control1: control1, control2: control2, end: end) {
+                    include(cubicPoint(from: from, control1: control1, control2: control2, end: end, t: t))
+                }
+                current = end
+
+            case .closeSubpath:
+                if let current {
+                    include(current)
+                }
+                if let start = subpathStart {
+                    include(start)
+                    current = start
+                }
+                subpathStart = current
+            }
+        }
+
+        return points
+    }
+
+    private static func quadraticExtrema(from: CGPoint, control: CGPoint, end: CGPoint) -> [CGFloat] {
+        [quadraticExtremum(from.x, control.x, end.x), quadraticExtremum(from.y, control.y, end.y)]
+            .compactMap { $0 }
+    }
+
+    private static func quadraticExtremum(_ p0: CGFloat, _ p1: CGFloat, _ p2: CGFloat) -> CGFloat? {
+        let denominator = p0 - 2 * p1 + p2
+        guard abs(denominator) > geometryTolerance else { return nil }
+        let t = (p0 - p1) / denominator
+        return (t > 0 && t < 1) ? t : nil
+    }
+
+    private static func cubicExtrema(from: CGPoint, control1: CGPoint, control2: CGPoint, end: CGPoint) -> [CGFloat] {
+        var values: [CGFloat] = []
+        values.append(contentsOf: cubicExtrema(from.x, control1.x, control2.x, end.x))
+        values.append(contentsOf: cubicExtrema(from.y, control1.y, control2.y, end.y))
+        return values
+    }
+
+    private static func cubicExtrema(_ p0: CGFloat, _ p1: CGFloat, _ p2: CGFloat, _ p3: CGFloat) -> [CGFloat] {
+        let a = -p0 + 3 * p1 - 3 * p2 + p3
+        let b = 2 * (p0 - 2 * p1 + p2)
+        let c = p1 - p0
+
+        if abs(a) <= geometryTolerance {
+            guard abs(b) > geometryTolerance else { return [] }
+            let t = -c / b
+            return (t > 0 && t < 1) ? [t] : []
+        }
+
+        let discriminant = b * b - 4 * a * c
+        guard discriminant >= 0 else { return [] }
+        let root = discriminant.squareRoot()
+        return [(-b + root) / (2 * a), (-b - root) / (2 * a)]
+            .filter { $0 > 0 && $0 < 1 }
+    }
+
+    fileprivate static func arcCurveElements(
+        center: CGPoint,
+        radius: CGFloat,
+        startAngle: CGFloat,
+        endAngle: CGFloat,
+        clockwise: Bool
+    ) -> [CGPathStorageElement] {
+        guard radius > 0, radius.isFinite else { return [] }
+        let rawDelta = endAngle - startAngle
+        var delta = rawDelta
+        let fullTurn = CGFloat.pi * 2
+
+        if abs(rawDelta) >= fullTurn {
+            delta = clockwise ? -fullTurn : fullTurn
+        } else if clockwise {
+            while delta > 0 {
+                delta -= fullTurn
+            }
+        } else {
+            while delta < 0 {
+                delta += fullTurn
+            }
+        }
+
+        guard abs(delta) > geometryTolerance else { return [] }
+        let segmentCount = max(1, Int(ceil(abs(delta) / (CGFloat.pi / 2))))
+        let segmentDelta = delta / CGFloat(segmentCount)
+        var elements: [CGPathStorageElement] = []
+
+        for segment in 0..<segmentCount {
+            let a0 = startAngle + CGFloat(segment) * segmentDelta
+            let a1 = a0 + segmentDelta
+            let p0 = arcPoint(center: center, radius: radius, angle: a0)
+            let p3 = arcPoint(center: center, radius: radius, angle: a1)
+            let k = CGFloat(4.0 / 3.0) * tan(segmentDelta / 4)
+            let c1 = CGPoint(
+                x: p0.x - sin(a0) * radius * k,
+                y: p0.y + cos(a0) * radius * k
+            )
+            let c2 = CGPoint(
+                x: p3.x + sin(a1) * radius * k,
+                y: p3.y - cos(a1) * radius * k
+            )
+            elements.append((.addCurveToPoint, [c1, c2, p3]))
+        }
+
+        return elements
+    }
+
+    fileprivate static func arcPoint(center: CGPoint, radius: CGFloat, angle: CGFloat) -> CGPoint {
+        CGPoint(
+            x: center.x + cos(angle) * radius,
+            y: center.y + sin(angle) * radius
+        )
+    }
+
+    fileprivate static func pointsAreClose(_ a: CGPoint, _ b: CGPoint) -> Bool {
+        abs(a.x - b.x) <= geometryTolerance && abs(a.y - b.y) <= geometryTolerance
+    }
+
+    fileprivate static func normalizedVector(from start: CGPoint, to end: CGPoint) -> (x: CGFloat, y: CGFloat)? {
+        normalizedVector(dx: end.x - start.x, dy: end.y - start.y)
+    }
+
+    fileprivate static func normalizedVector(dx: CGFloat, dy: CGFloat) -> (x: CGFloat, y: CGFloat)? {
+        let length = (dx * dx + dy * dy).squareRoot()
+        guard length > geometryTolerance else { return nil }
+        return (dx / length, dy / length)
     }
 
     fileprivate static func rectElements(_ rect: CGRect) -> [CGPathStorageElement] {
@@ -626,10 +1037,86 @@ public final class CGMutablePath: CGPath, @unchecked Sendable {
         elements.append((.addQuadCurveToPoint, [control, end]))
     }
     public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
-        _ = (center, radius, startAngle, endAngle, clockwise)
+        guard radius > 0, radius.isFinite else { return }
+        let start = Self.arcPoint(center: center, radius: radius, angle: startAngle)
+        if isEmpty {
+            move(to: start)
+        } else if !Self.pointsAreClose(currentPoint, start) {
+            addLine(to: start)
+        }
+        elements.append(contentsOf: Self.arcCurveElements(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        ))
     }
     public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
-        _ = (tangent1End, tangent2End, radius)
+        guard radius > 0, radius.isFinite else { return }
+        guard !isEmpty else {
+            move(to: tangent1End)
+            return
+        }
+
+        let current = currentPoint
+        let incoming = Self.normalizedVector(from: tangent1End, to: current)
+        let outgoing = Self.normalizedVector(from: tangent1End, to: tangent2End)
+        guard let incoming, let outgoing else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let dot = max(-1, min(1, incoming.x * outgoing.x + incoming.y * outgoing.y))
+        let angle = acos(dot)
+        guard angle > 0.0001, abs(CGFloat.pi - angle) > 0.0001 else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let tangentDistance = radius / tan(angle / 2)
+        guard tangentDistance.isFinite else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let tangentStart = CGPoint(
+            x: tangent1End.x + incoming.x * tangentDistance,
+            y: tangent1End.y + incoming.y * tangentDistance
+        )
+        let tangentEnd = CGPoint(
+            x: tangent1End.x + outgoing.x * tangentDistance,
+            y: tangent1End.y + outgoing.y * tangentDistance
+        )
+
+        let bisector = Self.normalizedVector(
+            dx: incoming.x + outgoing.x,
+            dy: incoming.y + outgoing.y
+        )
+        guard let bisector else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let centerDistance = radius / sin(angle / 2)
+        let center = CGPoint(
+            x: tangent1End.x + bisector.x * centerDistance,
+            y: tangent1End.y + bisector.y * centerDistance
+        )
+        let startAngle = atan2(tangentStart.y - center.y, tangentStart.x - center.x)
+        let endAngle = atan2(tangentEnd.y - center.y, tangentEnd.x - center.x)
+        let clockwise = incoming.x * outgoing.y - incoming.y * outgoing.x > 0
+
+        if !Self.pointsAreClose(current, tangentStart) {
+            addLine(to: tangentStart)
+        }
+        elements.append(contentsOf: Self.arcCurveElements(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        ))
     }
     public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
         elements.append(contentsOf: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight))

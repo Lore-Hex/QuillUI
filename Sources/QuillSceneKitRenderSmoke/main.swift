@@ -57,6 +57,19 @@ struct QuillSceneKitRenderSmoke {
         let clippedCameraStats = PixelStats(renderClippedCameraScene())
         try require(clippedCameraStats.nonBlackPixels == 0, "clipped-camera render unexpectedly produced pixels: \(clippedCameraStats)")
 
+        let intersectingTriangleImage = renderIntersectingTriangleScene()
+        let intersectingTriangleStats = PixelStats(intersectingTriangleImage)
+        try require(intersectingTriangleStats.redDominantPixels > 400, "z-buffer scene lost near red pixels: \(intersectingTriangleStats)")
+        try require(intersectingTriangleStats.greenDominantPixels > 400, "z-buffer scene lost near green pixels: \(intersectingTriangleStats)")
+        try require(
+            PixelStats.dominantColor(atX: 80, y: 88, in: intersectingTriangleImage) == .red,
+            "z-buffer scene did not draw near red triangle below intersection: \(intersectingTriangleStats)"
+        )
+        try require(
+            PixelStats.dominantColor(atX: 80, y: 42, in: intersectingTriangleImage) == .green,
+            "z-buffer scene did not keep green triangle in front above intersection: \(intersectingTriangleStats)"
+        )
+
         try runCameraControlSmoke()
         try runHitTestSmoke()
 
@@ -67,6 +80,7 @@ struct QuillSceneKitRenderSmoke {
         log("side camera: \(sideCameraStats)")
         log("away camera: \(awayCameraStats)")
         log("clipped camera: \(clippedCameraStats)")
+        log("intersecting triangles: \(intersectingTriangleStats)")
 
         if ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_GTK_SMOKE"] == "1" {
             try runGTKSceneViewSmoke()
@@ -180,6 +194,44 @@ struct QuillSceneKitRenderSmoke {
         cameraNode.camera = camera
         cameraNode.position = SCNVector3(0, 0, 4)
         scene.rootNode.addChildNode(cameraNode)
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func renderIntersectingTriangleScene() -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let redCrossing = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(-1.2, -1.0, 1.0),
+                SCNVector3(1.2, -1.0, 1.0),
+                SCNVector3(0, 1.0, -2.5),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        redCrossing.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: redCrossing))
+
+        let greenFlat = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(-1.2, -1.0, 0),
+                SCNVector3(1.2, -1.0, 0),
+                SCNVector3(0, 1.0, 0),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        greenFlat.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: greenFlat))
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 3.2
+        camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
         return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
     }
 
@@ -329,6 +381,27 @@ private struct PixelStats: CustomStringConvertible {
         case .red: redDominantPixels
         case .green: greenDominantPixels
         }
+    }
+
+    static func dominantColor(atX x: Int, y: Int, in image: CGImage) -> DominantPixelColor? {
+        guard let pixels = image.quillBGRAPixels else { return nil }
+        let stride = image.quillBytesPerRow > 0 ? image.quillBytesPerRow : image.width * 4
+        guard x >= 0, x < image.width, y >= 0, y < image.height, stride >= image.width * 4 else {
+            return nil
+        }
+
+        let offset = y * stride + x * 4
+        guard offset + 3 < pixels.count else { return nil }
+        let b = Int(pixels[offset])
+        let g = Int(pixels[offset + 1])
+        let r = Int(pixels[offset + 2])
+        if r > g * 2, r > b * 2 {
+            return .red
+        }
+        if g > r * 2, g > b * 2 {
+            return .green
+        }
+        return nil
     }
 }
 
