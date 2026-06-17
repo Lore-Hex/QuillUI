@@ -1657,6 +1657,13 @@ struct SourceHygieneTests {
         #expect(!FileManager.default.fileExists(atPath: retiredRuntime.path))
     }
 
+    @Test("Generic Qt renderer reads SwiftUI bodies through MainActor isolation")
+    func genericQtRendererReadsSwiftUIBodiesThroughMainActorIsolation() throws {
+        let renderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+
+        #expect(renderer.contains("MainActor.assumeIsolated {\n        rendered = qtRenderView(view.body)\n    }"))
+        #expect(!renderer.contains("\n    return qtRenderView(view.body)\n    // Stateless composite view"))
+    }
 
     @Test("Generic and WireGuard Qt hosts use shared native runtime contracts")
     func genericAndWireGuardQtHostsUseSharedNativeRuntimeContracts() throws {
