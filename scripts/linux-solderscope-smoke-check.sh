@@ -188,9 +188,6 @@ quillui_drive_solderscope_interaction() {
   DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" b
   sleep 0.2
   DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" b
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" space
-  sleep 0.2
-  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" space
   if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
     DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" s
     local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
