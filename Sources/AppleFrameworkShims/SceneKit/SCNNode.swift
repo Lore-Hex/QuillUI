@@ -25,8 +25,10 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     public private(set) var childNodes: [SCNNode] = []
 
     /// Actions started via `runAction`. They are retained as interpretable
-    /// data so a later animation pass can advance them deterministically.
+    /// data so the shim can advance them deterministically.
     public private(set) var runningActions: [SCNAction] = []
+    private var runningActionStates: [SCNActionRuntime.State] = []
+    private var runningActionKeys: [String?] = []
 
     public init() {}
 
@@ -63,15 +65,51 @@ public final class SCNNode: Equatable, @unchecked Sendable {
     }
 
     public func runAction(_ action: SCNAction) {
-        runningActions.append(action)
+        appendAction(action, key: nil)
     }
 
     public func runAction(_ action: SCNAction, forKey key: String?) {
-        runningActions.append(action)
+        if let key {
+            removeAction(forKey: key)
+        }
+        appendAction(action, key: key)
+    }
+
+    public func action(forKey key: String) -> SCNAction? {
+        for index in runningActions.indices where runningActionKeys.indices.contains(index) {
+            if runningActionKeys[index] == key {
+                return runningActions[index]
+            }
+        }
+        return nil
+    }
+
+    public var hasActions: Bool {
+        !runningActions.isEmpty
+    }
+
+    public func removeAction(forKey key: String) {
+        for index in runningActions.indices.reversed() where runningActionKeys.indices.contains(index) {
+            if runningActionKeys[index] == key {
+                runningActions.remove(at: index)
+                runningActionStates.remove(at: index)
+                runningActionKeys.remove(at: index)
+            }
+        }
     }
 
     public func removeAllActions() {
         runningActions.removeAll()
+        runningActionStates.removeAll()
+        runningActionKeys.removeAll()
+    }
+
+    public func quillStepActions(by deltaTime: TimeInterval) {
+        guard deltaTime.isFinite, deltaTime >= 0 else { return }
+        stepOwnActions(by: deltaTime)
+        for child in childNodes {
+            child.quillStepActions(by: deltaTime)
+        }
     }
 
     /// Orients the node so its local -Z axis points at `worldTarget`, +Y up.
@@ -85,5 +123,49 @@ public final class SCNNode: Equatable, @unchecked Sendable {
         let yaw = atan2(-dx, -dz)
         let pitch = atan2(dy, horizontal)
         eulerAngles = SCNVector3(pitch, yaw, 0)
+    }
+
+    private func appendAction(_ action: SCNAction, key: String?) {
+        runningActions.append(action)
+        runningActionStates.append(SCNActionRuntime.State(baseline: SCNActionRuntime.Baseline(node: self)))
+        runningActionKeys.append(key)
+    }
+
+    private func stepOwnActions(by deltaTime: TimeInterval) {
+        guard !runningActions.isEmpty else { return }
+        synchronizeActionRuntimeStorage()
+
+        var nextActions: [SCNAction] = []
+        var nextStates: [SCNActionRuntime.State] = []
+        var nextKeys: [String?] = []
+
+        for index in runningActions.indices {
+            let action = runningActions[index]
+            var state = runningActionStates[index]
+            state.elapsed += deltaTime
+
+            let sample = SCNActionRuntime.sample(action, elapsed: state.elapsed, baseline: state.baseline)
+            sample.apply(to: self)
+
+            if !SCNActionRuntime.isComplete(action, after: state.elapsed) {
+                nextActions.append(action)
+                nextStates.append(state)
+                nextKeys.append(runningActionKeys[index])
+            }
+        }
+
+        runningActions = nextActions
+        runningActionStates = nextStates
+        runningActionKeys = nextKeys
+    }
+
+    private func synchronizeActionRuntimeStorage() {
+        guard runningActionStates.count != runningActions.count || runningActionKeys.count != runningActions.count else {
+            return
+        }
+        runningActionStates = runningActions.map { _ in
+            SCNActionRuntime.State(baseline: SCNActionRuntime.Baseline(node: self))
+        }
+        runningActionKeys = Array(repeating: nil, count: runningActions.count)
     }
 }
