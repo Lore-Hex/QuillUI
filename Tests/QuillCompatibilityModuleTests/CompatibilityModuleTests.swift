@@ -212,6 +212,31 @@ struct CompatibilityModuleTests {
         }
     }
 
+    @Test("UINavigationController owns child navigation back references")
+    @MainActor
+    func uiNavigationControllerOwnsChildBackReferences() {
+        let root = UIViewController()
+        let nav = UINavigationController(rootViewController: root)
+
+        #expect(root.navigationController === nav)
+        #expect(nav.topViewController === root)
+        #expect(nav.viewControllers.count == 1)
+
+        let pushed = UIViewController()
+        nav.pushViewController(pushed, animated: false)
+
+        #expect(root.navigationController === nav)
+        #expect(pushed.navigationController === nav)
+        #expect(nav.topViewController === pushed)
+        #expect(nav.viewControllers.map(ObjectIdentifier.init) == [ObjectIdentifier(root), ObjectIdentifier(pushed)])
+
+        let popped = nav.popViewController(animated: false)
+        #expect(popped === pushed)
+        #expect(pushed.navigationController == nil)
+        #expect(root.navigationController === nav)
+        #expect(nav.topViewController === root)
+    }
+
     @Test("UICollectionView reload materializes data-source cells")
     @MainActor
     func uiCollectionViewReloadMaterializesDataSourceCells() {
@@ -456,6 +481,34 @@ struct CompatibilityModuleTests {
         #expect(stack.frame == container.bounds)
         #expect(label.frame.height > 0)
         #expect(detail.frame.minY > label.frame.maxY)
+    }
+
+    @Test("UIView fitting honors minimum child height through layout margins")
+    @MainActor
+    func uiViewFittingHonorsMinimumChildHeightThroughLayoutMargins() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 240, height: 180))
+        let container = UIView()
+        container.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+        root.addSubview(container)
+
+        let field = UIView()
+        container.addSubview(field)
+
+        NSLayoutConstraint.activate([
+            container.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            field.topAnchor.constraint(equalTo: container.layoutMarginsGuide.topAnchor),
+            field.leadingAnchor.constraint(equalTo: container.layoutMarginsGuide.leadingAnchor),
+            field.trailingAnchor.constraint(equalTo: container.layoutMarginsGuide.trailingAnchor),
+            field.bottomAnchor.constraint(equalTo: container.layoutMarginsGuide.bottomAnchor),
+            field.heightAnchor.constraint(greaterThanOrEqualToConstant: 40),
+        ])
+
+        root.layoutIfNeeded()
+
+        #expect(container.frame == CGRect(x: 0, y: 124, width: 240, height: 56))
+        #expect(field.frame == CGRect(x: 12, y: 8, width: 216, height: 40))
     }
 
     @Test("UIStackView lays out arranged labels")

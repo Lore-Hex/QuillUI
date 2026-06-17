@@ -170,9 +170,10 @@ guard gtk_init_check() != 0 else {
 //   real-components → real CVItemModel/CVRootComponent/CVCellView render path
 //   ssk-bootstrap → initializes real SSK globals + on-disk SDSDatabaseStorage
 //   real-conversation → seeds storage + launches real ConversationViewController
+//   real-conversation-accepted → launches CVC with a profile-whitelisted thread
 //   (default)    → Signal's REAL OWSTableViewController2 (Settings)
 let selectedDemo = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"]
-if selectedDemo == "ssk-bootstrap" || selectedDemo == "real-conversation" {
+if selectedDemo == "ssk-bootstrap" || selectedDemo == "real-conversation" || selectedDemo == "real-conversation-accepted" {
     DispatchQueue.main.async {
         Task { @MainActor in
             let vc: UIViewController
@@ -183,6 +184,11 @@ if selectedDemo == "ssk-bootstrap" || selectedDemo == "real-conversation" {
             case "real-conversation":
                 vc = await SignalConversationDemo.makeRealConversationViewController()
                 title = "Signal Real Conversation"
+                width = 760
+                height = 720
+            case "real-conversation-accepted":
+                vc = await SignalConversationDemo.makeAcceptedRealConversationViewController()
+                title = "Signal Accepted Conversation"
                 width = 760
                 height = 720
             default:

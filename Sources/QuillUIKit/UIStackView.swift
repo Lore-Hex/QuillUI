@@ -201,7 +201,9 @@ import QuillKit
             var width: CGFloat = 0
             var height: CGFloat = totalSpacing
             for view in views {
-                let measured = view.sizeThatFits(CGSize(width: proposedWidth, height: CGFloat.greatestFiniteMagnitude))
+                let measured = view.quillEstimatedFittingSize(
+                    proposed: CGSize(width: proposedWidth, height: CGFloat.greatestFiniteMagnitude)
+                )
                 width = max(width, measured.width)
                 height += measured.height
             }
@@ -213,7 +215,9 @@ import QuillKit
             var width: CGFloat = totalSpacing
             var height: CGFloat = 0
             for view in views {
-                let measured = view.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: proposedHeight))
+                let measured = view.quillEstimatedFittingSize(
+                    proposed: CGSize(width: CGFloat.greatestFiniteMagnitude, height: proposedHeight)
+                )
                 width += measured.width
                 height = max(height, measured.height)
             }
@@ -234,7 +238,7 @@ import QuillKit
         var y = rect.minY
 
         for view in views {
-            let measured = view.sizeThatFits(CGSize(
+            let measured = view.quillEstimatedFittingSize(proposed: CGSize(
                 width: rect.width,
                 height: CGFloat.greatestFiniteMagnitude
             ))
@@ -259,7 +263,7 @@ import QuillKit
         var x = rect.minX
 
         for view in views {
-            let measured = view.sizeThatFits(CGSize(
+            let measured = view.quillEstimatedFittingSize(proposed: CGSize(
                 width: CGFloat.greatestFiniteMagnitude,
                 height: rect.height
             ))

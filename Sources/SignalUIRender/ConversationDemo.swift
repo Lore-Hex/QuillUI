@@ -181,6 +181,23 @@ enum SignalConversationDemo {
         #endif
     }
 
+    static func makeAcceptedRealConversationViewController() async -> UIViewController {
+        #if canImport(SignalApp)
+        do {
+            return try await QuillSignalRealConversationProbe.makeAcceptedViewController()
+        } catch {
+            return makeErrorProbeViewController(
+                title: "Signal accepted conversation failed",
+                message: "\(error)",
+                width: 760,
+                height: 320,
+            )
+        }
+        #else
+        return makeRealAppLinkProbeViewController()
+        #endif
+    }
+
     // MARK: - Pieces
 
     private static func makeErrorProbeViewController(
