@@ -3262,22 +3262,27 @@ public final class CGContext {
     }
     public func setMiterLimit(_ limit: CGFloat) {}
     public func setShadow(offset: CGSize, blur: CGFloat) {
+        let colorRGBA: [CGFloat] = [0, 0, 0, CGFloat(1) / 3]
         quillShadow = QuillShadow(
             offset: offset,
             blur: blur,
-            colorRGBA: [0, 0, 0, CGFloat(1) / 3]
+            colorRGBA: colorRGBA
         )
+        quillBackend?.setShadow(offset: offset, blur: blur, colorRGBA: colorRGBA)
     }
     public func setShadow(offset: CGSize, blur: CGFloat, color: CGColor?) {
         guard let color else {
             quillShadow = nil
+            quillBackend?.setShadow(offset: offset, blur: blur, colorRGBA: nil)
             return
         }
+        let colorRGBA = Self.quillNormalizedFillRGBA(quillNormalizedRGBA(color))
         quillShadow = QuillShadow(
             offset: offset,
             blur: blur,
-            colorRGBA: Self.quillNormalizedFillRGBA(quillNormalizedRGBA(color))
+            colorRGBA: colorRGBA
         )
+        quillBackend?.setShadow(offset: offset, blur: blur, colorRGBA: colorRGBA)
     }
     public func setAllowsAntialiasing(_ allowsAntialiasing: Bool) {}
     public func setShouldAntialias(_ shouldAntialias: Bool) {}
@@ -3293,6 +3298,7 @@ public final class CGContext {
     }
     public func setBlendMode(_ mode: CGBlendMode) {
         quillBlendMode = mode
+        quillBackend?.setBlendMode(mode)
     }
 
     public func fill(_ rect: CGRect) {
@@ -3497,7 +3503,7 @@ public final class CGContext {
         quillBackend?.restoreGState()
     }
     public func beginTransparencyLayer(auxiliaryInfo: Any?) {
-        _ = auxiliaryInfo
+        quillBackend?.beginTransparencyLayer(auxiliaryInfo: auxiliaryInfo)
         guard quillCanDrawCurrentBitmap,
               let currentBytes = quillBitmapBytes,
               let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
@@ -3519,6 +3525,7 @@ public final class CGContext {
         quillShadow = nil
     }
     public func endTransparencyLayer() {
+        quillBackend?.endTransparencyLayer()
         guard let layer = quillTransparencyLayerStack.popLast(),
               let layerPixels = quillBitmapBytes
         else {

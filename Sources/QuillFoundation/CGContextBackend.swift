@@ -26,6 +26,8 @@ public protocol QuillCGContextBackend: AnyObject {
     func setLineCap(_ cap: CGLineCap)
     func setLineJoin(_ join: CGLineJoin)
     func setAlpha(_ alpha: CGFloat)
+    func setBlendMode(_ mode: CGBlendMode)
+    func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?)
 
     func fill(_ rect: CGRect)
     func fillEllipse(in rect: CGRect)
@@ -54,12 +56,29 @@ public protocol QuillCGContextBackend: AnyObject {
     /// `image` is the CGContext.draw(_:in:) argument (typed Any in the shadow);
     /// implementations downcast to CGImage and draw `quillBGRAPixels` if set.
     func draw(_ image: Any, in rect: CGRect, interpolationQuality: CGInterpolationQuality)
+
+    func beginTransparencyLayer(auxiliaryInfo: Any?)
+    func endTransparencyLayer()
 }
 
 public extension QuillCGContextBackend {
     func concatenate(_ transform: CGAffineTransform) {
         _ = transform
     }
+
+    func setBlendMode(_ mode: CGBlendMode) {
+        _ = mode
+    }
+
+    func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?) {
+        _ = (offset, blur, colorRGBA)
+    }
+
+    func beginTransparencyLayer(auxiliaryInfo: Any?) {
+        _ = auxiliaryInfo
+    }
+
+    func endTransparencyLayer() {}
 }
 
 extension CGContext {

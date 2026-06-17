@@ -26,6 +26,12 @@ private final class RecordingBackend: QuillCGContextBackend {
     func setLineCap(_ cap: CGLineCap) { rec("lineCap") }
     func setLineJoin(_ join: CGLineJoin) { rec("lineJoin") }
     func setAlpha(_ alpha: CGFloat) { rec("alpha(\(alpha))") }
+    func setBlendMode(_ mode: CGBlendMode) { rec("blend(\(mode))") }
+    func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?) {
+        rec(colorRGBA == nil ? "shadow(nil)" : "shadow(\(Int(offset.width)),\(Int(offset.height)))")
+    }
+    func beginTransparencyLayer(auxiliaryInfo: Any?) { rec("beginLayer") }
+    func endTransparencyLayer() { rec("endLayer") }
     func fill(_ rect: CGRect) { rec("fill(\(Int(rect.width))x\(Int(rect.height)))") }
     func fillEllipse(in rect: CGRect) { rec("fillEllipse") }
     func stroke(_ rect: CGRect) { rec("strokeRect") }
@@ -66,6 +72,11 @@ struct NSViewRepresentableMountTests {
         ctx.rotate(by: 0.5)
         ctx.concatenate(CGAffineTransform(a: 2, b: 0, c: 0, d: 3, tx: 4, ty: 5))
         ctx.restoreGState()
+        ctx.setBlendMode(.multiply)
+        ctx.setShadow(offset: CGSize(width: 3, height: 4), blur: 0)
+        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+        ctx.endTransparencyLayer()
+        ctx.setShadow(offset: .zero, blur: 0, color: nil)
 
         #expect(backend.ops == [
             "fillColor[0.0, 0.0, 0.0, 1.0]",
@@ -75,6 +86,11 @@ struct NSViewRepresentableMountTests {
             "rotate",
             "concat(2,3,4,5)",
             "restore",
+            "blend(multiply)",
+            "shadow(3,4)",
+            "beginLayer",
+            "endLayer",
+            "shadow(nil)",
         ])
     }
 
