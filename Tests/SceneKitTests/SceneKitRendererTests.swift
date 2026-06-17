@@ -407,15 +407,23 @@ struct SceneKitRendererTests {
     @Test("SCNAction stepping advances primitives and clears completed actions")
     func actionSteppingAdvancesPrimitiveActions() {
         let node = SCNNode()
-        node.runAction(.rotateBy(x: 0, y: .pi, z: 0, duration: 2))
+        var completions = 0
+        node.runAction(.rotateBy(x: 0, y: .pi, z: 0, duration: 2)) {
+            completions += 1
+        }
 
         node.quillStepActions(by: 1)
         #expect(abs(node.eulerAngles.y - .pi / 2) < 0.0001)
         #expect(node.hasActions)
+        #expect(completions == 0)
 
         node.quillStepActions(by: 1)
         #expect(abs(node.eulerAngles.y - .pi) < 0.0001)
         #expect(!node.hasActions)
+        #expect(completions == 1)
+
+        node.quillStepActions(by: 1)
+        #expect(completions == 1)
     }
 
     @Test("Scene action stepping respects scene pause")
@@ -447,10 +455,16 @@ struct SceneKitRendererTests {
         #expect(abs(node.eulerAngles.y - .pi * 1.5) < 0.0001)
         #expect(node.hasActions)
 
+        var replacedCompletionRan = false
+        node.runAction(.wait(duration: 1), forKey: "spin") {
+            replacedCompletionRan = true
+        }
+
         let move = SCNAction.move(by: SCNVector3(4, 0, 0), duration: 2)
         node.runAction(move, forKey: "spin")
         #expect(node.runningActions.count == 1)
         #expect(node.action(forKey: "spin") === move)
+        #expect(!replacedCompletionRan)
 
         node.quillStepActions(by: 1)
         #expect(abs(node.position.x - 2) < 0.0001)
