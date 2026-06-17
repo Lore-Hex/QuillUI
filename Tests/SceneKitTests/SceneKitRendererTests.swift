@@ -105,6 +105,43 @@ struct SceneKitRendererTests {
         )
     }
 
+    @Test("SCNMatrix4 helpers use SceneKit public matrix layout")
+    func matrixHelpersUseSceneKitLayout() {
+        let translation = SCNMatrix4MakeTranslation(1, 2, 3)
+        #expect(translation.m14 == 0)
+        #expect(translation.m24 == 0)
+        #expect(translation.m34 == 0)
+        #expect(translation.m41 == 1)
+        #expect(translation.m42 == 2)
+        #expect(translation.m43 == 3)
+
+        let scale = SCNMatrix4MakeScale(2, 3, 4)
+        #expect(scale.m11 == 2)
+        #expect(scale.m22 == 3)
+        #expect(scale.m33 == 4)
+
+        #expect(SCNMatrix4Translate(scale, 5, 6, 7).m41 == 5)
+        #expect(SCNMatrix4Translate(scale, 5, 6, 7).m42 == 6)
+        #expect(SCNMatrix4Translate(scale, 5, 6, 7).m43 == 7)
+
+        expectMatrix(SCNMatrix4Invert(translation), closeTo: SCNMatrix4MakeTranslation(-1, -2, -3))
+        expectMatrix(
+            SCNMatrix4Mult(SCNMatrix4MakeScale(2, 3, 4), SCNMatrix4MakeTranslation(5, 6, 7)),
+            closeTo: SCNMatrix4(
+                m11: 2, m12: 0, m13: 0, m14: 0,
+                m21: 0, m22: 3, m23: 0, m24: 0,
+                m31: 0, m32: 0, m33: 4, m34: 0,
+                m41: 5, m42: 6, m43: 7, m44: 1
+            )
+        )
+
+        let zRotation = SCNMatrix4MakeRotation(.pi / 2, 0, 0, 1)
+        #expect(abs(zRotation.m11) < 0.0001)
+        #expect(abs(zRotation.m12 - 1) < 0.0001)
+        #expect(abs(zRotation.m21 + 1) < 0.0001)
+        #expect(abs(zRotation.m22) < 0.0001)
+    }
+
     @Test("Software renderer draws colored sphere pixels")
     func rendersSpherePixels() {
         let scene = SCNScene()
@@ -124,6 +161,32 @@ struct SceneKitRendererTests {
         let stats = PixelStats(image)
         #expect(stats.nonBlackPixels > 1_000)
         #expect(stats.redDominantPixels > 900)
+    }
+
+    @Test("Software renderer applies public SCNMatrix4 node transforms")
+    func rendererAppliesPublicNodeTransformMatrix() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 0.35)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        let sphereNode = SCNNode(geometry: sphere)
+        sphereNode.transform = SCNMatrix4MakeTranslation(1, 0, 0)
+        scene.rootNode.addChildNode(sphereNode)
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 4
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.redDominantPixels > 200)
+        #expect(stats.bounds.minX > 95)
+        #expect(stats.bounds.maxX > 110)
     }
 
     @Test("Software renderer draws SCNGeometry source/element triangles")
@@ -959,6 +1022,25 @@ struct SceneKitRendererTests {
     private func expectBoundingBox(_ geometry: SCNGeometry, min: SCNVector3, max: SCNVector3) {
         #expect(geometry.boundingBox.min == min)
         #expect(geometry.boundingBox.max == max)
+    }
+
+    private func expectMatrix(_ actual: SCNMatrix4, closeTo expected: SCNMatrix4, tolerance: CGFloat = 0.0001) {
+        #expect(abs(actual.m11 - expected.m11) <= tolerance)
+        #expect(abs(actual.m12 - expected.m12) <= tolerance)
+        #expect(abs(actual.m13 - expected.m13) <= tolerance)
+        #expect(abs(actual.m14 - expected.m14) <= tolerance)
+        #expect(abs(actual.m21 - expected.m21) <= tolerance)
+        #expect(abs(actual.m22 - expected.m22) <= tolerance)
+        #expect(abs(actual.m23 - expected.m23) <= tolerance)
+        #expect(abs(actual.m24 - expected.m24) <= tolerance)
+        #expect(abs(actual.m31 - expected.m31) <= tolerance)
+        #expect(abs(actual.m32 - expected.m32) <= tolerance)
+        #expect(abs(actual.m33 - expected.m33) <= tolerance)
+        #expect(abs(actual.m34 - expected.m34) <= tolerance)
+        #expect(abs(actual.m41 - expected.m41) <= tolerance)
+        #expect(abs(actual.m42 - expected.m42) <= tolerance)
+        #expect(abs(actual.m43 - expected.m43) <= tolerance)
+        #expect(abs(actual.m44 - expected.m44) <= tolerance)
     }
 }
 

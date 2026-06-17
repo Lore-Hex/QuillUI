@@ -82,6 +82,7 @@ struct QuillSceneKitRenderSmoke {
             "z-buffer scene did not keep green triangle in front above intersection: \(intersectingTriangleStats)"
         )
 
+        try runPublicMatrixTransformSmoke()
         try runParametricPrimitiveSmoke()
         try runMaterialSmoke()
         try runCameraControlSmoke()
@@ -295,6 +296,45 @@ struct QuillSceneKitRenderSmoke {
         camera.usesOrthographicProjection = true
         camera.orthographicScale = 3.2
         camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func runPublicMatrixTransformSmoke() throws {
+        let translation = SCNMatrix4MakeTranslation(1, 2, 3)
+        try require(translation.m14 == 0, "translation matrix used m14 instead of SceneKit m41 layout")
+        try require(translation.m41 == 1 && translation.m42 == 2 && translation.m43 == 3, "translation matrix lost m41/m42/m43")
+
+        let inverse = SCNMatrix4Invert(translation)
+        try require(abs(inverse.m41 + 1) < 0.0001, "translation inverse lost x offset")
+        try require(abs(inverse.m42 + 2) < 0.0001, "translation inverse lost y offset")
+        try require(abs(inverse.m43 + 3) < 0.0001, "translation inverse lost z offset")
+
+        let image = renderPublicMatrixTransformScene()
+        let stats = PixelStats(image)
+        try require(stats.redDominantPixels > 200, "public node transform matrix render stayed mostly black: \(stats)")
+        try require(stats.bounds.minX > 95, "public node transform matrix did not move the object right: \(stats)")
+        try require(stats.bounds.maxX > 110, "public node transform matrix produced too-small shifted bounds: \(stats)")
+        log("public matrix transform smoke passed \(stats)")
+    }
+
+    private static func renderPublicMatrixTransformScene() -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 0.35)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        let sphereNode = SCNNode(geometry: sphere)
+        sphereNode.transform = SCNMatrix4MakeTranslation(1, 0, 0)
+        scene.rootNode.addChildNode(sphereNode)
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 4
         let cameraNode = SCNNode()
         cameraNode.camera = camera
         cameraNode.position = SCNVector3(0, 0, 4)
