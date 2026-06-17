@@ -1131,8 +1131,40 @@ struct SceneKitRendererTests {
         let loadedViaInitializer = try SCNScene(url: url)
         #expect(loadedViaInitializer.rootNode.childNode(withName: "archived-triangle", recursively: true) != nil)
 
+        let loadedByName = try #require(SCNScene(
+            named: "scene.quillscn",
+            inDirectory: directory.path,
+            options: [.checkConsistency: true]
+        ))
+        #expect(loadedByName.rootNode.childNode(withName: "archived-triangle", recursively: true) != nil)
+        #expect(SCNScene(named: "missing.quillscn", inDirectory: directory.path, options: nil) == nil)
+
         let image = loaded.quillRenderImage(width: 120, height: 90, pointOfView: loadedCameraNode)
         #expect(PixelStats(image).greenDominantPixels > 300)
+    }
+
+    @Test("SCNSceneSource loading options and policies use Apple raw values")
+    func sceneSourceOptionsAndPoliciesUseAppleRawValues() {
+        #expect(SCNSceneSource.LoadingOption.checkConsistency.rawValue == "kSceneSourceCheckConsistency")
+        #expect(SCNSceneSource.LoadingOption.flattenScene.rawValue == "kSceneSourceFlattenScene")
+        #expect(SCNSceneSource.LoadingOption.createNormalsIfAbsent.rawValue == "kSceneSourceCreateNormalsIfAbsent")
+        #expect(SCNSceneSource.LoadingOption.convertToYUp.rawValue == "kSceneSourceConvertToYUpIfNeeded")
+        #expect(SCNSceneSource.LoadingOption.convertUnitsToMeters.rawValue == "kSceneSourceConvertToUnit")
+        #expect(SCNSceneSource.LoadingOption.preserveOriginalTopology.rawValue == "kSceneSourcePreserveOriginalTopology")
+        #expect(SCNSceneSource.LoadingOption.animationImportPolicy.rawValue == "kSceneSourceAnimationLoadingMode")
+
+        #expect(SCNSceneSource.AnimationImportPolicy.play.rawValue == "playOnce")
+        #expect(SCNSceneSource.AnimationImportPolicy.playRepeatedly.rawValue == "playRepeatedly")
+        #expect(SCNSceneSource.AnimationImportPolicy.doNotPlay.rawValue == "keepSeparate")
+        #expect(SCNSceneSource.AnimationImportPolicy.playUsingSceneTimeBase.rawValue == "playUsingSceneTime")
+    }
+
+    @Test("SCNScene unsupported loader error describes archive limitation")
+    func sceneUnsupportedLoaderErrorDescribesArchiveLimitation() {
+        let error = SCNSceneShimError.loadingUnsupported(URL(fileURLWithPath: "/tmp/model.dae"))
+        #expect(error.description.contains("unsupported SceneKit asset format model.dae"))
+        #expect(error.description.contains("Quill scene archives"))
+        #expect(!error.description.contains("not yet supported"))
     }
 
     @Test("Software renderer stays inside Apple SceneKit golden envelopes")

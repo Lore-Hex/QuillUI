@@ -9,16 +9,16 @@ enum QuillSceneArchiveCodec {
         return try encoder.encode(QuillSceneArchive(scene))
     }
 
-    static func scene(from data: Data) throws -> SCNScene {
+    static func scene(from data: Data, sourceURL: URL = URL(fileURLWithPath: "scene")) throws -> SCNScene {
         let scene = SCNScene()
-        try load(data, into: scene)
+        try load(data, sourceURL: sourceURL, into: scene)
         return scene
     }
 
-    static func load(_ data: Data, into scene: SCNScene) throws {
+    static func load(_ data: Data, sourceURL: URL, into scene: SCNScene) throws {
         let archive = try JSONDecoder().decode(QuillSceneArchive.self, from: data)
         guard archive.magic == QuillSceneArchive.magic, archive.version == QuillSceneArchive.version else {
-            throw SCNSceneShimError.loadingUnsupported(URL(fileURLWithPath: "scene"))
+            throw SCNSceneShimError.loadingUnsupported(sourceURL)
         }
         archive.apply(to: scene)
     }
