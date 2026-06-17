@@ -44,6 +44,15 @@ public final class SCNNode: Equatable, @unchecked Sendable {
             eulerAngles = SCNVector3(0, 0, 0)
         }
     }
+    public var worldFront: SCNVector3 {
+        quillWorldDirection(Vector3(0, 0, -1), fallback: Vector3(0, 0, -1))
+    }
+    public var worldRight: SCNVector3 {
+        quillWorldDirection(Vector3(1, 0, 0), fallback: Vector3(1, 0, 0))
+    }
+    public var worldUp: SCNVector3 {
+        quillWorldDirection(Vector3(0, 1, 0), fallback: Vector3(0, 1, 0))
+    }
     public var worldTransform: SCNMatrix4 {
         get { Matrix4.worldTransform(for: self).scnMatrix }
         set {
@@ -354,6 +363,10 @@ public final class SCNNode: Equatable, @unchecked Sendable {
 
     private static func quillWorldTransform(for node: SCNNode?) -> Matrix4 {
         node.map(Matrix4.worldTransform) ?? .identity
+    }
+
+    private func quillWorldDirection(_ direction: Vector3, fallback: Vector3) -> SCNVector3 {
+        SCNVector3(Matrix4.worldTransform(for: self).transformDirection(direction).normalized(fallback: fallback))
     }
 
     private func applyTransformComponents(_ transform: SCNMatrix4) {

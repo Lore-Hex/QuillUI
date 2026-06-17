@@ -343,6 +343,21 @@ struct SceneKitRendererTests {
         #expect(abs(child.orientation.w - quarterTurn) <= 0.0001)
     }
 
+    @Test("SCNNode world direction vectors resolve through parent orientation")
+    func nodeWorldDirectionVectorsResolveThroughParentOrientation() {
+        let quarterTurn = CGFloat(0.5).squareRoot()
+        let parent = SCNNode()
+        parent.scale = SCNVector3(3, 4, 5)
+        parent.orientation = SCNQuaternion(0, quarterTurn, 0, quarterTurn)
+
+        let child = SCNNode()
+        parent.addChildNode(child)
+
+        expectVector(child.worldFront, closeTo: SCNVector3(-1, 0, 0))
+        expectVector(child.worldRight, closeTo: SCNVector3(0, 0, -1))
+        expectVector(child.worldUp, closeTo: SCNVector3(0, 1, 0))
+    }
+
     @Test("SCNNode converts positions and vectors across coordinate spaces")
     func nodeConvertsPositionsAndVectorsAcrossCoordinateSpaces() {
         let root = SCNNode()
