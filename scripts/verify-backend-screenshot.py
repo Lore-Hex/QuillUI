@@ -338,6 +338,21 @@ def generic_gtk_card_pixel(rgb: tuple[int, int, int]) -> bool:
     return generic_qt_card_pixel(rgb) or prompt_card_pixel(rgb)
 
 
+def icecubes_media_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    colorful_thumbnail = (
+        80 <= red + green + blue <= 735
+        and max(rgb) - min(rgb) >= 42
+    )
+    neutral_placeholder = (
+        210 <= red <= 232
+        and 210 <= green <= 232
+        and 210 <= blue <= 232
+        and max(rgb) - min(rgb) <= 8
+    )
+    return colorful_thumbnail or neutral_placeholder
+
+
 def wireguard_qt_focused_title_border_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return 115 <= red <= 180 and 130 <= green <= 190 and 165 <= blue <= 230 and blue - red >= 25
@@ -4218,6 +4233,81 @@ def validate_quill_backend_interaction_sheet(image: Screenshot) -> str:
     return f"Quill backend sheet smoke: sheet={app_width}x{app_height}, dark_pixels={dark_pixels}"
 
 
+def validate_icecubes_linux_add_account(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes Add Account window has unexpected size: {app_width}x{app_height}",
+    )
+
+    header_text_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.33),
+        top + 8,
+        left + int(app_width * 0.67),
+        top + 44,
+    )
+    cancel_pixels = dark_pixel_count(image, left + 4, top + 8, left + 128, top + 44)
+    row_title_pixels = dark_pixel_count(
+        image,
+        left + 12,
+        top + 62,
+        left + min(420, int(app_width * 0.58)),
+        bottom - 24,
+    )
+    stats_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.70),
+        top + 62,
+        right - 8,
+        bottom - 24,
+    )
+    media_pixels = pixel_count(
+        image,
+        left + 4,
+        top + 52,
+        right - 4,
+        bottom - 8,
+        icecubes_media_pixel,
+    )
+
+    media_rows = 0
+    in_row = False
+    for y in range(top + 52, bottom - 8):
+        row_pixels = sum(
+            1
+            for x in range(left + 4, right - 4)
+            if icecubes_media_pixel(image.rgb(x, y))
+        )
+        if row_pixels >= int(app_width * 0.18):
+            if not in_row:
+                media_rows += 1
+                in_row = True
+        else:
+            in_row = False
+
+    require(header_text_pixels >= 45, f"IceCubes Add Account title was not detected: pixels={header_text_pixels}")
+    require(cancel_pixels >= 30, f"IceCubes Add Account cancel action was not detected: pixels={cancel_pixels}")
+    require(row_title_pixels >= 600, f"IceCubes suggestion row titles/descriptions were not detected: pixels={row_title_pixels}")
+    require(stats_pixels >= 250, f"IceCubes suggestion stats column was not detected: pixels={stats_pixels}")
+    require(media_pixels >= 22_000, f"IceCubes suggestion media rows were not detected: pixels={media_pixels}")
+    require(media_rows >= 2, f"IceCubes suggestion media row count is too low: rows={media_rows}")
+
+    return (
+        "IceCubes Add Account: "
+        f"app={app_width}x{app_height}, "
+        f"title_pixels={header_text_pixels}, "
+        f"cancel_pixels={cancel_pixels}, "
+        f"row_text_pixels={row_title_pixels}, "
+        f"stats_pixels={stats_pixels}, "
+        f"media_pixels={media_pixels}, "
+        f"media_rows={media_rows}"
+    )
+
+
 def solderscope_toolbar_pixel(rgb: tuple[int, int, int]) -> bool:
     total = sum(rgb)
     return 24 <= total <= 560 and max(rgb) - min(rgb) <= 96
@@ -4349,6 +4439,9 @@ def main() -> int:
         "quill-solderscope-visual",
         "quill-solderscope-interaction",
     }
+    icecubes_upstream_product = product in {
+        "icecubes-linux-add-account",
+    }
     if compact_quill_chat_dialog_product:
         minimum_width = 260
         minimum_height = 140
@@ -4358,6 +4451,9 @@ def main() -> int:
     elif smoke_product:
         minimum_width = 600
         minimum_height = 560
+    elif icecubes_upstream_product:
+        minimum_width = 760
+        minimum_height = 620
     else:
         minimum_width = 900
         minimum_height = 600
@@ -4520,6 +4616,8 @@ def main() -> int:
         print(validate_quill_solderscope_interaction(image))
     elif product in {"quill-solderscope-launch", "quill-solderscope-visual"}:
         print(validate_quill_solderscope_launch(image))
+    elif product == "icecubes-linux-add-account":
+        print(validate_icecubes_linux_add_account(image))
     elif product in {
         "quill-gtk-interaction-smoke-open",
         "quill-qt-interaction-smoke-open",

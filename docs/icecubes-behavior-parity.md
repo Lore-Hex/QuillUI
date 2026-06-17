@@ -126,7 +126,7 @@ estimates, not release claims.
       changes.
 - [ ] Keep IceCubes-specific shims isolated; move reusable behavior into
       QuillUI, QuillKit, QuillData, or Apple framework shim targets.
-- [ ] Add CI launch smoke and screenshot artifacts for `IceCubesLinuxApp`.
+- [x] Add CI launch smoke and screenshot artifacts for `IceCubesLinuxApp`.
 - [ ] Add side-by-side macOS/Linux interaction test plan for the top workflows.
 
 ## Checkpoints
@@ -264,3 +264,10 @@ estimates, not release claims.
   chrome. Verification: `SourceHygieneTests` passed locally and the Docker/GTK
   `icecubes-linux-app` product rebuilt successfully before the screenshot
   capture script hit a missing `file` utility in the container.
+- 2026-06-16: Added a real upstream `icecubes-linux-app` GTK visual smoke path
+  (`scripts/icecubes-linux-visual-check.sh`) and Linux CI artifact row. The
+  smoke builds the upstream product with `QUILLUI_ICECUBES=1`, launches it
+  under Xvfb, captures the Add Account window, and validates that the title,
+  cancel action, populated suggestion text, stats, and media/placeholder rows
+  render. This gives IceCubes parity work a real-app screenshot artifact
+  instead of relying only on the smaller `quill-icecubes` fixture app.

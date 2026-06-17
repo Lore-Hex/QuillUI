@@ -4367,6 +4367,26 @@ struct SourceHygieneTests {
         #expect(quillCompat.contains("@_disfavoredOverload\n    func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> SwiftOpenUI.ListRowSeparatorView<Self>"))
     }
 
+    @Test("Upstream IceCubes visual smoke is a first-class Linux artifact")
+    func upstreamIceCubesVisualSmokeIsFirstClassLinuxArtifact() throws {
+        let script = try packageSource("scripts/icecubes-linux-visual-check.sh")
+        let verifier = try packageSource("scripts/verify-backend-screenshot.py")
+        let workflow = try packageSource(".github/workflows/linux-ci.yml")
+        let parityLog = try packageSource("docs/icecubes-behavior-parity.md")
+
+        #expect(script.contains("QUILLUI_ICECUBES=1"))
+        #expect(script.contains("--product icecubes-linux-app"))
+        #expect(script.contains("verify-backend-screenshot.py\" \"$SCREENSHOT_PATH\" icecubes-linux-add-account"))
+        #expect(script.contains("quillui_install_linux_backend_smoke_packages"))
+        #expect(verifier.contains("def validate_icecubes_linux_add_account"))
+        #expect(verifier.contains("neutral_placeholder"))
+        #expect(verifier.contains("product == \"icecubes-linux-add-account\""))
+        #expect(workflow.contains("Upstream IceCubes GTK visual smoke"))
+        #expect(workflow.contains("scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-add-account.png"))
+        #expect(workflow.contains("fonts-noto-cjk"))
+        #expect(parityLog.contains("[x] Add CI launch smoke and screenshot artifacts for `IceCubesLinuxApp`."))
+    }
+
     @Test("Vendored GTK ScrollViewReader uses deferred ID adjustment scrolling")
     func vendoredGTKScrollViewReaderUsesDeferredIDAdjustmentScrolling() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")

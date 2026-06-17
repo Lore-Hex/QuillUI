@@ -131,6 +131,9 @@ jobs:
       - name: SolderScope GTK launch smoke
         run: scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png
 
+      - name: Upstream IceCubes GTK visual smoke
+        run: scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-add-account.png
+
       # Generic SwiftUI→Qt backend smoke (BackendQt, behind QUILLUI_QT_GENERIC).
       # This is the ONLY step that compiles the CQtBridge C++ wrapper, links
       # SwiftOpenUI into the Qt graph, and runs the real QtBackend().run(QtSmokeApp)
