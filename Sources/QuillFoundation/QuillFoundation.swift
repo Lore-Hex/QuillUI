@@ -1317,7 +1317,7 @@ public struct CGGradientDrawingOptions: OptionSet, Sendable {
     public static let drawsAfterEndLocation = CGGradientDrawingOptions(rawValue: 1 << 1)
 }
 
-public final class CGColorSpace: Equatable {
+public final class CGColorSpace: Equatable, @unchecked Sendable {
     public enum Model: Int32, Sendable {
         case unknown = -1
         case monochrome = 0
@@ -1330,26 +1330,57 @@ public final class CGColorSpace: Equatable {
     }
 
     public let name: String?
+    public let model: Model
+    public let numberOfComponents: Int
 
     public init() {
         self.name = nil
+        self.model = .rgb
+        self.numberOfComponents = 3
     }
 
     public init?(name: String) {
         self.name = name
+        let description = Self.quillDescription(for: name)
+        self.model = description.model
+        self.numberOfComponents = description.numberOfComponents
     }
 
-    public var model: Model { .rgb }
-
+    public static let sRGB = "kCGColorSpaceSRGB"
+    public static let extendedSRGB = "kCGColorSpaceExtendedSRGB"
     public static let displayP3 = "kCGColorSpaceDisplayP3"
+    public static let genericGrayGamma2_2 = "kCGColorSpaceGenericGrayGamma2_2"
 
     public static func == (lhs: CGColorSpace, rhs: CGColorSpace) -> Bool {
-        lhs === rhs
+        lhs.name == rhs.name &&
+            lhs.model == rhs.model &&
+            lhs.numberOfComponents == rhs.numberOfComponents
+    }
+
+    fileprivate init(name: String?, model: Model, numberOfComponents: Int) {
+        self.name = name
+        self.model = model
+        self.numberOfComponents = numberOfComponents
+    }
+
+    private static func quillDescription(for name: String) -> (model: Model, numberOfComponents: Int) {
+        switch name {
+        case sRGB, extendedSRGB, displayP3:
+            return (.rgb, 3)
+        case genericGrayGamma2_2:
+            return (.monochrome, 1)
+        default:
+            return (.unknown, 0)
+        }
     }
 }
 
-public func CGColorSpaceCreateDeviceRGB() -> CGColorSpace { CGColorSpace() }
-public func CGColorSpaceCreateDeviceGray() -> CGColorSpace { CGColorSpace() }
+public func CGColorSpaceCreateDeviceRGB() -> CGColorSpace {
+    CGColorSpace(name: nil, model: .rgb, numberOfComponents: 3)
+}
+public func CGColorSpaceCreateDeviceGray() -> CGColorSpace {
+    CGColorSpace(name: nil, model: .monochrome, numberOfComponents: 1)
+}
 
 public struct CGVector: Equatable, Sendable {
     public var dx: CGFloat
@@ -4826,13 +4857,44 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
 public typealias UIImage = RSImage
 
 public struct RSCGColor: Equatable, Sendable {
+    public var colorSpace: CGColorSpace?
     public var components: [CGFloat]?
     public var numberOfComponents: Int { components?.count ?? 0 }
-    public var alpha: CGFloat { components?.last ?? 1 }
+    public var alpha: CGFloat {
+        guard let components, !components.isEmpty else {
+            return 1
+        }
+
+        switch components.count {
+        case 2:
+            return components[1]
+        case 4:
+            return components[3]
+        default:
+            return 1
+        }
+    }
     public static var typeID: UInt { 0 }
 
     public init(components: [CGFloat]?) {
+        self.init(quillColorSpace: nil, components: components)
+    }
+
+    private init(quillColorSpace colorSpace: CGColorSpace?, components: [CGFloat]?) {
+        self.colorSpace = colorSpace
         self.components = components
+    }
+
+    public init?(colorSpace: CGColorSpace, components: UnsafePointer<CGFloat>) {
+        let count = colorSpace.numberOfComponents + 1
+        guard count > 0 else {
+            return nil
+        }
+
+        self.init(
+            quillColorSpace: colorSpace,
+            components: (0..<count).map { components[$0] }
+        )
     }
 
     public static let clear = RSCGColor(components: [0, 0, 0, 0])
@@ -4841,12 +4903,18 @@ public struct RSCGColor: Equatable, Sendable {
 
     /// Apple's sRGB convenience initializer (`CGColor(red:green:blue:alpha:)`).
     public init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
-        self.init(components: [red, green, blue, alpha])
+        self.init(
+            quillColorSpace: CGColorSpace(name: CGColorSpace.sRGB),
+            components: [red, green, blue, alpha]
+        )
     }
 
     /// Apple's grayscale convenience initializer.
     public init(gray: CGFloat, alpha: CGFloat) {
-        self.init(components: [gray, gray, gray, alpha])
+        self.init(
+            quillColorSpace: CGColorSpaceCreateDeviceGray(),
+            components: [gray, alpha]
+        )
     }
 }
 public typealias CGColor = RSCGColor

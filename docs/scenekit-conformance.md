@@ -97,7 +97,9 @@ QUILLUI_SCENEKIT_FIXTURES=1 swift build --target QuillSolarSystem
    operations plus tangent-arc line/cubic expansions into the Cairo-backed GTK
    drawing host, while `CGContext` itself tracks `isPathEmpty`,
    `currentPointOfPath`, `pathBoundingBox`, and `copyPath()` without requiring
-   a backend. `CoreGraphicsTests` exercises the value surface through a direct
+   a backend. The color surface also tracks `CGColorSpace` model/component
+   metadata and `CGColor(colorSpace:components:)` RGB/gray component shapes.
+   `CoreGraphicsTests` exercises the value surface through a direct
    `import CoreGraphics` path.
 
    This surface is now enabled by rung 2c. The key build gotcha remains:
