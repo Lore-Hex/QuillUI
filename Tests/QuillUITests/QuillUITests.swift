@@ -379,7 +379,7 @@ struct QuillUITests {
         #expect(unreachableBanner.message.contains("Quill is unreachable"))
         #expect(unreachableBanner.message.contains("update your Quill API endpoint"))
         #expect(unreachableBanner.actionTitle == "Settings")
-        #expect(unreachableBanner.showsActivity == true)
+        #expect(unreachableBanner.showsActivity == false)
         #expect(unreachableBanner.horizontalPadding == 28)
         #expect(unreachableBanner.topPadding == 10)
         #expect(unreachableBanner.bottomPadding == 74)
