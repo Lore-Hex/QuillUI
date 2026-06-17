@@ -4481,6 +4481,7 @@ struct SourceHygieneTests {
         #expect(verifier.contains("Saved completion row was not detected"))
         #expect(verifier.contains("Edited completion row name was not detected above the stock row baseline"))
         #expect(verifier.contains("Completions sheet still appears to be visible after Delete"))
+        #expect(verifier.contains("Stock completion rows were not restored after deleting the generated completion"))
         #expect(verifier.contains("Completions Upsert sheet still appears to be visible after Save"))
         #expect(verifier.contains("Completions edit sheet still appears to be visible after Save"))
         #expect(verifier.contains("close_pixels >= 60"))
@@ -4493,8 +4494,8 @@ struct SourceHygieneTests {
         #expect(verifier.contains("panel_surface_pixels >= 32_000"))
         #expect(verifier.contains("minimum_row_dividers=0"))
         #expect(verifier.contains("minimum_row_action_segments=1"))
-        #expect(verifier.contains("minimum_row_dividers=2"))
-        #expect(verifier.contains("minimum_row_action_segments=3"))
+        #expect(verifier.contains("minimum_row_dividers=3"))
+        #expect(verifier.contains("minimum_row_action_segments=6"))
         #expect(verifier.contains("minimum_wordmark_pixels=350"))
         #expect(verifier.contains("cancel_pixels >= 90"))
         #expect(verifier.contains("save_pixels >= 90"))
@@ -4507,6 +4508,8 @@ struct SourceHygieneTests {
         #expect(verifier.contains("top + int(app_height * 0.49)"))
         #expect(verifier.contains("top + int(app_height * 0.57)"))
         #expect(verifier.contains("deleted_row_action_segments = dark_row_segment_count"))
+        #expect(verifier.contains("deleted_row_action_segments >= 4"))
+        #expect(!verifier.contains("deleted_row_action_segments <= 3"))
     }
 
     @Test("Vendored GTK renderer preserves SwiftUI scroll row width contract")

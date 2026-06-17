@@ -2121,8 +2121,8 @@ def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> s
 def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
-        minimum_row_dividers=2,
-        minimum_row_action_segments=3,
+        minimum_row_dividers=3,
+        minimum_row_action_segments=6,
         minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
@@ -2151,6 +2151,11 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
         *row_action_roi,
         min_row_pixels=2,
         min_height=4,
+    )
+    require(
+        deleted_row_action_segments >= 4,
+        "Stock completion rows were not restored after deleting the generated completion: "
+        f"segments={deleted_row_action_segments}, roi={row_action_roi}",
     )
     require(
         dismissed_sheet_field_pixels <= 12_000,
