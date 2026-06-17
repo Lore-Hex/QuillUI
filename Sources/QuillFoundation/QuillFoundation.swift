@@ -804,6 +804,76 @@ public class CGPath: Hashable, @unchecked Sendable {
             .filter { $0 > 0 && $0 < 1 }
     }
 
+    fileprivate static func arcCurveElements(
+        center: CGPoint,
+        radius: CGFloat,
+        startAngle: CGFloat,
+        endAngle: CGFloat,
+        clockwise: Bool
+    ) -> [CGPathStorageElement] {
+        guard radius > 0, radius.isFinite else { return [] }
+        let rawDelta = endAngle - startAngle
+        var delta = rawDelta
+        let fullTurn = CGFloat.pi * 2
+
+        if abs(rawDelta) >= fullTurn {
+            delta = clockwise ? -fullTurn : fullTurn
+        } else if clockwise {
+            while delta > 0 {
+                delta -= fullTurn
+            }
+        } else {
+            while delta < 0 {
+                delta += fullTurn
+            }
+        }
+
+        guard abs(delta) > geometryTolerance else { return [] }
+        let segmentCount = max(1, Int(ceil(abs(delta) / (CGFloat.pi / 2))))
+        let segmentDelta = delta / CGFloat(segmentCount)
+        var elements: [CGPathStorageElement] = []
+
+        for segment in 0..<segmentCount {
+            let a0 = startAngle + CGFloat(segment) * segmentDelta
+            let a1 = a0 + segmentDelta
+            let p0 = arcPoint(center: center, radius: radius, angle: a0)
+            let p3 = arcPoint(center: center, radius: radius, angle: a1)
+            let k = CGFloat(4.0 / 3.0) * tan(segmentDelta / 4)
+            let c1 = CGPoint(
+                x: p0.x - sin(a0) * radius * k,
+                y: p0.y + cos(a0) * radius * k
+            )
+            let c2 = CGPoint(
+                x: p3.x + sin(a1) * radius * k,
+                y: p3.y - cos(a1) * radius * k
+            )
+            elements.append((.addCurveToPoint, [c1, c2, p3]))
+        }
+
+        return elements
+    }
+
+    fileprivate static func arcPoint(center: CGPoint, radius: CGFloat, angle: CGFloat) -> CGPoint {
+        CGPoint(
+            x: center.x + cos(angle) * radius,
+            y: center.y + sin(angle) * radius
+        )
+    }
+
+    fileprivate static func pointsAreClose(_ a: CGPoint, _ b: CGPoint) -> Bool {
+        abs(a.x - b.x) <= geometryTolerance && abs(a.y - b.y) <= geometryTolerance
+    }
+
+    fileprivate static func normalizedVector(from start: CGPoint, to end: CGPoint) -> (x: CGFloat, y: CGFloat)? {
+        normalizedVector(dx: end.x - start.x, dy: end.y - start.y)
+    }
+
+    fileprivate static func normalizedVector(dx: CGFloat, dy: CGFloat) -> (x: CGFloat, y: CGFloat)? {
+        let length = (dx * dx + dy * dy).squareRoot()
+        guard length > geometryTolerance else { return nil }
+        return (dx / length, dy / length)
+    }
+
     fileprivate static func rectElements(_ rect: CGRect) -> [CGPathStorageElement] {
         [
             (.moveToPoint, [CGPoint(x: rect.minX, y: rect.minY)]),
@@ -967,10 +1037,86 @@ public final class CGMutablePath: CGPath, @unchecked Sendable {
         elements.append((.addQuadCurveToPoint, [control, end]))
     }
     public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
-        _ = (center, radius, startAngle, endAngle, clockwise)
+        guard radius > 0, radius.isFinite else { return }
+        let start = Self.arcPoint(center: center, radius: radius, angle: startAngle)
+        if isEmpty {
+            move(to: start)
+        } else if !Self.pointsAreClose(currentPoint, start) {
+            addLine(to: start)
+        }
+        elements.append(contentsOf: Self.arcCurveElements(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        ))
     }
     public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
-        _ = (tangent1End, tangent2End, radius)
+        guard radius > 0, radius.isFinite else { return }
+        guard !isEmpty else {
+            move(to: tangent1End)
+            return
+        }
+
+        let current = currentPoint
+        let incoming = Self.normalizedVector(from: tangent1End, to: current)
+        let outgoing = Self.normalizedVector(from: tangent1End, to: tangent2End)
+        guard let incoming, let outgoing else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let dot = max(-1, min(1, incoming.x * outgoing.x + incoming.y * outgoing.y))
+        let angle = acos(dot)
+        guard angle > 0.0001, abs(CGFloat.pi - angle) > 0.0001 else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let tangentDistance = radius / tan(angle / 2)
+        guard tangentDistance.isFinite else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let tangentStart = CGPoint(
+            x: tangent1End.x + incoming.x * tangentDistance,
+            y: tangent1End.y + incoming.y * tangentDistance
+        )
+        let tangentEnd = CGPoint(
+            x: tangent1End.x + outgoing.x * tangentDistance,
+            y: tangent1End.y + outgoing.y * tangentDistance
+        )
+
+        let bisector = Self.normalizedVector(
+            dx: incoming.x + outgoing.x,
+            dy: incoming.y + outgoing.y
+        )
+        guard let bisector else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let centerDistance = radius / sin(angle / 2)
+        let center = CGPoint(
+            x: tangent1End.x + bisector.x * centerDistance,
+            y: tangent1End.y + bisector.y * centerDistance
+        )
+        let startAngle = atan2(tangentStart.y - center.y, tangentStart.x - center.x)
+        let endAngle = atan2(tangentEnd.y - center.y, tangentEnd.x - center.x)
+        let clockwise = incoming.x * outgoing.y - incoming.y * outgoing.x > 0
+
+        if !Self.pointsAreClose(current, tangentStart) {
+            addLine(to: tangentStart)
+        }
+        elements.append(contentsOf: Self.arcCurveElements(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        ))
     }
     public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
         elements.append(contentsOf: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight))

@@ -67,6 +67,45 @@ quillui_solderscope_count_snapshots() {
   find "$desktop_dir" -maxdepth 1 -type f -name 'SolderScope_*.png' 2>/dev/null | wc -l | tr -d '[:space:]'
 }
 
+quillui_solderscope_count_recordings() {
+  local desktop_dir="$1"
+  if [[ -z "$desktop_dir" || ! -d "$desktop_dir" ]]; then
+    echo 0
+    return
+  fi
+  find "$desktop_dir" -maxdepth 1 -type f -name 'SolderScope_*.mov' 2>/dev/null | wc -l | tr -d '[:space:]'
+}
+
+quillui_solderscope_latest_recording() {
+  local desktop_dir="$1"
+  if [[ -z "$desktop_dir" || ! -d "$desktop_dir" ]]; then
+    return 1
+  fi
+  find "$desktop_dir" -maxdepth 1 -type f -name 'SolderScope_*.mov' 2>/dev/null | LC_ALL=C sort | tail -n 1
+}
+
+quillui_solderscope_verify_recording_file() {
+  local movie_path="$1"
+  if [[ -z "$movie_path" || ! -f "$movie_path" ]]; then
+    echo "SolderScope interaction smoke did not find a finalized recording file" >&2
+    return 1
+  fi
+
+  local movie_size
+  movie_size="$(wc -c < "$movie_path" | tr -d '[:space:]')"
+  if (( movie_size <= 500 )); then
+    echo "SolderScope interaction smoke recording is too small to be a movie: $movie_path ($movie_size bytes)" >&2
+    return 1
+  fi
+
+  local signature
+  signature="$(dd if="$movie_path" bs=1 skip=4 count=4 2>/dev/null || true)"
+  if [[ "$signature" != "ftyp" ]]; then
+    echo "SolderScope interaction smoke recording is missing a QuickTime/MP4 ftyp box: $movie_path" >&2
+    return 1
+  fi
+}
+
 quillui_solderscope_safe_snapshot_desktop() {
   local desktop_dir="$1"
   [[ "$desktop_dir" == /root/* || "$desktop_dir" == /tmp/* || "$desktop_dir" == "$ROOT_DIR"/* ]]
@@ -99,6 +138,40 @@ if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
   fi
   mkdir -p "$SOLDERSCOPE_DESKTOP_DIR"
   SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
+fi
+
+SOLDERSCOPE_DRIVE_RECORDING=0
+case "${QUILLUI_SOLDERSCOPE_DRIVE_RECORDING:-auto}" in
+  1|true|TRUE|yes|YES)
+    SOLDERSCOPE_DRIVE_RECORDING=1
+    ;;
+  0|false|FALSE|no|NO)
+    SOLDERSCOPE_DRIVE_RECORDING=0
+    ;;
+  auto|"")
+    if [[ "$SMOKE_MODE" == "interaction" ]] \
+      && quillui_solderscope_safe_snapshot_desktop "$SOLDERSCOPE_DESKTOP_DIR" \
+      && command -v ffmpeg >/dev/null 2>&1; then
+      SOLDERSCOPE_DRIVE_RECORDING=1
+    fi
+    ;;
+  *)
+    echo "Unsupported QUILLUI_SOLDERSCOPE_DRIVE_RECORDING='${QUILLUI_SOLDERSCOPE_DRIVE_RECORDING}' (expected auto, 1, or 0)" >&2
+    exit 64
+    ;;
+esac
+SOLDERSCOPE_RECORDING_BEFORE_COUNT=0
+if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
+  if [[ -z "$SOLDERSCOPE_DESKTOP_DIR" ]]; then
+    echo "Cannot drive SolderScope recording: desktop directory could not be resolved" >&2
+    exit 66
+  fi
+  if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "Cannot drive SolderScope recording: ffmpeg is required for the AVAssetWriter compatibility backend" >&2
+    exit 66
+  fi
+  mkdir -p "$SOLDERSCOPE_DESKTOP_DIR"
+  SOLDERSCOPE_RECORDING_BEFORE_COUNT="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
 fi
 
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
@@ -185,6 +258,34 @@ quillui_drive_solderscope_interaction() {
   DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" v
   DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" bracketright
   DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" 0
+  if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
+    sleep "${QUILLUI_SOLDERSCOPE_PRE_RECORDING_SETTLE_SECONDS:-0.5}"
+    DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" r
+    sleep "${QUILLUI_SOLDERSCOPE_RECORDING_SECONDS:-2}"
+    DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" r
+    local recording_count="$SOLDERSCOPE_RECORDING_BEFORE_COUNT"
+    local recording_path=""
+    local recording_verified=0
+    for _ in {1..40}; do
+      recording_count="$(quillui_solderscope_count_recordings "$SOLDERSCOPE_DESKTOP_DIR")"
+      if (( recording_count > SOLDERSCOPE_RECORDING_BEFORE_COUNT )); then
+        recording_path="$(quillui_solderscope_latest_recording "$SOLDERSCOPE_DESKTOP_DIR")"
+        if quillui_solderscope_verify_recording_file "$recording_path" >/dev/null 2>&1; then
+          recording_verified=1
+          echo "SolderScope interaction smoke: recording saved to $recording_path" >&2
+          break
+        fi
+      fi
+      sleep 0.25
+    done
+    if [[ "$recording_verified" != "1" ]]; then
+      if [[ -n "$recording_path" ]]; then
+        quillui_solderscope_verify_recording_file "$recording_path" || true
+      fi
+      echo "SolderScope interaction smoke did not observe a finalized recording file in $SOLDERSCOPE_DESKTOP_DIR" >&2
+      return 1
+    fi
+  fi
   DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" b
   sleep 0.2
   DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" b
