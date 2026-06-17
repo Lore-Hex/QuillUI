@@ -593,6 +593,9 @@ quillui_backend_quill_chat_interaction_verify_product() {
     *:composer-send)
       verify_product="quill-chat-linux-mac-reference-composer-send"
       ;;
+    *:attachment-send|*:image-attachment-send)
+      verify_product="quill-chat-linux-mac-reference-attachment-send"
+      ;;
     *:new-chat)
       verify_product="quill-chat-linux-mac-reference-new-chat"
       ;;
@@ -634,6 +637,7 @@ quillui_backend_quill_chat_mac_reference_interaction_modes() {
     new-chat \
     toolbar-model-selected \
     prompt-send \
+    attachment-send \
     copy-chat \
     copy-chat-json \
     history-selection \

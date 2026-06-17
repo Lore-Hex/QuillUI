@@ -6,6 +6,7 @@ import Foundation
 import Dispatch
 import QuillKit
 import QuillPaint
+import UniformTypeIdentifiers
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
 #else
@@ -13,6 +14,7 @@ import SwiftOpenUI
 // SwiftOpenUI owns the canonical ButtonStyle protocol + configuration;
 // QuillSwiftUICompatibility supplies the adjacent design-system shims.
 import QuillSwiftUICompatibility
+import class UIKit.NSItemProvider
 #endif
 
 public enum QuillSystemSymbol {
@@ -265,15 +267,18 @@ public struct QuillPromptList: View {
 
 public struct QuillChatComposer: View {
     @Binding public var message: String
+    @Binding public var selectedImage: Image?
     public var isLoading: Bool
     public var supportsImages: Bool
     public var showsRecording: Bool
-    public var selectedImage: Image?
+    private var usesBuiltInImageSelection: Bool
     private var onSelectImage: () -> Void
     private var onClearImage: () -> Void
     private var onRecord: () -> Void
     private var onStop: () -> Void
     private var onSend: () -> Void
+    @State private var fileSelectingActive = false
+    @State private var fileDropActive = false
 
     public init(
         message: Binding<String>,
@@ -288,10 +293,11 @@ public struct QuillChatComposer: View {
         onSend: @escaping () -> Void
     ) {
         self._message = message
+        self._selectedImage = .constant(selectedImage)
         self.isLoading = isLoading
         self.supportsImages = supportsImages
         self.showsRecording = showsRecording
-        self.selectedImage = selectedImage
+        self.usesBuiltInImageSelection = false
         self.onSelectImage = onSelectImage
         self.onClearImage = onClearImage
         self.onRecord = onRecord
@@ -300,6 +306,41 @@ public struct QuillChatComposer: View {
     }
 
     public var body: some View {
+        composerContent
+            .fileImporter(
+                isPresented: $fileSelectingActive,
+                allowedContentTypes: [.png, .jpeg, .tiff],
+                onCompletion: handleImageImport
+            )
+            .onDrop(of: [.image], isTargeted: $fileDropActive, perform: handleImageDrop)
+    }
+
+    public init(
+        message: Binding<String>,
+        isLoading: Bool = false,
+        supportsImages: Bool = false,
+        showsRecording: Bool = true,
+        selectedImage: Binding<Image?>,
+        onSelectImage: @escaping () -> Void = {},
+        onClearImage: @escaping () -> Void = {},
+        onRecord: @escaping () -> Void = {},
+        onStop: @escaping () -> Void = {},
+        onSend: @escaping () -> Void
+    ) {
+        self._message = message
+        self._selectedImage = selectedImage
+        self.isLoading = isLoading
+        self.supportsImages = supportsImages
+        self.showsRecording = showsRecording
+        self.usesBuiltInImageSelection = true
+        self.onSelectImage = onSelectImage
+        self.onClearImage = onClearImage
+        self.onRecord = onRecord
+        self.onStop = onStop
+        self.onSend = onSend
+    }
+
+    private var composerContent: some View {
         HStack(spacing: 12) {
             if let selectedImage {
                 selectedImagePreview(selectedImage)
@@ -322,6 +363,12 @@ public struct QuillChatComposer: View {
             RoundedRectangle(cornerRadius: 28)
                 .strokeBorder(Color.gray.opacity(0.45), lineWidth: 1)
         )
+        .overlay {
+            if fileDropActive {
+                RoundedRectangle(cornerRadius: 28)
+                    .strokeBorder(Color.accentColor.opacity(0.65), lineWidth: 2)
+            }
+        }
         .contentShape(Rectangle())
     }
 
@@ -335,7 +382,7 @@ public struct QuillChatComposer: View {
                 composerIconButton("waveform", action: onRecord)
             }
             if supportsImages {
-                composerIconButton("photo.fill", action: onSelectImage)
+                composerIconButton("photo.fill", action: selectImage)
             }
             if isLoading {
                 composerIconButton("square.fill", action: onStop)
@@ -351,6 +398,40 @@ public struct QuillChatComposer: View {
         onSend()
     }
 
+    private func selectImage() {
+        onSelectImage()
+        if usesBuiltInImageSelection {
+            #if os(Linux)
+            handleImageImport(QuillFileImporter.selectURL(allowedContentTypes: [.png, .jpeg, .tiff]))
+            #else
+            fileSelectingActive = true
+            #endif
+        }
+    }
+
+    private func clearImage() {
+        selectedImage = nil
+        onClearImage()
+    }
+
+    private func handleImageImport(_ result: Result<URL, Error>) {
+        guard usesBuiltInImageSelection, case .success(let url) = result else { return }
+        if let data = try? Data(contentsOf: url) {
+            selectedImage = Image(data: data)
+        }
+    }
+
+    private func handleImageDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard usesBuiltInImageSelection, let provider = providers.first else { return false }
+        _ = provider.loadDataRepresentation(for: .image) { data, error in
+            guard error == nil, let data else { return }
+            DispatchQueue.main.async {
+                selectedImage = Image(data: data)
+            }
+        }
+        return true
+    }
+
     private func selectedImagePreview(_ image: Image) -> some View {
         ZStack(alignment: .topTrailing) {
             image
@@ -358,7 +439,7 @@ public struct QuillChatComposer: View {
                 .scaledToFit()
                 .frame(width: 70, height: 70)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-            composerIconButton("xmark.circle.fill", action: onClearImage)
+            composerIconButton("xmark.circle.fill", action: clearImage)
         }
         .padding(5)
     }

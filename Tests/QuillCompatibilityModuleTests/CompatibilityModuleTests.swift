@@ -3629,6 +3629,44 @@ struct CompatibilityModuleTests {
         #expect(warnings.isEmpty, "Valid image transforms should not record fallback warnings; got \(warnings.map(\.message))")
     }
 
+    #if os(Linux)
+    @Test("NSImage(data:) keeps finite size and survives AppKit-style resize/compress")
+    func nsImageDataResizeCompressesThroughAppKitPath() throws {
+        guard let png = quillRenderSolidColorImage(
+            red: 0.2, green: 0.4, blue: 0.8, alpha: 1,
+            width: 4, height: 2,
+            format: .png
+        ) else {
+            Issue.record("Expected non-nil PNG for valid solid-color render")
+            return
+        }
+
+        let rendered = try #require(Image(data: png).render())
+        #expect(rendered.size == CGSize(width: 4, height: 2))
+        #expect(rendered.cgImage?.width == 4)
+        #expect(rendered.cgImage?.height == 2)
+
+        let targetSize = CGSize(width: 12, height: 6)
+        let resized = NSImage(size: targetSize)
+        resized.lockFocus()
+        rendered.draw(
+            in: CGRect(origin: .zero, size: targetSize),
+            from: CGRect(origin: .zero, size: rendered.size),
+            operation: .copy,
+            fraction: 1
+        )
+        resized.unlockFocus()
+
+        let tiff = try #require(resized.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data: tiff))
+        let jpeg = try #require(bitmap.representation(
+            using: .jpeg,
+            properties: [.compressionFactor: 0.2]
+        ))
+        #expect(Array(jpeg.prefix(3)) == [0xFF, 0xD8, 0xFF])
+    }
+    #endif
+
     @Test("ImageRenderer rasterizes Color content to PNG bytes via gdk-pixbuf")
     func imageRendererRendersColorContent() {
         QuillCompatibilityDiagnostics.shared.clear()

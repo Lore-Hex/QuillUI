@@ -202,6 +202,23 @@ if [[ "$PRODUCT" == "quill-wireguard" ]]; then
       ;;
   esac
 fi
+if [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "attachment-send" || "$INTERACTION_MODE" == "image-attachment-send" ) ]]; then
+  attachment_file="${QUILLUI_BACKEND_ATTACHMENT_PATH:-$OUTPUT_DIR/quill-chat-attachment.png}"
+  python3 - "$attachment_file" <<'PY'
+from __future__ import annotations
+
+import base64
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_bytes(base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4GBgYGJAQoAHxcCAtR4mQAAAABJRU5ErkJggg=="
+))
+PY
+  app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$attachment_file")
+fi
 quillui_append_backend_selection_start_environment \
   app_environment \
   "$PRODUCT" \
@@ -1076,6 +1093,22 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
+        sleep 3
+        ;;
+      attachment-send|image-attachment-send)
+        attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 70))}"
+        attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$((window_y + window_height - 190))}"
+        click_at "$attachment_x" "$attachment_y"
+        sleep "${QUILLUI_BACKEND_ATTACHMENT_SELECT_SLEEP:-1}"
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + (window_width * 34 / 100)))}"
+        click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 80))}"
+        click_at "$click_x" "$click_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-describe this image from linux}"
+        sleep 1
+        send_x="${QUILLUI_BACKEND_SEND_CLICK_X:-$((window_x + window_width - 65))}"
+        send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$((window_y + window_height - 190))}"
+        click_at "$send_x" "$send_y"
         sleep 3
         ;;
       new-chat)

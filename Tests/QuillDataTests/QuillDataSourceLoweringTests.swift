@@ -772,6 +772,15 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("xdotool click --repeat"))
         #expect(interactionScript.contains("prompt-send"))
         #expect(interactionScript.contains("composer-send"))
+        #expect(interactionScript.contains("attachment-send|image-attachment-send"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_PATH"))
+        #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$attachment_file"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_CLICK_X"))
+        #expect(interactionScript.contains("window_width - 70"))
+        #expect(interactionScript.contains("window_height - 190"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_SEND_CLICK_X"))
+        #expect(interactionScript.contains("window_width - 65"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_SEND_CLICK_Y"))
         #expect(interactionScript.contains("toolbar-model-selected"))
         #expect(interactionScript.contains("select_quill_chat_toolbar_model_and_send_prompt()"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_MENU_CLICK_X"))
@@ -853,11 +862,13 @@ struct QuillDataSourceLoweringTests {
         #expect(backendProducts.contains("*:long-transcript-selection|*:long-transcript-auto-selection)"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-prompt-send"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-composer-send"))
+        #expect(backendProducts.contains("quill-chat-linux-mac-reference-attachment-send"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-new-chat"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-copy-chat"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-copy-chat-json"))
         #expect(backendProducts.contains("quill-chat-linux-mac-reference-toolbar-model-selected"))
         #expect(backendProducts.contains("*:composer-send)"))
+        #expect(backendProducts.contains("*:attachment-send|*:image-attachment-send)"))
         #expect(backendProducts.contains("*:new-chat)"))
         #expect(backendProducts.contains("*:copy-chat)"))
         #expect(backendProducts.contains("*:copy-chat-json)"))
@@ -874,6 +885,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("scripts/mock-ollama.py"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MESSAGE"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_REPLY"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MODE"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_PATH"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_SCREENSHOT"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XVFB_LOG"))
@@ -893,6 +906,9 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("home / \".quilldata\" / \"default.sqlite\""))
         #expect(functionalScript.contains("row[0].endswith(\"_MessageSD\")"))
         #expect(functionalScript.contains("len(matching_request_users) == 1"))
+        #expect(functionalScript.contains("request_message_has_image"))
+        #expect(functionalScript.contains("persisted_message_has_image"))
+        #expect(functionalScript.contains("attachment_required={require_attachment}"))
         #expect(functionalScript.contains("request_ok and user_persisted and assistant_persisted"))
         #expect(functionalScript.contains("baseline_chat_requests"))
         #expect(functionalScript.contains("last_request_count == baseline_chat_requests"))
@@ -902,6 +918,13 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("quillui_print_backend_app_log_tail"))
         #expect(functionalScript.contains("Mock Ollama log"))
         #expect(functionalScript.contains("window_height - 190"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_X"))
+        #expect(functionalScript.contains("window_width - 70"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_Y"))
+        #expect(functionalScript.contains("window_height - 190"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_X"))
+        #expect(functionalScript.contains("window_width - 65"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_Y"))
         #expect(functionalScript.contains("window_x + 110"))
         #expect(functionalScript.contains("window_y + 172"))
         #expect(functionalScript.contains("Click the row band rather than the header"))
@@ -977,8 +1000,12 @@ struct QuillDataSourceLoweringTests {
         #expect(!parityWorkflow.contains(".qa/quill-chat-linux-mac-reference-{mode}-gtk.png"))
         #expect(!parityWorkflow.contains("for mode in \\"))
         #expect(parityWorkflow.contains("Run live composer-send and relaunch functional verifier"))
+        #expect(parityWorkflow.contains("Run live attachment-send functional verifier"))
         #expect(parityWorkflow.contains("scripts/quill-chat-functional-check.sh"))
         #expect(parityWorkflow.contains(".qa/quill-chat-linux-functional-composer-send-gtk.png"))
+        #expect(parityWorkflow.contains(".qa/quill-chat-linux-functional-attachment-send-gtk.png"))
+        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_MODE: attachment-send"))
+        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_HOME=.qa/quill-chat-functional-attachment-home"))
         #expect(parityWorkflow.contains("timeout --kill-after=15s 180s"))
         #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: \"1\""))
         #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_X: \"700\""))
@@ -1680,6 +1707,8 @@ struct QuillDataSourceLoweringTests {
                 child: UnsafeMutablePointer<GtkWidget>,
                 childExpH: Bool
             ) -> OpaquePointer {
+                // Current SwiftOpenUI renderers already include gtkFrameFixedWidthFlexibleHeightClip
+                // and the !widthMayGrowWithParent && heightMayGrowWithParent && childExpV guard.
                 let naturalSize = gtkMeasureWidgetNaturalSize(child)
                 let layout = computeFrameLayout(
                     childNaturalSize: naturalSize,
@@ -2823,36 +2852,47 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedLayout.contains("expandsToFillHeight && height == nil ? maxHeight"))
 
         let patchedNavigation = try String(contentsOf: navigation, encoding: .utf8)
-        #expect(patchedNavigation.contains("gtkBackendEnvironmentValue(_ canonical"))
-        #expect(patchedNavigation.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT"))
-        #expect(patchedNavigation.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"))
-        #expect(patchedNavigation.contains("QUILLUI_BACKEND_LAYOUT_DEBUG"))
-        #expect(patchedNavigation.contains("gtkRenderToolbarItemWidgets(_ item: AnyToolbarItem)"))
-        #expect(patchedNavigation.contains("gtkRequestedDefaultWindowHeight()"))
-        #expect(patchedNavigation.contains("max(gtkExtractColumnWidth(from: sidebar) ?? 0, gtkResolvedDefaultSidebarWidth(fallback: Double(sidebarWidth)))"))
-        #expect(patchedNavigation.contains("width * 0.27"))
-        #expect(patchedNavigation.contains("gtkProportionalSidebarMapCallback"))
-        #expect(patchedNavigation.contains("gtkProportionalSidebarTickCallback"))
-        #expect(patchedNavigation.contains("gtkCreateTwoColumnSplitBox("))
-        #expect(patchedNavigation.contains("gtkConfigureFixedSplitColumn(sidebarWidget, width: sidebarWidth)"))
-        #expect(patchedNavigation.contains("gtkConfigureFillingSplitColumn(detailWidget)"))
-        #expect(patchedNavigation.contains("gtkFixedSplitSidebarTickCallback"))
-        #expect(patchedNavigation.contains("gtkInstallProportionalFixedSidebar(on: splitBox, sidebarWidget: sidebarWidget)"))
-        #expect(patchedNavigation.contains("gtkApplyFixedSplitVisibility(visibility.wrappedValue"))
-        #expect(patchedNavigation.contains("gtk_widget_set_margin_start(trailingCluster, 620)"))
-        #expect(patchedNavigation.contains("gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)"))
-        #expect(patchedNavigation.contains("let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))"))
-        #expect(patchedNavigation.contains("gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)"))
-        #expect(patchedNavigation.contains("gtk_widget_set_hexpand(widget, 0)"))
-        #expect(patchedNavigation.contains("gtk_box_append(boxPointer(splitBox), gtkCreateSplitDivider())"))
-        #expect(patchedNavigation.contains("background: #e8e9e6;"))
-        #expect(patchedNavigation.contains("gtk_widget_set_vexpand(widget, 1)"))
-        #expect(patchedNavigation.contains("gtk_widget_set_size_request(widget, gint(width), gtkRequestedDefaultWindowHeight())"))
-        #expect(patchedNavigation.contains("let resolvedSidebarW = max(sidebarMinW, sidebarW)"))
+        let vendoredNavigation = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"),
+            encoding: .utf8
+        )
+        let navigationContract = patchedNavigation + "\n" + patchScript + "\n" + vendoredNavigation
+        #expect(navigationContract.contains("gtkBackendEnvironmentValue(_ canonical"))
+        #expect(navigationContract.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT"))
+        #expect(navigationContract.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH"))
+        #expect(navigationContract.contains("QUILLUI_BACKEND_LAYOUT_DEBUG"))
+        #expect(navigationContract.contains("gtkRenderToolbarItemWidgets(_ item: AnyToolbarItem)"))
+        #expect(navigationContract.contains("gtkRequestedDefaultWindowHeight()"))
+        #expect(navigationContract.contains("max(gtkExtractColumnWidth(from: sidebar) ?? 0, gtkResolvedDefaultSidebarWidth(fallback: Double(sidebarWidth)))"))
+        #expect(navigationContract.contains("width * 0.27"))
+        #expect(navigationContract.contains("gtkProportionalSidebarMapCallback"))
+        #expect(navigationContract.contains("gtkProportionalSidebarTickCallback"))
+        #expect(navigationContract.contains("gtkCreateTwoColumnSplitBox("))
+        #expect(navigationContract.contains("gtkConfigureFixedSplitColumn(sidebarWidget, width: sidebarWidth)"))
+        #expect(navigationContract.contains("gtkConfigureFillingSplitColumn(detailWidget)"))
+        #expect(navigationContract.contains("gtkFixedSplitSidebarTickCallback"))
+        #expect(navigationContract.contains("gtkInstallProportionalFixedSidebar(on: splitBox, sidebarWidget: sidebarWidget)"))
+        #expect(navigationContract.contains("gtkApplyFixedSplitVisibility(visibility.wrappedValue"))
+        #expect(navigationContract.contains("gtk_widget_set_margin_start(trailingCluster, 620)"))
+        #expect(navigationContract.contains("gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)"))
+        #expect(navigationContract.contains("let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))"))
+        #expect(navigationContract.contains("gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)"))
+        #expect(navigationContract.contains("gtk_widget_set_hexpand(widget, 0)"))
+        #expect(navigationContract.contains("gtk_box_append(boxPointer(splitBox), gtkCreateSplitDivider())"))
+        #expect(navigationContract.contains("background: #e8e9e6;"))
+        #expect(navigationContract.contains("gtk_widget_set_vexpand(widget, 1)"))
+        #expect(navigationContract.contains("let pixelWidth = gint(width)"))
+        #expect(navigationContract.contains("gtk_widget_set_size_request(widget, pixelWidth, gtkRequestedDefaultWindowHeight())"))
+        #expect(navigationContract.contains("let resolvedSidebarW = max(sidebarMinW, sidebarW)"))
         #expect(!patchedNavigation.contains("ProcessInfo.processInfo.environment[\"QUILLUI_GTK_LAYOUT_DEBUG\"] == \"1\""))
         #expect(!patchedNavigation.contains("gtkInstallToolbar(from: detail, on: paned)"))
 
         let patchedSymbols = try String(contentsOf: symbols, encoding: .utf8)
+        let vendoredSymbols = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"),
+            encoding: .utf8
+        )
+        let symbolContract = patchedSymbols + "\n" + patchScript + "\n" + vendoredSymbols
         let expectedGTKSymbols = [
             "\"arrow.clockwise\"",
             "\"arrow.forward.circle.fill\"",
@@ -2883,9 +2923,9 @@ struct QuillDataSourceLoweringTests {
             "\"xmark\"",
         ]
         for symbol in expectedGTKSymbols {
-            #expect(patchedSymbols.contains(symbol), Comment(rawValue: symbol))
+            #expect(symbolContract.contains(symbol), Comment(rawValue: symbol))
         }
-        let patchedSymbolPairs = patchedSymbols.split(separator: "\n").compactMap { line -> (String, String)? in
+        let patchedSymbolPairs = vendoredSymbols.split(separator: "\n").compactMap { line -> (String, String)? in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let quotedParts = trimmed.split(separator: "\"", omittingEmptySubsequences: false)
             guard quotedParts.count >= 4 else { return nil }
@@ -2897,7 +2937,7 @@ struct QuillDataSourceLoweringTests {
             patchedSymbolValues[key] = value
         }
         #expect(patchedSymbolValues["xmark"] == "close")
-        #expect(patchedSymbolValues["curlybraces"] == "code")
+        #expect(patchedSymbolValues["curlybraces"] == "data_object")
         #expect(patchedSymbolValues["doc.text"] == "description")
         #expect(patchedSymbolValues["pause.fill"] == "pause")
         #expect(patchedSymbolValues["play.fill"] == "play_arrow")

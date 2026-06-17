@@ -254,6 +254,21 @@ public extension RSImage {
     /// TIFF input, so callers should rely on "valid TIFF bytes out" rather than
     /// byte-for-byte equality across platforms.
     var tiffRepresentation: Data? {
+        if let cgImage,
+           let pixels = cgImage.quillBGRAPixels,
+           cgImage.width > 0,
+           cgImage.height > 0,
+           cgImage.quillBytesPerRow >= cgImage.width * 4,
+           let tiff = quillEncodeBGRAPixelsToImageData(
+            pixels,
+            width: cgImage.width,
+            height: cgImage.height,
+            bytesPerRow: cgImage.quillBytesPerRow,
+            format: .tiff
+           ) {
+            return tiff
+        }
+
         guard let data else { return nil }
         switch QuillImageFormatDetector.detect(data) {
         case .tiff:

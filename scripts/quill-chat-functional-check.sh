@@ -17,6 +17,8 @@ OPENBOX_LOG_PATH="${QUILLUI_FUNCTIONAL_OPENBOX_LOG:-$OUTPUT_DIR/quill-chat-funct
 MESSAGE_TEXT="${QUILLUI_FUNCTIONAL_MESSAGE:-hello from linux}"
 REPLY_TEXT="${QUILLUI_FUNCTIONAL_REPLY:-Linux composer reply}"
 MODEL_NAME="${QUILLUI_FUNCTIONAL_MODEL:-llava:latest}"
+FUNCTIONAL_MODE="${QUILLUI_FUNCTIONAL_MODE:-composer-send}"
+ATTACHMENT_PATH="${QUILLUI_FUNCTIONAL_ATTACHMENT_PATH:-$OUTPUT_DIR/quill-chat-functional-attachment.png}"
 MOCK_HOST="${QUILLUI_FUNCTIONAL_OLLAMA_HOST:-127.0.0.1}"
 MOCK_PORT="${QUILLUI_FUNCTIONAL_OLLAMA_PORT:-11434}"
 mock_pid=""
@@ -75,6 +77,33 @@ quillui_functional_default_display() {
 
   printf '%s\n' ":96"
 }
+
+quillui_write_functional_attachment_fixture() {
+  local path="$1"
+
+  python3 - "$path" <<'PY'
+from __future__ import annotations
+
+import base64
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_bytes(base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4GBgYGJAQoAHxcCAtR4mQAAAABJRU5ErkJggg=="
+))
+PY
+}
+
+case "$FUNCTIONAL_MODE" in
+  composer-send|attachment-send|image-attachment-send)
+    ;;
+  *)
+    echo "Unsupported Quill Chat functional mode: $FUNCTIONAL_MODE" >&2
+    exit 64
+    ;;
+esac
 
 python3 "$ROOT_DIR/scripts/mock-ollama.py" \
   --host "$MOCK_HOST" \
@@ -155,6 +184,10 @@ app_environment+=(
   "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
   "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
 )
+if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+  quillui_write_functional_attachment_fixture "$ATTACHMENT_PATH"
+  app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$ATTACHMENT_PATH")
+fi
 
 launch_app_instance() {
   local log_redirect="$1"
@@ -196,15 +229,28 @@ resolve_app_window_geometry() {
 launch_app_instance truncate
 resolve_app_window_geometry
 
+if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+  attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 70))}"
+  attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$((window_y + window_height - 190))}"
+  quillui_functional_xdotool mousemove "$attachment_x" "$attachment_y" click 1
+  sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
+fi
+
 click_x="${QUILLUI_FUNCTIONAL_COMPOSER_X:-$((window_x + (window_width * 56 / 100)))}"
 click_y="${QUILLUI_FUNCTIONAL_COMPOSER_Y:-$((window_y + window_height - 190))}"
 quillui_functional_xdotool mousemove "$click_x" "$click_y" click 1
 sleep 1
 quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
 sleep 1
-quillui_functional_xdotool key --clearmodifiers Return
+if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+  send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
+  send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$((window_y + window_height - 190))}"
+  quillui_functional_xdotool mousemove "$send_x" "$send_y" click 1
+else
+  quillui_functional_xdotool key --clearmodifiers Return
+fi
 
-python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_SEND_DEADLINE:-25}" <<'PY'
+python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_SEND_DEADLINE:-25}" "$FUNCTIONAL_MODE" <<'PY'
 from __future__ import annotations
 
 import json
@@ -218,6 +264,8 @@ message_text = sys.argv[2]
 reply_text = sys.argv[3]
 home = Path(sys.argv[4])
 deadline_seconds = float(sys.argv[5])
+functional_mode = sys.argv[6]
+require_attachment = functional_mode in {"attachment-send", "image-attachment-send"}
 database_path = home / ".quilldata" / "default.sqlite"
 
 
@@ -248,6 +296,16 @@ def persisted_messages() -> list[dict[str, object]]:
     return [json.loads(bytes(row[0]).decode("utf-8")) for row in rows]
 
 
+def request_message_has_image(message: dict[str, object]) -> bool:
+    images = message.get("images")
+    return isinstance(images, list) and any(isinstance(item, str) and item for item in images)
+
+
+def persisted_message_has_image(message: dict[str, object]) -> bool:
+    image = message.get("image")
+    return image not in (None, "", [], {})
+
+
 deadline = time.time() + deadline_seconds
 last_request = None
 last_messages: list[dict[str, object]] = []
@@ -260,10 +318,12 @@ while time.time() < deadline:
         if isinstance(item, dict)
         and item.get("role") == "user"
         and message_text in str(item.get("content", ""))
+        and (not require_attachment or request_message_has_image(item))
     ]
     request_ok = bool(last_request) and len(matching_request_users) == 1
     user_persisted = any(
         item.get("role") == "user" and message_text in str(item.get("content", ""))
+        and (not require_attachment or persisted_message_has_image(item))
         for item in last_messages
     )
     assistant_persisted = any(
@@ -272,14 +332,15 @@ while time.time() < deadline:
     )
     if request_ok and user_persisted and assistant_persisted:
         print(
-            "Quill Chat functional composer-send: "
+            f"Quill Chat functional {functional_mode}: "
             f"request_messages={len(last_request.get('messages', []))}, "
-            f"persisted_messages={len(last_messages)}"
+            f"persisted_messages={len(last_messages)}, "
+            f"attachment_required={require_attachment}"
         )
         raise SystemExit(0)
     time.sleep(0.5)
 
-print("Functional composer-send did not complete.", file=sys.stderr)
+print(f"Functional {functional_mode} did not complete.", file=sys.stderr)
 print(f"request={last_request}", file=sys.stderr)
 print(f"persisted_messages={last_messages}", file=sys.stderr)
 raise SystemExit(1)
@@ -325,7 +386,7 @@ PY
   quillui_functional_xdotool mousemove "$history_x" "$history_y" click 1
   sleep "${QUILLUI_FUNCTIONAL_RELAUNCH_SETTLE_SLEEP:-3}"
 
-  python3 - "$MOCK_LOG_PATH" "$baseline_chat_requests" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE:-15}" <<'PY'
+  python3 - "$MOCK_LOG_PATH" "$baseline_chat_requests" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE:-15}" "$FUNCTIONAL_MODE" <<'PY'
 from __future__ import annotations
 
 import json
@@ -340,6 +401,8 @@ message_text = sys.argv[3]
 reply_text = sys.argv[4]
 home = Path(sys.argv[5])
 deadline_seconds = float(sys.argv[6])
+functional_mode = sys.argv[7]
+require_attachment = functional_mode in {"attachment-send", "image-attachment-send"}
 database_path = home / ".quilldata" / "default.sqlite"
 
 
@@ -370,6 +433,11 @@ def persisted_messages() -> list[dict[str, object]]:
     return [json.loads(bytes(row[0]).decode("utf-8")) for row in rows]
 
 
+def persisted_message_has_image(message: dict[str, object]) -> bool:
+    image = message.get("image")
+    return image not in (None, "", [], {})
+
+
 deadline = time.time() + deadline_seconds
 last_request_count = 0
 last_messages: list[dict[str, object]] = []
@@ -378,6 +446,7 @@ while time.time() < deadline:
     last_messages = persisted_messages()
     user_persisted = any(
         item.get("role") == "user" and message_text in str(item.get("content", ""))
+        and (not require_attachment or persisted_message_has_image(item))
         for item in last_messages
     )
     assistant_persisted = any(
@@ -388,6 +457,7 @@ while time.time() < deadline:
         print(
             "Quill Chat functional relaunch: "
             f"chat_requests={last_request_count}, persisted_messages={len(last_messages)}"
+            f", attachment_required={require_attachment}"
         )
         raise SystemExit(0)
     time.sleep(0.5)

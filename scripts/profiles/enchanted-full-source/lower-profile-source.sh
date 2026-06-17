@@ -27,7 +27,7 @@ input_fields="$LOWERED_COPY/UI/macOS/Chat/Components/InputFields_macOS.swift"
 if [[ -f "$input_fields" ]]; then
   perl -0pi -e '
     s/import QuillShims/import QuillShims\nimport QuillUI/;
-    s~    var body: some View \{[\s\S]*?\n    \}\n\}\n\n#endif~    var body: some View {\n        QuillChatComposer(\n            message: \$message,\n            isLoading: conversationState == .loading,\n            supportsImages: selectedModel?.supportsImages ?? false,\n            selectedImage: selectedImage,\n            onClearImage: { selectedImage = nil },\n            onStop: onStopGenerateTap,\n            onSend: sendMessage\n        )\n    }\n}\n\n#endif~s;
+    s~    var body: some View \{[\s\S]*?\n    \}\n\}\n\n#endif~    var body: some View {\n        QuillChatComposer(\n            message: \$message,\n            isLoading: conversationState == .loading,\n            supportsImages: selectedModel?.supportsImages ?? false,\n            selectedImage: \$selectedImage,\n            onStop: onStopGenerateTap,\n            onSend: sendMessage\n        )\n    }\n}\n\n#endif~s;
   ' "$input_fields"
 fi
 

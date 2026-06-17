@@ -14,6 +14,7 @@
 #endif
 #if os(Linux)
 import Glibc
+import CGdkPixbuf
 import QuillKit
 #endif
 
@@ -4544,7 +4545,269 @@ private enum QuillImageMetadata {
         guard width > 0, height > 0 else { return nil }
         return CGSize(width: CGFloat(width), height: CGFloat(height))
     }
+
+    static func size(ofData data: Data) -> CGSize? {
+        pngPixelSize(in: data)
+    }
+
+    private static func pngPixelSize(in data: Data) -> CGSize? {
+        guard data.count >= 24 else { return nil }
+        let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        guard Array(data.prefix(signature.count)) == signature else { return nil }
+
+        func uint32(at offset: Int) -> UInt32 {
+            data[offset..<offset + 4].reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        }
+
+        let width = uint32(at: 16)
+        let height = uint32(at: 20)
+        guard width > 0, height > 0 else { return nil }
+        return CGSize(width: CGFloat(width), height: CGFloat(height))
+    }
 }
+
+#if os(Linux)
+public enum QuillRasterImageFormat: String, Sendable {
+    case png
+    case jpeg
+    case tiff
+    case bmp
+}
+
+private enum QuillGdkPixbufBridge {
+    static func decodeCGImage(from source: Data) -> CGImage? {
+        guard let pixbuf = decodePixbuf(from: source) else { return nil }
+        defer { g_object_unref(gpointer(pixbuf)) }
+
+        let width = Int(gdk_pixbuf_get_width(pixbuf))
+        let height = Int(gdk_pixbuf_get_height(pixbuf))
+        let sourceChannels = Int(gdk_pixbuf_get_n_channels(pixbuf))
+        let sourceStride = Int(gdk_pixbuf_get_rowstride(pixbuf))
+        guard width > 0, height > 0, sourceChannels >= 3,
+              let sourcePixels = gdk_pixbuf_get_pixels(pixbuf) else {
+            return nil
+        }
+
+        let bytesPerRow = width * 4
+        var bgra = [UInt8](repeating: 0, count: bytesPerRow * height)
+        for y in 0..<height {
+            let sourceRow = sourcePixels.advanced(by: y * sourceStride)
+            let destinationRow = y * bytesPerRow
+            for x in 0..<width {
+                let sourcePixel = sourceRow.advanced(by: x * sourceChannels)
+                let alpha = sourceChannels >= 4 ? Int(sourcePixel[3]) : 255
+                let destination = destinationRow + x * 4
+                bgra[destination] = premultiply(sourcePixel[2], alpha: alpha)
+                bgra[destination + 1] = premultiply(sourcePixel[1], alpha: alpha)
+                bgra[destination + 2] = premultiply(sourcePixel[0], alpha: alpha)
+                bgra[destination + 3] = UInt8(alpha)
+            }
+        }
+
+        let image = CGImage()
+        image.width = width
+        image.height = height
+        image.quillBytesPerRow = bytesPerRow
+        image.quillBGRAPixels = bgra
+        return image
+    }
+
+    static func encodeBGRAPixels(
+        _ bgra: [UInt8],
+        width: Int,
+        height: Int,
+        bytesPerRow: Int,
+        as format: QuillRasterImageFormat
+    ) -> Data? {
+        guard let pixbuf = pixbufFromBGRA(
+            bgra,
+            width: width,
+            height: height,
+            bytesPerRow: bytesPerRow
+        ) else {
+            return nil
+        }
+        defer { g_object_unref(gpointer(pixbuf)) }
+        return encodePixbuf(pixbuf, as: format)
+    }
+
+    private static func decodePixbuf(from source: Data) -> OpaquePointer? {
+        guard !source.isEmpty, let loader = gdk_pixbuf_loader_new() else { return nil }
+        defer { g_object_unref(gpointer(loader)) }
+
+        let writeOK = source.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> Bool in
+            guard let base = raw.baseAddress else { return false }
+            var error: UnsafeMutablePointer<GError>? = nil
+            let ok = gdk_pixbuf_loader_write(
+                loader,
+                base.assumingMemoryBound(to: guchar.self),
+                gsize(raw.count),
+                &error
+            )
+            if let error { g_error_free(error) }
+            return ok != 0
+        }
+        guard writeOK else { return nil }
+
+        var closeError: UnsafeMutablePointer<GError>? = nil
+        let closeOK = gdk_pixbuf_loader_close(loader, &closeError)
+        if let closeError { g_error_free(closeError) }
+        guard closeOK != 0, let pixbuf = gdk_pixbuf_loader_get_pixbuf(loader) else {
+            return nil
+        }
+
+        g_object_ref(gpointer(pixbuf))
+        return pixbuf
+    }
+
+    private static func pixbufFromBGRA(
+        _ bgra: [UInt8],
+        width: Int,
+        height: Int,
+        bytesPerRow: Int
+    ) -> OpaquePointer? {
+        guard width > 0, height > 0, bytesPerRow >= width * 4,
+              bgra.count >= bytesPerRow * (height - 1) + width * 4,
+              let pixbuf = gdk_pixbuf_new(
+                GDK_COLORSPACE_RGB,
+                1,
+                8,
+                gint(width),
+                gint(height)
+              ),
+              let destinationPixels = gdk_pixbuf_get_pixels(pixbuf) else {
+            return nil
+        }
+
+        let destinationStride = Int(gdk_pixbuf_get_rowstride(pixbuf))
+        for y in 0..<height {
+            let sourceRow = y * bytesPerRow
+            let destinationRow = destinationPixels.advanced(by: y * destinationStride)
+            for x in 0..<width {
+                let source = sourceRow + x * 4
+                let destination = destinationRow.advanced(by: x * 4)
+                let alpha = bgra[source + 3]
+                destination[0] = unpremultiply(bgra[source + 2], alpha: alpha)
+                destination[1] = unpremultiply(bgra[source + 1], alpha: alpha)
+                destination[2] = unpremultiply(bgra[source], alpha: alpha)
+                destination[3] = alpha
+            }
+        }
+
+        return pixbuf
+    }
+
+    private static func encodePixbuf(
+        _ pixbuf: OpaquePointer,
+        as format: QuillRasterImageFormat
+    ) -> Data? {
+        var encodedPixbuf = pixbuf
+        var ownsEncodedPixbuf = false
+        if format == .jpeg, gdk_pixbuf_get_has_alpha(pixbuf) != 0 {
+            guard let flattened = copyDroppingAlpha(pixbuf) else { return nil }
+            encodedPixbuf = flattened
+            ownsEncodedPixbuf = true
+        }
+        defer {
+            if ownsEncodedPixbuf {
+                g_object_unref(gpointer(encodedPixbuf))
+            }
+        }
+
+        var buffer: UnsafeMutablePointer<gchar>? = nil
+        var bufferSize: gsize = 0
+        var error: UnsafeMutablePointer<GError>? = nil
+        let saveOK = format.rawValue.withCString { typeCString in
+            gdk_pixbuf_save_to_bufferv(
+                encodedPixbuf,
+                &buffer,
+                &bufferSize,
+                typeCString,
+                nil,
+                nil,
+                &error
+            )
+        }
+        if let error { g_error_free(error) }
+        guard saveOK != 0, let buffer else { return nil }
+
+        let result = Data(bytes: UnsafeRawPointer(buffer), count: Int(bufferSize))
+        g_free(buffer)
+        return result
+    }
+
+    private static func copyDroppingAlpha(_ source: OpaquePointer) -> OpaquePointer? {
+        let width = Int(gdk_pixbuf_get_width(source))
+        let height = Int(gdk_pixbuf_get_height(source))
+        guard width > 0, height > 0,
+              let destination = gdk_pixbuf_new(
+                GDK_COLORSPACE_RGB,
+                0,
+                8,
+                gint(width),
+                gint(height)
+              ),
+              let sourcePixels = gdk_pixbuf_get_pixels(source),
+              let destinationPixels = gdk_pixbuf_get_pixels(destination) else {
+            return nil
+        }
+
+        let sourceStride = Int(gdk_pixbuf_get_rowstride(source))
+        let destinationStride = Int(gdk_pixbuf_get_rowstride(destination))
+        let sourceChannels = Int(gdk_pixbuf_get_n_channels(source))
+        guard sourceChannels >= 3 else {
+            g_object_unref(gpointer(destination))
+            return nil
+        }
+
+        for y in 0..<height {
+            let sourceRow = sourcePixels.advanced(by: y * sourceStride)
+            let destinationRow = destinationPixels.advanced(by: y * destinationStride)
+            for x in 0..<width {
+                let sourcePixel = sourceRow.advanced(by: x * sourceChannels)
+                let destinationPixel = destinationRow.advanced(by: x * 3)
+                let alpha = sourceChannels >= 4 ? Int(sourcePixel[3]) : 255
+                destinationPixel[0] = compositeOverWhite(sourcePixel[0], alpha: alpha)
+                destinationPixel[1] = compositeOverWhite(sourcePixel[1], alpha: alpha)
+                destinationPixel[2] = compositeOverWhite(sourcePixel[2], alpha: alpha)
+            }
+        }
+
+        return destination
+    }
+
+    private static func premultiply(_ component: guchar, alpha: Int) -> UInt8 {
+        UInt8((Int(component) * alpha + 127) / 255)
+    }
+
+    private static func unpremultiply(_ component: UInt8, alpha: UInt8) -> guchar {
+        guard alpha > 0 else { return 0 }
+        return guchar(min(255, (Int(component) * 255 + Int(alpha) / 2) / Int(alpha)))
+    }
+
+    private static func compositeOverWhite(_ component: guchar, alpha: Int) -> guchar {
+        let inverseAlpha = 255 - alpha
+        let blended = (Int(component) * alpha + 255 * inverseAlpha + 127) / 255
+        return guchar(blended)
+    }
+}
+
+public func quillEncodeBGRAPixelsToImageData(
+    _ bgra: [UInt8],
+    width: Int,
+    height: Int,
+    bytesPerRow: Int,
+    format: QuillRasterImageFormat
+) -> Data? {
+    QuillGdkPixbufBridge.encodeBGRAPixels(
+        bgra,
+        width: width,
+        height: height,
+        bytesPerRow: bytesPerRow,
+        as: format
+    )
+}
+#endif
 
 public enum QuillImageCompositingOperation: Sendable {
     case copy
@@ -4572,6 +4835,15 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     public init?(data: Data) {
         super.init()
         self.data = data
+        if let size = QuillImageMetadata.size(ofData: data) {
+            self.size = size
+        }
+        #if os(Linux)
+        if let decoded = QuillGdkPixbufBridge.decodeCGImage(from: data) {
+            self.quillBackingCGImage = decoded
+            self.size = CGSize(width: CGFloat(decoded.width), height: CGFloat(decoded.height))
+        }
+        #endif
     }
     public init?(named name: String) {
         super.init()
@@ -4633,7 +4905,25 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     /// extension wins wherever both modules are visible; Telegram package
     /// islands that only see QuillFoundation get this passthrough.
     @_disfavoredOverload
-    public var tiffRepresentation: Data? { data }
+    public var tiffRepresentation: Data? {
+        #if os(Linux)
+        if let image = quillBackingCGImage,
+           let pixels = image.quillBGRAPixels,
+           image.width > 0,
+           image.height > 0,
+           image.quillBytesPerRow >= image.width * 4,
+           let encoded = quillEncodeBGRAPixelsToImageData(
+            pixels,
+            width: image.width,
+            height: image.height,
+            bytesPerRow: image.quillBytesPerRow,
+            format: .tiff
+           ) {
+            return encoded
+        }
+        #endif
+        return data
+    }
     public func addRepresentation(_ imageRep: Any) { _ = imageRep }
     public func tinted(with: Any) -> RSImage { self }
     public static func image(with data: Data, imageResultBlock: @escaping (RSImage?) -> Void) {

@@ -216,6 +216,8 @@ let signalAppTargetPresent: Bool = signalUpstreamPresent
 // macOS SwiftUI USB-microscope viewer (MIT) compiled UNMODIFIED on Linux
 // against the SwiftUI/AppKit/AVFoundation/CoreImage shim surface.
 let solderScopeUpstreamPresent: Bool = upstreamPresent(".upstream/solderscope/SolderScope")
+let solderScopeUpstreamEnabled: Bool = solderScopeUpstreamPresent
+    && ProcessInfo.processInfo.environment["QUILLUI_SOLDERSCOPE"] == "1"
 // SceneKit conformance lane (docs/scenekit-conformance.md) — all MIT:
 // nicklockwood/Euclid (pure-Swift 3D geometry/CSG lib + a UIKit/SceneKit
 // Example app) and nicklockwood/ShapeScript (real shipped macOS app whose
@@ -507,6 +509,10 @@ products += [
 #endif
 
 #if os(Linux)
+let quillFoundationDependencies: [Target.Dependency] = ["QuillKit", "CGdkPixbuf"]
+let quillFoundationSwiftSettings: [SwiftSetting] = [
+    .unsafeFlags(gdkPixbufSwiftImporterFlags)
+]
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
     "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage", "CoreServices",
@@ -531,6 +537,8 @@ let uiKitShimDependencies: [Target.Dependency] =
 // keep the pure compile-surface AVFoundation.
 let quillV4L2Dependencies: [Target.Dependency] = ["CV4L2"]
 #else
+let quillFoundationDependencies: [Target.Dependency] = ["QuillKit"]
+let quillFoundationSwiftSettings: [SwiftSetting] = []
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
 ]
@@ -1110,8 +1118,9 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillFoundation",
-        dependencies: ["QuillKit"],
-        path: "Sources/QuillFoundation"
+        dependencies: quillFoundationDependencies,
+        path: "Sources/QuillFoundation",
+        swiftSettings: quillFoundationSwiftSettings
     ),
     .target(
         name: "QuillWebKit",
@@ -2624,10 +2633,11 @@ targets += [
 // viewer compiled UNMODIFIED on Linux (no @objc/#selector anywhere; the only
 // build-prep transform is quill-lower-appkit's `import os.log` → `import os`
 // clang-submodule lowering). Exercises the SwiftUI app lifecycle +
-// AVFoundation capture + CoreImage/CoreVideo surface. Inert on CI until
-// fetch-upstream.sh populates .upstream/solderscope (gitignored).
+// AVFoundation capture + CoreImage/CoreVideo surface. Opt-in so a local
+// fetched checkout does not silently expand every unrelated test build:
+//   QUILLUI_SOLDERSCOPE=1 scripts/fetch-upstream.sh solderscope && swift build --product QuillSolderScope
 #if os(Linux)
-if solderScopeUpstreamPresent {
+if solderScopeUpstreamEnabled {
     products.append(.executable(name: "QuillSolderScope", targets: ["QuillSolderScope"]))
     targets += [
         .executableTarget(

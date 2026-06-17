@@ -203,6 +203,25 @@ struct QuillUITests {
         #expect(composer.selectedImage != nil)
     }
 
+    @Test("QuillChatComposer exposes binding-backed selected image state")
+    func quillChatComposerBindingSelectedImageState() {
+        var draft = "Describe this"
+        var selectedImage: Image? = Image(systemName: "photo")
+        let composer = QuillChatComposer(
+            message: Binding(get: { draft }, set: { draft = $0 }),
+            supportsImages: true,
+            selectedImage: Binding(get: { selectedImage }, set: { selectedImage = $0 }),
+            onSend: {}
+        )
+
+        #expect(composer.message == "Describe this")
+        #expect(composer.supportsImages)
+        #expect(composer.selectedImage != nil)
+
+        selectedImage = nil
+        #expect(composer.selectedImage == nil)
+    }
+
     // MARK: - QuillMenuAction helpers
 
     @Test("QuillMenuAction builds disabled and selectable menu rows")

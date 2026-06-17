@@ -5999,7 +5999,7 @@ required_symbols = [
     ("character.cursor.ibeam", "text_fields", ["calendar"]),
     ("checkmark.seal.fill", "verified", ["checkmark.circle.fill", "checkmark.square.fill", "calendar"]),
     ("chevron.down", "expand_more", ["chevron.right", "calendar"]),
-    ("curlybraces", "code", ["chevron.down", "calendar"]),
+    ("curlybraces", "data_object", ["chevron.down", "calendar"]),
     ("doc.on.doc", "content_copy", ["calendar"]),
     ("doc.text", "description", ["doc.on.doc", "calendar"]),
     ("folder", "folder", ["calendar"]),

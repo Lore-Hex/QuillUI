@@ -193,6 +193,26 @@ jobs:
               quill-chat-linux \
               gtk
 
+      - name: Run live attachment-send functional verifier
+        env:
+          QUILLUI_BACKEND_SKIP_BUILD: "1"
+          QUILLUI_FUNCTIONAL_MODE: attachment-send
+          QUILLUI_FUNCTIONAL_MESSAGE: "describe this image from linux"
+          QUILLUI_FUNCTIONAL_COMPOSER_X: "700"
+          QUILLUI_FUNCTIONAL_COMPOSER_Y: "1190"
+          QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: "1"
+        run: |
+          # Prove the real-source composer routes selected image data through
+          # Ollama's `images` request payload and persists user image bytes.
+          QUILLUI_FUNCTIONAL_APP_LOG=.qa/quill-chat-linux-functional-attachment-app.log \
+          QUILLUI_FUNCTIONAL_MOCK_LOG=.qa/quill-chat-linux-functional-attachment-ollama.log \
+          QUILLUI_FUNCTIONAL_HOME=.qa/quill-chat-functional-attachment-home \
+            timeout --kill-after=15s 180s \
+            scripts/quill-chat-functional-check.sh \
+              .qa/quill-chat-linux-functional-attachment-send-gtk.png \
+              quill-chat-linux \
+              gtk
+
       - name: List .qa (debug visibility)
         if: always()
         run: |
