@@ -29,6 +29,37 @@ struct SceneKitRendererTests {
         #expect(grandchild.childNodes.isEmpty)
     }
 
+    @Test("SCNGeometry copy preserves primitive subtype parameters and metadata")
+    func geometryCopyPreservesPrimitiveSubtypeParametersAndMetadata() throws {
+        let material = SCNMaterial()
+        material.name = "shared"
+
+        let sphere = SCNSphere(radius: 2.5)
+        sphere.name = "planet"
+        sphere.materials = [material]
+        sphere.geometrySourceChannels = [3, 5]
+        sphere.isGeodesic = true
+        sphere.segmentCount = 24
+
+        let sphereCopy = try #require(sphere.copy() as? SCNSphere)
+        #expect(sphereCopy !== sphere)
+        #expect(sphereCopy.radius == 2.5)
+        #expect(sphereCopy.isGeodesic)
+        #expect(sphereCopy.segmentCount == 24)
+        #expect(sphereCopy.name == "planet")
+        #expect(sphereCopy.materials.first === material)
+        #expect(sphereCopy.geometrySourceChannels?.map(\.intValue) == [3, 5])
+
+        let text = SCNText(string: "Quill", extrusionDepth: 0.4)
+        text.flatness = 0.2
+        text.chamferRadius = 0.1
+        let textCopy = try #require(text.copy() as? SCNText)
+        #expect(textCopy.string as? String == "Quill")
+        #expect(textCopy.extrusionDepth == 0.4)
+        #expect(textCopy.flatness == 0.2)
+        #expect(textCopy.chamferRadius == 0.1)
+    }
+
     @Test("Software renderer draws colored sphere pixels")
     func rendersSpherePixels() {
         let scene = SCNScene()
