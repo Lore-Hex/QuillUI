@@ -57,13 +57,13 @@ jobs:
         run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter SolderScopeChromeConformanceTests
 
       - name: SolderScope capture surface tests
-        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-capture --filter AVCaptureSurfaceTests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter AVCaptureSurfaceTests
 
       - name: SolderScope V4L2 fixture tests
-        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-v4l2 --filter V4L2ConversionTests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter V4L2ConversionTests
 
       - name: SolderScope bitmap and movie fidelity tests
-        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-encode --filter BitmapAndMovieEncodeTests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter BitmapAndMovieEncodeTests
 
   solderscope-gtk-smoke:
     name: SolderScope GTK launch and interaction
