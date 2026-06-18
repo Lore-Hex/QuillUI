@@ -220,6 +220,7 @@ private func configureQuillTextEditorWidgets(
     gtk_widget_set_can_target(textView, 1)
     gtk_widget_set_can_focus(textView, 1)
 
+    let editorBackgroundColor = quillTextFieldCSSRGBA(MacColors.controlBackground)
     let css = """
     scrolledwindow.quill-paint-text-editor,
     scrolledwindow.quill-paint-text-editor:focus,
@@ -239,8 +240,8 @@ private func configureQuillTextEditorWidgets(
     textview.quill-paint-text-editor:disabled,
     textview.quill-paint-text-editor text,
     textview.quill-paint-text-editor text:focus {
-        background: transparent;
-        background-color: transparent;
+        background: \(editorBackgroundColor);
+        background-color: \(editorBackgroundColor);
         background-image: none;
         border: none;
         box-shadow: none;

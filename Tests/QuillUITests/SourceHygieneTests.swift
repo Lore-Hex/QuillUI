@@ -4259,6 +4259,14 @@ struct SourceHygieneTests {
         #expect(gtkTextField.contains("CairoPaintContext(cr: cr)"))
         #expect(gtkTextField.contains(".quill-paint-text-field text placeholder"))
         #expect(gtkTextField.contains("textview.quill-paint-text-editor"))
+        #expect(gtkTextField.contains("let editorBackgroundColor = quillTextFieldCSSRGBA(MacColors.controlBackground)"))
+        #expect(gtkTextField.contains("background: \\(editorBackgroundColor);"))
+        #expect(renderer.range(of: "if widthFree && !heightFree && childExpH") != nil)
+        #expect(renderer.range(of: "if widthMayGrowWithParent || heightMayGrowWithParent") != nil)
+        #expect(
+            renderer.range(of: "if widthFree && !heightFree && childExpH")!.lowerBound
+                < renderer.range(of: "if widthMayGrowWithParent || heightMayGrowWithParent")!.lowerBound
+        )
         #expect(gtkToggle.contains("setupQuillToggleChrome(control: control, isSwitch: isSwitch, label: label)"))
         #expect(gtkToggle.contains("MacCheckboxPaint(value: chromeBox.isActive ? .on : .off)"))
         #expect(gtkToggle.contains("MacSwitchPaint(isOn: chromeBox.isActive)"))

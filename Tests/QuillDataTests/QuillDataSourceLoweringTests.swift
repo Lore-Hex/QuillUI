@@ -2998,6 +2998,10 @@ struct QuillDataSourceLoweringTests {
         #expect(source.contains("target = findUniqueEditable(in: widget, stableFocusKey: stableFocusKey)"))
         #expect(source.contains("target = findEditable(in: widget, descriptorIdentity: descriptorIdentity)"))
         #expect(source.contains("target = findNthEditable(in: widget, targetIndex: info.editableIndex"))
+        #expect(source.contains("guard focusInfo(info, matches: target) else { return }"))
+        #expect(source.contains("private func focusInfo(_ info: FocusInfo, matches target: UnsafeMutablePointer<GtkWidget>) -> Bool"))
+        #expect(source.contains("if info.isTextView {\n        return isTextView(target)\n    }"))
+        #expect(source.contains("guard let buffer = gtk_text_view_get_buffer(tvPtr) else { return }"))
 
         let stableKeyIndex = source.range(
             of: "target = findUniqueEditable(in: widget, stableFocusKey: stableFocusKey)"

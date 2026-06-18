@@ -142,6 +142,33 @@ wireguard_import_configuration_file_for_mode() {
   fi
 }
 
+wireguard_import_configuration() {
+  if [[ -n "${QUILLUI_BACKEND_IMPORT_CONFIGURATION:-}" ]]; then
+    printf '%s' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION"
+    return 0
+  fi
+
+  local fixture_path
+  fixture_path="$(wireguard_import_configuration_file)" || return $?
+
+  cat "$fixture_path"
+}
+
+wireguard_import_configuration_for_mode() {
+  if quillui_is_wireguard_malformed_import_paste_interaction "$1"; then
+    wireguard_malformed_import_configuration
+  else
+    wireguard_import_configuration
+  fi
+}
+
+wireguard_import_configuration_prefill_file_for_mode() {
+  local fixture_path="$OUTPUT_DIR/wireguard-import-prefill.conf"
+  mkdir -p "$(dirname "$fixture_path")"
+  wireguard_import_configuration_for_mode "$1" > "$fixture_path"
+  printf '%s\n' "$fixture_path"
+}
+
 DISPLAY_ID="$(quillui_normalize_x_display_id "${QUILLUI_BACKEND_INTERACTION_DISPLAY:-:95}")"
 SCREEN_SIZE="$(quillui_backend_screen_size "$PRODUCT" "${QUILLUI_BACKEND_INTERACTION_SCREEN_SIZE:-}" "1180x760x24" "$reference_window_width" "$reference_window_height")"
 screen_width="${SCREEN_SIZE%%x*}"
@@ -262,6 +289,7 @@ PY
 }
 
 app_environment=()
+wireguard_gtk_import_uses_prefill=0
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-new-sheet" ]]; then
   app_environment+=("QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}")
 fi
@@ -276,6 +304,13 @@ quillui_append_backend_runtime_environment \
   "$SELECTED_BACKEND"
 if [[ "$PRODUCT" == "quill-wireguard" ]]; then
   case "$INTERACTION_MODE" in
+    import-paste|paste-import|import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
+      if [[ "$SELECTED_BACKEND" == "gtk" ]]; then
+        import_file="$(wireguard_import_configuration_prefill_file_for_mode "$INTERACTION_MODE")" || exit $?
+        app_environment+=("QUILLUI_WIREGUARD_IMPORT_CONFIGURATION_FILE_ON_START=$import_file")
+        wireguard_gtk_import_uses_prefill=1
+      fi
+      ;;
     import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
       import_file="$(wireguard_import_configuration_file_for_mode "$INTERACTION_MODE")" || exit $?
       if [[ "$SELECTED_BACKEND" == "qt" ]]; then
@@ -284,7 +319,8 @@ if [[ "$PRODUCT" == "quill-wireguard" ]]; then
           app_environment+=("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START=1")
         fi
       else
-        app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$import_file")
+        app_environment+=("QUILLUI_WIREGUARD_IMPORT_CONFIGURATION_FILE_ON_START=$import_file")
+        wireguard_gtk_import_uses_prefill=1
       fi
       ;;
   esac
@@ -583,26 +619,6 @@ edit_wireguard_tunnel_name() {
   DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
   type_text "${QUILLUI_BACKEND_TYPE_TEXT:-Edited Tunnel}"
   sleep "$post_click_sleep"
-}
-
-wireguard_import_configuration() {
-  if [[ -n "${QUILLUI_BACKEND_IMPORT_CONFIGURATION:-}" ]]; then
-    printf '%s' "$QUILLUI_BACKEND_IMPORT_CONFIGURATION"
-    return 0
-  fi
-
-  local fixture_path
-  fixture_path="$(wireguard_import_configuration_file)" || return $?
-
-  cat "$fixture_path"
-}
-
-wireguard_import_configuration_for_mode() {
-  if quillui_is_wireguard_malformed_import_paste_interaction "$1"; then
-    wireguard_malformed_import_configuration
-  else
-    wireguard_import_configuration
-  fi
 }
 
 # Move the capture to the child window a sheet presented in, when one exists.
@@ -1474,7 +1490,7 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         edit_wireguard_tunnel_name
         ;;
       import-paste|paste-import|import-invalid-paste|invalid-paste-import|import-malformed-paste|malformed-paste-import)
-        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
+        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 270))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
         editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + 520))}"
         editor_y="${QUILLUI_BACKEND_IMPORT_EDITOR_Y:-$((window_y + 190))}"
@@ -1482,15 +1498,16 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         sleep 0.8
         click_at "$editor_x" "$editor_y"
         sleep 0.2
-        import_configuration="$(wireguard_import_configuration_for_mode "$INTERACTION_MODE")" || exit $?
-        type_multiline_text "$import_configuration"
-        sleep 0.4
-        # Submit via Ctrl+Return instead of clicking the Import button. The GTK
-        # TextEditor expands to fill the panel and renders over the action row, so a
-        # positional submit click can't reliably reach the button. SwiftOpenUI maps
-        # Ctrl (-> .command) + Return to the button's .keyboardShortcut(.return) at the
-        # window level (a plain Return would only insert a newline in the focused
-        # editor). Mirrors the Qt import branch below.
+        if [[ "$wireguard_gtk_import_uses_prefill" != "1" ]]; then
+          import_configuration="$(wireguard_import_configuration_for_mode "$INTERACTION_MODE")" || exit $?
+          type_multiline_text "$import_configuration"
+          sleep 0.4
+        fi
+        # Submit via Ctrl+Return so paste and prefilled-file imports share the same
+        # deterministic action path. SwiftOpenUI maps Ctrl (-> .command) + Return to
+        # the button's .keyboardShortcut(.return) at the window level (a plain Return
+        # would only insert a newline in the focused editor). Mirrors the Qt import
+        # branch below.
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
         # A valid import settles into static detail landmarks the post-click sleep
@@ -1513,13 +1530,10 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         fi
         ;;
       import-file|file-import|import-invalid-file|invalid-file-import|import-malformed-file|malformed-file-import)
-        # The "Import from File" button is occluded by the expanding TextEditor and
-        # can't be reliably clicked, and (unlike Qt) the GTK app has no on-start file
-        # import hook. So drive the file import through the working paste path: load
-        # the selected .conf fixture's contents into the editor and submit with
-        # Ctrl+Return. On a headless Linux backend with no native file picker this is
-        # the faithful file-import flow (the config comes from the fixture file).
-        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 256))}"
+        # Drive headless file import through the same editor path as paste import:
+        # the Linux fallback preloads the selected .conf fixture into the editor,
+        # then Ctrl+Return submits through the UI action.
+        import_x="${QUILLUI_BACKEND_IMPORT_CLICK_X:-$((window_x + 270))}"
         import_y="${QUILLUI_BACKEND_IMPORT_CLICK_Y:-$((window_y + 30))}"
         editor_x="${QUILLUI_BACKEND_IMPORT_EDITOR_X:-$((window_x + 520))}"
         editor_y="${QUILLUI_BACKEND_IMPORT_EDITOR_Y:-$((window_y + 190))}"
@@ -1528,8 +1542,10 @@ elif [[ "$PRODUCT" == "quill-wireguard" && "$SELECTED_BACKEND" == "gtk" ]]; then
         sleep 0.8
         click_at "$editor_x" "$editor_y"
         sleep 0.2
-        type_multiline_text "$file_configuration"
-        sleep 0.4
+        if [[ "$wireguard_gtk_import_uses_prefill" != "1" ]]; then
+          type_multiline_text "$file_configuration"
+          sleep 0.4
+        fi
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+Return
         sleep "$post_click_sleep"
         # Invalid file imports paint the same async error overlay as the invalid

@@ -2082,14 +2082,6 @@ extension FrameView: GTKRenderable, GTKDescribable {
                 || (maxHeight == nil && childExpV)
             )
 
-        if widthMayGrowWithParent || heightMayGrowWithParent {
-            return gtkFrameParentFlexibleAxes(
-                child: child,
-                childExpH: childExpH,
-                childExpV: childExpV
-            )
-        }
-
         if !widthFree && heightFree && childExpV {
             // Width-constrained, height-flexible, child expands vertically.
             // Example: Color.blue.frame(width: 120) inside an HStack.
@@ -2100,6 +2092,14 @@ extension FrameView: GTKRenderable, GTKDescribable {
             // Height-constrained, width-flexible, child expands horizontally.
             return gtkFrameFlexibleAxis(child: child, childExpH: childExpH,
                                         constrainedWidth: false)
+        }
+
+        if widthMayGrowWithParent || heightMayGrowWithParent {
+            return gtkFrameParentFlexibleAxes(
+                child: child,
+                childExpH: childExpH,
+                childExpV: childExpV
+            )
         }
 
         // General case: use GtkFixed for alignment positioning.
