@@ -1832,7 +1832,7 @@ public struct QuillChatUnreachableBanner<SettingsContent: View>: View {
     public init(
         message: String = "Quill is unreachable. Plug Quill back in if it's unplugged, or go to Settings and\nupdate your Quill API endpoint.",
         actionTitle: String = "Settings",
-        showsActivity: Bool = false,
+        showsActivity: Bool = true,
         horizontalPadding: CGFloat = 28,
         topPadding: CGFloat = 10,
         bottomPadding: CGFloat = 74,
