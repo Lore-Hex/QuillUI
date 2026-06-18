@@ -708,10 +708,15 @@ quill_chat_composer_click_x() {
 }
 
 quill_chat_composer_click_y() {
+  if [[ -n "${QUILLUI_BACKEND_CLICK_Y:-}" ]]; then
+    printf '%s\n' "$QUILLUI_BACKEND_CLICK_Y"
+    return
+  fi
+
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    printf '%s\n' "${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 136))}"
+    printf '%s\n' "${QUILLUI_BACKEND_COMPOSER_CLICK_Y:-$((window_y + window_height - 135))}"
   else
-    printf '%s\n' "${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 80))}"
+    printf '%s\n' "${QUILLUI_BACKEND_COMPOSER_CLICK_Y:-$((window_y + window_height - 80))}"
   fi
 }
 
