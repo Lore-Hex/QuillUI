@@ -3426,6 +3426,9 @@ public enum QuillChatCopy {
         clipboard: QuillClipboard = .shared
     ) -> (_ json: Bool) -> Void {
         rememberVisibleMessages(key: key, messages, role: role, content: content)
+        #if os(Linux)
+        rememberedCommandBridge.install(key: key, clipboard: clipboard)
+        #endif
         return { json in
             copyRememberedVisibleMessages(key: key, asJSON: json, fallback: fallback, clipboard: clipboard)
         }
@@ -3495,6 +3498,24 @@ public enum QuillChatCopy {
         }
     }
 
+    @discardableResult
+    static func performRememberedCommand(
+        _ title: String,
+        key: String,
+        clipboard: QuillClipboard = .shared
+    ) -> Bool {
+        switch title {
+        case "Copy Chat":
+            copyRememberedVisibleMessages(key: key, asJSON: false, clipboard: clipboard)
+            return true
+        case "Copy Chat as JSON":
+            copyRememberedVisibleMessages(key: key, asJSON: true, clipboard: clipboard)
+            return true
+        default:
+            return false
+        }
+    }
+
     public static func plainText<Message>(
         _ messages: [Message],
         role: (Message) -> String,
@@ -3549,6 +3570,86 @@ public enum QuillChatCopy {
     }
 
     private static let rememberedPayloads = RememberedPayloadStore()
+
+    #if os(Linux)
+    private static let rememberedCommandBridge = RememberedCommandBridge()
+
+    private final class RememberedCommandBridge: @unchecked Sendable {
+        private static let commandDirectoryEnvironmentKey = "QUILLUI_GTK_TOOLBAR_ACTION_COMMAND_DIR"
+
+        private let lock = NSLock()
+        private var commandDirectoryPath: String?
+        private var key: String?
+        private var clipboard = QuillClipboard.shared
+        private var timer: DispatchSourceTimer?
+
+        func install(key: String, clipboard: QuillClipboard) {
+            guard let commandDirectoryPath = ProcessInfo.processInfo.environment[Self.commandDirectoryEnvironmentKey],
+                  !commandDirectoryPath.isEmpty
+            else {
+                return
+            }
+
+            lock.lock()
+            self.commandDirectoryPath = commandDirectoryPath
+            self.key = key
+            self.clipboard = clipboard
+            if timer == nil {
+                let timer = DispatchSource.makeTimerSource(
+                    queue: DispatchQueue(label: "quill.chat-copy-command-bridge")
+                )
+                timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
+                timer.setEventHandler { [weak self] in
+                    self?.poll()
+                }
+                self.timer = timer
+                timer.resume()
+            }
+            lock.unlock()
+        }
+
+        private func poll() {
+            let snapshot = stateSnapshot()
+            guard let commandDirectoryPath = snapshot.commandDirectoryPath,
+                  let key = snapshot.key
+            else {
+                return
+            }
+
+            let directoryURL = URL(fileURLWithPath: commandDirectoryPath)
+            guard let commandURLs = try? FileManager.default.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                return
+            }
+
+            for commandURL in commandURLs {
+                let resourceValues = try? commandURL.resourceValues(forKeys: [.isDirectoryKey])
+                guard resourceValues?.isDirectory != true,
+                      let title = try? String(contentsOf: commandURL, encoding: .utf8)
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                      QuillChatCopy.performRememberedCommand(title, key: key, clipboard: snapshot.clipboard)
+                else {
+                    continue
+                }
+
+                try? FileManager.default.removeItem(at: commandURL)
+            }
+        }
+
+        private func stateSnapshot() -> (
+            commandDirectoryPath: String?,
+            key: String?,
+            clipboard: QuillClipboard
+        ) {
+            lock.lock()
+            defer { lock.unlock() }
+            return (commandDirectoryPath, key, clipboard)
+        }
+    }
+    #endif
 }
 
 public struct QuillChatCopyRememberingView<Message, Content: View>: View {

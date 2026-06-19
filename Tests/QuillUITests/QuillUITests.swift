@@ -375,6 +375,25 @@ struct QuillUITests {
         rememberedAction(true)
         #expect(rememberedClipboard.string()?.contains(#""role":"assistant""#) == true)
 
+        let bridgeCommandClipboard = QuillClipboard()
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.remembered-copy",
+            clipboard: bridgeCommandClipboard
+        ))
+        #expect(bridgeCommandClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat as JSON",
+            key: "quill.tests.remembered-copy",
+            clipboard: bridgeCommandClipboard
+        ))
+        #expect(bridgeCommandClipboard.string()?.contains(#""role":"user""#) == true)
+        #expect(!QuillChatCopy.performRememberedCommand(
+            "Ignored",
+            key: "quill.tests.remembered-copy",
+            clipboard: bridgeCommandClipboard
+        ))
+
         struct Model {
             var id: String
             var name: String
