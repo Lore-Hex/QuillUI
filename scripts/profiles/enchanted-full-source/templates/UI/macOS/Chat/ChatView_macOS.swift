@@ -1,8 +1,3 @@
-//
-//  Chat.swift
-//  Enchanted
-//
-
 #if os(macOS) || os(Linux) || os(visionOS)
 import SwiftUI
 import QuillUI
@@ -84,6 +79,8 @@ struct ChatView: View {
         }
     }
 
-    private func copyVisibleChat(_ json: Bool) { guard !json, !messages.isEmpty else { copyChat(json); return }; Clipboard.shared.setString(messages.map { "\($0.role.capitalized): \($0.content)" }.joined(separator: "\n\n")) }
+    private func copyVisibleChat(_ json: Bool) {
+        QuillChatCopy.copyVisibleMessages(messages, asJSON: json, role: \.role, content: \.content, fallback: copyChat)
+    }
 }
 #endif

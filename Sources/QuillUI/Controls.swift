@@ -3416,6 +3416,55 @@ public struct QuillMenuAction: Identifiable {
     }
 }
 
+public enum QuillChatCopy {
+    public static func copyVisibleMessages<Message>(
+        _ messages: [Message],
+        asJSON json: Bool,
+        role: (Message) -> String,
+        content: (Message) -> String,
+        fallback: ((_ json: Bool) -> Void)? = nil,
+        clipboard: QuillClipboard = .shared
+    ) {
+        guard !messages.isEmpty else {
+            fallback?(json)
+            return
+        }
+
+        if json {
+            if let text = jsonText(messages, role: role, content: content) {
+                clipboard.setString(text)
+            }
+        } else {
+            clipboard.setString(plainText(messages, role: role, content: content))
+        }
+    }
+
+    public static func plainText<Message>(
+        _ messages: [Message],
+        role: (Message) -> String,
+        content: (Message) -> String
+    ) -> String {
+        messages.map { "\(role($0).capitalized): \(content($0))" }.joined(separator: "\n\n")
+    }
+
+    public static func jsonText<Message>(
+        _ messages: [Message],
+        role: (Message) -> String,
+        content: (Message) -> String
+    ) -> String? {
+        let payload = messages.map { MessagePayload(role: role($0), content: content($0)) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes]
+        guard let data = try? encoder.encode(payload) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private struct MessagePayload: Encodable {
+        var role: String
+        var content: String
+    }
+}
+
 public struct QuillMenuButton: View {
     public var title: String
     public var systemImage: String

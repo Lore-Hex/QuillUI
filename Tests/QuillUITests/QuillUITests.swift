@@ -328,6 +328,27 @@ struct QuillUITests {
         copyChatActions.forEach { $0.perform() }
         #expect(copiedJSONValues == [false, true])
 
+        struct ChatMessage {
+            var role: String
+            var content: String
+        }
+
+        let chatMessages = [
+            ChatMessage(role: "user", content: "How to center div in HTML?"),
+            ChatMessage(role: "assistant", content: "Use **flexbox** and justify-content.")
+        ]
+        let chatClipboard = QuillClipboard()
+        QuillChatCopy.copyVisibleMessages(chatMessages, asJSON: false, role: \.role, content: \.content, clipboard: chatClipboard)
+        #expect(chatClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+
+        QuillChatCopy.copyVisibleMessages(chatMessages, asJSON: true, role: \.role, content: \.content, clipboard: chatClipboard)
+        #expect(chatClipboard.string()?.contains(#""role":"user""#) == true)
+        #expect(chatClipboard.string()?.contains(#""content":"Use **flexbox** and justify-content.""#) == true)
+
+        var fallbackJSONValues: [Bool] = []
+        QuillChatCopy.copyVisibleMessages([ChatMessage](), asJSON: true, role: \.role, content: \.content, fallback: { fallbackJSONValues.append($0) }, clipboard: chatClipboard)
+        #expect(fallbackJSONValues == [true])
+
         struct Model {
             var id: String
             var name: String
