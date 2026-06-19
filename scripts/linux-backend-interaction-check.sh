@@ -1323,6 +1323,8 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$((window_y + window_height - 190))}"
         fi
         click_at "$send_x" "$send_y"
+        sleep "${QUILLUI_BACKEND_ATTACHMENT_SEND_FALLBACK_SLEEP:-0.4}"
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
         sleep 3
         ;;
       new-chat)

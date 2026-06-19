@@ -834,6 +834,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("window_width - 65"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_SEND_CLICK_Y"))
         #expect(interactionScript.contains("send_y=\"${QUILLUI_BACKEND_SEND_CLICK_Y:-$(quill_chat_composer_click_y)}\""))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_SEND_FALLBACK_SLEEP"))
+        #expect(interactionScript.contains("xdotool key --clearmodifiers Return"))
         #expect(interactionScript.contains("toolbar-model-selected"))
         #expect(interactionScript.contains("select_quill_chat_toolbar_model_and_send_prompt()"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_MENU_CLICK_X"))
