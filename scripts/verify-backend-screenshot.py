@@ -1419,7 +1419,7 @@ def validate_quill_chat_mac_reference_settings_panel(
 
     if require_typed_bearer_token:
         if panel_kind == "root-overlay":
-            token_text_pixels = root_overlay_field_text_pixels(2)
+            token_text_pixels = root_overlay_field_text_pixels(3)
             token_text_threshold = 220
         else:
             token_y0 = panel_y + 174
@@ -1441,7 +1441,7 @@ def validate_quill_chat_mac_reference_settings_panel(
 
     if require_typed_ping_interval:
         if panel_kind == "root-overlay":
-            ping_text_pixels = root_overlay_field_text_pixels(3)
+            ping_text_pixels = root_overlay_field_text_pixels(4)
         else:
             ping_y0 = panel_y + 208
             ping_y1 = panel_y + 257
