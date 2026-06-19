@@ -837,9 +837,73 @@ ensure_quill_chat_completions_panel_open() {
   quill_chat_mac_reference_completions_panel_visible
 }
 
+quill_chat_mac_reference_new_completion_click_target() {
+  local probe_path="$1"
+
+  python3 - "$probe_path" <<'PY'
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    width_text, height_text = subprocess.run(
+        ["identify", "-format", "%w %h", str(path)],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.split()
+    width = int(width_text)
+    height = int(height_text)
+    rgba = subprocess.run(
+        ["convert", str(path), "rgba:-"],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+except Exception:
+    raise SystemExit(1)
+
+def action_pixel(red: int, green: int, blue: int) -> bool:
+    return (
+        blue >= 150
+        and red <= 150
+        and green <= 170
+        and blue - red >= 35
+        and blue - green >= 35
+        and max(red, green, blue) - min(red, green, blue) >= 40
+    )
+
+points: list[tuple[int, int]] = []
+x0 = int(width * 0.64)
+x1 = int(width * 0.81)
+y0 = int(height * 0.32)
+y1 = int(height * 0.42)
+for y in range(y0, y1):
+    for x in range(x0, x1):
+        offset = ((y * width) + x) * 4
+        red = rgba[offset]
+        green = rgba[offset + 1]
+        blue = rgba[offset + 2]
+        if action_pixel(red, green, blue):
+            points.append((x, y))
+
+if len(points) < 20:
+    raise SystemExit(1)
+
+xs = [point[0] for point in points]
+ys = [point[1] for point in points]
+print(f"{(min(xs) + max(xs)) // 2} {(min(ys) + max(ys)) // 2}")
+PY
+}
+
 open_quill_chat_new_completion_sheet() {
   local new_x
   local new_y
+  local target
+  local target_x
+  local target_y
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     ensure_quill_chat_completions_panel_open
@@ -852,8 +916,20 @@ open_quill_chat_new_completion_sheet() {
       new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}"
       new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 458))}"
     else
-      new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}"
-      new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 493))}"
+      if [[ -n "$quill_chat_completions_panel_probe_path" ]] \
+          && target="$(quill_chat_mac_reference_new_completion_click_target "$quill_chat_completions_panel_probe_path" 2>/dev/null)"; then
+        read -r target_x target_y <<< "$target"
+        if [[ "$capture_window" == "root" ]]; then
+          new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$target_x}"
+          new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$target_y}"
+        else
+          new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + target_x))}"
+          new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + target_y))}"
+        fi
+      else
+        new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}"
+        new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 498))}"
+      fi
     fi
   else
     new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + window_width - 210))}"
