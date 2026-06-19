@@ -4,7 +4,6 @@
 //
 
 #if os(macOS) || os(Linux) || os(visionOS)
-import Foundation
 import SwiftUI
 import QuillUI
 
@@ -85,32 +84,6 @@ struct ChatView: View {
         }
     }
 
-    private func copyVisibleChat(_ json: Bool) {
-        guard !messages.isEmpty else {
-            copyChat(json)
-            return
-        }
-
-        if json {
-            let jsonArray = messages.map { ChatCopyMessage(role: $0.role, content: $0.content) }
-            let jsonEncoder = JSONEncoder()
-            jsonEncoder.outputFormatting = [.withoutEscapingSlashes]
-
-            if let jsonData = try? jsonEncoder.encode(jsonArray),
-               let jsonString = String(data: jsonData, encoding: .utf8) {
-                Clipboard.shared.setString(jsonString)
-            }
-        } else {
-            let body = messages
-                .map { "\($0.role.capitalized): \($0.content)" }
-                .joined(separator: "\n\n")
-            Clipboard.shared.setString(body)
-        }
-    }
-
-    private struct ChatCopyMessage: Encodable {
-        var role: String
-        var content: String
-    }
+    private func copyVisibleChat(_ json: Bool) { guard !json, !messages.isEmpty else { copyChat(json); return }; Clipboard.shared.setString(messages.map { "\($0.role.capitalized): \($0.content)" }.joined(separator: "\n\n")) }
 }
 #endif
