@@ -1308,7 +1308,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 205))}"
         else
           click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 142))}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 274))}"
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 350))}"
         fi
         click_at "$click_x" "$click_y"
         sleep "$post_click_sleep"
