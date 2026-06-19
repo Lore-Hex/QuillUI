@@ -3417,6 +3417,62 @@ public struct QuillMenuAction: Identifiable {
 }
 
 public enum QuillChatCopy {
+    public static func rememberedVisibleMessageAction<Message>(
+        key: String,
+        messages: [Message],
+        role: (Message) -> String,
+        content: (Message) -> String,
+        fallback: @escaping (_ json: Bool) -> Void,
+        clipboard: QuillClipboard = .shared
+    ) -> (_ json: Bool) -> Void {
+        rememberVisibleMessages(key: key, messages, role: role, content: content)
+        return { json in
+            copyRememberedVisibleMessages(key: key, asJSON: json, fallback: fallback, clipboard: clipboard)
+        }
+    }
+
+    public static func rememberVisibleMessages<Message>(
+        key: String,
+        _ messages: [Message],
+        role: (Message) -> String,
+        content: (Message) -> String
+    ) {
+        guard !messages.isEmpty else {
+            rememberedPayloads.removeValue(forKey: key)
+            return
+        }
+
+        rememberedPayloads.setValue(
+            RememberedPayload(
+                plainText: plainText(messages, role: role, content: content),
+                jsonText: jsonText(messages, role: role, content: content)
+            ),
+            forKey: key
+        )
+    }
+
+    public static func copyRememberedVisibleMessages(
+        key: String,
+        asJSON json: Bool,
+        fallback: ((_ json: Bool) -> Void)? = nil,
+        clipboard: QuillClipboard = .shared
+    ) {
+        guard let payload = rememberedPayloads.value(forKey: key) else {
+            fallback?(json)
+            return
+        }
+
+        if json {
+            guard let text = payload.jsonText else {
+                fallback?(json)
+                return
+            }
+            clipboard.setString(text)
+        } else {
+            clipboard.setString(payload.plainText)
+        }
+    }
+
     public static func copyVisibleMessages<Message>(
         _ messages: [Message],
         asJSON json: Bool,
@@ -3463,26 +3519,36 @@ public enum QuillChatCopy {
         var role: String
         var content: String
     }
-}
 
-public final class QuillChatCopySource<Message> {
-    private var messages: [Message] = []
-
-    public init() {}
-
-    public func update(_ messages: [Message]) {
-        self.messages = messages
+    private struct RememberedPayload {
+        var plainText: String
+        var jsonText: String?
     }
 
-    public func copy(
-        asJSON json: Bool,
-        role: (Message) -> String,
-        content: (Message) -> String,
-        fallback: ((_ json: Bool) -> Void)? = nil,
-        clipboard: QuillClipboard = .shared
-    ) {
-        QuillChatCopy.copyVisibleMessages(messages, asJSON: json, role: role, content: content, fallback: fallback, clipboard: clipboard)
+    private final class RememberedPayloadStore: @unchecked Sendable {
+        private let lock = NSLock()
+        private var payloads: [String: RememberedPayload] = [:]
+
+        func setValue(_ payload: RememberedPayload, forKey key: String) {
+            lock.lock()
+            payloads[key] = payload
+            lock.unlock()
+        }
+
+        func removeValue(forKey key: String) {
+            lock.lock()
+            payloads.removeValue(forKey: key)
+            lock.unlock()
+        }
+
+        func value(forKey key: String) -> RememberedPayload? {
+            lock.lock()
+            defer { lock.unlock() }
+            return payloads[key]
+        }
     }
+
+    private static let rememberedPayloads = RememberedPayloadStore()
 }
 
 public struct QuillMenuButton: View {

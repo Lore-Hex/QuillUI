@@ -349,11 +349,31 @@ struct QuillUITests {
         QuillChatCopy.copyVisibleMessages([ChatMessage](), asJSON: true, role: \.role, content: \.content, fallback: { fallbackJSONValues.append($0) }, clipboard: chatClipboard)
         #expect(fallbackJSONValues == [true])
 
-        let copySource = QuillChatCopySource<ChatMessage>()
-        copySource.update([])
-        copySource.update(chatMessages)
-        copySource.copy(asJSON: false, role: \.role, content: \.content, clipboard: chatClipboard)
-        #expect(chatClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+        let rememberedClipboard = QuillClipboard()
+        var rememberedFallbackValues: [Bool] = []
+        let rememberedAction = QuillChatCopy.rememberedVisibleMessageAction(
+            key: "quill.tests.remembered-copy",
+            messages: [ChatMessage](),
+            role: \.role,
+            content: \.content,
+            fallback: { rememberedFallbackValues.append($0) },
+            clipboard: rememberedClipboard
+        )
+        rememberedAction(false)
+        #expect(rememberedFallbackValues == [false])
+
+        _ = QuillChatCopy.rememberedVisibleMessageAction(
+            key: "quill.tests.remembered-copy",
+            messages: chatMessages,
+            role: \.role,
+            content: \.content,
+            fallback: { rememberedFallbackValues.append($0) },
+            clipboard: rememberedClipboard
+        )
+        rememberedAction(false)
+        #expect(rememberedClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+        rememberedAction(true)
+        #expect(rememberedClipboard.string()?.contains(#""role":"assistant""#) == true)
 
         struct Model {
             var id: String

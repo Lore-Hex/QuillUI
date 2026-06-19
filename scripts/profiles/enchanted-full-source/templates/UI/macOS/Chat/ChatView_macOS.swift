@@ -21,10 +21,8 @@ struct ChatView: View {
     var onDeleteDailyConversations: (_ date: Date) -> Void
     var userInitials: String
     var copyChat: (_ json: Bool) -> Void
-    private static let copySource = QuillChatCopySource<MessageSD>()
 
     var body: some View {
-        let _ = Self.copySource.update(messages)
         QuillModelConversationChatScaffold(
             title: "Enchanted",
             conversations: conversations,
@@ -48,7 +46,12 @@ struct ChatView: View {
             modelName: \.prettyName,
             modelVersion: \.prettyVersion,
             onSelectModel: { onSelectModel($0) },
-            copyChat: copyVisibleChat,
+            copyChat: QuillChatCopy.rememberedVisibleMessageAction(
+                key: "enchanted-chat",
+                messages: messages,
+                role: \.role, content: \.content,
+                fallback: copyChat
+            ),
             promptID: \.id,
             promptTitle: \.prompt,
             promptSystemImage: { $0.type.icon },
@@ -79,10 +82,6 @@ struct ChatView: View {
         } shortcuts: {
             KeyboardShortcutsDemo()
         }
-    }
-
-    private func copyVisibleChat(_ json: Bool) {
-        Self.copySource.copy(asJSON: json, role: \.role, content: \.content, fallback: copyChat)
     }
 }
 #endif
