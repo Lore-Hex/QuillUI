@@ -354,8 +354,17 @@ struct QuillUITests {
         #expect(!QuillChatCopy.performRememberedCommand(
             "Copy Chat",
             key: "quill.tests.missing-remembered-copy",
-            clipboard: rememberedClipboard
+            clipboard: rememberedClipboard,
+            environment: [:]
         ))
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.missing-remembered-copy",
+            clipboard: rememberedClipboard,
+            environment: ["QUILLUI_BACKEND_MAC_REFERENCE": "1"]
+        ))
+        #expect(rememberedClipboard.string()?.contains("User: How to center div in HTML?") == true)
+        #expect(rememberedClipboard.string()?.contains("justify-content") == true)
 
         let rememberedAction = QuillChatCopy.rememberedVisibleMessageAction(
             key: "quill.tests.remembered-copy",
@@ -409,8 +418,16 @@ struct QuillUITests {
         #expect(!QuillChatCopy.performRememberedCommand(
             "Copy Chat",
             key: "quill.tests.missing-copy",
-            clipboard: bridgeCommandClipboard
+            clipboard: bridgeCommandClipboard,
+            environment: [:]
         ))
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat as JSON",
+            key: "quill.tests.missing-json-copy",
+            clipboard: bridgeCommandClipboard,
+            environment: ["QUILLUI_QUILL_CHAT_REFERENCE_MODE": "true"]
+        ))
+        #expect(bridgeCommandClipboard.string()?.contains(#""role":"assistant""#) == true)
 
         QuillChatCopy.rememberVisibleMessages(
             key: "quill.tests.remembered-copy",

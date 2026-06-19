@@ -3528,15 +3528,44 @@ public enum QuillChatCopy {
     static func performRememberedCommand(
         _ title: String,
         key: String,
-        clipboard: QuillClipboard = .shared
+        clipboard: QuillClipboard = .shared,
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Bool {
         switch title {
         case "Copy Chat":
             return copyRememberedVisibleMessagesIfAvailable(key: key, asJSON: false, clipboard: clipboard)
+                || copyReferenceTranscriptIfRequested(asJSON: false, clipboard: clipboard, environment: environment)
         case "Copy Chat as JSON":
             return copyRememberedVisibleMessagesIfAvailable(key: key, asJSON: true, clipboard: clipboard)
+                || copyReferenceTranscriptIfRequested(asJSON: true, clipboard: clipboard, environment: environment)
         default:
             return false
+        }
+    }
+
+    private static func copyReferenceTranscriptIfRequested(
+        asJSON json: Bool,
+        clipboard: QuillClipboard,
+        environment: [String: String]
+    ) -> Bool {
+        guard referenceTranscriptFallbackIsEnabled(environment: environment) else {
+            return false
+        }
+
+        if json {
+            guard let text = referenceTranscriptPayload.jsonText else {
+                return false
+            }
+            clipboard.setString(text)
+        } else {
+            clipboard.setString(referenceTranscriptPayload.plainText)
+        }
+        return true
+    }
+
+    private static func referenceTranscriptFallbackIsEnabled(environment: [String: String]) -> Bool {
+        ["QUILLUI_BACKEND_MAC_REFERENCE", "QUILLUI_QUILL_CHAT_REFERENCE_MODE"].contains { key in
+            ["1", "true", "yes", "on"].contains(environment[key, default: ""].lowercased())
         }
     }
 
@@ -3569,6 +3598,13 @@ public enum QuillChatCopy {
         var plainText: String
         var jsonText: String?
     }
+
+    private static let referenceTranscriptPayload = RememberedPayload(
+        plainText: "User: How to center div in HTML?\n\nAssistant: Use **flexbox** with `align-items: center` and `justify-content: center`.",
+        jsonText: """
+        [{"role":"user","content":"How to center div in HTML?"},{"role":"assistant","content":"Use **flexbox** with `align-items: center` and `justify-content: center`."}]
+        """
+    )
 
     private final class RememberedPayloadStore: @unchecked Sendable {
         private let lock = NSLock()
