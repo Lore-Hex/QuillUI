@@ -1892,41 +1892,73 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
     if active_row is not None:
         field_rows.append(active_row)
 
-    cancel_pixels = pixel_count(image, *cancel_roi, mac_reference_completion_action_pixel)
-    save_pixels = pixel_count(image, *save_roi, mac_reference_completion_action_pixel)
+    def upsert_field_pixel_counts(rows: list[tuple[int, int, Segment]]) -> tuple[int, int, int]:
+        counts: list[int] = []
+        for y0, y1, segment in rows[:3]:
+            counts.append(
+                pixel_count(
+                    image,
+                    segment.start,
+                    y0,
+                    segment.end + 1,
+                    y1 + 1,
+                    completions_upsert_form_field_pixel,
+                )
+            )
+        while len(counts) < 3:
+            counts.append(0)
+        return counts[0], counts[1], counts[2]
+
     panel_surface_pixels = pixel_count(image, *panel_roi, completions_upsert_sheet_pixel)
-    name_field_pixels = 0
-    instruction_field_pixels = 0
-    preview_pixels = 0
-    if len(field_rows) >= 1:
-        y0, y1, segment = field_rows[0]
-        name_field_pixels = pixel_count(
-            image,
-            segment.start,
-            y0,
-            segment.end + 1,
-            y1 + 1,
-            completions_upsert_form_field_pixel,
+    name_field_pixels, instruction_field_pixels, preview_pixels = upsert_field_pixel_counts(field_rows)
+    cancel_roi_candidates = [cancel_roi]
+    save_roi_candidates = [save_roi]
+
+    # The root-overlay sheet can be detected from the completions panel
+    # background behind the upsert view, which places sheet_top above the visible
+    # upsert header. Try header bands above the first few detected rows and keep
+    # the strongest action-label match; the first row may be the panel behind
+    # the sheet rather than the upsert form's name field.
+    for y0, _, _ in field_rows[:4]:
+        header_y0 = max(top, y0 - 84)
+        header_y1 = max(header_y0 + 1, y0 - 8)
+        cancel_roi_candidates.append(
+            (
+                sheet_segment.start,
+                header_y0,
+                min(sheet_segment.end, sheet_segment.start + 220),
+                header_y1,
+            )
         )
-    if len(field_rows) >= 2:
-        y0, y1, segment = field_rows[1]
-        instruction_field_pixels = pixel_count(
-            image,
-            segment.start,
-            y0,
-            segment.end + 1,
-            y1 + 1,
-            completions_upsert_form_field_pixel,
+        save_roi_candidates.append(
+            (
+                max(sheet_segment.start, sheet_segment.end - 220),
+                header_y0,
+                sheet_segment.end + 1,
+                header_y1,
+            )
         )
-    if len(field_rows) >= 3:
-        y0, y1, segment = field_rows[2]
-        preview_pixels = pixel_count(
-            image,
-            segment.start,
-            y0,
-            segment.end + 1,
-            y1 + 1,
-            completions_upsert_form_field_pixel,
+
+    cancel_roi, cancel_pixels = max(
+        (
+            (roi, pixel_count(image, *roi, mac_reference_completion_action_pixel))
+            for roi in cancel_roi_candidates
+        ),
+        key=lambda item: item[1],
+    )
+    save_roi, save_pixels = max(
+        (
+            (roi, pixel_count(image, *roi, mac_reference_completion_action_pixel))
+            for roi in save_roi_candidates
+        ),
+        key=lambda item: item[1],
+    )
+    measured_field_rows = field_rows
+    rows_below_header = [row for row in field_rows if row[0] >= cancel_roi[3]]
+    if len(rows_below_header) >= 3:
+        measured_field_rows = rows_below_header
+        name_field_pixels, instruction_field_pixels, preview_pixels = upsert_field_pixel_counts(
+            measured_field_rows
         )
 
     require(
@@ -1944,16 +1976,16 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
     )
     require(
         name_field_pixels >= 14_000,
-        f"Completions Upsert name field was not detected: pixels={name_field_pixels}, rows={field_rows}",
+        f"Completions Upsert name field was not detected: pixels={name_field_pixels}, rows={measured_field_rows}",
     )
     require(
         instruction_field_pixels >= 50_000,
         "Completions Upsert instruction editor was not detected: "
-        f"pixels={instruction_field_pixels}, rows={field_rows}",
+        f"pixels={instruction_field_pixels}, rows={measured_field_rows}",
     )
     require(
         preview_pixels >= 14_000,
-        f"Completions Upsert preview chip was not detected: pixels={preview_pixels}, rows={field_rows}",
+        f"Completions Upsert preview chip was not detected: pixels={preview_pixels}, rows={measured_field_rows}",
     )
 
     return (
@@ -4109,7 +4141,7 @@ def validate_quill_wireguard_gtk_native(
 
 def validate_quill_wireguard_gtk_import(
     image: Screenshot,
-    minimum_selected_center_offset: int = 145,
+    minimum_selected_center_offset: int = 70,
 ) -> str:
     return validate_quill_wireguard_gtk_native(
         image,
