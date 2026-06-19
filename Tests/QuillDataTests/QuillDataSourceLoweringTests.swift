@@ -619,6 +619,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("alert-settings-panel"))
         #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 98))}\""))
         #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 205))}\""))
+        #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 350))}\""))
         #expect(interactionScript.contains("settings-endpoint-typed"))
         #expect(interactionScript.contains("settings-bearer-token-typed"))
         #expect(interactionScript.contains("settings-ping-interval-typed"))
