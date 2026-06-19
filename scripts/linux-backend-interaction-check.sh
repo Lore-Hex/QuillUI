@@ -1176,7 +1176,7 @@ open_quill_chat_settings_delete_confirmation() {
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-948}"
     else
-      clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-997}"
+      clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-840}"
     fi
   else
     settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
