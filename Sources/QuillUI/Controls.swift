@@ -3420,14 +3420,15 @@ public enum QuillChatCopy {
     public static func rememberedVisibleMessageAction<Message>(
         key: String,
         messages: [Message],
-        role: (Message) -> String,
-        content: (Message) -> String,
+        role: @escaping (Message) -> String,
+        content: @escaping (Message) -> String,
         fallback: @escaping (_ json: Bool) -> Void,
         clipboard: QuillClipboard = .shared
     ) -> (_ json: Bool) -> Void {
         rememberVisibleMessages(key: key, messages, role: role, content: content)
         installRememberedCommandBridge(key: key, clipboard: clipboard)
         return { json in
+            rememberVisibleMessages(key: key, messages, role: role, content: content)
             copyRememberedVisibleMessages(key: key, asJSON: json, fallback: fallback, clipboard: clipboard)
         }
     }
@@ -3602,6 +3603,10 @@ public enum QuillChatCopy {
         ["QUILLUI_BACKEND_MAC_REFERENCE", "QUILLUI_QUILL_CHAT_REFERENCE_MODE"].contains { key in
             ["1", "true", "yes", "on"].contains(environment[key, default: ""].lowercased())
         }
+    }
+
+    static func isRememberedCommandTitle(_ title: String) -> Bool {
+        title == "Copy Chat" || title == "Copy Chat as JSON"
     }
 
     public static func plainText<Message>(

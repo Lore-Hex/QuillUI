@@ -76,6 +76,12 @@ private enum QuillGTKToolbarMenuAutomation {
                 continue
             }
 
+            if QuillChatCopy.isRememberedCommandTitle(title),
+               shouldDeferRememberedCommand(commandURL)
+            {
+                continue
+            }
+
             guard let action = automationBox.actionBox.actionsByTitle[title] else {
                 continue
             }
@@ -83,6 +89,13 @@ private enum QuillGTKToolbarMenuAutomation {
             try? FileManager.default.removeItem(at: commandURL)
             action.closure()
         }
+    }
+
+    private static func shouldDeferRememberedCommand(_ commandURL: URL) -> Bool {
+        let commandAge = (try? commandURL.resourceValues(forKeys: [.contentModificationDateKey]))
+            .flatMap(\.contentModificationDate)
+            .map { Date().timeIntervalSince($0) } ?? 0
+        return commandAge < 2
     }
 }
 
