@@ -566,6 +566,7 @@ scroll_quill_chat_transcript_to_bottom() {
   local scroll_click_delay="${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-5}"
   local scroll_key_repeats="${QUILLUI_BACKEND_SCROLL_KEY_REPEATS:-6}"
   local scroll_key_delay="${QUILLUI_BACKEND_SCROLL_KEY_DELAY:-0.08}"
+  local scroll_key_index
 
   refocus_capture_window
   click_at "$scroll_x" "$scroll_y"
@@ -1110,6 +1111,31 @@ select_quill_chat_markdown_transcript() {
   sleep 1
 }
 
+ensure_quill_chat_long_transcript_bottom_scroll() {
+  local scroll_attempt
+  local scroll_attempts="${QUILLUI_BACKEND_LONG_TRANSCRIPT_SCROLL_VERIFY_ATTEMPTS:-3}"
+
+  if ! quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    scroll_quill_chat_transcript_to_bottom
+    return 0
+  fi
+
+  if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection; then
+    return 0
+  fi
+  echo "interaction-check: long transcript bottom marker not verified; applying explicit scroll fallback" >&2
+
+  for ((scroll_attempt = 1; scroll_attempt <= scroll_attempts; scroll_attempt++)); do
+    scroll_quill_chat_transcript_to_bottom
+    if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection; then
+      return 0
+    fi
+    if (( scroll_attempt < scroll_attempts )); then
+      echo "interaction-check: long transcript bottom marker not verified after scroll attempt $scroll_attempt; retrying" >&2
+    fi
+  done
+}
+
 emit_quill_chat_toolbar_action_command() {
   local action_title="$1"
 
@@ -1600,15 +1626,12 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         fi
         if [[ "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
           # QuillMessageList retries Linux ScrollViewReader bottom-scroll at 5s
-          # and 8s while GTK finishes laying out long transcripts.
+          # and 8s while GTK finishes laying out long transcripts. Keep the
+          # manual scroll as a verifier fallback; CI runners sometimes settle
+          # before the deferred auto-scroll reaches the final transcript rows.
           sleep "${QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP:-9}"
-          if ! quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection; then
-            echo "interaction-check: auto-scroll did not verify long transcript bottom; applying explicit scroll fallback" >&2
-            scroll_quill_chat_transcript_to_bottom
-          fi
-        else
-          scroll_quill_chat_transcript_to_bottom
         fi
+        ensure_quill_chat_long_transcript_bottom_scroll
         ;;
       prompt-send)
         click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 820))}"
