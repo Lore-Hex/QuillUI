@@ -549,6 +549,16 @@ quill_chat_should_trust_startup_history_selection() {
     && quillui_is_quill_chat_mac_reference_product "$PRODUCT"
 }
 
+quill_chat_verified_selection_probe() {
+  local verify_product="$1"
+  local probe_path="$OUTPUT_DIR/quill-chat-selection-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}.png"
+
+  capture_backend_screenshot "$probe_path" >/dev/null 2>&1 || return 1
+  python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+    "$probe_path" \
+    "$verify_product" >/dev/null 2>&1
+}
+
 click_enchanted_list_selection() {
   local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
   local click_y="${QUILLUI_BACKEND_CLICK_Y:-$(enchanted_list_selection_y)}"
@@ -1062,7 +1072,10 @@ select_quill_chat_markdown_transcript() {
 
   if quill_chat_should_trust_startup_history_selection; then
     sleep "${QUILLUI_BACKEND_INITIAL_SELECTION_SETTLE_SLEEP:-2}"
-    return 0
+    if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-transcript-selection; then
+      return 0
+    fi
+    echo "interaction-check: startup history selection did not verify transcript; clicking markdown row" >&2
   fi
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -1528,11 +1541,18 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         select_quill_chat_toolbar_model_and_send_prompt
         ;;
       history-selection)
+        click_history_selection=1
         if quill_chat_should_trust_startup_history_selection; then
           sleep "${QUILLUI_BACKEND_INITIAL_SELECTION_SETTLE_SLEEP:-2}"
-        else
+          if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-history-selection; then
+            click_history_selection=0
+          else
+            echo "interaction-check: startup history selection did not verify history state; clicking markdown row" >&2
+          fi
+        fi
+        if [[ "$click_history_selection" == "1" ]]; then
           click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y markdown-transcript)}"
           click_at "$click_x" "$click_y"
           sleep 1
         fi
