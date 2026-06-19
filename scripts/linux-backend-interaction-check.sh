@@ -1306,6 +1306,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT" && [[ "$SELECTED_BACKEND" == "qt" ]]; then
           click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 98))}"
           click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 205))}"
+        elif quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 142))}"
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 326))}"
         else
           click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 142))}"
           click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 274))}"

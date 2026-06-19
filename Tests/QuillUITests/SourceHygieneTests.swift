@@ -2352,6 +2352,7 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quill_chat_composer_click_y()"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPOSER_CLICK_Y"))
         #expect(backendScript.contains("window_height - 135"))
+        #expect(backendScript.contains("window_height - 326"))
         #expect(backendScript.contains("window_height - 80"))
         #expect(!backendScript.contains("window_height - 115"))
         #expect(!backendScript.contains("window_height - 76"))
