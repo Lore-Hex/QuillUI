@@ -4554,7 +4554,7 @@ def main() -> int:
     elif product == "quill-chat-linux-mac-reference-completions-deleted":
         print(validate_quill_chat_mac_reference_completions_deleted(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":
-        print(validate_quill_chat_mac_reference_history_selection(image))
+        print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))
     elif product == "quill-chat-linux-mac-reference-transcript-selection":
         print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))
     elif product == "quill-chat-linux-mac-reference-markdown-transcript-selection":

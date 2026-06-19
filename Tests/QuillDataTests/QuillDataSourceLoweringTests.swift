@@ -561,6 +561,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("predicate=mac_reference_or_gtk_prompt_card_pixel"))
         #expect(verifier.contains("mac_reference_or_gtk_prompt_card_pixel,"))
         #expect(verifier.contains("if not require_transcript:"))
+        #expect(verifier.contains("quill-chat-linux-mac-reference-history-selection\":\n        print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))"))
         #expect(verifier.contains("prompt_card_like_pixels <= 8_000"))
         #expect(verifier.contains("Mac-reference empty-state wordmark remained after history selection"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-transcript-selection"))
