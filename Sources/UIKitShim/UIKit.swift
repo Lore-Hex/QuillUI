@@ -48,6 +48,11 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public let pointSize: CGFloat
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
+    /// Cap height (top of capital letters to baseline). Real UIFont derives this
+    /// from glyph metrics; approximate as ~70% of point size for layout math.
+    public var capHeight: CGFloat { pointSize * 0.7 }
+    /// Return a copy of this font at a new point size (SwiftUI/UIKit `withSize`).
+    public func withSize(_ size: CGFloat) -> UIFont { UIFont(descriptor: fontDescriptor, size: size) }
     public init(descriptor: UIFontDescriptor, size: CGFloat) {
         self.pointSize = size; self.fontName = descriptor.name; self.fontDescriptor = descriptor
         super.init()
