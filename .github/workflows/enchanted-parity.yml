@@ -182,8 +182,6 @@ jobs:
       - name: Run live composer-send and relaunch functional verifier
         env:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
-          QUILLUI_FUNCTIONAL_COMPOSER_X: "700"
-          QUILLUI_FUNCTIONAL_COMPOSER_Y: "1190"
           QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: "1"
         run: |
           # Prove the real-source composer submits to Ollama and persists
@@ -202,8 +200,6 @@ jobs:
           QUILLUI_BACKEND_SKIP_BUILD: "1"
           QUILLUI_FUNCTIONAL_MODE: attachment-send
           QUILLUI_FUNCTIONAL_MESSAGE: "describe this image from linux"
-          QUILLUI_FUNCTIONAL_COMPOSER_X: "700"
-          QUILLUI_FUNCTIONAL_COMPOSER_Y: "1190"
           QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: "1"
         run: |
           # Prove the real-source composer routes selected image data through

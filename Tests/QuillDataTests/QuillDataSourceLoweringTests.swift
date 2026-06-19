@@ -1009,11 +1009,10 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("Functional failure screenshot"))
         #expect(functionalScript.contains("quillui_print_backend_app_log_tail"))
         #expect(functionalScript.contains("Mock Ollama log"))
-        #expect(functionalScript.contains("window_height - 190"))
+        #expect(functionalScript.contains("window_height - 46"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_X"))
         #expect(functionalScript.contains("window_width - 70"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_Y"))
-        #expect(functionalScript.contains("window_height - 190"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_X"))
         #expect(functionalScript.contains("window_width - 65"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_Y"))
@@ -1100,8 +1099,9 @@ struct QuillDataSourceLoweringTests {
         #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_HOME=.qa/quill-chat-functional-attachment-home"))
         #expect(parityWorkflow.contains("timeout --kill-after=15s 180s"))
         #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_VERIFY_RELAUNCH: \"1\""))
-        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_X: \"700\""))
-        #expect(parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_Y: \"1190\""))
+        #expect(!parityWorkflow.contains("QUILLUI_FUNCTIONAL_COMPOSER_Y: \"1190\""))
+        #expect(functionalScript.contains("window_height - 46"))
+        #expect(!functionalScript.contains("window_height - 190"))
 
         let seedScript = try String(
             contentsOf: root.appendingPathComponent("scripts/seed-quill-chat-reference-data.py"),
