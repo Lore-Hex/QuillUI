@@ -3919,6 +3919,8 @@ struct SourceHygieneTests {
         #expect(controls.contains("copyReferenceTranscriptIfRequested(asJSON: false, clipboard: clipboard, environment: environment)"))
         #expect(controls.contains("copyReferenceTranscriptIfRequested(asJSON: true, clipboard: clipboard, environment: environment)"))
         #expect(controls.contains("referenceTranscriptFallbackIsEnabled(environment: environment)"))
+        #expect(controls.contains("return ensureLinuxFileBackedClipboardContains(referenceTranscriptPayload.plainText)"))
+        #expect(controls.contains("return ensureLinuxFileBackedClipboardContains(text)"))
         #expect(controls.contains("\"QUILLUI_BACKEND_MAC_REFERENCE\", \"QUILLUI_QUILL_CHAT_REFERENCE_MODE\""))
         #expect(controls.contains("private static let referenceTranscriptPayload = RememberedPayload("))
         #expect(controls.contains("static func isRememberedCommandTitle(_ title: String) -> Bool"))

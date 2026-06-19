@@ -3593,10 +3593,11 @@ public enum QuillChatCopy {
                 return false
             }
             clipboard.setString(text)
+            return ensureLinuxFileBackedClipboardContains(text)
         } else {
             clipboard.setString(referenceTranscriptPayload.plainText)
+            return ensureLinuxFileBackedClipboardContains(referenceTranscriptPayload.plainText)
         }
-        return true
     }
 
     private static func referenceTranscriptFallbackIsEnabled(environment: [String: String]) -> Bool {

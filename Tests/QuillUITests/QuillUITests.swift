@@ -434,6 +434,17 @@ struct QuillUITests {
             .appendingPathComponent("types")
             .appendingPathComponent("public.utf8-plain-text")
         #expect((try? String(contentsOf: mirroredURL, encoding: .utf8)) == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+
+        let referenceFallbackClipboard = QuillClipboard()
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.missing-reference-copy",
+            clipboard: referenceFallbackClipboard,
+            environment: ["QUILLUI_BACKEND_MAC_REFERENCE": "1"]
+        ))
+        let referenceFallbackText = try? String(contentsOf: mirroredURL, encoding: .utf8)
+        #expect(referenceFallbackText?.contains("User: How to center div in HTML?") == true)
+        #expect(referenceFallbackText?.contains("align-items: center") == true)
         #endif
         #expect(QuillChatCopy.performRememberedCommand(
             "Copy Chat as JSON",
