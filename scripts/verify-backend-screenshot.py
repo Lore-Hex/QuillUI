@@ -1842,6 +1842,20 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         )
         sheet_top = max(top, inferred_field_rows[0][0] - 64)
 
+    action_anchor_y: int | None = None
+    action_x1 = min(sheet_segment.end + 1, sheet_segment.start + 220)
+    for y in range(max(top, sheet_top - 8), min(bottom + 1, sheet_top + 180)):
+        action_row_pixels = sum(
+            1
+            for x in range(sheet_segment.start, action_x1)
+            if mac_reference_completion_action_pixel(image.rgb(x, y))
+        )
+        if action_row_pixels >= 3:
+            action_anchor_y = y
+            break
+    if action_anchor_y is not None and action_anchor_y > sheet_top + 24:
+        sheet_top = max(top, action_anchor_y - 12)
+
     action_strip_bottom = min(bottom + 1, sheet_top + max(72, int(app_height * 0.12)))
     cancel_roi = (
         sheet_segment.start,
@@ -1894,21 +1908,38 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         field_rows.append(active_row)
 
     def upsert_field_pixel_counts(rows: list[tuple[int, int, Segment]]) -> tuple[int, int, int]:
-        counts: list[int] = []
-        for y0, y1, segment in rows[:3]:
-            counts.append(
-                pixel_count(
-                    image,
-                    segment.start,
-                    y0,
-                    segment.end + 1,
-                    y1 + 1,
-                    completions_upsert_form_field_pixel,
-                )
+        row_counts = [
+            pixel_count(
+                image,
+                segment.start,
+                y0,
+                segment.end + 1,
+                y1 + 1,
+                completions_upsert_form_field_pixel,
             )
-        while len(counts) < 3:
-            counts.append(0)
-        return counts[0], counts[1], counts[2]
+            for y0, y1, segment in rows
+        ]
+        if len(row_counts) < 3:
+            padded = row_counts + ([0] * (3 - len(row_counts)))
+            return padded[0], padded[1], padded[2]
+
+        instruction_index = max(range(len(row_counts)), key=lambda index: row_counts[index])
+        instruction_count = row_counts[instruction_index]
+        neighboring_counts = [
+            count
+            for index, count in enumerate(row_counts)
+            if index != instruction_index
+        ]
+        if instruction_index > 0:
+            name_count = row_counts[instruction_index - 1]
+        else:
+            name_count = neighboring_counts[0]
+        trailing_counts = row_counts[instruction_index + 1:]
+        if trailing_counts:
+            preview_count = max(trailing_counts)
+        else:
+            preview_count = neighboring_counts[-1]
+        return name_count, instruction_count, preview_count
 
     panel_surface_pixels = pixel_count(image, *panel_roi, completions_upsert_sheet_pixel)
     name_field_pixels, instruction_field_pixels, preview_pixels = upsert_field_pixel_counts(field_rows)
