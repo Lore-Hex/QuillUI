@@ -3457,20 +3457,37 @@ public enum QuillChatCopy {
         fallback: ((_ json: Bool) -> Void)? = nil,
         clipboard: QuillClipboard = .shared
     ) {
-        guard let payload = rememberedPayloads.value(forKey: key) else {
-            fallback?(json)
+        guard !copyRememberedVisibleMessagesIfAvailable(
+            key: key,
+            asJSON: json,
+            clipboard: clipboard
+        ) else {
             return
+        }
+
+        fallback?(json)
+    }
+
+    @discardableResult
+    private static func copyRememberedVisibleMessagesIfAvailable(
+        key: String,
+        asJSON json: Bool,
+        clipboard: QuillClipboard = .shared
+    ) -> Bool {
+        guard let payload = rememberedPayloads.value(forKey: key) else {
+            return false
         }
 
         if json {
             guard let text = payload.jsonText else {
-                fallback?(json)
-                return
+                return false
             }
             clipboard.setString(text)
         } else {
             clipboard.setString(payload.plainText)
         }
+
+        return true
     }
 
     public static func copyVisibleMessages<Message>(
@@ -3515,17 +3532,9 @@ public enum QuillChatCopy {
     ) -> Bool {
         switch title {
         case "Copy Chat":
-            guard let payload = rememberedPayloads.value(forKey: key) else { return false }
-            clipboard.setString(payload.plainText)
-            return true
+            return copyRememberedVisibleMessagesIfAvailable(key: key, asJSON: false, clipboard: clipboard)
         case "Copy Chat as JSON":
-            guard let payload = rememberedPayloads.value(forKey: key),
-                  let text = payload.jsonText
-            else {
-                return false
-            }
-            clipboard.setString(text)
-            return true
+            return copyRememberedVisibleMessagesIfAvailable(key: key, asJSON: true, clipboard: clipboard)
         default:
             return false
         }

@@ -351,6 +351,12 @@ struct QuillUITests {
 
         let rememberedClipboard = QuillClipboard()
         var rememberedFallbackValues: [Bool] = []
+        #expect(!QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.missing-remembered-copy",
+            clipboard: rememberedClipboard
+        ))
+
         let rememberedAction = QuillChatCopy.rememberedVisibleMessageAction(
             key: "quill.tests.remembered-copy",
             messages: [ChatMessage](),
@@ -372,6 +378,13 @@ struct QuillUITests {
         )
         rememberedAction(false)
         #expect(rememberedClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+
+        QuillChatCopy.rememberVisibleMessages(
+            key: "quill.tests.remembered-copy",
+            [ChatMessage](),
+            role: \.role,
+            content: \.content
+        )
         rememberedAction(true)
         #expect(rememberedClipboard.string()?.contains(#""role":"assistant""#) == true)
 
