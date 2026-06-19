@@ -852,8 +852,8 @@ open_quill_chat_new_completion_sheet() {
       new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}"
       new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 458))}"
     else
-      new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1518))}"
-      new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 493))}"
+      new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + 1487))}"
+      new_y="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_Y:-$((window_y + 505))}"
     fi
   else
     new_x="${QUILLUI_BACKEND_NEW_COMPLETION_CLICK_X:-$((window_x + window_width - 210))}"
