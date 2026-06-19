@@ -1355,7 +1355,11 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ;;
       attachment-send|image-attachment-send)
         attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 70))}"
-        attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$((window_y + window_height - 190))}"
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$(quill_chat_composer_click_y)}"
+        else
+          attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$((window_y + window_height - 190))}"
+        fi
         click_at "$attachment_x" "$attachment_y"
         sleep "${QUILLUI_BACKEND_ATTACHMENT_SELECT_SLEEP:-1}"
         click_x="$(quill_chat_composer_click_x)"
@@ -1365,7 +1369,11 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-describe this image from linux}"
         sleep 1
         send_x="${QUILLUI_BACKEND_SEND_CLICK_X:-$((window_x + window_width - 65))}"
-        send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$((window_y + window_height - 190))}"
+        if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+          send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$(quill_chat_composer_click_y)}"
+        else
+          send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$((window_y + window_height - 190))}"
+        fi
         click_at "$send_x" "$send_y"
         sleep 3
         ;;
