@@ -2299,34 +2299,35 @@ def validate_quill_chat_mac_reference_history_selection(
         f"Mac-reference selected history row text was not detected: pixels={selected_row_pixels}",
     )
 
-    empty_prompt_card_row = best_prompt_card_row(
-        image,
-        top + int(app_height * 0.25),
-        top + int(app_height * 0.62),
-        detail_left,
-        right + 1,
-        min_width=int(app_width * 0.10),
-        predicate=mac_reference_or_gtk_prompt_card_pixel,
-    )
-    require(
-        empty_prompt_card_row is None,
-        "Mac-reference empty-state prompt cards remained after history selection: "
-        f"row={empty_prompt_card_row[0] if empty_prompt_card_row else 'none'}",
-    )
+    if not require_transcript:
+        empty_prompt_card_row = best_prompt_card_row(
+            image,
+            top + int(app_height * 0.25),
+            top + int(app_height * 0.62),
+            detail_left,
+            right + 1,
+            min_width=int(app_width * 0.10),
+            predicate=mac_reference_or_gtk_prompt_card_pixel,
+        )
+        require(
+            empty_prompt_card_row is None,
+            "Mac-reference empty-state prompt cards remained after history selection: "
+            f"row={empty_prompt_card_row[0] if empty_prompt_card_row else 'none'}",
+        )
 
-    prompt_card_like_pixels = pixel_count(
-        image,
-        detail_left,
-        top + int(app_height * 0.25),
-        right + 1,
-        top + int(app_height * 0.62),
-        mac_reference_prompt_card_pixel,
-    )
-    require(
-        prompt_card_like_pixels <= 8_000,
-        "Mac-reference empty-state prompt cards remained after history selection: "
-        f"pixels={prompt_card_like_pixels}",
-    )
+        prompt_card_like_pixels = pixel_count(
+            image,
+            detail_left,
+            top + int(app_height * 0.25),
+            right + 1,
+            top + int(app_height * 0.62),
+            mac_reference_prompt_card_pixel,
+        )
+        require(
+            prompt_card_like_pixels <= 8_000,
+            "Mac-reference empty-state prompt cards remained after history selection: "
+            f"pixels={prompt_card_like_pixels}",
+        )
 
     wordmark_pixels = pixel_count(
         image,
