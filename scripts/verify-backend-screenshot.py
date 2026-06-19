@@ -1842,17 +1842,18 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         )
         sheet_top = max(top, inferred_field_rows[0][0] - 64)
 
+    action_strip_bottom = min(bottom + 1, sheet_top + max(72, int(app_height * 0.12)))
     cancel_roi = (
         sheet_segment.start,
         max(top, sheet_top - 8),
         min(sheet_segment.end, sheet_segment.start + 220),
-        sheet_top + 64,
+        action_strip_bottom,
     )
     save_roi = (
         max(sheet_segment.start, sheet_segment.end - 220),
         max(top, sheet_top - 8),
         sheet_segment.end + 1,
-        sheet_top + 64,
+        action_strip_bottom,
     )
     panel_roi = (
         sheet_segment.start,
@@ -4109,7 +4110,7 @@ def validate_quill_wireguard_gtk_native(
 
 def validate_quill_wireguard_gtk_import(
     image: Screenshot,
-    minimum_selected_center_offset: int = 145,
+    minimum_selected_center_offset: int = 80,
 ) -> str:
     return validate_quill_wireguard_gtk_native(
         image,
