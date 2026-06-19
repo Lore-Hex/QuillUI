@@ -66,9 +66,17 @@ private enum QuillGTKToolbarMenuAutomation {
             let resourceValues = try? commandURL.resourceValues(forKeys: [.isDirectoryKey])
             guard resourceValues?.isDirectory != true,
                   let title = try? String(contentsOf: commandURL, encoding: .utf8)
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                  let action = automationBox.actionBox.actionsByTitle[title]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
             else {
+                continue
+            }
+
+            if QuillChatCopy.performRememberedCommand(title) {
+                try? FileManager.default.removeItem(at: commandURL)
+                continue
+            }
+
+            guard let action = automationBox.actionBox.actionsByTitle[title] else {
                 continue
             }
 

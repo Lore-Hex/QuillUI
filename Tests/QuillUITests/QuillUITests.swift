@@ -393,6 +393,11 @@ struct QuillUITests {
             key: "quill.tests.remembered-copy",
             clipboard: bridgeCommandClipboard
         ))
+        #expect(!QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.missing-copy",
+            clipboard: bridgeCommandClipboard
+        ))
 
         struct Model {
             var id: String

@@ -3506,10 +3506,16 @@ public enum QuillChatCopy {
     ) -> Bool {
         switch title {
         case "Copy Chat":
-            copyRememberedVisibleMessages(key: key, asJSON: false, clipboard: clipboard)
+            guard let payload = rememberedPayloads.value(forKey: key) else { return false }
+            clipboard.setString(payload.plainText)
             return true
         case "Copy Chat as JSON":
-            copyRememberedVisibleMessages(key: key, asJSON: true, clipboard: clipboard)
+            guard let payload = rememberedPayloads.value(forKey: key),
+                  let text = payload.jsonText
+            else {
+                return false
+            }
+            clipboard.setString(text)
             return true
         default:
             return false
@@ -3583,6 +3589,12 @@ public enum QuillChatCopy {
         private var clipboard = QuillClipboard.shared
         private var timer: DispatchSourceTimer?
 
+        func perform(_ title: String) -> Bool {
+            let snapshot = stateSnapshot()
+            guard let key = snapshot.key else { return false }
+            return QuillChatCopy.performRememberedCommand(title, key: key, clipboard: snapshot.clipboard)
+        }
+
         func install(key: String, clipboard: QuillClipboard) {
             guard let commandDirectoryPath = ProcessInfo.processInfo.environment[Self.commandDirectoryEnvironmentKey],
                   !commandDirectoryPath.isEmpty
@@ -3648,6 +3660,11 @@ public enum QuillChatCopy {
             defer { lock.unlock() }
             return (commandDirectoryPath, key, clipboard)
         }
+    }
+
+    @discardableResult
+    static func performRememberedCommand(_ title: String) -> Bool {
+        rememberedCommandBridge.perform(title)
     }
     #endif
 }
