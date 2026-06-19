@@ -559,6 +559,25 @@ quill_chat_verified_selection_probe() {
     "$verify_product" >/dev/null 2>&1
 }
 
+scroll_quill_chat_transcript_to_bottom() {
+  local scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
+  local scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
+  local scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-4800}"
+  local scroll_click_delay="${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-5}"
+  local scroll_key_repeats="${QUILLUI_BACKEND_SCROLL_KEY_REPEATS:-6}"
+  local scroll_key_delay="${QUILLUI_BACKEND_SCROLL_KEY_DELAY:-0.08}"
+
+  refocus_capture_window
+  click_at "$scroll_x" "$scroll_y"
+  sleep "${QUILLUI_BACKEND_SCROLL_SETTLE_SLEEP:-0.2}"
+  for ((scroll_key_index = 0; scroll_key_index < scroll_key_repeats; scroll_key_index++)); do
+    DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers End
+    sleep "$scroll_key_delay"
+  done
+  DISPLAY="$DISPLAY_ID" xdotool click --repeat "$scroll_clicks" --delay "$scroll_click_delay" 5
+  sleep "${QUILLUI_BACKEND_SCROLL_AFTER_SLEEP:-3}"
+}
+
 click_enchanted_list_selection() {
   local click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 150))}"
   local click_y="${QUILLUI_BACKEND_CLICK_Y:-$(enchanted_list_selection_y)}"
@@ -1583,22 +1602,12 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           # QuillMessageList retries Linux ScrollViewReader bottom-scroll at 5s
           # and 8s while GTK finishes laying out long transcripts.
           sleep "${QUILLUI_BACKEND_AUTOSCROLL_AFTER_SLEEP:-9}"
+          if ! quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection; then
+            echo "interaction-check: auto-scroll did not verify long transcript bottom; applying explicit scroll fallback" >&2
+            scroll_quill_chat_transcript_to_bottom
+          fi
         else
-          scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
-          scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
-          scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-4800}"
-          scroll_click_delay="${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-5}"
-          scroll_key_repeats="${QUILLUI_BACKEND_SCROLL_KEY_REPEATS:-6}"
-          scroll_key_delay="${QUILLUI_BACKEND_SCROLL_KEY_DELAY:-0.08}"
-          refocus_capture_window
-          click_at "$scroll_x" "$scroll_y"
-          sleep "${QUILLUI_BACKEND_SCROLL_SETTLE_SLEEP:-0.2}"
-          for ((scroll_key_index = 0; scroll_key_index < scroll_key_repeats; scroll_key_index++)); do
-            DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers End
-            sleep "$scroll_key_delay"
-          done
-          DISPLAY="$DISPLAY_ID" xdotool click --repeat "$scroll_clicks" --delay "$scroll_click_delay" 5
-          sleep "${QUILLUI_BACKEND_SCROLL_AFTER_SLEEP:-3}"
+          scroll_quill_chat_transcript_to_bottom
         fi
         ;;
       prompt-send)
