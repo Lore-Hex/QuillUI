@@ -3605,7 +3605,7 @@ public enum QuillChatCopy {
         private var commandDirectoryPath: String?
         private var key: String?
         private var clipboard = QuillClipboard.shared
-        private var timer: DispatchSourceTimer?
+        private var isPolling = false
 
         func perform(_ title: String) -> Bool {
             let snapshot = stateSnapshot()
@@ -3624,16 +3624,14 @@ public enum QuillChatCopy {
             self.commandDirectoryPath = commandDirectoryPath
             self.key = key
             self.clipboard = clipboard
-            if timer == nil {
-                let timer = DispatchSource.makeTimerSource(
-                    queue: DispatchQueue(label: "quill.chat-copy-command-bridge")
-                )
-                timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
-                timer.setEventHandler { [weak self] in
-                    self?.poll()
+            if !isPolling {
+                isPolling = true
+                Thread.detachNewThread { [weak self] in
+                    while let bridge = self {
+                        Thread.sleep(forTimeInterval: 0.1)
+                        bridge.poll()
+                    }
                 }
-                self.timer = timer
-                timer.resume()
             }
             lock.unlock()
         }
