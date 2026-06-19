@@ -551,7 +551,8 @@ quill_chat_should_trust_startup_history_selection() {
 
 quill_chat_verified_selection_probe() {
   local verify_product="$1"
-  local probe_path="$OUTPUT_DIR/quill-chat-selection-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}.png"
+  local probe_suffix="${2:-}"
+  local probe_path="$OUTPUT_DIR/quill-chat-selection-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}${probe_suffix}.png"
 
   capture_backend_screenshot "$probe_path" >/dev/null 2>&1 || return 1
   python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
@@ -562,11 +563,17 @@ quill_chat_verified_selection_probe() {
 scroll_quill_chat_transcript_to_bottom() {
   local scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
   local scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
-  local scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-4800}"
-  local scroll_click_delay="${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-5}"
+  local scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-900}"
+  local scroll_click_delay="${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-1}"
   local scroll_key_repeats="${QUILLUI_BACKEND_SCROLL_KEY_REPEATS:-6}"
   local scroll_key_delay="${QUILLUI_BACKEND_SCROLL_KEY_DELAY:-0.08}"
+  local drag_x="${QUILLUI_BACKEND_SCROLL_DRAG_X:-$((window_x + (window_width * 72 / 100)))}"
+  local drag_start_y="${QUILLUI_BACKEND_SCROLL_DRAG_START_Y:-$((window_y + (window_height * 76 / 100)))}"
+  local drag_end_y="${QUILLUI_BACKEND_SCROLL_DRAG_END_Y:-$((window_y + (window_height * 22 / 100)))}"
+  local drag_repeats="${QUILLUI_BACKEND_SCROLL_DRAG_REPEATS:-4}"
+  local drag_delay="${QUILLUI_BACKEND_SCROLL_DRAG_DELAY:-0.08}"
   local scroll_key_index
+  local drag_index
 
   refocus_capture_window
   click_at "$scroll_x" "$scroll_y"
@@ -575,8 +582,18 @@ scroll_quill_chat_transcript_to_bottom() {
     DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers End
     sleep "$scroll_key_delay"
   done
+  for ((drag_index = 0; drag_index < drag_repeats; drag_index++)); do
+    DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$drag_x" "$drag_start_y"
+    DISPLAY="$DISPLAY_ID" xdotool mousedown 1
+    sleep "$drag_delay"
+    DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$drag_x" "$drag_end_y"
+    sleep "$drag_delay"
+    DISPLAY="$DISPLAY_ID" xdotool mouseup 1
+    sleep "$drag_delay"
+  done
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$scroll_x" "$scroll_y"
   DISPLAY="$DISPLAY_ID" xdotool click --repeat "$scroll_clicks" --delay "$scroll_click_delay" 5
-  sleep "${QUILLUI_BACKEND_SCROLL_AFTER_SLEEP:-3}"
+  sleep "${QUILLUI_BACKEND_SCROLL_AFTER_SLEEP:-1.5}"
 }
 
 click_enchanted_list_selection() {
@@ -1113,21 +1130,21 @@ select_quill_chat_markdown_transcript() {
 
 ensure_quill_chat_long_transcript_bottom_scroll() {
   local scroll_attempt
-  local scroll_attempts="${QUILLUI_BACKEND_LONG_TRANSCRIPT_SCROLL_VERIFY_ATTEMPTS:-3}"
+  local scroll_attempts="${QUILLUI_BACKEND_LONG_TRANSCRIPT_SCROLL_VERIFY_ATTEMPTS:-2}"
 
   if ! quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     scroll_quill_chat_transcript_to_bottom
     return 0
   fi
 
-  if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection; then
+  if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection "-initial"; then
     return 0
   fi
   echo "interaction-check: long transcript bottom marker not verified; applying explicit scroll fallback" >&2
 
   for ((scroll_attempt = 1; scroll_attempt <= scroll_attempts; scroll_attempt++)); do
     scroll_quill_chat_transcript_to_bottom
-    if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection; then
+    if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection "-scroll-${scroll_attempt}"; then
       return 0
     fi
     if (( scroll_attempt < scroll_attempts )); then
