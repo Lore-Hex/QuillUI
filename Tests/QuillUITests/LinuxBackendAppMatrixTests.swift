@@ -134,7 +134,6 @@ struct LinuxBackendAppMatrixTests {
         "settings-ping-interval-typed",
         "settings-default-model-selected",
         "settings-delete-confirmation",
-        "settings-delete-confirmed",
         "completions-panel",
         "completions-new-sheet",
         "completions-save",
@@ -150,7 +149,8 @@ struct LinuxBackendAppMatrixTests {
         "transcript-selection",
         "markdown-transcript-selection",
         "message-hover-actions",
-        "long-transcript-auto-selection"
+        "long-transcript-auto-selection",
+        "settings-delete-confirmed"
     ]
 
     private static func expectedVisualVerifierProduct(product: String, backend: String) -> String {

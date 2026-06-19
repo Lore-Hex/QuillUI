@@ -628,7 +628,6 @@ quillui_backend_quill_chat_mac_reference_interaction_modes() {
     settings-ping-interval-typed \
     settings-default-model-selected \
     settings-delete-confirmation \
-    settings-delete-confirmed \
     completions-panel \
     completions-new-sheet \
     completions-save \
@@ -644,7 +643,8 @@ quillui_backend_quill_chat_mac_reference_interaction_modes() {
     transcript-selection \
     markdown-transcript-selection \
     message-hover-actions \
-    long-transcript-auto-selection
+    long-transcript-auto-selection \
+    settings-delete-confirmed
 }
 
 quillui_backend_wireguard_interaction_verify_product() {
