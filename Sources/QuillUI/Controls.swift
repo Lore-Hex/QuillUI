@@ -3426,9 +3426,7 @@ public enum QuillChatCopy {
         clipboard: QuillClipboard = .shared
     ) -> (_ json: Bool) -> Void {
         rememberVisibleMessages(key: key, messages, role: role, content: content)
-        #if os(Linux)
-        rememberedCommandBridge.install(key: key, clipboard: clipboard)
-        #endif
+        installRememberedCommandBridge(key: key, clipboard: clipboard)
         return { json in
             copyRememberedVisibleMessages(key: key, asJSON: json, fallback: fallback, clipboard: clipboard)
         }
@@ -3441,7 +3439,6 @@ public enum QuillChatCopy {
         content: (Message) -> String
     ) {
         guard !messages.isEmpty else {
-            rememberedPayloads.removeValue(forKey: key)
             return
         }
 
@@ -3496,6 +3493,18 @@ public enum QuillChatCopy {
         } else {
             clipboard.setString(plainText(messages, role: role, content: content))
         }
+    }
+
+    static func installRememberedCommandBridge(
+        key: String,
+        clipboard: QuillClipboard = .shared
+    ) {
+        #if os(Linux)
+        rememberedCommandBridge.install(key: key, clipboard: clipboard)
+        #else
+        _ = key
+        _ = clipboard
+        #endif
     }
 
     @discardableResult
@@ -3692,6 +3701,7 @@ public struct QuillChatCopyRememberingView<Message, Content: View>: View {
 
     public var body: some View {
         let _ = QuillChatCopy.rememberVisibleMessages(key: key, messages, role: role, content: messageContent)
+        let _ = QuillChatCopy.installRememberedCommandBridge(key: key)
         content
     }
 }

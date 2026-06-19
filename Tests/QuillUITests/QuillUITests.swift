@@ -399,6 +399,19 @@ struct QuillUITests {
             clipboard: bridgeCommandClipboard
         ))
 
+        QuillChatCopy.rememberVisibleMessages(
+            key: "quill.tests.remembered-copy",
+            [ChatMessage](),
+            role: \.role,
+            content: \.content
+        )
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.remembered-copy",
+            clipboard: bridgeCommandClipboard
+        ))
+        #expect(bridgeCommandClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+
         struct Model {
             var id: String
             var name: String
