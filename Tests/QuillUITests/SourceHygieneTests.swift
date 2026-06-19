@@ -63,6 +63,21 @@ struct SourceHygieneTests {
         #expect(!manifest.contains("\"-default-isolation\", \"MainActor\""))
     }
 
+    @Test("Image click target helper detects adaptive action pixels")
+    func imageClickTargetHelperDetectsAdaptiveActionPixels() throws {
+        let root = try packageRoot()
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/quillui-image-click-target.py").path,
+                "--self-test",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+    }
+
     @Test("WireGuard upstream fetch normalizes default isolation flags")
     func wireGuardUpstreamFetchNormalizesDefaultIsolationFlags() throws {
         let root = try packageRoot()
@@ -2401,6 +2416,9 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_OPEN_ATTEMPTS:-3"))
         #expect(backendScript.contains("for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do"))
         #expect(backendScript.contains("QUILLUI_BACKEND_COMPLETIONS_OPEN_RETRY_SLEEP:-0.8"))
+        #expect(backendScript.contains("quill_chat_mac_reference_new_completion_click_target()"))
+        #expect(backendScript.contains("quillui-image-click-target.py"))
+        #expect(backendScript.contains("&& [[ \"$target\" =~ ^[0-9]+[[:space:]][0-9]+$ ]]; then"))
         #expect(backendScript.contains("quillui_append_backend_selection_start_environment"))
         #expect(!backendScript.contains("app_environment+=(\"QUILLUI_ENCHANTED_QT_SELECTED_CONVERSATION_INDEX_ON_START"))
         #expect(!backendScript.contains("app_environment+=(\"QUILLUI_GENERIC_QT_SELECTED_INDEX_ON_START"))
