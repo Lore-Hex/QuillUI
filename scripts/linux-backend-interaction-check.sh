@@ -349,6 +349,16 @@ quillui_append_backend_selection_start_environment \
   "$INTERACTION_MODE" \
   "$OUTPUT_DIR"
 seed_quill_chat_saved_completion_fixture_if_needed
+if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
+  case "$INTERACTION_MODE" in
+    history-selection|transcript-selection|markdown-transcript-selection|message-hover-actions|copy-chat|copy-chat-json)
+      app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-5}")
+      ;;
+    long-transcript-selection)
+      app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
+      ;;
+  esac
+fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
   app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
 fi

@@ -4069,6 +4069,7 @@ struct SourceHygieneTests {
         #expect(historyList.contains("\"QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START\""))
         #expect(historyList.contains("\"QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START\""))
         #expect(historyList.contains("\"QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START\""))
+        #expect(historyList.contains("\"QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START\""))
         #expect(historyList.contains("@State private var didApplyInitialSelection = false"))
         #expect(historyList.contains(".onAppear { applyInitialSelectionIfNeeded() }"))
         #expect(historyList.contains("QuillConversationInitialSelection.index(count: sortedItems.count)"))
