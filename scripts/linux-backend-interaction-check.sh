@@ -349,18 +349,22 @@ quillui_append_backend_selection_start_environment \
   "$INTERACTION_MODE" \
   "$OUTPUT_DIR"
 seed_quill_chat_saved_completion_fixture_if_needed
+quill_chat_startup_history_selection=0
 if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
   case "$INTERACTION_MODE" in
     history-selection|transcript-selection|markdown-transcript-selection|message-hover-actions|copy-chat|copy-chat-json)
       app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-5}")
+      quill_chat_startup_history_selection=1
       ;;
     long-transcript-selection)
       app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
+      quill_chat_startup_history_selection=1
       ;;
   esac
 fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
   app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
+  quill_chat_startup_history_selection=1
 fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "toolbar-model-selected" ]]; then
   app_environment+=("QUILLUI_BACKEND_SELECTED_MODEL_NAME=${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}")
@@ -535,6 +539,11 @@ quill_chat_mac_reference_history_row_y() {
       exit 64
       ;;
   esac
+}
+
+quill_chat_should_trust_startup_history_selection() {
+  [[ "${quill_chat_startup_history_selection:-0}" == "1" ]] \
+    && quillui_is_quill_chat_mac_reference_product "$PRODUCT"
 }
 
 click_enchanted_list_selection() {
@@ -1048,6 +1057,11 @@ select_quill_chat_markdown_transcript() {
   local click_x="${QUILLUI_BACKEND_HISTORY_CLICK_X:-$((window_x + 190))}"
   local click_y
 
+  if quill_chat_should_trust_startup_history_selection; then
+    sleep "${QUILLUI_BACKEND_INITIAL_SELECTION_SETTLE_SLEEP:-2}"
+    return 0
+  fi
+
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     click_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$(quill_chat_mac_reference_history_row_y markdown-transcript)}"
   else
@@ -1511,10 +1525,14 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         select_quill_chat_toolbar_model_and_send_prompt
         ;;
       history-selection)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
-        click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
-        click_at "$click_x" "$click_y"
-        sleep 1
+        if quill_chat_should_trust_startup_history_selection; then
+          sleep "${QUILLUI_BACKEND_INITIAL_SELECTION_SETTLE_SLEEP:-2}"
+        else
+          click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 190))}"
+          click_y="${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
+          click_at "$click_x" "$click_y"
+          sleep 1
+        fi
         ;;
       transcript-selection|markdown-transcript-selection)
         select_quill_chat_markdown_transcript
@@ -1530,10 +1548,14 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 514))}"
         fi
         sleep 2
-        click_at "$click_x" "$click_y"
-        sleep 1
-        click_at "$click_x" "$click_y"
-        sleep 1
+        if quill_chat_should_trust_startup_history_selection; then
+          sleep 1
+        else
+          click_at "$click_x" "$click_y"
+          sleep 1
+          click_at "$click_x" "$click_y"
+          sleep 1
+        fi
         if [[ "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
           # QuillMessageList retries Linux ScrollViewReader bottom-scroll at 5s
           # and 8s while GTK finishes laying out long transcripts.

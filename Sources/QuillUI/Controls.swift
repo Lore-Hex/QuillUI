@@ -812,6 +812,7 @@ public struct QuillConversationHistoryList: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onAppear { applyInitialSelectionIfNeeded() }
+        .onChange(of: sortedItems.map(\.id)) { _, _ in applyInitialSelectionIfNeeded() }
     }
 
     private var rowFontSize: CGFloat { 15 }
@@ -1000,6 +1001,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
         }
         .scrollIndicators(ScrollIndicatorVisibility.never)
         .onAppear { applyInitialSelectionIfNeeded() }
+        .onChange(of: flattenedGroupedItems.map(\.id)) { _, _ in applyInitialSelectionIfNeeded() }
     }
 
     private var dayGroups: [QuillConversationHistoryDayGroup] {
