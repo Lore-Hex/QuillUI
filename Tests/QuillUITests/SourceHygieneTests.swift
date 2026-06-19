@@ -78,6 +78,20 @@ struct SourceHygieneTests {
         #expect(result.status == 0, Comment(rawValue: result.output))
     }
 
+    @Test("MarkdownUI table rows render backend-stable full-width dividers")
+    func markdownUITableRowsRenderBackendStableFullWidthDividers() throws {
+        let root = try packageRoot()
+        let markdownUI = try String(
+            contentsOf: root.appendingPathComponent("Sources/MarkdownUI/MarkdownUI.swift"),
+            encoding: .utf8
+        )
+
+        #expect(markdownUI.contains("private var tableDividerRule: some View"))
+        #expect(markdownUI.contains("Color(red: 0.82, green: 0.82, blue: 0.82)"))
+        #expect(markdownUI.contains(".frame(height: 1)\n            .frame(maxWidth: .infinity, alignment: .leading)"))
+        #expect(markdownUI.contains("tableDividerRule"))
+    }
+
     @Test("WireGuard upstream fetch normalizes default isolation flags")
     func wireGuardUpstreamFetchNormalizesDefaultIsolationFlags() throws {
         let root = try packageRoot()
