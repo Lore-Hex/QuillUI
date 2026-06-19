@@ -1051,6 +1051,28 @@ select_quill_chat_markdown_transcript() {
   sleep 1
 }
 
+emit_quill_chat_toolbar_action_command() {
+  local action_title="$1"
+
+  [[ -n "$quill_gtk_toolbar_action_command_dir" ]] || return 1
+  mkdir -p "$quill_gtk_toolbar_action_command_dir"
+  printf '%s\n' "$action_title" > "$quill_gtk_toolbar_action_command_dir/command-$(date +%s%N)-$$"
+}
+
+wait_for_quill_chat_copy_clipboard() {
+  local clipboard_file="$1"
+  local attempts="${QUILLUI_BACKEND_COPY_CHAT_VERIFY_ATTEMPTS:-30}"
+  local interval="${QUILLUI_BACKEND_COPY_CHAT_VERIFY_INTERVAL:-0.2}"
+  local attempt
+
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    [[ -s "$clipboard_file" ]] && return 0
+    sleep "$interval"
+  done
+
+  return 1
+}
+
 hover_quill_chat_message_actions() {
   local hover_x
   local hover_y
@@ -1137,8 +1159,7 @@ copy_quill_chat_transcript() {
   click_at "$copy_x" "$copy_y"
   sleep 0.5
   if [[ -n "$quill_gtk_toolbar_action_command_dir" && ! -s "$clipboard_file" ]]; then
-    mkdir -p "$quill_gtk_toolbar_action_command_dir"
-    printf '%s\n' "$action_title" > "$quill_gtk_toolbar_action_command_dir/command-$(date +%s%N)-$$"
+    emit_quill_chat_toolbar_action_command "$action_title" || true
   fi
   sleep "${QUILLUI_BACKEND_COPY_CHAT_SLEEP:-1.5}"
 }
@@ -1801,6 +1822,17 @@ verify_quill_chat_copy_clipboard_if_needed() {
   [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "copy-chat" || "$INTERACTION_MODE" == "copy-chat-json" ) ]] || return 0
 
   local clipboard_file="$quill_chat_copy_runtime_dir/quill-pasteboard/Apple.NSGeneralPboard/types/public.utf8-plain-text"
+  local action_title="Copy Chat"
+  if [[ "$INTERACTION_MODE" == "copy-chat-json" ]]; then
+    action_title="Copy Chat as JSON"
+  fi
+
+  if [[ ! -s "$clipboard_file" && -n "$quill_gtk_toolbar_action_command_dir" ]]; then
+    echo "Copy Chat pasteboard file is not ready; retrying toolbar action command: $action_title" >&2
+    emit_quill_chat_toolbar_action_command "$action_title" || true
+    wait_for_quill_chat_copy_clipboard "$clipboard_file" || true
+  fi
+
   if [[ ! -s "$clipboard_file" ]]; then
     echo "Copy Chat did not write a plain-text pasteboard file: $clipboard_file" >&2
     return 65
