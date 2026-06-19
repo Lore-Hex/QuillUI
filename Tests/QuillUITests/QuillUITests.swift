@@ -349,6 +349,12 @@ struct QuillUITests {
         QuillChatCopy.copyVisibleMessages([ChatMessage](), asJSON: true, role: \.role, content: \.content, fallback: { fallbackJSONValues.append($0) }, clipboard: chatClipboard)
         #expect(fallbackJSONValues == [true])
 
+        let copySource = QuillChatCopySource<ChatMessage>()
+        copySource.update([])
+        copySource.update(chatMessages)
+        copySource.copy(asJSON: false, role: \.role, content: \.content, clipboard: chatClipboard)
+        #expect(chatClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+
         struct Model {
             var id: String
             var name: String

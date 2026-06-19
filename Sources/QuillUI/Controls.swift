@@ -3465,6 +3465,26 @@ public enum QuillChatCopy {
     }
 }
 
+public final class QuillChatCopySource<Message> {
+    private var messages: [Message] = []
+
+    public init() {}
+
+    public func update(_ messages: [Message]) {
+        self.messages = messages
+    }
+
+    public func copy(
+        asJSON json: Bool,
+        role: (Message) -> String,
+        content: (Message) -> String,
+        fallback: ((_ json: Bool) -> Void)? = nil,
+        clipboard: QuillClipboard = .shared
+    ) {
+        QuillChatCopy.copyVisibleMessages(messages, asJSON: json, role: role, content: content, fallback: fallback, clipboard: clipboard)
+    }
+}
+
 public struct QuillMenuButton: View {
     public var title: String
     public var systemImage: String
