@@ -3483,11 +3483,46 @@ public enum QuillChatCopy {
                 return false
             }
             clipboard.setString(text)
+            return ensureLinuxFileBackedClipboardContains(text)
         } else {
             clipboard.setString(payload.plainText)
+            return ensureLinuxFileBackedClipboardContains(payload.plainText)
+        }
+    }
+
+    private static func ensureLinuxFileBackedClipboardContains(_ text: String) -> Bool {
+        #if os(Linux)
+        guard let runtimeDirectory = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"],
+              !runtimeDirectory.isEmpty
+        else {
+            return true
         }
 
+        let typeURL = URL(fileURLWithPath: runtimeDirectory)
+            .appendingPathComponent("quill-pasteboard")
+            .appendingPathComponent("Apple.NSGeneralPboard")
+            .appendingPathComponent("types")
+            .appendingPathComponent("public.utf8-plain-text")
+        let typeDirectory = typeURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(
+            at: typeDirectory,
+            withIntermediateDirectories: true
+        )
+
+        if let existingData = try? Data(contentsOf: typeURL),
+           String(data: existingData, encoding: .utf8) == text {
+            return true
+        }
+
+        try? Data(text.utf8).write(to: typeURL, options: .atomic)
+        guard let mirroredData = try? Data(contentsOf: typeURL) else {
+            return false
+        }
+        return String(data: mirroredData, encoding: .utf8) == text
+        #else
+        _ = text
         return true
+        #endif
     }
 
     public static func copyVisibleMessages<Message>(

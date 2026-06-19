@@ -5,6 +5,9 @@ import QuillUIQt
 import SwiftUI
 import Testing
 @testable import QuillUI
+#if os(Linux)
+import Glibc
+#endif
 
 @Suite("QuillUI core library")
 struct QuillUITests {
@@ -404,6 +407,34 @@ struct QuillUITests {
             clipboard: bridgeCommandClipboard
         ))
         #expect(bridgeCommandClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+        #if os(Linux)
+        let previousRuntimeDirectory = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"]
+        let runtimeDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quillui-copy-command-\(UUID().uuidString)", isDirectory: true)
+        #expect((try? FileManager.default.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)) != nil)
+        setenv("XDG_RUNTIME_DIR", runtimeDirectory.path, 1)
+        defer {
+            if let previousRuntimeDirectory {
+                setenv("XDG_RUNTIME_DIR", previousRuntimeDirectory, 1)
+            } else {
+                unsetenv("XDG_RUNTIME_DIR")
+            }
+            try? FileManager.default.removeItem(at: runtimeDirectory)
+        }
+
+        let mirroredClipboard = QuillClipboard()
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.remembered-copy",
+            clipboard: mirroredClipboard
+        ))
+        let mirroredURL = runtimeDirectory
+            .appendingPathComponent("quill-pasteboard")
+            .appendingPathComponent("Apple.NSGeneralPboard")
+            .appendingPathComponent("types")
+            .appendingPathComponent("public.utf8-plain-text")
+        #expect((try? String(contentsOf: mirroredURL, encoding: .utf8)) == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+        #endif
         #expect(QuillChatCopy.performRememberedCommand(
             "Copy Chat as JSON",
             key: "quill.tests.remembered-copy",

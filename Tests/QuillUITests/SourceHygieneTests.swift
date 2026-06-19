@@ -3911,6 +3911,8 @@ struct SourceHygieneTests {
         #expect(controls.contains("guard !messages.isEmpty else {\n            return\n        }"))
         #expect(controls.contains("copyRememberedVisibleMessages(key: key, asJSON: json, fallback: fallback, clipboard: clipboard)"))
         #expect(controls.contains("copyRememberedVisibleMessagesIfAvailable("))
+        #expect(controls.contains("ensureLinuxFileBackedClipboardContains("))
+        #expect(controls.contains("appendingPathComponent(\"quill-pasteboard\")"))
         #expect(controls.contains("return copyRememberedVisibleMessagesIfAvailable(key: key, asJSON: false, clipboard: clipboard)"))
         #expect(controls.contains("return copyRememberedVisibleMessagesIfAvailable(key: key, asJSON: true, clipboard: clipboard)"))
         #expect(controls.contains("copyReferenceTranscriptIfRequested(asJSON: false, clipboard: clipboard, environment: environment)"))
