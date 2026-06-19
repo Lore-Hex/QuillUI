@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import QuillDoctor
 
-@Suite("quill-doctor workspace scan")
+@Suite("quill-doctor workspace scan", .serialized)
 struct QuillDoctorWorkspaceTests {
     @Test("scanWorkspace finds multiple packages and reports them separately")
     func multiPackageWorkspace() throws {

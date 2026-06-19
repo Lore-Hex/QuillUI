@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import QuillDoctor
 
-@Suite("quill-doctor coverage scan")
+@Suite("quill-doctor coverage scan", .serialized)
 struct QuillDoctorTests {
     @Test("version string follows semantic versioning format")
     func versionStringFormat() {
