@@ -1203,6 +1203,7 @@ struct QuillDataSourceLoweringTests {
         #expect(chatViewTemplate.contains("content: \\.content"))
         #expect(chatViewTemplate.contains("fallback: copyChat"))
         #expect(!chatViewTemplate.contains("private func copyVisibleChat"))
+        #expect(chatViewTemplate.contains(".quillRememberVisibleMessages(key: \"enchanted-chat\", messages: messages, role: \\.role, content: \\.content)"))
         #expect(!chatViewTemplate.contains("ChatCopyMessage"))
         #expect(!chatViewTemplate.contains("JSONEncoder()"))
         #expect(!chatViewTemplate.contains("copyChat: copyChat"))

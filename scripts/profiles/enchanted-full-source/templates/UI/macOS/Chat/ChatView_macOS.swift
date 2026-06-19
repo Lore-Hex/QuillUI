@@ -66,6 +66,7 @@ struct ChatView: View {
                 userInitials: userInitials,
                 editMessage: editMessage
             )
+            .quillRememberVisibleMessages(key: "enchanted-chat", messages: messages, role: \.role, content: \.content)
         } composer: { message, editMessage in
             InputFieldsView(
                 message: message,

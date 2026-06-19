@@ -3551,6 +3551,51 @@ public enum QuillChatCopy {
     private static let rememberedPayloads = RememberedPayloadStore()
 }
 
+public struct QuillChatCopyRememberingView<Message, Content: View>: View {
+    private var key: String
+    private var messages: [Message]
+    private var role: (Message) -> String
+    private var messageContent: (Message) -> String
+    private var content: Content
+
+    public init(
+        key: String,
+        messages: [Message],
+        role: @escaping (Message) -> String,
+        content messageContent: @escaping (Message) -> String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.key = key
+        self.messages = messages
+        self.role = role
+        self.messageContent = messageContent
+        self.content = content()
+    }
+
+    public var body: some View {
+        let _ = QuillChatCopy.rememberVisibleMessages(key: key, messages, role: role, content: messageContent)
+        content
+    }
+}
+
+public extension View {
+    func quillRememberVisibleMessages<Message>(
+        key: String,
+        messages: [Message],
+        role: @escaping (Message) -> String,
+        content messageContent: @escaping (Message) -> String
+    ) -> some View {
+        QuillChatCopyRememberingView(
+            key: key,
+            messages: messages,
+            role: role,
+            content: messageContent
+        ) {
+            self
+        }
+    }
+}
+
 public struct QuillMenuButton: View {
     public var title: String
     public var systemImage: String
