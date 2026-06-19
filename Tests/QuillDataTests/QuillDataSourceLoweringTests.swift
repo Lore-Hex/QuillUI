@@ -1125,6 +1125,14 @@ struct QuillDataSourceLoweringTests {
         #expect(controls.contains("qtScoped: \"QUILLUI_QT_DEFAULT_WINDOW_HEIGHT\""))
         #expect(!controls.contains("quillGTKReferenceWindowWidth"))
 
+        let lowerProfileSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/lower-profile-source.sh"),
+            encoding: .utf8
+        )
+        #expect(lowerProfileSource.contains(#"clipboard_file="$LOWERED_COPY/Services/Clipboard.swift""#))
+        #expect(lowerProfileSource.contains(#"#if os(macOS) || os(Linux)\nimport AppKit"#))
+        #expect(lowerProfileSource.contains(#"#elseif os(macOS) || os(Linux)"#))
+
         let modelStoreRule = try String(
             contentsOf: root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/Stores/LanguageModelStore.swift.pl"),
             encoding: .utf8

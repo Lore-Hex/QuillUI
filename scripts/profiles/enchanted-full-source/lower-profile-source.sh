@@ -31,6 +31,14 @@ if [[ -f "$input_fields" ]]; then
   ' "$input_fields"
 fi
 
+clipboard_file="$LOWERED_COPY/Services/Clipboard.swift"
+if [[ -f "$clipboard_file" ]]; then
+  perl -0pi -e '
+    s/#if os\(macOS\)\nimport AppKit\n#else\nimport UIKit\n#endif/#if os(macOS) || os(Linux)\nimport AppKit\n#else\nimport UIKit\n#endif/;
+    s/#elseif os\(macOS\)/#elseif os(macOS) || os(Linux)/g;
+  ' "$clipboard_file"
+fi
+
 "$TOOLING_DIR/truncate-profile-files.sh" "$LOWERED_COPY" "$PROFILE_DIR/empty-files.txt"
 
 "$TOOLING_DIR/generate-hashable-identity-shims.sh" \
