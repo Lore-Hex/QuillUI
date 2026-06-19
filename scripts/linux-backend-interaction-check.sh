@@ -354,16 +354,19 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
   case "$INTERACTION_MODE" in
     history-selection|transcript-selection|markdown-transcript-selection|message-hover-actions|copy-chat|copy-chat-json)
       app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-5}")
+      app_environment+=("QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-5}")
       quill_chat_startup_history_selection=1
       ;;
     long-transcript-selection)
       app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
+      app_environment+=("QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-6}")
       quill_chat_startup_history_selection=1
       ;;
   esac
 fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "long-transcript-auto-selection" ]]; then
   app_environment+=("QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START=${QUILLUI_QUILL_HISTORY_SELECTED_INDEX_ON_START:-6}")
+  app_environment+=("QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_GTK_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-6}")
   quill_chat_startup_history_selection=1
 fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "toolbar-model-selected" ]]; then
