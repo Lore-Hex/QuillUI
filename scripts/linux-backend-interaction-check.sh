@@ -510,14 +510,14 @@ quill_chat_mac_reference_history_row_y() {
       if [[ "$SELECTED_BACKEND" == "qt" ]]; then
         printf '%s\n' "$((window_y + 1058))"
       else
-        printf '%s\n' "$((window_y + 830))"
+        printf '%s\n' "$((window_y + 884))"
       fi
       ;;
     long-transcript)
       if [[ "$SELECTED_BACKEND" == "qt" ]]; then
         printf '%s\n' "$((window_y + 920))"
       else
-        printf '%s\n' "$((window_y + 880))"
+        printf '%s\n' "$((window_y + 936))"
       fi
       ;;
     *)

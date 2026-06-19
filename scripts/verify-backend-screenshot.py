@@ -2306,7 +2306,7 @@ def validate_quill_chat_mac_reference_history_selection(
         detail_left,
         right + 1,
         min_width=int(app_width * 0.10),
-        predicate=mac_reference_prompt_card_pixel,
+        predicate=mac_reference_or_gtk_prompt_card_pixel,
     )
     require(
         empty_prompt_card_row is None,
@@ -2571,7 +2571,7 @@ def validate_quill_chat_mac_reference_sent_message(
         top + int(app_height * 0.25),
         right + 1,
         top + int(app_height * 0.62),
-        mac_reference_prompt_card_pixel,
+        mac_reference_or_gtk_prompt_card_pixel,
     )
     require(
         prompt_card_like_pixels <= 8_000,
@@ -2718,7 +2718,7 @@ def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
         top + int(app_height * 0.25),
         right + 1,
         top + int(app_height * 0.62),
-        mac_reference_prompt_card_pixel,
+        mac_reference_or_gtk_prompt_card_pixel,
     )
     require(
         prompt_card_like_pixels <= 8_000,
