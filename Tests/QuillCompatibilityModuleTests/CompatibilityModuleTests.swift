@@ -867,6 +867,16 @@ struct CompatibilityModuleTests {
         button.setTitleColor(UIColor(white: 0, alpha: 1), for: .normal)
         button.setImage(UIImage(), for: .normal)
         #expect(buttonTreeEvents >= 3)
+
+        let uiSwitch = UISwitch()
+        var switchViewEvents = 0
+        var switchActionEvents = 0
+        uiSwitch.quillAppendViewMutationHandler { _ in switchViewEvents += 1 }
+        uiSwitch.addAction(UIAction { _ in switchActionEvents += 1 }, for: .valueChanged)
+        uiSwitch.isOn = true
+        uiSwitch.setOn(false, animated: true)
+        #expect(switchViewEvents == 2)
+        #expect(switchActionEvents == 0)
     }
 
     @Test("Quill localization resolves Apple strings resources")

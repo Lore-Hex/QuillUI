@@ -24,6 +24,24 @@ private final class UIButtonGTKActionContext {
     }
 }
 
+@MainActor
+private final class UISwitchGTKActionContext {
+    weak var uiSwitch: UISwitch?
+    var isSynchronizingFromUIKit = false
+
+    init(uiSwitch: UISwitch) {
+        self.uiSwitch = uiSwitch
+    }
+
+    func activeChanged(from widget: GtkWidgetPtr) {
+        guard !isSynchronizingFromUIKit, let uiSwitch else { return }
+        let active = gtk_swift_switch_get_active(widget) != 0
+        guard uiSwitch.isOn != active else { return }
+        uiSwitch.setOn(active, animated: false)
+        uiSwitch.sendActions(for: .valueChanged)
+    }
+}
+
 private let uiButtonGTKClickedTrampoline: @convention(c) (gpointer?, gpointer?) -> Void = {
     _,
     userData in
@@ -41,6 +59,26 @@ private let releaseUIButtonGTKActionContext: @convention(c) (gpointer?, gpointer
     _ in
     guard let userData else { return }
     Unmanaged<UIButtonGTKActionContext>.fromOpaque(userData).release()
+}
+
+private let uiSwitchGTKActiveTrampoline: @convention(c) (gpointer?, gpointer?, gpointer?) -> Void = {
+    widget,
+    _,
+    userData in
+    guard let widget, let userData else { return }
+    let context = Unmanaged<UISwitchGTKActionContext>
+        .fromOpaque(userData)
+        .takeUnretainedValue()
+    MainActor.assumeIsolated {
+        context.activeChanged(from: widget.assumingMemoryBound(to: GtkWidget.self))
+    }
+}
+
+private let releaseUISwitchGTKActionContext: @convention(c) (gpointer?, gpointer?) -> Void = {
+    userData,
+    _ in
+    guard let userData else { return }
+    Unmanaged<UISwitchGTKActionContext>.fromOpaque(userData).release()
 }
 
 @MainActor
@@ -209,10 +247,39 @@ public enum UISwitchGtkMapper: UIViewGtkMapper {
         if let uiSwitch = view as? UISwitch {
             gtk_swift_switch_set_active(toggle, uiSwitch.isOn ? 1 : 0)
             gtk_widget_set_sensitive(toggle, uiSwitch.isEnabled ? 1 : 0)
+            let context = Unmanaged.passRetained(UISwitchGTKActionContext(uiSwitch: uiSwitch)).toOpaque()
+            let destroyNotify = unsafeBitCast(releaseUISwitchGTKActionContext, to: GClosureNotify.self)
+            let _: gulong = g_signal_connect_data(
+                gpointer(toggle),
+                "notify::active",
+                unsafeBitCast(uiSwitchGTKActiveTrampoline, to: GCallback.self),
+                context,
+                destroyNotify,
+                GConnectFlags(rawValue: 0)
+            )
+            installSwitchMutationBridge(on: toggle, uiSwitch: uiSwitch, context: context)
         }
         // Sit at the trailing edge, vertically centered, at natural size.
         gtk_widget_set_halign(toggle, GTK_ALIGN_END)
         gtk_widget_set_valign(toggle, GTK_ALIGN_CENTER)
         return toggle
+    }
+
+    private static func installSwitchMutationBridge(
+        on widget: GtkWidgetPtr,
+        uiSwitch: UISwitch,
+        context rawContext: UnsafeMutableRawPointer
+    ) {
+        uiSwitch.quillSetViewMutationHandler("SignalUIRender.switchState") { updatedView in
+            guard let updatedSwitch = updatedView as? UISwitch else { return }
+            let context = Unmanaged<UISwitchGTKActionContext>
+                .fromOpaque(rawContext)
+                .takeUnretainedValue()
+            let active = gtk_swift_switch_get_active(widget) != 0
+            guard active != updatedSwitch.isOn else { return }
+            context.isSynchronizingFromUIKit = true
+            gtk_swift_switch_set_active(widget, updatedSwitch.isOn ? 1 : 0)
+            context.isSynchronizingFromUIKit = false
+        }
     }
 }

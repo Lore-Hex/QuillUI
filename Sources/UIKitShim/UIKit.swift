@@ -969,8 +969,19 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
 /// `UISwitch: UIControl`. SSK only references it as a callback parameter type
 /// (`switchDidChange(_ sender: UISwitch)` reading `.isOn`); never instantiated here.
 @MainActor open class UISwitch: UIControl {
-    nonisolated(unsafe) public var isOn: Bool = false
-    public func setOn(_ on: Bool, animated: Bool) { isOn = on }
+    nonisolated(unsafe) public var isOn: Bool = false {
+        didSet {
+            if oldValue != isOn {
+                MainActor.assumeIsolated {
+                    quillNotifyViewMutation()
+                }
+            }
+        }
+    }
+    public func setOn(_ on: Bool, animated: Bool) {
+        _ = animated
+        isOn = on
+    }
 }
 
 @MainActor open class UIInputView: UIView {

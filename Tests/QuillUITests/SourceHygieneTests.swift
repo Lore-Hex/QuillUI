@@ -141,6 +141,11 @@ struct SourceHygieneTests {
         #expect(controls.contains("sendActions(for: [.primaryActionTriggered, .touchUpInside])"))
         #expect(controls.contains("\"clicked\""))
         #expect(controls.contains("g_signal_connect_data("))
+        #expect(controls.contains("UISwitchGTKActionContext"))
+        #expect(controls.contains("\"notify::active\""))
+        #expect(controls.contains("gtk_swift_switch_get_active"))
+        #expect(controls.contains("uiSwitch.sendActions(for: .valueChanged)"))
+        #expect(controls.contains("uiSwitch.quillSetViewMutationHandler(\"SignalUIRender.switchState\")"))
     }
 
     @Test("Signal UIKit renderer binds live UIKit mutations onto GTK widgets")
