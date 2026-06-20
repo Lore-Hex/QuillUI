@@ -15,6 +15,7 @@ import CGTK
 import CGTKBridge
 import QuillUIKit
 import UIKit
+import SignalUI
 import QuillFoundation
 import QuartzCore
 import Foundation
@@ -134,7 +135,9 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     static func applyLayerStyle(_ widget: GtkWidgetPtr, _ view: UIView) {
         let layer = view.layer
         var rules: [String] = []
-        if let gradientRules = gradientLayerRules(in: layer) {
+        if let signalRules = signalColorOrGradientRules(for: view) {
+            rules.append(contentsOf: signalRules)
+        } else if let gradientRules = gradientLayerRules(in: layer) {
             rules.append(contentsOf: gradientRules)
         } else if let bg = layer.backgroundColor, let hex = cgColorHex(bg) {
             rules.append("background-color: \(hex);")
@@ -256,6 +259,55 @@ private func gradientLayerRules(in layer: CALayer) -> [String]? {
         rules.append("background-image: linear-gradient(\(direction), \(stops.joined(separator: ", ")));")
     }
     return rules
+}
+
+private func signalColorOrGradientRules(for view: UIView) -> [String]? {
+    guard String(describing: type(of: view)) == "CVColorOrGradientView" else { return nil }
+    guard let value = reflectedSignalColorOrGradientValue(from: view) else { return nil }
+
+    switch value {
+    case .transparent:
+        return []
+    case .blur:
+        return ["background-color: rgba(255, 255, 255, 0.82);"]
+    case .solidColor(let color):
+        guard let hex = uiColorHex(color) else { return [] }
+        return ["background-color: \(hex);"]
+    case .gradient(let color1, let color2, let angleRadians):
+        guard let first = uiColorHex(color1), let second = uiColorHex(color2) else { return [] }
+        return [
+            "background-color: \(first);",
+            "background-image: linear-gradient(\(cssGradientDirection(angleRadians: angleRadians)), \(first), \(second));",
+        ]
+    }
+}
+
+private func reflectedSignalColorOrGradientValue(from view: UIView) -> ColorOrGradientValue? {
+    var mirror: Mirror? = Mirror(reflecting: view)
+    while let currentMirror = mirror {
+        for child in currentMirror.children where child.label == "value" {
+            if let value = child.value as? ColorOrGradientValue {
+                return value
+            }
+            let optionalMirror = Mirror(reflecting: child.value)
+            if optionalMirror.displayStyle == .optional,
+               let value = optionalMirror.children.first?.value as? ColorOrGradientValue {
+                return value
+            }
+        }
+        mirror = currentMirror.superclassMirror
+    }
+    return nil
+}
+
+private func cssGradientDirection(angleRadians: CGFloat) -> String {
+    let normalized = angleRadians.truncatingRemainder(dividingBy: .pi * 2)
+    let x = sin(normalized)
+    let y = -cos(normalized)
+    if abs(x) > abs(y) {
+        return x >= 0 ? "to left" : "to right"
+    }
+    return y <= 0 ? "to bottom" : "to top"
 }
 
 private func firstGradientLayer(in layer: CALayer) -> CAGradientLayer? {
