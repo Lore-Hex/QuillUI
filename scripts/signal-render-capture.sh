@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 demo="${1:-real-conversation-accepted}"
 output="${2:-.qa/signal-${demo}.png}"
 log_output="${3:-${output%.png}.log}"
@@ -50,6 +51,21 @@ for required in Xvfb import; do
     exit 1
   fi
 done
+
+prepend_env_path() {
+  local name="$1"
+  local path="$2"
+  [ -d "$path" ] || return 0
+  local current="${!name:-}"
+  case ":$current:" in
+    *":$path:"*) ;;
+    *) export "$name"="${current:+$current:}$path" ;;
+  esac
+}
+
+prepend_env_path QUILLUI_LOCALIZATION_DIRS "$ROOT/.upstream/signal-ios/Signal"
+prepend_env_path QUILLUI_RESOURCE_DIRS "$ROOT/.upstream/signal-ios/Signal"
+prepend_env_path QUILLUI_RESOURCE_DIRS "$ROOT/.upstream/signal-ios/SignalUI"
 
 Xvfb "$display_id" -screen 0 "${width}x${height}x24" >"${log_output%.log}-xvfb.log" 2>&1 &
 xvfb_pid=$!
