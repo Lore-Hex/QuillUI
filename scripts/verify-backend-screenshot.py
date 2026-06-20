@@ -4309,6 +4309,11 @@ def signal_composer_border_pixel(rgb: tuple[int, int, int]) -> bool:
     return 188 <= red <= 230 and 188 <= green <= 230 and 188 <= blue <= 235 and max(rgb) - min(rgb) <= 14
 
 
+def signal_request_warning_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 150 <= red <= 235 and 45 <= green <= 130 and blue <= 110 and red - blue >= 60
+
+
 def validate_signal_real_conversation(image: Screenshot, variant: str = "base") -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -4328,17 +4333,17 @@ def validate_signal_real_conversation(image: Screenshot, variant: str = "base") 
     incoming_pixels = pixel_count(
         image,
         left + 8,
-        top + int(app_height * 0.30),
-        left + int(app_width * 0.82),
-        top + int(app_height * 0.52),
+        top + int(app_height * 0.25),
+        left + int(app_width * 0.86),
+        bottom - 86,
         signal_incoming_bubble_pixel,
     )
     outgoing_pixels = pixel_count(
         image,
         left + int(app_width * 0.06),
-        top + int(app_height * 0.48),
+        top + int(app_height * 0.35),
         right - 8,
-        top + int(app_height * 0.73),
+        bottom - 86,
         signal_outgoing_bubble_pixel,
     )
     composer_pixels = pixel_count(
@@ -4365,11 +4370,51 @@ def validate_signal_real_conversation(image: Screenshot, variant: str = "base") 
         bottom - 58,
         signal_outgoing_bubble_pixel,
     )
+    request_warning_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.30),
+        top + 80,
+        right - int(app_width * 0.30),
+        top + int(app_height * 0.34),
+        signal_request_warning_pixel,
+    )
+    request_action_pixels = dark_pixel_count(
+        image,
+        left,
+        bottom - 64,
+        left + int(app_width * 0.70),
+        bottom,
+    )
+    request_continue_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.66),
+        bottom - 64,
+        right,
+        bottom,
+    )
 
     require(header_dark_pixels >= 650, f"Signal contact header was not detected: pixels={header_dark_pixels}")
     require(incoming_pixels >= 6_000, f"Signal incoming bubble was not detected: pixels={incoming_pixels}")
     require(outgoing_pixels >= 10_000, f"Signal outgoing bubble was not detected: pixels={outgoing_pixels}")
-    require(composer_pixels >= 750, f"Signal composer border was not detected: pixels={composer_pixels}")
+    if variant == "pending":
+        require(
+            request_warning_pixels >= 120,
+            "Signal message-request warning badge was not detected: "
+            f"pixels={request_warning_pixels}",
+        )
+        require(
+            request_action_pixels >= 80,
+            "Signal message-request Block/Report actions were not detected: "
+            f"pixels={request_action_pixels}",
+        )
+        require(
+            request_continue_pixels >= 120,
+            "Signal message-request Continue action was not detected: "
+            f"pixels={request_continue_pixels}",
+        )
+    else:
+        require(composer_pixels >= 750, f"Signal composer border was not detected: pixels={composer_pixels}")
+
     if variant == "send":
         require(
             bottom_outgoing_pixels >= 2_500,
@@ -4391,7 +4436,10 @@ def validate_signal_real_conversation(image: Screenshot, variant: str = "base") 
         f"outgoing_pixels={outgoing_pixels}, "
         f"composer_pixels={composer_pixels}, "
         f"bottom_incoming_pixels={bottom_incoming_pixels}, "
-        f"bottom_outgoing_pixels={bottom_outgoing_pixels}"
+        f"bottom_outgoing_pixels={bottom_outgoing_pixels}, "
+        f"request_warning_pixels={request_warning_pixels}, "
+        f"request_action_pixels={request_action_pixels}, "
+        f"request_continue_pixels={request_continue_pixels}"
     )
 
 
@@ -4562,6 +4610,7 @@ def main() -> int:
     }
     signal_real_conversation_product = product in {
         "signal-real-conversation",
+        "signal-real-conversation-pending",
         "signal-real-conversation-send",
         "signal-real-conversation-receive",
     }
@@ -4764,6 +4813,8 @@ def main() -> int:
         print(validate_quill_backend_interaction_sheet(image))
     elif product == "signal-real-conversation":
         print(validate_signal_real_conversation(image))
+    elif product == "signal-real-conversation-pending":
+        print(validate_signal_real_conversation(image, variant="pending"))
     elif product == "signal-real-conversation-send":
         print(validate_signal_real_conversation(image, variant="send"))
     elif product == "signal-real-conversation-receive":
