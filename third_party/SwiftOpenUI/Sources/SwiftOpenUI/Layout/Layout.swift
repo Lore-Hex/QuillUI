@@ -75,7 +75,7 @@ public struct LayoutContainer<L: Layout, Content: View>: View {
 public extension LayoutSubview {
     func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize {
         _ = proposal
-        return .zero
+        return CGSize(width: 0, height: 0)
     }
 
     func place(at point: CGPoint, anchor: UnitPoint = .topLeading, proposal: ProposedViewSize) {
@@ -391,7 +391,7 @@ public func computeGridLayout(
     vSpacing: Double = 0
 ) -> StackLayoutResult {
     guard !childSizes.isEmpty else {
-        return StackLayoutResult(containerSize: .zero, childPlacements: [])
+        return StackLayoutResult(containerSize: ViewSize(width: 0, height: 0), childPlacements: [])
     }
 
     let columnCount = max(1, min(columns, childSizes.count))
@@ -458,7 +458,7 @@ public func computeExplicitGridLayout(
     vSpacing: Double = 0
 ) -> StackLayoutResult {
     guard !rows.isEmpty else {
-        return StackLayoutResult(containerSize: .zero, childPlacements: [])
+        return StackLayoutResult(containerSize: ViewSize(width: 0, height: 0), childPlacements: [])
     }
 
     let normalizedRows = rows.map { row in
