@@ -404,16 +404,49 @@ for candidate_x in candidate_x_values:
 PY
 }
 
+quill_chat_functional_action_click_y() {
+  local fallback_y="$1"
+
+  if [[ -n "${QUILLUI_FUNCTIONAL_ACTION_Y:-}" ]]; then
+    printf '%s\n' "$QUILLUI_FUNCTIONAL_ACTION_Y"
+    return
+  fi
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    local reference_height="${reference_window_height:-$window_height}"
+    printf '%s\n' "$((window_y + reference_height - 170))"
+  else
+    printf '%s\n' "$fallback_y"
+  fi
+}
+
+quill_chat_functional_static_composer_click_points() {
+  local click_x
+  local click_y
+
+  while IFS= read -r click_y; do
+    while IFS= read -r click_x; do
+      printf '%s %s\n' "$click_x" "$click_y"
+    done < <(quill_chat_functional_composer_click_x_candidates)
+  done < <(quill_chat_functional_composer_click_y_candidates)
+}
+
+quill_chat_functional_attachment_action_click_points() {
+  [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]] || return 0
+
+  local click_x
+  local click_y
+  click_y="$(quill_chat_functional_action_click_y "$(quill_chat_functional_composer_click_y)")"
+  while IFS= read -r click_x; do
+    printf '%s %s\n' "$click_x" "$click_y"
+  done < <(quill_chat_functional_composer_click_x_candidates)
+}
+
 quill_chat_functional_composer_click_points() {
   {
+    quill_chat_functional_attachment_action_click_points
     quill_chat_functional_detected_composer_click_points
-    local click_x
-    local click_y
-    while IFS= read -r click_y; do
-      while IFS= read -r click_x; do
-        printf '%s %s\n' "$click_x" "$click_y"
-      done < <(quill_chat_functional_composer_click_x_candidates)
-    done < <(quill_chat_functional_composer_click_y_candidates)
+    quill_chat_functional_static_composer_click_points
   } | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
     !seen[$1 "," $2]++ {
       print
@@ -509,22 +542,6 @@ quill_chat_functional_submit_methods() {
       printf 'return\nbutton\n'
       ;;
   esac
-}
-
-quill_chat_functional_action_click_y() {
-  local fallback_y="$1"
-
-  if [[ -n "${QUILLUI_FUNCTIONAL_ACTION_Y:-}" ]]; then
-    printf '%s\n' "$QUILLUI_FUNCTIONAL_ACTION_Y"
-    return
-  fi
-
-  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    local reference_height="${reference_window_height:-$window_height}"
-    printf '%s\n' "$((window_y + reference_height - 135))"
-  else
-    printf '%s\n' "$fallback_y"
-  fi
 }
 
 quill_chat_functional_send_attempt() {

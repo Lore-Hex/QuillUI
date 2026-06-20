@@ -1064,17 +1064,22 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("functional-check: relaunch history=${history_x},${history_y}"))
         #expect(!functionalScript.contains("window_y + 172"))
         if let composerPointsRange = functionalScript.range(of: "quill_chat_functional_composer_click_points() {"),
+           let attachmentRange = functionalScript.range(
+            of: "quill_chat_functional_attachment_action_click_points",
+            range: composerPointsRange.upperBound..<functionalScript.endIndex
+           ),
            let detectedRange = functionalScript.range(
             of: "quill_chat_functional_detected_composer_click_points",
             range: composerPointsRange.upperBound..<functionalScript.endIndex
            ),
            let fallbackRange = functionalScript.range(
-            of: "while IFS= read -r click_y",
+            of: "quill_chat_functional_static_composer_click_points",
             range: composerPointsRange.upperBound..<functionalScript.endIndex
            ) {
+            #expect(attachmentRange.lowerBound < detectedRange.lowerBound)
             #expect(detectedRange.lowerBound < fallbackRange.lowerBound)
         } else {
-            Issue.record("Functional composer points should try detected coordinates before static fallbacks")
+            Issue.record("Functional composer points should try attachment action coordinates, detected coordinates, then static fallbacks")
         }
         #expect(functionalScript.contains("for candidate in :96 :97 :98 :99"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT"))
@@ -1100,8 +1105,11 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("quillui_print_backend_app_log_tail"))
         #expect(functionalScript.contains("Mock Ollama log"))
         #expect(functionalScript.contains("quill_chat_functional_action_click_y()"))
+        #expect(functionalScript.contains("quill_chat_functional_static_composer_click_points()"))
+        #expect(functionalScript.contains("quill_chat_functional_attachment_action_click_points()"))
+        #expect(functionalScript.contains("click_y=\"$(quill_chat_functional_action_click_y \"$(quill_chat_functional_composer_click_y)\")\""))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ACTION_Y"))
-        #expect(functionalScript.contains("reference_height - 135"))
+        #expect(functionalScript.contains("reference_height - 170"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_X"))
         #expect(functionalScript.contains("window_width - 70"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_Y"))
