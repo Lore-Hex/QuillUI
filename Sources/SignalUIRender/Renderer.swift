@@ -49,6 +49,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
         UILabelGtkMapper.self,
         CustomDrawnTextGtkMapper.self,
         UITextViewGtkMapper.self,
+        UIButtonGtkMapper.self,
         UIImageViewGtkMapper.self,
         UISwitchGtkMapper.self,
         UITableViewGtkMapper.self,

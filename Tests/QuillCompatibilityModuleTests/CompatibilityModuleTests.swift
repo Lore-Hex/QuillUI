@@ -715,6 +715,27 @@ struct CompatibilityModuleTests {
         #expect(button.titleLabel?.frame.minX ?? 0 >= 12)
     }
 
+    @Test("UIButton primary action dispatches through UIControl events")
+    @MainActor
+    func uiButtonPrimaryActionDispatchesThroughControlEvents() {
+        var firedTitles: [String] = []
+        let action = UIAction(title: "Send") { action in
+            firedTitles.append(action.title)
+        }
+        let button = UIButton(type: .system, primaryAction: action)
+
+        #expect(button.currentTitle == "Send")
+
+        button.sendActions(for: .touchUpInside)
+        #expect(firedTitles.isEmpty)
+
+        button.sendActions(for: .primaryActionTriggered)
+        #expect(firedTitles == ["Send"])
+
+        button.sendActions(for: [.primaryActionTriggered, .touchUpInside])
+        #expect(firedTitles == ["Send", "Send"])
+    }
+
     @Test("Quill localization resolves Apple strings resources")
     @MainActor
     func quillLocalizationResolvesAppleStringsResources() throws {

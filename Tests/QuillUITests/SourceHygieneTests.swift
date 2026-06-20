@@ -125,6 +125,21 @@ struct SourceHygieneTests {
         #expect(gtkShim.contains("static inline gulong quill_signal_connect_data"))
     }
 
+    @Test("Signal UIKit renderer maps UIButtons through GTK button actions")
+    func signalUIKitRendererMapsButtonsThroughGtkButtonActions() throws {
+        let renderer = try packageSource("Sources/SignalUIRender/Renderer.swift")
+        let controls = try packageSource("Sources/SignalUIRender/Mappers/ControlMappers.swift")
+
+        let buttonMapperIndex = try #require(renderer.range(of: "UIButtonGtkMapper.self"))
+        let genericMapperIndex = try #require(renderer.range(of: "GenericViewGtkMapper.self"))
+        #expect(buttonMapperIndex.lowerBound < genericMapperIndex.lowerBound)
+        #expect(controls.contains("gtk_button_new()!"))
+        #expect(controls.contains("gtk_button_set_child"))
+        #expect(controls.contains("sendActions(for: [.primaryActionTriggered, .touchUpInside])"))
+        #expect(controls.contains("\"clicked\""))
+        #expect(controls.contains("g_signal_connect_data("))
+    }
+
     @Test("Qt manifest avoids pkg-config prohibited flag warnings")
     func qtManifestAvoidsPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()
