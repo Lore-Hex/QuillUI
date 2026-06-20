@@ -444,11 +444,18 @@ quill_chat_functional_attachment_action_click_points() {
 }
 
 quill_chat_functional_composer_click_points() {
-  {
-    quill_chat_functional_attachment_action_click_points
-    quill_chat_functional_detected_composer_click_points
-    quill_chat_functional_static_composer_click_points
-  } | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
+  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    {
+      quill_chat_functional_attachment_action_click_points
+      quill_chat_functional_detected_composer_click_points
+      quill_chat_functional_static_composer_click_points
+    }
+  else
+    {
+      quill_chat_functional_static_composer_click_points
+      quill_chat_functional_detected_composer_click_points
+    }
+  fi | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
     !seen[$1 "," $2]++ {
       print
       emitted += 1

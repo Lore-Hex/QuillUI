@@ -1082,6 +1082,13 @@ struct QuillDataSourceLoweringTests {
         } else {
             Issue.record("Functional composer points should try attachment action coordinates, detected coordinates, then static fallbacks")
         }
+        #expect(functionalScript.contains("""
+  else
+    {
+      quill_chat_functional_static_composer_click_points
+      quill_chat_functional_detected_composer_click_points
+    }
+"""))
         #expect(functionalScript.contains("for candidate in :96 :97 :98 :99"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT"))
         #expect(functionalScript.contains("launch_app_instance()"))
