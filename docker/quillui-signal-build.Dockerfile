@@ -30,6 +30,7 @@ RUN set -eux; \
         xvfb \
         dbus-x11 \
         fonts-dejavu-core \
+        fonts-noto-color-emoji \
         imagemagick \
         x11-apps \
         ca-certificates; \

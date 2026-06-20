@@ -4314,6 +4314,101 @@ def signal_request_warning_pixel(rgb: tuple[int, int, int]) -> bool:
     return 150 <= red <= 235 and 45 <= green <= 130 and blue <= 110 and red - blue >= 60
 
 
+def signal_chat_blue_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 35 <= red <= 85 and 85 <= green <= 150 and blue >= 185 and blue - red >= 120
+
+
+def signal_chat_incoming_bubble_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 225 <= red <= 242 and 225 <= green <= 242 and 228 <= blue <= 246 and sum(rgb) < 725
+
+
+def signal_chat_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 245 <= red <= 255 and 245 <= green <= 255 and 247 <= blue <= 255 and max(rgb) - min(rgb) <= 10
+
+
+def signal_chat_composer_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 248 <= red <= 255 and 248 <= green <= 255 and 248 <= blue <= 255 and max(rgb) - min(rgb) <= 8
+
+
+def validate_signal_chat_stub(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(1000 <= app_width <= 1200, f"Signal chat window width is unexpected: {app_width}px")
+    require(640 <= app_height <= 780, f"Signal chat window height is unexpected: {app_height}px")
+
+    sidebar_right = left + min(340, int(app_width * 0.36))
+    sidebar_blue_pixels = pixel_count(
+        image,
+        left,
+        top,
+        sidebar_right,
+        top + 90,
+        signal_chat_blue_pixel,
+    )
+    sidebar_surface_pixels = pixel_count(
+        image,
+        left,
+        top + 90,
+        sidebar_right,
+        bottom,
+        signal_chat_sidebar_pixel,
+    )
+    detail_blue_pixels = pixel_count(
+        image,
+        sidebar_right,
+        top + 120,
+        right,
+        bottom - 92,
+        signal_chat_blue_pixel,
+    )
+    incoming_pixels = pixel_count(
+        image,
+        sidebar_right,
+        top + 120,
+        right - 80,
+        bottom - 92,
+        signal_chat_incoming_bubble_pixel,
+    )
+    composer_pixels = pixel_count(
+        image,
+        sidebar_right,
+        bottom - 86,
+        right,
+        bottom,
+        signal_chat_composer_pixel,
+    )
+    dark_text_pixels = dark_pixel_count(
+        image,
+        left,
+        top,
+        right,
+        bottom,
+    )
+
+    require(sidebar_blue_pixels >= 6_000, f"Signal chat sidebar brand header missing: pixels={sidebar_blue_pixels}")
+    require(sidebar_surface_pixels >= 30_000, f"Signal chat sidebar surface missing: pixels={sidebar_surface_pixels}")
+    require(detail_blue_pixels >= 3_000, f"Signal chat outgoing bubble missing: pixels={detail_blue_pixels}")
+    require(incoming_pixels >= 4_000, f"Signal chat incoming bubble missing: pixels={incoming_pixels}")
+    require(composer_pixels >= 20_000, f"Signal chat composer surface missing: pixels={composer_pixels}")
+    require(dark_text_pixels >= 3_500, f"Signal chat text/content missing: pixels={dark_text_pixels}")
+
+    return (
+        "Signal chat stub: "
+        f"app={app_width}x{app_height}, "
+        f"sidebar_blue_pixels={sidebar_blue_pixels}, "
+        f"sidebar_surface_pixels={sidebar_surface_pixels}, "
+        f"detail_blue_pixels={detail_blue_pixels}, "
+        f"incoming_pixels={incoming_pixels}, "
+        f"composer_pixels={composer_pixels}, "
+        f"dark_text_pixels={dark_text_pixels}"
+    )
+
+
 def validate_signal_real_conversation(image: Screenshot, variant: str = "base") -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -4822,6 +4917,8 @@ def main() -> int:
         print(validate_signal_real_conversation(image, variant="send"))
     elif product == "signal-real-conversation-receive":
         print(validate_signal_real_conversation(image, variant="receive"))
+    elif product == "signal-chat-stub":
+        print(validate_signal_chat_stub(image))
 
     return 0
 
