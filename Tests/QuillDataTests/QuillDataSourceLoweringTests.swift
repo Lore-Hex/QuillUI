@@ -1043,7 +1043,15 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_COMPOSER_PROBE"))
         #expect(functionalScript.contains("verify-backend-screenshot.py"))
         #expect(functionalScript.contains("mac_reference_composer_pixel"))
-        #expect(functionalScript.contains("top + int(app_height * 0.74)"))
+        #expect(functionalScript.contains("sys.modules[spec.name] = module"))
+        #expect(functionalScript.contains("top + int(app_height * 0.68)"))
+        #expect(functionalScript.contains("composer_matches.append((y, segment))"))
+        #expect(functionalScript.contains("composer_click_y = (top_row + bottom_row) // 2"))
+        #expect(functionalScript.contains("composer_click_y = best_y - 24"))
+        #expect(functionalScript.contains("composer_click_y = best_y + 24"))
+        #expect(functionalScript.contains("composer_click_y = max(top, min(bottom, composer_click_y))"))
+        #expect(functionalScript.contains("click_y = window_y + composer_click_y"))
+        #expect(!functionalScript.contains("click_y = window_y + composer_y + 30"))
         if let composerPointsRange = functionalScript.range(of: "quill_chat_functional_composer_click_points() {"),
            let detectedRange = functionalScript.range(
             of: "quill_chat_functional_detected_composer_click_points",
