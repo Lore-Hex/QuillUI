@@ -2463,7 +2463,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
         "Storage/TSYapDatabaseObject.h", "Storage/TSYapDatabaseObject.m",
     ]
     let signalUIRenderDependencies: [Target.Dependency] = [
-        "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore",
+        "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore", "CGtk4",
         "SignalUI", "SignalServiceKit",
         .product(name: "CGTK", package: "SwiftOpenUI"),
         .product(name: "CGTKBridge", package: "SwiftOpenUI"),

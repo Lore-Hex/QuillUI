@@ -195,20 +195,24 @@ public enum CustomDrawnTextGtkMapper: UIViewGtkMapper {
 
 // MARK: - UITextView
 
-/// Maps `UITextView` and subclasses such as Signal's `LinkingTextView` to a
-/// wrapped label. Static text views are common in UIKit apps for attributed
-/// explanatory copy; rendering them as labels keeps prompts visible without
-/// pretending GTK editing semantics are wired yet.
+/// Maps `UITextView` and subclasses such as Signal's `LinkingTextView` to
+/// either a wrapped label (static explanatory/link text) or a real `GtkEntry`
+/// (editable composer/input text). The editable branch preserves UIKit delegate
+/// callbacks through `UITextView.quillReplaceCharacters`.
 public enum UITextViewGtkMapper: UIViewGtkMapper {
     public static func handles(_ view: UIView) -> Bool {
         guard let textView = view as? UITextView else { return false }
         let text = textView.attributedText?.string ?? textView.text ?? ""
-        return !text.isEmpty || textView.subviews.isEmpty
+        return !text.isEmpty || textView.subviews.isEmpty || shouldRenderEditable(textView)
     }
 
     public static func make(_ view: UIView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
         guard let textView = view as? UITextView else {
             return gtk_label_new(nil)
+        }
+
+        if shouldRenderEditable(textView) {
+            return makeEditable(textView, ctx)
         }
 
         let widget: GtkWidgetPtr = gtk_label_new(nil)
@@ -253,6 +257,91 @@ public enum UITextViewGtkMapper: UIViewGtkMapper {
         @unknown default:
             gtk_label_set_xalign(labelPtr, 0.0)
             gtk_label_set_justify(labelPtr, GTK_JUSTIFY_LEFT)
+        }
+    }
+
+    private static func makeEditable(_ textView: UITextView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
+        let entry = gtk_entry_new()!
+        let widget: GtkWidgetPtr = entry
+        gtk_widget_set_hexpand(widget, 1)
+        gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(widget, GTK_ALIGN_CENTER)
+        gtk_widget_set_can_focus(widget, 1)
+        gtk_widget_set_focusable(widget, 1)
+        gtk_widget_set_sensitive(widget, textView.isUserInteractionEnabled ? 1 : 0)
+
+        let text = textView.attributedText?.string ?? textView.text ?? ""
+        if !text.isEmpty {
+            quillSignalTextViewEntrySetText(UnsafeMutableRawPointer(widget), text)
+        }
+        if let placeholder = placeholderText(for: textView) {
+            quillSignalTextViewEntrySetPlaceholder(UnsafeMutableRawPointer(widget), placeholder)
+        }
+
+        applyEditableStyle(widget, textView: textView)
+        quillSignalConnectTextViewEntrySignals(UnsafeMutableRawPointer(widget), textView: textView)
+        ctx.applyLayerStyle(widget, textView)
+        return widget
+    }
+
+    private static func shouldRenderEditable(_ textView: UITextView) -> Bool {
+        guard textView.isEditable else { return false }
+        let typeName = String(describing: type(of: textView))
+        if typeName.contains("LinkingTextView") {
+            return false
+        }
+        if placeholderText(for: textView) != nil {
+            return true
+        }
+        if typeName.localizedCaseInsensitiveContains("input")
+            || typeName.localizedCaseInsensitiveContains("composer") {
+            return true
+        }
+        let text = textView.attributedText?.string ?? textView.text ?? ""
+        return textView.subviews.isEmpty && (text.isEmpty || textView.frame.height <= 80)
+    }
+
+    private static func placeholderText(for textView: UITextView) -> String? {
+        for subview in textView.subviews {
+            guard let label = subview as? UILabel else { continue }
+            let text = visibleText(from: label.text ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                return text
+            }
+        }
+        return nil
+    }
+
+    private static func applyEditableStyle(_ widget: GtkWidgetPtr, textView: UITextView) {
+        "signal-uikit-text-view-entry".withCString {
+            gtk_widget_add_css_class(widget, $0)
+        }
+
+        let provider = gtk_css_provider_new()
+        var css = """
+        .signal-uikit-text-view-entry {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            outline: none;
+            padding: 0;
+            min-height: 0;
+        }
+        .signal-uikit-text-view-entry text {
+            background: transparent;
+        }
+        """
+        if let color = textView.textColor, let hex = uiColorHex(color) {
+            css += "\n.signal-uikit-text-view-entry { color: \(hex); }"
+        }
+        css.withCString { gtk_css_provider_load_from_string(provider, $0) }
+        if let display = gtk_widget_get_display(widget) {
+            gtk_style_context_add_provider_for_display(
+                display,
+                OpaquePointer(provider),
+                guint(GTK_STYLE_PROVIDER_PRIORITY_APPLICATION)
+            )
         }
     }
 }

@@ -139,6 +139,73 @@ private final class MutableCollectionViewProbe: UICollectionViewDataSource, UICo
     }
 }
 
+@MainActor
+private final class UIKitTextViewDelegateProbe: NSObject, UITextViewDelegate {
+    var allowsChanges = true
+    var shouldBeginRequests = 0
+    var didBeginRequests = 0
+    var shouldChangeRequests = 0
+    var changeNotifications = 0
+    var selectionNotifications = 0
+    var lastRange: NSRange?
+    var lastReplacement: String?
+    weak var changedTextView: UITextView?
+
+    func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
+        _ = textView
+        shouldBeginRequests += 1
+        return true
+    }
+
+    func textViewDidBeginEditing(_ textView: UITextView) {
+        _ = textView
+        didBeginRequests += 1
+    }
+
+    func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        _ = textView
+        shouldChangeRequests += 1
+        lastRange = range
+        lastReplacement = text
+        return allowsChanges
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+        changeNotifications += 1
+        changedTextView = textView
+    }
+
+    func textViewDidChangeSelection(_ textView: UITextView) {
+        _ = textView
+        selectionNotifications += 1
+    }
+}
+
+@MainActor
+private final class UIKitTextInputDelegateProbe: UITextInputDelegate {
+    var events: [String] = []
+
+    func selectionWillChange(_ textInput: UITextInput?) {
+        _ = textInput
+        events.append("selectionWill")
+    }
+
+    func selectionDidChange(_ textInput: UITextInput?) {
+        _ = textInput
+        events.append("selectionDid")
+    }
+
+    func textWillChange(_ textInput: UITextInput?) {
+        _ = textInput
+        events.append("textWill")
+    }
+
+    func textDidChange(_ textInput: UITextInput?) {
+        _ = textInput
+        events.append("textDid")
+    }
+}
+
 // `@MainActor`: many tests here construct MainActor-isolated SwiftUI views
 // (WrappingHStack, etc.) whose initializers run a Swift-6 isolation runtime
 // check that SIGTRAPs when evaluated off the main actor. Swift Testing runs
@@ -210,6 +277,69 @@ struct CompatibilityModuleTests {
         _ = Window("Compatibility", id: "compatibility") {
             Text("Compatibility")
         }
+    }
+
+    @Test("UITextView replacement helper notifies delegates and updates selection")
+    func uiTextViewReplacementHelperNotifiesDelegatesAndUpdatesSelection() {
+        let view = UITextView()
+        let delegate = UIKitTextViewDelegateProbe()
+        let inputDelegate = UIKitTextInputDelegateProbe()
+        view.delegate = delegate
+        view.inputDelegate = inputDelegate
+        view.text = "Hello world"
+
+        #expect(view.becomeFirstResponder())
+        let replaced = view.quillReplaceCharacters(
+            in: NSRange(location: 6, length: 5),
+            with: "Signal"
+        )
+
+        #expect(replaced)
+        #expect(view.text == "Hello Signal")
+        #expect(view.selectedRange == NSRange(location: 12, length: 0))
+        #expect(view.selectedTextRange.map { view.offset(from: view.beginningOfDocument, to: $0.start) } == 12)
+        #expect(delegate.shouldBeginRequests == 1)
+        #expect(delegate.didBeginRequests == 1)
+        #expect(delegate.shouldChangeRequests == 1)
+        #expect(delegate.lastRange == NSRange(location: 6, length: 5))
+        #expect(delegate.lastReplacement == "Signal")
+        #expect(delegate.changeNotifications == 1)
+        #expect(delegate.selectionNotifications == 1)
+        #expect(delegate.changedTextView === view)
+        #expect(inputDelegate.events == ["textWill", "selectionWill", "textDid", "selectionDid"])
+
+        let vetoView = UITextView()
+        let vetoDelegate = UIKitTextViewDelegateProbe()
+        vetoDelegate.allowsChanges = false
+        vetoView.delegate = vetoDelegate
+        vetoView.text = "Keep"
+
+        let vetoed = vetoView.quillReplaceCharacters(
+            in: NSRange(location: 0, length: 4),
+            with: "Drop"
+        )
+
+        #expect(!vetoed)
+        #expect(vetoView.text == "Keep")
+        #expect(vetoDelegate.shouldChangeRequests == 1)
+        #expect(vetoDelegate.changeNotifications == 0)
+
+        let editView = UITextView()
+        editView.text = "ab"
+        editView.selectedRange = NSRange(location: 2, length: 0)
+        editView.insertText("c")
+        #expect(editView.text == "abc")
+        #expect(editView.selectedRange == NSRange(location: 3, length: 0))
+        editView.deleteBackward()
+        #expect(editView.text == "ab")
+        #expect(editView.selectedRange == NSRange(location: 2, length: 0))
+
+        let emojiView = UITextView()
+        emojiView.text = "a🙂b"
+        emojiView.selectedRange = NSRange(location: "a🙂".utf16.count, length: 0)
+        emojiView.deleteBackward()
+        #expect(emojiView.text == "ab")
+        #expect(emojiView.selectedRange == NSRange(location: 1, length: 0))
     }
 
     @Test("UINavigationController owns child navigation back references")

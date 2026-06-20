@@ -503,6 +503,7 @@ public final class UITextPasteItem {
     private let quillDefaultLayoutManager = NSLayoutManager()
     private let quillTextStorage = NSTextStorage(string: "")
     private var quillInputAccessoryView: UIView?
+    private var quillIsFirstResponder = false
 
     public weak var pasteDelegate: UITextPasteDelegate?
     public weak var inputDelegate: UITextInputDelegate?
@@ -552,6 +553,11 @@ public final class UITextPasteItem {
     open override var inputAccessoryView: UIView? {
         get { quillInputAccessoryView }
         set { quillInputAccessoryView = newValue }
+    }
+    open override var canBecomeFirstResponder: Bool { isEditable || isSelectable }
+    open override var isFirstResponder: Bool { quillIsFirstResponder }
+    private var quillTextViewDelegate: (any UITextViewDelegate)? {
+        delegate as? any UITextViewDelegate
     }
 
     public convenience init() {
@@ -606,9 +612,9 @@ public final class UITextPasteItem {
     }
 
     open func replace(_ textRange: UITextRange, withText replacementText: String) {
-        _ = textRange
-        text = (text ?? "") + replacementText
-        selectedRange = NSRange(location: text.count, length: 0)
+        let start = min(textRange.start.quillUTF16Offset, textRange.end.quillUTF16Offset)
+        let end = max(textRange.start.quillUTF16Offset, textRange.end.quillUTF16Offset)
+        _ = quillReplaceCharacters(in: NSRange(location: start, length: end - start), with: replacementText)
     }
 
     open func unmarkText() {
@@ -622,6 +628,103 @@ public final class UITextPasteItem {
 
     public func select(_ sender: Any?) {
         _ = sender
+    }
+
+    @discardableResult
+    open override func becomeFirstResponder() -> Bool {
+        guard canBecomeFirstResponder else { return false }
+        if quillIsFirstResponder { return true }
+        if let delegate = quillTextViewDelegate, !delegate.textViewShouldBeginEditing(self) { return false }
+        quillIsFirstResponder = true
+        quillTextViewDelegate?.textViewDidBeginEditing(self)
+        return true
+    }
+
+    @discardableResult
+    open override func resignFirstResponder() -> Bool {
+        guard quillIsFirstResponder else { return true }
+        if let delegate = quillTextViewDelegate, !delegate.textViewShouldEndEditing(self) { return false }
+        quillIsFirstResponder = false
+        quillTextViewDelegate?.textViewDidEndEditing(self)
+        return true
+    }
+
+    @discardableResult
+    open func quillReplaceCharacters(in range: NSRange, with replacementText: String) -> Bool {
+        let currentText = text ?? ""
+        let normalizedRange = quillNormalizedRange(range, utf16Length: currentText.utf16.count)
+        guard quillTextViewDelegate?.textView(self, shouldChangeTextIn: normalizedRange, replacementText: replacementText) ?? true else {
+            return false
+        }
+
+        inputDelegate?.textWillChange(self)
+        inputDelegate?.selectionWillChange(self)
+
+        let lower = quillStringIndex(in: currentText, utf16Offset: normalizedRange.location)
+        let upper = quillStringIndex(in: currentText, utf16Offset: normalizedRange.location + normalizedRange.length)
+        let nextText = currentText.replacingCharacters(in: lower..<upper, with: replacementText)
+        text = nextText
+
+        let caret = min(
+            normalizedRange.location + replacementText.utf16.count,
+            nextText.utf16.count
+        )
+        selectedRange = NSRange(location: caret, length: 0)
+        let caretPosition = position(from: beginningOfDocument, offset: caret) ?? endOfDocument
+        selectedTextRange = UITextRange(start: caretPosition, end: caretPosition)
+
+        inputDelegate?.textDidChange(self)
+        quillTextViewDelegate?.textViewDidChange(self)
+        inputDelegate?.selectionDidChange(self)
+        quillTextViewDelegate?.textViewDidChangeSelection(self)
+        return true
+    }
+
+    open func insertText(_ text: String) {
+        _ = quillReplaceCharacters(in: selectedRange, with: text)
+    }
+
+    open func deleteBackward() {
+        let currentText = text ?? ""
+        guard !currentText.isEmpty else { return }
+        let range: NSRange
+        if selectedRange.length > 0 {
+            range = selectedRange
+        } else {
+            let caretOffset = max(0, min(selectedRange.location, currentText.utf16.count))
+            guard caretOffset > 0 else { return }
+            let caretIndex = quillStringIndex(in: currentText, utf16Offset: caretOffset)
+            guard caretIndex > currentText.startIndex else { return }
+            let previousIndex = currentText.index(before: caretIndex)
+            let previousOffset = previousIndex.utf16Offset(in: currentText)
+            range = NSRange(location: previousOffset, length: caretOffset - previousOffset)
+        }
+        _ = quillReplaceCharacters(in: range, with: "")
+    }
+
+    private func quillNormalizedRange(_ range: NSRange, utf16Length: Int) -> NSRange {
+        guard range.location != NSNotFound else {
+            return NSRange(location: utf16Length, length: 0)
+        }
+        let location = max(0, min(range.location, utf16Length))
+        let requestedUpper = range.length > Int.max - range.location
+            ? Int.max
+            : range.location + max(0, range.length)
+        let upper = max(location, min(requestedUpper, utf16Length))
+        return NSRange(location: location, length: upper - location)
+    }
+
+    private func quillStringIndex(in string: String, utf16Offset rawOffset: Int) -> String.Index {
+        guard !string.isEmpty else { return string.startIndex }
+        var offset = max(0, min(rawOffset, string.utf16.count))
+        while offset > 0 {
+            let utf16Index = string.utf16.index(string.utf16.startIndex, offsetBy: offset)
+            if let index = utf16Index.samePosition(in: string) {
+                return index
+            }
+            offset -= 1
+        }
+        return string.startIndex
     }
 }
 

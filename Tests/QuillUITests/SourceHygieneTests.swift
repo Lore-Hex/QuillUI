@@ -105,6 +105,26 @@ struct SourceHygieneTests {
         #expect(script.contains(#"r'\[\s*"-default-isolation"\s*,\s*"MainActor"\s*\]'"#))
     }
 
+    @Test("Signal UIKit renderer maps editable UITextView through GTK entry bridge")
+    func signalUIKitRendererMapsEditableTextViewThroughGtkEntryBridge() throws {
+        let manifest = try packageSource("Package.swift")
+        let mapper = try packageSource("Sources/SignalUIRender/Mappers/LabelImageMappers.swift")
+        let bridge = try packageSource("Sources/SignalUIRender/Mappers/TextViewEntryBridge.swift")
+        let gtkShim = try packageSource("Sources/CGtk4/shim.h")
+
+        #expect(manifest.contains("\"QuillUIKit\", \"UIKit\", \"QuillFoundation\", \"QuartzCore\", \"CGtk4\""))
+        #expect(mapper.contains("gtk_entry_new()!"))
+        #expect(mapper.contains("placeholderText(for: textView) != nil"))
+        #expect(mapper.contains("typeName.contains(\"LinkingTextView\")"))
+        #expect(mapper.contains("quillSignalConnectTextViewEntrySignals"))
+        #expect(bridge.contains("textView.quillReplaceCharacters("))
+        #expect(bridge.contains("context.activateReturnKey()"))
+        #expect(bridge.contains("quill_editable_get_text"))
+        #expect(bridge.contains("quill_entry_set_placeholder_text"))
+        #expect(bridge.contains("notify::has-focus"))
+        #expect(gtkShim.contains("static inline gulong quill_signal_connect_data"))
+    }
+
     @Test("Qt manifest avoids pkg-config prohibited flag warnings")
     func qtManifestAvoidsPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()
