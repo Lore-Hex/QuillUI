@@ -860,6 +860,42 @@ struct CompatibilityModuleTests {
         #expect(button.titleLabel?.frame.minX ?? 0 >= 12)
     }
 
+    @Test("UIButton configuration applies title font transformers before sizing")
+    @MainActor
+    func uiButtonConfigurationAppliesTitleFontTransformersBeforeSizing() {
+        var defaultConfiguration = UIButton.Configuration.gray()
+        defaultConfiguration.title = "Block or Report\u{2026}"
+        defaultConfiguration.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10)
+
+        var transformedConfiguration = defaultConfiguration
+        transformedConfiguration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = .systemFont(ofSize: 13)
+            return attributes
+        }
+
+        let defaultButton = UIButton(configuration: defaultConfiguration)
+        let transformedButton = UIButton(configuration: transformedConfiguration)
+
+        let defaultFit = defaultButton.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+        let transformedFit = transformedButton.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+
+        #expect(transformedButton.titleLabel?.font.pointSize == 13)
+        #expect(transformedFit.width < defaultFit.width)
+
+        transformedButton.frame = CGRect(x: 0, y: 0, width: 184, height: 31)
+        transformedButton.layoutIfNeeded()
+
+        #expect((transformedButton.titleLabel?.frame.width ?? 0) <= 164)
+        #expect((transformedButton.titleLabel?.frame.height ?? 0) <= 21)
+    }
+
     @Test("UIButton primary action dispatches through UIControl events")
     @MainActor
     func uiButtonPrimaryActionDispatchesThroughControlEvents() {

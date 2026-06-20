@@ -109,6 +109,7 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
         applyButtonSize(widget, from: button)
         applyButtonStyle(widget)
         applyButtonRoleClasses(widget, button: button)
+        applyConfigurationStyle(widget, button: button)
 
         if let child = buttonContentWidget(for: button, ctx) {
             gtk_button_set_child(buttonPointer(widget), child)
@@ -287,6 +288,82 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
             return "voice"
         }
         return nil
+    }
+
+    private static var configurationStyleCounter = 0
+
+    private static func applyConfigurationStyle(_ widget: GtkWidgetPtr, button: UIButton) {
+        var rules: [String] = []
+
+        if let backgroundColor = button.configuration?.baseBackgroundColor ?? button.configuration?.background.backgroundColor,
+           let css = cssColor(backgroundColor) {
+            rules.append("background-color: \(css);")
+            rules.append("background-image: none;")
+        } else if button.configuration?.quillStyle == "gray" {
+            rules.append("background-color: rgba(229, 229, 234, 1.000);")
+            rules.append("background-image: none;")
+        }
+
+        let radius = button.layer.cornerRadius > 0
+            ? button.layer.cornerRadius
+            : fallbackCornerRadius(for: button)
+        if radius > 0 {
+            rules.append("border-radius: \(Int(ceil(radius)))px;")
+        }
+
+        if button.layer.borderWidth > 0, let borderColor = button.layer.borderColor, let css = cgColorCSS(borderColor) {
+            rules.append("border: \(max(1, Int(ceil(button.layer.borderWidth))))px solid \(css);")
+        }
+
+        guard !rules.isEmpty else { return }
+
+        configurationStyleCounter += 1
+        let cssClass = "signal-uikit-button-config-\(configurationStyleCounter)"
+        cssClass.withCString { gtk_widget_add_css_class(widget, $0) }
+
+        let provider = gtk_css_provider_new()
+        let css = ".\(cssClass) { \(rules.joined(separator: " ")) }"
+        css.withCString { gtk_css_provider_load_from_string(provider, $0) }
+        if let display = gdk_display_get_default() {
+            gtk_style_context_add_provider_for_display(
+                display,
+                OpaquePointer(provider),
+                guint(GTK_STYLE_PROVIDER_PRIORITY_APPLICATION)
+            )
+        }
+        g_object_unref(provider)
+    }
+
+    private static func fallbackCornerRadius(for button: UIButton) -> CGFloat {
+        guard button.configuration?.cornerStyle == .capsule else { return 0 }
+        let height = button.bounds.height > 0 ? button.bounds.height : button.frame.height
+        return height > 0 ? height / 2 : 0
+    }
+
+    private static func cssColor(_ color: UIColor) -> String? {
+        cgColorCSS(color.cgColor)
+    }
+
+    private static func cgColorCSS(_ color: CGColor) -> String? {
+        let comps = color.components ?? []
+        switch comps.count {
+        case 4:
+            return rgbaCSS(red: comps[0], green: comps[1], blue: comps[2], alpha: comps[3])
+        case 3:
+            return rgbaCSS(red: comps[0], green: comps[1], blue: comps[2], alpha: 1)
+        case 2:
+            return rgbaCSS(red: comps[0], green: comps[0], blue: comps[0], alpha: comps[1])
+        default:
+            return nil
+        }
+    }
+
+    private static func rgbaCSS(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) -> String {
+        let r = Int((min(max(red, 0), 1) * 255).rounded())
+        let g = Int((min(max(green, 0), 1) * 255).rounded())
+        let b = Int((min(max(blue, 0), 1) * 255).rounded())
+        let a = min(max(alpha, 0), 1)
+        return String(format: "rgba(%d, %d, %d, %.3f)", r, g, b, Double(a))
     }
 
     private static func imageNames(in view: UIView) -> [String] {
