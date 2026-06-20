@@ -288,7 +288,7 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
         for child in subviewsInLayerOrder(view.subviews) {
             guard let childWidget = ctx.render(child) else { continue }
-            let frame = child.frame
+            let frame = centeredBadgeChildFrame(child.frame, child: child, parent: view)
             gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
             if frame.width > 0 || frame.height > 0 {
                 gtk_widget_set_size_request(
@@ -298,6 +298,29 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
                 )
             }
         }
+    }
+
+    private static func centeredBadgeChildFrame(_ frame: CGRect, child: UIView, parent: UIView) -> CGRect {
+        guard parent.layer.cornerRadius > 0,
+              parent.subviews.count == 1,
+              child === parent.subviews.first,
+              frame.origin == .zero,
+              frame.width > 0,
+              frame.height > 0 else {
+            return frame
+        }
+
+        let parentSize = parent.bounds.size != .zero ? parent.bounds.size : parent.frame.size
+        guard parentSize.width > 0, parentSize.height > 0 else {
+            return frame
+        }
+
+        return CGRect(
+            x: max(0, (parentSize.width - frame.width) / 2),
+            y: max(0, (parentSize.height - frame.height) / 2),
+            width: frame.width,
+            height: frame.height
+        )
     }
 
     private static func installGenericFixedMutationBridge(

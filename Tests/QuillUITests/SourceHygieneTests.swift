@@ -190,6 +190,8 @@ struct SourceHygieneTests {
         #expect(containers.contains("contentHuggingPriority(for: axis).rawValue"))
         #expect(containers.contains("installGenericFixedMutationBridge(on: fixed, view: view, ctx: ctx)"))
         #expect(containers.contains("view.quillSetSubviewMutationHandler(\"SignalUIRender.genericFixedChildren\")"))
+        #expect(containers.contains("centeredBadgeChildFrame(child.frame, child: child, parent: view)"))
+        #expect(containers.contains("parent.layer.cornerRadius > 0"))
         #expect(containers.contains("clearFixedChildren(fixed)"))
         #expect(containers.contains("gtk_fixed_remove(fixedPtr, child)"))
         #expect(containers.contains("installGenericBoxMutationBridge(on: box, view: view, isBadge: isBadge, ctx: ctx)"))
