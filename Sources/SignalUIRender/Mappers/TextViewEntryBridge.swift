@@ -87,6 +87,12 @@ private let releaseTextViewGTKEntryContext: @convention(c) (UnsafeMutableRawPoin
 }
 
 @MainActor
+func quillSignalTextViewEntryGetText(_ widget: UnsafeMutableRawPointer) -> String {
+    guard let cString = quill_editable_get_text(widget) else { return "" }
+    return String(cString: cString)
+}
+
+@MainActor
 func quillSignalTextViewEntrySetText(_ widget: UnsafeMutableRawPointer, _ text: String) {
     text.withCString { quill_editable_set_text(widget, $0) }
 }

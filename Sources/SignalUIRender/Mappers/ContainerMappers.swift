@@ -149,7 +149,7 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         stack: UIStackView,
         ctx: UIKitGtkRenderContext
     ) {
-        stack.quillSubviewMutationHandler = { updatedView in
+        stack.quillSetSubviewMutationHandler("SignalUIRender.stackChildren") { updatedView in
             guard let updatedStack = updatedView as? UIStackView else { return }
             clearBoxChildren(box)
             let isVertical = (updatedStack.axis == .vertical)
@@ -320,7 +320,7 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         isBadge: Bool,
         ctx: UIKitGtkRenderContext
     ) {
-        view.quillSubviewMutationHandler = { updatedView in
+        view.quillSetSubviewMutationHandler("SignalUIRender.genericBoxChildren") { updatedView in
             clearBoxChildren(box)
             for child in updatedView.subviews {
                 guard let childWidget = ctx.render(child) else { continue }

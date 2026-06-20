@@ -515,7 +515,11 @@ public final class UITextPasteItem {
 
     open var attributedText: NSAttributedString! {
         get { NSAttributedString(attributedString: textStorage) }
-        set { textStorage.setAttributedString(newValue ?? NSAttributedString(string: "")) }
+        set {
+            let oldText = textStorage.string
+            textStorage.setAttributedString(newValue ?? NSAttributedString(string: ""))
+            quillNotifyTextViewMutation(oldText != textStorage.string)
+        }
     }
     open var selectedRange: NSRange = NSRange(location: 0, length: 0)
     open var selectedTextRange: UITextRange?
@@ -527,10 +531,18 @@ public final class UITextPasteItem {
     open var textStorage: NSTextStorage {
         textContainer.layoutManager?.textStorage ?? quillTextStorage
     }
-    open var textContainerInset: UIEdgeInsets = .zero
-    open var font: UIFont?
-    open var textColor: UIColor?
-    open var textAlignment: NSTextAlignment = .natural
+    open var textContainerInset: UIEdgeInsets = .zero {
+        didSet { quillNotifyTextViewMutation(oldValue != textContainerInset) }
+    }
+    open var font: UIFont? {
+        didSet { quillNotifyTextViewMutation(true) }
+    }
+    open var textColor: UIColor? {
+        didSet { quillNotifyTextViewMutation(true) }
+    }
+    open var textAlignment: NSTextAlignment = .natural {
+        didSet { quillNotifyTextViewMutation(oldValue != textAlignment) }
+    }
     open var linkTextAttributes: [NSAttributedString.Key: Any] = [:]
     open var typingAttributes: [NSAttributedString.Key: Any] = [:]
     open var adjustsFontForContentSizeCategory = false
@@ -538,8 +550,12 @@ public final class UITextPasteItem {
     open var autocorrectionType: UITextAutocorrectionType = .default
     open var spellCheckingType: UITextSpellCheckingType = .default
     open var keyboardAppearance: UIKeyboardAppearance = .default
-    open var isEditable = true
-    open var isSelectable = true
+    open var isEditable = true {
+        didSet { quillNotifyTextViewMutation(oldValue != isEditable) }
+    }
+    open var isSelectable = true {
+        didSet { quillNotifyTextViewMutation(oldValue != isSelectable) }
+    }
     open var isSecureTextEntry = false
     open var dataDetectorTypes: UIDataDetectorTypes = []
     open var supportsAdaptiveImageGlyph = true
@@ -582,6 +598,13 @@ public final class UITextPasteItem {
         super.init(coder: coder)
         quillTextStorage.addLayoutManager(quillDefaultLayoutManager)
         quillDefaultLayoutManager.addTextContainer(container)
+    }
+
+    private func quillNotifyTextViewMutation(_ changed: Bool) {
+        guard changed else { return }
+        invalidateIntrinsicContentSize()
+        quillNotifyViewMutation()
+        superview?.quillNotifySubviewMutation()
     }
 
     open override func sizeThatFits(_ size: CGSize) -> CGSize {

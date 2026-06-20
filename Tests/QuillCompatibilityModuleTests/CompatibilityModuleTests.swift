@@ -768,6 +768,20 @@ struct CompatibilityModuleTests {
         button.isEnabled = false
 
         #expect(controlEvents == 1)
+
+        let chainedView = UIView()
+        var chainedEvents: [String] = []
+        chainedView.quillAppendViewMutationHandler { _ in chainedEvents.append("first") }
+        chainedView.quillAppendViewMutationHandler { _ in chainedEvents.append("second") }
+        chainedView.alpha = 0.25
+        #expect(chainedEvents == ["first", "second"])
+
+        let keyedView = UIView()
+        var keyedEvents: [String] = []
+        keyedView.quillSetViewMutationHandler("renderer") { _ in keyedEvents.append("old") }
+        keyedView.quillSetViewMutationHandler("renderer") { _ in keyedEvents.append("new") }
+        keyedView.alpha = 0.75
+        #expect(keyedEvents == ["new"])
     }
 
     @Test("UIView subtree mutation hook observes child visibility geometry and stack arrangement changes")
@@ -812,6 +826,39 @@ struct CompatibilityModuleTests {
         arrangedCounts.removeAll()
         stack.removeArrangedSubview(arranged)
         #expect(arrangedCounts.last == 0)
+    }
+
+    @Test("UIKit text and image leaves publish renderer mutation notifications")
+    @MainActor
+    func uiTextAndImageLeavesPublishMutationNotifications() {
+        let label = UILabel()
+        var labelEvents = 0
+        label.quillAppendViewMutationHandler { _ in labelEvents += 1 }
+        label.text = "Draft"
+        label.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        label.textAlignment = .center
+        label.numberOfLines = 2
+        #expect(labelEvents >= 4)
+
+        let textView = UITextView()
+        var textViewEvents = 0
+        textView.quillAppendViewMutationHandler { _ in textViewEvents += 1 }
+        textView.text = "Hello"
+        textView.font = UIFont.systemFont(ofSize: 15)
+        textView.textColor = UIColor(white: 0, alpha: 1)
+        textView.isEditable = false
+        #expect(textViewEvents >= 4)
+
+        let parent = UIView()
+        let imageView = UIImageView()
+        parent.addSubview(imageView)
+        var imageEvents = 0
+        var parentTreeEvents = 0
+        imageView.quillAppendViewMutationHandler { _ in imageEvents += 1 }
+        parent.quillAppendSubviewMutationHandler { _ in parentTreeEvents += 1 }
+        imageView.image = UIImage()
+        #expect(imageEvents == 1)
+        #expect(parentTreeEvents == 1)
     }
 
     @Test("Quill localization resolves Apple strings resources")

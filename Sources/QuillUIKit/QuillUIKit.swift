@@ -800,12 +800,46 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     // observers) and that requires the stored property itself to be
     // overridable cross-module.
     public var quillViewMutationHandler: ((UIView) -> Void)?
+    private var quillViewMutationHandlers: [String: (UIView) -> Void] = [:]
     public func quillNotifyViewMutation() {
         quillViewMutationHandler?(self)
+        for key in quillViewMutationHandlers.keys.sorted() {
+            quillViewMutationHandlers[key]?(self)
+        }
+    }
+    public func quillAppendViewMutationHandler(_ handler: @escaping (UIView) -> Void) {
+        let previous = quillViewMutationHandler
+        quillViewMutationHandler = { view in
+            previous?(view)
+            handler(view)
+        }
+    }
+    public func quillSetViewMutationHandler(
+        _ key: String,
+        _ handler: @escaping (UIView) -> Void
+    ) {
+        quillViewMutationHandlers[key] = handler
     }
     public var quillSubviewMutationHandler: ((UIView) -> Void)?
+    private var quillSubviewMutationHandlers: [String: (UIView) -> Void] = [:]
     public func quillNotifySubviewMutation() {
         quillSubviewMutationHandler?(self)
+        for key in quillSubviewMutationHandlers.keys.sorted() {
+            quillSubviewMutationHandlers[key]?(self)
+        }
+    }
+    public func quillAppendSubviewMutationHandler(_ handler: @escaping (UIView) -> Void) {
+        let previous = quillSubviewMutationHandler
+        quillSubviewMutationHandler = { view in
+            previous?(view)
+            handler(view)
+        }
+    }
+    public func quillSetSubviewMutationHandler(
+        _ key: String,
+        _ handler: @escaping (UIView) -> Void
+    ) {
+        quillSubviewMutationHandlers[key] = handler
     }
 
     open var isHidden: Bool = false {
@@ -2749,8 +2783,15 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
-    public var image: UIImage?
-    public var highlightedImage: UIImage?
+    public var image: UIImage? {
+        didSet {
+            quillNotifyViewMutation()
+            superview?.quillNotifySubviewMutation()
+        }
+    }
+    public var highlightedImage: UIImage? {
+        didSet { quillNotifyViewMutation() }
+    }
     /// Apple's `UIImageView.isHighlighted` toggles between `image` and
     /// `highlightedImage`. CLASS-BODY `open`: VideoTimelineView's TrimHandleView
     /// overrides it with a `willSet` observer to lazily build the highlighted
@@ -2759,23 +2800,37 @@ public class SLComposeSheetConfigurationItem: NSObject {
 }
 
 @MainActor open class UILabel: UIView {
-    public var text: String?
+    public var text: String? {
+        didSet { quillNotifyTextMutation(oldValue != text) }
+    }
     /// MODEL HONESTY: stored independently of `text` (real UIKit derives the
     /// plain string from it); no text engine consumes either on Linux yet.
-    public var attributedText: NSAttributedString?
+    public var attributedText: NSAttributedString? {
+        didSet { quillNotifyTextMutation(oldValue?.string != attributedText?.string) }
+    }
     // Platform-gated: on macOS UIColor aliases real NSColor, which spells
     // this semantic color `labelColor`; only the Linux RSColor has `label`.
     #if os(macOS)
-    public var textColor: UIColor! = .labelColor
+    public var textColor: UIColor! = .labelColor {
+        didSet { quillNotifyTextMutation(true) }
+    }
     #else
-    public var textColor: UIColor! = .label
+    public var textColor: UIColor! = .label {
+        didSet { quillNotifyTextMutation(true) }
+    }
     #endif
-    public var numberOfLines: Int = 1
+    public var numberOfLines: Int = 1 {
+        didSet { quillNotifyTextMutation(oldValue != numberOfLines) }
+    }
     // Module-qualified: on macOS this file imports real AppKit alongside
     // QuillFoundation, and the shared text-layout enums (NSTextLayoutShared.swift)
     // would tie with AppKit's under unqualified lookup. No-op on Linux.
-    public var lineBreakMode: QuillFoundation.NSLineBreakMode = .byTruncatingTail
-    public var textAlignment: QuillFoundation.NSTextAlignment = .natural
+    public var lineBreakMode: QuillFoundation.NSLineBreakMode = .byTruncatingTail {
+        didSet { quillNotifyTextMutation(oldValue != lineBreakMode) }
+    }
+    public var textAlignment: QuillFoundation.NSTextAlignment = .natural {
+        didSet { quillNotifyTextMutation(oldValue != textAlignment) }
+    }
     /// Recorded but inert: nothing measures or shrinks text on Linux yet.
     public var adjustsFontSizeToFitWidth = false
     public var minimumScaleFactor: CGFloat = 0
@@ -2786,12 +2841,21 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public var allowsDefaultTighteningForTruncation = false
     /// Recorded for layout code that reads it back; no intrinsic-size pass
     /// consumes it on Linux yet.
-    public var preferredMaxLayoutWidth: CGFloat = 0
+    public var preferredMaxLayoutWidth: CGFloat = 0 {
+        didSet { quillNotifyTextMutation(oldValue != preferredMaxLayoutWidth) }
+    }
     /// Backing store for `font`. The UIFont-typed accessor cannot live here:
     /// UIFont is declared in the UIKit shim module, which depends on this one,
     /// so the shim layers `font: UIFont!` over this slot (UIFontExtras.swift).
     public var quillFontStorage: AnyObject?
     public var quillFontPointSize: CGFloat = 17
+
+    public func quillNotifyTextMutation(_ changed: Bool) {
+        guard changed else { return }
+        invalidateIntrinsicContentSize()
+        quillNotifyViewMutation()
+        superview?.quillNotifySubviewMutation()
+    }
 
     /// UILabel's text-drawing override point. Signal subclasses (CVCapsuleLabel)
     /// override this and call super; there is no text renderer on Linux, so the

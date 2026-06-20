@@ -54,12 +54,20 @@ public enum UILabelGtkMapper: UIViewGtkMapper {
         }
 
         let widget: GtkWidgetPtr = gtk_label_new(nil)
+        applyLabelContent(to: widget, label: label)
+        installLabelMutationBridge(widget, label: label)
+        // Backgrounds / corner radius / border are CALayer concerns the shared
+        // CSS path owns.
+        ctx.applyLayerStyle(widget, view)
+        return widget
+    }
+
+    private static func applyLabelContent(to widget: GtkWidgetPtr, label: UILabel) {
         // The typed GtkLabel setters below take a `GtkLabel*`, which bridges to
         // Swift as `OpaquePointer` — SwiftOpenUI wraps the GtkWidget pointer the
         // same way (`OpaquePointer(label)`) before calling gtk_label_set_*.
         let labelPtr = OpaquePointer(widget)
-
-        let text = visibleText(from: label.text ?? "")
+        let text = visibleText(from: label.attributedText?.string ?? label.text ?? "")
 
         // Color + font are carried by Pango markup. If we have neither a custom
         // color nor a font worth spelling out we fall back to plain text so the
@@ -73,11 +81,14 @@ public enum UILabelGtkMapper: UIViewGtkMapper {
 
         applyLineWrapping(labelPtr, numberOfLines: label.numberOfLines)
         applyAlignment(labelPtr, alignment: label.textAlignment)
+    }
 
-        // Backgrounds / corner radius / border are CALayer concerns the shared
-        // CSS path owns.
-        ctx.applyLayerStyle(widget, view)
-        return widget
+    private static func installLabelMutationBridge(_ widget: GtkWidgetPtr, label: UILabel) {
+        label.quillSetViewMutationHandler("SignalUIRender.labelContent") { updatedView in
+            guard let updatedLabel = updatedView as? UILabel else { return }
+            applyLabelContent(to: widget, label: updatedLabel)
+            gtk_widget_queue_resize(widget)
+        }
     }
 
     /// Configure wrap + line cap from `numberOfLines`.
@@ -216,6 +227,13 @@ public enum UITextViewGtkMapper: UIViewGtkMapper {
         }
 
         let widget: GtkWidgetPtr = gtk_label_new(nil)
+        applyTextViewLabelContent(to: widget, textView: textView)
+        installTextViewLabelMutationBridge(widget, textView: textView)
+        ctx.applyLayerStyle(widget, view)
+        return widget
+    }
+
+    private static func applyTextViewLabelContent(to widget: GtkWidgetPtr, textView: UITextView) {
         let labelPtr = OpaquePointer(widget)
         let attributedText = textView.attributedText
         let text = visibleText(from: attributedText?.string ?? textView.text ?? "")
@@ -236,8 +254,14 @@ public enum UITextViewGtkMapper: UIViewGtkMapper {
         gtk_label_set_wrap_mode(labelPtr, PANGO_WRAP_WORD_CHAR)
         gtk_label_set_lines(labelPtr, -1)
         applyAlignment(labelPtr, alignment: alignment)
-        ctx.applyLayerStyle(widget, view)
-        return widget
+    }
+
+    private static func installTextViewLabelMutationBridge(_ widget: GtkWidgetPtr, textView: UITextView) {
+        textView.quillSetViewMutationHandler("SignalUIRender.textViewLabelContent") { updatedView in
+            guard let updatedTextView = updatedView as? UITextView else { return }
+            applyTextViewLabelContent(to: widget, textView: updatedTextView)
+            gtk_widget_queue_resize(widget)
+        }
     }
 
     private static func applyAlignment(_ labelPtr: OpaquePointer, alignment: NSTextAlignment) {
@@ -280,8 +304,25 @@ public enum UITextViewGtkMapper: UIViewGtkMapper {
 
         applyEditableStyle(widget, textView: textView)
         quillSignalConnectTextViewEntrySignals(UnsafeMutableRawPointer(widget), textView: textView)
+        installEditableTextViewMutationBridge(widget, textView: textView)
         ctx.applyLayerStyle(widget, textView)
         return widget
+    }
+
+    private static func installEditableTextViewMutationBridge(_ widget: GtkWidgetPtr, textView: UITextView) {
+        let rawWidget = UnsafeMutableRawPointer(widget)
+        textView.quillSetViewMutationHandler("SignalUIRender.textViewEntryContent") { updatedView in
+            guard let updatedTextView = updatedView as? UITextView else { return }
+            let nextText = updatedTextView.attributedText?.string ?? updatedTextView.text ?? ""
+            if quillSignalTextViewEntryGetText(rawWidget) != nextText {
+                quillSignalTextViewEntrySetText(rawWidget, nextText)
+            }
+            if let placeholder = placeholderText(for: updatedTextView) {
+                quillSignalTextViewEntrySetPlaceholder(rawWidget, placeholder)
+            }
+            gtk_widget_set_sensitive(widget, updatedTextView.isUserInteractionEnabled ? 1 : 0)
+            gtk_widget_queue_resize(widget)
+        }
     }
 
     private static func shouldRenderEditable(_ textView: UITextView) -> Bool {

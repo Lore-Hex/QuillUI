@@ -83,7 +83,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     }
 
     private static func installMutationBridge(_ widget: GtkWidgetPtr, _ view: UIView) {
-        view.quillViewMutationHandler = { updatedView in
+        view.quillSetViewMutationHandler("SignalUIRender.widgetState") { updatedView in
             gtk_widget_set_visible(widget, updatedView.isHidden ? 0 : 1)
             gtk_widget_set_opacity(widget, gdouble(max(0, min(1, updatedView.alpha))))
             let isSensitive: Bool
