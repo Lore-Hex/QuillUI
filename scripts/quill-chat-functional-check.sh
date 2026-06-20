@@ -384,7 +384,6 @@ PY
 
 quill_chat_functional_composer_click_points() {
   {
-    quill_chat_functional_detected_composer_click_points
     local click_x
     local click_y
     while IFS= read -r click_y; do
@@ -392,12 +391,33 @@ quill_chat_functional_composer_click_points() {
         printf '%s %s\n' "$click_x" "$click_y"
       done < <(quill_chat_functional_composer_click_x_candidates)
     done < <(quill_chat_functional_composer_click_y_candidates)
-  } | awk '!seen[$1 "," $2]++'
+    quill_chat_functional_detected_composer_click_points
+  } | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
+    !seen[$1 "," $2]++ {
+      print
+      emitted += 1
+      if (emitted >= max_points) {
+        exit
+      }
+    }
+  '
+}
+
+quill_chat_functional_submit_methods() {
+  case "$FUNCTIONAL_MODE" in
+    attachment-send|image-attachment-send)
+      printf 'button\nreturn\n'
+      ;;
+    *)
+      printf 'return\nbutton\n'
+      ;;
+  esac
 }
 
 quill_chat_functional_send_attempt() {
   local click_x="$1"
   local click_y="$2"
+  local submit_method="${3:-return}"
   local attachment_x
   local attachment_y
   local send_x
@@ -411,13 +431,15 @@ quill_chat_functional_send_attempt() {
     sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
   fi
 
-  echo "functional-check: window='${window_id:-none}' geometry=${window_x},${window_y} ${window_width}x${window_height} composer=${click_x},${click_y} mode=${FUNCTIONAL_MODE}" >&2
+  echo "functional-check: window='${window_id:-none}' geometry=${window_x},${window_y} ${window_width}x${window_height} composer=${click_x},${click_y} mode=${FUNCTIONAL_MODE} submit=${submit_method}" >&2
   quillui_functional_refocus_window
   quillui_functional_click_at "$click_x" "$click_y"
   sleep 1
+  quillui_functional_xdotool key --clearmodifiers ctrl+a BackSpace 2>/dev/null || true
+  sleep 0.2
   quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
   sleep 1
-  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+  if [[ "$submit_method" == "button" ]]; then
     send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
     send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$click_y}"
     quillui_functional_refocus_window
@@ -543,11 +565,14 @@ fi
 completion_verified=0
 while read -r click_x click_y; do
   [[ -n "$click_x" && -n "$click_y" ]] || continue
-  quill_chat_functional_send_attempt "$click_x" "$click_y"
-  if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_ATTEMPT_DEADLINE:-8}" 0; then
-    completion_verified=1
-    break
-  fi
+  while IFS= read -r submit_method; do
+    [[ -n "$submit_method" ]] || continue
+    quill_chat_functional_send_attempt "$click_x" "$click_y" "$submit_method"
+    if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_ATTEMPT_DEADLINE:-8}" 0; then
+      completion_verified=1
+      break 2
+    fi
+  done < <(quill_chat_functional_submit_methods)
 done < <(quill_chat_functional_composer_click_points)
 
 if (( completion_verified == 0 )); then

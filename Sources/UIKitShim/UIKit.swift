@@ -50,8 +50,14 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public let fontDescriptor: UIFontDescriptor
     public init(descriptor: UIFontDescriptor, size: CGFloat) {
         let resolvedSize = size == 0 ? descriptor.pointSize : size
-        descriptor.pointSize = resolvedSize
-        self.pointSize = resolvedSize; self.fontName = descriptor.name; self.fontDescriptor = descriptor
+        let resolvedDescriptor = UIFontDescriptor(
+            name: descriptor.name,
+            symbolicTraits: descriptor.symbolicTraits
+        )
+        resolvedDescriptor.pointSize = resolvedSize
+        self.pointSize = resolvedSize
+        self.fontName = resolvedDescriptor.name
+        self.fontDescriptor = resolvedDescriptor
         super.init()
     }
     init(pointSize: CGFloat, fontName: String) {
