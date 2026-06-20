@@ -4414,6 +4414,8 @@ struct SourceHygieneTests {
         let sidebarButton = String(controls[buttonStart.lowerBound..<nextSection.lowerBound])
         #expect(sidebarButton.contains("Image(systemName: sidebarSystemImageName)"))
         #expect(sidebarButton.contains(".frame(width: 24, height: 24, alignment: .leading)"))
+        #expect(sidebarButton.contains(".quillSidebarUtilityButtonStyle()"))
+        #expect(!sidebarButton.contains(".buttonStyle(.plain)"))
         #expect(sidebarButton.contains("if systemImage == \"textformat.abc\""))
         #expect(sidebarButton.contains("Text(\"Abc\")"))
         #expect(sidebarButton.contains("QuillSidebarKeyboardGlyph(color: Color(hex: \"#3A3A3C\"))"))
@@ -4429,6 +4431,8 @@ struct SourceHygieneTests {
         #expect(sidebarButton.contains("\"gearshape\", \"gearshape.fill\", \"gear\""))
         #expect(!sidebarButton.contains("case \"keyboard\", \"keyboard.fill\":"))
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
+        #expect(controls.contains("func quillSidebarUtilityButtonStyle() -> some View"))
+        #expect(controls.contains("self.buttonStyle(ButtonStyleType.quillPaintMacListRow(\n            isSelected: false,\n            drawsIdleBackground: false\n        ))"))
     }
 
     @Test("GTK QuillPaint hooks cover button and text input chrome")

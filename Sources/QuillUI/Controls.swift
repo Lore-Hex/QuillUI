@@ -1131,6 +1131,18 @@ private extension View {
         self.buttonStyle(.plain)
         #endif
     }
+
+    @ViewBuilder
+    func quillSidebarUtilityButtonStyle() -> some View {
+        #if os(Linux)
+        self.buttonStyle(ButtonStyleType.quillPaintMacListRow(
+            isSelected: false,
+            drawsIdleBackground: false
+        ))
+        #else
+        self.buttonStyle(.plain)
+        #endif
+    }
 }
 
 private extension Color {
@@ -1551,7 +1563,7 @@ public struct QuillSidebarNavigationButton: View {
             .frame(maxWidth: .infinity, minHeight: navigationRowHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .quillSidebarUtilityButtonStyle()
     }
 
     #if os(Linux)
