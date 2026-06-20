@@ -552,6 +552,8 @@ quill_chat_functional_submit_methods() {
   esac
 }
 
+quill_chat_functional_send_attempt_index=0
+
 quill_chat_functional_send_attempt() {
   local click_x="$1"
   local click_y="$2"
@@ -560,6 +562,14 @@ quill_chat_functional_send_attempt() {
   local attachment_y
   local send_x
   local send_y
+  local should_clear_before_type=1
+
+  quill_chat_functional_send_attempt_index=$((quill_chat_functional_send_attempt_index + 1))
+  if (( quill_chat_functional_send_attempt_index == 1 )) \
+      && [[ "$FUNCTIONAL_MODE" == "composer-send" ]] \
+      && [[ "${QUILLUI_FUNCTIONAL_CLEAR_FIRST_ATTEMPT:-0}" != "1" ]]; then
+    should_clear_before_type=0
+  fi
 
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
     attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 70))}"
@@ -573,8 +583,10 @@ quill_chat_functional_send_attempt() {
   quillui_functional_refocus_window
   quillui_functional_click_at "$click_x" "$click_y"
   sleep 1
-  quillui_functional_xdotool key --clearmodifiers ctrl+a BackSpace 2>/dev/null || true
-  sleep 0.2
+  if (( should_clear_before_type == 1 )); then
+    quillui_functional_xdotool key --clearmodifiers ctrl+a BackSpace 2>/dev/null || true
+    sleep 0.2
+  fi
   quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
   sleep 1
   if [[ "$submit_method" == "button" ]]; then
