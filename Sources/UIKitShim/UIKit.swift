@@ -49,12 +49,16 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
     public init(descriptor: UIFontDescriptor, size: CGFloat) {
-        self.pointSize = size; self.fontName = descriptor.name; self.fontDescriptor = descriptor
+        let resolvedSize = size == 0 ? descriptor.pointSize : size
+        descriptor.pointSize = resolvedSize
+        self.pointSize = resolvedSize; self.fontName = descriptor.name; self.fontDescriptor = descriptor
         super.init()
     }
     init(pointSize: CGFloat, fontName: String) {
         self.pointSize = pointSize; self.fontName = fontName
-        self.fontDescriptor = UIFontDescriptor(name: fontName)
+        let descriptor = UIFontDescriptor(name: fontName)
+        descriptor.pointSize = pointSize
+        self.fontDescriptor = descriptor
         super.init()
     }
     public required init?(coder: NSCoder) {
@@ -137,10 +141,12 @@ public final class UIFontDescriptor: @unchecked Sendable {
     }
     public enum SystemDesign: Equatable, Sendable { case `default`, rounded, serif, monospaced }
     public func withDesign(_ design: SystemDesign) -> UIFontDescriptor? {
-        UIFontDescriptor(
+        let descriptor = UIFontDescriptor(
             name: design == .rounded ? ".AppleSystemUIFontRounded-Regular" : name,
             symbolicTraits: symbolicTraits
         )
+        descriptor.pointSize = pointSize
+        return descriptor
     }
     // Mirror of UIKit's UIFontDescriptor.SymbolicTraits. Bit values match the
     // platform constants so any compared/persisted raw values stay stable.
@@ -158,7 +164,9 @@ public final class UIFontDescriptor: @unchecked Sendable {
         public static let traitLooseLeading = SymbolicTraits(rawValue: 1 << 16)
     }
     public func withSymbolicTraits(_ traits: SymbolicTraits) -> UIFontDescriptor? {
-        UIFontDescriptor(name: name, symbolicTraits: symbolicTraits.union(traits))
+        let descriptor = UIFontDescriptor(name: name, symbolicTraits: symbolicTraits.union(traits))
+        descriptor.pointSize = pointSize
+        return descriptor
     }
 }
 public final class UIFontMetrics: @unchecked Sendable {

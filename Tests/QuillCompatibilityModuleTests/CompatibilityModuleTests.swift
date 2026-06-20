@@ -279,6 +279,21 @@ struct CompatibilityModuleTests {
         }
     }
 
+    @Test("UIFont descriptor size zero inherits descriptor point size")
+    func uiFontDescriptorSizeZeroInheritsDescriptorPointSize() {
+        let base = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: .current)
+        let descriptor = base.fontDescriptor.addingAttributes([:])
+        let inherited = UIFont(descriptor: descriptor, size: 0)
+        let resized = UIFont(descriptor: descriptor, size: 19)
+
+        #expect(base.pointSize == 13)
+        #expect(descriptor.pointSize == base.pointSize)
+        #expect(inherited.pointSize == base.pointSize)
+        #expect(inherited.fontDescriptor.pointSize == base.pointSize)
+        #expect(resized.pointSize == 19)
+        #expect(resized.fontDescriptor.pointSize == 19)
+    }
+
     @Test("UITextView replacement helper notifies delegates and updates selection")
     func uiTextViewReplacementHelperNotifiesDelegatesAndUpdatesSelection() {
         let view = UITextView()
