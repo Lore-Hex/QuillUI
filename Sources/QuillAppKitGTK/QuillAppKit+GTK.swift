@@ -103,6 +103,11 @@ public func _quillAppKitGTKInstallRunHook() {
                 NSApplication.shared.runGTK()
             }
         }
+        NSAlert._runModalHook = { alert in
+            MainActor.assumeIsolated {
+                alert.runModalGTK()
+            }
+        }
     }
 }
 
@@ -117,6 +122,199 @@ public enum QuillAppKitGTKAutoInstall {
         _quillAppKitGTKInstallRunHook()
         return true
     }()
+}
+
+// MARK: - NSAlert: GtkWindow-backed modal presenter
+
+private final class _GTKAlertModalController {
+    weak var alert: NSAlert?
+    let loop: UnsafeMutableRawPointer
+    let window: UnsafeMutableRawPointer
+    let entry: UnsafeMutableRawPointer?
+    var response: NSApplication.ModalResponse
+    private var didComplete = false
+
+    init(
+        alert: NSAlert,
+        loop: UnsafeMutableRawPointer,
+        window: UnsafeMutableRawPointer,
+        entry: UnsafeMutableRawPointer?,
+        defaultResponse: NSApplication.ModalResponse
+    ) {
+        self.alert = alert
+        self.loop = loop
+        self.window = window
+        self.entry = entry
+        response = defaultResponse
+    }
+
+    @MainActor
+    func complete(with response: NSApplication.ModalResponse) {
+        guard !didComplete else { return }
+        didComplete = true
+        self.response = response
+        if let entry,
+           let cString = quill_editable_get_text(entry) {
+            alert?.quillFirstAccessoryTextField()?.stringValue = String(cString: cString)
+        }
+        quill_window_destroy(window)
+        quill_main_loop_quit(loop)
+    }
+}
+
+private final class _GTKAlertButtonContext {
+    let controller: _GTKAlertModalController
+    let response: NSApplication.ModalResponse
+
+    init(controller: _GTKAlertModalController, response: NSApplication.ModalResponse) {
+        self.controller = controller
+        self.response = response
+    }
+}
+
+private let _quillAlertButtonClickedTrampoline: @convention(c) (OpaquePointer?, UnsafeMutableRawPointer?) -> Void = { _, userData in
+    guard let userData else { return }
+    let context = Unmanaged<_GTKAlertButtonContext>.fromOpaque(userData).takeUnretainedValue()
+    MainActor.assumeIsolated {
+        context.controller.complete(with: context.response)
+    }
+}
+
+private let _quillAlertCloseTrampoline: @convention(c) (OpaquePointer?, UnsafeMutableRawPointer?) -> gboolean = { _, userData in
+    guard let userData else { return 0 }
+    let controller = Unmanaged<_GTKAlertModalController>.fromOpaque(userData).takeUnretainedValue()
+    MainActor.assumeIsolated {
+        controller.complete(with: .cancel)
+    }
+    return 1
+}
+
+extension NSAlert {
+    /// Presents the alert as a lightweight GTK modal window. Returns nil when
+    /// GTK is unavailable so the AppKit shadow can fall back to its headless
+    /// console presenter.
+    public func runModalGTK() -> NSApplication.ModalResponse? {
+        guard QuillGTK.ensureInitialized(),
+              let windowWidget = gtk_window_new(),
+              let contentBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12),
+              let buttonBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8),
+              let loop = quill_main_loop_new()
+        else {
+            return nil
+        }
+
+        let windowRaw = UnsafeMutableRawPointer(windowWidget)
+        let contentBoxPointer = UnsafeMutableRawPointer(contentBox).assumingMemoryBound(to: GtkBox.self)
+        let buttonBoxPointer = UnsafeMutableRawPointer(buttonBox).assumingMemoryBound(to: GtkBox.self)
+        let windowPointer = windowRaw.assumingMemoryBound(to: GtkWindow.self)
+
+        let dialogTitle = messageText.isEmpty ? "Alert" : messageText
+        dialogTitle.withCString { gtk_window_set_title(windowPointer, $0) }
+        gtk_window_set_default_size(windowPointer, 420, 180)
+        quill_window_set_modal(windowRaw, 1)
+        if let parent = NSApplication.shared.keyWindow?.gtkWindowHandle ?? NSApplication.shared.mainWindow?.gtkWindowHandle {
+            quill_window_set_transient_for(windowRaw, UnsafeMutableRawPointer(parent))
+        }
+
+        gtk_widget_set_margin_top(contentBox, 20)
+        gtk_widget_set_margin_bottom(contentBox, 20)
+        gtk_widget_set_margin_start(contentBox, 20)
+        gtk_widget_set_margin_end(contentBox, 20)
+        quill_window_set_child(windowRaw, UnsafeMutableRawPointer(contentBox))
+
+        if let messageLabel = quillGTKAlertLabel(messageText, isTitle: true) {
+            gtk_box_append(contentBoxPointer, messageLabel)
+        }
+        if !informativeText.isEmpty,
+           let informativeLabel = quillGTKAlertLabel(informativeText, isTitle: false) {
+            gtk_box_append(contentBoxPointer, informativeLabel)
+        }
+
+        let entryRaw: UnsafeMutableRawPointer?
+        if let textField = quillFirstAccessoryTextField() {
+            let entry = gtk_entry_new()
+            entryRaw = entry.map { UnsafeMutableRawPointer($0) }
+            if let entry {
+                if !textField.stringValue.isEmpty {
+                    textField.stringValue.withCString { quill_editable_set_text(UnsafeMutableRawPointer(entry), $0) }
+                }
+                if let placeholder = textField.placeholderString {
+                    placeholder.withCString { quill_entry_set_placeholder_text(UnsafeMutableRawPointer(entry), $0) }
+                }
+                gtk_widget_set_hexpand(entry, 1)
+                gtk_widget_set_halign(entry, GTK_ALIGN_FILL)
+                gtk_box_append(contentBoxPointer, entry)
+            }
+        } else {
+            entryRaw = nil
+        }
+
+        gtk_widget_set_halign(buttonBox, GTK_ALIGN_END)
+        gtk_box_append(contentBoxPointer, buttonBox)
+
+        let titles = quillButtonTitles.isEmpty ? ["OK"] : quillButtonTitles
+        let closeResponse = titles.firstIndex { $0.caseInsensitiveCompare("Cancel") == .orderedSame }
+            .map { quillResponse(forButtonAtOneBasedIndex: $0 + 1) } ?? .cancel
+        let controller = _GTKAlertModalController(
+            alert: self,
+            loop: loop,
+            window: windowRaw,
+            entry: entryRaw,
+            defaultResponse: closeResponse
+        )
+        var buttonContexts: [_GTKAlertButtonContext] = []
+
+        for (index, title) in titles.enumerated() {
+            guard let button = title.withCString({ gtk_button_new_with_label($0) }) else { continue }
+            let context = _GTKAlertButtonContext(
+                controller: controller,
+                response: quillResponse(forButtonAtOneBasedIndex: index + 1)
+            )
+            buttonContexts.append(context)
+            let userData = Unmanaged.passUnretained(context).toOpaque()
+            "clicked".withCString { signalName in
+                _ = g_signal_connect_data(
+                    button,
+                    signalName,
+                    unsafeBitCast(_quillAlertButtonClickedTrampoline, to: GCallback.self),
+                    userData,
+                    nil,
+                    GConnectFlags(rawValue: 0)
+                )
+            }
+            gtk_box_append(buttonBoxPointer, button)
+        }
+
+        let closeUserData = Unmanaged.passUnretained(controller).toOpaque()
+        "close-request".withCString { signalName in
+            _ = g_signal_connect_data(
+                windowRaw,
+                signalName,
+                unsafeBitCast(_quillAlertCloseTrampoline, to: GCallback.self),
+                closeUserData,
+                nil,
+                GConnectFlags(rawValue: 0)
+            )
+        }
+
+        gtk_window_present(windowPointer)
+        quill_main_loop_run(loop)
+        quill_main_loop_unref(loop)
+        _ = buttonContexts
+        return controller.response
+    }
+}
+
+private func quillGTKAlertLabel(_ text: String, isTitle: Bool) -> UnsafeMutablePointer<GtkWidget>? {
+    let label = text.withCString { gtk_label_new($0) }
+    guard let label else { return nil }
+    quill_label_set_wrap(UnsafeMutableRawPointer(label), 1)
+    quill_label_set_xalign(UnsafeMutableRawPointer(label), 0)
+    if isTitle {
+        gtk_widget_add_css_class(label, "title-4")
+    }
+    gtk_widget_set_halign(label, GTK_ALIGN_FILL)
+    return label
 }
 
 // MARK: - NSWindow: GtkWindow-backed

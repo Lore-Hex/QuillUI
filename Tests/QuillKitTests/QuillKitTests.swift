@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 import QuillKit
+#if os(Linux)
+import Glibc
+#endif
 
 @Suite("QuillKit platform services", .serialized)
 struct QuillKitTests {
@@ -728,6 +731,11 @@ struct QuillKitTests {
         #if os(Linux)
         #expect(QuillTrust.evaluate(certificate: certificate, host: "localhost") == false)
         #expect(QuillAccessibility.isTrusted == false)
+        setenv("QUILLUI_ACCESSIBILITY_TRUSTED", "1", 1)
+        #expect(QuillAccessibility.isTrusted)
+        setenv("QUILLUI_ACCESSIBILITY_TRUSTED", "false", 1)
+        #expect(QuillAccessibility.isTrusted == false)
+        unsetenv("QUILLUI_ACCESSIBILITY_TRUSTED")
         #else
         #expect(QuillTrust.evaluate(certificate: certificate, host: "localhost"))
         #expect(QuillAccessibility.isTrusted)

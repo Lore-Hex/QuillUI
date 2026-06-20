@@ -53,11 +53,14 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         // the "fill" family stretches children to share the run; the spacing
         // families leave them at their natural size and only tune gaps.
         let mainAxisFills: Bool
+        let mainAxisExpandsAllChildren: Bool
         switch stack.distribution {
         case .fill, .fillEqually, .fillProportionally:
             mainAxisFills = true
+            mainAxisExpandsAllChildren = stack.distribution != .fill
         case .equalSpacing, .equalCentering:
             mainAxisFills = false
+            mainAxisExpandsAllChildren = false
         }
 
         // Alignment governs the PERPENDICULAR axis (cross axis). Map UIKit's
@@ -65,6 +68,37 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         // expand to fill the cross axis.
         let (crossAlign, crossFills) = crossAxisAlignment(stack.alignment)
 
+        let boxWantsHExpand = appendArrangedSubviews(
+            to: box,
+            stack: stack,
+            isVertical: isVertical,
+            mainAxisFills: mainAxisFills,
+            mainAxisExpandsAllChildren: mainAxisExpandsAllChildren,
+            crossAlign: crossAlign,
+            crossFills: crossFills,
+            ctx: ctx
+        )
+
+        // Propagate only horizontal expansion up so an enclosing container hands
+        // the box the window width to fill.
+        if boxWantsHExpand { gtk_widget_set_hexpand(box, 1) }
+
+        installStackMutationBridge(on: box, stack: stack, ctx: ctx)
+        ctx.applyLayerStyle(box, view)
+        return box
+    }
+
+    @discardableResult
+    private static func appendArrangedSubviews(
+        to box: GtkWidgetPtr,
+        stack: UIStackView,
+        isVertical: Bool,
+        mainAxisFills: Bool,
+        mainAxisExpandsAllChildren: Bool,
+        crossAlign: GtkAlign,
+        crossFills: Bool,
+        ctx: UIKitGtkRenderContext
+    ) -> Bool {
         var boxWantsHExpand = false
 
         // The VERTICAL axis is unbounded in this renderer (content flows
@@ -79,8 +113,16 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             // avatar): pin the size and DON'T let the distribution stretch it
             // (otherwise a `.fill` row turns the circle into an ellipse). Auto
             // Layout views arrive at .zero and fall through to the expand logic.
-            if child.frame.width > 0, child.frame.height > 0 {
+            // When the stack's cross-axis alignment is `.fill`, ignore stale
+            // pre-layout widths so row stacks can receive the full column width.
+            if child.frame.width > 0,
+               child.frame.height > 0,
+               !crossFills,
+               !shouldForceMainAxisExpansion(child),
+               shouldHonorArrangedSubviewFixedFrame(child) {
                 gtk_widget_set_size_request(childWidget, gint(child.frame.width), gint(child.frame.height))
+                gtk_widget_set_hexpand(childWidget, 0)
+                gtk_widget_set_vexpand(childWidget, 0)
                 gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
                 gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
                 gtk_box_append(boxPointer(box), childWidget)
@@ -99,7 +141,9 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             } else {
                 // Horizontal stack: main = horizontal (bounded → may fill),
                 // cross = vertical (natural height, never vexpand).
-                if mainAxisFills {
+                if shouldForceMainAxisExpansion(child)
+                    || (mainAxisFills
+                        && (mainAxisExpandsAllChildren || shouldExpandAlongMainAxis(child, isVertical: isVertical))) {
                     gtk_widget_set_hexpand(childWidget, 1)
                     gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
                     boxWantsHExpand = true
@@ -112,12 +156,62 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             gtk_box_append(boxPointer(box), childWidget)
         }
 
-        // Propagate only horizontal expansion up so an enclosing container hands
-        // the box the window width to fill.
-        if boxWantsHExpand { gtk_widget_set_hexpand(box, 1) }
+        return boxWantsHExpand
+    }
 
-        ctx.applyLayerStyle(box, view)
-        return box
+    private static func shouldExpandAlongMainAxis(_ child: UIView, isVertical: Bool) -> Bool {
+        let axis: NSLayoutConstraint.Axis = isVertical ? .vertical : .horizontal
+        return child.contentHuggingPriority(for: axis).rawValue <= NSLayoutConstraint.Priority.defaultLow.rawValue
+    }
+
+    private static func shouldForceMainAxisExpansion(_ child: UIView) -> Bool {
+        child.accessibilityIdentifier == "qspacer"
+            || child.accessibilityIdentifier == "qclass:qfield"
+    }
+
+    private static func shouldHonorArrangedSubviewFixedFrame(_ child: UIView) -> Bool {
+        // Signal's Auto Layout pass can measure table-row labels before GTK has
+        // allocated the final row width. Keep labels flexible inside stacks so
+        // they can consume the remaining horizontal space beside fixed controls.
+        if child is UILabel {
+            return false
+        }
+        return true
+    }
+
+    private static func installStackMutationBridge(
+        on box: GtkWidgetPtr,
+        stack: UIStackView,
+        ctx: UIKitGtkRenderContext
+    ) {
+        stack.quillSetSubviewMutationHandler("SignalUIRender.stackChildren") { updatedView in
+            guard let updatedStack = updatedView as? UIStackView else { return }
+            clearBoxChildren(box)
+            let isVertical = (updatedStack.axis == .vertical)
+            let mainAxisFills: Bool
+            let mainAxisExpandsAllChildren: Bool
+            switch updatedStack.distribution {
+            case .fill, .fillEqually, .fillProportionally:
+                mainAxisFills = true
+                mainAxisExpandsAllChildren = updatedStack.distribution != .fill
+            case .equalSpacing, .equalCentering:
+                mainAxisFills = false
+                mainAxisExpandsAllChildren = false
+            }
+            let (crossAlign, crossFills) = crossAxisAlignment(updatedStack.alignment)
+            let boxWantsHExpand = appendArrangedSubviews(
+                to: box,
+                stack: updatedStack,
+                isVertical: isVertical,
+                mainAxisFills: mainAxisFills,
+                mainAxisExpandsAllChildren: mainAxisExpandsAllChildren,
+                crossAlign: crossAlign,
+                crossFills: crossFills,
+                ctx: ctx
+            )
+            gtk_widget_set_hexpand(box, boxWantsHExpand ? 1 : 0)
+            gtk_widget_queue_resize(box)
+        }
     }
 
     /// Translate a UIStackView.Alignment into a cross-axis GtkAlign plus a flag
@@ -163,24 +257,17 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         let subviews = view.subviews
 
         // Auto Layout isn't solved in this renderer (verdict approach A: sidestep
-        // the constraint solver). So most views arrive with `.zero` frames. Only
-        // use absolute GtkFixed positioning when SOME subview actually carries a
-        // real frame; otherwise frame-positioning would collapse everything to
-        // (0,0)×0 (invisible). With no usable frames, fall back to a vertical
-        // GtkBox so children stack at their natural size and are visible — this is
-        // what makes Signal's constraint-built screens (e.g. the table filling its
-        // controller view, a cell's label/icon row) actually render.
-        let hasRealFrames = subviews.contains { $0.frame.width > 0 && $0.frame.height > 0 }
-
-        if hasRealFrames {
+        // the constraint solver). So most views arrive with `.zero` frames. Use
+        // absolute GtkFixed positioning only when the parent itself has explicit
+        // geometry or a child is actually positioned away from the origin.
+        // Otherwise a plain wrapper whose child was measured at (0,0) would pin
+        // the child to its natural width instead of letting GTK flow it full-width
+        // (Signal's chat rows and composer use those wrapper shapes heavily).
+        if shouldUseFixedLayout(for: view, subviews: subviews) {
             let fixed = gtk_fixed_new()!
-            let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
-            for child in subviews {
-                guard let childWidget = ctx.render(child) else { continue }
-                let frame = child.frame
-                gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
-                gtk_widget_set_size_request(childWidget, gint(frame.width), gint(frame.height))
-            }
+            applyViewSize(to: fixed, from: view)
+            appendFixedSubviews(to: fixed, view: view, ctx: ctx)
+            installGenericFixedMutationBridge(on: fixed, view: view, ctx: ctx)
             ctx.applyLayerStyle(fixed, view)
             return fixed
         }
@@ -191,28 +278,168 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         // single content (the initials) instead of top-left filling.
         let isBadge = view.layer.cornerRadius > 0
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        applyViewSize(to: box, from: view)
         for child in subviews {
             guard let childWidget = ctx.render(child) else { continue }
-            if isBadge {
-                gtk_widget_set_hexpand(childWidget, 1)
-                gtk_widget_set_vexpand(childWidget, 1)
-                gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
-                gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
-            } else {
-                gtk_widget_set_hexpand(childWidget, 1)
-                gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
-                // Scroll views / tables grow to fill remaining vertical space;
-                // plain content keeps its natural height and stacks from the top.
-                if child is UIScrollView {
-                    gtk_widget_set_vexpand(childWidget, 1)
-                    gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
-                } else {
-                    gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
-                }
-            }
+            configureGenericBoxChild(childWidget, for: child, isBadge: isBadge)
             gtk_box_append(boxPointer(box), childWidget)
         }
+        installGenericBoxMutationBridge(on: box, view: view, isBadge: isBadge, ctx: ctx)
         ctx.applyLayerStyle(box, view)
         return box
+    }
+
+    private static func shouldUseFixedLayout(for view: UIView, subviews: [UIView]) -> Bool {
+        let parentSize = view.bounds.size != .zero ? view.bounds.size : view.frame.size
+        let parentHasExplicitSize = parentSize.width > 0 || parentSize.height > 0
+        if parentHasExplicitSize {
+            return subviews.contains { $0.frame.width > 0 && $0.frame.height > 0 }
+        }
+
+        return subviews.contains { child in
+            (child.frame.origin.x != 0 || child.frame.origin.y != 0)
+                && (child.frame.width > 0 || child.frame.height > 0)
+        }
+    }
+
+    private static func appendFixedSubviews(
+        to fixed: GtkWidgetPtr,
+        view: UIView,
+        ctx: UIKitGtkRenderContext
+    ) {
+        let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
+        for child in subviewsInLayerOrder(view.subviews) {
+            guard let childWidget = ctx.render(child) else { continue }
+            let frame = centeredBadgeChildFrame(child.frame, child: child, parent: view)
+            gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
+            if frame.width > 0 || frame.height > 0 {
+                gtk_widget_set_size_request(
+                    childWidget,
+                    frame.width > 0 ? gint(frame.width) : -1,
+                    frame.height > 0 ? gint(frame.height) : -1
+                )
+            }
+        }
+    }
+
+    private static func centeredBadgeChildFrame(_ frame: CGRect, child: UIView, parent: UIView) -> CGRect {
+        guard parent.layer.cornerRadius > 0,
+              parent.subviews.count == 1,
+              child === parent.subviews.first,
+              frame.origin == .zero,
+              frame.width > 0,
+              frame.height > 0 else {
+            return frame
+        }
+
+        let parentSize = parent.bounds.size != .zero ? parent.bounds.size : parent.frame.size
+        guard parentSize.width > 0, parentSize.height > 0 else {
+            return frame
+        }
+
+        return CGRect(
+            x: max(0, (parentSize.width - frame.width) / 2),
+            y: max(0, (parentSize.height - frame.height) / 2),
+            width: frame.width,
+            height: frame.height
+        )
+    }
+
+    private static func installGenericFixedMutationBridge(
+        on fixed: GtkWidgetPtr,
+        view: UIView,
+        ctx: UIKitGtkRenderContext
+    ) {
+        view.quillSetSubviewMutationHandler("SignalUIRender.genericFixedChildren") { updatedView in
+            clearFixedChildren(fixed)
+            appendFixedSubviews(to: fixed, view: updatedView, ctx: ctx)
+            gtk_widget_queue_resize(fixed)
+        }
+    }
+
+    private static func applyViewSize(to widget: GtkWidgetPtr, from view: UIView) {
+        let size = view.bounds.size != .zero ? view.bounds.size : view.frame.size
+        guard size.width > 0 || size.height > 0 else { return }
+        gtk_widget_set_size_request(
+            widget,
+            size.width > 0 ? gint(size.width) : -1,
+            size.height > 0 ? gint(size.height) : -1
+        )
+        if size.width > 0 {
+            gtk_widget_set_hexpand(widget, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        }
+        if size.height > 0 {
+            gtk_widget_set_vexpand(widget, 1)
+            gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+        }
+    }
+
+    private static func subviewsInLayerOrder(_ subviews: [UIView]) -> [UIView] {
+        subviews
+            .enumerated()
+            .sorted { lhs, rhs in
+                let lhsZ = lhs.element.layer.zPosition
+                let rhsZ = rhs.element.layer.zPosition
+                if lhsZ == rhsZ {
+                    return lhs.offset < rhs.offset
+                }
+                return lhsZ < rhsZ
+            }
+            .map(\.element)
+    }
+
+    private static func configureGenericBoxChild(
+        _ childWidget: GtkWidgetPtr,
+        for child: UIView,
+        isBadge: Bool
+    ) {
+        if isBadge {
+            gtk_widget_set_hexpand(childWidget, 1)
+            gtk_widget_set_vexpand(childWidget, 1)
+            gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
+            gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
+        } else {
+            gtk_widget_set_hexpand(childWidget, 1)
+            gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+            // Scroll views / tables grow to fill remaining vertical space;
+            // plain content keeps its natural height and stacks from the top.
+            if child is UIScrollView {
+                gtk_widget_set_vexpand(childWidget, 1)
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+            } else {
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
+            }
+        }
+    }
+
+    private static func installGenericBoxMutationBridge(
+        on box: GtkWidgetPtr,
+        view: UIView,
+        isBadge: Bool,
+        ctx: UIKitGtkRenderContext
+    ) {
+        view.quillSetSubviewMutationHandler("SignalUIRender.genericBoxChildren") { updatedView in
+            clearBoxChildren(box)
+            for child in updatedView.subviews {
+                guard let childWidget = ctx.render(child) else { continue }
+                configureGenericBoxChild(childWidget, for: child, isBadge: isBadge)
+                gtk_box_append(boxPointer(box), childWidget)
+            }
+            gtk_widget_queue_resize(box)
+        }
+    }
+}
+
+private func clearBoxChildren(_ box: GtkWidgetPtr) {
+    while let child = gtk_widget_get_first_child(box) {
+        gtk_box_remove(boxPointer(box), child)
+    }
+}
+
+private func clearFixedChildren(_ fixed: GtkWidgetPtr) {
+    let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
+    while let child = gtk_widget_get_first_child(fixed) {
+        gtk_fixed_remove(fixedPtr, child)
     }
 }

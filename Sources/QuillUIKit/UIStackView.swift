@@ -5,12 +5,11 @@
 // builds its chrome out of stack views: it constructs them, mutates the
 // arranged-subview list, and tunes axis/alignment/distribution/spacing.
 //
-// Honest Linux semantics: a stack view here is a faithful STATE MODEL, not
-// a layout engine. There is no compositor on Linux yet, so nothing reads
-// axis/alignment/distribution/spacing to position children — the properties
-// store exactly what the caller set (a future native layout pass can consume
-// them). What IS functional is the arranged-subview bookkeeping, which keeps
-// UIKit's documented invariants:
+// Honest Linux semantics: a stack view here is a modest layout engine plus a
+// faithful state model. It lays out visible arranged subviews for the common
+// axis/alignment/distribution/spacing cases Signal uses, while still storing
+// the full surface for future native layout backends. The arranged-subview
+// bookkeeping keeps UIKit's documented invariants:
 //   - arrangedSubviews is always a subset of subviews: add/insert also
 //     addSubview the view.
 //   - removeArrangedSubview removes only the arrangement; the view remains
@@ -69,11 +68,21 @@ import QuillKit
 
     // MARK: - Configuration (stored faithfully; inert on Linux — see header)
 
-    open var axis: NSLayoutConstraint.Axis = .horizontal
-    open var alignment: Alignment = .fill
-    open var distribution: Distribution = .fill
-    open var spacing: CGFloat = 0
-    open var isLayoutMarginsRelativeArrangement: Bool = false
+    open var axis: NSLayoutConstraint.Axis = .horizontal {
+        didSet { quillNotifyStackConfigurationMutation(oldValue != axis) }
+    }
+    open var alignment: Alignment = .fill {
+        didSet { quillNotifyStackConfigurationMutation(oldValue != alignment) }
+    }
+    open var distribution: Distribution = .fill {
+        didSet { quillNotifyStackConfigurationMutation(oldValue != distribution) }
+    }
+    open var spacing: CGFloat = 0 {
+        didSet { quillNotifyStackConfigurationMutation(oldValue != spacing) }
+    }
+    open var isLayoutMarginsRelativeArrangement: Bool = false {
+        didSet { quillNotifyStackConfigurationMutation(oldValue != isLayoutMarginsRelativeArrangement) }
+    }
 
     // MARK: - Init
 
@@ -117,6 +126,7 @@ import QuillKit
         _arrangedSubviews.removeAll { $0 === view }
         addSubview(view)
         _arrangedSubviews.append(view)
+        quillNotifySubviewMutation()
     }
 
     open func insertArrangedSubview(_ view: UIView, at stackIndex: Int) {
@@ -126,6 +136,7 @@ import QuillKit
         // Out-of-range traps, the shim's analogue of UIKit's
         // NSInternalInconsistencyException for an invalid stack index.
         _arrangedSubviews.insert(view, at: stackIndex)
+        quillNotifySubviewMutation()
     }
 
     /// Removes the view from the arrangement only. Per UIKit's documented
@@ -135,6 +146,7 @@ import QuillKit
         purgeStaleArrangedState()
         _arrangedSubviews.removeAll { $0 === view }
         customSpacingAfterView.removeValue(forKey: ObjectIdentifier(view))
+        quillNotifySubviewMutation()
     }
 
     // Keeps "arranged ⊆ subviews" sound even when a view re-enters via plain
@@ -152,6 +164,7 @@ import QuillKit
     /// just records the value (it's inert either way — see header).
     open func setCustomSpacing(_ spacing: CGFloat, after arrangedSubview: UIView) {
         customSpacingAfterView[ObjectIdentifier(arrangedSubview)] = spacing
+        quillNotifySubviewMutation()
     }
 
     open func customSpacing(after arrangedSubview: UIView) -> CGFloat {
@@ -159,7 +172,154 @@ import QuillKit
         return customSpacingAfterView[ObjectIdentifier(arrangedSubview)] ?? UIStackView.spacingUseDefault
     }
 
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        let views = arrangedSubviews.filter { !$0.isHidden }
+        guard !views.isEmpty else { return }
+
+        let margins = isLayoutMarginsRelativeArrangement ? quillLayoutMargins : .zero
+        let layoutBounds = CGRect(
+            x: margins.left,
+            y: margins.top,
+            width: max(0, bounds.width - margins.left - margins.right),
+            height: max(0, bounds.height - margins.top - margins.bottom)
+        )
+
+        switch axis {
+        case .vertical:
+            layoutVerticalSubviews(views, in: layoutBounds)
+        case .horizontal:
+            layoutHorizontalSubviews(views, in: layoutBounds)
+        }
+    }
+
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let views = arrangedSubviews.filter { !$0.isHidden }
+        guard !views.isEmpty else { return .zero }
+
+        func isConstrained(_ value: CGFloat) -> Bool {
+            value.isFinite && value > 0 && value < CGFloat.greatestFiniteMagnitude / 4
+        }
+
+        let margins = isLayoutMarginsRelativeArrangement ? quillLayoutMargins : .zero
+        let proposedWidth = isConstrained(size.width)
+            ? max(0, size.width - margins.left - margins.right)
+            : CGFloat.greatestFiniteMagnitude
+        let proposedHeight = isConstrained(size.height)
+            ? max(0, size.height - margins.top - margins.bottom)
+            : CGFloat.greatestFiniteMagnitude
+
+        let totalSpacing = spacing * CGFloat(max(0, views.count - 1))
+        switch axis {
+        case .vertical:
+            var width: CGFloat = 0
+            var height: CGFloat = totalSpacing
+            for view in views {
+                let measured = view.quillEstimatedFittingSize(
+                    proposed: CGSize(width: proposedWidth, height: CGFloat.greatestFiniteMagnitude)
+                )
+                width = max(width, measured.width)
+                height += measured.height
+            }
+            if isConstrained(size.width), alignment == .fill {
+                width = proposedWidth
+            }
+            return CGSize(width: width + margins.left + margins.right, height: height + margins.top + margins.bottom)
+        case .horizontal:
+            var width: CGFloat = totalSpacing
+            var height: CGFloat = 0
+            for view in views {
+                let measured = view.quillEstimatedFittingSize(
+                    proposed: CGSize(width: CGFloat.greatestFiniteMagnitude, height: proposedHeight)
+                )
+                width += measured.width
+                height = max(height, measured.height)
+            }
+            if isConstrained(size.height), alignment == .fill {
+                height = proposedHeight
+            }
+            return CGSize(width: width + margins.left + margins.right, height: height + margins.top + margins.bottom)
+        }
+    }
+
     // MARK: - Private
+
+    private func layoutVerticalSubviews(_ views: [UIView], in rect: CGRect) {
+        let totalSpacing = spacing * CGFloat(max(0, views.count - 1))
+        let equalHeight = distribution == .fillEqually
+            ? max(0, (rect.height - totalSpacing) / CGFloat(views.count))
+            : nil
+        var y = rect.minY
+
+        for view in views {
+            let measured = view.quillEstimatedFittingSize(proposed: CGSize(
+                width: rect.width,
+                height: CGFloat.greatestFiniteMagnitude
+            ))
+            let height = equalHeight ?? measured.height
+            let width = alignment == .fill ? rect.width : min(max(measured.width, view.bounds.width), rect.width)
+            let x = alignedOrigin(
+                availableMin: rect.minX,
+                availableSize: rect.width,
+                itemSize: width,
+                alignment: alignment
+            )
+            view.frame = CGRect(x: x, y: y, width: width, height: height)
+            y += height + spacingAfter(view)
+        }
+    }
+
+    private func layoutHorizontalSubviews(_ views: [UIView], in rect: CGRect) {
+        let totalSpacing = spacing * CGFloat(max(0, views.count - 1))
+        let equalWidth = distribution == .fillEqually
+            ? max(0, (rect.width - totalSpacing) / CGFloat(views.count))
+            : nil
+        var x = rect.minX
+
+        for view in views {
+            let measured = view.quillEstimatedFittingSize(proposed: CGSize(
+                width: CGFloat.greatestFiniteMagnitude,
+                height: rect.height
+            ))
+            let width = equalWidth ?? measured.width
+            let height = alignment == .fill ? rect.height : min(max(measured.height, view.bounds.height), rect.height)
+            let y = alignedOrigin(
+                availableMin: rect.minY,
+                availableSize: rect.height,
+                itemSize: height,
+                alignment: alignment
+            )
+            view.frame = CGRect(x: x, y: y, width: width, height: height)
+            x += width + spacingAfter(view)
+        }
+    }
+
+    private func spacingAfter(_ view: UIView) -> CGFloat {
+        let custom = customSpacingAfterView[ObjectIdentifier(view)]
+        guard let custom, custom != UIStackView.spacingUseDefault else {
+            return spacing
+        }
+        if custom == UIStackView.spacingUseSystem {
+            return spacing
+        }
+        return custom
+    }
+
+    private func alignedOrigin(
+        availableMin: CGFloat,
+        availableSize: CGFloat,
+        itemSize: CGFloat,
+        alignment: Alignment
+    ) -> CGFloat {
+        switch alignment {
+        case .fill, .leading, .firstBaseline:
+            return availableMin
+        case .center:
+            return availableMin + (availableSize - itemSize) / 2
+        case .trailing, .lastBaseline:
+            return availableMin + availableSize - itemSize
+        }
+    }
 
     private func purgeStaleArrangedState() {
         _arrangedSubviews.removeAll { view in
@@ -167,6 +327,12 @@ import QuillKit
             customSpacingAfterView.removeValue(forKey: ObjectIdentifier(view))
             return true
         }
+    }
+
+    private func quillNotifyStackConfigurationMutation(_ changed: Bool) {
+        guard changed else { return }
+        setNeedsLayout()
+        quillNotifySubviewMutation()
     }
 }
 

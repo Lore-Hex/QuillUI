@@ -73,6 +73,8 @@ struct QuillButtonState {
     var titleColors: [UInt: UIColor] = [:]
     var images: [UInt: UIImage] = [:]
     var backgroundImages: [UInt: UIImage] = [:]
+    var contentInsets: QuillEdgeInsets = .zero
+    var imagePadding: CGFloat = 0
 }
 
 @MainActor private var quillButtonStates: [ObjectIdentifier: QuillButtonState] = [:]
@@ -257,6 +259,22 @@ extension UIButton {
         quillStateValue(quillButtonState.backgroundImages)
     }
 
+    // MARK: Measurement hints
+
+    /// QuillUIKit-owned content insets consumed by UIButton.sizeThatFits and
+    /// layoutSubviews. The UIKit shim maps both classic contentEdgeInsets and
+    /// UIButton.Configuration.contentInsets into this storage.
+    public var quillMeasuredContentInsets: QuillEdgeInsets {
+        get { quillButtonState.contentInsets }
+        set { quillButtonState.contentInsets = newValue }
+    }
+
+    /// Spacing between image and title when both are present.
+    public var quillMeasuredImagePadding: CGFloat {
+        get { quillButtonState.imagePadding }
+        set { quillButtonState.imagePadding = max(0, newValue) }
+    }
+
     // MARK: Refresh
 
     /// Pushes the current-state content into `titleLabel` / `imageView`.
@@ -309,6 +327,7 @@ private struct QuillBackgroundConfigurationState {
     // NSDirectionalEdgeInsets (it lives in the UIKit shim). The directional-
     // typed `backgroundInsets` accessor is layered in Sources/UIKitShim.
     var backgroundInsets: QuillEdgeInsets = .zero
+    var customView: UIView?
 }
 
 /// Not MainActor-bound: Apple's type is a value type usable off-main, and the
@@ -371,6 +390,11 @@ extension UIBackgroundConfiguration {
     public var quillBackgroundInsets: QuillEdgeInsets {
         get { quillBackgroundState.backgroundInsets }
         set { quillBackgroundState.backgroundInsets = newValue }
+    }
+
+    public var customView: UIView? {
+        get { quillBackgroundState.customView }
+        set { quillBackgroundState.customView = newValue }
     }
 }
 

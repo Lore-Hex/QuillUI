@@ -409,6 +409,16 @@ open class UIPinchGestureRecognizer: UIGestureRecognizer {
     open var velocity: CGFloat { 0 }
 }
 
+/// A continuous recognizer for two-finger rotation.
+open class UIRotationGestureRecognizer: UIGestureRecognizer {
+    /// Rotation in radians. Settable, as on Apple (clients re-zero it
+    /// between increments).
+    open var rotation: CGFloat = 0
+
+    /// Rotation velocity in radians per second. No live touches on Linux yet.
+    open var velocity: CGFloat { 0 }
+}
+
 // MARK: - UIView gesture attachment
 
 /// Side table mapping a view (by ObjectIdentifier) to its attached

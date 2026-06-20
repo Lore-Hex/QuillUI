@@ -882,12 +882,43 @@ private func gtkWrapWithToolbarRow<V: View>(
     return box
 }
 
+private func gtkApplyFixedSplitColumnWidth(_ widget: UnsafeMutablePointer<GtkWidget>, width: Double) {
+    let pixelWidth = gint(width)
+    gtk_widget_set_size_request(widget, pixelWidth, gtkRequestedDefaultWindowHeight())
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    if typeName == "GtkScrolledWindow" {
+        let scrolledOp = OpaquePointer(widget)
+        gtk_scrolled_window_set_min_content_width(scrolledOp, pixelWidth)
+        gtk_scrolled_window_set_max_content_width(scrolledOp, pixelWidth)
+    }
+}
+
 private func gtkConfigureFixedSplitColumn(_ widget: UnsafeMutablePointer<GtkWidget>, width: Double) {
-    gtk_widget_set_size_request(widget, gint(width), gtkRequestedDefaultWindowHeight())
+    gtkApplyFixedSplitColumnWidth(widget, width: width)
     gtk_widget_set_hexpand(widget, 0)
     gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
     gtk_widget_set_vexpand(widget, 1)
     gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+}
+
+private func gtkCreateFixedSplitColumnContainer(
+    child: UnsafeMutablePointer<GtkWidget>,
+    width: Double
+) -> UnsafeMutablePointer<GtkWidget> {
+    let scrolled = gtk_scrolled_window_new()!
+    let scrolledOp = OpaquePointer(scrolled)
+    gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+    gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+    gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+    gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+    gtkConfigureFixedSplitColumn(scrolled, width: width)
+
+    gtk_widget_set_hexpand(child, 1)
+    gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+    gtk_widget_set_vexpand(child, 1)
+    gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+    gtk_scrolled_window_set_child(scrolledOp, child)
+    return scrolled
 }
 
 private func gtkConfigureFillingSplitColumn(_ widget: UnsafeMutablePointer<GtkWidget>) {
@@ -910,7 +941,7 @@ private let gtkFixedSplitSidebarTickCallback: GtkTickCallback = { widget, _, use
     let width = Double(gtk_widget_get_width(widget))
     guard width > 0 else { return 1 }
     let sidebarW = max(320.0, min(600.0, width * 0.27))
-    gtk_widget_set_size_request(sidebar, gint(sidebarW), gtkRequestedDefaultWindowHeight())
+    gtkApplyFixedSplitColumnWidth(sidebar, width: sidebarW)
     gtk_widget_queue_resize(sidebar)
     gtk_widget_queue_resize(widget)
     if gtkBackendLayoutDebugEnabled {
@@ -1057,12 +1088,10 @@ extension NavigationSplitView: GTKRenderable {
         let resolvedSidebarW = max(sidebarMinW, sidebarW)
 
         let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))
-        let sidebarWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_widget_set_hexpand(sidebarContentWidget, 1)
-        gtk_widget_set_halign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_widget_set_vexpand(sidebarContentWidget, 1)
-        gtk_widget_set_valign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)
+        let sidebarWidget = gtkCreateFixedSplitColumnContainer(
+            child: sidebarContentWidget,
+            width: resolvedSidebarW
+        )
 
         let detailWidget = gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)
         let splitBox = gtkCreateTwoColumnSplitBox(
@@ -1089,14 +1118,15 @@ extension NavigationSplitView: GTKRenderable {
         let resolvedContentW = max(contentMinW, contentW)
 
         let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))
-        let sidebarWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_widget_set_hexpand(sidebarContentWidget, 1)
-        gtk_widget_set_halign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_widget_set_vexpand(sidebarContentWidget, 1)
-        gtk_widget_set_valign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)
+        let sidebarWidget = gtkCreateFixedSplitColumnContainer(
+            child: sidebarContentWidget,
+            width: resolvedSidebarW
+        )
 
-        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let contentWidget = gtkCreateFixedSplitColumnContainer(
+            child: widgetFromOpaque(gtkRenderView(content)),
+            width: resolvedContentW
+        )
         let detailWidget = gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)
         let splitBox = gtkCreateThreeColumnSplitBox(
             sidebarWidget: sidebarWidget,

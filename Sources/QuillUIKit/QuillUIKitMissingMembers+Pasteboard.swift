@@ -74,26 +74,27 @@ public extension UIApplication {
 
 public extension UICollectionView {
     /// Deselects the item at the given index path. No-op: no live selection
-    /// model drives the renderer here.
+    /// model drives the renderer here, but the selected-index snapshot should
+    /// mirror UIKit for code that clears selection after activation.
     func deselectItem(at indexPath: IndexPath, animated: Bool) {
-        // No-op.
+        _ = animated
+        quillDeselectItem(at: indexPath)
     }
 
     /// Index paths of the currently selected items. Returns nil (UIKit returns
     /// nil when nothing is selected).
     var indexPathsForSelectedItems: [IndexPath]? {
-        nil
+        quillSelectedIndexPaths
     }
 
     /// Animates a group of insert/delete/move/reload operations together.
     /// Runs `updates` synchronously, then signals completion with `true`.
     func performBatchUpdates(_ updates: (() -> Void)?, completion: ((Bool) -> Void)?) {
-        updates?()
-        completion?(true)
+        quillPerformBatchUpdates(updates, completion: completion)
     }
 
-    /// Currently visible cells. Returns [] (no live layout/visibility tracking).
+    /// Currently visible cells from the last synchronous reload snapshot.
     var visibleCells: [UICollectionViewCell] {
-        []
+        quillVisibleCells
     }
 }

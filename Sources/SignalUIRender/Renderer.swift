@@ -15,6 +15,7 @@ import CGTK
 import CGTKBridge
 import QuillUIKit
 import UIKit
+import SignalUI
 import QuillFoundation
 import QuartzCore
 import Foundation
@@ -47,10 +48,15 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     /// frame-positioned `UIView` fallback (handles == true) must be LAST.
     static let mappers: [UIViewGtkMapper.Type] = [
         UILabelGtkMapper.self,
+        CustomDrawnTextGtkMapper.self,
+        UITextViewGtkMapper.self,
+        UIButtonGtkMapper.self,
         UIImageViewGtkMapper.self,
         UISwitchGtkMapper.self,
         UITableViewGtkMapper.self,
         UITableViewCellGtkMapper.self,
+        UICollectionViewGtkMapper.self,
+        UICollectionViewCellGtkMapper.self,
         UIStackViewGtkMapper.self,
         GenericViewGtkMapper.self,   // fallback — must be last
     ]
@@ -58,6 +64,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     /// Render a full UIView tree to a GtkWidget. Returns nil for hidden views.
     public static func render(_ view: UIView) -> GtkWidgetPtr? {
         if view.isHidden { return nil }
+        view.layoutIfNeeded()
         let ctx = UIKitGtkRenderContext(
             render: { Self.render($0) },
             applyLayerStyle: { Self.applyLayerStyle($0, $1) },
@@ -69,10 +76,34 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
             if view.alpha < 0.999 {
                 gtk_widget_set_opacity(widget, gdouble(view.alpha))
             }
+            installMutationBridge(widget, view)
             applyAccessibilityHints(widget, view)
             return widget
         }
         return nil
+    }
+
+    private static func installMutationBridge(_ widget: GtkWidgetPtr, _ view: UIView) {
+        view.quillSetViewMutationHandler("SignalUIRender.widgetState") { updatedView in
+            gtk_widget_set_visible(widget, updatedView.isHidden ? 0 : 1)
+            gtk_widget_set_opacity(widget, gdouble(max(0, min(1, updatedView.alpha))))
+            let isSensitive: Bool
+            if let control = updatedView as? UIControl {
+                isSensitive = updatedView.isUserInteractionEnabled && control.isEnabled
+            } else {
+                isSensitive = updatedView.isUserInteractionEnabled
+            }
+            gtk_widget_set_sensitive(widget, isSensitive ? 1 : 0)
+            let size = updatedView.bounds.size != .zero ? updatedView.bounds.size : updatedView.frame.size
+            if size.width > 0 || size.height > 0 {
+                gtk_widget_set_size_request(
+                    widget,
+                    size.width > 0 ? gint(size.width) : -1,
+                    size.height > 0 ? gint(size.height) : -1
+                )
+            }
+        }
+        view.quillNotifyViewMutation()
     }
 
     /// Render hints carried on `accessibilityIdentifier` (a property views already
@@ -104,16 +135,29 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     static func applyLayerStyle(_ widget: GtkWidgetPtr, _ view: UIView) {
         let layer = view.layer
         var rules: [String] = []
-        if let bg = layer.backgroundColor, let hex = cgColorHex(bg) {
+        if let signalRules = signalColorOrGradientRules(for: view) {
+            rules.append(contentsOf: signalRules)
+        } else if let gradientRules = gradientLayerRules(in: layer) {
+            rules.append(contentsOf: gradientRules)
+        } else if let bg = layer.backgroundColor, let hex = cgColorHex(bg) {
             rules.append("background-color: \(hex);")
         } else if let bg = view.backgroundColor, let hex = uiColorHex(bg) {
             rules.append("background-color: \(hex);")
+        } else if view is UIVisualEffectView {
+            rules.append("background-color: rgba(255, 255, 255, 0.82);")
         }
         if layer.cornerRadius > 0 {
             rules.append("border-radius: \(Int(layer.cornerRadius))px;")
+        } else if layer.mask != nil {
+            let radius = maskedLayerCornerRadius(for: view)
+            if radius > 0 {
+                rules.append("border-radius: \(radius)px;")
+            }
         }
         if layer.borderWidth > 0, let bc = layer.borderColor, let hex = cgColorHex(bc) {
             rules.append("border: \(Int(layer.borderWidth))px solid \(hex);")
+        } else if view is UIVisualEffectView, layer.cornerRadius > 0 {
+            rules.append("border: 1px solid rgba(60, 60, 67, 0.18);")
         }
         guard !rules.isEmpty else { return }
 
@@ -197,4 +241,97 @@ func cgColorHex(_ color: CGColor) -> String? {
         return cssColor(comps[0], comps[0], comps[0], comps[1])
     }
     return nil
+}
+
+private func gradientLayerRules(in layer: CALayer) -> [String]? {
+    guard let gradient = firstGradientLayer(in: layer),
+          let colors = gradient.colors?.compactMap({ $0 as? CGColor }),
+          !colors.isEmpty else {
+        return nil
+    }
+
+    let stops = colors.compactMap(cgColorHex)
+    guard let fallback = stops.first else { return nil }
+
+    var rules = ["background-color: \(fallback);"]
+    if stops.count >= 2 {
+        let direction = gradientDirection(from: gradient)
+        rules.append("background-image: linear-gradient(\(direction), \(stops.joined(separator: ", ")));")
+    }
+    return rules
+}
+
+private func signalColorOrGradientRules(for view: UIView) -> [String]? {
+    guard String(describing: type(of: view)) == "CVColorOrGradientView" else { return nil }
+    guard let value = reflectedSignalColorOrGradientValue(from: view) else { return nil }
+
+    switch value {
+    case .transparent:
+        return []
+    case .blur:
+        return ["background-color: rgba(255, 255, 255, 0.82);"]
+    case .solidColor(let color):
+        guard let hex = uiColorHex(color) else { return [] }
+        return ["background-color: \(hex);"]
+    case .gradient(let color1, let color2, let angleRadians):
+        guard let first = uiColorHex(color1), let second = uiColorHex(color2) else { return [] }
+        return [
+            "background-color: \(first);",
+            "background-image: linear-gradient(\(cssGradientDirection(angleRadians: angleRadians)), \(first), \(second));",
+        ]
+    }
+}
+
+private func reflectedSignalColorOrGradientValue(from view: UIView) -> ColorOrGradientValue? {
+    var mirror: Mirror? = Mirror(reflecting: view)
+    while let currentMirror = mirror {
+        for child in currentMirror.children where child.label == "value" {
+            if let value = child.value as? ColorOrGradientValue {
+                return value
+            }
+            let optionalMirror = Mirror(reflecting: child.value)
+            if optionalMirror.displayStyle == .optional,
+               let value = optionalMirror.children.first?.value as? ColorOrGradientValue {
+                return value
+            }
+        }
+        mirror = currentMirror.superclassMirror
+    }
+    return nil
+}
+
+private func cssGradientDirection(angleRadians: CGFloat) -> String {
+    let normalized = angleRadians.truncatingRemainder(dividingBy: .pi * 2)
+    let x = sin(normalized)
+    let y = -cos(normalized)
+    if abs(x) > abs(y) {
+        return x >= 0 ? "to left" : "to right"
+    }
+    return y <= 0 ? "to bottom" : "to top"
+}
+
+private func firstGradientLayer(in layer: CALayer) -> CAGradientLayer? {
+    for sublayer in layer.sublayers ?? [] {
+        if let gradient = sublayer as? CAGradientLayer,
+           gradient.colors?.isEmpty == false {
+            return gradient
+        }
+    }
+    return nil
+}
+
+private func gradientDirection(from gradient: CAGradientLayer) -> String {
+    let dx = gradient.endPoint.x - gradient.startPoint.x
+    let dy = gradient.endPoint.y - gradient.startPoint.y
+    if abs(dx) > abs(dy) {
+        return dx >= 0 ? "to right" : "to left"
+    }
+    return dy >= 0 ? "to bottom" : "to top"
+}
+
+@MainActor private func maskedLayerCornerRadius(for view: UIView) -> Int {
+    let size = view.bounds.size != .zero ? view.bounds.size : view.frame.size
+    let shorterSide = min(size.width, size.height)
+    guard shorterSide.isFinite, shorterSide > 0 else { return 0 }
+    return Int(min(22, max(8, shorterSide / 3)).rounded())
 }

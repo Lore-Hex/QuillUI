@@ -78,6 +78,7 @@ public struct UTType: Hashable, Sendable {
     public static let mp3 = UTType("public.mp3")!
     public static let mpeg4Audio = UTType("public.mpeg-4-audio")!
     public static let pdf = UTType("com.adobe.pdf")!
+    public static let font = UTType("public.font")!
 
     public var preferredFilenameExtension: String? {
         Self.preferredFilenameExtensionsByIdentifier[identifier]
@@ -136,7 +137,8 @@ public struct UTType: Hashable, Sendable {
         UTType.audio.identifier: [UTType.data.identifier],
         UTType.mp3.identifier: [UTType.audio.identifier],
         UTType.mpeg4Audio.identifier: [UTType.audio.identifier],
-        UTType.pdf.identifier: [UTType.data.identifier]
+        UTType.pdf.identifier: [UTType.data.identifier],
+        UTType.font.identifier: [UTType.data.identifier]
     ]
 
     private static let typesByFilenameExtension: [String: UTType] = [
@@ -158,6 +160,9 @@ public struct UTType: Hashable, Sendable {
         "plist": .propertyList,
         "url": .url,
         "pdf": .pdf,
+        "otf": .font,
+        "ttf": .font,
+        "ttc": .font,
         "json": .json,
         "mp4": .mpeg4Movie,
         "mov": .quickTimeMovie,
@@ -184,7 +189,8 @@ public struct UTType: Hashable, Sendable {
         UTType.mpeg4Movie.identifier: "mp4",
         UTType.quickTimeMovie.identifier: "mov",
         UTType.mp3.identifier: "mp3",
-        UTType.pdf.identifier: "pdf"
+        UTType.pdf.identifier: "pdf",
+        UTType.font.identifier: "ttf"
     ]
 
     private static let preferredMIMETypesByIdentifier: [String: String] = [
@@ -238,7 +244,8 @@ public struct UTType: Hashable, Sendable {
         UTType.quickTimeMovie.identifier: "QuickTime movie",
         UTType.audio.identifier: "audio",
         UTType.mp3.identifier: "MP3 audio",
-        UTType.pdf.identifier: "PDF"
+        UTType.pdf.identifier: "PDF",
+        UTType.font.identifier: "font"
     ]
 
     private static let typesByMIMEType: [String: UTType] = [
@@ -260,7 +267,10 @@ public struct UTType: Hashable, Sendable {
         "video/mp4": .mpeg4Movie,
         "audio/mpeg": .mp3,
         "audio/mp3": .mp3,
-        "application/pdf": .pdf
+        "application/pdf": .pdf,
+        "font/otf": .font,
+        "font/ttf": .font,
+        "font/collection": .font
     ]
 
     private static func normalizedFilenameExtension(_ filenameExtension: String) -> String? {
@@ -275,4 +285,5 @@ public struct UTType: Hashable, Sendable {
         return normalized.isEmpty ? nil : normalized
     }
 }
+
 #endif

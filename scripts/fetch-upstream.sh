@@ -156,6 +156,31 @@ patch_wireguard_apple() {
         done
     fi
 
+    # Apple Swift 6.1's SwiftPM rejects raw `-default-isolation MainActor`
+    # passed through `swiftSettings: .unsafeFlags(...)`; newer toolchains accept
+    # the frontend flag only when routed with `-Xfrontend`. Normalize whichever
+    # upstream WireGuard manifest was fetched before the macOS CI target build.
+    local manifest="$UPSTREAM_DIR/wireguard-apple/Package.swift"
+    if [[ -f "$manifest" ]] && grep -q '"-default-isolation"' "$manifest"; then
+        echo "==> patching wireguard-apple Package.swift default-isolation flags"
+        python3 - "$manifest" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+src = open(path, encoding="utf-8").read()
+replacement = '["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]'
+patched = re.sub(
+    r'\[\s*"-default-isolation"\s*,\s*"MainActor"\s*\]',
+    replacement,
+    src,
+)
+if patched != src:
+    open(path, "w", encoding="utf-8").write(patched)
+    print("patched WireGuard Package.swift default-isolation flags for SwiftPM frontend compatibility")
+PY
+    fi
+
     # `WireGuardKitC.h` uses `u_int32_t` / `u_char` / `u_int16_t`
     # / `sockaddr_ctl` from <sys/types.h> + <sys/kern_control.h>
     # but doesn't include them. macOS 15+ enforces strict
@@ -5380,18 +5405,236 @@ PY
 
 want=("$@")
 patch_solderscope() {
-    # SolderScope compiles UNMODIFIED on Linux except for one clang-submodule
-    # import (`import os.log` in Utilities/Logger.swift) that pure-Swift module
-    # shims cannot express. quill-lower-appkit's standard lowering (the same
-    # pass WireGuard/Signal use) rewrites it to `import os`. Self-guarded +
-    # idempotent: the trigger grep goes false after lowering. Linux-only: on
-    # macOS the real SDK provides os.log.
+    # SolderScope compiles on Linux through two disposable-checkout fixes:
+    # 1. `import os.log` is lowered to `import os`, which pure-Swift shims cannot
+    #    express as a clang submodule.
+    # 2. The Linux CoreImage/CoreVideo bridge needs frozen camera frames
+    #    materialized to CGImage; otherwise a frozen CIImage can later draw black
+    #    when its backing capture storage changes.
     if [[ "$(uname -s)" == "Linux" ]]; then
         local dir="$UPSTREAM_DIR/solderscope/SolderScope"
         if [[ -d "$dir" ]] && grep -rqE 'import os\.log' "$dir" 2>/dev/null; then
             echo "==> lowering solderscope for Linux (import os.log)"
             ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$dir" )
         fi
+        local microscope="$dir/Renderer/MicroscopeView.swift"
+        if [[ -f "$microscope" ]]; then
+            python3 - "$microscope" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+new = text
+replacements = [
+    (
+        """            if isFrozen && frozenFrame == nil {
+                frozenFrame = currentFrame
+            } else if !isFrozen {
+                frozenFrame = nil
+            }
+""",
+        """            if isFrozen && frozenFrame == nil {
+                frozenFrame = materializedFrame(from: currentFrame)
+                needsDisplay = true
+            } else if !isFrozen {
+                frozenFrame = nil
+                needsDisplay = true
+            }
+""",
+    ),
+    (
+        """    private var frozenFrame: CIImage?
+""",
+        """    private var frozenFrame: QuillFoundation.CGImage?
+""",
+    ),
+    (
+        """        (isFrozen ? frozenFrame : currentFrame)?.extent.size
+""",
+        """        if isFrozen, let frozenFrame {
+            return CGSize(width: frozenFrame.width, height: frozenFrame.height)
+        }
+        return currentFrame?.extent.size
+""",
+    ),
+    (
+        """            if frozenFrame == nil {
+                frozenFrame = image
+            }
+""",
+        """            if frozenFrame == nil {
+                frozenFrame = materializedFrame(from: image)
+                needsDisplay = true
+            }
+""",
+    ),
+    (
+        """    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+""",
+        """    override var isFlipped: Bool { true }
+
+    private func materializedFrame(from image: CIImage?) -> QuillFoundation.CGImage? {
+        guard let image,
+              let ciContext = ciContext else { return nil }
+        return ciContext.createCGImage(image, from: image.extent)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+""",
+    ),
+    (
+        """        // Get the frame to display
+        let frameToDisplay = isFrozen ? frozenFrame : currentFrame
+        guard let ciImage = frameToDisplay else { return }
+
+        // Convert CIImage to CGImage for reliable rendering
+        let imageExtent = ciImage.extent
+        guard let cgImage = ciContext.createCGImage(ciImage, from: imageExtent) else { return }
+""",
+        """        // Get the frame to display
+        let cgImage: QuillFoundation.CGImage
+        if isFrozen {
+            guard let frozenFrame else { return }
+            cgImage = frozenFrame
+        } else {
+            guard let ciImage = currentFrame,
+                  let renderedImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
+            cgImage = renderedImage
+        }
+""",
+    ),
+]
+patched_markers = [
+    "frozenFrame = materializedFrame(from: currentFrame)",
+    "private var frozenFrame: QuillFoundation.CGImage?",
+    "private func materializedFrame(from image: CIImage?) -> QuillFoundation.CGImage?",
+]
+if all(marker in new for marker in patched_markers):
+    raise SystemExit(0)
+for old, replacement in replacements:
+    if old not in new:
+        raise SystemExit(f"patch_solderscope: expected MicroscopeView snippet not found in {path}: {old.splitlines()[0]}")
+    new = new.replace(old, replacement, 1)
+if new != text:
+    path.write_text(new)
+    print(f"patch_solderscope: materialized frozen frames in {path}")
+PY
+        fi
+    fi
+}
+
+patch_euclid() {
+    # Euclid's example app is UIKit + SceneKit with a small RealityKit tab.
+    # Linux has no ObjC runtime, so lower its selector glue in the disposable
+    # checkout. Also instantiate the UIViewController subclasses through their
+    # explicit nib initializer; adding a broad UIViewController.init() changes
+    # UIKit semantics and cascades through other conformance targets.
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        local example="$UPSTREAM_DIR/euclid/Example"
+        [[ -d "$example" ]] || return 0
+        python3 - "$example" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+replacements = {
+    "RealityKitViewController.swift": [
+        ("@objc private func handlePinch", "private func handlePinch"),
+        ("@objc private func handleRotate", "private func handleRotate"),
+        ("@objc private func handlePan", "private func handlePan"),
+        ("#selector(handlePinch(_:))", 'Selector("handlePinch(_:)")'),
+        ("#selector(handleRotate(_:))", 'Selector("handleRotate(_:)")'),
+        ("#selector(handlePan(_:))", 'Selector("handlePan(_:)")'),
+    ],
+    "SceneDelegate.swift": [
+        ("SceneKitViewController()", "SceneKitViewController(nibName: nil, bundle: nil)"),
+        ("RealityKitViewController()", "RealityKitViewController(nibName: nil, bundle: nil)"),
+    ],
+}
+changed = 0
+for name, edits in replacements.items():
+    path = root / name
+    if not path.exists():
+        continue
+    text = path.read_text()
+    new = text
+    for old, replacement in edits:
+        new = new.replace(old, replacement)
+    if new != text:
+        path.write_text(new)
+        changed += 1
+print(f"patch_euclid: lowered selector/init glue in {changed} file(s)")
+PY
+    fi
+}
+
+patch_shapescript() {
+    # ShapeScript's macOS viewer is an AppKit/NSDocument app and uses target-
+    # action selectors plus Interface Builder attributes. Linux has no ObjC
+    # runtime, so lower only the disposable Viewer/Mac checkout through the same
+    # AppKit pass used by WireGuard/SolderScope. Shared/ and CLI stay source-
+    # unchanged; the Mac target is the only slice with @IB*/#selector usage.
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        local mac_viewer="$UPSTREAM_DIR/shapescript/Viewer/Mac"
+        if [[ -d "$mac_viewer" ]] && grep -rqE '#selector|@objc|@IBAction|@IBOutlet|@IB' "$mac_viewer" 2>/dev/null; then
+            echo "==> lowering shapescript Viewer/Mac for Linux"
+            ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$mac_viewer" )
+        fi
+        [[ -d "$mac_viewer" ]] || return 0
+        python3 - "$mac_viewer" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+replacements = {
+    "AppDelegate.swift": [
+        ("files.sorted(by: { $0.path < $1.path })", "files.map({ $0 as URL }).sorted(by: { ($0.path ?? \"\") < ($1.path ?? \"\") })"),
+        ("files.sorted(by: { ($0.path ?? \"\") < ($1.path ?? \"\") })", "files.map({ $0 as URL }).sorted(by: { ($0.path ?? \"\") < ($1.path ?? \"\") })"),
+    ],
+    "DocumentViewController.swift": [
+        ("NSColor.red", "NSColor(red: 1, green: 0, blue: 0, alpha: 1)"),
+        ("scnView.gestureRecognizers.insert(clickGesture, at: 0)", "scnView.addGestureRecognizer(clickGesture)"),
+        ("errorTextView.gestureRecognizers.insert(clickGesture2, at: 0)", "errorTextView.addGestureRecognizer(clickGesture2)"),
+        ("scnView.layer?.backgroundColor", "scnView.layer.backgroundColor"),
+    ],
+    "Utilities.swift": [
+        ("func dismissOpenSavePanel() {", "@MainActor func dismissOpenSavePanel() {"),
+    ],
+}
+changed = 0
+for name, edits in replacements.items():
+    path = root / name
+    if not path.exists():
+        continue
+    text = path.read_text()
+    new = text
+    for old, replacement in edits:
+        new = new.replace(old, replacement)
+    if new != text:
+        path.write_text(new)
+        changed += 1
+shared = root.parent / "Shared" / "DocumentViewController+View.swift"
+if shared.exists():
+    text = shared.read_text()
+    new = text.replace(
+        """renderTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
+            self.scnView.rendersContinuously = false
+            self.renderTimer = nil
+        }""",
+        """scnView.rendersContinuously = false
+        renderTimer = nil""",
+    ).replace(
+        "material.emission.contents = OSColor.red",
+        "material.emission.contents = OSColor(red: 1, green: 0, blue: 0, alpha: 1)",
+    )
+    if new != text:
+        shared.write_text(new)
+        changed += 1
+print(f"patch_shapescript: applied Linux viewer glue in {changed} file(s)")
+PY
     fi
 }
 
@@ -5484,6 +5727,7 @@ for name in "${want[@]}"; do
             # Example/ is a real UIKit + SceneKit (+ one RealityKit screen)
             # demo app — the warm-up SceneKit conformance driver.
             fetch_repo euclid https://github.com/nicklockwood/Euclid.git
+            patch_euclid
             ;;
         lrucache)
             # nicklockwood/LRUCache (MIT): single-file pure-Swift dependency
@@ -5505,14 +5749,17 @@ for name in "${want[@]}"; do
             # instead (HEAD == 0.8.14 today), so fetch euclid/lrucache/svgpath
             # alongside — or just use the `scenekit` meta-arm.
             fetch_repo shapescript https://github.com/nicklockwood/ShapeScript.git
+            patch_shapescript
             ;;
         scenekit)
             # Meta-arm: everything the SceneKit conformance campaign needs.
             # See docs/scenekit-conformance.md.
             fetch_repo euclid https://github.com/nicklockwood/Euclid.git
+            patch_euclid
             fetch_repo lrucache https://github.com/nicklockwood/LRUCache.git
             fetch_repo svgpath https://github.com/nicklockwood/SVGPath.git
             fetch_repo shapescript https://github.com/nicklockwood/ShapeScript.git
+            patch_shapescript
             ;;
         *)
             echo "unknown upstream: $name" >&2

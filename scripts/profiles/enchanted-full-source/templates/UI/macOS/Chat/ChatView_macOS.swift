@@ -1,8 +1,3 @@
-//
-//  Chat.swift
-//  Enchanted
-//
-
 #if os(macOS) || os(Linux) || os(visionOS)
 import SwiftUI
 import QuillUI
@@ -51,7 +46,12 @@ struct ChatView: View {
             modelName: \.prettyName,
             modelVersion: \.prettyVersion,
             onSelectModel: { onSelectModel($0) },
-            copyChat: copyChat,
+            copyChat: QuillChatCopy.rememberedVisibleMessageAction(
+                key: "enchanted-chat",
+                messages: messages,
+                role: \.role, content: \.content,
+                fallback: copyChat
+            ),
             promptID: \.id,
             promptTitle: \.prompt,
             promptSystemImage: { $0.type.icon },
@@ -66,6 +66,7 @@ struct ChatView: View {
                 userInitials: userInitials,
                 editMessage: editMessage
             )
+            .quillRememberVisibleMessages(key: "enchanted-chat", messages: messages, role: \.role, content: \.content)
         } composer: { message, editMessage in
             InputFieldsView(
                 message: message,

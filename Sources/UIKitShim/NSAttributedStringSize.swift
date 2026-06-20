@@ -21,8 +21,12 @@ public extension NSAttributedString {
     /// approximate, not glyph-accurate; embedded newlines are not given
     /// extra lines (matching the estimator's single-block model).
     func size() -> CGSize {
-        boundingRect(with: CGSize(width: CGFloat.greatestFiniteMagnitude,
-                                  height: CGFloat.greatestFiniteMagnitude)).size
+        let attributes = length > 0 ? attributes(at: 0, effectiveRange: nil) : nil
+        return string.boundingRect(
+            with: CGSize(width: CGFloat.greatestFiniteMagnitude,
+                         height: CGFloat.greatestFiniteMagnitude),
+            attributes: attributes
+        ).size
     }
 }
 

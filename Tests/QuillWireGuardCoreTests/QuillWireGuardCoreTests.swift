@@ -337,27 +337,35 @@ struct QuillWireGuardCoreTests {
             contentsOf: root.appendingPathComponent("scripts/verify-backend-screenshot.py"),
             encoding: .utf8
         )
+        let uiSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillWireGuardUI/QuillWireGuardUI.swift"),
+            encoding: .utf8
+        )
 
         #expect(interactionScript.contains("wireguard_import_configuration_file()"))
         #expect(interactionScript.contains("wireguard_malformed_import_configuration()"))
         #expect(interactionScript.contains("wireguard_malformed_import_configuration_file()"))
         #expect(interactionScript.contains("wireguard_import_configuration_for_mode"))
         #expect(interactionScript.contains("wireguard_import_configuration_file_for_mode()"))
+        #expect(interactionScript.contains("wireguard_import_configuration_prefill_file_for_mode()"))
         #expect(interactionScript.contains("type_multiline_text()"))
         #expect(interactionScript.contains("type_multiline_text \"$import_configuration\""))
         #expect(!interactionScript.contains("type_text \"$import_configuration\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MALFORMED_IMPORT_CONFIGURATION_FILE"))
-        #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$import_file"))
+        #expect(interactionScript.contains("QUILLUI_WIREGUARD_IMPORT_CONFIGURATION_FILE_ON_START=$import_file"))
+        #expect(interactionScript.contains("wireguard_gtk_import_uses_prefill=1"))
         #expect(interactionScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_CONFIGURATION_FILE_ON_START=$import_file"))
         #expect(interactionScript.contains("QUILLUI_WIREGUARD_QT_IMPORT_DIALOG_ON_START=1"))
+        #expect(uiSource.contains("loadStartupImportConfigurationIfNeeded()"))
+        #expect(uiSource.contains("QUILLUI_WIREGUARD_IMPORT_CONFIGURATION_FILE_ON_START"))
         // Paste imports submit via Ctrl+Return; the GTK file import drives the same
-        // path by loading the selected .conf fixture into the editor (the
-        // Import-from-File button is occluded by the expanding TextEditor, so there
-        // is no positional file-click hook).
+        // path by loading the selected .conf fixture into the editor so headless
+        // smokes do not depend on a native file picker.
         #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+Return"))
         #expect(interactionScript.contains("file_configuration=\"$(cat \"$import_file\")\""))
         #expect(!interactionScript.contains("QUILLUI_BACKEND_IMPORT_FILE_CLICK_X"))
+        #expect(interactionScript.contains("window_x + 270"))
         #expect(interactionScript.contains("window_x + 260"))
         #expect(interactionScript.contains("import-invalid-paste"))
         #expect(interactionScript.contains("import-invalid-file"))

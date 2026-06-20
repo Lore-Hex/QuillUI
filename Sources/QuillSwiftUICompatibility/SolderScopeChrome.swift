@@ -3,8 +3,8 @@
 // rjwalters/SolderScope is compiled UNMODIFIED with `import SwiftUI`, which
 // resolves to the Linux SwiftUI shadow → this module → SwiftOpenUI. Several
 // app-chrome shims it needs already existed in QuillUI (Material, the
-// ButtonStyle protocol, ButtonRole, Animation.repeatForever, the command/menu
-// builder expressions, WindowGroup conveniences) — but QuillUI is NOT visible
+// ButtonStyle protocol, ButtonRole, Animation.repeatForever, menu builder
+// expressions, WindowGroup conveniences) — but QuillUI is NOT visible
 // through `import SwiftUI`, and QuillUI `@_exported import`s THIS module, so
 // duplicating those names here would make every file that imports both
 // modules ambiguous. Following the house pattern already documented in
@@ -16,8 +16,8 @@
 // closure-based alert, onExitCommand) mirrors Apple's names and signatures
 // exactly; inert behavior is documented inline.
 
-import QuillKit
 import SwiftOpenUI
+import QuillKit
 
 #if os(Linux)
 
@@ -32,17 +32,17 @@ extension Animation {
     /// preserved on the Animation value; GTK transition repeat loops are not
     /// yet implemented, so playback currently runs the transition once.
     public func repeatForever(autoreverses: Bool = true) -> Animation {
-        // The repeat metadata is preserved, but GTK transition repeat loops
-        // aren't implemented yet, so playback runs the transition once — a
-        // silent no-op without this diagnostic. `.info` (not `.warning`): the
-        // value is faithfully carried, only playback is approximated. This
-        // module links QuillKit (see DesignSystemSurfaceCompat), so the record
-        // dropped in the move from QuillUI is restored here.
+        // Record an .info fallback like the sibling Animation chain methods
+        // (Animation.delay / .snappy in QuillUI's UpstreamCompatibility): the
+        // repeat metadata is preserved but GTK transition repeat loops are not
+        // implemented yet, so playback runs the transition once. The
+        // "previously-silent stubs now record diagnostics" contract test
+        // asserts this operation is recorded with .info severity.
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillUI",
             operation: "Animation.repeatForever",
             severity: .info,
-            message: "Animation.repeatForever metadata is preserved on Linux, but GTK transition repeat loops aren't implemented yet; the transition currently plays once."
+            message: "repeatForever metadata is preserved on Linux; GTK transition repeat loops run the transition once until repeat playback is implemented."
         )
         return Animation(
             curve: curve,
@@ -91,20 +91,13 @@ extension View {
 // canonical in SwiftOpenUI so renderers can apply makeBody(configuration:)
 // with live pressed state instead of Quill-only compile shims.
 
-// MARK: - ButtonRole (moved from QuillUI)
+// MARK: - ButtonRole
 
-// ButtonRole lives in DesignSystemSurfaceCompat.swift.
+// ButtonRole and role-taking Button initializers are canonical in SwiftOpenUI
+// so backend renderers and view-tree walkers can preserve semantic metadata.
 
-extension Button where Label == Text {
-    /// Role-taking title initializer. The role is currently presentation-only
-    /// metadata Apple uses for emphasis/ordering; it is accepted and dropped
-    /// (the action and title are preserved).
-    public init(_ title: String, role: ButtonRole?, action: @escaping () -> Void) {
-        self.init(title, action: action)
-    }
-}
-
-// Button(role:) inits live in DesignSystemSurfaceCompat.swift.
+// LocalizedStringKey Button(role:) conveniences live in
+// DesignSystemSurfaceCompat.swift.
 
 // MARK: - MenuStyle
 
@@ -151,11 +144,13 @@ extension View {
 private protocol ChromeButtonRepresentable {
     var chromeButtonTitle: String { get }
     var chromeButtonAction: () -> Void { get }
+    var chromeButtonRole: ButtonRole? { get }
 }
 
 extension Button: ChromeButtonRepresentable {
     var chromeButtonTitle: String { chromeTextLabel(from: label) }
     var chromeButtonAction: () -> Void { action }
+    var chromeButtonRole: ButtonRole? { role }
 }
 
 @MainActor
@@ -302,47 +297,19 @@ private func chromeDisabledMenuElement(_ element: MenuElement, disabled: Bool) -
     }
 }
 
-/// Command-menu items lifted out of an arbitrary view. Dividers have no
-/// `CommandMenuItem` representation and are dropped (matching the QuillUI
-/// walker this replaces).
-@MainActor
-private func chromeCommandMenuItems(from view: any View) -> [CommandMenuItem] {
-    if let button = view as? any ChromeButtonRepresentable {
-        return [CommandMenuItem(button.chromeButtonTitle, action: button.chromeButtonAction)]
-    }
-    if let shortcut = view as? any ChromeShortcutRepresentable {
-        return chromeCommandMenuItems(from: shortcut.chromeShortcutContent)
-            .map { chromeCommandMenuItem($0, shortcut: shortcut.chromeShortcut) }
-    }
-    if let disabled = view as? any ChromeDisabledRepresentable {
-        return chromeCommandMenuItems(from: disabled.chromeDisabledContent)
-            .map { $0.disabled(disabled.chromeIsDisabled || $0.isDisabled) }
-    }
-    if let wrapped = view as? any ChromeWrappedViewRepresentable {
-        return chromeCommandMenuItems(from: wrapped.chromeWrappedContent)
-    }
-    if let multi = view as? MultiChildView {
-        return multi.children.flatMap(chromeCommandMenuItems)
-    }
-    return []
-}
-
-private func chromeCommandMenuItem(_ item: CommandMenuItem, shortcut: KeyboardShortcut) -> CommandMenuItem {
-    CommandMenuItem(
-        item.label,
-        shortcut: item.shortcut ?? shortcut,
-        action: item.action
-    )
-    .disabled(item.isDisabled)
-}
-
-/// Alert buttons lifted out of a ViewBuilder actions tree. Role metadata is
-/// not carried by `Button` values (see `ButtonRole`), so every button maps to
-/// a default-role `AlertButton`; tapping any button dismisses the alert.
+/// Alert buttons lifted out of a ViewBuilder actions tree. Button role
+/// metadata is preserved so cancel/destructive actions render and dismiss like
+/// the array-based alert API.
 @MainActor
 private func chromeAlertButtons(from view: any View) -> [AlertButton] {
     if let button = view as? any ChromeButtonRepresentable {
-        return [AlertButton(button.chromeButtonTitle, action: button.chromeButtonAction)]
+        return [
+            AlertButton(
+                button.chromeButtonTitle,
+                role: chromeAlertButtonRole(from: button.chromeButtonRole),
+                action: button.chromeButtonAction
+            )
+        ]
     }
     if let shortcut = view as? any ChromeShortcutRepresentable {
         return chromeAlertButtons(from: shortcut.chromeShortcutContent)
@@ -357,6 +324,17 @@ private func chromeAlertButtons(from view: any View) -> [AlertButton] {
         return multi.children.flatMap(chromeAlertButtons)
     }
     return []
+}
+
+private func chromeAlertButtonRole(from role: ButtonRole?) -> AlertButtonRole {
+    switch role {
+    case .cancel:
+        return .cancel
+    case .destructive:
+        return .destructive
+    case nil:
+        return .default
+    }
 }
 
 // MARK: - Menu label-builder init (moved from QuillUI)
@@ -392,69 +370,6 @@ extension MenuBuilder {
 
     public static func buildExpression<Content: View>(_ view: Content) -> [MenuElement] {
         chromeMenuElements(from: view)
-    }
-}
-
-// MARK: - CommandMenuBuilder view expressions (moved from QuillUI)
-
-// @MainActor: reads isolated View members; builder closures run in
-// isolated Commands.body / View body contexts (whole-protocol isolation).
-@MainActor
-extension CommandMenuBuilder {
-    public static func buildExpression<Label: View>(_ button: Button<Label>) -> [CommandMenuItem] {
-        [
-            CommandMenuItem(
-                chromeTextLabel(from: button.label),
-                action: button.action
-            )
-        ]
-    }
-
-    public static func buildExpression<Label: View>(_ shortcutView: KeyboardShortcutView<Button<Label>>) -> [CommandMenuItem] {
-        [
-            CommandMenuItem(
-                chromeTextLabel(from: shortcutView.content.label),
-                shortcut: shortcutView.shortcut,
-                action: shortcutView.content.action
-            )
-        ]
-    }
-
-    public static func buildExpression<Content: View>(_ disabledView: DisabledView<Content>) -> [CommandMenuItem] {
-        chromeCommandMenuItems(from: disabledView.content)
-            .map { $0.disabled(disabledView.isDisabled || $0.isDisabled) }
-    }
-
-    public static func buildExpression<Content: View>(_ view: Content) -> [CommandMenuItem] {
-        chromeCommandMenuItems(from: view)
-    }
-}
-
-// MARK: - CommandsBuilder: wider blocks
-
-// SwiftOpenUI ships buildBlock for one and two children; real command trees
-// (SolderScope declares four siblings) need more. Components nest leftward
-// into TupleCommands, which extractCommandGroups already recurses.
-// @MainActor: TupleCommands is isolated (whole-protocol Commands isolation),
-// and builder blocks run inside isolated Commands.body contexts.
-@MainActor
-extension CommandsBuilder {
-    public static func buildBlock<C0: Commands, C1: Commands, C2: Commands>(
-        _ c0: C0, _ c1: C1, _ c2: C2
-    ) -> TupleCommands<TupleCommands<C0, C1>, C2> {
-        TupleCommands(TupleCommands(c0, c1), c2)
-    }
-
-    public static func buildBlock<C0: Commands, C1: Commands, C2: Commands, C3: Commands>(
-        _ c0: C0, _ c1: C1, _ c2: C2, _ c3: C3
-    ) -> TupleCommands<TupleCommands<TupleCommands<C0, C1>, C2>, C3> {
-        TupleCommands(TupleCommands(TupleCommands(c0, c1), c2), c3)
-    }
-
-    public static func buildBlock<C0: Commands, C1: Commands, C2: Commands, C3: Commands, C4: Commands>(
-        _ c0: C0, _ c1: C1, _ c2: C2, _ c3: C3, _ c4: C4
-    ) -> TupleCommands<TupleCommands<TupleCommands<TupleCommands<C0, C1>, C2>, C3>, C4> {
-        TupleCommands(TupleCommands(TupleCommands(TupleCommands(c0, c1), c2), c3), c4)
     }
 }
 
@@ -503,12 +418,11 @@ extension WindowGroup {
 
 extension View {
     /// SwiftUI's `alert(_:isPresented:actions:message:)` with ViewBuilder
-    /// closures. Buttons declared in `actions` are lifted into `AlertButton`s
-    /// (role metadata is dropped — see `ButtonRole`); the `message` view is
-    /// reduced to its first text run. Routes to the existing array-based
-    /// alert modifier, so presentation behavior is identical. An empty or
-    /// unrecognized actions tree falls back to a single OK button so the
-    /// dialog stays dismissable.
+    /// closures. Buttons declared in `actions` are lifted into `AlertButton`s;
+    /// the `message` view is reduced to its first text run. Routes to the
+    /// existing array-based alert modifier, so presentation behavior is
+    /// identical. An empty or unrecognized actions tree falls back to a single
+    /// OK button so the dialog stays dismissable.
     public func alert<A: View, M: View>(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -522,17 +436,6 @@ extension View {
             actions: buttons.isEmpty ? [AlertButton("OK")] : buttons,
             message: chromeTextLabel(from: message())
         )
-    }
-}
-
-// MARK: - onExitCommand
-
-extension View {
-    /// SwiftUI's `onExitCommand(perform:)`. Compile-surface: returns `self`
-    /// unchanged — the Escape/cancel command path is not yet wired through
-    /// the GTK key controller, so the handler is accepted and never invoked.
-    public func onExitCommand(perform action: (() -> Void)?) -> some View {
-        self
     }
 }
 

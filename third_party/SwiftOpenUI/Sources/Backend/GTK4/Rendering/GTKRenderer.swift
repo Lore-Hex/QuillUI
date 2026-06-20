@@ -85,6 +85,9 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
         gtk_widget_set_size_request(context.child, width, -1)
         gtk_widget_queue_resize(context.child)
     }
+    if context.fillWidth {
+        gtkClampHiddenHorizontalScrollOffset(widget)
+    }
     if context.fillHeight, height > 1, height != context.lastHeight {
         context.lastHeight = height
         gtk_widget_set_size_request(context.child, -1, height)
@@ -92,6 +95,16 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
     }
 
     return 1
+}
+
+private func gtkClampHiddenHorizontalScrollOffset(_ scrolled: UnsafeMutablePointer<GtkWidget>) {
+    guard let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) else {
+        return
+    }
+    let lower = gtk_adjustment_get_lower(hadjustment)
+    if gtk_adjustment_get_value(hadjustment) != lower {
+        gtk_adjustment_set_value(hadjustment, lower)
+    }
 }
 
 private func gtkInstallScrollViewCrossAxisFill(
@@ -147,6 +160,7 @@ public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) ->
 public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil
 public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil
 public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
+public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil
 
 private final class GTKTextBindingIdleUpdate {
     let binding: Binding<String>
@@ -204,6 +218,63 @@ private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: Str
         pending?.apply()
         return 0
     }, nil)
+}
+
+private func gtkPerformSubmitAction(_ submitAction: SubmitAction) {
+    gtkFlushPendingTextBindingUpdate()
+    submitAction()
+}
+
+private let gtkTextInputSubmitActivateHandler: @convention(c) (gpointer?, gpointer?) -> Void = { _, userData in
+    guard let userData else { return }
+    Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+}
+
+private let gtkTextInputSubmitKeyPressedHandler: @convention(c) (OpaquePointer?, guint, guint, guint, gpointer?) -> gboolean = { _, keyval, _, _, userData in
+    switch keyval {
+    case 0xff0d, 0xff8d:
+        guard let userData else { return 0 }
+        Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        return 1
+    default:
+        return 0
+    }
+}
+
+private func gtkWireTextInputSubmit(
+    widget: UnsafeMutablePointer<GtkWidget>,
+    signalTarget: gpointer,
+    submitAction: SubmitAction
+) {
+    let submit = {
+        gtkPerformSubmitAction(submitAction)
+    }
+
+    let activateBox = Unmanaged.passRetained(ClosureBox(submit)).toOpaque()
+    g_signal_connect_data(
+        signalTarget, "activate",
+        unsafeBitCast(gtkTextInputSubmitActivateHandler, to: GCallback.self),
+        activateBox,
+        { data, _ in
+            guard let data else { return }
+            Unmanaged<ClosureBox>.fromOpaque(data).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    let keyController = gtk_swift_key_capture_controller()!
+    let keyBox = Unmanaged.passRetained(ClosureBox(submit)).toOpaque()
+    g_signal_connect_data(
+        gpointer(keyController), "key-pressed",
+        unsafeBitCast(gtkTextInputSubmitKeyPressedHandler, to: GCallback.self),
+        keyBox,
+        { data, _ in
+            guard let data else { return }
+            Unmanaged<ClosureBox>.fromOpaque(data).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(widget, keyController)
 }
 
 // MARK: - GTK rendering protocol
@@ -632,24 +703,10 @@ extension TextField: GTKRenderable, GTKDescribable {
 
         // Wire onSubmit: GtkEntry fires "activate" on Enter key
         if let submitAction = getCurrentEnvironment().submitAction {
-            let submitBox = Unmanaged.passRetained(ClosureBox {
-                // Return-submit must observe the typed text: flush the
-                // debounced entry->binding write before the action runs.
-                gtkFlushPendingTextBindingUpdate()
-                submitAction()
-            }).toOpaque()
-            g_signal_connect_data(
-                gpointer(entry), "activate",
-                unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                    guard let userData else { return }
-                    Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
-                } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-                submitBox,
-                { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                    guard let data else { return }
-                    Unmanaged<ClosureBox>.fromOpaque(data).release()
-                },
-                GConnectFlags(rawValue: 0)
+            gtkWireTextInputSubmit(
+                widget: entry,
+                signalTarget: gpointer(entry),
+                submitAction: submitAction
             )
         }
 
@@ -1061,6 +1118,13 @@ extension Button: GTKRenderable, GTKDescribable {
                 handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), true) ?? false
             case .quillPaintMacBordered:
                 handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+            case let .quillPaintMacListRow(isSelected, drawsIdleBackground):
+                handledByQuillPaint = quill_gtk_list_row_paint_hook?(
+                    OpaquePointer(button),
+                    OpaquePointer(childWidget),
+                    isSelected,
+                    drawsIdleBackground
+                ) ?? false
             default:
                 handledByQuillPaint = false
             }
@@ -1152,7 +1216,7 @@ extension Button: GTKRenderable, GTKDescribable {
                     border: 1px solid @borders; border-radius: 6px;
                     padding: 6px 12px;
                     """)
-            case .automatic:
+            case .automatic, .quillPaintMacListRow(_, _):
                 break // default GTK button styling
             }
         }
@@ -1295,6 +1359,43 @@ extension KeyboardShortcutView: GTKRenderable {
         setCurrentEnvironment(env)
         defer { setCurrentEnvironment(prev) }
         return gtkRenderView(content)
+    }
+}
+
+// MARK: - onExitCommand GTK extension
+
+extension ExitCommandView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let windowID = getCurrentEnvironment().windowID
+        let widget = gtkRenderView(content)
+
+        guard let action else {
+            return widget
+        }
+
+        let boundAction = bindActionToCurrentEnvironment(action)
+        let regID = KeyboardShortcutRegistry.shared.register(.cancelAction, windowID: windowID) {
+            gtkFlushPendingTextBindingUpdate()
+            boundAction()
+        }
+
+        let destroyBox = Unmanaged.passRetained(ClosureBox {
+            KeyboardShortcutRegistry.shared.unregister(id: regID)
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(widget), "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            destroyBox,
+            { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+            },
+            GConnectFlags(rawValue: 0)
+        )
+
+        return widget
     }
 }
 
@@ -1981,14 +2082,6 @@ extension FrameView: GTKRenderable, GTKDescribable {
                 || (maxHeight == nil && childExpV)
             )
 
-        if widthMayGrowWithParent || heightMayGrowWithParent {
-            return gtkFrameParentFlexibleAxes(
-                child: child,
-                childExpH: childExpH,
-                childExpV: childExpV
-            )
-        }
-
         if !widthFree && heightFree && childExpV {
             // Width-constrained, height-flexible, child expands vertically.
             // Example: Color.blue.frame(width: 120) inside an HStack.
@@ -1999,6 +2092,14 @@ extension FrameView: GTKRenderable, GTKDescribable {
             // Height-constrained, width-flexible, child expands horizontally.
             return gtkFrameFlexibleAxis(child: child, childExpH: childExpH,
                                         constrainedWidth: false)
+        }
+
+        if widthMayGrowWithParent || heightMayGrowWithParent {
+            return gtkFrameParentFlexibleAxes(
+                child: child,
+                childExpH: childExpH,
+                childExpV: childExpV
+            )
         }
 
         // General case: use GtkFixed for alignment positioning.
@@ -2140,6 +2241,13 @@ extension FrameView: GTKRenderable, GTKDescribable {
                 (maxHeight != nil)
                 || (maxHeight == nil && childExpV)
             )
+
+        if !widthMayGrowWithParent && heightMayGrowWithParent && childExpV {
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
+        }
 
         let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
         let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
@@ -2286,6 +2394,37 @@ extension FrameView: GTKRenderable, GTKDescribable {
         return opaqueFromWidget(scrolled)
     }
 
+    private func gtkFrameFixedWidthFlexibleHeightClip(
+        child: UnsafeMutablePointer<GtkWidget>,
+        width: gint
+    ) -> OpaquePointer {
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+        gtk_scrolled_window_set_min_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_max_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+
+        gtk_widget_set_size_request(scrolled, width, -1)
+        gtk_widget_set_hexpand(scrolled, 0)
+        gtk_widget_set_vexpand(scrolled, 1)
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_vexpand(child, 1)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(child, width, -1)
+        gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: true,
+            fillHeight: true
+        )
+        return opaqueFromWidget(scrolled)
+    }
+
     /// Build a frame wrapper using GtkBox instead of GtkFixed, for frames
     /// that constrain one axis while the child expands on the other.
     /// GtkFixed can't propagate allocation to children, so we let GTK's
@@ -2315,10 +2454,10 @@ extension FrameView: GTKRenderable, GTKDescribable {
 
         if constrainedWidth {
             // Width constrained, height flexible
-            gtk_widget_set_size_request(wrapper, gtkPixelSize(layout.containerSize.width), -1)
-            let hexp: gint = (maxWidth != nil) ? 1 : 0
-            gtk_widget_set_hexpand(wrapper, hexp)
-            gtk_widget_set_vexpand(wrapper, 1)
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
         } else {
             // Height constrained, width flexible
             gtk_widget_set_size_request(wrapper, -1, gtkPixelSize(layout.containerSize.height))
@@ -3069,7 +3208,9 @@ private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor:
                 }
             }
 
-            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+            if hasTargetCoordinates,
+               !isSwiftUIVerticalScrollView,
+               let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
                 let lower = gtk_adjustment_get_lower(hadjustment)
                 let upper = gtk_adjustment_get_upper(hadjustment)
                 let pageSize = gtk_adjustment_get_page_size(hadjustment)
@@ -5414,24 +5555,10 @@ extension SecureField: GTKRenderable, GTKDescribable {
 
         // Wire onSubmit action from environment (same as TextField)
         if let submitAction = getCurrentEnvironment().submitAction {
-            let submitBox = Unmanaged.passRetained(ClosureBox {
-                // Return-submit must observe the typed text: flush the
-                // debounced entry->binding write before the action runs.
-                gtkFlushPendingTextBindingUpdate()
-                submitAction()
-            }).toOpaque()
-            g_signal_connect_data(
-                gpointer(entry), "activate",
-                unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-                    guard let userData else { return }
-                    Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
-                } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-                submitBox,
-                { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                    guard let data else { return }
-                    Unmanaged<ClosureBox>.fromOpaque(data).release()
-                },
-                GConnectFlags(rawValue: 0)
+            gtkWireTextInputSubmit(
+                widget: entry,
+                signalTarget: gpointer(entry),
+                submitAction: submitAction
             )
         }
 

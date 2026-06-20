@@ -122,6 +122,27 @@ private func gtkBackendDebugLog(_ message: String) {
     }
 }
 
+private func gtkShortcutDebugText(_ shortcut: KeyboardShortcut) -> String {
+    var parts: [String] = []
+    if shortcut.modifiers.contains(.command) { parts.append("command") }
+    if shortcut.modifiers.contains(.shift) { parts.append("shift") }
+    if shortcut.modifiers.contains(.option) { parts.append("option") }
+    if shortcut.modifiers.contains(.control) { parts.append("control") }
+    if shortcut.modifiers.contains(.capsLock) { parts.append("capsLock") }
+    if parts.isEmpty { parts.append("none") }
+
+    let keyText: String
+    switch shortcut.key {
+    case .return: keyText = "return"
+    case .escape: keyText = "escape"
+    case .delete: keyText = "delete"
+    case .tab: keyText = "tab"
+    case .space: keyText = "space"
+    default: keyText = String(shortcut.key.character)
+    }
+    return "\(parts.joined(separator: "+"))+\(keyText)"
+}
+
 extension WindowGroup: GTKWindowRenderable {
     func gtkResolvedDefaultWindowSize() -> (width: Double, height: Double)? {
         switch windowSizing ?? .automatic {
@@ -261,6 +282,7 @@ extension WindowGroup: GTKWindowRenderable {
 /// The window pointer is passed as user_data so the handler can scope dispatch.
 func gtkAttachKeyboardShortcutController(to window: UnsafeMutablePointer<GtkWidget>) {
     let controller = gtk_event_controller_key_new()!
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)
     let windowUD = gpointer(window)
 
     g_signal_connect_data(
@@ -289,12 +311,15 @@ private let gtkKeyPressedHandler: @convention(c) (OpaquePointer?, guint, guint, 
     if state & 2 != 0 { modifiers.insert(.capsLock) }
 
     guard let key = gtkKeyEquivalentFromKeyval(keyval) else {
+        gtkBackendDebugLog("key ignored keyval=\(keyval) state=\(state)")
         return 0
     }
 
     let windowID = Int(bitPattern: userData)
     let shortcut = KeyboardShortcut(key, modifiers: modifiers)
-    return KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID) ? 1 : 0
+    let handled = KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID)
+    gtkBackendDebugLog("key shortcut=\(gtkShortcutDebugText(shortcut)) keyval=\(keyval) state=\(state) windowID=\(windowID) handled=\(handled)")
+    return handled ? 1 : 0
 }
 
 /// Maps a GDK keyval to a KeyEquivalent.
@@ -378,6 +403,7 @@ final class GTK4MenuBarHost {
     private var actionGroup: OpaquePointer?
     private var actions: [String: OpaquePointer] = [:]  // actionName → GSimpleAction
     private var actionClosures: [String: MenuActionClosure] = [:]  // kept alive for signal handlers
+    private var menuStructureSignature: [String] = []
     private var shortcutRegIDs: [ShortcutRegistrationID] = []
     private var focusedValuesObserverID: FocusedValuesObserverID?
     private var containerBox: UnsafeMutablePointer<GtkWidget>?
@@ -449,84 +475,84 @@ final class GTK4MenuBarHost {
 
     /// Update the native menu bar from evaluated command groups.
     private func updateMenu(_ groups: [CommandGroupPlacement: [CommandMenuItem]]) {
-        let allItems = groups.sorted(by: { $0.key.hashValue < $1.key.hashValue })
-            .flatMap { $0.value }
+        let sections = commandMenuSections(from: groups)
+        let allItems = sections.flatMap { $0.items }
+        let newStructureSignature = menuStructureSignature(for: sections)
 
         if menuBar == nil {
-            buildMenu(allItems)
+            buildMenu(sections, structureSignature: newStructureSignature)
         } else {
-            // Check structural match
-            let existingLabels = Array(actions.keys.sorted())
-            let newLabels = allItems.map { "cmd_\($0.label.lowercased().replacingOccurrences(of: " ", with: "_"))" }
-            if existingLabels == newLabels.sorted() && allItems.count == actions.count {
+            if menuStructureSignature == newStructureSignature {
                 updateInPlace(allItems)
             } else {
                 teardown(widgetsValid: true)
-                buildMenu(allItems)
+                buildMenu(sections, structureSignature: newStructureSignature)
             }
         }
     }
 
     /// Build GMenu + GtkPopoverMenuBar from scratch.
-    private func buildMenu(_ items: [CommandMenuItem]) {
+    private func buildMenu(_ sections: [CommandMenuSection], structureSignature: [String]) {
         let group = g_simple_action_group_new()!
         actionGroup = OpaquePointer(group)
 
         // GtkPopoverMenuBar expects the top-level GMenu to contain submenus,
-        // not action items directly — otherwise it emits "Don't know how to
-        // handle this item" warnings. Mirror Win32's pattern: wrap all items
-        // in a single "File" submenu.
+        // not action items directly.
         let menuModel = gtk_swift_menu_new()!
-        let fileMenu = gtk_swift_menu_new()!
+        let hideMenuLabels = (
+            ProcessInfo.processInfo.environment["QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL"]
+                ?? ProcessInfo.processInfo.environment["QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"]
+        ) == "1"
 
-        for item in items {
-            let actionName = "cmd_\(item.label.lowercased().replacingOccurrences(of: " ", with: "_"))"
-            let action = g_simple_action_new(actionName, nil)!
+        var itemIndex = 0
+        for section in sections {
+            let submenu = gtk_swift_menu_new()!
 
-            // Set enabled state
-            gtk_swift_action_set_enabled(gpointer(action), item.isDisabled ? 0 : 1)
+            for item in section.items {
+                let actionName = actionName(for: item, at: itemIndex)
+                itemIndex += 1
+                let action = g_simple_action_new(actionName, nil)!
 
-            // Connect activate signal. The closure box identity must remain
-            // stable across updateInPlace, because GObject stores user_data as
-            // a raw pointer (passUnretained). See MenuActionClosure docstring.
-            let closureBox = MenuActionClosure(item.action)
-            actionClosures[actionName] = closureBox
-            let ud = Unmanaged.passUnretained(closureBox).toOpaque()
-            g_signal_connect_data(
-                gpointer(action), "activate",
-                unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
-                    guard let userData else { return }
-                    Unmanaged<MenuActionClosure>.fromOpaque(userData).takeUnretainedValue().closure()
-                } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
-                ud, nil,
-                GConnectFlags(rawValue: 0)
-            )
+                // Set enabled state
+                gtk_swift_action_set_enabled(gpointer(action), item.isDisabled ? 0 : 1)
 
-            gtk_swift_action_map_add_action(gpointer(group), gpointer(action))
-            actions[actionName] = action
-
-            // Build label with shortcut hint
-            var label = item.label
-            if let shortcut = item.shortcut {
-                label += "  (\(shortcutHintText(shortcut)))"
-            }
-            gtk_swift_menu_append(fileMenu, label, "menu.\(actionName)")
-
-            // Register keyboard shortcut
-            if let shortcut = item.shortcut, !item.isDisabled {
-                let regID = KeyboardShortcutRegistry.shared.register(
-                    shortcut, windowID: windowID, action: item.action
+                // Connect activate signal. The closure box identity must remain
+                // stable across updateInPlace, because GObject stores user_data as
+                // a raw pointer (passUnretained). See MenuActionClosure docstring.
+                let closureBox = MenuActionClosure(item.action)
+                actionClosures[actionName] = closureBox
+                let ud = Unmanaged.passUnretained(closureBox).toOpaque()
+                g_signal_connect_data(
+                    gpointer(action), "activate",
+                    unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
+                        guard let userData else { return }
+                        Unmanaged<MenuActionClosure>.fromOpaque(userData).takeUnretainedValue().closure()
+                    } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+                    ud, nil,
+                    GConnectFlags(rawValue: 0)
                 )
-                shortcutRegIDs.append(regID)
-            }
-        }
 
-        let environment = ProcessInfo.processInfo.environment
-        let topLevelMenuTitle = (
-            environment["QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL"]
-                ?? environment["QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"]
-        ) == "1" ? " " : "File"
-        gtk_swift_menu_append_submenu(menuModel, topLevelMenuTitle, fileMenu)
+                gtk_swift_action_map_add_action(gpointer(group), gpointer(action))
+                actions[actionName] = action
+
+                // Build label with shortcut hint
+                var label = item.label
+                if let shortcut = item.shortcut {
+                    label += "  (\(shortcutHintText(shortcut)))"
+                }
+                gtk_swift_menu_append(submenu, label, "menu.\(actionName)")
+
+                // Register keyboard shortcut
+                if let shortcut = item.shortcut, !item.isDisabled {
+                    let regID = KeyboardShortcutRegistry.shared.register(
+                        shortcut, windowID: windowID, action: item.action
+                    )
+                    shortcutRegIDs.append(regID)
+                }
+            }
+
+            gtk_swift_menu_append_submenu(menuModel, hideMenuLabels ? " " : section.title, submenu)
+        }
 
         // Create the popover menu bar
         let bar = gtk_swift_popover_menu_bar_new_from_model(menuModel)!
@@ -540,6 +566,7 @@ final class GTK4MenuBarHost {
             let boxPtr = UnsafeMutableRawPointer(box).assumingMemoryBound(to: GtkBox.self)
             gtk_box_prepend(boxPtr, bar)
         }
+        menuStructureSignature = structureSignature
     }
 
     /// Update enabled state and action closures in place.
@@ -550,8 +577,8 @@ final class GTK4MenuBarHost {
         }
         shortcutRegIDs.removeAll()
 
-        for item in items {
-            let actionName = "cmd_\(item.label.lowercased().replacingOccurrences(of: " ", with: "_"))"
+        for (index, item) in items.enumerated() {
+            let actionName = actionName(for: item, at: index)
 
             // Update enabled state
             if let action = actions[actionName] {
@@ -571,6 +598,32 @@ final class GTK4MenuBarHost {
                 shortcutRegIDs.append(regID)
             }
         }
+    }
+
+    private func actionName(for item: CommandMenuItem, at index: Int) -> String {
+        var slug = ""
+        for scalar in item.label.lowercased().unicodeScalars {
+            switch scalar.value {
+            case 48...57, 97...122:
+                slug.unicodeScalars.append(scalar)
+            default:
+                slug.append("_")
+            }
+        }
+        return "cmd_\(index)_\(slug)"
+    }
+
+    private func menuStructureSignature(for sections: [CommandMenuSection]) -> [String] {
+        var signature: [String] = []
+        var itemIndex = 0
+        for section in sections {
+            signature.append("section:\(section.title)")
+            for item in section.items {
+                signature.append(actionName(for: item, at: itemIndex))
+                itemIndex += 1
+            }
+        }
+        return signature
     }
 
     /// Clean up all resources.
@@ -599,6 +652,7 @@ final class GTK4MenuBarHost {
         // Clear actions
         actions.removeAll()
         actionClosures.removeAll()
+        menuStructureSignature.removeAll()
         actionGroup = nil
     }
 
@@ -688,8 +742,7 @@ final class GTK4CommandShortcutHost {
         }
         shortcutRegIDs.removeAll()
 
-        let allItems = groups.sorted(by: { $0.key.hashValue < $1.key.hashValue })
-            .flatMap { $0.value }
+        let allItems = commandMenuSections(from: groups).flatMap { $0.items }
 
         for item in allItems {
             guard let shortcut = item.shortcut, !item.isDisabled else { continue }
@@ -699,7 +752,9 @@ final class GTK4CommandShortcutHost {
                 action: item.action
             )
             shortcutRegIDs.append(regID)
+            gtkBackendDebugLog("registered command shortcut label='\(item.label)' shortcut=\(gtkShortcutDebugText(shortcut)) windowID=\(windowID)")
         }
+        gtkBackendDebugLog("registered \(shortcutRegIDs.count) command shortcuts for windowID=\(windowID)")
     }
 
     func destroy() {

@@ -74,9 +74,9 @@ assembly:
   matching source paths.
 - `scripts/truncate-profile-files.sh` blanks optional profile-listed files that
   are replaced by QuillKit/QuillUI compatibility implementations.
-- `scripts/audit-profile-budget.sh` checks app-lowering profile shell glue
-  against a small line-count budget; CI runs this before the heavier Linux
-  build and backend smoke jobs.
+- `scripts/audit-profile-budget.sh` checks app-lowering profile shell glue,
+  replacement templates, and rewrite-rule payloads against small line-count
+  budgets; CI runs this before the heavier Linux build and backend smoke jobs.
 - `scripts/generate-hashable-identity-shims.sh` emits small generated Swift
   extensions that make lowered model classes `Hashable`/`Equatable` by stable
   identity properties, with optional `Identifiable.id` aliases for models whose
@@ -300,6 +300,12 @@ resolves the generated package executable, captures an Xvfb screenshot, checks
 both brightness and pixel variation so blank white windows fail, and verifies
 Quill Chat-specific layout landmarks such as the sidebar width, header divider,
 prompt cards, and composer width.
+
+For SolderScope, `scripts/linux-solderscope-smoke-check.sh ... interaction`
+enables the opt-in AVFoundation synthetic camera by default, drives the
+microscope canvas with `xdotool` scroll/drag/double-click gestures, and verifies
+visible frame pixels. Launch and visual modes remain no-camera-tolerant so they
+can still prove chrome rendering on hosts without camera hardware.
 
 There is also an opt-in strict reference pass for the large macOS Quill Chat
 window screenshot. It resizes the Xvfb window to the same reference frame and

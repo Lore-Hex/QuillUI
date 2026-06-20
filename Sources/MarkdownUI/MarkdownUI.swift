@@ -929,7 +929,7 @@ private struct MarkdownDocumentView: View {
             ForEach(displayRows) { row in
                 tableRow(row, columnWidths: columnWidths)
                 if row.id < displayRows.count - 1 {
-                    Divider()
+                    tableDividerRule
                 }
             }
         }
@@ -937,6 +937,12 @@ private struct MarkdownDocumentView: View {
         .cornerRadius(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
+    }
+
+    private var tableDividerRule: some View {
+        Color(red: 0.82, green: 0.82, blue: 0.82)
+            .frame(height: 1)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func tableRow(_ row: MarkdownTableDisplayRow, columnWidths: [Double]) -> some View {

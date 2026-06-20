@@ -1,20 +1,135 @@
 // QuillCascadeStubs.swift — AUTO-GENERATED (cumulative).
-import Foundation
-import Photos
-import UIKit
-import SignalServiceKit
-import SignalUI
+public import Foundation
+public import Photos
+public import UIKit
+public import LibSignalClient
+public import SignalServiceKit
+public import SignalUI
 
 struct ApplePayButton { }
-struct AttachmentKeyboard { }
+class AttachmentKeyboard: UIInputView {
+    weak var delegate: AttachmentKeyboardDelegate?
+
+    init() {
+        super.init(frame: .zero, inputViewStyle: .keyboard)
+    }
+
+    init(delegate: AttachmentKeyboardDelegate?) {
+        self.delegate = delegate
+        super.init(frame: .zero, inputViewStyle: .keyboard)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+}
 protocol AttachmentKeyboardDelegate: AnyObject { }
 enum BadgeIssueSheetAction {
     case dismiss
     case openDonationView
 }
 protocol BadgeIssueSheetDelegate: AnyObject { }
-struct BadgeIssueSheetState { }
-struct CVComponentGenericAttachment { }
+struct BadgeIssueSheetState {
+    enum Mode {
+        case giftBadgeExpired(hasCurrentSubscription: Bool)
+        case giftNotRedeemed(fullName: String)
+    }
+}
+class BadgeIssueSheet: UIViewController {
+    weak var delegate: BadgeIssueSheetDelegate?
+
+    init(badge: ProfileBadge, mode: BadgeIssueSheetState.Mode) {
+        _ = (badge, mode)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+}
+class BadgeGiftingThanksSheet: UIViewController {
+    init(thread: TSContactThread, badge: ProfileBadge) {
+        _ = (thread, badge)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+}
+class BadgeGiftingAlreadyRedeemedSheet: UIViewController {
+    init(badge: ProfileBadge, shortName: String) {
+        _ = (badge, shortName)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+}
+class BadgeThanksSheet: UIViewController {
+    enum ThanksType {
+        case giftReceived(shortName: String, notNowAction: () -> Void, incomingMessage: TSIncomingMessage)
+    }
+
+    init(newBadge: ProfileBadge, thanksType: ThanksType, oldBadgesSnapshot: ProfileBadgesSnapshot) {
+        _ = (newBadge, thanksType, oldBadgesSnapshot)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+}
+enum BadgeThanksSheetPresenter {
+    static func fromGlobalsWithSneakyTransaction(successMode: DonationReceiptCredentialResultStore.Mode) -> BadgeThanksSheetPresenter? {
+        _ = successMode
+        return nil
+    }
+
+    func presentAndRecordBadgeThanks(
+        from viewController: UIViewController,
+        animateNavChanges: Bool,
+        completion: @escaping () -> Void
+    ) {
+        _ = (viewController, animateNavChanges)
+        completion()
+    }
+
+    func presentAndRecordBadgeThanks(fromViewController viewController: UIViewController) async {
+        _ = viewController
+    }
+}
+final class CVEmptyComponentView: NSObject, CVComponentView {
+    let rootView = UIView()
+    var isDedicatedCellView = false
+    func setIsCellVisible(_ isCellVisible: Bool) { _ = isCellVisible }
+    func reset() {}
+}
+class CVComponentGenericAttachment: CVComponentBase, CVComponent {
+    let genericAttachment: CVComponentState.GenericAttachment
+    var componentKey: CVComponentKey { .genericAttachment }
+
+    init(itemModel: CVItemModel, genericAttachment: CVComponentState.GenericAttachment) {
+        self.genericAttachment = genericAttachment
+        super.init(itemModel: itemModel)
+    }
+
+    func buildComponentView(componentDelegate: CVComponentDelegate) -> CVComponentView {
+        CVEmptyComponentView()
+    }
+
+    func configureForRendering(
+        componentView: CVComponentView,
+        cellMeasurement: CVCellMeasurement,
+        componentDelegate: CVComponentDelegate,
+    ) {}
+
+    func measure(maxWidth: CGFloat, measurementBuilder: CVCellMeasurement.Builder) -> CGSize {
+        _ = (maxWidth, measurementBuilder)
+        return .zero
+    }
+}
 class ChatHistoryContextMenuInteraction: ContextMenuInteraction {
     let itemViewModel: CVItemViewModelImpl
     let thread: TSThread
@@ -294,13 +409,47 @@ enum Emoji: String {
     case slightlyFrowningFace = "🙁"
     case slightlySmilingFace = "🙂"
     case smiley = "😃"
+
+    init?(_ rawValue: String) {
+        self.init(rawValue: rawValue)
+    }
 }
-struct EmojiPickerSheet { }
+class EmojiPickerSheet: UIViewController {
+    init(message: String?, allowReactionConfiguration: Bool, completion: @escaping (Emoji?) -> Void) {
+        _ = (message, allowReactionConfiguration, completion)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+}
 class GroupDescriptionPreviewView: UIView {
     var descriptionText: String?
     var groupName: String?
     var font: UIFont?
     var textColor: UIColor?
+    var textAlignment: NSTextAlignment = .natural
+    var numberOfLines: Int = 0
+
+    init(shouldDeactivateConstraints: Bool = false) {
+        _ = shouldDeactivateConstraints
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    func apply(config: CVLabelConfig) {
+        descriptionText = String(describing: config.text)
+        font = config.font
+        textColor = config.textColor
+        numberOfLines = config.numberOfLines
+        if let textAlignment = config.textAlignment {
+            self.textAlignment = textAlignment
+        }
+    }
 }
 class GroupDescriptionViewController: UIViewController { }
 protocol GroupDescriptionViewControllerDelegate: AnyObject { }
@@ -396,15 +545,73 @@ class MockConversationView: UIView {
         nil
     }
 }
-struct MockIncomingMessage { }
-struct MockOutgoingMessage { }
+nonisolated class MockGroupThread: TSGroupThread {
+    nonisolated init(groupModel: TSGroupModelV2) {
+        super.init(uniqueId: "MockGroupThread", groupModel: groupModel)
+    }
+
+    nonisolated required init(inheritableDecoder decoder: any Decoder) throws {
+        try super.init(inheritableDecoder: decoder)
+    }
+}
+
+nonisolated class MockIncomingMessage: TSIncomingMessage {
+    nonisolated init(messageBody: ValidatedInlineMessageBody, thread: TSThread, authorAci: Aci) {
+        let builder = TSIncomingMessageBuilder.withDefaultValues(
+            thread: thread,
+            authorAci: authorAci,
+            messageBody: messageBody,
+            read: true
+        )
+        super.init(incomingMessageWithBuilder: builder)
+    }
+
+    nonisolated required init?(coder: NSCoder) {
+        nil
+    }
+
+    nonisolated required init() {
+        fatalError("init() is unavailable for MockIncomingMessage.")
+    }
+}
+
+nonisolated class MockOutgoingMessage: TSOutgoingMessage {
+    nonisolated init(messageBody: ValidatedInlineMessageBody?, thread: TSThread) {
+        let builder = TSOutgoingMessageBuilder.withDefaultValues(
+            thread: thread,
+            messageBody: messageBody
+        )
+        super.init(outgoingMessageWith: builder, recipientAddressStates: [:])
+    }
+
+    nonisolated required init?(coder: NSCoder) {
+        nil
+    }
+
+    nonisolated required init() {
+        fatalError("init() is unavailable for MockOutgoingMessage.")
+    }
+}
 protocol NameCollisionResolutionDelegate: AnyObject { }
-class NameCollisionResolutionViewController: UIViewController { }
+class NameCollisionResolutionViewController: UIViewController {
+    init(collisionFinder: Any, collisionDelegate: NameCollisionResolutionDelegate) {
+        _ = (collisionFinder, collisionDelegate)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    func present(fromViewController viewController: UIViewController) {
+        viewController.present(self, animated: true)
+    }
+}
 struct OsExpiry {
     var enforcedAfter: Date
     var minimumIosMajorVersion: Int
 }
-struct PaymentsHistoryItem { }
+protocol PaymentsHistoryItem { }
 struct PaypalButton { }
 protocol PollSendDelegate: AnyObject { }
 enum SafetyTipsType {
@@ -473,6 +680,15 @@ extension ThreadContextualActionProvider {
     func toggleThreadIsArchived(_ thread: TSThread, fromViewController: UIViewController) {
         _ = thread
         _ = fromViewController
+    }
+
+    func deleteThreadWithConfirmation(threadViewModel: ThreadViewModel, completion: (() -> Void)? = nil) {
+        _ = threadViewModel
+        completion?()
+    }
+
+    func toggleThreadIsArchived(threadViewModel: ThreadViewModel) {
+        _ = threadViewModel
     }
 }
 struct UpgradableDevice {

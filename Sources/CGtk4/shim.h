@@ -9,6 +9,23 @@ static inline void quill_signal_emit_clicked(gpointer instance) {
     g_signal_emit_by_name(instance, "clicked");
 }
 
+// Non-variadic typed wrapper around g_signal_connect_data. Importing both the
+// SwiftOpenUI CGTK module and this filtered CGtk4 module can leave Swift with
+// ambiguous overload context for the raw GLib function; this keeps call sites on
+// one unambiguous C symbol.
+static inline gulong quill_signal_connect_data(gpointer instance,
+                                               const char *detailed_signal,
+                                               GCallback c_handler,
+                                               gpointer data,
+                                               GClosureNotify destroy_data) {
+    return g_signal_connect_data(instance,
+                                 detailed_signal,
+                                 c_handler,
+                                 data,
+                                 destroy_data,
+                                 (GConnectFlags)0);
+}
+
 // GtkEditable is a GObject interface; Swift's typed-pointer handling
 // can't bind to interface types directly. These helpers accept a
 // gpointer to any GtkEditable-conforming widget (GtkEntry, GtkText,
@@ -18,6 +35,18 @@ static inline const char *quill_editable_get_text(gpointer instance) {
 }
 static inline void quill_editable_set_text(gpointer instance, const char *text) {
     gtk_editable_set_text(GTK_EDITABLE(instance), text);
+}
+static inline void quill_entry_set_placeholder_text(gpointer instance, const char *text) {
+    gtk_entry_set_placeholder_text(GTK_ENTRY(instance), text);
+}
+
+// GtkLabel helpers, again through gpointer because not all Swift GTK imports
+// expose the opaque GtkLabel name.
+static inline void quill_label_set_wrap(gpointer label, int wrap) {
+    gtk_label_set_wrap(GTK_LABEL(label), (gboolean)wrap);
+}
+static inline void quill_label_set_xalign(gpointer label, float xalign) {
+    gtk_label_set_xalign(GTK_LABEL(label), xalign);
 }
 
 // GtkScrolledWindow's set_child takes a typed GtkScrolledWindow* but
@@ -45,6 +74,51 @@ static inline int quill_widget_child_count(gpointer parent) {
 // children after the parent has already been presented.
 static inline void quill_widget_queue_resize(gpointer w) {
     gtk_widget_queue_resize(GTK_WIDGET(w));
+}
+
+// Cursor helper: Swift can pass the CSS/GDK cursor name chosen by the AppKit
+// backend without importing GdkCursor's ownership details at the call site.
+static inline void quill_widget_set_cursor_name(gpointer widget, const char *name) {
+    GdkCursor *cursor = NULL;
+    if (name && name[0]) {
+        cursor = gdk_cursor_new_from_name(name, NULL);
+    }
+    gtk_widget_set_cursor(GTK_WIDGET(widget), cursor);
+    if (cursor) {
+        g_object_unref(cursor);
+    }
+}
+
+static inline void quill_widget_clear_cursor(gpointer widget) {
+    gtk_widget_set_cursor(GTK_WIDGET(widget), NULL);
+}
+
+// Window helpers for runtime shims that build lightweight modal surfaces.
+static inline void quill_window_set_modal(gpointer window, int modal) {
+    gtk_window_set_modal(GTK_WINDOW(window), (gboolean)modal);
+}
+static inline void quill_window_set_transient_for(gpointer window, gpointer parent) {
+    gtk_window_set_transient_for(GTK_WINDOW(window), GTK_WINDOW(parent));
+}
+static inline void quill_window_set_child(gpointer window, gpointer child) {
+    gtk_window_set_child(GTK_WINDOW(window), GTK_WIDGET(child));
+}
+static inline void quill_window_destroy(gpointer window) {
+    gtk_window_destroy(GTK_WINDOW(window));
+}
+
+// GMainLoop helpers exposed as gpointer to keep Swift call sites simple.
+static inline gpointer quill_main_loop_new(void) {
+    return g_main_loop_new(NULL, FALSE);
+}
+static inline void quill_main_loop_run(gpointer loop) {
+    g_main_loop_run((GMainLoop *)loop);
+}
+static inline void quill_main_loop_quit(gpointer loop) {
+    g_main_loop_quit((GMainLoop *)loop);
+}
+static inline void quill_main_loop_unref(gpointer loop) {
+    g_main_loop_unref((GMainLoop *)loop);
 }
 
 // Same gpointer pattern for GtkProgressBar.

@@ -1,8 +1,8 @@
 # Hand-off: compile Signal's app target (real ConversationViewController) on Linux
 
-**Branch:** `signal/app-target` (in this repo, `/Users/jperla/claude/quillui-signal`).
-**Last commit:** `1601a378` (pushed to origin).
-**Status:** SignalApp target compiles as a module with **~650 unique error locations, down from 1745 (63%)**. SignalUI stays at **0 errors** throughout. Conversation core (`ConversationView/`) is ~336 of the remaining errors.
+**Branch:** `main` (in this repo, `/Users/jperla/claude/quillui-signal`).
+**Last checked:** 2026-06-17.
+**Status:** `SignalApp` now compiles cleanly as a Linux module when measured with the product build cache (`quillui-signal-product-clean`). SignalUI remains reachable through the renderer build. The old `~650 unique error locations` note is stale; the next blocker is product-safe runtime bootstrap for a real `ConversationViewController` plus visual/interaction parity, not app-target typechecking.
 
 ## Goal
 Get Signal-iOS's main **app** target (`.upstream/signal-ios/Signal/`) compiling on Linux so the REAL `ConversationViewController` + `CVComponent` message-cell pipeline can later render through the UIKit→GTK renderer (`signal-ui-render`). The app target was NOT in the SwiftPM build at all before this campaign; only `SignalUI` + `SignalServiceKit` were reachable. This is a multi-session effort comparable to the original SignalUI sig6–sig9 campaign.
@@ -13,7 +13,7 @@ Get Signal-iOS's main **app** target (`.upstream/signal-ios/Signal/`) compiling 
 
 ```bash
 cd /Users/jperla/claude/quillui-signal
-docker run --rm -v /Users/jperla/claude/quillui-signal:/qui -v quillui-signal-build:/qui/.build \
+docker run --rm -v /Users/jperla/claude/quillui-signal:/qui -v quillui-signal-product-clean:/qui/.build \
   quillui-signal-build bash -c 'cd /qui && QUILLUI_LINUX_BACKEND=gtk swift build \
   --disable-index-store --target SignalApp 2>&1' > /tmp/signalapp-build.log 2>&1
 
@@ -23,10 +23,18 @@ grep -oE "/qui/[^ ]+\.swift:[0-9]+:[0-9]+: error:" /tmp/signalapp-build.log | so
 # Category histogram:
 grep -oE ": error: .*" /tmp/signalapp-build.log | sed -E "s/'[^']*'/'X'/g; s/[0-9]+/N/g" | sort | uniq -c | sort -rn | head -15
 ```
+Prefer the wrapper script for repeatable measurement:
+
+```bash
+scripts/quill-signal-measure-app.sh
+```
+
+If a stale build volume fails before Signal sources with `missing required module 'COpenCombineHelpers'`, retry with `QUILL_SIGNAL_BUILD_VOLUME=quillui-signal-product-clean` or rebuild that stale volume.
+
 Always verify SignalUI is still 0 after any change to `Sources/` or `.upstream/signal-ios/SignalUI|SignalServiceKit`:
 `... swift build --disable-index-store --target SignalUI ...` → unique errors must be 0.
 
-A second `-v quillui-signal-build:/qui/.build` named volume caches the build; SignalUI/SSK are already built, so SignalApp-only changes rebuild fast (~25s). Changes to `Sources/QuillUIKit`/`UIKitShim`/`Lottie` trigger a full SignalUI rebuild (minutes).
+The `quillui-signal-product-clean` named volume caches the current renderer/app graph; SignalUI/SSK are already built, so SignalApp-only checks rebuild fast (~10-30s). Changes to `Sources/QuillUIKit`/`UIKitShim`/`Lottie` trigger a broader rebuild (minutes).
 
 ---
 
@@ -85,10 +93,13 @@ open('Sources/SignalAppPort/QuillCascadeStubs.swift','w').write('\n'.join(out)+'
 
 ---
 
-## Remaining ~650 — roadmap (priority order)
+## Remaining roadmap (priority order)
+
+### 0. Bootstrap the real CVC at runtime
+`SignalApp` typechecks, but `ConversationViewController.load(...)` still needs a product-safe `SSKEnvironment`/`DependenciesBridge`/database bootstrap. Do not flip `TESTABLE_BUILD` globally just to use `MockSSKEnvironment`; prefer a renderer-safe bootstrap that uses `SDSDatabaseStorage` + `AppSetup.TestDependencies`, or inject a tiny same-file preview factory only after the environment path is explicit.
 
 ### 1. (HIGHEST ROI) Un-prune the real DI layer instead of stubbing it
-The has-no-member raw counts are INFLATED (same few members ×many usages). The unique work is small. The crux types feed REAL logic, so empty stubs cascade. Un-prune their real definitions (deps are SSK = reachable):
+This was the old app-typechecking roadmap and is mostly complete, but it remains useful if new upstream files are un-pruned and errors reappear. The has-no-member raw counts are inflated (same few members ×many usages). The unique work is small. The crux types feed REAL logic, so empty stubs cascade. Un-prune their real definitions (deps are SSK = reachable):
 - **`ViewControllerContext`** — used only ~9 ways: `.shared`, `.db`, `.editManager`, `: ViewControllerContext`. It's referenced from SignalUI too (`ModalActivityIndicatorViewController.swift`). Find its real defining file (pruned — grep a pristine `.upstream` fetch BEFORE prep prunes it) and un-prune, OR write a properly-typed stub: `static let shared`, `db` (SSK `SDSDatabaseStorage`/`DB`), `editManager`.
 - Same approach for `ConversationInputTextView` (2 refs), `ContactShareViewHelper`.
 

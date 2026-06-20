@@ -254,6 +254,21 @@ public extension RSImage {
     /// TIFF input, so callers should rely on "valid TIFF bytes out" rather than
     /// byte-for-byte equality across platforms.
     var tiffRepresentation: Data? {
+        if let cgImage,
+           let pixels = cgImage.quillBGRAPixels,
+           cgImage.width > 0,
+           cgImage.height > 0,
+           cgImage.quillBytesPerRow >= cgImage.width * 4,
+           let tiff = quillEncodeBGRAPixelsToImageData(
+            pixels,
+            width: cgImage.width,
+            height: cgImage.height,
+            bytesPerRow: cgImage.quillBytesPerRow,
+            format: .tiff
+           ) {
+            return tiff
+        }
+
         guard let data else { return nil }
         switch QuillImageFormatDetector.detect(data) {
         case .tiff:
@@ -355,16 +370,16 @@ public enum QuillImageFormatDetector {
 }
 
 public extension Image {
-    func render() -> PlatformImage? {
+    func render() -> QuillPlatformImage? {
         if case .filePath(let path) = source,
            let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
            !data.isEmpty {
-            return PlatformImage(data: data)
+            return QuillPlatformImage(data: data)
         }
 
         let renderer = SwiftOpenUI.OpenUIImageRenderer(content: self)
         if let data = renderer.platformImage?.data,
-           let image = PlatformImage(data: data) {
+           let image = QuillPlatformImage(data: data) {
             return image
         }
 
@@ -382,10 +397,10 @@ public struct PlainListStyle: Sendable {
     public init() {}
 }
 
-// `ButtonRole` and the role-taking Button inits moved to
-// QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that
-// only `import SwiftUI`s sees them (SolderScope's alert buttons); QuillUI
-// re-exports that module.
+// `ButtonRole` and the core role-taking Button inits live in SwiftOpenUI so
+// renderers and compatibility walkers can preserve semantic metadata. Extra
+// LocalizedStringKey convenience overloads live in QuillSwiftUICompatibility,
+// which QuillUI re-exports.
 
 public extension TextField {
     init(_ title: String, text: Binding<String>, axis: Axis) {

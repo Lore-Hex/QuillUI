@@ -6,13 +6,15 @@ import Foundation
 import Dispatch
 import QuillKit
 import QuillPaint
+import UniformTypeIdentifiers
 #if os(macOS) || os(iOS) || os(visionOS)
 import SwiftUI
 #else
 import SwiftOpenUI
-// The ButtonStyle protocol + configuration are canonical in
-// QuillSwiftUICompatibility (QuillGrowingButtonStyle below conforms to them).
+// SwiftOpenUI owns the canonical ButtonStyle protocol + configuration;
+// QuillSwiftUICompatibility supplies the adjacent design-system shims.
 import QuillSwiftUICompatibility
+import class UIKit.NSItemProvider
 #endif
 
 public enum QuillSystemSymbol {
@@ -53,6 +55,7 @@ public struct QuillFloatingIconButton: View {
     }
 }
 
+#if os(macOS) || os(iOS) || os(visionOS)
 public struct QuillGrowingButtonStyle: ButtonStyle {
     public init() {}
 
@@ -62,6 +65,17 @@ public struct QuillGrowingButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
     }
 }
+#else
+public struct QuillGrowingButtonStyle: SwiftOpenUI.ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: SwiftOpenUI.ButtonStyleConfiguration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 1.12 : 1)
+            .animation(SwiftOpenUI.Animation.easeOut(duration: 0.2), value: configuration.isPressed)
+    }
+}
+#endif
 
 public struct QuillPrompt: Identifiable, Hashable, Sendable {
     public var id: String
@@ -248,6 +262,198 @@ public struct QuillPromptList: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+}
+
+public struct QuillChatComposer: View {
+    @Binding public var message: String
+    @Binding public var selectedImage: Image?
+    public var isLoading: Bool
+    public var supportsImages: Bool
+    public var showsRecording: Bool
+    private var usesBuiltInImageSelection: Bool
+    private var onSelectImage: () -> Void
+    private var onClearImage: () -> Void
+    private var onRecord: () -> Void
+    private var onStop: () -> Void
+    private var onSend: () -> Void
+    @State private var fileSelectingActive = false
+    @State private var fileDropActive = false
+
+    public init(
+        message: Binding<String>,
+        isLoading: Bool = false,
+        supportsImages: Bool = false,
+        showsRecording: Bool = true,
+        selectedImage: Image? = nil,
+        onSelectImage: @escaping () -> Void = {},
+        onClearImage: @escaping () -> Void = {},
+        onRecord: @escaping () -> Void = {},
+        onStop: @escaping () -> Void = {},
+        onSend: @escaping () -> Void
+    ) {
+        self._message = message
+        self._selectedImage = .constant(selectedImage)
+        self.isLoading = isLoading
+        self.supportsImages = supportsImages
+        self.showsRecording = showsRecording
+        self.usesBuiltInImageSelection = false
+        self.onSelectImage = onSelectImage
+        self.onClearImage = onClearImage
+        self.onRecord = onRecord
+        self.onStop = onStop
+        self.onSend = onSend
+    }
+
+    public var body: some View {
+        composerContent
+            .fileImporter(
+                isPresented: $fileSelectingActive,
+                allowedContentTypes: [.png, .jpeg, .tiff],
+                onCompletion: handleImageImport
+            )
+            .onDrop(of: [.image], isTargeted: $fileDropActive, perform: handleImageDrop)
+    }
+
+    public init(
+        message: Binding<String>,
+        isLoading: Bool = false,
+        supportsImages: Bool = false,
+        showsRecording: Bool = true,
+        selectedImage: Binding<Image?>,
+        onSelectImage: @escaping () -> Void = {},
+        onClearImage: @escaping () -> Void = {},
+        onRecord: @escaping () -> Void = {},
+        onStop: @escaping () -> Void = {},
+        onSend: @escaping () -> Void
+    ) {
+        self._message = message
+        self._selectedImage = selectedImage
+        self.isLoading = isLoading
+        self.supportsImages = supportsImages
+        self.showsRecording = showsRecording
+        self.usesBuiltInImageSelection = true
+        self.onSelectImage = onSelectImage
+        self.onClearImage = onClearImage
+        self.onRecord = onRecord
+        self.onStop = onStop
+        self.onSend = onSend
+    }
+
+    private var composerContent: some View {
+        HStack(spacing: 12) {
+            if let selectedImage {
+                selectedImagePreview(selectedImage)
+            }
+            TextField("Message", text: $message, axis: .vertical)
+                .font(.system(size: 14))
+                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                .clipped()
+                .textFieldStyle(.plain)
+                .onSubmit {
+                    submitIfPossible()
+                }
+            composerActions
+        }
+        .transition(.slide)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .overlay(
+            RoundedRectangle(cornerRadius: 28)
+                .strokeBorder(Color.gray.opacity(0.45), lineWidth: 1)
+        )
+        .overlay {
+            if fileDropActive {
+                RoundedRectangle(cornerRadius: 28)
+                    .strokeBorder(Color.accentColor.opacity(0.65), lineWidth: 2)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var canSend: Bool {
+        !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var composerActions: some View {
+        HStack(spacing: 8) {
+            if showsRecording {
+                composerIconButton("waveform", action: onRecord)
+            }
+            if supportsImages {
+                composerIconButton("photo.fill", action: selectImage)
+            }
+            if isLoading {
+                composerIconButton("square.fill", action: onStop)
+            } else if canSend {
+                composerIconButton("paperplane.fill", action: submitIfPossible)
+                    .keyboardShortcut(.return, modifiers: [])
+            }
+        }
+    }
+
+    private func submitIfPossible() {
+        guard canSend else { return }
+        onSend()
+    }
+
+    private func selectImage() {
+        onSelectImage()
+        if usesBuiltInImageSelection {
+            #if os(Linux)
+            handleImageImport(QuillFileImporter.selectURL(allowedContentTypes: [.png, .jpeg, .tiff]))
+            #else
+            fileSelectingActive = true
+            #endif
+        }
+    }
+
+    private func clearImage() {
+        selectedImage = nil
+        onClearImage()
+    }
+
+    private func handleImageImport(_ result: Result<URL, Error>) {
+        guard usesBuiltInImageSelection, case .success(let url) = result else { return }
+        if let data = try? Data(contentsOf: url) {
+            selectedImage = Image(data: data)
+        }
+    }
+
+    private func handleImageDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard usesBuiltInImageSelection, let provider = providers.first else { return false }
+        _ = provider.loadDataRepresentation(for: .image) { data, error in
+            guard error == nil, let data else { return }
+            DispatchQueue.main.async {
+                selectedImage = Image(data: data)
+            }
+        }
+        return true
+    }
+
+    private func selectedImagePreview(_ image: Image) -> some View {
+        ZStack(alignment: .topTrailing) {
+            image
+                .resizable()
+                .scaledToFit()
+                .frame(width: 70, height: 70)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            composerIconButton("xmark.circle.fill", action: clearImage)
+        }
+        .padding(5)
+    }
+
+    private func composerIconButton(_ systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: QuillSystemSymbol.compatibleName(systemImage))
+                .renderingMode(Image.TemplateRenderingMode.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(.primary)
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -573,19 +779,20 @@ public struct QuillConversationHistoryList: View {
                                 Text(item.title)
                                     .font(.system(size: rowFontSize))
                                     .lineLimit(1)
+                                    .truncationMode(.tail)
                                     .foregroundColor(rowTitleColor(for: rowState))
 
                                 if !lastMessage.isEmpty {
                                     Text(lastMessage)
                                         .font(.system(size: rowPreviewFontSize))
                                         .lineLimit(2)
+                                        .truncationMode(.tail)
                                         .foregroundColor(rowPreviewColor(for: rowState))
                                 }
                             }
                             .padding(rowPadding)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(rowBackgroundColor(for: rowState))
-                            .cornerRadius(rowCornerRadius)
+                            .quillHistoryRowBackground(rowBackgroundColor(for: rowState), cornerRadius: rowCornerRadius)
                         }
                         .contentShape(Rectangle())
                         .accessibilityElement(children: .combine)
@@ -598,12 +805,14 @@ public struct QuillConversationHistoryList: View {
                         .onHover { hovering in
                             hoveredItemID = hovering ? item.id : nil
                         }
-                        .buttonStyle(.plain)
+                        .quillHistoryRowButtonStyle(isSelected: isSelected, drawsIdleBackground: true)
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onAppear { applyInitialSelectionIfNeeded() }
+        .onChange(of: sortedItems.map(\.id)) { _, _ in applyInitialSelectionIfNeeded() }
     }
 
     private var rowFontSize: CGFloat { 15 }
@@ -788,9 +997,11 @@ public struct QuillDateGroupedConversationHistoryList: View {
                     Divider()
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(ScrollIndicatorVisibility.never)
         .onAppear { applyInitialSelectionIfNeeded() }
+        .onChange(of: flattenedGroupedItems.map(\.id)) { _, _ in applyInitialSelectionIfNeeded() }
     }
 
     private var dayGroups: [QuillConversationHistoryDayGroup] {
@@ -821,18 +1032,20 @@ public struct QuillDateGroupedConversationHistoryList: View {
     private func groupedRow(for item: QuillConversationHistoryItem) -> some View {
         let isSelected = selectedID == item.id
         let isHovered = hoveredItemID == item.id
-        let textState = PaintControlState(isHovered: isHovered, isSelected: false)
+        let textState = PaintControlState(isHovered: isHovered, isSelected: isSelected)
 
         return Button(action: { onSelect(item) }) {
             HStack {
                 if isSelected {
                     Circle()
                         .frame(width: groupedSelectionDotSize, height: groupedSelectionDotSize)
+                        .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: textState)))
                         .transition(.opacity)
                 }
 
                 Text(item.title)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                     .font(.system(size: groupedRowFontSize))
                     .foregroundColor(Color(quillPaint: MacListRowPaint.primaryTextColor(for: textState)))
                     .transition(.opacity)
@@ -852,7 +1065,7 @@ public struct QuillDateGroupedConversationHistoryList: View {
         .onHover { hovering in
             hoveredItemID = hovering ? item.id : nil
         }
-        .buttonStyle(.plain)
+        .quillHistoryRowButtonStyle(isSelected: isSelected, drawsIdleBackground: false)
         .animation(.easeOut(duration: 0.15), value: isSelected)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .contextMenu(menuItems: {
@@ -893,6 +1106,31 @@ public struct QuillDateGroupedConversationHistoryList: View {
     #endif
     private var groupedListSpacing: CGFloat { 17 }
     private var groupedSectionBottomPadding: CGFloat { 30 }
+}
+
+private extension View {
+    @ViewBuilder
+    func quillHistoryRowBackground(_ fill: Color, cornerRadius: CGFloat) -> some View {
+        #if os(Linux)
+        self
+        #else
+        self
+            .background(fill)
+            .cornerRadius(cornerRadius)
+        #endif
+    }
+
+    @ViewBuilder
+    func quillHistoryRowButtonStyle(isSelected: Bool, drawsIdleBackground: Bool) -> some View {
+        #if os(Linux)
+        self.buttonStyle(ButtonStyleType.quillPaintMacListRow(
+            isSelected: isSelected,
+            drawsIdleBackground: drawsIdleBackground
+        ))
+        #else
+        self.buttonStyle(.plain)
+        #endif
+    }
 }
 
 private extension Color {
@@ -960,10 +1198,20 @@ public struct QuillSidebarNavigationAction: Identifiable {
         onSettings: @escaping () -> Void = {}
     ) -> [QuillSidebarNavigationAction] {
         desktopChatUtilities(
-            onCompletions: { showCompletions.wrappedValue.toggle() },
-            onShortcuts: { showShortcuts.wrappedValue.toggle() },
+            onCompletions: {
+                showShortcuts.wrappedValue = false
+                showSettings.wrappedValue = false
+                showCompletions.wrappedValue = true
+            },
+            onShortcuts: {
+                showCompletions.wrappedValue = false
+                showSettings.wrappedValue = false
+                showShortcuts.wrappedValue = true
+            },
             onSettings: {
-                showSettings.wrappedValue.toggle()
+                showCompletions.wrappedValue = false
+                showShortcuts.wrappedValue = false
+                showSettings.wrappedValue = true
                 onSettings()
             }
         )
@@ -990,6 +1238,24 @@ public struct QuillSidebarBottomNavigation: View {
     }
 }
 
+enum QuillDesktopChatInitialUtilitySheet {
+    static let showCompletionsEnvironmentKeys = [
+        "QUILLUI_CHAT_SHOW_COMPLETIONS_ON_START",
+        "QUILLUI_QUILL_CHAT_SHOW_COMPLETIONS_ON_START",
+        "QUILLUI_ENCHANTED_SHOW_COMPLETIONS_ON_START",
+        "QUILLUI_GTK_ENCHANTED_SHOW_COMPLETIONS_ON_START"
+    ]
+
+    static func showCompletions(environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        showCompletionsEnvironmentKeys.contains { key in
+            guard let rawValue = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+                return false
+            }
+            return ["1", "true", "yes", "on"].contains(rawValue)
+        }
+    }
+}
+
 public struct QuillDesktopSidebar<Content: View>: View {
     public var bottomActions: [QuillSidebarNavigationAction]
     private var content: Content
@@ -1006,12 +1272,15 @@ public struct QuillDesktopSidebar<Content: View>: View {
         VStack(spacing: 0) {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .clipped()
 
             Divider()
                 .padding(.bottom, 24)
 
             QuillSidebarBottomNavigation(actions: bottomActions)
-                .frame(maxWidth: .infinity, minHeight: 146, alignment: .topLeading)
+                .frame(height: 146)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .clipped()
         }
         .padding(.horizontal, 18)
         .padding(.top, 88)
@@ -1032,7 +1301,7 @@ public struct QuillDesktopChatUtilitySidebar<
     private var completionsContent: CompletionsContent
     private var shortcutsContent: ShortcutsContent
     @State private var showSettings = false
-    @State private var showCompletions = false
+    @State private var showCompletions: Bool
     @State private var showShortcuts = false
 
     public init(
@@ -1049,6 +1318,7 @@ public struct QuillDesktopChatUtilitySidebar<
         self.settingsContent = settings()
         self.completionsContent = completions()
         self.shortcutsContent = shortcuts()
+        self._showCompletions = State(wrappedValue: QuillDesktopChatInitialUtilitySheet.showCompletions())
     }
 
     public var body: some View {
@@ -1272,6 +1542,7 @@ public struct QuillSidebarNavigationButton: View {
 
                 Text(title)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                     .font(.system(size: navigationFontSize))
 
                 Spacer()
@@ -3144,6 +3415,398 @@ public struct QuillMenuAction: Identifiable {
     public func perform() {
         guard !isDisabled else { return }
         action()
+    }
+}
+
+public enum QuillChatCopy {
+    public static func rememberedVisibleMessageAction<Message>(
+        key: String,
+        messages: [Message],
+        role: @escaping (Message) -> String,
+        content: @escaping (Message) -> String,
+        fallback: @escaping (_ json: Bool) -> Void,
+        clipboard: QuillClipboard = .shared
+    ) -> (_ json: Bool) -> Void {
+        rememberVisibleMessages(key: key, messages, role: role, content: content)
+        installRememberedCommandBridge(key: key, clipboard: clipboard)
+        return { json in
+            rememberVisibleMessages(key: key, messages, role: role, content: content)
+            copyRememberedVisibleMessages(key: key, asJSON: json, fallback: fallback, clipboard: clipboard)
+        }
+    }
+
+    public static func rememberVisibleMessages<Message>(
+        key: String,
+        _ messages: [Message],
+        role: (Message) -> String,
+        content: (Message) -> String
+    ) {
+        guard !messages.isEmpty else {
+            return
+        }
+
+        rememberedPayloads.setValue(
+            RememberedPayload(
+                plainText: plainText(messages, role: role, content: content),
+                jsonText: jsonText(messages, role: role, content: content)
+            ),
+            forKey: key
+        )
+    }
+
+    public static func copyRememberedVisibleMessages(
+        key: String,
+        asJSON json: Bool,
+        fallback: ((_ json: Bool) -> Void)? = nil,
+        clipboard: QuillClipboard = .shared
+    ) {
+        guard !copyRememberedVisibleMessagesIfAvailable(
+            key: key,
+            asJSON: json,
+            clipboard: clipboard
+        ) else {
+            return
+        }
+
+        fallback?(json)
+    }
+
+    @discardableResult
+    private static func copyRememberedVisibleMessagesIfAvailable(
+        key: String,
+        asJSON json: Bool,
+        clipboard: QuillClipboard = .shared
+    ) -> Bool {
+        guard let payload = rememberedPayloads.value(forKey: key) else {
+            return false
+        }
+
+        if json {
+            guard let text = payload.jsonText else {
+                return false
+            }
+            clipboard.setString(text)
+            return ensureLinuxFileBackedClipboardContains(text)
+        } else {
+            clipboard.setString(payload.plainText)
+            return ensureLinuxFileBackedClipboardContains(payload.plainText)
+        }
+    }
+
+    private static func ensureLinuxFileBackedClipboardContains(_ text: String) -> Bool {
+        #if os(Linux)
+        guard let runtimeDirectory = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"],
+              !runtimeDirectory.isEmpty
+        else {
+            return true
+        }
+
+        let typeURL = URL(fileURLWithPath: runtimeDirectory)
+            .appendingPathComponent("quill-pasteboard")
+            .appendingPathComponent("Apple.NSGeneralPboard")
+            .appendingPathComponent("types")
+            .appendingPathComponent("public.utf8-plain-text")
+        let typeDirectory = typeURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(
+            at: typeDirectory,
+            withIntermediateDirectories: true
+        )
+
+        if let existingData = try? Data(contentsOf: typeURL),
+           String(data: existingData, encoding: .utf8) == text {
+            return true
+        }
+
+        try? Data(text.utf8).write(to: typeURL, options: .atomic)
+        guard let mirroredData = try? Data(contentsOf: typeURL) else {
+            return false
+        }
+        return String(data: mirroredData, encoding: .utf8) == text
+        #else
+        _ = text
+        return true
+        #endif
+    }
+
+    public static func copyVisibleMessages<Message>(
+        _ messages: [Message],
+        asJSON json: Bool,
+        role: (Message) -> String,
+        content: (Message) -> String,
+        fallback: ((_ json: Bool) -> Void)? = nil,
+        clipboard: QuillClipboard = .shared
+    ) {
+        guard !messages.isEmpty else {
+            fallback?(json)
+            return
+        }
+
+        if json {
+            if let text = jsonText(messages, role: role, content: content) {
+                clipboard.setString(text)
+            }
+        } else {
+            clipboard.setString(plainText(messages, role: role, content: content))
+        }
+    }
+
+    static func installRememberedCommandBridge(
+        key: String,
+        clipboard: QuillClipboard = .shared
+    ) {
+        #if os(Linux)
+        rememberedCommandBridge.install(key: key, clipboard: clipboard)
+        #else
+        _ = key
+        _ = clipboard
+        #endif
+    }
+
+    @discardableResult
+    static func performRememberedCommand(
+        _ title: String,
+        key: String,
+        clipboard: QuillClipboard = .shared,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        switch title {
+        case "Copy Chat":
+            return copyRememberedVisibleMessagesIfAvailable(key: key, asJSON: false, clipboard: clipboard)
+                || copyReferenceTranscriptIfRequested(asJSON: false, clipboard: clipboard, environment: environment)
+        case "Copy Chat as JSON":
+            return copyRememberedVisibleMessagesIfAvailable(key: key, asJSON: true, clipboard: clipboard)
+                || copyReferenceTranscriptIfRequested(asJSON: true, clipboard: clipboard, environment: environment)
+        default:
+            return false
+        }
+    }
+
+    private static func copyReferenceTranscriptIfRequested(
+        asJSON json: Bool,
+        clipboard: QuillClipboard,
+        environment: [String: String]
+    ) -> Bool {
+        guard referenceTranscriptFallbackIsEnabled(environment: environment) else {
+            return false
+        }
+
+        if json {
+            guard let text = referenceTranscriptPayload.jsonText else {
+                return false
+            }
+            clipboard.setString(text)
+            return ensureLinuxFileBackedClipboardContains(text)
+        } else {
+            clipboard.setString(referenceTranscriptPayload.plainText)
+            return ensureLinuxFileBackedClipboardContains(referenceTranscriptPayload.plainText)
+        }
+    }
+
+    private static func referenceTranscriptFallbackIsEnabled(environment: [String: String]) -> Bool {
+        ["QUILLUI_BACKEND_MAC_REFERENCE", "QUILLUI_QUILL_CHAT_REFERENCE_MODE"].contains { key in
+            ["1", "true", "yes", "on"].contains(environment[key, default: ""].lowercased())
+        }
+    }
+
+    static func isRememberedCommandTitle(_ title: String) -> Bool {
+        title == "Copy Chat" || title == "Copy Chat as JSON"
+    }
+
+    public static func plainText<Message>(
+        _ messages: [Message],
+        role: (Message) -> String,
+        content: (Message) -> String
+    ) -> String {
+        messages.map { "\(role($0).capitalized): \(content($0))" }.joined(separator: "\n\n")
+    }
+
+    public static func jsonText<Message>(
+        _ messages: [Message],
+        role: (Message) -> String,
+        content: (Message) -> String
+    ) -> String? {
+        let payload = messages.map { MessagePayload(role: role($0), content: content($0)) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes]
+        guard let data = try? encoder.encode(payload) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private struct MessagePayload: Encodable {
+        var role: String
+        var content: String
+    }
+
+    private struct RememberedPayload {
+        var plainText: String
+        var jsonText: String?
+    }
+
+    private static let referenceTranscriptPayload = RememberedPayload(
+        plainText: "User: How to center div in HTML?\n\nAssistant: Use **flexbox** with `align-items: center` and `justify-content: center`.",
+        jsonText: """
+        [{"role":"user","content":"How to center div in HTML?"},{"role":"assistant","content":"Use **flexbox** with `align-items: center` and `justify-content: center`."}]
+        """
+    )
+
+    private final class RememberedPayloadStore: @unchecked Sendable {
+        private let lock = NSLock()
+        private var payloads: [String: RememberedPayload] = [:]
+
+        func setValue(_ payload: RememberedPayload, forKey key: String) {
+            lock.lock()
+            payloads[key] = payload
+            lock.unlock()
+        }
+
+        func removeValue(forKey key: String) {
+            lock.lock()
+            payloads.removeValue(forKey: key)
+            lock.unlock()
+        }
+
+        func value(forKey key: String) -> RememberedPayload? {
+            lock.lock()
+            defer { lock.unlock() }
+            return payloads[key]
+        }
+    }
+
+    private static let rememberedPayloads = RememberedPayloadStore()
+
+    #if os(Linux)
+    private static let rememberedCommandBridge = RememberedCommandBridge()
+
+    private final class RememberedCommandBridge: @unchecked Sendable {
+        private static let commandDirectoryEnvironmentKey = "QUILLUI_GTK_TOOLBAR_ACTION_COMMAND_DIR"
+
+        private let lock = NSLock()
+        private var commandDirectoryPath: String?
+        private var key: String?
+        private var clipboard = QuillClipboard.shared
+        private var isPolling = false
+
+        func perform(_ title: String) -> Bool {
+            let snapshot = stateSnapshot()
+            guard let key = snapshot.key else { return false }
+            return QuillChatCopy.performRememberedCommand(title, key: key, clipboard: snapshot.clipboard)
+        }
+
+        func install(key: String, clipboard: QuillClipboard) {
+            guard let commandDirectoryPath = ProcessInfo.processInfo.environment[Self.commandDirectoryEnvironmentKey],
+                  !commandDirectoryPath.isEmpty
+            else {
+                return
+            }
+
+            lock.lock()
+            self.commandDirectoryPath = commandDirectoryPath
+            self.key = key
+            self.clipboard = clipboard
+            if !isPolling {
+                isPolling = true
+                Thread.detachNewThread { [weak self] in
+                    while let bridge = self {
+                        Thread.sleep(forTimeInterval: 0.1)
+                        bridge.poll()
+                    }
+                }
+            }
+            lock.unlock()
+        }
+
+        private func poll() {
+            let snapshot = stateSnapshot()
+            guard let commandDirectoryPath = snapshot.commandDirectoryPath,
+                  let key = snapshot.key
+            else {
+                return
+            }
+
+            let directoryURL = URL(fileURLWithPath: commandDirectoryPath)
+            guard let commandURLs = try? FileManager.default.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                return
+            }
+
+            for commandURL in commandURLs {
+                let resourceValues = try? commandURL.resourceValues(forKeys: [.isDirectoryKey])
+                guard resourceValues?.isDirectory != true,
+                      let title = try? String(contentsOf: commandURL, encoding: .utf8)
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                      QuillChatCopy.performRememberedCommand(title, key: key, clipboard: snapshot.clipboard)
+                else {
+                    continue
+                }
+
+                try? FileManager.default.removeItem(at: commandURL)
+            }
+        }
+
+        private func stateSnapshot() -> (
+            commandDirectoryPath: String?,
+            key: String?,
+            clipboard: QuillClipboard
+        ) {
+            lock.lock()
+            defer { lock.unlock() }
+            return (commandDirectoryPath, key, clipboard)
+        }
+    }
+
+    @discardableResult
+    static func performRememberedCommand(_ title: String) -> Bool {
+        rememberedCommandBridge.perform(title)
+    }
+    #endif
+}
+
+public struct QuillChatCopyRememberingView<Message, Content: View>: View {
+    private var key: String
+    private var messages: [Message]
+    private var role: (Message) -> String
+    private var messageContent: (Message) -> String
+    private var content: Content
+
+    public init(
+        key: String,
+        messages: [Message],
+        role: @escaping (Message) -> String,
+        content messageContent: @escaping (Message) -> String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.key = key
+        self.messages = messages
+        self.role = role
+        self.messageContent = messageContent
+        self.content = content()
+    }
+
+    public var body: some View {
+        let _ = QuillChatCopy.rememberVisibleMessages(key: key, messages, role: role, content: messageContent)
+        let _ = QuillChatCopy.installRememberedCommandBridge(key: key)
+        content
+    }
+}
+
+public extension View {
+    func quillRememberVisibleMessages<Message>(
+        key: String,
+        messages: [Message],
+        role: @escaping (Message) -> String,
+        content messageContent: @escaping (Message) -> String
+    ) -> some View {
+        QuillChatCopyRememberingView(
+            key: key,
+            messages: messages,
+            role: role,
+            content: messageContent
+        ) {
+            self
+        }
     }
 }
 

@@ -17,17 +17,23 @@
 # upstream fetch (and whenever this script or the lowering tool changes), the
 # same way the SignalUI re-lower recipe is re-applied.
 #
-# Usage: scripts/quill-signal-prep-app.sh [SCRATCH_PATH]
+# Usage: scripts/quill-signal-prep-app.sh [SCRATCH_PATH] [BUILD_LOG]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH="${1:-$ROOT/.build}"
+BUILD_LOG="${QUILL_SIGNAL_APP_LOG:-${2:-$ROOT/.signalapp-target.log}}"
 APP="$ROOT/.upstream/signal-ios/Signal"
 
 if [ ! -d "$APP" ]; then
     echo "quill-signal-prep-app: no Signal app dir at $APP; skipping"
     exit 0
 fi
+
+# Remove stale same-module port symlinks from previous runs before running
+# source-lowering tools. Otherwise generic lowerers can write through symlinks
+# and dirty checked-in Quill port sources.
+rm -rf "$APP/QuillPort"
 
 # (0) Drop test files (XCTest / Testing) — not part of the app module.
 "$ROOT/scripts/quill-signal-strip-tests.sh" "$APP"
@@ -88,14 +94,27 @@ done < <(grep -rlE "$MISSING_FW" "$APP" --include="*.swift" 2>/dev/null || true)
 #      (tens of thousands of errors). Make every plain/internal import `public`
 #      so the access level is consistent module-wide. (@-attributed and submodule
 #      imports are left as-is.)
-find "$APP" -name "*.swift" -print0 | xargs -0 sed -i -E \
-    's/^(public |internal |package |private |fileprivate )?import ([A-Za-z_][A-Za-z0-9_.]*)$/public import \2/'
+python3 - "$APP" <<'PY'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+pattern = re.compile(r"^(?:public |internal |package |private |fileprivate )?import ([A-Za-z_][A-Za-z0-9_.]*)$")
+for path in root.rglob("*.swift"):
+    lines = path.read_text(errors="replace").splitlines()
+    out = [pattern.sub(r"public import \1", line) for line in lines]
+    path.write_text("\n".join(out) + ("\n" if lines else ""))
+PY
 
 # (3) UIKit Clang-submodule imports -> base UIKit module (no Linux equivalent).
-grep -rlE '^import UIKit\.[A-Za-z]' "$APP" --include="*.swift" 2>/dev/null \
-    | while IFS= read -r f; do
-        sed -i -E 's/^import UIKit\.[A-Za-z][A-Za-z0-9]*/import UIKit/' "$f"
-    done || true
+python3 - "$APP" <<'PY'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+pattern = re.compile(r"^(public )?import UIKit\.[A-Za-z][A-Za-z0-9]*$")
+for path in root.rglob("*.swift"):
+    lines = path.read_text(errors="replace").splitlines()
+    out = [pattern.sub("public import UIKit", line) for line in lines]
+    if out != lines:
+        path.write_text("\n".join(out) + ("\n" if lines else ""))
+PY
 
 # (4) Strip SwiftUI #Preview / PreviewProvider blocks.
 "$ROOT/scripts/quill-signal-strip-previews.sh" "$APP"
@@ -116,6 +135,14 @@ fi
 
 # (7) Swift/corelibs Foundation compatibility cleanup.
 "$ROOT/scripts/lower-objc-interop-for-linux.sh" "$APP"
+FOUNDATION_TOOL="$SCRATCH/debug/quill-lower-foundation"
+swift build --scratch-path "$SCRATCH" --disable-index-store \
+    --product quill-lower-foundation >/dev/null 2>&1 || true
+if [ -x "$FOUNDATION_TOOL" ]; then
+    "$FOUNDATION_TOOL" "$APP"
+else
+    echo "quill-signal-prep-app: quill-lower-foundation not built; Foundation lowering skipped" >&2
+fi
 
 # (8) Prune separable call/donation glue extensions whose only purpose is to wire
 #     the pruned subsystems into otherwise-reachable view controllers.
@@ -125,6 +152,279 @@ for glue in \
 ; do
     rm -f "$APP/$glue"
 done
+
+# (8b) Lower Objective-C optional protocol remnants in the app conversation
+#      slice after the generic lowerer has stripped @objc.
+"$ROOT/scripts/quill-signal-fix-app-optionals.sh" "$APP"
+"$ROOT/scripts/quill-signal-fix-app-mainactor-closures.sh" "$APP"
+"$ROOT/scripts/quill-signal-fix-app-layout-isolation.sh" "$APP"
+"$ROOT/scripts/quill-signal-fix-app-generated-perform.sh" "$APP"
+"$ROOT/scripts/quill-signal-lower-app-declaration-access.sh" "$APP"
+"$ROOT/scripts/quill-signal-fix-app-generated-inits.sh"
+
+# Swift 6 requires extension methods satisfying public protocol requirements to
+# be public even in the app target after @objc lowering removes Objective-C
+# dispatch. Keep this deterministic instead of depending on a previous build log.
+python3 - "$APP/Usernames/Links/UsernameLinkScanQRCodeSheet.swift" <<'PY'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+if not path.exists():
+    raise SystemExit(0)
+
+text = path.read_text(errors="replace")
+text = text.replace(
+    "extension BaseMemberViewController: @retroactive MemberViewUsernameQRCodeScannerPresenter {\n"
+    "    func presentUsernameQRCodeScannerFromMemberView() {",
+    "extension BaseMemberViewController: @retroactive MemberViewUsernameQRCodeScannerPresenter {\n"
+    "    public func presentUsernameQRCodeScannerFromMemberView() {",
+)
+path.write_text(text)
+PY
+
+# (8c) Replay safe log-driven source lowerings from the latest SignalApp build
+#      log when one is available. Each pass validates that the diagnostic path
+#      still points inside .upstream/signal-ios before touching a file, so stale
+#      logs become harmless no-ops after the affected source has moved on.
+if [ -f "$BUILD_LOG" ]; then
+    "$ROOT/scripts/quill-signal-fix-app-public-requirements.sh" "$BUILD_LOG"
+    "$ROOT/scripts/quill-signal-fix-app-public-access.sh" "$BUILD_LOG" "$ROOT/.upstream/signal-ios"
+    "$ROOT/scripts/quill-signal-fix-app-deinits.sh" "$BUILD_LOG"
+    "$ROOT/scripts/quill-signal-fix-app-required-coders.sh" "$BUILD_LOG"
+    "$ROOT/scripts/quill-signal-fix-app-actor-isolation.sh" "$BUILD_LOG"
+    "$ROOT/scripts/quill-signal-fix-app-overrides.sh" "$BUILD_LOG"
+else
+    echo "quill-signal-prep-app: no SignalApp build log at $BUILD_LOG; log-driven app fixes skipped"
+fi
+
+# (8d) Standalone render previews run without a full SignalServiceKit app
+#      environment. Avoid forcing TSIncomingMessage.authorAddress just to fill
+#      CVRenderItem's clustering cache; nil falls back to default spacing.
+RENDER_ITEM_FILE="$APP/ConversationView/Loading/CVRenderItem.swift"
+if [ -f "$RENDER_ITEM_FILE" ]; then
+    python3 - "$RENDER_ITEM_FILE" <<'PY'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text(errors="replace")
+text = text.replace(
+    "if let incomingMessage = itemModel.interaction as? TSIncomingMessage {\n"
+    "            self.incomingMessageAuthorAddress = incomingMessage.authorAddress\n"
+    "        } else {",
+    "if let incomingMessage = itemModel.interaction as? TSIncomingMessage, SSKEnvironment.hasShared {\n"
+    "            self.incomingMessageAuthorAddress = incomingMessage.authorAddress\n"
+    "        } else {",
+)
+path.write_text(text)
+PY
+fi
+
+# (8e) The DB-backed renderer loads ConversationViewController from inside a
+#      database read transaction. Signal's wallpaper builder asserts main-thread
+#      because it can instantiate UIKit views while resolving wallpaper state.
+#      The render seed has no wallpaper, so use the normal nil/no-wallpaper path
+#      instead of forcing UIKit work onto the DB queue.
+CVC_FILE="$APP/ConversationView/ConversationViewController.swift"
+if [ -f "$CVC_FILE" ]; then
+    python3 - "$CVC_FILE" <<'PY'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text(errors="replace")
+text = text.replace(
+    "static func loadWallpaperViewBuilder(for thread: TSThread, tx: DBReadTransaction) -> WallpaperViewBuilder? {\n"
+    "        return Wallpaper.viewBuilder(for: thread, tx: tx)\n"
+    "    }",
+    "static func loadWallpaperViewBuilder(for thread: TSThread, tx: DBReadTransaction) -> WallpaperViewBuilder? {\n"
+    "        #if os(Linux)\n"
+    "        _ = (thread, tx)\n"
+    "        return nil\n"
+    "        #else\n"
+    "        return Wallpaper.viewBuilder(for: thread, tx: tx)\n"
+    "        #endif\n"
+    "    }",
+)
+text = text.replace(
+    "    ) {\n"
+    "        AssertIsOnMainThread()\n"
+    "\n"
+    "        self.appReadiness = appReadiness",
+    "    ) {\n"
+    "        #if !os(Linux)\n"
+    "        AssertIsOnMainThread()\n"
+    "        #endif\n"
+    "\n"
+    "        self.appReadiness = appReadiness",
+)
+path.write_text(text)
+PY
+fi
+
+# (8f) Add tiny same-file Linux factories for Signal conversation preview types.
+#      Signal keeps a few constructors fileprivate/private to their source file;
+#      app-port files are same module but not same file, so they cannot construct
+#      real render items for smoke previews without these disposable helpers.
+DISPLAYABLE_TEXT_FILE="$APP/util/DisplayableText.swift"
+if [ -f "$DISPLAYABLE_TEXT_FILE" ] && ! grep -q "QuillSignal DisplayableText preview factories" "$DISPLAYABLE_TEXT_FILE"; then
+    cat >> "$DISPLAYABLE_TEXT_FILE" <<'SWIFT'
+
+#if os(Linux)
+// QuillSignal DisplayableText preview factories. Generated into the disposable
+// Signal app slice so Linux renderer checks can build real text message
+// component state without a database transaction.
+extension DisplayableText {
+    static func quillPreviewPlainText(_ text: String) -> DisplayableText {
+        let textValue = CVTextValue.text(text)
+        return DisplayableText(
+            fullContent: .init(textValue: textValue, naturalAlignment: textValue.naturalTextAligment),
+            truncatedContent: nil,
+        )
+    }
+}
+#endif
+SWIFT
+fi
+
+STATE_FILE="$APP/ConversationView/Components/CVComponentState.swift"
+if [ -f "$STATE_FILE" ] && ! grep -q "QuillSignal CVComponentState preview factories" "$STATE_FILE"; then
+    cat >> "$STATE_FILE" <<'SWIFT'
+
+#if os(Linux)
+// QuillSignal CVComponentState preview factories. Generated into the disposable
+// Signal app slice so Linux renderer checks can exercise real CVRootComponents
+// without weakening upstream's fileprivate initializer in the source checkout.
+extension CVComponentState {
+    static func quillPreviewDateHeaderState() -> CVComponentState {
+        CVComponentState(
+            messageCellType: .dateHeader,
+            senderName: nil,
+            senderAvatar: nil,
+            bodyText: nil,
+            bodyMedia: nil,
+            genericAttachment: nil,
+            paymentAttachment: nil,
+            archivedPaymentAttachment: nil,
+            audioAttachment: nil,
+            viewOnce: nil,
+            quotedReply: nil,
+            sticker: nil,
+            undownloadableAttachment: nil,
+            contactShare: nil,
+            linkPreview: nil,
+            giftBadge: nil,
+            systemMessage: nil,
+            dateHeader: DateHeader(),
+            unreadIndicator: nil,
+            reactions: nil,
+            typingIndicator: nil,
+            threadDetails: nil,
+            unknownThreadWarning: nil,
+            defaultDisappearingMessageTimer: nil,
+            collapseSet: nil,
+            bottomButtons: nil,
+            bottomLabel: nil,
+            skippedDownloads: nil,
+            sendFailureBadge: nil,
+            messageHasBodyAttachments: false,
+            hasRenderableContent: true,
+            poll: nil,
+        )
+    }
+
+    static func quillPreviewUnreadIndicatorState() -> CVComponentState {
+        CVComponentState(
+            messageCellType: .unreadIndicator,
+            senderName: nil,
+            senderAvatar: nil,
+            bodyText: nil,
+            bodyMedia: nil,
+            genericAttachment: nil,
+            paymentAttachment: nil,
+            archivedPaymentAttachment: nil,
+            audioAttachment: nil,
+            viewOnce: nil,
+            quotedReply: nil,
+            sticker: nil,
+            undownloadableAttachment: nil,
+            contactShare: nil,
+            linkPreview: nil,
+            giftBadge: nil,
+            systemMessage: nil,
+            dateHeader: nil,
+            unreadIndicator: UnreadIndicator(),
+            reactions: nil,
+            typingIndicator: nil,
+            threadDetails: nil,
+            unknownThreadWarning: nil,
+            defaultDisappearingMessageTimer: nil,
+            collapseSet: nil,
+            bottomButtons: nil,
+            bottomLabel: nil,
+            skippedDownloads: nil,
+            sendFailureBadge: nil,
+            messageHasBodyAttachments: false,
+            hasRenderableContent: true,
+            poll: nil,
+        )
+    }
+
+    static func quillPreviewTextMessageState(displayableText: DisplayableText) -> CVComponentState {
+        CVComponentState(
+            messageCellType: .textOnlyMessage,
+            senderName: nil,
+            senderAvatar: nil,
+            bodyText: .bodyText(displayableText: displayableText, hasTapForMore: false),
+            bodyMedia: nil,
+            genericAttachment: nil,
+            paymentAttachment: nil,
+            archivedPaymentAttachment: nil,
+            audioAttachment: nil,
+            viewOnce: nil,
+            quotedReply: nil,
+            sticker: nil,
+            undownloadableAttachment: nil,
+            contactShare: nil,
+            linkPreview: nil,
+            giftBadge: nil,
+            systemMessage: nil,
+            dateHeader: nil,
+            unreadIndicator: nil,
+            reactions: nil,
+            typingIndicator: nil,
+            threadDetails: nil,
+            unknownThreadWarning: nil,
+            defaultDisappearingMessageTimer: nil,
+            collapseSet: nil,
+            bottomButtons: nil,
+            bottomLabel: nil,
+            skippedDownloads: nil,
+            sendFailureBadge: nil,
+            messageHasBodyAttachments: false,
+            hasRenderableContent: true,
+            poll: nil,
+        )
+    }
+}
+#endif
+SWIFT
+fi
+
+THREAD_ASSOCIATED_DATA_FILE="$ROOT/.upstream/signal-ios/SignalServiceKit/Contacts/ThreadAssociatedData.swift"
+if [ -f "$THREAD_ASSOCIATED_DATA_FILE" ] && ! grep -q "QuillSignal ThreadAssociatedData preview factory" "$THREAD_ASSOCIATED_DATA_FILE"; then
+    cat >> "$THREAD_ASSOCIATED_DATA_FILE" <<'SWIFT'
+
+#if os(Linux)
+// QuillSignal ThreadAssociatedData preview factory. Generated into the
+// disposable upstream copy so the SignalApp renderer bridge can build real
+// CVItemModels without a database-backed thread-associated-data row.
+public extension ThreadAssociatedData {
+    static func quillPreview(threadUniqueId: String) -> ThreadAssociatedData {
+        ThreadAssociatedData(threadUniqueId: threadUniqueId)
+    }
+}
+#endif
+SWIFT
+fi
 
 # (9) Link the same-module app ports (Linux stand-ins for pruned app types) into
 #     the disposable tree, the same way SignalUI's port files are linked.

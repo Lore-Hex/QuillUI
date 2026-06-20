@@ -101,6 +101,10 @@ struct QuillQtBackendManifestTests {
         // Signal upstream is present (Track B), so non-Signal builds stay warning-clean.
         #expect(manifest.contains("var quillDataPackageDependencies: [Package.Dependency] = ["))
         #expect(manifest.contains("cSQLiteTarget,\n        cCairoTarget,\n        quillDataMacroTarget,\n        quillDataTarget,"))
+        #expect(manifest.contains("let quillFoundationDependencies: [Target.Dependency] = [\"QuillKit\", \"CGdkPixbuf\"]"))
+        #expect(manifest.contains("let quillFoundationSwiftSettings: [SwiftSetting] = [\n    .unsafeFlags(gdkPixbufSwiftImporterFlags)\n]"))
+        #expect(manifest.contains("name: \"QuillFoundation\",\n            dependencies: quillFoundationDependencies,\n            path: \"Sources/QuillFoundation\",\n            swiftSettings: quillFoundationSwiftSettings"))
+        #expect(manifest.contains("name: \"AppKit\",\n            dependencies: appKitShadowDependencies,\n            path: \"Sources/QuillAppKit\",\n            swiftSettings: [\n                .swiftLanguageMode(.v5),\n                .unsafeFlags([\"-strict-concurrency=minimal\"]),\n                .unsafeFlags(gdkPixbufSwiftImporterFlags)"))
         #expect(manifest.contains("name: \"QuillEnchantedShared\""))
         #expect(manifest.contains("dependencies: [\"QuillEnchantedData\", \"QuillFoundation\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))

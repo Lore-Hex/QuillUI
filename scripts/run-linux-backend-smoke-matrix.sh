@@ -222,9 +222,10 @@ quillui_smoke_visual_verify_product() {
 
   verify_product="$(
     set -e
+    quillui_runner_verify_product=""
     QUILLUI_BACKEND="$requested_backend"
-    quillui_backend_visual_verify_product "$product" resolved_verify_product
-    printf '%s\n' "$resolved_verify_product"
+    quillui_backend_visual_verify_product "$product" quillui_runner_verify_product
+    printf '%s\n' "$quillui_runner_verify_product"
   )"
   printf '%s\n' "$verify_product"
 }
@@ -237,9 +238,10 @@ quillui_smoke_interaction_verify_product() {
 
   verify_product="$(
     set -e
+    quillui_runner_verify_product=""
     QUILLUI_BACKEND="$requested_backend"
-    quillui_backend_interaction_verify_product "$product" "$interaction_mode" resolved_verify_product
-    printf '%s\n' "$resolved_verify_product"
+    quillui_backend_interaction_verify_product "$product" "$interaction_mode" quillui_runner_verify_product
+    printf '%s\n' "$quillui_runner_verify_product"
   )"
   printf '%s\n' "$verify_product"
 }

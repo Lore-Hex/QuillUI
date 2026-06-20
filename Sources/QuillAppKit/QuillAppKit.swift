@@ -20,6 +20,8 @@
 @_exported import QuartzCore
 @_exported import CoreVideo
 @_exported import ImageIO
+@_exported import CoreText
+@_exported import CoreServices
 @_exported import UniformTypeIdentifiers
 @_exported import CoreSpotlight
 @_exported import CoreTransferable
@@ -331,10 +333,21 @@ public extension NSColor {
     }
     convenience init?(cgColor: CGColor) {
         let components = cgColor.components ?? [0, 0, 0, 1]
-        let red = components.count > 0 ? components[0] : 0
-        let green = components.count > 1 ? components[1] : red
-        let blue = components.count > 2 ? components[2] : red
-        let alpha = components.count > 3 ? components[3] : 1
+        let red: CGFloat
+        let green: CGFloat
+        let blue: CGFloat
+        let alpha: CGFloat
+        if components.count == 2 {
+            red = components[0]
+            green = components[0]
+            blue = components[0]
+            alpha = components[1]
+        } else {
+            red = components.count > 0 ? components[0] : 0
+            green = components.count > 1 ? components[1] : red
+            blue = components.count > 2 ? components[2] : red
+            alpha = components.count > 3 ? components[3] : 1
+        }
         self.init(red: red, green: green, blue: blue, alpha: alpha)
     }
 
@@ -363,7 +376,7 @@ public extension NSColor {
 }
 
 open class NSGraphicsContext: NSObject, @unchecked Sendable {
-    public static var current: NSGraphicsContext? = NSGraphicsContext(cgContext: CGContext(), flipped: false)
+    @MainActor public static var current: NSGraphicsContext? = NSGraphicsContext(cgContext: CGContext(), flipped: false)
     public let cgContext: CGContext
     public let isFlipped: Bool
 
@@ -612,6 +625,8 @@ open class NSFontManager: NSObject, @unchecked Sendable {
 }
 
 open class NSAppearance: NSObject, @unchecked Sendable {
+    nonisolated(unsafe) public static var current: NSAppearance?
+
     public struct Name: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -717,7 +732,7 @@ public extension NSAppearance {
 // matching the macOS SDK. GTK/Qt callbacks enter via MainActor.assumeIsolated
 // (the GTK main loop IS the main thread), the blessed boundary pattern.
 @preconcurrency @MainActor
-open class NSResponder: NSObject, QuillSelectorDispatching {
+open class NSResponder: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime). AppKitLowering injects
     /// an `override` of this into every NSResponder subclass (NSView /
     /// NSViewController / NSControl / NSWindow / NSTextView / NSButton …) that
@@ -758,6 +773,7 @@ open class NSResponder: NSObject, QuillSelectorDispatching {
     open func rightMouseDown(with event: NSEvent) { nextResponder?.rightMouseDown(with: event) }
     open func rightMouseUp(with event: NSEvent) { nextResponder?.rightMouseUp(with: event) }
     open func mouseDragged(with event: NSEvent) { nextResponder?.mouseDragged(with: event) }
+    open func rightMouseDragged(with event: NSEvent) { nextResponder?.rightMouseDragged(with: event) }
     open func mouseMoved(with event: NSEvent) { nextResponder?.mouseMoved(with: event) }
     open func mouseEntered(with event: NSEvent) { nextResponder?.mouseEntered(with: event) }
     open func mouseExited(with event: NSEvent) { nextResponder?.mouseExited(with: event) }
@@ -904,6 +920,7 @@ open class NSView: NSResponder {
     public var subviews: [NSView] = []
     public private(set) var constraints: [NSLayoutConstraint] = []
     private var nextToolTipTag: ToolTipTag = 1
+    private var quillCursorRectStorage: [QuillCursorRect] = []
     public weak var superview: NSView?
     public weak var window: NSWindow?
     private var quillAccessibilityLabel: String?
@@ -966,6 +983,16 @@ open class NSView: NSResponder {
         public static let maxXMargin = AutoresizingMask(rawValue: 1 << 2)
         public static let minYMargin = AutoresizingMask(rawValue: 1 << 3)
         public static let maxYMargin = AutoresizingMask(rawValue: 1 << 5)
+    }
+
+    public struct QuillCursorRect {
+        public let rect: NSRect
+        public let cursor: NSCursor
+
+        public init(rect: NSRect, cursor: NSCursor) {
+            self.rect = rect
+            self.cursor = cursor
+        }
     }
 
     // Convenience (not designated) so NSView matches real AppKit, where the
@@ -1299,7 +1326,24 @@ open class NSView: NSResponder {
     open func viewDidUnhide() {}
     open func updateTrackingAreas() {}
     open func resetCursorRects() {}
-    public internal(set) var quillCursorRects: [(rect: NSRect, cursor: NSCursor)] = []
+    public func addCursorRect(_ rect: NSRect, cursor: NSCursor) {
+        guard rect.size.width > 0, rect.size.height > 0 else { return }
+        quillCursorRectStorage.append(QuillCursorRect(rect: rect, cursor: cursor))
+    }
+    public func discardCursorRects() {
+        quillCursorRectStorage.removeAll()
+    }
+    public var quillCursorRects: [QuillCursorRect] {
+        quillCursorRectStorage
+    }
+    public func quillCursor(at point: NSPoint) -> NSCursor? {
+        for entry in quillCursorRectStorage.reversed() {
+            if isMousePoint(point, in: entry.rect) {
+                return entry.cursor
+            }
+        }
+        return nil
+    }
     open func didAddSubview(_ subview: NSView) { _ = subview }
     open func willRemoveSubview(_ subview: NSView) { _ = subview }
 
@@ -1617,6 +1661,7 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     open func viewDidAppear() {}
     open func viewWillDisappear() {}
     open func viewDidDisappear() {}
+    open func viewWillLayout() {}
     open func loadView() {}
     public func addChild(_ c: NSViewController) {
         guard !children.contains(where: { $0 === c }) else { return }
@@ -1647,6 +1692,20 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public func presentAsSheet(_ vc: NSViewController) {}
     public func presentAsModalWindow(_ vc: NSViewController) {}
     public func dismiss(_ sender: Any?) {}
+    @discardableResult
+    open override func presentError(_ error: any Error) -> Bool {
+        _ = error
+        return false
+    }
+    open func presentError(
+        _ error: any Error,
+        modalFor window: NSWindow,
+        delegate: Any?,
+        didPresent: Selector?,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        _ = (error, window, delegate, didPresent, contextInfo)
+    }
 }
 
 open class NSStoryboard: NSObject {
@@ -1717,6 +1776,9 @@ open class NSWindowController: NSResponder {
         quillWindowStorage = window
         quillUpdateWindowControllerLink(from: nil)
     }
+    public override convenience init() {
+        self.init(window: nil)
+    }
     public convenience init(windowNibName: String) {
         self.init(window: nil)
         quillWindowNibName = windowNibName
@@ -1725,6 +1787,7 @@ open class NSWindowController: NSResponder {
     open func invalidateRestorableState() {}
     open func showWindow(_ sender: Any?) { window?.makeKeyAndOrderFront(sender) }
     open func close() { window?.close() }
+    open func newWindowForTab(_ sender: Any?) { _ = sender }
     public var shouldCascadeWindows: Bool = true
     public var windowFrameAutosaveName: String = ""
 
@@ -2289,7 +2352,7 @@ open class NSTouchBarItem: NSObject, @unchecked Sendable {
     }
 }
 
-open class NSCustomTouchBarItem: NSTouchBarItem {
+open class NSCustomTouchBarItem: NSTouchBarItem, @unchecked Sendable {
     public var view: NSView?
 }
 
@@ -2325,7 +2388,9 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     public var dockTile: NSDockTile = NSDockTile()
     public var presentationOptions: PresentationOptions = []
     public var currentEvent: NSEvent?
-    public var effectiveAppearance: NSAppearance = NSAppearance()
+    public var effectiveAppearance: NSAppearance {
+        NSAppearance.current ?? NSAppearance()
+    }
     open var objectSpecifier: NSScriptObjectSpecifier?
     public private(set) var quillPresentedErrors: [Error] = []
 
@@ -2470,12 +2535,18 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         let responder = eventWindow?.firstResponder ?? eventWindow?.contentView ?? eventWindow ?? self
 
         switch event.type {
-        case .leftMouseDown, .rightMouseDown:
+        case .leftMouseDown:
             responder.mouseDown(with: event)
-        case .leftMouseUp, .rightMouseUp:
+        case .rightMouseDown:
+            responder.rightMouseDown(with: event)
+        case .leftMouseUp:
             responder.mouseUp(with: event)
-        case .leftMouseDragged, .rightMouseDragged:
+        case .rightMouseUp:
+            responder.rightMouseUp(with: event)
+        case .leftMouseDragged:
             responder.mouseDragged(with: event)
+        case .rightMouseDragged:
+            responder.rightMouseDragged(with: event)
         case .mouseMoved:
             responder.mouseMoved(with: event)
         case .keyDown:
@@ -2488,8 +2559,17 @@ open class NSApplication: NSResponder, @unchecked Sendable {
             responder.flagsChanged(with: event)
         case .scrollWheel:
             responder.scrollWheel(with: event)
-        case .mouseEntered, .mouseExited, .appKitDefined, .systemDefined,
-             .applicationDefined, .periodic, .cursorUpdate, .magnify, .smartMagnify:
+        case .mouseEntered:
+            responder.mouseEntered(with: event)
+        case .mouseExited:
+            responder.mouseExited(with: event)
+        case .cursorUpdate:
+            responder.cursorUpdate(with: event)
+        case .magnify:
+            responder.magnify(with: event)
+        case .smartMagnify:
+            responder.smartMagnify(with: event)
+        case .appKitDefined, .systemDefined, .applicationDefined, .periodic:
             break
         }
     }
@@ -2516,6 +2596,7 @@ open class NSDockTile: NSObject, @unchecked Sendable {
 }
 
 public extension NSApplicationDelegate {
+    static func main() {}
     func applicationDidFinishLaunching(_ notification: Notification) {}
     func applicationWillTerminate(_ notification: Notification) {}
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -2587,6 +2668,8 @@ open class NSEvent: NSObject, @unchecked Sendable {
         public static let periodic = mask(.periodic)
         public static let cursorUpdate = mask(.cursorUpdate)
         public static let scrollWheel = mask(.scrollWheel)
+        public static let magnify = mask(.magnify)
+        public static let smartMagnify = mask(.smartMagnify)
         public static let any = EventTypeMask(rawValue: UInt64.max)
     }
     public var type: EventType = .keyDown
@@ -2741,12 +2824,17 @@ open class NSGestureRecognizer: NSObject {
     public override init() {
         super.init()
     }
+
+    public func location(in view: AnyObject?) -> NSPoint {
+        _ = view
+        return .zero
+    }
 }
 
 open class NSClickGestureRecognizer: NSGestureRecognizer {}
 open class NSPressGestureRecognizer: NSGestureRecognizer {}
 
-public struct NSTouch: Hashable, Sendable {
+public struct NSTouch: Hashable, @unchecked Sendable {
     public struct Phase: OptionSet, Hashable, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -3365,8 +3453,23 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
     public static let willSleepNotification = Notification.Name("NSWorkspaceWillSleepNotification")
     public static let didWakeNotification = Notification.Name("NSWorkspaceDidWakeNotification")
     public var notificationCenter = NotificationCenter()
+    public var isVoiceOverEnabled: Bool = false
     public var runningApplications: [NSRunningApplication] {
         NSRunningApplication.runningApplications()
+    }
+
+    public struct LaunchOptions: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let `default` = LaunchOptions([])
+        public static let async = LaunchOptions(rawValue: 1 << 0)
+        public static let withoutActivation = LaunchOptions(rawValue: 1 << 1)
+    }
+
+    public struct LaunchConfigurationKey: Hashable, RawRepresentable, Sendable, ExpressibleByStringLiteral {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
     }
 
     @discardableResult
@@ -3395,6 +3498,18 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
             bundleURL: url,
             isActive: configuration.activates
         )
+    }
+
+    public func open(
+        _ urls: [URL],
+        withApplicationAt applicationURL: URL,
+        options: LaunchOptions = [],
+        configuration: [LaunchConfigurationKey: Any] = [:]
+    ) throws {
+        _ = (applicationURL, options, configuration)
+        for url in urls {
+            _ = _xdgOpen(url.path, operation: "NSWorkspace.open(_:withApplicationAt:options:configuration:)")
+        }
     }
 
     @discardableResult
@@ -3673,14 +3788,25 @@ open class NSCursor: NSObject {
     public static let dragCopy = NSCursor()
     public static let contextualMenu = NSCursor()
     public static let disappearingItem = NSCursor()
-    public static var current: NSCursor { arrow }
+    private static var quillCurrentCursor: NSCursor?
+    private static var quillCursorStack: [NSCursor] = []
+    public static var current: NSCursor { quillCurrentCursor ?? arrow }
 
     public override init() {}
     public init(image: NSImage, hotSpot: NSPoint) {}
-    public func push() {}
-    public func pop() {}
-    public func set() {}
-    public static func pop() {}
+    public func push() {
+        NSCursor.quillCursorStack.append(NSCursor.current)
+        set()
+    }
+    public func pop() {
+        NSCursor.pop()
+    }
+    public func set() {
+        NSCursor.quillCurrentCursor = self
+    }
+    public static func pop() {
+        quillCurrentCursor = quillCursorStack.popLast() ?? arrow
+    }
     public static func hide() {}
     public static func unhide() {}
     public static func setHiddenUntilMouseMoves(_ flag: Bool) {}
@@ -3758,6 +3884,11 @@ open class NSTextAttachment: NSObject {
 }
 
 public extension NSAttributedString {
+    convenience init?(rtf data: Data, documentAttributes dict: UnsafeMutablePointer<NSDictionary?>?) {
+        _ = dict
+        self.init(string: String(data: data, encoding: .utf8) ?? "")
+    }
+
     convenience init(attachment: NSTextAttachment) {
         self.init(string: "\u{FFFC}", attributes: [.attachment: attachment])
     }
@@ -3891,7 +4022,7 @@ open class NSShadow: NSObject, @unchecked Sendable {
 // delegate calls inside this class become load-bearing once NSMenuDelegate is
 // isolated in the follow-up sweep.
 @preconcurrency @MainActor
-open class NSMenu: NSObject, QuillSelectorDispatching {
+open class NSMenu: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSMenu subclasses. Class-body, not an extension.
     /// See QuillSelectorDispatching (QuillFoundation).
@@ -3932,6 +4063,16 @@ open class NSMenu: NSObject, QuillSelectorDispatching {
     public func insertItem(_ i: NSMenuItem, at idx: Int) {
         i.menu = self
         items.insert(i, at: idx)
+    }
+    public func insertItem(
+        withTitle title: String,
+        action: Selector?,
+        keyEquivalent: String,
+        at index: Int
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        insertItem(item, at: index)
+        return item
     }
     public func removeItem(_ i: NSMenuItem) {
         items.removeAll { $0 === i }
@@ -4039,7 +4180,7 @@ public protocol NSWindowRestoration {
 
 // Apple parity (#512).
 @preconcurrency @MainActor
-open class NSMenuItem: NSObject, QuillSelectorDispatching {
+open class NSMenuItem: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSMenuItem subclasses (WireGuard's StatusMenu
     /// items). Class-body, not an extension. See QuillSelectorDispatching
@@ -4269,7 +4410,7 @@ public extension NSToolbarDelegate {
 
 // Apple parity (#512).
 @preconcurrency @MainActor
-open class NSAlert: NSObject, QuillSelectorDispatching {
+open class NSAlert: NSObject, @preconcurrency QuillSelectorDispatching {
     /// Linux target-action dispatch base (no ObjC runtime); roots the override
     /// chain for `@objc`-action NSAlert subclasses. Class-body, not an extension.
     /// See QuillSelectorDispatching (QuillFoundation).
@@ -4293,7 +4434,16 @@ open class NSAlert: NSObject, QuillSelectorDispatching {
 
     public enum Style: UInt, Sendable { case warning, informational, critical }
 
+    /// Runtime backends (GTK/Qt) install a modal presenter here. Returning nil
+    /// preserves the headless console fallback.
+    public static var _runModalHook: ((NSAlert) -> NSApplication.ModalResponse?)?
+
     public override init() { super.init() }
+    public convenience init(error: any Error) {
+        self.init()
+        self.alertStyle = .critical
+        self.messageText = (error as NSError).localizedDescription
+    }
     public func addButton(withTitle title: String) -> NSButton {
         let b = NSButton()
         b.title = title
@@ -4307,6 +4457,14 @@ open class NSAlert: NSObject, QuillSelectorDispatching {
     /// button's response (matches Apple's "default" button semantics
     /// for unattended runs).
     public func runModal() -> NSApplication.ModalResponse {
+        quillApplyAccessoryTextOverride()
+        if let overrideResponse = quillModalResponseOverride() {
+            return overrideResponse
+        }
+        if let hookResponse = NSAlert._runModalHook?(self) {
+            return hookResponse
+        }
+
         let prefix: String
         switch alertStyle {
         case .critical:      prefix = "[!] "
@@ -4344,6 +4502,76 @@ open class NSAlert: NSObject, QuillSelectorDispatching {
     public func beginSheetModal(for window: NSWindow, completionHandler: ((NSApplication.ModalResponse) -> Void)? = nil) {
         let response = runModal()
         completionHandler?(response)
+    }
+
+    private func quillModalResponseOverride() -> NSApplication.ModalResponse? {
+        let environment = ProcessInfo.processInfo.environment
+        guard let rawValue = environment["QUILLUI_NSALERT_RESPONSE"] ?? environment["QUILLUI_NSALERT_BUTTON"] else {
+            return nil
+        }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let numericValue = Int(trimmed) {
+            if numericValue <= 0 || numericValue >= 1000 {
+                return NSApplication.ModalResponse(rawValue: numericValue)
+            }
+            return quillResponse(forButtonAtOneBasedIndex: numericValue)
+        }
+
+        if let index = _buttonTitles.firstIndex(where: { trimmed.caseInsensitiveCompare($0) == .orderedSame }) {
+            return quillResponse(forButtonAtOneBasedIndex: index + 1)
+        }
+
+        switch trimmed.lowercased() {
+        case "default", "first", "ok", "apply":
+            return .alertFirstButtonReturn
+        case "second":
+            return .alertSecondButtonReturn
+        case "third":
+            return .alertThirdButtonReturn
+        case "cancel":
+            if let index = _buttonTitles.firstIndex(where: { $0.caseInsensitiveCompare("Cancel") == .orderedSame }) {
+                return quillResponse(forButtonAtOneBasedIndex: index + 1)
+            }
+            return .cancel
+        default:
+            return nil
+        }
+    }
+
+    public var quillButtonTitles: [String] { _buttonTitles }
+
+    public func quillResponse(forButtonAtOneBasedIndex index: Int) -> NSApplication.ModalResponse {
+        switch index {
+        case 1: return .alertFirstButtonReturn
+        case 2: return .alertSecondButtonReturn
+        case 3: return .alertThirdButtonReturn
+        default: return NSApplication.ModalResponse(rawValue: 999 + index)
+        }
+    }
+
+    private func quillApplyAccessoryTextOverride() {
+        let environment = ProcessInfo.processInfo.environment
+        guard let accessoryText = environment["QUILLUI_NSALERT_ACCESSORY_TEXT"] else { return }
+        quillFirstAccessoryTextField()?.stringValue = accessoryText
+    }
+
+    public func quillFirstAccessoryTextField() -> NSTextField? {
+        quillFirstTextField(in: accessoryView)
+    }
+
+    private func quillFirstTextField(in view: NSView?) -> NSTextField? {
+        guard let view else { return nil }
+        if let textField = view as? NSTextField {
+            return textField
+        }
+        for subview in view.subviews {
+            if let textField = quillFirstTextField(in: subview) {
+                return textField
+            }
+        }
+        return nil
     }
 }
 
@@ -5540,7 +5768,7 @@ open class NSButton: NSControl {
 }
 
 public extension NSControl {
-    public struct StateValue: RawRepresentable, Equatable, Sendable {
+    struct StateValue: RawRepresentable, Equatable, Sendable {
         public var rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
         public static let off = StateValue(rawValue: 0)
@@ -5888,6 +6116,12 @@ open class NSPopUpButton: NSButton {
         self.cell = NSPopUpButtonCell()
     }
     public convenience init() { self.init(frame: .zero, pullsDown: false) }
+    public override convenience init(title: String, target: Any?, action: Selector?) {
+        self.init(frame: .zero, pullsDown: false)
+        self.title = title
+        self.target = target as AnyObject?
+        self.action = action
+    }
 
     private func ensureMenu() -> NSMenu {
         if let menu { return menu }
@@ -5930,7 +6164,7 @@ open class NSPopUpButton: NSButton {
     }
 }
 
-open class NSPopUpButtonCell: NSCell {
+open class NSPopUpButtonCell: NSCell, @unchecked Sendable {
     public var arrowPosition: ArrowPosition = .arrowAtBottom
     public enum ArrowPosition: UInt, Sendable { case noArrow, arrowAtCenter, arrowAtBottom }
     public override init() { super.init() }
@@ -5989,6 +6223,9 @@ open class NSSplitView: NSView {
         } else {
             addSubview(v)
         }
+    }
+    public func insertArrangedSubview(_ v: AnyObject, at idx: Int) {
+        _ = (v, idx)
     }
     public func removeArrangedSubview(_ v: NSView) {
         arrangedSubviews.removeAll { $0 === v }
@@ -7166,7 +7403,7 @@ public extension NSOutlineViewDataSource {
 // Apple parity (#512): NSDocument is @MainActor in the macOS SDK.
 @preconcurrency @MainActor
 open class NSDocument: NSObject {
-    public var fileURL: URL?
+    open var fileURL: URL?
     public var fileType: String?
     public var fileModificationDate: Date?
     private var explicitDisplayName: String?
@@ -7177,6 +7414,7 @@ open class NSDocument: NSObject {
     public var isDocumentEdited: Bool = false
     public var hasUnautosavedChanges: Bool = false
     public var windowControllers: [NSWindowController] = []
+    open var windowForSheet: NSWindow? { windowControllers.first?.window }
     public weak var undoManager: UndoManager?
     private var changeCountDepth: Int = 0
 
@@ -7210,6 +7448,9 @@ open class NSDocument: NSObject {
             windowController.close()
         }
     }
+    open func read(from url: URL, ofType typeName: String) throws {
+        _ = (url, typeName)
+    }
     open func read(from data: Data, ofType: String) throws {}
     open func data(ofType: String) throws -> Data { Data() }
     open func write(to url: URL, ofType: String) throws {}
@@ -7228,6 +7469,15 @@ open class NSDocument: NSObject {
         }
         isDocumentEdited = changeCountDepth > 0
         hasUnautosavedChanges = isDocumentEdited
+    }
+    @discardableResult
+    open func presentError(_ error: any Error) -> Bool {
+        _ = error
+        return false
+    }
+    open func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        _ = item
+        return true
     }
     public enum ChangeType: UInt, Sendable { case changeDone, changeUndone, changeRedone, changeCleared, changeReadOtherContents, changeAutosaved, changeDiscardable }
 }
@@ -7275,6 +7525,11 @@ open class NSDocumentController: NSObject {
     }
     public func newDocument(_ sender: Any?) {}
     public func openDocument(_ sender: Any?) {}
+    @discardableResult
+    public func presentError(_ error: any Error) -> Bool {
+        _ = error
+        return false
+    }
 }
 
 // MARK: - NSHostingView / NSHostingController / NSViewRepresentable bridges
@@ -7534,6 +7789,7 @@ open class NSSharingService: NSObject, @unchecked Sendable {
         case full
     }
 
+    public var recipients: [String] = []
     public var title: String
     public var image: NSImage?
     public var alternateImage: NSImage?
@@ -7557,6 +7813,10 @@ open class NSSharingService: NSObject, @unchecked Sendable {
         self.title = ""
         self.handler = nil
         super.init()
+    }
+    public func canPerform(withItems items: [Any]) -> Bool {
+        _ = items
+        return true
     }
     public func perform(withItems: [Any]) {
         _ = withItems
@@ -7590,6 +7850,20 @@ public extension NSSharingServiceDelegate {
     ) -> NSWindow? {
         nil
     }
+}
+
+open class NSSpeechSynthesizer: NSObject, @unchecked Sendable {
+    public init?(voice: String?) {
+        _ = voice
+        super.init()
+    }
+
+    public func startSpeaking(_ string: String) -> Bool {
+        _ = string
+        return false
+    }
+
+    public func stopSpeaking() {}
 }
 
 open class NSSound: NSObject, @unchecked Sendable {

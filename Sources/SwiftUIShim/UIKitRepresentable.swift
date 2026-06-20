@@ -1,6 +1,18 @@
 import UIKit
 import SwiftOpenUI
 
+private struct SwiftUIShimUncheckedSendableView<Content: View>: @unchecked Sendable {
+    let content: Content
+}
+
+private enum QuillMainActorView {
+    static func assumeIsolated<Content: View>(_ content: @MainActor () -> Content) -> Content {
+        MainActor.assumeIsolated {
+            SwiftUIShimUncheckedSendableView(content: content())
+        }.content
+    }
+}
+
 @MainActor
 open class UIHostingController<Content: View>: UIViewController {
     public var rootView: Content
@@ -32,6 +44,12 @@ public struct UIHostingConfiguration<Content: View>: UIContentConfiguration {
 
     public init(@ViewBuilder content: () -> Content) {
         self.content = content()
+    }
+
+    public nonisolated var body: some View {
+        QuillMainActorView.assumeIsolated {
+            content
+        }
     }
 
     public func margins(_ edges: Edge.Set = .all, _ length: CGFloat) -> UIHostingConfiguration<Content> {

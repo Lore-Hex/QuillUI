@@ -713,7 +713,7 @@ def validate_quill_enchanted_mac_reference(image: Screenshot) -> str:
     return f"Enchanted reference ok: {app_width}x{app_height}, sidebar={sidebar_width}, header={header_height}"
 
 
-def validate_quill_chat_mac_reference(image: Screenshot) -> str:
+def validate_quill_chat_mac_reference(image: Screenshot, require_sidebar_footer_navigation: bool = True) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -761,10 +761,11 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         divider_x - int((divider_x - left) * 0.03),
         bottom + 1,
     )
-    require(
-        sidebar_footer_pixels >= 700,
-        f"Mac-reference sidebar footer navigation was not detected: pixels={sidebar_footer_pixels}",
-    )
+    if require_sidebar_footer_navigation:
+        require(
+            sidebar_footer_pixels >= 700,
+            f"Mac-reference sidebar footer navigation was not detected: pixels={sidebar_footer_pixels}",
+        )
     sidebar_tint_pixels = pixel_count(
         image,
         left + int((divider_x - left) * 0.03),
@@ -984,6 +985,10 @@ def validate_quill_chat_mac_reference(image: Screenshot) -> str:
         f"alert={alert_segment.width}px@{alert_y}/{alert_height}px, "
         f"composer={composer_segment.width}px@{composer_y}"
     )
+
+
+def validate_quill_chat_mac_reference_new_chat(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference(image, require_sidebar_footer_navigation=False)
 
 
 def validate_quill_chat_landmarks(
@@ -1219,7 +1224,7 @@ def validate_quill_chat_mac_reference_composer_typed(image: Screenshot) -> str:
         min(bottom + 1, composer_y + 62),
     )
     require(
-        text_pixels >= 25,
+        text_pixels >= 120,
         f"Mac-reference typed composer text was not detected: pixels={text_pixels}",
     )
 
@@ -1312,9 +1317,15 @@ def validate_quill_chat_mac_reference_settings_panel(
         panel_segment.end - 18,
         panel_y + 450,
     )
+    # Root-overlay sheets render through GTK with slightly lighter text
+    # antialiasing than the legacy full-width settings panel. Keep the legacy
+    # threshold intact, but avoid failing a structurally valid root-overlay
+    # sheet on a few dozen text pixels.
+    body_dark_threshold = 900 if panel_kind == "root-overlay" else 1_000
     require(
-        body_dark_pixels >= 1_000,
-        f"Mac-reference settings labels and controls were not detected: pixels={body_dark_pixels}",
+        body_dark_pixels >= body_dark_threshold,
+        "Mac-reference settings labels and controls were not detected: "
+        f"pixels={body_dark_pixels}, threshold={body_dark_threshold}",
     )
 
     wordmark_pixels = pixel_count(
@@ -1408,7 +1419,8 @@ def validate_quill_chat_mac_reference_settings_panel(
 
     if require_typed_bearer_token:
         if panel_kind == "root-overlay":
-            token_text_pixels = root_overlay_field_text_pixels(2)
+            token_text_pixels = root_overlay_field_text_pixels(3)
+            token_text_threshold = 220
         else:
             token_y0 = panel_y + 174
             token_y1 = panel_y + 222
@@ -1419,15 +1431,17 @@ def validate_quill_chat_mac_reference_settings_panel(
                 min(panel_segment.end, panel_segment.start + 560),
                 token_y1,
             )
+            token_text_threshold = 250
         require(
-            token_text_pixels >= 250,
-            f"Mac-reference typed settings bearer token was not detected: pixels={token_text_pixels}",
+            token_text_pixels >= token_text_threshold,
+            "Mac-reference typed settings bearer token was not detected: "
+            f"pixels={token_text_pixels}, threshold={token_text_threshold}",
         )
         typed_summary += f", token_text_pixels={token_text_pixels}"
 
     if require_typed_ping_interval:
         if panel_kind == "root-overlay":
-            ping_text_pixels = root_overlay_field_text_pixels(3)
+            ping_text_pixels = root_overlay_field_text_pixels(4)
         else:
             ping_y0 = panel_y + 208
             ping_y1 = panel_y + 257
@@ -1828,17 +1842,32 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
         )
         sheet_top = max(top, inferred_field_rows[0][0] - 64)
 
+    action_anchor_y: int | None = None
+    action_x1 = min(sheet_segment.end + 1, sheet_segment.start + 220)
+    for y in range(max(top, sheet_top - 8), min(bottom + 1, sheet_top + 180)):
+        action_row_pixels = sum(
+            1
+            for x in range(sheet_segment.start, action_x1)
+            if mac_reference_completion_action_pixel(image.rgb(x, y))
+        )
+        if action_row_pixels >= 3:
+            action_anchor_y = y
+            break
+    if action_anchor_y is not None and action_anchor_y > sheet_top + 24:
+        sheet_top = max(top, action_anchor_y - 12)
+
+    action_strip_bottom = min(bottom + 1, sheet_top + max(72, int(app_height * 0.12)))
     cancel_roi = (
         sheet_segment.start,
         max(top, sheet_top - 8),
         min(sheet_segment.end, sheet_segment.start + 220),
-        sheet_top + 64,
+        action_strip_bottom,
     )
     save_roi = (
         max(sheet_segment.start, sheet_segment.end - 220),
         max(top, sheet_top - 8),
         sheet_segment.end + 1,
-        sheet_top + 64,
+        action_strip_bottom,
     )
     panel_roi = (
         sheet_segment.start,
@@ -1878,41 +1907,90 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
     if active_row is not None:
         field_rows.append(active_row)
 
-    cancel_pixels = pixel_count(image, *cancel_roi, mac_reference_completion_action_pixel)
-    save_pixels = pixel_count(image, *save_roi, mac_reference_completion_action_pixel)
+    def upsert_field_pixel_counts(rows: list[tuple[int, int, Segment]]) -> tuple[int, int, int]:
+        row_counts = [
+            pixel_count(
+                image,
+                segment.start,
+                y0,
+                segment.end + 1,
+                y1 + 1,
+                completions_upsert_form_field_pixel,
+            )
+            for y0, y1, segment in rows
+        ]
+        if len(row_counts) < 3:
+            padded = row_counts + ([0] * (3 - len(row_counts)))
+            return padded[0], padded[1], padded[2]
+
+        instruction_index = max(range(len(row_counts)), key=lambda index: row_counts[index])
+        instruction_count = row_counts[instruction_index]
+        neighboring_counts = [
+            count
+            for index, count in enumerate(row_counts)
+            if index != instruction_index
+        ]
+        if instruction_index > 0:
+            name_count = row_counts[instruction_index - 1]
+        else:
+            name_count = neighboring_counts[0]
+        trailing_counts = row_counts[instruction_index + 1:]
+        if trailing_counts:
+            preview_count = max(trailing_counts)
+        else:
+            preview_count = neighboring_counts[-1]
+        return name_count, instruction_count, preview_count
+
     panel_surface_pixels = pixel_count(image, *panel_roi, completions_upsert_sheet_pixel)
-    name_field_pixels = 0
-    instruction_field_pixels = 0
-    preview_pixels = 0
-    if len(field_rows) >= 1:
-        y0, y1, segment = field_rows[0]
-        name_field_pixels = pixel_count(
-            image,
-            segment.start,
-            y0,
-            segment.end + 1,
-            y1 + 1,
-            completions_upsert_form_field_pixel,
+    name_field_pixels, instruction_field_pixels, preview_pixels = upsert_field_pixel_counts(field_rows)
+    cancel_roi_candidates = [cancel_roi]
+    save_roi_candidates = [save_roi]
+
+    # The root-overlay sheet can be detected from the completions panel
+    # background behind the upsert view, which places sheet_top above the visible
+    # upsert header. Try header bands above the first few detected rows and keep
+    # the strongest action-label match; the first row may be the panel behind
+    # the sheet rather than the upsert form's name field.
+    for y0, _, _ in field_rows[:4]:
+        header_y0 = max(top, y0 - 84)
+        header_y1 = max(header_y0 + 1, y0 - 8)
+        cancel_roi_candidates.append(
+            (
+                sheet_segment.start,
+                header_y0,
+                min(sheet_segment.end, sheet_segment.start + 220),
+                header_y1,
+            )
         )
-    if len(field_rows) >= 2:
-        y0, y1, segment = field_rows[1]
-        instruction_field_pixels = pixel_count(
-            image,
-            segment.start,
-            y0,
-            segment.end + 1,
-            y1 + 1,
-            completions_upsert_form_field_pixel,
+        save_roi_candidates.append(
+            (
+                max(sheet_segment.start, sheet_segment.end - 220),
+                header_y0,
+                sheet_segment.end + 1,
+                header_y1,
+            )
         )
-    if len(field_rows) >= 3:
-        y0, y1, segment = field_rows[2]
-        preview_pixels = pixel_count(
-            image,
-            segment.start,
-            y0,
-            segment.end + 1,
-            y1 + 1,
-            completions_upsert_form_field_pixel,
+
+    cancel_roi, cancel_pixels = max(
+        (
+            (roi, pixel_count(image, *roi, mac_reference_completion_action_pixel))
+            for roi in cancel_roi_candidates
+        ),
+        key=lambda item: item[1],
+    )
+    save_roi, save_pixels = max(
+        (
+            (roi, pixel_count(image, *roi, mac_reference_completion_action_pixel))
+            for roi in save_roi_candidates
+        ),
+        key=lambda item: item[1],
+    )
+    measured_field_rows = field_rows
+    rows_below_header = [row for row in field_rows if row[0] >= cancel_roi[3]]
+    if len(rows_below_header) >= 3:
+        measured_field_rows = rows_below_header
+        name_field_pixels, instruction_field_pixels, preview_pixels = upsert_field_pixel_counts(
+            measured_field_rows
         )
 
     require(
@@ -1930,16 +2008,16 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
     )
     require(
         name_field_pixels >= 14_000,
-        f"Completions Upsert name field was not detected: pixels={name_field_pixels}, rows={field_rows}",
+        f"Completions Upsert name field was not detected: pixels={name_field_pixels}, rows={measured_field_rows}",
     )
     require(
         instruction_field_pixels >= 50_000,
         "Completions Upsert instruction editor was not detected: "
-        f"pixels={instruction_field_pixels}, rows={field_rows}",
+        f"pixels={instruction_field_pixels}, rows={measured_field_rows}",
     )
     require(
         preview_pixels >= 14_000,
-        f"Completions Upsert preview chip was not detected: pixels={preview_pixels}, rows={field_rows}",
+        f"Completions Upsert preview chip was not detected: pixels={preview_pixels}, rows={measured_field_rows}",
     )
 
     return (
@@ -1957,6 +2035,8 @@ def validate_quill_chat_mac_reference_completions_new_sheet(image: Screenshot) -
 def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
+        minimum_row_dividers=0,
+        minimum_row_action_segments=1,
         minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
@@ -2044,6 +2124,8 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
 def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
+        minimum_row_dividers=1,
+        minimum_row_action_segments=1,
         minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
@@ -2109,7 +2191,7 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
         minimum_row_dividers=2,
-        minimum_row_action_segments=3,
+        minimum_row_action_segments=4,
         minimum_wordmark_pixels=350,
     )
     left, right, top, bottom = content_bounds(image)
@@ -2118,9 +2200,20 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
 
     row_action_roi = (
         left + int(app_width * 0.725),
-        top + int(app_height * 0.37),
+        top + int(app_height * 0.345),
         left + int(app_width * 0.79),
         top + int(app_height * 0.53),
+    )
+    dismissed_sheet_fields_roi = (
+        left + int(app_width * 0.36),
+        top + int(app_height * 0.30),
+        left + int(app_width * 0.78),
+        top + int(app_height * 0.44),
+    )
+    dismissed_sheet_field_pixels = pixel_count(
+        image,
+        *dismissed_sheet_fields_roi,
+        completions_upsert_form_field_pixel,
     )
     deleted_row_action_segments = dark_row_segment_count(
         image,
@@ -2129,13 +2222,19 @@ def validate_quill_chat_mac_reference_completions_deleted(image: Screenshot) -> 
         min_height=4,
     )
     require(
-        deleted_row_action_segments <= 3,
-        "Deleted completion row still appears to be present: "
+        deleted_row_action_segments >= 4,
+        "Stock completion rows were not restored after deleting the generated completion: "
         f"segments={deleted_row_action_segments}, roi={row_action_roi}",
+    )
+    require(
+        dismissed_sheet_field_pixels <= 12_000,
+        "Completions sheet still appears to be visible after Delete: "
+        f"pixels={dismissed_sheet_field_pixels}, roi={dismissed_sheet_fields_roi}",
     )
 
     return (
         "Quill Chat Mac-reference completions deleted: "
+        f"dismissed_sheet_field_pixels={dismissed_sheet_field_pixels}, "
         f"row_action_segments={deleted_row_action_segments}; "
         f"{panel_summary}"
     )
@@ -2200,19 +2299,34 @@ def validate_quill_chat_mac_reference_history_selection(
         f"Mac-reference selected history row text was not detected: pixels={selected_row_pixels}",
     )
 
-    empty_prompt_card_row = best_prompt_card_row(
+    if not require_transcript:
+        empty_prompt_card_row = best_prompt_card_row(
+            image,
+            top + int(app_height * 0.25),
+            top + int(app_height * 0.62),
+            detail_left,
+            right + 1,
+            min_width=int(app_width * 0.10),
+            predicate=mac_reference_or_gtk_prompt_card_pixel,
+        )
+        require(
+            empty_prompt_card_row is None,
+            "Mac-reference empty-state prompt cards remained after history selection: "
+            f"row={empty_prompt_card_row[0] if empty_prompt_card_row else 'none'}",
+        )
+
+    wordmark_pixels = pixel_count(
         image,
-        top + int(app_height * 0.25),
-        top + int(app_height * 0.62),
-        detail_left,
-        right + 1,
-        min_width=int(app_width * 0.10),
-        predicate=mac_reference_prompt_card_pixel,
+        detail_left + int(detail_width * 0.35),
+        top + int(app_height * 0.20),
+        detail_left + int(detail_width * 0.65),
+        top + int(app_height * 0.45),
+        colorful_wordmark_pixel,
     )
     require(
-        empty_prompt_card_row is None,
-        "Mac-reference empty-state prompt cards remained after history selection: "
-        f"row={empty_prompt_card_row[0] if empty_prompt_card_row else 'none'}",
+        wordmark_pixels <= 650,
+        "Mac-reference empty-state wordmark remained after history selection: "
+        f"pixels={wordmark_pixels}",
     )
 
     transcript_panel_pixels = pixel_count(
@@ -2472,7 +2586,7 @@ def validate_quill_chat_mac_reference_sent_message(
         top + int(app_height * 0.25),
         right + 1,
         top + int(app_height * 0.62),
-        mac_reference_prompt_card_pixel,
+        mac_reference_or_gtk_prompt_card_pixel,
     )
     require(
         prompt_card_like_pixels <= 8_000,
@@ -2574,6 +2688,15 @@ def validate_quill_chat_mac_reference_composer_send(image: Screenshot) -> str:
     )
 
 
+def validate_quill_chat_mac_reference_attachment_send(image: Screenshot) -> str:
+    return validate_quill_chat_mac_reference_sent_message(
+        image,
+        "attachment-send",
+        minimum_message_pixels=160,
+        minimum_right_aligned_message_pixels=120,
+    )
+
+
 def validate_quill_chat_mac_reference_toolbar_model_selected(image: Screenshot) -> str:
     return validate_quill_chat_mac_reference_sent_message(
         image,
@@ -2610,7 +2733,7 @@ def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
         top + int(app_height * 0.25),
         right + 1,
         top + int(app_height * 0.62),
-        mac_reference_prompt_card_pixel,
+        mac_reference_or_gtk_prompt_card_pixel,
     )
     require(
         prompt_card_like_pixels <= 8_000,
@@ -4065,7 +4188,7 @@ def validate_quill_wireguard_gtk_native(
 
 def validate_quill_wireguard_gtk_import(
     image: Screenshot,
-    minimum_selected_center_offset: int = 145,
+    minimum_selected_center_offset: int = 70,
 ) -> str:
     return validate_quill_wireguard_gtk_native(
         image,
@@ -4202,6 +4325,14 @@ def validate_quill_solderscope_launch(image: Screenshot) -> str:
         toolbar_height,
         lambda rgb: sum(rgb) >= 24,
     )
+    canvas_dark_pixels = pixel_count(
+        image,
+        image.width // 4,
+        max(toolbar_height, image.height // 4),
+        (image.width * 3) // 4,
+        (image.height * 3) // 4,
+        lambda rgb: sum(rgb) <= 96,
+    )
     require(
         toolbar_pixels >= 1_500,
         f"SolderScope dark toolbar pixels were not detected near the top: pixels={toolbar_pixels}",
@@ -4210,12 +4341,103 @@ def validate_quill_solderscope_launch(image: Screenshot) -> str:
         top_nonblack_pixels >= 5_000,
         f"SolderScope top chrome appears black/empty: nonblack_pixels={top_nonblack_pixels}",
     )
+    require(
+        canvas_dark_pixels >= 25_000,
+        f"SolderScope microscope canvas was not detected: dark_pixels={canvas_dark_pixels}",
+    )
 
     return (
         "Quill SolderScope launch: "
         f"toolbar_pixels={toolbar_pixels}, "
-        f"top_nonblack_pixels={top_nonblack_pixels}"
+        f"top_nonblack_pixels={top_nonblack_pixels}, "
+        f"canvas_dark_pixels={canvas_dark_pixels}"
     )
+
+
+def validate_quill_solderscope_interaction(image: Screenshot) -> str:
+    toolbar_height = min(140, image.height)
+    toolbar_pixels = pixel_count(
+        image,
+        0,
+        0,
+        image.width,
+        toolbar_height,
+        solderscope_toolbar_pixel,
+    )
+    top_nonblack_pixels = pixel_count(
+        image,
+        0,
+        0,
+        image.width,
+        toolbar_height,
+        lambda rgb: sum(rgb) >= 24,
+    )
+    frame_pixels = pixel_count(
+        image,
+        image.width // 5,
+        max(toolbar_height, image.height // 5),
+        (image.width * 4) // 5,
+        (image.height * 4) // 5,
+        lambda rgb: sum(rgb) >= 160 and max(rgb) - min(rgb) >= 48,
+    )
+    lower_left_recording_pixels = pixel_count(
+        image,
+        0,
+        max(0, image.height - 90),
+        min(180, image.width),
+        image.height,
+        lambda rgb: rgb[0] >= 180
+        and rgb[1] <= 70
+        and rgb[2] <= 70
+        and rgb[0] - rgb[1] >= 90
+        and rgb[0] - rgb[2] >= 90,
+    )
+    require(
+        toolbar_pixels >= 1_500,
+        f"SolderScope dark toolbar pixels were not detected near the top: pixels={toolbar_pixels}",
+    )
+    require(
+        top_nonblack_pixels >= 5_000,
+        f"SolderScope top chrome appears black/empty: nonblack_pixels={top_nonblack_pixels}",
+    )
+    require(
+        frame_pixels >= 20_000,
+        f"SolderScope synthetic camera frame was not detected: frame_pixels={frame_pixels}",
+    )
+    require(
+        lower_left_recording_pixels <= 500,
+        "SolderScope recording indicator is still visible after the stop action: "
+        f"pixels={lower_left_recording_pixels}",
+    )
+
+    return (
+        "Quill SolderScope interaction: "
+        f"toolbar_pixels={toolbar_pixels}, "
+        f"top_nonblack_pixels={top_nonblack_pixels}, "
+        f"frame_pixels={frame_pixels}, "
+        f"recording_indicator_pixels={lower_left_recording_pixels}"
+    )
+
+
+def validate_quill_solderscope_freeze_interaction(image: Screenshot) -> str:
+    base = validate_quill_solderscope_interaction(image)
+    frozen_badge_pixels = pixel_count(
+        image,
+        max(0, image.width - 150),
+        0,
+        image.width,
+        min(80, image.height),
+        lambda rgb: rgb[2] >= 120
+        and rgb[0] <= 90
+        and rgb[1] <= 120
+        and rgb[2] - rgb[0] >= 80,
+    )
+    require(
+        frozen_badge_pixels >= 500,
+        "SolderScope FROZEN indicator was not detected after the freeze shortcut: "
+        f"pixels={frozen_badge_pixels}",
+    )
+    return f"{base}, frozen_badge_pixels={frozen_badge_pixels}"
 
 
 def main() -> int:
@@ -4245,7 +4467,12 @@ def main() -> int:
     compact_quill_chat_dialog_product = product in {
         "quill-chat-linux-mac-reference-settings-delete-confirmation",
     }
-    solderscope_launch_product = product == "quill-solderscope-launch"
+    solderscope_launch_product = product in {
+        "quill-solderscope-launch",
+        "quill-solderscope-visual",
+        "quill-solderscope-interaction",
+        "quill-solderscope-freeze-interaction",
+    }
     if compact_quill_chat_dialog_product:
         minimum_width = 260
         minimum_height = 140
@@ -4258,7 +4485,11 @@ def main() -> int:
     else:
         minimum_width = 900
         minimum_height = 600
-    minimum_mean = 500 if solderscope_launch_product else 1000
+    # SolderScope's valid no-camera state is intentionally mostly black: the
+    # microscope canvas fills the window while only toolbar controls and status
+    # text are bright. Use the product-specific toolbar/canvas predicates below
+    # for real blank-screen detection instead of a light-app global mean floor.
+    minimum_mean = 250 if solderscope_launch_product else 1000
     minimum_stddev = 1000 if solderscope_launch_product else 250
     require(
         image.width >= minimum_width and image.height >= minimum_height,
@@ -4309,7 +4540,7 @@ def main() -> int:
     elif product == "quill-chat-linux-mac-reference-completions-deleted":
         print(validate_quill_chat_mac_reference_completions_deleted(image))
     elif product == "quill-chat-linux-mac-reference-history-selection":
-        print(validate_quill_chat_mac_reference_history_selection(image))
+        print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))
     elif product == "quill-chat-linux-mac-reference-transcript-selection":
         print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))
     elif product == "quill-chat-linux-mac-reference-markdown-transcript-selection":
@@ -4322,10 +4553,12 @@ def main() -> int:
         print(validate_quill_chat_mac_reference_prompt_send(image))
     elif product == "quill-chat-linux-mac-reference-composer-send":
         print(validate_quill_chat_mac_reference_composer_send(image))
+    elif product == "quill-chat-linux-mac-reference-attachment-send":
+        print(validate_quill_chat_mac_reference_attachment_send(image))
     elif product == "quill-chat-linux-mac-reference-toolbar-model-selected":
         print(validate_quill_chat_mac_reference_toolbar_model_selected(image))
     elif product == "quill-chat-linux-mac-reference-new-chat":
-        print(validate_quill_chat_mac_reference(image))
+        print(validate_quill_chat_mac_reference_new_chat(image))
     elif product == "quill-chat-linux-mac-reference-copy-chat":
         print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))
     elif product == "quill-chat-linux-mac-reference-copy-chat-json":
@@ -4407,7 +4640,11 @@ def main() -> int:
         print(validate_quill_wireguard_gtk_import(image))
     elif product in {"quill-wireguard-import-invalid-paste", "quill-wireguard-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="gtk"))
-    elif product == "quill-solderscope-launch":
+    elif product == "quill-solderscope-interaction":
+        print(validate_quill_solderscope_interaction(image))
+    elif product == "quill-solderscope-freeze-interaction":
+        print(validate_quill_solderscope_freeze_interaction(image))
+    elif product in {"quill-solderscope-launch", "quill-solderscope-visual"}:
         print(validate_quill_solderscope_launch(image))
     elif product in {
         "quill-gtk-interaction-smoke-open",

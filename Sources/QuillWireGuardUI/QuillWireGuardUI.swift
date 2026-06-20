@@ -93,6 +93,7 @@ public struct WireGuardFallbackConfigurationView: View {
     /// CPU (vs ~3% baseline). @State persists across rebuilds so the flag holds;
     /// per-selection refreshes still happen via the row tap handler.
     @State private var didFetchInitialLiveStatus = false
+    @State private var didLoadStartupImportConfiguration = false
     /// Last connect/disconnect error, shown inline (e.g. activation needs root).
     @State private var connectErrorText: String?
 
@@ -111,6 +112,7 @@ public struct WireGuardFallbackConfigurationView: View {
                 minHeight: WireGuardFallbackStyle.minimumHeight
             )
             .onAppear {
+                loadStartupImportConfigurationIfNeeded()
                 guard !didFetchInitialLiveStatus else { return }
                 didFetchInitialLiveStatus = true
                 if let tunnel = selectedTunnel {
@@ -141,6 +143,7 @@ public struct WireGuardFallbackConfigurationView: View {
                         .frame(width: 22, height: 22)
                 }
             }
+            .frame(width: WireGuardFallbackStyle.sidebarListContentWidth, alignment: .leading)
             .padding(WireGuardFallbackStyle.sidebarPadding)
 
             Divider()
@@ -405,6 +408,25 @@ public struct WireGuardFallbackConfigurationView: View {
     private func showImportPanel() {
         isImportPanelVisible = true
         importErrorText = nil
+    }
+
+    private func loadStartupImportConfigurationIfNeeded() {
+        #if os(Linux)
+        guard !didLoadStartupImportConfiguration else { return }
+        didLoadStartupImportConfiguration = true
+
+        let environment = ProcessInfo.processInfo.environment
+        guard let path = environment["QUILLUI_WIREGUARD_IMPORT_CONFIGURATION_FILE_ON_START"],
+              !path.isEmpty else {
+            return
+        }
+
+        do {
+            importConfigurationText = try String(contentsOfFile: path, encoding: .utf8)
+        } catch {
+            importErrorText = error.localizedDescription
+        }
+        #endif
     }
 
     private func hideImportPanel() {

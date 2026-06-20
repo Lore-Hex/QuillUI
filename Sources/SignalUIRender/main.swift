@@ -13,6 +13,7 @@ import QuillUIKit
 import UIKit
 import QuillFoundation
 import Foundation
+import Dispatch
 
 // MARK: - First-light demo view controller (trivial; no SignalUI dependency)
 
@@ -53,8 +54,26 @@ final class FirstLightViewController: UIViewController {
 func dumpViewTree(_ view: UIView, depth: Int) {
     let indent = String(repeating: "  ", count: depth)
     let f = view.frame
-    var line = "\(indent)\(type(of: view)) frame=(\(Int(f.origin.x)),\(Int(f.origin.y)),\(Int(f.width))x\(Int(f.height))) subviews=\(view.subviews.count)"
+    func safeFrameValue(_ value: CGFloat) -> String {
+        guard value.isFinite else { return String(describing: value) }
+        guard value <= CGFloat(Int.max), value >= CGFloat(Int.min) else {
+            return String(format: "%.3g", Double(value))
+        }
+        return String(Int(value.rounded()))
+    }
+    var line = "\(indent)\(type(of: view)) frame=(\(safeFrameValue(f.origin.x)),\(safeFrameValue(f.origin.y)),\(safeFrameValue(f.width))x\(safeFrameValue(f.height))) subviews=\(view.subviews.count)"
     if let label = view as? UILabel { line += " label=\"\(label.text ?? "")\"" }
+    if let imageView = view as? UIImageView {
+        if let image = imageView.image {
+            let resourceName = image.quillResourceName ?? "-"
+            let systemName = image.quillSystemSymbolName ?? "-"
+            let hasData = image.dataRepresentation() != nil
+            line += " image(resource=\"\(resourceName)\" system=\"\(systemName)\" data=\(hasData) size=\(safeFrameValue(image.size.width))x\(safeFrameValue(image.size.height)))"
+        } else {
+            line += " image=nil"
+        }
+    }
+    if let renderedText = view.quillRenderedText { line += " renderedText=\"\(renderedText)\"" }
     if let tv = view as? UITableView {
         let ds = tv.dataSource
         let secs = ds?.numberOfSections(in: tv) ?? -1
@@ -81,6 +100,7 @@ func dumpViewTree(_ view: UIView, depth: Int) {
 func installBaseCSS(windowBackground: String) {
     let css = """
     window { background-color: \(windowBackground); }
+    * { background-color: transparent; }
     box, label, viewport, scrolledwindow, separator { background-color: transparent; }
     label { color: #1C1C1E; }
     .qcard { background-color: #FFFFFF; border-radius: 10px; }
@@ -91,6 +111,8 @@ func installBaseCSS(windowBackground: String) {
     .qheader { background-color: #FFFFFF; padding: 10px 16px; border-bottom: 1px solid rgba(60,60,67,0.15); }
     .qcomposer { background-color: #FFFFFF; padding: 10px 12px; border-top: 1px solid rgba(60,60,67,0.15); }
     .qfield { background-color: #FFFFFF; border: 1px solid rgba(60,60,67,0.30); border-radius: 18px; padding: 8px 14px; }
+    .qrealcomponentstack { padding: 8px 0; }
+    .qrealcvcell { background-color: transparent; }
     """
     let provider = gtk_css_provider_new()
     css.withCString { gtk_css_provider_load_from_string(provider, $0) }
@@ -109,9 +131,20 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
                              windowBackground: String = "#EFEFF4") {
     installBaseCSS(windowBackground: windowBackground)
 
-    // Force the view to load + lay out.
-    vc.loadViewIfNeeded()
-    vc.viewDidLoad()
+    // Force the view to load + lay out. `loadViewIfNeeded()` already calls
+    // `viewDidLoad()` in QuillUIKit, but it also hides the chance to size the
+    // root view before first-load code runs. Size first for unloaded controllers
+    // so UIKit-style layout gates see the host window dimensions.
+    if vc.isViewLoaded {
+        vc.view.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+    } else {
+        vc.loadView()
+        if vc.viewIfLoaded == nil {
+            vc.view = UIView()
+        }
+        vc.viewIfLoaded?.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+        vc.viewDidLoad()
+    }
     vc.view.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
     vc.view.layoutIfNeeded()
 
@@ -144,14 +177,60 @@ guard gtk_init_check() != 0 else {
 // SIGNAL_UI_RENDER_DEMO selects the screen:
 //   firstlight   → trivial pipeline proof
 //   conversation → a chat styled by Signal's REAL ConversationStyle
+//   realapp-link → proves the GTK renderer links SignalApp / ConversationViewController
+//   real-components → real CVItemModel/CVRootComponent/CVCellView render path
+//   ssk-bootstrap → initializes real SSK globals + on-disk SDSDatabaseStorage
+//   real-conversation → seeds storage + launches real ConversationViewController
+//   real-conversation-accepted → launches CVC with a profile-whitelisted thread
 //   (default)    → Signal's REAL OWSTableViewController2 (Settings)
-MainActor.assumeIsolated {
-    switch ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"] {
+let selectedDemo = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"]
+if selectedDemo == "ssk-bootstrap" || selectedDemo == "real-conversation" || selectedDemo == "real-conversation-accepted" {
+    DispatchQueue.main.async {
+        Task { @MainActor in
+            let vc: UIViewController
+            let title: String
+            let width: Int
+            let height: Int
+            switch selectedDemo {
+            case "real-conversation":
+                vc = await SignalConversationDemo.makeRealConversationViewController()
+                title = "Signal Real Conversation"
+                width = 760
+                height = 720
+            case "real-conversation-accepted":
+                vc = await SignalConversationDemo.makeAcceptedRealConversationViewController()
+                title = "Signal Accepted Conversation"
+                width = 760
+                height = 720
+            default:
+                vc = await SignalConversationDemo.makeSSKBootstrapProbeViewController()
+                title = "Signal Runtime Bootstrap"
+                width = 620
+                height = 280
+            }
+            renderRootViewController(vc, title: title, width: width, height: height, windowBackground: "#FFFFFF")
+            let loop = g_main_loop_new(nil, 0)
+            g_main_loop_run(loop)
+            g_main_loop_unref(loop)
+        }
+    }
+    dispatchMain()
+} else {
+    MainActor.assumeIsolated {
+        switch selectedDemo {
     case "firstlight":
         renderRootViewController(FirstLightViewController(), title: "Signal UI on Linux", width: 390, height: 600)
     case "conversation":
         renderRootViewController(SignalConversationDemo.makeConversationViewController(),
                                  title: "Signal on Linux", width: 760, height: 720,
+                                 windowBackground: "#FFFFFF")
+    case "realapp-link":
+        renderRootViewController(SignalConversationDemo.makeRealAppLinkProbeViewController(),
+                                 title: "SignalApp Link Probe", width: 520, height: 260,
+                                 windowBackground: "#FFFFFF")
+    case "real-components":
+        renderRootViewController(SignalConversationDemo.makeRealComponentPreviewViewController(),
+                                 title: "Signal Real Components", width: 568, height: 300,
                                  windowBackground: "#FFFFFF")
     case "privacy":
         renderRootViewController(SignalSettingsDemo.makePrivacyViewController(),
@@ -159,6 +238,7 @@ MainActor.assumeIsolated {
     default:
         renderRootViewController(SignalSettingsDemo.makeSettingsViewController(),
                                  title: "Signal Settings on Linux", width: 390, height: 720)
+        }
     }
 }
 

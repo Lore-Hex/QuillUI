@@ -284,11 +284,21 @@ replacement = """    /// Filled/prominent background.
     case quillPaintMacDefault
     /// QuillPaint macOS bordered button chrome.
     case quillPaintMacBordered
+    /// QuillPaint macOS sidebar/list-row chrome.
+    case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)
 """
 if "case quillPaintMacDefault" not in text:
     if needle not in text:
         raise SystemExit("SwiftOpenUI ButtonStyleType shape was not recognized")
     text = text.replace(needle, replacement, 1)
+elif "case quillPaintMacListRow" not in text:
+    text = text.replace(
+        "    /// QuillPaint macOS bordered button chrome.\n    case quillPaintMacBordered\n",
+        "    /// QuillPaint macOS bordered button chrome.\n    case quillPaintMacBordered\n"
+        "    /// QuillPaint macOS sidebar/list-row chrome.\n"
+        "    case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)\n",
+        1,
+    )
 path.write_text(text)
 PY
 fi
@@ -2163,7 +2173,14 @@ if has_fixed_frame_clip_region and fixed_frame_flexible_width_fixed_height_clip 
         let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
         gtk_widget_set_size_request(wrapper, requestWidth, requestHeight)
 '''
-    new_parent_flexible_request = '''        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
+    new_parent_flexible_request = '''        if !widthMayGrowWithParent && heightMayGrowWithParent && childExpV {
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
+        }
+
+        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
         let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
         if widthMayGrowWithParent && !heightMayGrowWithParent && childExpV {
             return gtkFrameFlexibleWidthFixedHeightClip(
@@ -2235,6 +2252,101 @@ if has_fixed_frame_clip_region and fixed_frame_flexible_width_fixed_height_clip 
         fixed_height_clip_helper + fixed_height_clip_helper_anchor,
         1,
     )
+
+fixed_width_flexible_height_clip = "gtkFrameFixedWidthFlexibleHeightClip"
+if fixed_width_flexible_height_clip not in text:
+    fixed_width_clip_helper_anchor = '''    /// Build a frame wrapper using GtkBox instead of GtkFixed, for frames
+'''
+    fixed_width_clip_helper = '''    private func gtkFrameFixedWidthFlexibleHeightClip(
+        child: UnsafeMutablePointer<GtkWidget>,
+        width: gint
+    ) -> OpaquePointer {
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+        gtk_scrolled_window_set_min_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_max_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+
+        gtk_widget_set_size_request(scrolled, width, -1)
+        gtk_widget_set_hexpand(scrolled, 0)
+        gtk_widget_set_vexpand(scrolled, 1)
+        gtk_widget_set_hexpand(child, 1)
+        gtk_widget_set_vexpand(child, 1)
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(child, width, -1)
+        gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: true,
+            fillHeight: true
+        )
+        return opaqueFromWidget(scrolled)
+    }
+
+'''
+    if fixed_width_clip_helper_anchor not in text:
+        raise SystemExit("SwiftOpenUI flexible-height fixed-width frame helper anchor was not recognized")
+    text = text.replace(
+        fixed_width_clip_helper_anchor,
+        fixed_width_clip_helper + fixed_width_clip_helper_anchor,
+        1,
+    )
+
+    old_fixed_width_flexible_height = '''        if constrainedWidth {
+            // Width constrained, height flexible
+            gtk_widget_set_size_request(wrapper, gtkPixelSize(layout.containerSize.width), -1)
+            let hexp: gint = (maxWidth != nil) ? 1 : 0
+            gtk_widget_set_hexpand(wrapper, hexp)
+            gtk_widget_set_vexpand(wrapper, 1)
+        } else {
+'''
+    old_fixed_width_flexible_height_with_child_request = '''        if constrainedWidth {
+            // Width constrained, height flexible
+            gtk_widget_set_size_request(wrapper, gtkPixelSize(layout.containerSize.width), -1)
+            gtk_widget_set_size_request(child, gtkPixelSize(layout.childPlacement.size.width), -1)
+            let hexp: gint = (maxWidth != nil) ? 1 : 0
+            gtk_widget_set_hexpand(wrapper, hexp)
+            gtk_widget_set_vexpand(wrapper, 1)
+        } else {
+'''
+    new_fixed_width_flexible_height = '''        if constrainedWidth {
+            // Width constrained, height flexible
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
+        } else {
+'''
+    if old_fixed_width_flexible_height in text:
+        text = text.replace(old_fixed_width_flexible_height, new_fixed_width_flexible_height, 1)
+    elif old_fixed_width_flexible_height_with_child_request in text:
+        text = text.replace(old_fixed_width_flexible_height_with_child_request, new_fixed_width_flexible_height, 1)
+    else:
+        raise SystemExit("SwiftOpenUI fixed-width flexible-height branch shape was not recognized")
+
+fixed_width_parent_flexible_guard = "!widthMayGrowWithParent && heightMayGrowWithParent && childExpV"
+if fixed_width_parent_flexible_guard not in text:
+    old_parent_flexible_guard_anchor = '''        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
+        let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+'''
+    new_parent_flexible_guard_anchor = '''        if !widthMayGrowWithParent && heightMayGrowWithParent && childExpV {
+            return gtkFrameFixedWidthFlexibleHeightClip(
+                child: child,
+                width: gtkPixelSize(layout.containerSize.width)
+            )
+        }
+
+        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
+        let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+'''
+    if old_parent_flexible_guard_anchor not in text:
+        raise SystemExit("SwiftOpenUI parent-flexible fixed-width guard anchor was not recognized")
+    text = text.replace(old_parent_flexible_guard_anchor, new_parent_flexible_guard_anchor, 1)
 
 padded_view_child_fill = "PaddedView must let expanding content fill its margin wrapper"
 has_padded_view_region = (
@@ -3302,6 +3414,9 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
         gtk_widget_set_size_request(context.child, width, -1)
         gtk_widget_queue_resize(context.child)
     }
+    if context.fillWidth {
+        gtkClampHiddenHorizontalScrollOffset(widget)
+    }
     if context.fillHeight, height > 1, height != context.lastHeight {
         context.lastHeight = height
         gtk_widget_set_size_request(context.child, -1, height)
@@ -3309,6 +3424,16 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
     }
 
     return 1
+}
+
+private func gtkClampHiddenHorizontalScrollOffset(_ scrolled: UnsafeMutablePointer<GtkWidget>) {
+    guard let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) else {
+        return
+    }
+    let lower = gtk_adjustment_get_lower(hadjustment)
+    if gtk_adjustment_get_value(hadjustment) != lower {
+        gtk_adjustment_set_value(hadjustment, lower)
+    }
 }
 
 private func gtkInstallScrollViewCrossAxisFill(
@@ -3655,6 +3780,43 @@ private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePoint
     if old_scroll_context_init not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader context upgrade shape was not recognized")
     text = text.replace(old_scroll_context_init, new_scroll_context_init, 1)
+if "private func gtkClampHiddenHorizontalScrollOffset" not in text:
+    old_scroll_cross_axis_clamp = '''    if context.fillWidth, width > 1, width != context.lastWidth {
+        context.lastWidth = width
+        gtk_widget_set_size_request(context.child, width, -1)
+        gtk_widget_queue_resize(context.child)
+    }
+    if context.fillHeight, height > 1, height != context.lastHeight {
+'''
+    new_scroll_cross_axis_clamp = '''    if context.fillWidth, width > 1, width != context.lastWidth {
+        context.lastWidth = width
+        gtk_widget_set_size_request(context.child, width, -1)
+        gtk_widget_queue_resize(context.child)
+    }
+    if context.fillWidth {
+        gtkClampHiddenHorizontalScrollOffset(widget)
+    }
+    if context.fillHeight, height > 1, height != context.lastHeight {
+'''
+    scroll_cross_axis_helper_marker = '''private func gtkInstallScrollViewCrossAxisFill(
+'''
+    scroll_cross_axis_clamp_helper = '''private func gtkClampHiddenHorizontalScrollOffset(_ scrolled: UnsafeMutablePointer<GtkWidget>) {
+    guard let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) else {
+        return
+    }
+    let lower = gtk_adjustment_get_lower(hadjustment)
+    if gtk_adjustment_get_value(hadjustment) != lower {
+        gtk_adjustment_set_value(hadjustment, lower)
+    }
+}
+
+'''
+    if old_scroll_cross_axis_clamp not in text:
+        raise SystemExit("SwiftOpenUI ScrollView hidden horizontal clamp shape was not recognized")
+    if scroll_cross_axis_helper_marker not in text:
+        raise SystemExit("SwiftOpenUI ScrollView hidden horizontal clamp helper marker was not recognized")
+    text = text.replace(old_scroll_cross_axis_clamp, new_scroll_cross_axis_clamp, 1)
+    text = text.replace(scroll_cross_axis_helper_marker, scroll_cross_axis_clamp_helper + scroll_cross_axis_helper_marker, 1)
 if "remainingTicks: Int = 4" in text:
     text = text.replace("remainingTicks: Int = 4", "remainingTicks: Int = 180")
 old_apply_scroll = '''private func gtkApplyScrollTo(_ target: UnsafeMutablePointer<GtkWidget>, anchor: UnitPoint?) {
@@ -5477,12 +5639,43 @@ private func gtkWrapWithToolbarRow<V: View>(
     return box
 }
 
+private func gtkApplyFixedSplitColumnWidth(_ widget: UnsafeMutablePointer<GtkWidget>, width: Double) {
+    let pixelWidth = gint(width)
+    gtk_widget_set_size_request(widget, pixelWidth, gtkRequestedDefaultWindowHeight())
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    if typeName == "GtkScrolledWindow" {
+        let scrolledOp = OpaquePointer(widget)
+        gtk_scrolled_window_set_min_content_width(scrolledOp, pixelWidth)
+        gtk_scrolled_window_set_max_content_width(scrolledOp, pixelWidth)
+    }
+}
+
 private func gtkConfigureFixedSplitColumn(_ widget: UnsafeMutablePointer<GtkWidget>, width: Double) {
-    gtk_widget_set_size_request(widget, gint(width), gtkRequestedDefaultWindowHeight())
+    gtkApplyFixedSplitColumnWidth(widget, width: width)
     gtk_widget_set_hexpand(widget, 0)
     gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
     gtk_widget_set_vexpand(widget, 1)
     gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+}
+
+private func gtkCreateFixedSplitColumnContainer(
+    child: UnsafeMutablePointer<GtkWidget>,
+    width: Double
+) -> UnsafeMutablePointer<GtkWidget> {
+    let scrolled = gtk_scrolled_window_new()!
+    let scrolledOp = OpaquePointer(scrolled)
+    gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+    gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+    gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+    gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+    gtkConfigureFixedSplitColumn(scrolled, width: width)
+
+    gtk_widget_set_hexpand(child, 1)
+    gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+    gtk_widget_set_vexpand(child, 1)
+    gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+    gtk_scrolled_window_set_child(scrolledOp, child)
+    return scrolled
 }
 
 private func gtkConfigureFillingSplitColumn(_ widget: UnsafeMutablePointer<GtkWidget>) {
@@ -5505,7 +5698,7 @@ private let gtkFixedSplitSidebarTickCallback: GtkTickCallback = { widget, _, use
     let width = Double(gtk_widget_get_width(widget))
     guard width > 0 else { return 1 }
     let sidebarW = max(320.0, min(600.0, width * 0.27))
-    gtk_widget_set_size_request(sidebar, gint(sidebarW), gtkRequestedDefaultWindowHeight())
+    gtkApplyFixedSplitColumnWidth(sidebar, width: sidebarW)
     gtk_widget_queue_resize(sidebar)
     gtk_widget_queue_resize(widget)
     if gtkBackendLayoutDebugEnabled {
@@ -5740,12 +5933,10 @@ if two_column_start >= 0 and three_column_start > two_column_start:
         let resolvedSidebarW = max(sidebarMinW, sidebarW)
 
         let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))
-        let sidebarWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_widget_set_hexpand(sidebarContentWidget, 1)
-        gtk_widget_set_halign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_widget_set_vexpand(sidebarContentWidget, 1)
-        gtk_widget_set_valign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)
+        let sidebarWidget = gtkCreateFixedSplitColumnContainer(
+            child: sidebarContentWidget,
+            width: resolvedSidebarW
+        )
 
         let detailWidget = gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)
         let splitBox = gtkCreateTwoColumnSplitBox(
@@ -5778,14 +5969,15 @@ if three_column_start >= 0 and column_width_view_start > three_column_start:
         let resolvedContentW = max(contentMinW, contentW)
 
         let sidebarContentWidget = widgetFromOpaque(gtkRenderView(sidebar))
-        let sidebarWidget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_widget_set_hexpand(sidebarContentWidget, 1)
-        gtk_widget_set_halign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_widget_set_vexpand(sidebarContentWidget, 1)
-        gtk_widget_set_valign(sidebarContentWidget, GTK_ALIGN_FILL)
-        gtk_box_append(boxPointer(sidebarWidget), sidebarContentWidget)
+        let sidebarWidget = gtkCreateFixedSplitColumnContainer(
+            child: sidebarContentWidget,
+            width: resolvedSidebarW
+        )
 
-        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let contentWidget = gtkCreateFixedSplitColumnContainer(
+            child: widgetFromOpaque(gtkRenderView(content)),
+            width: resolvedContentW
+        )
         let detailWidget = gtkWrapWithToolbarRow(widgetFromOpaque(gtkRenderView(detail)), toolbarSource: detail)
         let splitBox = gtkCreateThreeColumnSplitBox(
             sidebarWidget: sidebarWidget,
@@ -5857,7 +6049,7 @@ required_symbols = [
     ("character.cursor.ibeam", "text_fields", ["calendar"]),
     ("checkmark.seal.fill", "verified", ["checkmark.circle.fill", "checkmark.square.fill", "calendar"]),
     ("chevron.down", "expand_more", ["chevron.right", "calendar"]),
-    ("curlybraces", "code", ["chevron.down", "calendar"]),
+    ("curlybraces", "data_object", ["chevron.down", "calendar"]),
     ("doc.on.doc", "content_copy", ["calendar"]),
     ("doc.text", "description", ["doc.on.doc", "calendar"]),
     ("folder", "folder", ["calendar"]),
@@ -5949,7 +6141,8 @@ hook_decl = (
     "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
     "public var quill_gtk_text_field_paint_hook: ((OpaquePointer, Bool) -> OpaquePointer?)? = nil\n"
     "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
-    "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n\n"
+    "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n"
+    "public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil\n\n"
 )
 if "quill_gtk_button_paint_hook" not in text:
     marker = "// MARK: - GTK rendering protocol\n"
@@ -5975,6 +6168,13 @@ if "quill_gtk_toggle_paint_hook" not in text:
         "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n",
         "public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> OpaquePointer?)? = nil\n"
         "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
+        1,
+    )
+if "quill_gtk_list_row_paint_hook" not in text:
+    text = text.replace(
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n",
+        "public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil\n"
+        "public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil\n",
         1,
     )
 
@@ -6165,6 +6365,13 @@ if "case .quillPaintMacDefault:" not in text:
             handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), true) ?? false
         case .quillPaintMacBordered:
             handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+        case let .quillPaintMacListRow(isSelected, drawsIdleBackground):
+            handledByQuillPaint = quill_gtk_list_row_paint_hook?(
+                OpaquePointer(button),
+                OpaquePointer(childWidget),
+                isSelected,
+                drawsIdleBackground
+            ) ?? false
         default:
             handledByQuillPaint = false
         }
@@ -6225,7 +6432,7 @@ if "case .quillPaintMacDefault:" not in text:
                     border: 1px solid @borders; border-radius: 6px;
                     padding: 6px 12px;
                     """)
-            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered:
+            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered, .quillPaintMacListRow(_, _):
                 break
             }
         }
@@ -6237,6 +6444,40 @@ if "case .quillPaintMacDefault:" not in text:
 
 '''
     text = text[:start] + replacement + text[end:]
+
+if "case let .quillPaintMacListRow(isSelected, drawsIdleBackground):" not in text:
+    bordered_case = '''            case .quillPaintMacBordered:
+                handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+'''
+    list_row_case = '''            case .quillPaintMacBordered:
+                handledByQuillPaint = quill_gtk_button_paint_hook?(OpaquePointer(button), OpaquePointer(childWidget), false) ?? false
+            case let .quillPaintMacListRow(isSelected, drawsIdleBackground):
+                handledByQuillPaint = quill_gtk_list_row_paint_hook?(
+                    OpaquePointer(button),
+                    OpaquePointer(childWidget),
+                    isSelected,
+                    drawsIdleBackground
+                ) ?? false
+'''
+    if bordered_case not in text:
+        raise SystemExit("SwiftOpenUI Button QuillPaint bordered case was not recognized")
+    text = text.replace(bordered_case, list_row_case, 1)
+
+if ".quillPaintMacListRow(_, _)" not in text:
+    if "            case .automatic:\n                break // default GTK button styling\n" in text:
+        text = text.replace(
+            "            case .automatic:\n                break // default GTK button styling\n",
+            "            case .automatic, .quillPaintMacListRow(_, _):\n                break // default GTK button styling\n",
+            1,
+        )
+    elif "            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered:\n                break\n" in text:
+        text = text.replace(
+            "            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered:\n                break\n",
+            "            case .automatic, .quillPaintMacDefault, .quillPaintMacBordered, .quillPaintMacListRow(_, _):\n                break\n",
+            1,
+        )
+    else:
+        raise SystemExit("SwiftOpenUI Button fallback style case was not recognized")
 
 button_extension_index = text.find("extension Button: GTKRenderable")
 if button_extension_index == -1:
@@ -6991,7 +7232,9 @@ if "var fallbackVerticalApplied = false" not in text:
 
     old_apply_horizontal = '''            if let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
 '''
-    new_apply_horizontal = '''            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+    new_apply_horizontal = '''            if hasTargetCoordinates,
+               !isSwiftUIVerticalScrollView,
+               let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
 '''
     if old_apply_horizontal not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll horizontal shape was not recognized")
@@ -7027,6 +7270,17 @@ if "var fallbackVerticalApplied = false" not in text:
     text = text.replace(old_apply_footer, new_apply_footer, 1)
 elif "isSwiftUIVerticalScrollView" not in text or "return fallbackVerticalApplied" not in text:
     raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll shape was not recognized")
+
+if "!isSwiftUIVerticalScrollView,\n               let hadjustment = gtk_scrolled_window_get_hadjustment" not in text:
+    old_vertical_scroll_horizontal_guard = '''            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+'''
+    new_vertical_scroll_horizontal_guard = '''            if hasTargetCoordinates,
+               !isSwiftUIVerticalScrollView,
+               let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
+'''
+    if old_vertical_scroll_horizontal_guard not in text:
+        raise SystemExit("SwiftOpenUI ScrollViewReader vertical horizontal guard shape was not recognized")
+    text = text.replace(old_vertical_scroll_horizontal_guard, new_vertical_scroll_horizontal_guard, 1)
 
 path.write_text(text)
 PY

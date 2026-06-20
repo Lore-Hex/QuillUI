@@ -558,7 +558,7 @@
 <tr><td><code>NSView.layoutSubtreeIfNeeded()</code> / display invalidation calls</td><td>Fallback</td><td>Marks simple flags; no native layout/render pass.</td></tr>
 <tr><td><code>NSView.convert(_:from:)</code> / <code>convert(_:to:)</code></td><td>Partial</td><td>Basic coordinate conversion only.</td></tr>
 <tr><td><code>NSView.hitTest(_:)</code></td><td>Partial</td><td>In-memory bounds/subview hit testing.</td></tr>
-<tr><td><code>NSView.addTrackingArea(_:)</code> / <code>removeTrackingArea(_:)</code></td><td>Partial</td><td>Tracks registered areas without native event delivery.</td></tr>
+<tr><td><code>NSView.addTrackingArea(_:)</code> / <code>removeTrackingArea(_:)</code></td><td>Partial</td><td>Tracks registered areas; GTK custom NSView hosts now synthesize pointer motion, cursor rect updates, primary click/drag, and scroll-wheel delivery for hosted AppKit views.</td></tr>
 <tr><td><code>NSViewController.loadView()</code> / lifecycle hooks</td><td>Fallback</td><td>Hook shape exists; no platform lifecycle.</td></tr>
 <tr><td><code>NSViewController.addChild(_:)</code> / <code>removeFromParent()</code></td><td>Usable</td><td>Maintains child relationships.</td></tr>
 <tr><td><code>NSViewController.presentAsSheet(_:)</code> / <code>presentAsModalWindow(_:)</code> / <code>dismiss(_:)</code></td><td>Fallback</td><td>Presentation state only.</td></tr>
@@ -576,7 +576,7 @@
 <tr><td><code>NSApplication.shared</code></td><td>Usable</td><td>Singleton app object.</td></tr>
 <tr><td><code>NSApplication.setActivationPolicy(_:)</code> / <code>activate(...)</code> / <code>deactivate()</code></td><td>Fallback</td><td>Records state only.</td></tr>
 <tr><td><code>NSApplication.run()</code> / <code>stop(_:)</code></td><td>Fallback</td><td>Hook/no-op loop, not a native event loop.</td></tr>
-<tr><td><code>NSApplication.sendEvent(_:)</code> / <code>nextEvent(...)</code></td><td>Compile-only</td><td>Event dispatch is incomplete.</td></tr>
+<tr><td><code>NSApplication.sendEvent(_:)</code> / <code>nextEvent(...)</code></td><td>Partial</td><td>Common synthetic AppKit events can be dispatched through compatibility surfaces; no native AppKit event queue parity.</td></tr>
 <tr><td><code>NSApplication.beginModalSession(...)</code>, <code>runModal(...)</code>, sheet helpers</td><td>Fallback</td><td>Modal state only.</td></tr>
 <tr><td><code>NSApplication.sendAction(...)</code></td><td>Partial</td><td>Basic target/action bridge only.</td></tr>
 <tr><td><code>NSDockTile.display()</code></td><td>Compile-only</td><td>No-op.</td></tr>
@@ -590,12 +590,12 @@
 <tr><td><code>NSWorkspace.selectFile</code>, <code>activateFileViewerSelecting</code></td><td>Fallback</td><td>Opens containing directories through <code>xdg-open</code> when a Linux desktop session is available; records diagnostics and no-ops in headless environments.</td></tr>
 <tr><td><code>NSWorkspace.icon(forFile:)</code>, <code>icon(forContentType:)</code></td><td>Fallback</td><td>Returns deterministic 32x32 placeholders with diagnostics; desktop icon lookup is not implemented yet.</td></tr>
 <tr><td><code>NSWorkspace.urlForApplication(...)</code></td><td>Partial</td><td>Uses <code>xdg-mime</code> plus XDG application directories for existing <code>.desktop</code> files; bundle identifiers only resolve when they already map to a Linux desktop entry.</td></tr>
-<tr><td><code>NSCursor.push()</code> / <code>pop()</code> / <code>set()</code> / hide helpers</td><td>Compile-only</td><td>No native cursor effects.</td></tr>
+<tr><td><code>NSCursor.push()</code> / <code>pop()</code> / <code>set()</code> / hide helpers</td><td>Partial</td><td>Tracks current cursor state; GTK custom NSView hosts apply cursor rects for common AppKit cursors. Hide helpers are no-ops.</td></tr>
 <tr><td><code>NSMenu.addItem(_:)</code>, <code>insertItem</code>, <code>removeItem</code>, <code>item(at:)</code></td><td>Usable</td><td>In-memory menu model.</td></tr>
 <tr><td><code>NSMenu.popUp(...)</code>, <code>update()</code>, <code>cancelTracking()</code></td><td>Fallback</td><td>No native menu display.</td></tr>
 <tr><td><code>NSMenuItem.init(...)</code> / <code>separator()</code></td><td>Usable</td><td>Stores title/action/key equivalent metadata.</td></tr>
 <tr><td><code>NSToolbar.insertItem(withItemIdentifier:at:)</code> / <code>removeItem(at:)</code> / <code>validateVisibleItems()</code></td><td>Partial</td><td>In-memory toolbar item list only.</td></tr>
-<tr><td><code>NSAlert.addButton(withTitle:)</code>, <code>runModal()</code>, <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Deterministic modal response, no native dialog.</td></tr>
+<tr><td><code>NSAlert.addButton(withTitle:)</code>, <code>runModal()</code>, <code>beginSheetModal(...)</code></td><td>Partial</td><td>Deterministic headless response plus GTK-backed modal presenter with button responses and accessory text-field capture.</td></tr>
 <tr><td><code>NSSavePanel.runModal()</code> / <code>begin(...)</code> / <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Returns <code>.OK</code> and completes synchronously; real file dialog is incomplete.</td></tr>
 <tr><td><code>NSOpenPanel</code> configuration / <code>runModal()</code> / <code>begin(...)</code> / <code>beginSheetModal(...)</code></td><td>Fallback</td><td>Stores picker configuration and deterministically returns <code>.cancel</code>; no native dialog or user selection yet.</td></tr>
 <tr><td><code>NSScrollView</code> document-view helpers and <code>flashScrollers()</code></td><td>Partial</td><td>Stores document view; no native scrolling.</td></tr>
@@ -773,12 +773,13 @@
 <br>
 <table>
 <tr><th>API or function</th><th>Linux status</th><th>Notes</th></tr>
+<tr><td><code>CGContext</code> geometry, bitmap drawing, blend/shadow/layer state, and Cairo path/state forwarding</td><td>Usable</td><td>Focused coverage for SceneKit/CoreGraphics interop and custom-view drawing; not full CoreGraphics parity.</td></tr>
 <tr><td><code>CGEventSource.init?(stateID:)</code></td><td>Compile-only</td><td>Source object shape only.</td></tr>
 <tr><td><code>CGEventSource.keyState(_:key:)</code></td><td>Fallback</td><td>Records diagnostic and returns false.</td></tr>
 <tr><td><code>CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)</code></td><td>Compile-only</td><td>Event object shape only.</td></tr>
 <tr><td><code>CGEvent.post(tap:)</code></td><td>Fallback</td><td>Records diagnostic, no synthetic input.</td></tr>
 <tr><td><code>CGEvent.keyboardSetUnicodeString(stringLength:unicodeString:)</code></td><td>Compile-only</td><td>No-op.</td></tr>
-<tr><td>Real event taps, keyboard state, pointer events, drawing APIs beyond imported Foundation/CoreFoundation geometry</td><td>Incomplete</td><td>Required for CoreGraphics Parity.</td></tr>
+<tr><td>Real event taps, keyboard state, pointer events, and broad drawing APIs beyond the focused bitmap/Cairo drawing surface</td><td>Incomplete</td><td>Required for CoreGraphics Parity.</td></tr>
 </table>
 <br>
 <h2 id="security">Security</h2>

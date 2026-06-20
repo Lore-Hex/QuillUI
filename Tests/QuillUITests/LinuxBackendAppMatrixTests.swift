@@ -134,7 +134,6 @@ struct LinuxBackendAppMatrixTests {
         "settings-ping-interval-typed",
         "settings-default-model-selected",
         "settings-delete-confirmation",
-        "settings-delete-confirmed",
         "completions-panel",
         "completions-new-sheet",
         "completions-save",
@@ -143,13 +142,15 @@ struct LinuxBackendAppMatrixTests {
         "new-chat",
         "toolbar-model-selected",
         "prompt-send",
+        "attachment-send",
         "copy-chat",
         "copy-chat-json",
         "history-selection",
         "transcript-selection",
         "markdown-transcript-selection",
         "message-hover-actions",
-        "long-transcript-auto-selection"
+        "long-transcript-auto-selection",
+        "settings-delete-confirmed"
     ]
 
     private static func expectedVisualVerifierProduct(product: String, backend: String) -> String {
@@ -570,6 +571,8 @@ struct LinuxBackendAppMatrixTests {
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-toolbar-menu\""))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-composer-typed\""))
         #expect(productsScript.contains("*:composer-send)"))
+        #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-attachment-send\""))
+        #expect(productsScript.contains("*:attachment-send|*:image-attachment-send)"))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-new-chat\""))
         #expect(productsScript.contains("*:new-chat)"))
         #expect(productsScript.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat\""))
@@ -818,6 +821,7 @@ struct LinuxBackendAppMatrixTests {
         printf 'app-verify-chat-toolbar=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux qt toolbar-menu)"
         printf 'app-verify-chat-composer=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk composer-typed)"
         printf 'app-verify-chat-composer-send=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk composer-send)"
+        printf 'app-verify-chat-attachment-send=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk attachment-send)"
         printf 'app-verify-chat-new-chat=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk new-chat)"
         printf 'app-verify-chat-copy-chat=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk copy-chat)"
         printf 'app-verify-chat-copy-chat-json=%s\\n' "$(quillui_backend_app_interaction_verify_product_for_product quill-chat-linux gtk copy-chat-json)"
@@ -960,6 +964,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("app-verify-chat-toolbar=quill-chat-linux-toolbar-menu"))
         #expect(result.output.contains("app-verify-chat-composer=quill-chat-linux-mac-reference-composer-typed"))
         #expect(result.output.contains("app-verify-chat-composer-send=quill-chat-linux-mac-reference-composer-send"))
+        #expect(result.output.contains("app-verify-chat-attachment-send=quill-chat-linux-mac-reference-attachment-send"))
         #expect(result.output.contains("app-verify-chat-new-chat=quill-chat-linux-mac-reference-new-chat"))
         #expect(result.output.contains("app-verify-chat-copy-chat=quill-chat-linux-mac-reference-copy-chat"))
         #expect(result.output.contains("app-verify-chat-copy-chat-json=quill-chat-linux-mac-reference-copy-chat-json"))

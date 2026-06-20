@@ -130,11 +130,6 @@ public struct PlainListStyle: Sendable {
     public static let grouped = PlainListStyle()
 }
 
-public enum ButtonRole: Sendable {
-    case cancel
-    case destructive
-}
-
 public struct LocalizedStringKey: Equatable, ExpressibleByStringLiteral, ExpressibleByStringInterpolation, Sendable {
     private static let encodedPrefix = "\u{1F}quill-localized-key:"
 
@@ -238,13 +233,11 @@ public extension Button where Label == Text {
     }
 
     init(_ title: LocalizedStringKey, role: ButtonRole?, action: @escaping () -> Void) {
-        _ = role
-        self.init(title.resolved, action: action)
+        self.init(title.resolved, role: role, action: action)
     }
 
     init<T>(_ title: T, role: ButtonRole?, action: @escaping () -> Void) {
-        _ = role
-        self.init(String(describing: title), action: action)
+        self.init(String(describing: title), role: role, action: action)
     }
 }
 
@@ -255,13 +248,6 @@ public extension Text {
 
     init(verbatim content: String) {
         self.init(styledRuns: [.init(text: content)])
-    }
-}
-
-public extension Button {
-    init(role: ButtonRole?, action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
-        _ = role
-        self.init(action: action, label: label)
     }
 }
 
@@ -793,6 +779,16 @@ public enum NavigationBarTitleDisplayMode: Sendable {
 }
 
 public typealias ScrollContentBackgroundVisibility = Visibility
+
+public extension View {
+    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> ScrollContentBackgroundView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "scrollContentBackground",
+            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
+        )
+        return ScrollContentBackgroundView(content: self, visibility: visibility)
+    }
+}
 
 public enum ScrollBounceBehavior: Sendable {
     case automatic
@@ -1552,6 +1548,7 @@ public extension SearchFieldPlacement {
 }
 
 public extension TabBuilder {
+    @MainActor
     static func buildExpression<V: View>(_ view: V) -> [AnyTab] {
         let tabs = quillCollectTabs(from: view)
         if !tabs.isEmpty {
@@ -1569,10 +1566,12 @@ fileprivate protocol QuillTabCollectible {
     var quillCollectedTabs: [AnyTab] { get }
 }
 
+@MainActor
 fileprivate func quillCollectTabs<V: View>(from view: V) -> [AnyTab] {
     quillCollectTabs(fromAny: view)
 }
 
+@MainActor
 fileprivate func quillCollectTabs(fromAny view: any View) -> [AnyTab] {
     if let tabSource = view as? any QuillTabCollectible {
         // Witnesses are isolated (View whole-protocol); collection runs on
@@ -1739,6 +1738,7 @@ public struct TableColumn<RowValue, Content: View>: View {
 public struct AnyTableColumn<RowValue>: View {
     public var title: String
 
+    @MainActor
     public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
         self.title = column.title
     }
@@ -2607,15 +2607,6 @@ public extension View {
     func navigationTitle<T>(_ title: T) -> Self {
         _ = title
         return self
-    }
-
-    @_disfavoredOverload
-    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> ScrollContentBackgroundView<Self> {
-        recordSwiftUICompatibilityFallback(
-            "scrollContentBackground",
-            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
-        )
-        return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
     func matchedGeometryEffect<ID: Hashable>(

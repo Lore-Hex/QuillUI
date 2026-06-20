@@ -10,19 +10,24 @@ public final class CVImageBuffer: @unchecked Sendable {
     public let width: Int
     public let height: Int
     public let pixelFormatType: OSType
-    private var storage: [UInt8]
+    private let byteCount: Int
+    private let storage: UnsafeMutableRawPointer
 
     public init(width: Int, height: Int, pixelFormatType: OSType) {
         self.width = width
         self.height = height
         self.pixelFormatType = pixelFormatType
-        self.storage = Array(repeating: 0, count: max(1, width * height * 4))
+        self.byteCount = max(1, width * height * 4)
+        self.storage = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 16)
+        storage.initializeMemory(as: UInt8.self, repeating: 0, count: byteCount)
+    }
+
+    deinit {
+        storage.deallocate()
     }
 
     fileprivate func withBaseAddress<R>(_ body: (UnsafeMutableRawPointer?) -> R) -> R {
-        storage.withUnsafeMutableBytes { buffer in
-            body(buffer.baseAddress)
-        }
+        body(storage)
     }
 
     /// Safe scoped read access for bridges (CoreImage's CIImage(cvPixelBuffer:)
@@ -30,13 +35,13 @@ public final class CVImageBuffer: @unchecked Sendable {
     /// other shims copy frame bytes without the escaping-pointer hazards of
     /// the C-style accessor functions.
     public func quillWithReadOnlyBytes<R>(_ body: (UnsafeRawBufferPointer) -> R) -> R {
-        storage.withUnsafeBytes(body)
+        body(UnsafeRawBufferPointer(start: storage, count: byteCount))
     }
 
     /// Mutable scoped access — the V4L2 capture path (#515) writes converted
     /// BGRA frames through this.
     public func quillWithMutableBytes<R>(_ body: (UnsafeMutableRawBufferPointer) -> R) -> R {
-        storage.withUnsafeMutableBytes(body)
+        body(UnsafeMutableRawBufferPointer(start: storage, count: byteCount))
     }
 }
 

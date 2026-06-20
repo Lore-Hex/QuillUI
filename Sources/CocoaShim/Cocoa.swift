@@ -5,6 +5,7 @@
 // Apple-framework shadows.
 @_exported import CoreGraphics
 @_exported import CoreImage
+@_exported import CoreServices
 @_exported import CoreText
 @_exported import QuartzCore
 @_exported import AppKit

@@ -9,10 +9,10 @@ parallelized to the swarm via the issues below.
 
 | Rung | State | Work |
 |---|---|---|
-| 1. Compiles unmodified | ~80% (152 → ~124 unique errors) | #506 AVFoundation surface, #507 AppKit members, #508 SwiftUI chrome, #512 @MainActor AppKit tree, #513 @MainActor View.body |
-| 2. Launches + renders | **mount PROVEN** (visual smoke: crosshair+circle PNG via Xvfb, Tests/QuillUITests/RepresentableRenderSmokeTests.swift) | remaining: app chrome renders once rung 1 completes; #510 CALayer painting |
-| 3. Live camera | spec'd | #515 V4L2 AVCaptureSession backend |
-| 4. Recording/snapshots | queued | AVAssetWriter→encoder; NSBitmapImageRep→PNG (part of #507 acceptance) |
+| 1. Compiles unmodified | **Build green when fetched** | Gated `QuillSolderScope` product builds from the upstream source after the generic fetch/patch step; the remaining work is fidelity, not the old compile-error burn-down. |
+| 2. Launches + renders + input | **GTK launch/input proven** (Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, deterministic synthetic camera frame smoke, real SolderScope command-menu extraction, and Tests/QuillUITests/SolderScopeChromeConformanceTests.swift) | remaining: mac-reference visual delta closure, broader real-device gesture coverage, and toolbar/menu behavior beyond the currently smoke-driven shortcuts |
+| 3. Live camera | partial | #515 V4L2 AVCaptureSession backend plus opt-in `QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1` fixture camera for deterministic CI/runtime smoke; remaining: real USB microscope/device matrix coverage |
+| 4. Recording/snapshots | partial-real | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. CI now splits capture into a snapshot/freeze smoke and a recording-only smoke; the snapshot/freeze pass uses shortcuts, verifies a new snapshot file, verifies that the hosted camera frame remains visible while frozen, and detects the top-right `FROZEN` badge. The recording pass uses shortcut start/stop, waits for SolderScope's app-level `Recording started`/`Recording saved` logs, and rejects a lingering `REC` badge. Start retry is deliberately delayed because the ffmpeg-backed writer starts asynchronously. Toolbar capture drivers remain opt-in diagnostics because rebuilt toolbar buttons can still miss synthetic pointer activation. Remaining: output-directory controls and full snapshot/record/freeze toolbar parity. |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once 2–4 are real |
 
 Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderScope`
@@ -20,6 +20,57 @@ Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderSc
 --target QuillSolderScope`.
 
 ## Decisions log
+
+- **2026-06-17 — Capture smoke must reject half-stopped recordings**:
+  CI now runs snapshot and recording as separate interaction passes. The
+  recording pass uses shortcut start/stop, waits for
+  app-level `Recording started` and `Recording saved` logs before accepting the
+  `.mov`, and rejects a lingering lower-left `REC` badge so an early `.mov`
+  header can no longer masquerade as a completed stop/finalize path. Recording
+  start retry is delayed because the ffmpeg-backed writer starts asynchronously
+  and repeated early `r` events can queue a second start. The snapshot pass now
+  also drives the freeze shortcut and verifies both the top-right `FROZEN` badge
+  and a still-visible microscope frame. Toolbar capture drivers remain opt-in
+  diagnostics until rebuilt toolbar hit-testing is fixed in SwiftOpenUI GTK.
+
+- **2026-06-16 — Runtime smoke needs frames, not just a surviving no-camera UI**:
+  SolderScope ignores zoom/pan until its hosted microscope view has an image
+  size, so a no-camera interaction smoke only proved event delivery and app
+  survival. AVFoundation now has an opt-in synthetic capture device
+  (`QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1`) that appears through normal
+  `AVCaptureDevice.DiscoverySession`, feeds BGRA `CMSampleBuffer`s through
+  `AVCaptureVideoDataOutput`, and lets the interaction smoke verify visible
+  microscope frame pixels after scroll/drag/double-click gestures. This is a
+  deterministic runtime-fidelity fixture, not a substitute for the real USB
+  camera matrix.
+
+- **2026-06-16 — Snapshot smoke must not write to a developer Desktop**:
+  Upstream SolderScope resolves snapshot output through
+  `FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)`.
+  On Linux corelibs this follows the passwd home, not `HOME`, so the smoke now
+  auto-drives the `s` shortcut only when that Desktop is disposable (`/root`,
+  `/tmp`, or the checkout). In that case it creates the directory, records the
+  pre-run file count, presses `s`, and fails unless a new `SolderScope_*.png`
+  appears.
+
+- **2026-06-16 — Recording smoke must prove the real app shortcut**:
+  The interaction smoke now applies the same disposable-Desktop policy to the
+  `r` shortcut. In auto mode it requires ffmpeg, starts recording through
+  SolderScope's command-menu shortcut, waits for synthetic capture frames,
+  stops recording through the same shortcut, and fails unless a new finalized
+  `SolderScope_*.mov` appears with a plausible QuickTime/MP4 `ftyp` box.
+  AVFoundation also has a narrow real-time writer fallback: active video
+  writers with `expectsMediaDataInRealTime` receive synthetic/V4L2 capture
+  frames until the app manually appends frames, which lets the unmodified
+  SolderScope checkout exercise its recording UI even though its
+  `CaptureManager` does not call `RecordingManager.writeFrame`.
+
+- **2026-06-16 — Hosted AppKit NSView input is backend-local, not app-local**:
+  QuillAppKitGTK's custom `NSView` drawing host now installs GTK motion,
+  primary-click, and scroll controllers. Those synthesize AppKit mouse,
+  drag, scroll, and cursor-rect behavior for hosted views, which covers
+  SolderScope's microscope zoom/pan/double-click-reset path without changing
+  SolderScope source. Focused conformance: 25/25 SolderScope chrome tests.
 
 - **2026-06-11 — Apple-faithful re-export topology** (PR #511): SwiftUI⊃AppKit
   (macOS SwiftUI does), UIKit⊃QuartzCore (iOS UIKit does), CoreGraphics⊃QuillFoundation

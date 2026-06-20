@@ -3,35 +3,15 @@
 // Cursor-rect and bitmap-imaging surface, driven by SolderScope (USB-microscope
 // viewer; AppKit-members conformance slice, issue #507). Additive to
 // QuillAppKit.swift, which already provides NSCursor (the full standard-cursor
-// set + push/pop/set), NSTrackingArea (with the complete Options set), and
-// NSView.addTrackingArea/removeTrackingArea/resetCursorRects — this file adds
-// only what was still missing: cursor *rects* on NSView, and
+// set + stateful push/pop/set), NSTrackingArea (with the complete Options set),
+// and NSView.addTrackingArea/removeTrackingArea/resetCursorRects/addCursorRect.
+// This file keeps the bitmap-imaging additions that were still missing:
 // NSBitmapImageRep's CGImage init + TIFF compression constants.
 
 #if os(Linux)
 
 import Foundation
 import QuillFoundation
-
-// MARK: - NSView cursor rects
-
-extension NSView {
-    /// `addCursorRect(_:cursor:)` — associates a cursor with a region of the
-    /// view, valid when called from `resetCursorRects()` (SolderScope's
-    /// MicroscopeNSView adds `.openHand` over its bounds; its
-    /// CalibrationCanvasNSView adds `.crosshair`). The backend does not yet
-    /// resolve pointer position against cursor rects, but the model stores the
-    /// association so control logic can test and inspect the same AppKit surface.
-    public func addCursorRect(_ rect: NSRect, cursor: NSCursor) {
-        quillCursorRects.append((rect, cursor))
-    }
-
-    /// Companion to `addCursorRect` — AppKit invalidates a view's cursor
-    /// rects before asking `resetCursorRects()` to re-add them.
-    public func discardCursorRects() {
-        quillCursorRects.removeAll()
-    }
-}
 
 // MARK: - NSBitmapImageRep: CGImage init + TIFF compression
 

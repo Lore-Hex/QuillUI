@@ -19,6 +19,37 @@ import UIKit
 /// BonMot's attribute-dictionary alias (upstream: `[NSAttributedString.Key: Any]`).
 public typealias StyleAttributes = [NSAttributedString.Key: Any]
 
+private func quillBonMotFoundationSafeAttributes(_ attributes: StyleAttributes) -> StyleAttributes {
+#if os(Linux)
+    // swift-corelibs Foundation can abort while comparing arbitrary
+    // NSAttributedString payloads during setAttributes(_:range:). QuillUIKit
+    // currently renders text from view-level UILabel/UITextView properties, so
+    // keep BonMot's source API but avoid storing fragile run attributes here.
+    _ = attributes
+    return [:]
+#else
+    return attributes
+#endif
+}
+
+private func quillBonMotFoundationSafeCopy(of attributedString: NSAttributedString) -> NSAttributedString {
+#if os(Linux)
+    guard attributedString.length > 0 else { return attributedString }
+
+    let result = NSMutableAttributedString(string: "")
+    let backingString = attributedString.string as NSString
+    attributedString.enumerateAttributes(in: NSRange(location: 0, length: attributedString.length), options: []) { attributes, range, _ in
+        result.append(NSAttributedString(
+            string: backingString.substring(with: range),
+            attributes: quillBonMotFoundationSafeAttributes(attributes),
+        ))
+    }
+    return result
+#else
+    return attributedString
+#endif
+}
+
 /// Subset of upstream BonMot's `StringStyle`: a declarative bag of text
 /// attributes. Only the properties SignalUI's parts demand are stored;
 /// further upstream slots (tracking, adaptive styles, ...) are added when
@@ -29,6 +60,8 @@ public struct StringStyle {
     public var link: URL?
     public var color: UIColor?
     public var alignment: NSTextAlignment?
+    public var lineHeightMultiple: CGFloat?
+    public var hyphenationFactor: Float?
     /// XML rules captured from `.xmlRules`. Upstream stores an `XMLStyler`
     /// protocol value; the shim keeps the rule array directly — only the
     /// rule-array shape is demanded so far.
@@ -44,9 +77,21 @@ public struct StringStyle {
         if let font { theAttributes[.font] = font }
         if let link { theAttributes[.link] = link }
         if let color { theAttributes[.foregroundColor] = color }
-        if let alignment {
+        if alignment != nil || lineHeightMultiple != nil || hyphenationFactor != nil {
             let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.alignment = alignment
+            if let alignment {
+                paragraphStyle.alignment = alignment
+            }
+            if let lineHeightMultiple {
+                paragraphStyle.lineHeightMultiple = lineHeightMultiple
+            }
+            if let hyphenationFactor {
+                _ = hyphenationFactor
+                // swift-corelibs Foundation does not currently expose
+                // NSMutableParagraphStyle.hyphenationFactor; keep the source
+                // API and merge semantics, but omit the platform-missing
+                // rendered attribute on Linux.
+            }
             theAttributes[.paragraphStyle] = paragraphStyle
         }
         return theAttributes
@@ -63,6 +108,8 @@ extension StringStyle {
         case link(URL)
         case color(UIColor)
         case alignment(NSTextAlignment)
+        case lineHeightMultiple(CGFloat)
+        case hyphenationFactor(Float)
         case xmlRules([XMLStyleRule])
     }
 
@@ -90,6 +137,10 @@ extension StringStyle {
             self.color = color
         case let .alignment(alignment):
             self.alignment = alignment
+        case let .lineHeightMultiple(lineHeightMultiple):
+            self.lineHeightMultiple = lineHeightMultiple
+        case let .hyphenationFactor(hyphenationFactor):
+            self.hyphenationFactor = hyphenationFactor
         case let .xmlRules(rules):
             xmlRules.append(contentsOf: rules)
         }
@@ -109,6 +160,8 @@ extension StringStyle {
         if let link = style.link { result.link = link }
         if let color = style.color { result.color = color }
         if let alignment = style.alignment { result.alignment = alignment }
+        if let lineHeightMultiple = style.lineHeightMultiple { result.lineHeightMultiple = lineHeightMultiple }
+        if let hyphenationFactor = style.hyphenationFactor { result.hyphenationFactor = hyphenationFactor }
         result.xmlRules.append(contentsOf: style.xmlRules)
         return result
     }
@@ -117,7 +170,7 @@ extension StringStyle {
     /// `attributedString(from:)`, kept internal until the compile demands it).
     func attributedString(from theString: String) -> NSAttributedString {
         if xmlRules.isEmpty {
-            return NSAttributedString(string: theString, attributes: attributes)
+            return NSAttributedString(string: theString, attributes: quillBonMotFoundationSafeAttributes(attributes))
         }
         return applyingFlatXMLRules(to: theString)
     }
@@ -130,10 +183,10 @@ extension StringStyle {
     /// That covers SignalUI's uses (FTS `<match>` snippets, `<bold>` spans
     /// in explainer copy); nested or attributed markup would style wrong.
     private func applyingFlatXMLRules(to string: String) -> NSAttributedString {
-        let baseAttributes = attributes
+        let baseAttributes = quillBonMotFoundationSafeAttributes(attributes)
         var styleForTag: [String: StyleAttributes] = [:]
         for case let .style(tag, style) in xmlRules {
-            styleForTag[tag] = byAdding(stringStyle: style).attributes
+            styleForTag[tag] = quillBonMotFoundationSafeAttributes(byAdding(stringStyle: style).attributes)
         }
 
         let result = NSMutableAttributedString(string: "")
@@ -248,10 +301,11 @@ private extension NSMutableAttributedString {
     /// Append `attributedString`, then lay `baseStyle`'s attributes UNDER the
     /// appended runs (existing run attributes win — upstream BonMot's merge).
     func quillBonMotExtend(with attributedString: NSAttributedString, baseStyle: StringStyle) {
+        let attributedString = quillBonMotFoundationSafeCopy(of: attributedString)
         let location = length
         append(attributedString)
         let appendedRange = NSRange(location: location, length: attributedString.length)
-        let baseAttributes = baseStyle.attributes
+        let baseAttributes = quillBonMotFoundationSafeAttributes(baseStyle.attributes)
         guard appendedRange.length > 0, !baseAttributes.isEmpty else { return }
         // Snapshot runs first; setAttributes inside enumerateAttributes would
         // mutate under the enumeration.
@@ -262,7 +316,7 @@ private extension NSMutableAttributedString {
         for (range, existing) in runs {
             var merged = baseAttributes
             merged.merge(existing) { _, run in run }
-            setAttributes(merged, range: range)
+            setAttributes(quillBonMotFoundationSafeAttributes(merged), range: range)
         }
     }
 }

@@ -14,6 +14,8 @@ public enum ButtonStyleType: Equatable {
     case quillPaintMacDefault
     /// QuillPaint macOS bordered button chrome.
     case quillPaintMacBordered
+    /// QuillPaint macOS sidebar/list-row chrome.
+    case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)
 }
 
 public struct ButtonStyleConfiguration {

@@ -163,6 +163,7 @@ public extension RSImage {
         withTintColor(color)
     }
 
+    @_disfavoredOverload
     func withTintColor(_ color: UIColor, renderingMode: UIImage.RenderingMode) -> RSImage {
         _ = renderingMode
         return withTintColor(color)

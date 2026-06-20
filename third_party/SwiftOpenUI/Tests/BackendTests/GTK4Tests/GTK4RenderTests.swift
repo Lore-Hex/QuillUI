@@ -2062,6 +2062,50 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testFixedWidthFlexibleHeightFrameClampsLongChildNaturalWidth() throws {
+        try requireGTK()
+
+        let longTitle = String(repeating: "Auto-config test reply with one short phrase ", count: 8)
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text(longTitle)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .frame(width: 320)
+
+                Divider()
+
+                Color.white
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        ))
+        gtkConfigureRootContentToFillWindow(wrapper)
+        allocate(widget: wrapper, size: ViewSize(width: 1000, height: 600))
+
+        let sidebar = try unwrapFirstChild(of: wrapper)
+        let divider = try unwrapNextSibling(of: sidebar)
+        let detail = try unwrapNextSibling(of: divider)
+        let sidebarSize = allocatedSize(of: sidebar)
+        let detailSize = allocatedSize(of: detail)
+
+        XCTAssertEqual(
+            sidebarSize.width,
+            320,
+            accuracy: 4,
+            "A fixed-width flexible-height frame must not expand to a long child's natural width."
+        )
+        XCTAssertGreaterThan(
+            detailSize.width,
+            600,
+            "The sibling after a fixed-width frame should receive remaining HStack width."
+        )
+    }
+
     func testFlexibleWidthFixedHeightResizableImageMeasuresToFrameHeight() throws {
         try requireGTK()
 
@@ -2247,6 +2291,52 @@ final class GTK4RenderTests: XCTestCase {
             XCTAssertGreaterThan(size.width, 0,
                                  "Label must receive non-zero width inside a fixed-width HStack parent.")
         }
+    }
+
+    /// NavigationSplitView sidebars must behave like fixed SwiftUI columns:
+    /// long line-limited labels truncate inside the column instead of making
+    /// the sidebar wider than its declared column width.
+    func testNavigationSplitSidebarClipsLongLineLimitedTextToColumnWidth() throws {
+        try requireGTK()
+
+        let longTitle = String(repeating: "Auto-config test reply with one short phrase ", count: 8)
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            NavigationSplitView {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text(longTitle)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .navigationSplitViewColumnWidth(320)
+            } detail: {
+                Text("Detail")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        ))
+        gtkConfigureRootContentToFillWindow(wrapper)
+        allocate(widget: wrapper, size: ViewSize(width: 1000, height: 600))
+
+        let sidebar = try unwrapFirstChild(of: wrapper)
+        let divider = try unwrapNextSibling(of: sidebar)
+        let detail = try unwrapNextSibling(of: divider)
+        let sidebarSize = allocatedSize(of: sidebar)
+        let detailSize = allocatedSize(of: detail)
+
+        XCTAssertEqual(
+            sidebarSize.width,
+            320,
+            accuracy: 4,
+            "The fixed sidebar column should not expand to the long Text natural width."
+        )
+        XCTAssertGreaterThan(
+            detailSize.width,
+            600,
+            "The detail pane should receive the remaining split-view width."
+        )
     }
 
     /// A ZStack with `.frame(width: 120, height: 100)` must report exactly

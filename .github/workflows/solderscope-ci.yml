@@ -1,0 +1,133 @@
+name: SolderScope Linux CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  QUILLUI_SKIP_APT: "1"
+  QUILLUI_SOLDERSCOPE: "1"
+  QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "6"
+  QUILLUI_SMOKE_SECONDS: "4"
+  SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE: "legacy"
+
+jobs:
+  solderscope-api-tests:
+    name: SolderScope API and fixture tests
+    runs-on: ubuntu-24.04
+    container:
+      image: swift:6.2-noble
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Linux dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates \
+            ffmpeg \
+            git \
+            imagemagick \
+            libgdk-pixbuf-2.0-dev \
+            libgtk-4-dev \
+            libsqlite3-dev \
+            pkg-config \
+            python3 \
+            qt6-base-dev \
+            ripgrep \
+            xdotool \
+            xvfb
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Shell syntax
+        run: scripts/check-shell-syntax.sh
+
+      - name: Fetch SolderScope upstream
+        run: scripts/fetch-upstream.sh solderscope
+
+      - name: SolderScope chrome conformance tests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter SolderScopeChromeConformanceTests
+
+      - name: SolderScope capture surface tests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter AVCaptureSurfaceTests
+
+      - name: SolderScope V4L2 fixture tests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter V4L2ConversionTests
+
+      - name: SolderScope bitmap and movie fidelity tests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter BitmapAndMovieEncodeTests
+
+  solderscope-gtk-smoke:
+    name: SolderScope GTK launch and interaction
+    runs-on: ubuntu-24.04
+    container:
+      image: swift:6.2-noble
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Linux dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates \
+            dbus-x11 \
+            ffmpeg \
+            fontconfig \
+            fonts-noto-color-emoji \
+            fonts-noto-core \
+            git \
+            imagemagick \
+            libgdk-pixbuf-2.0-dev \
+            libgtk-4-dev \
+            libsqlite3-dev \
+            pkg-config \
+            python3 \
+            qt6-base-dev \
+            ripgrep \
+            x11-apps \
+            xdotool \
+            xvfb
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Fetch SolderScope upstream
+        run: scripts/fetch-upstream.sh solderscope
+
+      - name: SolderScope GTK visual smoke
+        run: QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-visual.png visual
+
+      - name: SolderScope GTK freeze smoke
+        run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction
+
+      - name: SolderScope GTK recording smoke
+        run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 QUILLUI_SOLDERSCOPE_FREEZE_DRIVER=none scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-recording.png interaction
+
+      - name: Stage SolderScope QA artifacts
+        if: always()
+        run: |
+          mkdir -p /tmp/quillui-solderscope-qa
+          cp -r .qa/. /tmp/quillui-solderscope-qa/ 2>/dev/null || true
+          cp /tmp/quillui-solderscope-*.log /tmp/quillui-solderscope-qa/ 2>/dev/null || true
+          ls -la /tmp/quillui-solderscope-qa/
+
+      - name: Upload SolderScope QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: solderscope-linux-qa
+          retention-days: 3
+          if-no-files-found: ignore
+          path: /tmp/quillui-solderscope-qa/

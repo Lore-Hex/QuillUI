@@ -81,7 +81,10 @@ public struct ObservedObject<ObjectType: ObservableObject>: AnyStateStorageProvi
         storage = ObservedObjectStorage(wrappedValue)
     }
 
-    public var wrappedValue: ObjectType { storage.access() }
+    public var wrappedValue: ObjectType {
+        get { storage.access() }
+        nonmutating set { storage.update(newValue) }
+    }
 
     public var projectedValue: Wrapper { Wrapper(storage.access()) }
 
@@ -93,7 +96,7 @@ public struct ObservedObject<ObjectType: ObservableObject>: AnyStateStorageProvi
 /// GenerationTracked so Phase 7 input-equality gating sees object changes
 /// (the generation bumps on every objectWillChange).
 public class ObservedObjectStorage<ObjectType: ObservableObject>: AnyStateStorage, GenerationTracked {
-    public let object: ObjectType
+    public private(set) var object: ObjectType
     private var cancellable: AnyCancellable?
     public private(set) var generation: UInt64 = 0
     public weak var host: AnyViewHost? {
@@ -102,6 +105,13 @@ public class ObservedObjectStorage<ObjectType: ObservableObject>: AnyStateStorag
 
     public init(_ object: ObjectType) {
         self.object = object
+    }
+
+    public func update(_ object: ObjectType) {
+        self.object = object
+        generation &+= 1
+        wireObjectWillChange()
+        host?.scheduleRebuild()
     }
 
     /// Read the object, recording the read so dependency gating knows this

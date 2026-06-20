@@ -1,3 +1,7 @@
+#if canImport(Foundation)
+import Foundation
+#endif
+
 // MARK: - Commands protocol
 
 /// A type that represents a set of app-level menu commands.
@@ -19,13 +23,10 @@
 /// }
 /// ```
 ///
-/// > Note: `CommandMenuItem` is used instead of `Button` for command
-/// > content. This is a known API difference from Apple's SwiftUI,
-/// > which uses `@ViewBuilder` with `Button` views. The difference
-/// > exists because introspecting arbitrary view trees to extract
-/// > menu metadata is fragile. `MenuElement` is for in-view popup
-/// > and context menus; `CommandMenuItem` is for app-level command
-/// > menus with disable state and shortcut metadata.
+/// `CommandMenuItem` is the backend representation used after command content
+/// has been extracted. App code may use Apple's `CommandMenu { Button(...) }`
+/// spelling; `CommandMenuBuilder` lifts those small view trees into command
+/// items while preserving labels, disabled state, shortcuts, and actions.
 /// `@MainActor @preconcurrency` like Apple's SwiftUI.Commands: command
 /// closures (Button actions in CommandMenu content) are formed inside the
 /// isolated `body`, so they inherit main-actor isolation and can call into
@@ -51,6 +52,8 @@ extension Never: Commands {}
 
 /// Where a command group should appear in the menu bar.
 public enum CommandGroupPlacement: Equatable, Hashable {
+	/// A custom top-level command menu by title.
+	case menu(String)
 	/// Replaces the New Item commands (File menu).
 	case newItem
 	/// Replaces the app settings command.
@@ -103,6 +106,111 @@ public struct CommandMenuItem {
 		var copy = self
 		copy.isDisabled = isDisabled
 		return copy
+	}
+}
+
+/// A native top-level command-menu section after SwiftUI command placements
+/// have been mapped onto platform menu names.
+public struct CommandMenuSection {
+	public let title: String
+	public let items: [CommandMenuItem]
+
+	public init(title: String, items: [CommandMenuItem]) {
+		self.title = title
+		self.items = items
+	}
+}
+
+/// Converts extracted command groups into deterministic native menu sections.
+public func commandMenuSections(
+	from groups: [CommandGroupPlacement: [CommandMenuItem]]
+) -> [CommandMenuSection] {
+	var sections: [CommandMenuSection] = []
+	for (placement, items) in groups.sorted(by: commandPlacementComesBefore) {
+		let title = commandMenuTitle(for: placement)
+		if let existingIndex = sections.firstIndex(where: { $0.title == title }) {
+			let existing = sections[existingIndex]
+			sections[existingIndex] = CommandMenuSection(
+				title: existing.title,
+				items: existing.items + items
+			)
+		} else {
+			sections.append(CommandMenuSection(title: title, items: items))
+		}
+	}
+	return sections.filter { !$0.items.isEmpty }
+}
+
+private func commandMenuTitle(for placement: CommandGroupPlacement) -> String {
+	switch placement {
+	case .menu(let title):
+		return title
+	case .newItem, .appSettings, .saveItem, .printItem:
+		return "File"
+	case .undoRedo, .pasteboard, .textFormatting:
+		return "Edit"
+	case .toolbar, .sidebar:
+		return "View"
+	case .windowSize:
+		return "Window"
+	case .help:
+		return "Help"
+	}
+}
+
+private func commandPlacementComesBefore(
+	_ lhs: (key: CommandGroupPlacement, value: [CommandMenuItem]),
+	_ rhs: (key: CommandGroupPlacement, value: [CommandMenuItem])
+) -> Bool {
+	let lhsKey = commandPlacementSortKey(lhs.key)
+	let rhsKey = commandPlacementSortKey(rhs.key)
+	if lhsKey.rank != rhsKey.rank {
+		return lhsKey.rank < rhsKey.rank
+	}
+	return lhsKey.tieBreak < rhsKey.tieBreak
+}
+
+private func commandPlacementSortKey(_ placement: CommandGroupPlacement) -> (rank: Int, tieBreak: String) {
+	switch placement {
+	case .newItem:
+		return (0, "newItem")
+	case .appSettings:
+		return (1, "appSettings")
+	case .saveItem:
+		return (2, "saveItem")
+	case .printItem:
+		return (3, "printItem")
+	case .undoRedo:
+		return (10, "undoRedo")
+	case .pasteboard:
+		return (11, "pasteboard")
+	case .textFormatting:
+		return (12, "textFormatting")
+	case .toolbar:
+		return (20, "toolbar")
+	case .sidebar:
+		return (21, "sidebar")
+	case .menu(let title):
+		switch title {
+		case "File":
+			return (4, title)
+		case "Edit":
+			return (13, title)
+		case "View":
+			return (22, title)
+		case "Capture":
+			return (30, title)
+		case "Window":
+			return (79, title)
+		case "Help":
+			return (91, title)
+		default:
+			return (40, title)
+		}
+	case .windowSize:
+		return (80, "windowSize")
+	case .help:
+		return (90, "help")
 	}
 }
 
@@ -180,6 +288,31 @@ public struct CommandsBuilder {
 		TupleCommands(c0, c1)
 	}
 
+	public static func buildBlock<C0: Commands, C1: Commands, C2: Commands>(
+		_ c0: C0, _ c1: C1, _ c2: C2
+	) -> TupleCommands<TupleCommands<C0, C1>, C2> {
+		TupleCommands(TupleCommands(c0, c1), c2)
+	}
+
+	public static func buildBlock<C0: Commands, C1: Commands, C2: Commands, C3: Commands>(
+		_ c0: C0, _ c1: C1, _ c2: C2, _ c3: C3
+	) -> TupleCommands<TupleCommands<TupleCommands<C0, C1>, C2>, C3> {
+		TupleCommands(TupleCommands(TupleCommands(c0, c1), c2), c3)
+	}
+
+	public static func buildBlock<C0: Commands, C1: Commands, C2: Commands, C3: Commands, C4: Commands>(
+		_ c0: C0, _ c1: C1, _ c2: C2, _ c3: C3, _ c4: C4
+	) -> TupleCommands<TupleCommands<TupleCommands<TupleCommands<C0, C1>, C2>, C3>, C4> {
+		TupleCommands(TupleCommands(TupleCommands(TupleCommands(c0, c1), c2), c3), c4)
+	}
+
+	public static func buildBlock<C0: Commands, C1: Commands, C2: Commands, C3: Commands, C4: Commands, C5: Commands>(
+		_ c0: C0, _ c1: C1, _ c2: C2, _ c3: C3, _ c4: C4, _ c5: C5
+	) -> TupleCommands<TupleCommands<TupleCommands<TupleCommands<TupleCommands<C0, C1>, C2>, C3>, C4>, C5> {
+		TupleCommands(TupleCommands(TupleCommands(TupleCommands(TupleCommands(c0, c1), c2), c3), c4), c5)
+	}
+
+	@_disfavoredOverload
 	public static func buildBlock(_ components: any Commands...) -> CommandCollection {
 		CommandCollection(components)
 	}
@@ -199,6 +332,183 @@ public struct CommandsBuilder {
 
 // MARK: - CommandMenuBuilder
 
+@MainActor
+private protocol CommandMenuButtonRepresentable {
+	var commandMenuButtonLabel: String { get }
+	var commandMenuButtonAction: () -> Void { get }
+}
+
+extension Button: CommandMenuButtonRepresentable {
+	var commandMenuButtonLabel: String { commandMenuTextLabel(from: label) }
+	var commandMenuButtonAction: () -> Void { action }
+}
+
+@MainActor
+private protocol CommandMenuShortcutRepresentable {
+	var commandMenuShortcutContent: any View { get }
+	var commandMenuShortcut: KeyboardShortcut { get }
+}
+
+extension KeyboardShortcutView: CommandMenuShortcutRepresentable {
+	var commandMenuShortcutContent: any View { content }
+	var commandMenuShortcut: KeyboardShortcut { shortcut }
+}
+
+@MainActor
+private protocol CommandMenuDisabledRepresentable {
+	var commandMenuDisabledContent: any View { get }
+	var commandMenuIsDisabled: Bool { get }
+}
+
+extension DisabledView: CommandMenuDisabledRepresentable {
+	var commandMenuDisabledContent: any View { content }
+	var commandMenuIsDisabled: Bool { isDisabled }
+}
+
+@MainActor
+private protocol CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { get }
+}
+
+extension LineLimitView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension FrameView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension FontModifiedView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension ForegroundColorView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension HelpView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension PaddedView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension OpacityView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension OffsetView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension ScaleEffectView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension AnimatedView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension BackgroundView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension OverlayView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension CornerRadiusView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension ClipShapeView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension ClippedView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension LayoutPriorityView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension FixedSizeView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension ButtonStyleModifier: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension CustomButtonStyleModifier: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+extension LabelsHiddenView: CommandMenuWrappedViewRepresentable {
+	var commandMenuWrappedContent: any View { content }
+}
+
+@MainActor
+private func commandMenuTextLabel(from view: any View) -> String {
+	if let text = view as? Text {
+		return text.content
+	}
+	if let label = view as? any AnyLabelView {
+		return label.title
+	}
+	if let wrapped = view as? any CommandMenuWrappedViewRepresentable {
+		return commandMenuTextLabel(from: wrapped.commandMenuWrappedContent)
+	}
+	if let shortcut = view as? any CommandMenuShortcutRepresentable {
+		return commandMenuTextLabel(from: shortcut.commandMenuShortcutContent)
+	}
+	if let disabled = view as? any CommandMenuDisabledRepresentable {
+		return commandMenuTextLabel(from: disabled.commandMenuDisabledContent)
+	}
+	if let multi = view as? MultiChildView {
+		for child in multi.children {
+			let label = commandMenuTextLabel(from: child)
+			if !label.isEmpty {
+				return label
+			}
+		}
+	}
+	return ""
+}
+
+@MainActor
+private func commandMenuItems(from view: any View) -> [CommandMenuItem] {
+	if let button = view as? any CommandMenuButtonRepresentable {
+		return [CommandMenuItem(button.commandMenuButtonLabel, action: button.commandMenuButtonAction)]
+	}
+	if let shortcut = view as? any CommandMenuShortcutRepresentable {
+		return commandMenuItems(from: shortcut.commandMenuShortcutContent)
+			.map { commandMenuItem($0, shortcut: shortcut.commandMenuShortcut) }
+	}
+	if let disabled = view as? any CommandMenuDisabledRepresentable {
+		return commandMenuItems(from: disabled.commandMenuDisabledContent)
+			.map { $0.disabled(disabled.commandMenuIsDisabled || $0.isDisabled) }
+	}
+	if let wrapped = view as? any CommandMenuWrappedViewRepresentable {
+		return commandMenuItems(from: wrapped.commandMenuWrappedContent)
+	}
+	if let multi = view as? MultiChildView {
+		return multi.children.flatMap(commandMenuItems)
+	}
+	return []
+}
+
+private func commandMenuItem(_ item: CommandMenuItem, shortcut: KeyboardShortcut) -> CommandMenuItem {
+	CommandMenuItem(
+		item.label,
+		shortcut: item.shortcut ?? shortcut,
+		action: item.action
+	)
+	.disabled(item.isDisabled)
+}
+
 /// Result builder for composing CommandMenuItem arrays.
 @resultBuilder
 public struct CommandMenuBuilder {
@@ -210,12 +520,13 @@ public struct CommandMenuBuilder {
 		[item]
 	}
 
-	// @_disfavoredOverload: see MenuBuilder note — compat module ships the
-	// functional view arms.
+	// Keep this disfavored so explicit CommandMenuItem expressions win, while
+	// Apple's CommandMenu { Button(...).keyboardShortcut(...) } spelling still
+	// lowers into backend command items.
 	@_disfavoredOverload
+	@MainActor
 	public static func buildExpression<V: View>(_ view: V) -> [CommandMenuItem] {
-		_ = view
-		return []
+		commandMenuItems(from: view)
 	}
 
 	public static func buildOptional(_ items: [CommandMenuItem]?) -> [CommandMenuItem] {
@@ -264,7 +575,7 @@ private func collectKnownCommand(_ command: any Commands, into result: inout [Co
 	if let group = command as? CommandGroup {
 		result[group.placement, default: []].append(contentsOf: group.items)
 	} else if let menu = command as? CommandMenu {
-		result[.newItem, default: []].append(contentsOf: menu.items)
+		result[.menu(menu.title), default: []].append(contentsOf: menu.items)
 	} else if let tuple = command as? TupleCommandsProtocol {
 		tuple.collectInto(&result)
 	}
@@ -274,7 +585,7 @@ private func collectCommandGroups<C: Commands>(_ commands: C, into result: inout
 	if let group = commands as? CommandGroup {
 		result[group.placement, default: []].append(contentsOf: group.items)
 	} else if let menu = commands as? CommandMenu {
-		result[.newItem, default: []].append(contentsOf: menu.items)
+		result[.menu(menu.title), default: []].append(contentsOf: menu.items)
 	} else if let tuple = commands as? TupleCommandsProtocol {
 		tuple.collectInto(&result)
 	} else if !(commands is EmptyCommands) {
@@ -297,10 +608,28 @@ public typealias AnyCommandsFactory = () -> [CommandGroupPlacement: [CommandMenu
 /// Multiple WindowGroups share the same command definitions.
 public var globalCommandsFactory: AnyCommandsFactory?
 
+private func commandsDebugLog(_ message: String) {
+	#if canImport(Foundation)
+	guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
+		return
+	}
+	if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
+		FileHandle.standardError.write(data)
+	}
+	#endif
+}
+
 extension WindowGroup {
 	/// Attaches app-level menu commands to this window group.
 	public func commands<C: Commands>(@CommandsBuilder _ commands: @escaping () -> C) -> WindowGroup {
-		globalCommandsFactory = { extractCommandGroups(from: commands()) }
+		commandsDebugLog("installed commands factory type=\(C.self)")
+		globalCommandsFactory = {
+			let commandTree = commands()
+			let groups = extractCommandGroups(from: commandTree)
+			let itemCount = groups.values.reduce(0) { $0 + $1.count }
+			commandsDebugLog("commands factory invoked type=\(C.self) placements=\(groups.count) items=\(itemCount)")
+			return groups
+		}
 		return self
 	}
 }

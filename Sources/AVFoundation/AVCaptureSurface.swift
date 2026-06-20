@@ -43,6 +43,10 @@ public class AVCaptureSession: @unchecked Sendable {
     /// data outputs. AnyObject-typed so this file builds with or without the
     /// CV4L2 shim target.
     var quillV4L2Bridge: AnyObject?
+    /// Deterministic fixture camera hook: while running with the opt-in
+    /// synthetic device, holds the bridge feeding BGRA frames through the same
+    /// AVCaptureVideoDataOutput delegate contract as real V4L2 hardware.
+    var quillSyntheticBridge: AnyObject?
     public private(set) var inputs: [AVCaptureInput] = []
     public private(set) var outputs: [AVCaptureOutput] = []
     public private(set) var isRunning: Bool = false
@@ -71,9 +75,11 @@ public class AVCaptureSession: @unchecked Sendable {
         // V4L2 backend (#515): begin real frame delivery when a /dev/video*
         // device is attached (no-op otherwise, preserving the inert surface).
         quillV4L2StartIfAvailable()
+        quillSyntheticStartIfAvailable()
     }
 
     public func stopRunning() {
+        quillSyntheticStopIfAvailable()
         quillV4L2StopIfAvailable()
         isRunning = false
     }
@@ -98,6 +104,15 @@ open class AVCaptureOutput: @unchecked Sendable {
         _ = mediaType
         return connections.first
     }
+}
+
+public enum AVCaptureVideoStabilizationMode: Int, Sendable {
+    case off = 0
+    case standard = 1
+    case cinematic = 2
+    case cinematicExtended = 3
+    case previewOptimized = 4
+    case auto = -1
 }
 
 public class AVCaptureConnection: @unchecked Sendable {
@@ -155,6 +170,51 @@ public class AVCaptureVideoDataOutput: AVCaptureOutput, @unchecked Sendable {
     }
 }
 
+#if os(Linux)
+final class QuillRealtimeMovieWriterRegistry: @unchecked Sendable {
+    static let shared = QuillRealtimeMovieWriterRegistry()
+
+    private struct Entry {
+        weak var writer: AVAssetWriter?
+    }
+
+    private let lock = NSLock()
+    private var entries: [ObjectIdentifier: Entry] = [:]
+
+    func register(_ writer: AVAssetWriter) {
+        lock.lock()
+        entries[ObjectIdentifier(writer)] = Entry(writer: writer)
+        lock.unlock()
+    }
+
+    func unregister(_ writer: AVAssetWriter) {
+        lock.lock()
+        entries.removeValue(forKey: ObjectIdentifier(writer))
+        lock.unlock()
+    }
+
+    func appendCaptureFrame(_ pixelBuffer: CVPixelBuffer) {
+        lock.lock()
+        var staleKeys: [ObjectIdentifier] = []
+        let activeWriters = entries.compactMap { key, entry -> AVAssetWriter? in
+            guard let writer = entry.writer else {
+                staleKeys.append(key)
+                return nil
+            }
+            return writer
+        }
+        for key in staleKeys {
+            entries.removeValue(forKey: key)
+        }
+        lock.unlock()
+
+        for writer in activeWriters {
+            writer.quillAppendAutomaticCaptureFrame(pixelBuffer)
+        }
+    }
+}
+#endif
+
 // Video-settings keys (subset used by capture pipelines).
 public let kCVPixelBufferPixelFormatTypeKey: String = "PixelFormatType"
 public let kCVPixelBufferWidthKey: String = "Width"
@@ -192,6 +252,8 @@ public class AVAssetWriter: @unchecked Sendable {
     /// Live H.264 encoder (rung 4) — created in `startWriting()` from the
     /// first video input's settings; nil when ffmpeg is unavailable.
     private var quillEncoder: QuillFFmpegMovieEncoder?
+    private let quillFrameAppendLock = NSLock()
+    private var quillManualFrameAppendCount = 0
     #endif
 
     public func canAdd(_ input: AVAssetWriterInput) -> Bool { status == .unknown }
@@ -232,9 +294,15 @@ public class AVAssetWriter: @unchecked Sendable {
             return false
         }
         quillEncoder = encoder
-        #endif
+        status = .writing
+        if videoInput.expectsMediaDataInRealTime {
+            QuillRealtimeMovieWriterRegistry.shared.register(self)
+        }
+        return true
+        #else
         status = .writing
         return true
+        #endif
     }
 
     public func startSession(atSourceTime startTime: CMTime) { _ = startTime }
@@ -242,6 +310,7 @@ public class AVAssetWriter: @unchecked Sendable {
 
     public func cancelWriting() {
         #if os(Linux)
+        QuillRealtimeMovieWriterRegistry.shared.unregister(self)
         quillEncoder?.cancel()
         quillEncoder = nil
         #endif
@@ -250,8 +319,24 @@ public class AVAssetWriter: @unchecked Sendable {
 
     /// Frame entry point used by the input/adaptor `append` paths.
     internal func quillAppendFrame(_ pixelBuffer: CVPixelBuffer) -> Bool {
+        quillAppendFrame(pixelBuffer, countsAsManualAppend: true)
+    }
+
+    internal func quillAppendAutomaticCaptureFrame(_ pixelBuffer: CVPixelBuffer) {
+        _ = quillAppendFrame(pixelBuffer, countsAsManualAppend: false)
+    }
+
+    private func quillAppendFrame(_ pixelBuffer: CVPixelBuffer, countsAsManualAppend: Bool) -> Bool {
         guard status == .writing else { return false }
         #if os(Linux)
+        quillFrameAppendLock.lock()
+        if countsAsManualAppend {
+            quillManualFrameAppendCount += 1
+        }
+        let shouldAppend = countsAsManualAppend || quillManualFrameAppendCount == 0
+        quillFrameAppendLock.unlock()
+        guard shouldAppend else { return false }
+
         if let encoder = quillEncoder {
             return encoder.appendFrame(pixelBuffer)
         }
@@ -261,6 +346,7 @@ public class AVAssetWriter: @unchecked Sendable {
 
     public func finishWriting(completionHandler handler: @escaping () -> Void) {
         #if os(Linux)
+        QuillRealtimeMovieWriterRegistry.shared.unregister(self)
         if let encoder = quillEncoder {
             // ffmpeg finalizes the container on stdin close; do the wait off
             // the caller's thread, exactly like Apple's async finish. The

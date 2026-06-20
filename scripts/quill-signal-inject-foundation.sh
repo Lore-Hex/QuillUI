@@ -133,6 +133,22 @@ inject_gated_if_needed() {
     return 0
 }
 
+inject_preconcurrency_if_needed() {
+    # $1 file, $2 module name, $3 type-regex
+    local f="$1" module="$2" types="$3"
+    if grep -qE "^[[:space:]]*(@preconcurrency[[:space:]]+)?(public |@_exported )?import ${module}\b" "$f"; then
+        if grep -qE "^[[:space:]]*(public |@_exported )?import ${module}\b" "$f"; then
+            perl -0pi -e "s/^(\\s*)((?:public |\\@_exported )?)import ${module}\\b/\\1\\@preconcurrency \\2import ${module}/mg" "$f"
+            return 0
+        fi
+        return 1
+    fi
+    grep -qE "$types" "$f" || return 1
+    printf '@preconcurrency import %s\n' "$module" | cat - "$f" > "$f.qfimport.tmp"
+    mv "$f.qfimport.tmp" "$f"
+    return 0
+}
+
 while IFS= read -r f; do
     scanned=$((scanned + 1))
     touched=0
@@ -161,7 +177,7 @@ while IFS= read -r f; do
             if inject_if_needed "$f" "CoreFoundation" "$COREFOUNDATION_TYPES"; then touched=1; fi
         fi
     fi
-    if inject_if_needed "$f" "QuartzCore" "$QUARTZCORE_TYPES"; then touched=1; fi
+    if inject_preconcurrency_if_needed "$f" "QuartzCore" "$QUARTZCORE_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "CoreText" "$CORETEXT_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "Security" "$SECURITY_TYPES"; then touched=1; fi
     if inject_if_needed "$f" "CFNetwork" "$CFNETWORK_TYPES"; then touched=1; fi

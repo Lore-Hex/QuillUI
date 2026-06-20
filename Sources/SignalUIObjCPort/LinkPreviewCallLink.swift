@@ -25,6 +25,7 @@ public class LinkPreviewCallLink: LinkPreviewState {
 
     public enum PreviewType {
         case draft(OWSLinkPreviewDraft)
+        case sent(OWSLinkPreview, ConversationStyle)
     }
 
     public let previewType: PreviewType
@@ -39,6 +40,17 @@ public class LinkPreviewCallLink: LinkPreviewState {
         switch previewType {
         case .draft(let draft):
             return draft
+        case .sent:
+            return nil
+        }
+    }
+
+    private var sentPreview: OWSLinkPreview? {
+        switch previewType {
+        case .draft:
+            return nil
+        case .sent(let linkPreview, _):
+            return linkPreview
         }
     }
 
@@ -46,7 +58,7 @@ public class LinkPreviewCallLink: LinkPreviewState {
 
     public var urlString: String? {
         // Prefer the draft's URL string; fall back to the canonical call-link URL.
-        draft?.urlString ?? callLink.url().absoluteString
+        draft?.urlString ?? sentPreview?.urlString ?? callLink.url().absoluteString
     }
 
     public var displayDomain: String? {
@@ -57,7 +69,7 @@ public class LinkPreviewCallLink: LinkPreviewState {
     public var title: String? {
         // A call link has no server-resolved title in the draft preview; use the
         // draft title if one was provided, otherwise the localized call-link name.
-        if let title = draft?.title?.nilIfEmpty {
+        if let title = draft?.title?.nilIfEmpty ?? sentPreview?.title?.nilIfEmpty {
             return title
         }
         return OWSLocalizedString(
@@ -79,13 +91,20 @@ public class LinkPreviewCallLink: LinkPreviewState {
 
     public var imagePixelSize: CGSize { .zero }
 
-    public var previewDescription: String? { draft?.previewDescription }
+    public var previewDescription: String? { draft?.previewDescription ?? sentPreview?.previewDescription }
 
-    public var date: Date? { draft?.date }
+    public var date: Date? { draft?.date ?? sentPreview?.date }
 
     public var isGroupInviteLink: Bool { false }
 
     public var isCallLink: Bool { true }
 
-    public var conversationStyle: ConversationStyle? { nil }
+    public var conversationStyle: ConversationStyle? {
+        switch previewType {
+        case .draft:
+            return nil
+        case .sent(_, let conversationStyle):
+            return conversationStyle
+        }
+    }
 }

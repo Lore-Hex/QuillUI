@@ -63,6 +63,8 @@ public final class SCNGeometryElement: @unchecked Sendable {
     public let primitiveType: SCNGeometryPrimitiveType
     public let primitiveCount: Int
     public let bytesPerIndex: Int
+    public var indicesChannelCount: Int = 1
+    public var hasInterleavedIndicesChannels: Bool = false
 
     public init(
         data: Data,
@@ -82,13 +84,13 @@ public class SCNGeometry: @unchecked Sendable {
     public var materials: [SCNMaterial] = []
     public internal(set) var sources: [SCNGeometrySource] = []
     public internal(set) var elements: [SCNGeometryElement] = []
+    public var geometrySourceChannels: [NSNumber]?
 
     /// Shallow copy (SCNGeometry is NSCopying on macOS). Euclid calls
     /// `geometry.copy() as! SCNGeometry` before reading sources/elements.
     public func copy() -> Any {
         let g = SCNGeometry(sources: sources, elements: elements)
-        g.name = name
-        g.materials = materials
+        copyCommonProperties(to: g)
         return g
     }
 
@@ -118,6 +120,12 @@ public class SCNGeometry: @unchecked Sendable {
         sources.filter { $0.semantic == semantic }
     }
 
+    fileprivate func copyCommonProperties(to geometry: SCNGeometry) {
+        geometry.name = name
+        geometry.materials = materials
+        geometry.geometrySourceChannels = geometrySourceChannels
+    }
+
     /// Axis-aligned bounds (min, max) computed from the vertex source, matching
     /// `SCNGeometry.boundingBox`. Zero when there is no vertex data.
     public var boundingBox: (min: SCNVector3, max: SCNVector3) {
@@ -126,16 +134,15 @@ public class SCNGeometry: @unchecked Sendable {
                   vertexSource.vectorCount > 0 else {
                 return (SCNVector3(0, 0, 0), SCNVector3(0, 0, 0))
             }
+            let vertices = vertexSource.quillVector3Values()
+            guard !vertices.isEmpty else {
+                return (SCNVector3(0, 0, 0), SCNVector3(0, 0, 0))
+            }
             var lo = SCNVector3(.greatestFiniteMagnitude, .greatestFiniteMagnitude, .greatestFiniteMagnitude)
             var hi = SCNVector3(-.greatestFiniteMagnitude, -.greatestFiniteMagnitude, -.greatestFiniteMagnitude)
-            let stride = vertexSource.dataStride
-            vertexSource.data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-                for i in 0..<vertexSource.vectorCount {
-                    let base = vertexSource.dataOffset + i * stride
-                    let v = raw.loadUnaligned(fromByteOffset: base, as: SCNVector3.self)
-                    lo = SCNVector3(Swift.min(lo.x, v.x), Swift.min(lo.y, v.y), Swift.min(lo.z, v.z))
-                    hi = SCNVector3(Swift.max(hi.x, v.x), Swift.max(hi.y, v.y), Swift.max(hi.z, v.z))
-                }
+            for vertex in vertices {
+                lo = SCNVector3(Swift.min(lo.x, vertex.x), Swift.min(lo.y, vertex.y), Swift.min(lo.z, vertex.z))
+                hi = SCNVector3(Swift.max(hi.x, vertex.x), Swift.max(hi.y, vertex.y), Swift.max(hi.z, vertex.z))
             }
             return (lo, hi)
         }
@@ -143,9 +150,75 @@ public class SCNGeometry: @unchecked Sendable {
     }
 }
 
+extension SCNGeometrySource {
+    func quillVector3Values() -> [SCNVector3] {
+        guard let stride = quillValidatedVectorStride() else { return [] }
+        return data.withUnsafeBytes { raw in
+            (0..<vectorCount).compactMap { i in
+                let base = dataOffset + i * stride
+                guard let x = component(at: base, in: raw) else { return nil }
+                let y = componentsPerVector > 1 ? component(at: base + bytesPerComponent, in: raw) ?? 0 : 0
+                let z = componentsPerVector > 2 ? component(at: base + 2 * bytesPerComponent, in: raw) ?? 0 : 0
+                return SCNVector3(x, y, z)
+            }
+        }
+    }
+
+    private func quillValidatedVectorStride() -> Int? {
+        guard usesFloatComponents,
+              vectorCount > 0,
+              componentsPerVector > 0,
+              dataOffset >= 0,
+              (bytesPerComponent == MemoryLayout<Float>.size || bytesPerComponent == MemoryLayout<Double>.size) else {
+            return nil
+        }
+
+        let requiredBytesResult = componentsPerVector.multipliedReportingOverflow(by: bytesPerComponent)
+        guard !requiredBytesResult.overflow, requiredBytesResult.partialValue > 0 else { return nil }
+        let requiredBytes = requiredBytesResult.partialValue
+        let stride = dataStride > 0 ? dataStride : requiredBytes
+        guard stride >= requiredBytes else { return nil }
+
+        let lastIndex = vectorCount - 1
+        let lastStrideResult = lastIndex.multipliedReportingOverflow(by: stride)
+        guard !lastStrideResult.overflow else { return nil }
+        let lastBaseResult = dataOffset.addingReportingOverflow(lastStrideResult.partialValue)
+        guard !lastBaseResult.overflow else { return nil }
+        let lastEndResult = lastBaseResult.partialValue.addingReportingOverflow(requiredBytes)
+        guard !lastEndResult.overflow, lastEndResult.partialValue <= data.count else { return nil }
+        return stride
+    }
+
+    private func component(at offset: Int, in raw: UnsafeRawBufferPointer) -> CGFloat? {
+        guard offset >= 0, offset + bytesPerComponent <= raw.count else { return nil }
+        switch bytesPerComponent {
+        case MemoryLayout<Float>.size:
+            return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: Float.self))
+        case MemoryLayout<Double>.size:
+            return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: Double.self))
+        default:
+            return nil
+        }
+    }
+}
+
 // MARK: - Parametric primitives
 //
 // Each exposes the parameters the apps set; rendering reads them at rung 3.
+
+private func quillSymmetricBoundingBox(
+    xRadius: CGFloat,
+    yRadius: CGFloat,
+    zRadius: CGFloat
+) -> (min: SCNVector3, max: SCNVector3) {
+    let xRadius = max(0, xRadius)
+    let yRadius = max(0, yRadius)
+    let zRadius = max(0, zRadius)
+    return (
+        SCNVector3(-xRadius, -yRadius, -zRadius),
+        SCNVector3(xRadius, yRadius, zRadius)
+    )
+}
 
 // MARK: - Buffer-building convenience inits (Euclid's Mesh<->SCNGeometry path)
 
@@ -225,6 +298,19 @@ public final class SCNSphere: SCNGeometry, @unchecked Sendable {
         self.radius = radius
         super.init()
     }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get { quillSymmetricBoundingBox(xRadius: abs(radius), yRadius: abs(radius), zRadius: abs(radius)) }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNSphere(radius: radius)
+        geometry.isGeodesic = isGeodesic
+        geometry.segmentCount = segmentCount
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNBox: SCNGeometry, @unchecked Sendable {
@@ -240,6 +326,23 @@ public final class SCNBox: SCNGeometry, @unchecked Sendable {
         self.chamferRadius = chamferRadius
         super.init()
     }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            quillSymmetricBoundingBox(
+                xRadius: abs(width) / 2,
+                yRadius: abs(height) / 2,
+                zRadius: abs(length) / 2
+            )
+        }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNBox(width: width, height: height, length: length, chamferRadius: chamferRadius)
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNCylinder: SCNGeometry, @unchecked Sendable {
@@ -250,6 +353,23 @@ public final class SCNCylinder: SCNGeometry, @unchecked Sendable {
         self.radius = radius
         self.height = height
         super.init()
+    }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            quillSymmetricBoundingBox(
+                xRadius: abs(radius),
+                yRadius: abs(height) / 2,
+                zRadius: abs(radius)
+            )
+        }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNCylinder(radius: radius, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
 
@@ -264,6 +384,24 @@ public final class SCNCone: SCNGeometry, @unchecked Sendable {
         self.height = height
         super.init()
     }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            let radius = max(abs(topRadius), abs(bottomRadius))
+            return quillSymmetricBoundingBox(
+                xRadius: radius,
+                yRadius: abs(height) / 2,
+                zRadius: radius
+            )
+        }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNCone(topRadius: topRadius, bottomRadius: bottomRadius, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNCapsule: SCNGeometry, @unchecked Sendable {
@@ -274,6 +412,24 @@ public final class SCNCapsule: SCNGeometry, @unchecked Sendable {
         self.capRadius = capRadius
         self.height = height
         super.init()
+    }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            let radius = abs(capRadius)
+            return quillSymmetricBoundingBox(
+                xRadius: radius,
+                yRadius: max(abs(height) / 2, radius),
+                zRadius: radius
+            )
+        }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNCapsule(capRadius: capRadius, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
 
@@ -288,6 +444,23 @@ public final class SCNTube: SCNGeometry, @unchecked Sendable {
         self.height = height
         super.init()
     }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            quillSymmetricBoundingBox(
+                xRadius: abs(outerRadius),
+                yRadius: abs(height) / 2,
+                zRadius: abs(outerRadius)
+            )
+        }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNTube(innerRadius: innerRadius, outerRadius: outerRadius, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNTorus: SCNGeometry, @unchecked Sendable {
@@ -299,6 +472,24 @@ public final class SCNTorus: SCNGeometry, @unchecked Sendable {
         self.pipeRadius = pipeRadius
         super.init()
     }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            let radialRadius = abs(ringRadius) + abs(pipeRadius)
+            return quillSymmetricBoundingBox(
+                xRadius: radialRadius,
+                yRadius: radialRadius,
+                zRadius: abs(pipeRadius)
+            )
+        }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNTorus(ringRadius: ringRadius, pipeRadius: pipeRadius)
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 public final class SCNPlane: SCNGeometry, @unchecked Sendable {
@@ -309,6 +500,23 @@ public final class SCNPlane: SCNGeometry, @unchecked Sendable {
         self.width = width
         self.height = height
         super.init()
+    }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            quillSymmetricBoundingBox(
+                xRadius: abs(width) / 2,
+                yRadius: abs(height) / 2,
+                zRadius: 0
+            )
+        }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNPlane(width: width, height: height)
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
 
@@ -322,6 +530,23 @@ public final class SCNPyramid: SCNGeometry, @unchecked Sendable {
         self.height = height
         self.length = length
         super.init()
+    }
+
+    public override var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            quillSymmetricBoundingBox(
+                xRadius: abs(width) / 2,
+                yRadius: abs(height) / 2,
+                zRadius: abs(length) / 2
+            )
+        }
+        set { _ = newValue }
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNPyramid(width: width, height: height, length: length)
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
 
@@ -339,6 +564,15 @@ public final class SCNText: SCNGeometry, @unchecked Sendable {
         self.extrusionDepth = extrusionDepth
         super.init()
     }
+
+    public override func copy() -> Any {
+        let geometry = SCNText(string: string, extrusionDepth: extrusionDepth)
+        geometry.font = font
+        geometry.flatness = flatness
+        geometry.chamferRadius = chamferRadius
+        copyCommonProperties(to: geometry)
+        return geometry
+    }
 }
 
 /// Extruded 2D shape from a path.
@@ -351,5 +585,12 @@ public final class SCNShape: SCNGeometry, @unchecked Sendable {
         self.path = path
         self.extrusionDepth = extrusionDepth
         super.init()
+    }
+
+    public override func copy() -> Any {
+        let geometry = SCNShape(path: path, extrusionDepth: extrusionDepth)
+        geometry.chamferRadius = chamferRadius
+        copyCommonProperties(to: geometry)
+        return geometry
     }
 }
