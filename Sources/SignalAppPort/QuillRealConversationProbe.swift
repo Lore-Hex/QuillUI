@@ -78,10 +78,26 @@ public enum QuillSignalRealConversationProbe {
             let thread = TSContactThread.getOrCreateThread(withContactAddress: contactAddress, transaction: tx)
             ThreadAssociatedData.create(for: thread.uniqueId, transaction: tx)
 
+            guard var recipient = bootstrap.dependenciesBridge.recipientFetcher.fetchOrCreate(address: contactAddress, tx: tx) else {
+                throw .missingSeedRecipient
+            }
+            bootstrap.dependenciesBridge.recipientManager.markAsRegisteredAndSave(
+                &recipient,
+                shouldUpdateStorageService: false,
+                tx: tx,
+            )
+            bootstrap.dependenciesBridge.nicknameManager.createOrUpdate(
+                nicknameRecord: NicknameRecord(
+                    recipient: recipient,
+                    givenName: mode.contactGivenName,
+                    familyName: mode.contactFamilyName,
+                    note: nil,
+                ),
+                updateStorageServiceFor: nil,
+                tx: tx,
+            )
+
             if mode.shouldAcceptThread {
-                guard var recipient = bootstrap.dependenciesBridge.recipientFetcher.fetchOrCreate(address: contactAddress, tx: tx) else {
-                    throw .missingSeedRecipient
-                }
                 SSKEnvironment.shared.profileManagerRef.addRecipientToProfileWhitelist(
                     &recipient,
                     userProfileWriter: .localUser,
@@ -243,6 +259,24 @@ private enum SeedMode {
 
     var contactAddress: SignalServiceAddress {
         SignalServiceAddress(serviceId: contactAci, e164: contactE164)
+    }
+
+    var contactGivenName: String {
+        switch self {
+        case .pendingRequest:
+            return "Maya"
+        case .accepted:
+            return "Nina"
+        }
+    }
+
+    var contactFamilyName: String {
+        switch self {
+        case .pendingRequest:
+            return "Rivera"
+        case .accepted:
+            return "Park"
+        }
     }
 
     var shouldAcceptThread: Bool {
