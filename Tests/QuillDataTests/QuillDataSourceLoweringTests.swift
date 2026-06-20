@@ -1010,6 +1010,7 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_DEADLINE"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE"))
         #expect(functionalScript.contains("QUILLDATA_HOME=$RUN_HOME"))
+        #expect(functionalScript.contains("quillui_append_enchanted_reference_mode_environment app_environment"))
         #expect(functionalScript.contains("mock Ollama did not start"))
         #expect(functionalScript.contains("quillui_functional_xdotool()"))
         #expect(functionalScript.contains("quillui_functional_click_at()"))

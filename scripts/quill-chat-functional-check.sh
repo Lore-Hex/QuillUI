@@ -203,6 +203,7 @@ app_environment+=(
   "QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height"
   "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
 )
+quillui_append_enchanted_reference_mode_environment app_environment
 if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
   quillui_write_functional_attachment_fixture "$ATTACHMENT_PATH"
   app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$ATTACHMENT_PATH")
